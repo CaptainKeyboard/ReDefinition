@@ -26,6 +26,7 @@ $ini = Join-Path $Ksp 'ReDefinitionProxy.ini'
 $backup = "$ini.flip-probe-backup"
 $log = Join-Path $Ksp 'KSP.log'
 
+# Writes the proxy's ini as the backup with the given keys set: replaced where they stand, appended where not.
 function Set-Ini([hashtable]$set) {
     $lines = Get-Content $backup
     foreach ($key in $set.Keys) {
@@ -41,6 +42,8 @@ function Set-Ini([hashtable]$set) {
 $monitorArguments = @()
 if ($Monitor -gt 0) { $monitorArguments = @('-monitor', "$Monitor") }
 
+# Runs KSP with the flip probe and the arguments, ends it after the timeout, prints its flip sweep lines and returns
+# the recording's folder the log names, or null where the sweep did not finish.
 function Invoke-Run([string[]]$arguments) {
     $process = Start-Process -FilePath (Join-Path $Ksp 'KSP_x64.exe') -WorkingDirectory $Ksp -PassThru `
         -ArgumentList (@('-redefinitionProbe', '-redefinitionProbeFlip') + $arguments + $monitorArguments)

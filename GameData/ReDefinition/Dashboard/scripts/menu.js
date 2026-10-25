@@ -1,3 +1,4 @@
+// The dashboard's menu page (KSP loading, main menu), published as window.MenuPage for widget.js.
 (function () {
 	"use strict";
 	// The menu page: KSP's progress while it loads at its start, and in the main menu the saves, the
@@ -19,6 +20,7 @@
 	// science there and in science mode, vessels in every mode.
 	function stats(s) {
 		const career = s.mode === "CAREER", science = career || s.mode === "SCIENCE_SANDBOX";
+		// One figure of a card: its plate label over the value on an LCD.
 		const cell = (label, value) => '<div class="sstat"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 		let html = "";
 		if (career) html += cell("Funds", whole(s.funds));
@@ -29,6 +31,8 @@
 		return html;
 	}
 
+	// A save's card: name, mode, in-game date, its figures, when it was played, the KSP version it was
+	// made with where that differs, and its hold button; big is the Continue card of the latest save.
 	function card(s, big) {
 		const mode = s.mode ? MODES[s.mode] || s.mode : null;
 		return '<div class="msave' + (big ? " big" : "") + '">' +
@@ -40,6 +44,7 @@
 			"</div>";
 	}
 
+	// Lays out the saves, the latest as Continue and the rest below, and gives each button its hold to load.
 	function renderSaves(list) {
 		const latest = list[0];
 		$("mcontinue").innerHTML = '<div class="plate title">Continue</div>' + (latest ? card(latest, true) : '<div class="snote">No saves yet.</div>');
@@ -52,6 +57,8 @@
 			});
 	}
 
+	// Draws the page from the frame's data: loading progress while KSP loads, else the saves and whether
+	// their buttons may load now. connected is false in the demo.
 	function render(d, connected) {
 		const scene = d["g.scene"] || "MAINMENU";
 		if (lastScene && lastScene !== scene) {
@@ -94,6 +101,7 @@
 		$("mhint").textContent = pending ? "Loading " + pending.name + " ..." : scene === "MAINMENU" ? "" : "Back in KSP's main menu, a save can be loaded from here.";
 	}
 
+	// Gives the quit button its hold, once when the page is set up.
 	function build() {
 		hold($("mquit"), HOLD_QUIT, () => window.Dashboard.run("g.quit"));
 	}
@@ -102,6 +110,7 @@
 	// KSP loading, the bar running over and over (index.html#loading).
 	const DEMO_START = Date.now();
 	const DEMOS = ["#menu", "#loading"];
+	// The made-up frame for the demo at the moment now (ms), the loading bar cycling every 20 s.
 	function demo(now) {
 		const h = 3600 * 1000, loading = location.hash === "#loading", t = (now % 20000) / 20000;
 		return {

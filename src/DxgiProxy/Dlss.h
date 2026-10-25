@@ -20,6 +20,8 @@ namespace redefinition
     // and magic on every packet and by KspDlssPacketSize before the first.
     struct DlssPacket
     {
+        // The packet's size and magic; Unity's four textures as ID3D11Resource pointers; the render and output
+        // sizes.
         uint32_t size;
         uint32_t magic;
         void* colour;
@@ -43,6 +45,7 @@ namespace redefinition
         float motionVectorScaleY;
     };
 
+    // The packet's magic for DLSS, which OnPacket checks before reading the rest.
     constexpr uint32_t kDlssPacketMagic = 0x4B535044u;   // 'KSPD'
 
     // The layout the managed side's DlssBridge.DlssPacket is tested against
@@ -53,6 +56,8 @@ namespace redefinition
     static_assert(offsetof(DlssPacket, quality) == 56, "DlssPacket layout changed");
     static_assert(offsetof(DlssPacket, motionVectorScaleY) == 80, "DlssPacket layout changed");
 
+    // The packet's flags: an HDR colour target, reversed depth and automatic exposure (which the feature is
+    // made with), and a history reset for this frame.
     constexpr uint32_t kDlssHdr = 1u << 0;
     constexpr uint32_t kDlssDepthInverted = 1u << 1;
     constexpr uint32_t kDlssAutoExposure = 1u << 2;
@@ -63,6 +68,7 @@ namespace redefinition
     // Unity's, for its device.
     struct DlssSizeQuery
     {
+        // The query's size and magic, any of Unity's textures, and the output size asked about.
         uint32_t size;
         uint32_t magic;
         void* texture;
@@ -70,6 +76,7 @@ namespace redefinition
         uint32_t outputHeight;
     };
 
+    // The size query's magic, which OnSizeQuery checks before reading the rest.
     constexpr uint32_t kDlssSizeQueryMagic = 0x4B535051u;   // 'KSPQ'
 
     // As DlssBridge.SizeQuery (DlssPacketLayoutTests).
@@ -120,10 +127,14 @@ namespace redefinition
                          uint32_t minimum[2], uint32_t maximum[2]) const;
 
     private:
+        // Only Get makes it.
         Dlss() = default;
 
+        // One answer of DLSS's optimal settings, kept for RenderSizes.
         struct RenderSizeEntry
         {
+            // The output size and quality value asked, and the optimal, smallest and largest render size DLSS
+            // gave for them.
             uint32_t outputWidth;
             uint32_t outputHeight;
             int32_t quality;
@@ -131,18 +142,29 @@ namespace redefinition
             uint32_t minimum[2];
             uint32_t maximum[2];
         };
+        // How many render sizes are kept (StoreRenderSize, the oldest replaced).
         static constexpr size_t kRenderSizeEntries = 8;
 
         bool QueryRenderSize(uint32_t outputWidth, uint32_t outputHeight, int32_t quality, RenderSizeEntry& entry,
                              std::string& error);
         void StoreRenderSize(const RenderSizeEntry& entry);
+        // NGX started on the textures' device with the folders for nvngx_dlss.dll, its capability checked and a
+        // parameter map taken; not tried again on a device it failed on until what it searches changes.
         bool EnsureInitialised(ID3D11Device* device);
+        // The feature made for the packet's sizes, quality, preset and creation flags, at the render size DLSS
+        // accepts for them; a failure stands for those settings.
         bool EnsureFeature(ID3D11DeviceContext* context, const DlssPacket& packet);
+        // The packet's textures, jitter, motion vector scale and reset into the map, and the feature evaluated on
+        // Unity's context; a failure sets the status, the first one logged.
         bool Evaluate(ID3D11DeviceContext* context, const DlssPacket& packet);
+        // The feature let go, so that the next packet makes one anew.
         void ReleaseFeature();
+        // The feature released, the parameter map let go where NGX allocated it, and NGX shut down on the device.
         void Shutdown();
+        // The state and text Status reports, under mutex; a stop is logged where it changes.
         void SetStatus(int state, const std::string& text);
 
+        // The driver's NGX core, and the device NGX was started on.
         HMODULE core = nullptr;
         Microsoft::WRL::ComPtr<ID3D11Device> device;
         // The device NGX's start last failed on, and what its search for

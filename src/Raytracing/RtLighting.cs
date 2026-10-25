@@ -11,8 +11,11 @@ namespace ReDefinition.Raytracing
     // raytracing goes, or when another shader takes the place meanwhile.
     internal static class RtLighting
     {
+        // The name of Deferred's reflections shader, the only one replaced.
         internal const string DeferredReflectionsName = "Deferred/Internal-DeferredReflections";
 
+        // Whether Keep has run since the last Restore; the shaders and the shadows' mode set before, to come back; and
+        // ReDefinition's own, which Restore takes out only where still in place.
         private static bool installed;
         private static BuiltinShaderMode shadowsModeBefore;
         private static Shader shadowsBefore;
@@ -20,6 +23,8 @@ namespace ReDefinition.Raytracing
         private static Shader ownShadows;
         private static Shader ownReflections;
 
+        // Whether ReDefinition's deferred reflections are in Deferred's place this frame: the lighting then comes
+        // through Deferred's ambient pass rather than the forward light.
         internal static bool ReflectionsReplaced { get; private set; }
 
         // Every frame while raytracing runs: the shaders in place, again where Deferred

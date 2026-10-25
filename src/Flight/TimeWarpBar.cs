@@ -10,11 +10,13 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {
+    // Better Time Warp's button in the flight's time panel.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class TimeWarpBarFlight : TimeWarpBar
     {
     }
 
+    // Better Time Warp's button in the space centre's time panel.
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class TimeWarpBarSpaceCentre : TimeWarpBar
     {
@@ -37,6 +39,7 @@ namespace ReDefinition.Flight
         private static System.Func<object, GUIContent> readContent;
         private static readonly System.Func<object, GUIContent> ReflectContent = target => ContentField.GetValue(target) as GUIContent;
 
+        // The copy of the MET button, once built.
         private GameObject bar;
         // What Build adds to the sunrise extension to join it to the area, shown and
         // hidden with it.
@@ -45,13 +48,16 @@ namespace ReDefinition.Flight
         // The time panel and the mod were found: the copy follows the mod's own switches
         // from then on (Follow), checked once a second.
         private bool found;
+        // Whether the copy is built, and whether building it failed; when Follow looks next.
         private bool built;
         private bool failed;
         private float followAt;
+        // The copy's transform, and KSP's slide that folds the time panel away.
         private RectTransform barRect;
         private UIHoverSlidePanel slide;
         // The button's place in the panel while the panel is unfolded.
         private Vector3 unfolded;
+        // The copy's arrow, the MET button's label, the mod's component, and the mod's arrow shown now.
         private Image icon;
         private TextMeshProUGUI label;
         private MonoBehaviour mod;
@@ -60,6 +66,7 @@ namespace ReDefinition.Flight
         private readonly List<Sprite> made = new List<Sprite>();
         private readonly Dictionary<Texture2D, Sprite> icons = new Dictionary<Texture2D, Sprite>();
 
+        // Waits for the MET button's label, the sunrise extension and Better Time Warp, then follows the mod's switches.
         private IEnumerator Start()
         {
             System.Type type = TypeLookup.Find(TimeWarpButton.ModType);
@@ -115,6 +122,7 @@ namespace ReDefinition.Flight
                       + ", as the mod's own settings say.");
         }
 
+        // Builds the copy; where that fails, nothing of it stays and the mod's own button counts again.
         private void TryBuild()
         {
             try
@@ -136,6 +144,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The first loaded component of that type in a scene; null for none.
         private static T Find<T>() where T : Component
         {
             foreach (T found in Resources.FindObjectsOfTypeAll<T>())
@@ -143,6 +152,7 @@ namespace ReDefinition.Flight
             return null;
         }
 
+        // The copy of the MET button at the end of the warp row, joined to the sunrise extension.
         private void Build(UIWarpToNextMorning sunrise)
         {
             RectTransform row = label.transform.parent as RectTransform;
@@ -443,6 +453,7 @@ namespace ReDefinition.Flight
             image.raycastTarget = false;
         }
 
+        // Every frame: the mod's switches followed once a second, the copy kept in its place, and its arrow the mod's.
         private void LateUpdate()
         {
             if (!found) return;
@@ -466,6 +477,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The mod's button content, read through the compiled getter, or by reflection where the runtime refuses it.
         private GUIContent Content()
         {
             if (readContent == null || mod == null) return null;

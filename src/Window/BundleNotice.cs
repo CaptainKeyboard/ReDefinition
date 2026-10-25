@@ -18,6 +18,7 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class BundleNotice : MonoBehaviour
     {
+        // Two seconds after the main menu opens: the question to the player, or the note for mods installed since.
         private IEnumerator Start()
         {
             // After the menu has settled and the other mods' own messages.
@@ -138,6 +139,7 @@ namespace ReDefinition.Window
             return rows;
         }
 
+        // Whether every one of those mods' buttons is to be hidden; false for none.
         private static bool AllHidden(List<IBundledMod> mods)
         {
             foreach (IBundledMod mod in mods)

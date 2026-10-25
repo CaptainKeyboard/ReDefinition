@@ -10,6 +10,7 @@ namespace ReDefinition.Window
     // The line is short; its tooltip names each setting and when it arrives.
     internal static partial class SettingsWindow
     {
+        // How many waiting changes the tooltip lists by name, and the yellow the line is drawn in.
         private const int WaitingListed = 8;
         private const string Yellow = "#f5d800";
 
@@ -17,6 +18,7 @@ namespace ReDefinition.Window
         // arrives.
         private sealed class WaitingChange
         {
+            // The row's name, the mod it belongs to (or ReDefinition), and when it takes effect.
             public string Title;
             public string Owner;
             public ApplyWindow Window;
@@ -123,6 +125,7 @@ namespace ReDefinition.Window
             return list;
         }
 
+        // The key "Replace original settings" waits under.
         private const string ReplaceKey = "redefinition.replaceKspSettings";
 
         // Worked out again only when the rows have changed or a second has passed:
@@ -140,6 +143,7 @@ namespace ReDefinition.Window
             return waitingRestart;
         }
 
+        // Makes the line and its tooltip afresh, where the rows changed or a second has passed.
         private static void RefreshWaiting()
         {
             float now = UnityEngine.Time.unscaledTime;

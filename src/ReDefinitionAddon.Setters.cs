@@ -56,12 +56,14 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " Diagnostic measurements " + (value ? "on" : "off") + ".");
         }
 
+        // Built into the rig's mipmap bias: a new rig.
         private void SetMipmapBias(bool value)
         {
             mipmapBias = value;
             Reattach();
         }
 
+        // Live: the rig sets the LOD bias in QualitySettings anew at once.
         private void SetCompensateLodBias(bool value)
         {
             compensateLodBias = value;
@@ -69,6 +71,7 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " LOD bias compensation " + (compensateLodBias ? "on" : "off"));
         }
 
+        // Live: the rig sets the MSAA override in QualitySettings anew at once.
         private void SetDisableMsaa(bool value)
         {
             disableMsaa = value;
@@ -76,6 +79,7 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " MSAA override " + (disableMsaa ? "on" : "off"));
         }
 
+        // Live: the rig sets the anisotropic filtering override in QualitySettings anew at once.
         private void SetForceAnisotropic(bool value)
         {
             forceAnisotropic = value;
@@ -108,6 +112,7 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " Transparency mask " + (transparencyMask ? "on" : "off"));
         }
 
+        // Live: the rig takes the reactive mask's source in the next frame.
         private void SetReactiveMask(UpscalerMasks.ReactiveSource value)
         {
             reactiveMask = value;
@@ -115,6 +120,7 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " Reactive mask: " + ReactiveLabel(reactiveMask));
         }
 
+        // The reactive mask's source in the log's words.
         private static string ReactiveLabel(UpscalerMasks.ReactiveSource source)
         {
             switch (source)
@@ -237,6 +243,7 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " Frame generation multiplier " + choice);
         }
 
+        // A new rig at the new mode; a technique that failed at the old one is tried again.
         private void SetQuality(Fsr3Upscaler.QualityMode mode)
         {
             if (quality == mode) return;

@@ -38,6 +38,7 @@ namespace redefinition
 {
     namespace
     {
+        // The cut-out's size at most, around the middle of the window, and the most frames one recording takes.
         constexpr UINT kCutWidth = 1600;
         constexpr UINT kCutHeight = 900;
         constexpr int kMaxFrames = 120;
@@ -47,10 +48,12 @@ namespace redefinition
         // The game's frames, where the desktop's copy is refused (RecordBackBuffer).
         struct BackBufferFrame
         {
+            // The frame's copy for reading back, its present time, and its pixels once read.
             ComPtr<ID3D11Texture2D> staging;
             LONGLONG presentTime = 0;
             std::vector<uint8_t> pixels;
         };
+        // The recording of the game's frames: frames still to take, the next taken one to read back, and the folder.
         std::mutex g_backLock;
         int g_backWanted = 0;
         size_t g_backRead = 0;
@@ -82,6 +85,7 @@ namespace redefinition
             return frame;
         }
 
+        // The Presents noted so far, taken out of the shared list.
         std::vector<std::pair<LONGLONG, uint32_t>> TakePresents()
         {
             std::lock_guard<std::mutex> lock(g_presentLock);
@@ -90,6 +94,7 @@ namespace redefinition
             return presents;
         }
 
+        // The noted Presents into presents.txt in the folder: each one's time in milliseconds and the game's frame.
         void WritePresents(const std::wstring& folder, const std::vector<std::pair<LONGLONG, uint32_t>>& presents,
                            LONGLONG frequency)
         {
@@ -109,9 +114,11 @@ namespace redefinition
             }
         }
 
+        // The state the status reports, under its own lock.
         std::mutex g_stateLock;
         std::string g_state = "never started";
 
+        // What the recorder last did, for the status (ScreenRecordingState).
         void SetState(const std::string& state)
         {
             std::lock_guard<std::mutex> lock(g_stateLock);
@@ -156,6 +163,7 @@ namespace redefinition
             }
         }
 
+        // A BGRA8 image into a PNG file at path through WIC; false where any step fails.
         bool WritePng(IWICImagingFactory* wic, const std::wstring& path, const uint8_t* pixels, UINT width,
                       UINT height, UINT pitch)
         {
@@ -175,6 +183,8 @@ namespace redefinition
                    && SUCCEEDED(frame->Commit()) && SUCCEEDED(encoder->Commit());
         }
 
+        // The recording thread: the desktop duplicated on the window's monitor and the cut-out of each frame written
+        // as a PNG, or the game's frames through RecordBackBuffer where duplication is refused; its end in the state.
         void Record(int frames, std::wstring folder, HWND window)
         {
             HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);

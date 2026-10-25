@@ -11,6 +11,7 @@ namespace ReDefinition.Flight
     // 1 in the caution band, 2 in the warning band.
     internal sealed class GaugeReading
     {
+        // In the order the class's comment names them; Level 0, 1 or 2.
         internal string Text;
         internal double Fill;
         internal double[] Caution;
@@ -24,6 +25,7 @@ namespace ReDefinition.Flight
     // second.
     internal struct EngineFuel
     {
+        // The part's name, for the log; the propellant now and full, in tonnes; the flow, in tonnes per second.
         internal string Name;
         internal double Left;
         internal double Full;
@@ -171,6 +173,7 @@ namespace ReDefinition.Flight
         // from four fifths of it.
         internal const double AttackScale = 40.0;
 
+        // The angle of attack against `stall`, the wings' angle of most lift, in degrees.
         internal static GaugeReading Attack(double attack, double stall)
         {
             double size = Math.Abs(attack);

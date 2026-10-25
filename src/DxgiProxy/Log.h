@@ -11,9 +11,12 @@
 // Written next to the game executable as ReDefinitionProxy.log.
 namespace redefinition
 {
+    // Opens the log file anew, emptying it; nothing where it is already open.
     void LogOpen();
+    // Closes the file; lines after it go nowhere.
     void LogClose();
 
+    // One line with the local time in front, flushed at once; nothing while the log is closed.
     void LogLine(const std::string& text);
 
     // Formats an HRESULT as 0x........ so failures can be looked up directly.

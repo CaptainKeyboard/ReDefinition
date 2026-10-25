@@ -31,6 +31,8 @@ namespace ReDefinition.Upscaler
     // are.
     internal static class EveCloudMotion
     {
+        // EVE's types by full name -- the clouds' renderer per camera, the helper that hands out the projection
+        // without jitter, the composite onto the screen -- and the Harmony id of the hooks.
         private const string RendererTypeName = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
         private const string VrUtilsTypeName = "Utils.VRUtils";
         private const string ToScreenTypeName = "Atmosphere.DeferredRaymarchedRendererToScreen";
@@ -57,11 +59,15 @@ namespace ReDefinition.Upscaler
         // saved; on at every start.
         internal static bool Enabled = true;
 
+        // The global that hands CloudMotionVectors half the change of the jitter, and the properties EVE sets
+        // on its composite: the clouds' fade and their shell's radii.
         private static readonly int JitterDeltaId = Shader.PropertyToID("_ReDefinitionCloudJitterDelta");
         private static readonly int FadeId = Shader.PropertyToID("cloudFade");
         private static readonly int InnerRadiusId = Shader.PropertyToID("innerSphereRadius");
         private static readonly int OuterRadiusId = Shader.PropertyToID("outerSphereRadius");
 
+        // EVE's members, looked up once by Resolve: the renderer's camera, its reconstruction shader, the
+        // composite object and its material field; the composite material last found and when to look again.
         private static bool resolved;
         private static FieldInfo targetCamera;
         private static FieldInfo reconstructionShader;
@@ -74,6 +80,7 @@ namespace ReDefinition.Upscaler
         private static Camera preparing;
         private static readonly Dictionary<int, string> loggedOutcomes = new Dictionary<int, string>();
 
+        // Whether EVE's volumetric clouds renderer is installed, with the camera field the hooks read.
         public static bool Present
         {
             get
@@ -137,6 +144,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Finalizer of EVE's OnPreRender: the camera prepared is forgotten however OnPreRender ended, and its
+        // exception, where it threw, passes on unchanged.
         private static Exception AfterPreRender(Exception __exception)
         {
             preparing = null;
@@ -268,6 +277,7 @@ namespace ReDefinition.Upscaler
             return composite;
         }
 
+        // Looks EVE's renderer and composite members up once; each stays null where EVE lacks it.
         private static void Resolve()
         {
             if (resolved) return;

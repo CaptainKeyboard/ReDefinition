@@ -8,6 +8,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class AutoAltimeterTests
     {
+        // In flight below 5 km it switches to the height above the ground, above 6 km to the height above the sea.
         [TestMethod]
         public void GroundBelowLowSeaAboveHigh()
         {
@@ -15,6 +16,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(AltimeterDisplayState.ASL, AutoAltimeter.Rule(false, 7000, AltimeterDisplayState.AGL));
         }
 
+        // Between 5 and 6 km it keeps the mode it had, so it does not flip back and forth around one height;
+        // from KSP's DEFAULT it takes the sea.
         [TestMethod]
         public void BetweenKeepsWhatItWas()
         {
@@ -23,6 +26,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(AltimeterDisplayState.ASL, AutoAltimeter.Rule(false, 5500, AltimeterDisplayState.DEFAULT));
         }
 
+        // On the ground the altimeter shows the height above it, however high the ground lies.
         [TestMethod]
         public void OnTheGroundIsTheGround()
         {

@@ -7,6 +7,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class TufxPostProcessingTests
     {
+        // TUFX's tonemapping and colour grading, bloom and the lens and camera effects are drawn after the
+        // upscaler, at display resolution.
         [TestMethod]
         public void TonemappingBloomAndTheLensEffectsGoAfterFsr()
         {
@@ -18,6 +20,8 @@ namespace ReDefinition.Tests
                 Assert.IsTrue(TufxPostProcessing.AfterUpscaling(effect, true, "BeforeTransparent"), effect);
         }
 
+        // Ambient occlusion, screen-space reflections and auto exposure work on the scene at render resolution
+        // and stay before the upscaler.
         [TestMethod]
         public void OcclusionReflectionsAndExposureStayBeforeFsr()
         {
@@ -25,6 +29,8 @@ namespace ReDefinition.Tests
                 Assert.IsFalse(TufxPostProcessing.AfterUpscaling(effect, true, "BeforeTransparent"), effect);
         }
 
+        // An effect from another mod is drawn after the upscaler only where it injects itself after the stack;
+        // a built-in name counts only for PostProcessing's own effects.
         [TestMethod]
         public void AnotherModsEffectGoesWhereItInjectsItself()
         {

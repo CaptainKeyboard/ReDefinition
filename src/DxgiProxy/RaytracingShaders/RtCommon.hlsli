@@ -1,5 +1,5 @@
 // What every raytracing pass shares: the bindings of the service's root signature
-// (Raytracing.cpp, BuildPipelinesLocked), the frame's constants as RtFramePacket
+// (RaytracingDevice.cpp, BuildPipelinesLocked), the frame's constants as RtFramePacket
 // carries them, and the helpers to rebuild a pixel's position and to sample.
 //
 // Positions are camera-relative: the world's axes, the camera at the origin.
@@ -18,8 +18,12 @@
 #define RT_AT_W_(r) packoffset(c##r.w)
 #define RT_AT_W(r) RT_AT_W_(r)
 
+// The frame's constants (Raytracing.h, RtFrameConstants, written by WriteConstantsLocked),
+// each field in the register the contract gives it.
 cbuffer Frame : register(b0)
 {
+    // The camera's matrices, rows first: clip to camera-relative world, back, and the frame
+    // before's world to clip; then the sun, the sky, the parameters (AO_DISTANCE and on).
     row_major float4x4 clipToWorld : RT_AT(RT_CB_CLIP_TO_WORLD);
     row_major float4x4 worldToClip : RT_AT(RT_CB_WORLD_TO_CLIP);
     row_major float4x4 prevWorldToClip : RT_AT(RT_CB_PREV_WORLD_TO_CLIP);
@@ -92,8 +96,13 @@ cbuffer Frame : register(b0)
     uint4 cacheSizes : RT_AT(RT_CB_CACHE_SIZES);
 };
 
+// Per instance of the scene, by its InstanceID (Raytracing.h, InstanceData; GpuInstances.hlsl
+// writes the GPU's).
 struct InstanceData
 {
+    // The mesh's descriptor slot into meshIndices and meshAttributes, the material's index in
+    // materialData, the instance's flags (RT_INSTANCE_*), padding; then the normals' matrix,
+    // the inverse transpose of the transform's 3x3, in three padded rows.
     uint meshSlot;
     uint material;
     uint flags;
@@ -103,8 +112,11 @@ struct InstanceData
     float4 normalRow2;
 };
 
+// A material as the proxy writes it (Raytracing.h, MaterialData), by its index.
 struct MaterialData
 {
+    // Linear albedo with the cut-out's alpha threshold in w, specular colour, smoothness,
+    // emitted radiance, and the layer of materialTextures (-1 for none).
     float4 albedo;
     float3 specular;
     float smoothness;
@@ -122,18 +134,23 @@ struct MaterialData
     float4 highlight;
 };
 
+// A vertex's attributes as SetMesh lays them out, six floats (Raytracing.h, PendingMesh).
 struct VertexAttributes
 {
+    // The mesh's normal and texture coordinates, and its colour.
     float3 normal;
     float2 uv;
     uint color;   // RGBA, a byte each, R lowest
 };
 
+// A vertex colour's rgb from 0 to 1; alpha is left out.
 float3 UnpackColor(uint c)
 {
     return float3(c & 0xFFu, (c >> 8) & 0xFFu, (c >> 16) & 0xFFu) * (1.0f / 255.0f);
 }
 
+// The scene's top-level structure, then the frame's inputs (Raytracing.h, kRtInput*): the depth
+// as Direct3D's clip-space z, reversed; Unity's G-buffer; the motion vectors.
 RaytracingAccelerationStructure scene : register(t0);
 Texture2D<float> depthTexture : register(t1);
 Texture2D<float4> gbuffer0 : register(t2);
@@ -191,6 +208,7 @@ static const float kFp16Max = RT_FP16_MAX;
 static const float kDiscHit = RT_DISC_HIT;
 static const float kWaterHitLimit = RT_WATER_HIT_LIMIT;
 static const float kWaterSky = RT_WATER_SKY;
+// Whether the main body's sea is KSP's own, found by its level (lightParams.w).
 #define STOCK_WATER (lightParams.w > 0.5f)
 
 // The light transport is linear: sums and averages of light -- a hemisphere of sky and
@@ -216,6 +234,7 @@ float3 OutputColor(float3 c)
     return max(1.055f * pow(c, 0.416666667f) - 0.055f, 0.0f);
 }
 
+// Pi, to the float's precision, for the samplers and the shading terms.
 static const float kPi = 3.14159265358979f;
 
 // The camera-relative position a clip-space point stands for.
@@ -238,6 +257,7 @@ bool IsSky(float depth)
     return depth <= 0.0f;
 }
 
+// The world normal from Unity's G-buffer encoding, n * 0.5 + 0.5 (gbuffer2).
 float3 DecodeNormal(float4 encoded)
 {
     return normalize(encoded.xyz * 2.0f - 1.0f);
@@ -269,11 +289,14 @@ uint Pcg(uint value)
     return (word >> 22u) ^ word;
 }
 
+// One stream of the random numbers, MakeRandom's and NextFloat's.
 struct Random
 {
+    // The last hash, which the next draw hashes again.
     uint state;
 };
 
+// The stream for a pixel and a frame, one of several (stream) per pass.
 Random MakeRandom(uint2 pixel, uint frame, uint stream)
 {
     Random r;
@@ -281,6 +304,7 @@ Random MakeRandom(uint2 pixel, uint frame, uint stream)
     return r;
 }
 
+// The stream's next number, uniform in [0, 1), from the hash's upper 24 bits.
 float NextFloat(inout Random r)
 {
     r.state = Pcg(r.state);
@@ -354,6 +378,12 @@ uint CutoutRayFlags()
     return (frameFlags & RT_FLAG_CUTOUT_OPAQUE) != 0u ? RAY_FLAG_FORCE_OPAQUE : RAY_FLAG_NONE;
 }
 
+// The triangle a ray query's hit is on in its mesh's index buffer. RTX Mega Geometry's cluster
+// structures (RaytracingMegaGeometry.cpp, rtMegaGeometry) number the triangles within each
+// cluster of 256 and give the cluster's number as the geometry index; every other structure
+// has one geometry, index 0.
+#define RT_TRIANGLE(query, which) (query.which##GeometryIndex() * 256u + query.which##PrimitiveIndex())
+
 // Whether a candidate hit of the non-opaque geometry counts: terrain only past
 // terrainSkip; a cut-out surface where its texture covers the point. The alpha of a
 // cut-out material's small texture is how much of each texel its full-size texture
@@ -362,12 +392,6 @@ uint CutoutRayFlags()
 // average the surface lets through what its cut-out does (Raytracing.h,
 // kRtInstanceCutout). A cut-out surface whose texture is not read yet lets every ray
 // through: an opaque card would shade the ground under it as a square.
-// The triangle a ray query's hit is on in its mesh's index buffer. RTX Mega Geometry's cluster
-// structures (RaytracingMegaGeometry.cpp, rtMegaGeometry) number the triangles within each
-// cluster of 256 and give the cluster's number as the geometry index; every other structure
-// has one geometry, index 0.
-#define RT_TRIANGLE(query, which) (query.which##GeometryIndex() * 256u + query.which##PrimitiveIndex())
-
 bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, float terrainSkip, float3 origin)
 {
     InstanceData instance = instanceData[instanceId];
@@ -507,6 +531,9 @@ float SmoothnessToAlpha(float smoothness)
 // ray, its texture coordinate and material.
 struct Hit
 {
+    // Whether it met anything, how far along the ray (the ray's length where not), the point,
+    // the normal, the texture coordinate, the vertex colour, the material's index, and the
+    // instance's flags.
     bool found;
     float distance;
     float3 position;
@@ -600,13 +627,10 @@ float3 Albedo(MaterialData material, float2 uv, float3 color)
     return albedo;
 }
 
-// The main body's cloud layer (EVE; RtEveClouds in the game): what of a light's ray from a
-// point towards it gets through, as EVE's own screen-space cloud shadow takes it for the
-// sun (its ScreenSpaceCloudShadow shader, volumetric variant): where the ray leaves the
-// shadow's sphere (cloudRadii.x) above the point, the coverage and the density curve at
-// that height from the layer's map (cloudTexture), the transmittance 1 / (1 + 7d + 26d^2),
-// tinted by the shadow's colour at the shadow's strength, faded in as the light comes
-// from above and below the sphere. 1 without a layer.
+// The main body's cloud layer (EVE; RtEveClouds in the game): where a light's ray from a point
+// below the shadow's sphere (cloudRadii.x) leaves it, and the fade it takes there, as the
+// light comes from above the sphere and the point lies below it; false without a layer or
+// above the sphere (CloudTransmittance).
 bool CloudExit(float3 position, float3 towards, out float3 at, out float fade)
 {
     at = position;
@@ -650,6 +674,13 @@ float CloudTransmittanceAt(float3 at)
     return 1.0f / (1.0f + 7.0f * density + 26.0f * density * density);
 }
 
+// What of a light's ray from a point towards it gets through the main body's cloud layer, as
+// EVE's own screen-space cloud shadow takes it for the sun (its ScreenSpaceCloudShadow shader,
+// volumetric variant): where the ray leaves the shadow's sphere above the point
+// (CloudExit), the coverage and the density curve at that height from the layer's map
+// (cloudTexture), the transmittance 1 / (1 + 7d + 26d^2), tinted by the shadow's colour at
+// the shadow's strength, faded in as the light comes from above and below the sphere. 1
+// without a layer.
 float3 CloudTransmittance(float3 position, float3 towards)
 {
     float3 at;
@@ -805,6 +836,8 @@ float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, flo
 static const float kStockWaterBand = 2.0f;
 static const float kWaterLeastRoughness = 0.004f;
 
+// Whether the camera's pixel at position, with its G-buffer normal, is KSP's own sea, by the
+// test the comment above describes.
 bool IsStockWater(float3 position, float3 normal)
 {
     float3 up = position - bodySphere.xyz;
@@ -889,11 +922,14 @@ float3 RippleNoise(float2 p, uint octave)
 // player) the plane under the camera.
 struct SeaFrame
 {
+    // The sea's up, east and north; the pixel's place in metres east and north and the view's
+    // direction in the plane; the water the pixel covers across and along the view.
     float3 up, east, north;
     float2 at, along;
     float acrossFootprint, alongFootprint;
 };
 
+// The sea's frame under a camera-relative point, the pixel covering acrossFootprint metres.
 SeaFrame MakeSeaFrame(float3 position, float acrossFootprint)
 {
     SeaFrame f;
@@ -955,6 +991,8 @@ float3 SeaRipples(SeaFrame f, float scale)
     return float3(slope, lost);
 }
 
+// KSP's own sea's normal and roughness at a point, the waves and ripples above kStockWaves
+// describes summed over the sea's frame.
 float4 StockWaves(float3 position, float acrossFootprint)
 {
     SeaFrame f = MakeSeaFrame(position, acrossFootprint);
@@ -1178,6 +1216,7 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
 // the depth gives, which lands on the triangle Unity drew there.
 struct SurfaceData
 {
+    // The world normal, Unity's smoothness, the albedo (linear) and the specular colour.
     float3 normal;
     float smoothness;
     float3 albedo;
@@ -1210,12 +1249,16 @@ struct SurfaceData
 static const float kLegacyShininessPower = 0.215f;
 static const float kStandardDielectric = 0.2209163f;
 
+// Whether a G-buffer specular colour is Deferred's from a legacy part shader: no channel
+// over 1 / pi, and not the standard shader's dielectric grey.
 bool LegacySpecular(float3 specular)
 {
     return max(specular.r, max(specular.g, specular.b)) <= 1.0f / kPi + 0.004f
            && any(abs(specular - kStandardDielectric) > 0.002f);
 }
 
+// The G-buffer's smoothness taken back to the legacy shininess and on to the smoothness of
+// Beckmann's match, as the comment above kLegacyShininessPower says; as it is elsewhere.
 float LegacySmoothness(float smoothness, float3 specular)
 {
     if (!LEGACY_SMOOTHNESS || WATER_SURFACE || !LegacySpecular(specular))
@@ -1299,11 +1342,14 @@ float LawnShare(float3 drawn)
 // brighter.
 static const float kLawnOcclusion = 0.86f;
 
+// The occlusion the lawn's share of a pixel takes (kLawnOcclusion), 1 for none of it.
 float LawnOcclusion(float3 drawn)
 {
     return lerp(1.0f, kLawnOcclusion, LawnShare(drawn));
 }
 
+// The meadow's shade, or the lawn's lift, at a pixel's drawn colour, as the comment above
+// kLawnLift says; `lift` the share of kLawnLift the lawn takes.
 float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 1.0f)
 {
     if (!HAS_GBUFFER)
@@ -1444,6 +1490,9 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     return float4(g1.rgb, min(g1.a, kMostSmoothness));
 }
 
+// A pixel's surface (SurfaceData): the G-buffer's, with the intended shine where the sun's pass
+// found it; else the material of the triangle the camera's ray meets at the depth; else a
+// grey guess on the depth's normal, found false.
 SurfaceData SurfaceAt(uint2 pixel, float3 position)
 {
     SurfaceData surface;
@@ -1493,6 +1542,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
     return surface;
 }
 
+// A pixel's normal alone: the G-buffer's where there is one, without tracing.
 float3 SurfaceNormal(uint2 pixel, float3 position)
 {
     return HAS_GBUFFER ? DecodeNormal(gbuffer2[pixel]) : SurfaceAt(pixel, position).normal;

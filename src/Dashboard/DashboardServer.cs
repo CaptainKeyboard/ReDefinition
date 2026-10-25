@@ -20,10 +20,14 @@ namespace ReDefinition.Dashboard
         // Fixed on purpose: a dashboard's manifest, the iCUE widget's, names the port it may talk to.
         public const int Port = 8765;
 
+        // The letters a new key is drawn from: lower case and digits without l, o, 0 and 1, which read alike.
         private const string KeyLetters = "abcdefghijkmnpqrstuvwxyz23456789";
 
+        // One client's state (WebSocketServer.Client.State): what it reads, how often, and what it was sent.
         private sealed class Subscriptions
         {
+            // The keys sent with every update, the keys read once with the next one, the time between
+            // updates, and when the next one is due (Time.realtimeSinceStartup).
             public readonly HashSet<string> Keys = new HashSet<string>();
             public readonly List<string> OneShot = new List<string>();
             public float IntervalSeconds = 0.5f;
@@ -32,12 +36,15 @@ namespace ReDefinition.Dashboard
             public readonly Dictionary<string, string> Sent = new Dictionary<string, string>();
         }
 
+        // A message from a network thread, waiting for Update: the client that sent it and its text.
         private struct Incoming
         {
+            // The sender and the message's JSON text.
             public WebSocketServer.Client Client;
             public string Text;
         }
 
+        // The running server, null while none listens (not started yet, or the port was taken).
         private WebSocketServer server;
         // What the server was last started with, null for not yet; it is started again where the
         // settings differ.
@@ -46,6 +53,7 @@ namespace ReDefinition.Dashboard
         private Telemetry telemetry;
         private readonly ConcurrentQueue<Incoming> incoming = new ConcurrentQueue<Incoming>();
 
+        // The folder the dashboard's pages, scripts and pictures are served from.
         private static string WebRoot
         {
             get { return KSPUtil.ApplicationRootPath + "GameData/ReDefinition/Dashboard"; }
@@ -75,17 +83,21 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // Kept across scenes; the telemetry's readers and commands are built once.
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
             telemetry = new Telemetry();
         }
 
+        // Closes the listener and every client as the game quits.
         private void OnDestroy()
         {
             if (server != null) server.Stop();
         }
 
+        // Each frame: (re)starts the server where the settings changed, feeds the fly-by-wire the active vessel,
+        // handles the queued messages, and sends each client whose interval is up the keys that changed.
         private void Update()
         {
             OwnSettings settings = Settings;
@@ -137,6 +149,7 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // A random key of eight letters for the settings, made where the file has none.
         private static string NewKey()
         {
             var random = new System.Random();
@@ -145,6 +158,8 @@ namespace ReDefinition.Dashboard
             return key.ToString();
         }
 
+        // One update for a client: its subscribed keys whose value changed since the last send, its one-shot
+        // reads whatever their value, and under "unknown" the keys the telemetry has no reader for.
         private Dictionary<string, object> Collect(Subscriptions subs)
         {
             var result = new Dictionary<string, object>();
@@ -178,6 +193,8 @@ namespace ReDefinition.Dashboard
             return result;
         }
 
+        // One message from a client, a JSON object: "+" and "-" add and remove subscribed keys, "run" lists
+        // commands (or one-shot reads), "rate" sets the milliseconds between updates.
         private void Handle(WebSocketServer.Client client, string text)
         {
             var subs = client.State as Subscriptions;
@@ -210,6 +227,7 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // Runs one entry of a "run" list; a failing command is logged and the rest of the list goes on.
         private void Run(string command, Subscriptions subs)
         {
             try

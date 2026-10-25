@@ -39,6 +39,7 @@ namespace redefinition
     class Streamline
     {
     public:
+        // The one instance, process-wide like the DLLs.
         static Streamline& Get();
 
         // Loads sl.interposer.dll and calls slInit with manual hooking, for this
@@ -78,6 +79,7 @@ namespace redefinition
         // A native D3D12 device or DXGI factory replaced in place by Streamline's
         // proxy, and the native interface behind a proxy.
         bool UpgradeInterface(void** baseInterface, const char* what);
+        // The native interface behind one of Streamline's proxies, into native; false (and null) without one.
         bool NativeInterface(void* proxy, void** native);
 
         // Per frame, by frame index: the constants and tags, the options, and the
@@ -87,10 +89,15 @@ namespace redefinition
         // MAX_FRAMES_IN_FLIGHT (6, sl_consts.h), which other threads asking for
         // other indices move on.
         bool SetConstants(const sl::Constants& constants, uint32_t frameIndex);
+        // Frame generation's tags for the frame, all valid until Present, so without a command list.
         bool SetTags(uint32_t frameIndex, const sl::ResourceTag* tags, uint32_t count);
+        // DLSS-G's options on frame generation's viewport; false before its functions are fetched.
         bool SetOptions(const sl::DLSSGOptions& options);
+        // DLSS-G's state on frame generation's viewport; false before its functions are fetched.
         bool GetState(sl::DLSSGState& frameGenerationState);
+        // One PCL marker for the frame, under callMutex shared.
         void Marker(sl::PCLMarker marker, uint32_t frameIndex);
+        // Reflex's sleep for the frame, under callMutex shared: returns once Reflex lets the frame begin.
         void ReflexSleep(uint32_t frameIndex);
 
         // Whether Streamline has its device, without which every call above fails.
@@ -109,13 +116,16 @@ namespace redefinition
         // first Direct3D call, marks eRenderSubmitStart and notes it as the frame
         // in progress; the presenting thread takes it for the frame's Present.
         uint32_t BeginGameFrame();
+        // eSimulationEnd for the game's frame, on its main thread; nothing for index 0.
         void EndGameSimulation(uint32_t frameIndex);
         void OnGameFrameRendered(uint32_t frameIndex);
+        // The frame Unity's render thread last received, into frameIndex and cleared; false where none waits.
         bool TakeGameFrame(uint32_t& frameIndex);
 
         // Whether the swapchain presents the game's frames (TakeGameFrame) rather
         // than its own, for the status line. Set by the presenting swapchain.
         void NoteGameFramesPresented(bool game) { gameFramesPresented = game; }
+        // What NoteGameFramesPresented last set, read for the status line.
         bool GameFramesPresented() const { return gameFramesPresented.load(); }
 
         // The viewport of frame generation: the scene.
@@ -151,13 +161,17 @@ namespace redefinition
         std::string Describe() const;
 
     private:
+        // Only Get makes it.
         Streamline() = default;
 
+        // sl.interposer.dll loaded and slInit called with the features Acquire asked for; true once done.
         bool Initialise();
+        // slShutdown with no Reflex or PCL call inside the plugins, and every feature function forgotten.
         void Shutdown();
         // The PC latency ping, picked up where the game's main thread takes its
         // messages (OnGetMessage in Streamline.cpp).
         void InstallPingHook();
+        // The WH_GETMESSAGE hook on the game's main thread: a removed message that is PCL's ping becomes Ping.
         static LRESULT CALLBACK OnGetMessage(int code, WPARAM wParam, LPARAM lParam);
         void Ping();
         // Marker and ReflexSleep, for a caller that holds callMutex.
@@ -167,20 +181,29 @@ namespace redefinition
         // is NOT thread safe" (sl_core_api.h, slGetNewFrameToken).
         template <typename Call>
         bool WithToken(uint32_t frameIndex, const char* what, Call&& call);
+        // sl.interposer.dll from streamlineDirectory or beside the executable, only as version 2.14.16 and
+        // signed by NVIDIA, with every function this build calls.
         bool LoadModule();
+        // What Describe reports, logged where log is set.
         void SetState(const std::string& text, bool log);
+        // Whether the call succeeded; a failure is logged, the first 20 per start.
         bool Check(sl::Result result, const char* call);
 
+        // An export of sl.interposer.dll into target; false where it lacks it.
         template <typename T>
         bool Import(T*& target, const char* name);
+        // A feature's function from slGetFeatureFunction into target; false (and null) where it has none.
         template <typename T>
         bool ImportFeature(T*& target, sl::Feature feature, const char* name);
 
+        // Streamline's log callback: its lines into the proxy's log, repeats counted, information capped.
         static void OnLogMessage(sl::LogType type, const char* message);
 
+        // What Describe reports, under its own mutex.
         mutable std::mutex stateMutex;
         std::string state = "not tried";
 
+        // sl.interposer.dll once loaded; below it the owner, whether slInit and the device ran, and the failures logged.
         HMODULE module = nullptr;
         // The folder sl.interposer.dll came from, where its plugins are looked for.
         std::wstring pluginFolder;

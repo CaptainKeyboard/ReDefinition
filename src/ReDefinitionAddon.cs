@@ -32,9 +32,12 @@ namespace ReDefinition
         // Camera the rig attaches to. It finds the remaining ones itself.
         private static readonly string[] CameraPreference = { "Camera 00", "Main Camera" };
 
+        // The rig running, null while none is, and the camera it is attached to.
         private UpscalerRig rig;
         private Camera attachedTo;
 
+        // The scene the last Update saw, which a new one detaches from; the player's upscaler switch; why the upscaler
+        // does not run, for the windows; when TryAttach may try next; and the camera mode last seen (RebuildOnCameraModeChange).
         private GameScenes lastScene = (GameScenes)(-1);
         private bool wantEnabled;
         private string problem;
@@ -88,12 +91,15 @@ namespace ReDefinition
         private Vector2Int dlssSizesAskedFor;
         private int dlssSizeWaits;
 
+        // The toolbar button that opens the settings window and shows whether it is open.
         private ToolbarButton toolbarButton;
 
         // The one instance, for KSP's settings dialog (KspSettingsSection),
         // which reads and changes the same settings as the diagnostics window.
         internal static ReDefinitionAddon Instance { get; private set; }
 
+        // Set up once at startup: the settings, the hooks into KSP and other mods, the toolbar button, and both shader
+        // sets of the bundle, whose check the log reports.
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
@@ -158,6 +164,8 @@ namespace ReDefinition
         private float recordingAt;
         private bool recordingDumps;
 
+        // Each frame: a recording that is due, a new scene's reset, the hotkeys, the steps into other mods, the saving,
+        // the frame-rate meters, and the rig attached, rebuilt or detached as the settings and the cameras ask.
         private void Update()
         {
             if (recordingAt > 0f && Time.unscaledTime >= recordingAt)
@@ -256,6 +264,7 @@ namespace ReDefinition
                 Detach();
         }
 
+        // Runs one step of Update; an exception is a warning in the log, a few per kind, and the frame goes on.
         private static void Guarded(string kind, Action body)
         {
             try
@@ -302,6 +311,7 @@ namespace ReDefinition
         // Set where a camera's antialiasing changes at once: the map view entered or left.
         private bool duplicatesNow;
 
+        // Entering or leaving the map view: the next SyncHostStack re-takes the mods' antialiasing at once.
         private void OnMapToggled()
         {
             duplicatesNow = true;
@@ -355,6 +365,7 @@ namespace ReDefinition
         // Parsed once per text: asked every frame, and parsing allocates.
         private readonly Dictionary<string, KeyCombination> hotkeys = new Dictionary<string, KeyCombination>();
 
+        // The combination for a hotkey's text, parsed on its first ask.
         private KeyCombination Hotkey(string text)
         {
             if (text == null) return KeyCombination.None;
@@ -369,6 +380,7 @@ namespace ReDefinition
         // closes by its own buttons as well.
         private bool settingsShown;
 
+        // Lights the toolbar button where the settings window opened or closed since the last frame.
         private void ReflectSettingsWindow()
         {
             bool shown = SettingsWindow.Visible;
@@ -468,6 +480,8 @@ namespace ReDefinition
             reattachPending = true;
         }
 
+        // Builds the rig asked for by Reattach: detaches the old one and attaches a new one at once, or leaves frame
+        // generation's capture alone to Update.
         private void RebuildRig()
         {
             reattachPending = false;
@@ -499,12 +513,15 @@ namespace ReDefinition
         // from an earlier scene is dropped rather than shown.
         private bool problemIsCamera;
 
+        // Whether the scene is the main menu or its settings screen, where no rig is attached.
         private static bool OnlySettingsHere()
         {
             return HighLogic.LoadedScene == GameScenes.MAINMENU
                    || HighLogic.LoadedScene == GameScenes.SETTINGS;
         }
 
+        // Attaches a rig to the scene's camera with the settings as they stand: the technique, or FSR 3 where it cannot
+        // run; for DLSS, its render size waited for first. A failure leaves the reason in problem and retries later.
         private void TryAttach()
         {
             if (OnlySettingsHere())
@@ -675,6 +692,7 @@ namespace ReDefinition
             RequestRenderSizeFollowUp("upscaler attached at " + rig.RenderSize.x + "x" + rig.RenderSize.y);
         }
 
+        // Tears the rig down and removes it at once, and asks the other mods to be sized anew.
         private void Detach()
         {
             // Retries belong to the rebuild that set them (Update), not to a
@@ -705,6 +723,8 @@ namespace ReDefinition
         private string followUpReason;
         private bool destroying;
 
+        // Asks for the other mods' resize at the end of this frame, once however often it is asked; nothing where none of
+        // them is installed or the add-on goes.
         private void RequestRenderSizeFollowUp(string reason)
         {
             if (destroying) return;
@@ -724,6 +744,7 @@ namespace ReDefinition
         private bool followedAttached;
         private Vector2Int followedSize;
 
+        // At the end of the frame: EVE, Scatterer and Deferred sized for the rig now in place, each on its own.
         private IEnumerator FollowRenderSizeAtEndOfFrame()
         {
             yield return new WaitForEndOfFrame();
@@ -749,6 +770,7 @@ namespace ReDefinition
         // new array on every read.
         private Camera[] pickBuffer = new Camera[16];
 
+        // The first active camera by CameraPreference's names; null where there is none.
         private Camera PickCamera()
         {
             if (pickBuffer.Length < Camera.allCamerasCount) pickBuffer = new Camera[Camera.allCamerasCount];
@@ -764,6 +786,8 @@ namespace ReDefinition
             return null;
         }
 
+        // Takes everything back as the add-on goes: the raytracing, the event handlers, the toolbar button, the other
+        // mods' state, the settings saved, the rig, the frame's state for other mods and the shader bundle.
         private void OnDestroy()
         {
             destroying = true;

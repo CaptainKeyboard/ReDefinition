@@ -22,6 +22,7 @@ W, H = 2560, 1440
 
 
 def clouds(width, height, seed):
+    """Soft noise of the size given: coarse normal noise on a 16 px grid, interpolated bilinearly."""
     rng = np.random.default_rng(seed)
     g = rng.normal(0, 1, (height // 16 + 2, width // 16 + 2)).astype(np.float32)
     # Large soft blobs: coarse noise scaled up smoothly.
@@ -37,6 +38,7 @@ def clouds(width, height, seed):
 
 
 def main():
+    """Write the frames of the moving sky behind the still bar and pole, and their frames.txt, into the folder."""
     parser = argparse.ArgumentParser()
     parser.add_argument("folder")
     parser.add_argument("--speed", type=int, default=30)

@@ -32,9 +32,11 @@ namespace redefinition
     // compiled from (CMakeLists.txt embeds them as RT_<entry>).
     struct RtPassEntry
     {
+        // The signal bit (kRtSignal*), and the resource name its compiled shader is under.
         uint32_t signal;
         const wchar_t* resource;
     };
+    // Every pass the frame may run, one per signal.
     inline const RtPassEntry kRtPasses[] = {
         { kRtSignalSunVisibility, L"RT_SunVisibility" },
         { kRtSignalAmbientOcclusion, L"RT_AmbientOcclusion" },

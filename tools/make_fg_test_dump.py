@@ -19,6 +19,7 @@ W, H = 2560, 1440
 
 
 def grain(width, height, seed):
+    """Fine grey grain of the size given, as 8-bit values around 110."""
     rng = np.random.default_rng(seed)
     g = rng.normal(0, 1, (height, width)).astype(np.float32)
     # Softened a little, as a rendered texture is, then to the runway's grey range.
@@ -29,6 +30,7 @@ def grain(width, height, seed):
 
 
 def main():
+    """Write the frames of the half-moving grain, and their frames.txt, into the folder."""
     parser = argparse.ArgumentParser()
     parser.add_argument("folder")
     parser.add_argument("speed", type=float)

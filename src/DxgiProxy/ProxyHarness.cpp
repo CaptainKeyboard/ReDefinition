@@ -67,6 +67,7 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
+    // The window's and the swapchain's size, and the frames each plain run presents.
     constexpr UINT kWidth = 640;
     constexpr UINT kHeight = 360;
     constexpr UINT kFrames = 30;
@@ -90,6 +91,7 @@ namespace
     constexpr UINT kFeatureWidth = 120;
     constexpr UINT kFeatureHeight = 60;
 
+    // Whether the environment variable is set to anything that does not begin with 0.
     bool EnvironmentSet(const wchar_t* name)
     {
         wchar_t value[8] = {};
@@ -114,6 +116,7 @@ namespace
     using CountersFn = int (*)(unsigned int*, unsigned int*);
     using RegisterMainThreadFn = void (*)();
     using LoadFn = int (*)(float*, float*, float*, float*);
+    // The render event of frame generation's per-frame packet.
     constexpr int kPacketEvent = 1;
     // The game's frame index for Reflex (ManagedBridge.cpp, render event 40).
     constexpr int kReflexFrameEvent = 40;
@@ -122,6 +125,7 @@ namespace
     // offsets are the ones FrameGeneration.h asserts for its own.
     struct FramePacket
     {
+        // Field by field as FrameGeneration.h has them, several to a line.
         uint32_t size, magic, frameIndex, renderWidth, renderHeight, reset;
         float jitterX, jitterY, motionVectorScaleX, motionVectorScaleY;
         float nearPlane, farPlane, verticalFovRadians, frameTimeDeltaMs;
@@ -131,30 +135,37 @@ namespace
     static_assert(sizeof(FramePacket) == 360, "FramePacket differs from FrameGeneration.h's");
     static_assert(offsetof(FramePacket, viewToClip) == 104, "FramePacket differs from FrameGeneration.h's");
     static_assert(offsetof(FramePacket, prevClipToClip) == 296, "FramePacket differs from FrameGeneration.h's");
+    // The frame packet's magic, 'KSPF'.
     constexpr uint32_t kPacketMagic = 0x4B535046u;
 
     // DLSS, as Dlss.h declares it.
     using DlssStatusFn = int (*)(char*, int);
     using DlssPacketSizeFn = unsigned int (*)();
     using DlssSizesFn = int (*)(unsigned int, unsigned int, int, unsigned int*, unsigned int*, unsigned int*);
+    // DLSS's render events: a frame, and the rig gone.
     constexpr int kDlssEvent = 2;
     constexpr int kDlssReleaseEvent = 3;
     using redefinition::DlssPacket;
+    // The DLSS packet's magic, Dlss.h's own.
     constexpr uint32_t kDlssMagic = redefinition::kDlssPacketMagic;
     using redefinition::kDlssHdr;
     using redefinition::kDlssDepthInverted;
     using redefinition::kDlssAutoExposure;
     using redefinition::kDlssReset;
+    // The render event that asks DLSS for its render sizes.
     constexpr int kDlssQueryEvent = 6;
     using redefinition::DlssSizeQuery;
+    // The size query's magic, Dlss.h's own.
     constexpr uint32_t kDlssQueryMagic = redefinition::kDlssSizeQueryMagic;
 
     // AMD's upscaler, laid out as AmdUpscaler.h declares it, with the size and offset it
     // asserts; the flags as DLSS's.
     constexpr int kAmdEvent = 4;
     constexpr int kAmdReleaseEvent = 5;
+    // AmdUpscalerPacket's fields in its order, several to a line.
     struct AmdPacket
     {
+        // As the comment above.
         uint32_t size, magic;
         void* colour;
         void* output;
@@ -168,6 +179,7 @@ namespace
     };
     static_assert(sizeof(AmdPacket) == 112, "AmdPacket differs from AmdUpscaler.h's");
     static_assert(offsetof(AmdPacket, reactive) == 96, "AmdPacket differs from AmdUpscaler.h's");
+    // The AMD packet's magic, 'KSPA'.
     constexpr uint32_t kAmdMagic = 0x4B535041u;
 
     // XeSS, in AMD's packet with a magic of its own (XessUpscaler.h).
@@ -181,16 +193,20 @@ namespace
     constexpr int kD3d12DestroyEvent = 21;
     constexpr int kD3d12DispatchEvent = 22;
     constexpr int kD3d12ReleaseEvent = 23;
+    // Event 20: a compute pass from bytecode.
     struct D3d12CreatePacket
     {
+        // Size, magic, handle, the bytecode and its size, a name.
         uint32_t size, magic;
         int32_t pass;
         uint32_t bytecodeSize;
         const void* bytecode;
         char name[64];
     };
+    // Event 22: one dispatch of a pass.
     struct D3d12DispatchPacket
     {
+        // Size, magic, handle, flags, thread groups, counts, then the textures and the constants.
         uint32_t size, magic;
         int32_t pass;
         uint32_t flags, groupsX, groupsY, groupsZ, readCount, writeCount, constantsSize;
@@ -198,8 +214,10 @@ namespace
         void* write[8];
         uint8_t constants[256];
     };
+    // Events 21 and 23: a pass destroyed, a texture's shared copy released.
     struct D3d12HandlePacket
     {
+        // Size, magic, handle, padding, the texture.
         uint32_t size, magic;
         int32_t pass;
         uint32_t reserved;
@@ -210,17 +228,20 @@ namespace
     static_assert(offsetof(D3d12DispatchPacket, read) == 40, "D3d12DispatchPacket differs from D3d12Compute.h's");
     static_assert(offsetof(D3d12DispatchPacket, constants) == 168, "D3d12DispatchPacket differs from D3d12Compute.h's");
     static_assert(sizeof(D3d12HandlePacket) == 24, "D3d12HandlePacket differs from D3d12Compute.h's");
+    // The three packets' magics, and the dispatch flag that leaves the copies back for the next dispatch.
     constexpr uint32_t kD3d12CreateMagic = 0x4B534443u;
     constexpr uint32_t kD3d12DispatchMagic = 0x4B534444u;
     constexpr uint32_t kD3d12HandleMagic = 0x4B534448u;
     constexpr uint32_t kD3d12NextFrame = 1u << 0;
 
+    // A FAIL line with the HRESULT; returns main's failure code.
     int Fail(const char* what, HRESULT hr)
     {
         printf("FAIL  %s (0x%08lX)\n", what, static_cast<unsigned long>(hr));
         return 1;
     }
 
+    // The host window's messages: closing it ends the message loop, the rest is Windows' default.
     LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM w, LPARAM l)
     {
         if (message == WM_DESTROY)
@@ -231,6 +252,7 @@ namespace
         return DefWindowProcW(hwnd, message, w, l);
     }
 
+    // The window the swapchain presents to, kWidth by kHeight, not yet shown.
     HWND CreateHostWindow()
     {
         WNDCLASSEXW wc = {};
@@ -245,6 +267,7 @@ namespace
                                kWidth, kHeight, nullptr, nullptr, wc.hInstance, nullptr);
     }
 
+    // Every message waiting for the thread handled, without waiting for more.
     void PumpMessages()
     {
         MSG message = {};
@@ -255,6 +278,7 @@ namespace
         }
     }
 
+    // A shader resource texture of a 4-byte format, every texel the 32 bits of fill.
     HRESULT CreateFilledTexture(ID3D11Device* device, UINT width, UINT height, DXGI_FORMAT format,
                                 uint32_t fill, ComPtr<ID3D11Texture2D>& out)
     {
@@ -310,10 +334,12 @@ namespace
     // here.
     struct Inputs
     {
+        // The depth at 0.5 everywhere, the motion vectors zero.
         ComPtr<ID3D11Texture2D> depth;
         ComPtr<ID3D11Texture2D> motion;
     };
 
+    // Both inputs at the given size.
     HRESULT CreateInputs(ID3D11Device* device, UINT width, UINT height, Inputs& out)
     {
         float half = 0.5f;
@@ -328,11 +354,13 @@ namespace
         return CreateFilledTexture(device, width, height, DXGI_FORMAT_R16G16_FLOAT, 0u, out.motion);
     }
 
+    // The full path of a file of that name beside the harness.
     std::wstring PathNextToExecutable(const wchar_t* name)
     {
         return redefinition::ExecutableDirectory() + L"\\" + name;
     }
 
+    // Whether a file of that name lies beside the harness.
     bool FileNextToExecutable(const wchar_t* name)
     {
         return GetFileAttributesW(PathNextToExecutable(name).c_str()) != INVALID_FILE_ATTRIBUTES;
@@ -361,6 +389,7 @@ namespace
     class IniKey
     {
     public:
+        // Notes what the file holds for the key now, or that it lacks it, and registers the key.
         explicit IniKey(const wchar_t* name) : key(name), path(PathNextToExecutable(L"ReDefinitionProxy.ini"))
         {
             wchar_t value[260] = {};
@@ -370,6 +399,7 @@ namespace
             std::lock_guard<std::mutex> lock(Registry().mutex);
             Registry().keys.push_back(this);
         }
+        // Restores the value the file held and unregisters the key.
         ~IniKey()
         {
             Restore();
@@ -378,9 +408,12 @@ namespace
             keys.erase(std::remove(keys.begin(), keys.end(), this), keys.end());
         }
 
+        // Not copied: each key restores the file once.
         IniKey(const IniKey&) = delete;
+        // Not assigned, for the same reason.
         IniKey& operator=(const IniKey&) = delete;
 
+        // The key written into the file now; null removes it.
         void Set(const wchar_t* value) const
         {
             WritePrivateProfileStringW(L"Proxy", key, value, path.c_str());
@@ -399,18 +432,22 @@ namespace
         }
 
     private:
+        // The keys alive, oldest first, for RestoreAll from the watchdog's thread.
         struct KeyRegistry
         {
+            // The lock and the list it guards.
             std::mutex mutex;
             std::vector<const IniKey*> keys;
         };
 
+        // The one registry, made on first use.
         static KeyRegistry& Registry()
         {
             static KeyRegistry registry;
             return registry;
         }
 
+        // The key's name, the ini's path, what the file held, and whether it held the key at all.
         const wchar_t* key;
         std::wstring path;
         std::wstring before;
@@ -427,6 +464,7 @@ namespace
     // where it has one, the HUD-less image its colour.
     struct ReplayFrame
     {
+        // The frame's packet as dumped, its sizes halved.
         FramePacket packet = {};
         std::vector<uint32_t> colour;   // the frame as presented: RGBA8, half size, rows top-down
         std::vector<uint32_t> hudLess;  // what frame generation gets as the HUD-less image
@@ -587,6 +625,8 @@ namespace
         SetFocus(window);
     }
 
+    // The replay itself: the dump loaded and halved, the REDEFINITION_REPLAY_* variations applied, and its frames
+    // presented through the proxy with frame generation on; 0 where it ran through.
     int RunReplay(const std::wstring& folder)
     {
         UINT width = 0, height = 0;
@@ -808,6 +848,7 @@ namespace
 // of hanging on.
 namespace
 {
+    // How long a run may take before the watchdog ends it as stuck.
     constexpr DWORD kWatchdogSeconds = 300;
 
     // The stacks of the threads that are in the proxy, the harness or AMD's frame
@@ -886,6 +927,8 @@ namespace
         }
     }
 
+    // The watchdog's thread: after kWatchdogSeconds the stacks and the log's tail printed, the ini keys restored,
+    // and the process ended with exit code 3.
     DWORD WINAPI Watchdog(void*)
     {
         Sleep(kWatchdogSeconds * 1000);
@@ -926,7 +969,9 @@ namespace
     // bound moved off the smoothed frame time is run beside it, for the numbers.
     struct OldBrake
     {
+        // The sleep and the smoothed work of a frame, in ms, as BrakeController has them.
         double sleepMs = 0.0, frameMs = 0.0;
+        // The old step: the hitch bound and the counted waits from the frame time smoothed with this frame in it.
         void Update(double wallMs, double waitedMs, double targetMs)
         {
             const double work = wallMs > sleepMs ? wallMs - sleepMs : wallMs;
@@ -941,9 +986,12 @@ namespace
         }
     };
 
+    // What one controller did in RunBrake.
     template <typename Controller>
     struct BrakeRun
     {
+        // The sleep and frame time after 400 steady frames, both right after the hitch, the highest sleep after
+        // it, and the frames until the sleep was back within 0.5 ms (400 where it never was).
         double settledSleep = 0.0;
         double settledFrame = 0.0;
         double sleepAfterHitch = 0.0;
@@ -952,6 +1000,8 @@ namespace
         int framesBack = 0;
     };
 
+    // A controller through 400 steady frames, one hitch of hitchMs and 400 more, then, where stepFrameMs is
+    // given, 60 frames of twice the work, whose smoothed frame time goes there.
     template <typename Controller>
     BrakeRun<Controller> RunBrake(double behindMs, double workMs, double targetMs, double hitchMs, double* stepFrameMs)
     {
@@ -993,6 +1043,8 @@ namespace
         return run;
     }
 
+    // The brake controller against the old one: where it settles, what a 500 ms hitch does, and whether it
+    // follows a real slowdown; 1 on a failure.
     int RunBrakeControllerChecks()
     {
         const double work = 16.0;
@@ -1039,6 +1091,8 @@ namespace
     }
 }
 
+// The brake checks, then the replay where one is asked for, otherwise the proxy's runs one after another as the
+// environment selects them; 0 where every one passed.
 int main()
 {
     // Unbuffered: a process ended from elsewhere keeps every line it printed.

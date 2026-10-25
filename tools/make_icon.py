@@ -58,6 +58,7 @@ LARGE = os.path.join(ROOT, ".local", "icon")
 
 
 def font(size):
+    """The first of Bahnschrift, Segoe UI Bold and Arial Bold found in Windows' fonts, at that size; exits if none is."""
     for name in ("bahnschrift.ttf", "segoeuib.ttf", "arialbd.ttf"):
         path = "C:/Windows/Fonts/" + name
         if os.path.exists(path):
@@ -85,6 +86,7 @@ def direction_ramp(scale=1.0, floor=0.0):
 
 
 def disc_mask():
+    """The planet's disc as a mask, white inside, at the big size."""
     mask = Image.new("L", (BIG, BIG), 0)
     ImageDraw.Draw(mask).ellipse([DISC_CENTRE[0] - DISC_RADIUS, DISC_CENTRE[1] - DISC_RADIUS,
                                   DISC_CENTRE[0] + DISC_RADIUS, DISC_CENTRE[1] + DISC_RADIUS], fill=255)
@@ -118,6 +120,7 @@ def body(mask, light):
 
 
 def stars(mask):
+    """A few stars on clear, kept off the planet's disc."""
     layer = Image.new("RGBA", (BIG, BIG), (0, 0, 0, 0))
     draw = ImageDraw.Draw(layer)
     for x, y, r, a in ((150, 170, 5, 200), (330, 110, 4, 150), (90, 380, 4, 160), (520, 90, 4, 130)):
@@ -127,6 +130,7 @@ def stars(mask):
 
 
 def label_mask():
+    """The label "Re:" as a mask, white, centred on the disc."""
     mask = Image.new("L", (BIG, BIG), 0)
     ImageDraw.Draw(mask).text(DISC_CENTRE, LABEL, font=font(LABEL_SIZE), fill=255, anchor="mm")
     return mask
@@ -230,6 +234,7 @@ ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Engine
 
 
 def ramp_at(stops, y):
+    """The colour or grey at height y, interpolated linearly between the (y, value) stops, held beyond their ends."""
     if y <= stops[0][0]:
         return stops[0][1]
     for (y0, c0), (y1, c1) in zip(stops, stops[1:]):
@@ -248,6 +253,7 @@ GLYPH_MASKS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "EngineerG
 
 
 def draw_glyph_mask(border):
+    """The "Δv" glyph alone, white on clear, 128x128, placed as on the tile; border widens its strokes."""
     k = TILE_SCALE
     image = Image.new("RGBA", (128 * k, 128 * k), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
@@ -263,6 +269,8 @@ def draw_glyph_mask(border):
 
 
 def draw_engineer_tile(face_stops, glyph, rim):
+    """One state of the planner's button tile at eight times its size: grey tabs, the teal face in face_stops, and
+    "Δv" in the glyph colour with a rim."""
     k = TILE_SCALE
     w, h = TILE_SIZE[0] * k, TILE_SIZE[1] * k
     image = Image.new("RGBA", (w, h), (0, 0, 0, 0))
@@ -311,12 +319,13 @@ WHITE = (255, 255, 255, 255)
 
 
 def planner_canvas():
+    """A clear square for a planner symbol and its drawing context."""
     image = Image.new("RGBA", (PLANNER_SIZE, PLANNER_SIZE), (0, 0, 0, 0))
     return image, ImageDraw.Draw(image)
 
 
 def draw_surface():
-    # A flag on the ground.
+    """A flag on the ground."""
     image, draw = planner_canvas()
     draw.rounded_rectangle([60, 400, 452, 440], radius=20, fill=WHITE)
     draw.rectangle([170, 90, 202, 410], fill=WHITE)
@@ -325,7 +334,7 @@ def draw_surface():
 
 
 def draw_orbit():
-    # A body with a ring around it and a craft on the ring.
+    """A body with a ring around it and a craft on the ring."""
     image, draw = planner_canvas()
     draw.ellipse([186, 186, 326, 326], fill=WHITE)
     draw.ellipse([46, 136, 466, 376], outline=WHITE, width=30)
@@ -334,7 +343,7 @@ def draw_orbit():
 
 
 def draw_chute():
-    # A parachute's canopy, its lines and the capsule under it.
+    """A parachute's canopy, its lines and the capsule under it."""
     image, draw = planner_canvas()
     draw.pieslice([56, 40, 456, 360], 180, 360, fill=WHITE)
     for x in (80, 256, 432):
@@ -344,7 +353,7 @@ def draw_chute():
 
 
 def draw_aerobrake():
-    # A path that dips into a body's air and leaves it again.
+    """A path that dips into a body's air and leaves it again."""
     image, draw = planner_canvas()
     draw.pieslice([-200, 400, 712, 1200], 180, 360, fill=WHITE)
     draw.arc([-280, 300, 792, 1300], 195, 345, fill=WHITE, width=14)
@@ -356,6 +365,7 @@ def draw_aerobrake():
 
 
 def lander(draw, cx, top, scale=1.0):
+    """Draws a lander, body and two legs, centred at cx with its top at top."""
     w, h = 110 * scale, 90 * scale
     draw.polygon([(cx - w * 0.6, top), (cx + w * 0.6, top), (cx + w, top + h), (cx - w, top + h)], fill=WHITE)
     leg = 26 * scale
@@ -364,13 +374,14 @@ def lander(draw, cx, top, scale=1.0):
 
 
 def rocket(draw, cx, top, bottom):
+    """Draws a rocket stage, body and engine bell, centred at cx between top and bottom."""
     half = 62
     draw.rectangle([cx - half, top, cx + half, bottom - 50], fill=WHITE)
     draw.polygon([(cx - 40, bottom - 50), (cx + 40, bottom - 50), (cx + 70, bottom), (cx - 70, bottom)], fill=WHITE)
 
 
 def draw_whole():
-    # The lander on top of the rest.
+    """The whole vessel: the lander on top of the rest."""
     image, draw = planner_canvas()
     lander(draw, 256, 40, 0.85)
     rocket(draw, 256, 230, 470)
@@ -378,13 +389,14 @@ def draw_whole():
 
 
 def draw_lander():
+    """The lander alone, large: the part that lands."""
     image, draw = planner_canvas()
     lander(draw, 256, 150, 1.4)
     return image
 
 
 def draw_rest():
-    # The rest, its top open where the lander sat.
+    """The rest, its top open where the lander sat."""
     image, draw = planner_canvas()
     rocket(draw, 256, 150, 470)
     draw.line([(170, 110), (342, 110)], fill=WHITE, width=18)
@@ -392,12 +404,14 @@ def draw_rest():
 
 
 def draw_dot():
+    """A filled circle, the planner's plain marker."""
     image, draw = planner_canvas()
     draw.ellipse([96, 96, 416, 416], fill=WHITE)
     return image
 
 
 def draw_remove():
+    """A cross, for removing an entry."""
     image, draw = planner_canvas()
     draw.line([(130, 130), (382, 382)], fill=WHITE, width=56)
     draw.line([(382, 130), (130, 382)], fill=WHITE, width=56)
@@ -412,6 +426,7 @@ PLANNER_DRAWINGS = {
 
 
 def draw_planet():
+    """The picture for a page: stars, the lit atmosphere, the night side and the lit label "Re:" on it."""
     mask = disc_mask()
     light = direction_ramp(SOFTNESS, FLOOR)
 
@@ -442,12 +457,13 @@ STROKE = 38
 
 
 def panel_canvas():
+    """A black mask at ten times a flight panel tab's size and its drawing context."""
     image = Image.new("L", PANEL_SIZE, 0)
     return image, ImageDraw.Draw(image)
 
 
 def draw_panel_ascent():
-    # A rocket climbing along a curve from the ground.
+    """A rocket climbing along a curve from the ground."""
     image, draw = panel_canvas()
     draw.line([(40, 360), (410, 360)], fill=255, width=STROKE)
     draw.arc([60, 60, 700, 700], 180, 262, fill=255, width=STROKE)
@@ -456,7 +472,7 @@ def draw_panel_ascent():
 
 
 def draw_panel_landing():
-    # An arrow down onto the ground, legs spread.
+    """An arrow down onto the ground, legs spread."""
     image, draw = panel_canvas()
     draw.line([(40, 360), (410, 360)], fill=255, width=STROKE)
     draw.line([(225, 30), (225, 230)], fill=255, width=STROKE)
@@ -465,7 +481,7 @@ def draw_panel_landing():
 
 
 def draw_panel_docking():
-    # Two ports facing each other.
+    """Two docking ports facing each other."""
     image, draw = panel_canvas()
     for left, right in ((40, 180), (270, 410)):
         draw.line([(left, 120), (left, 280)], fill=255, width=STROKE)
@@ -477,7 +493,7 @@ def draw_panel_docking():
 
 
 def draw_panel_air():
-    # A plane from above: fuselage, wings and tail.
+    """A plane from above: fuselage, wings and tail."""
     image, draw = panel_canvas()
     draw.line([(225, 20), (225, 380)], fill=255, width=STROKE)
     draw.polygon([(225, 130), (430, 250), (430, 285), (225, 215), (20, 285), (20, 250)], fill=255)
@@ -486,7 +502,7 @@ def draw_panel_air():
 
 
 def draw_panel_edit():
-    # A pencil.
+    """A pencil, the Edit tab's glyph."""
     image, draw = panel_canvas()
     draw.polygon([(300, 30), (390, 120), (150, 360), (60, 270)], fill=255)
     draw.polygon([(60, 270), (150, 360), (30, 390)], fill=255)
@@ -504,6 +520,7 @@ PANEL_DRAWINGS = {
 
 
 def panel_icon(mask, on):
+    """A tab glyph at 45x40 from its mask: light with a soft glow while on, black while off."""
     small = mask.resize((45, 40), Image.LANCZOS)
     if not on:
         icon = Image.new("RGBA", small.size, PANEL_OFF + (0,))
@@ -525,6 +542,7 @@ DOCKING_COLOUR = (255, 150, 30, 255)
 
 
 def draw_navball_docking():
+    """The navball's docking marker at 512: an orange ring, four ticks and a centre dot on clear."""
     size = 512
     image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
@@ -536,6 +554,8 @@ def draw_navball_docking():
 
 
 def main():
+    """Draw every picture and save it: the toolbar icon, the glyph mask, the button tiles, the planner symbols, the
+    flight panel tabs, the docking marker and the planet for a page."""
     os.makedirs(os.path.dirname(IN_GAME), exist_ok=True)
     draw_sliders().resize((128, 128), Image.LANCZOS).save(IN_GAME)
     print("in the game:", os.path.relpath(IN_GAME, ROOT))

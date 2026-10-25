@@ -12,6 +12,7 @@ namespace ReDefinition.Upscaler
     // Kerbal Frame Generator (HostStack).
     internal static partial class HostStack
     {
+        // Switches Kerbal Frame Generator's blend off for this run and remembers in kfgFound whether it was on.
         private static string DisableKfg()
         {
             Type type = TypeLookup.Find(KfgSettingsTypeName);

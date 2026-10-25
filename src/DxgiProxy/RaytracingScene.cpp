@@ -123,6 +123,7 @@ namespace redefinition
 
     namespace
     {
+        // The value rounded up to a multiple of the granularity.
         UINT64 RoundUp(UINT64 value, UINT64 granularity)
         {
             return (value + granularity - 1) / granularity * granularity;
@@ -131,6 +132,8 @@ namespace redefinition
         // The most compacted sizes one list asks for: one a mesh.
         constexpr UINT kMaxSizesAsked = 16384;
 
+        // A mesh's triangles as a build takes them: float3 positions, 32-bit indices, opaque
+        // (the passes' candidate test comes from the instance's FORCE_NON_OPAQUE).
         D3D12_RAYTRACING_GEOMETRY_DESC GeometryOf(D3D12_GPU_VIRTUAL_ADDRESS positions, uint32_t vertexCount,
                                                   D3D12_GPU_VIRTUAL_ADDRESS indices, uint32_t indexCount)
         {
@@ -1271,6 +1274,9 @@ namespace redefinition
     // A group as the GPU pass reads it (RaytracingShaders/GpuInstances.hlsl).
     struct GpuGroup
     {
+        // The mesh's structure's address in two halves, its descriptor slot, the material's
+        // index among the frame's, the run in t7 (first, count), where its instances start after
+        // the CPU's, and the ray mask in bits 0-7 with the flags above it.
         uint32_t blasLow;
         uint32_t blasHigh;
         uint32_t meshSlot;

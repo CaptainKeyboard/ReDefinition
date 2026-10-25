@@ -42,6 +42,8 @@ namespace redefinition
         // The triangles of a cluster, as RtCommon.hlsli's RT_TRIANGLE counts them.
         constexpr uint32_t kClusterTriangles = nvmg::kMaxClusterTriangles;
 
+        // The sizes a cluster operation with these inputs needs, through kGetRequirements's
+        // function; false where there is none or it fails.
         bool Requirements(void* function, ID3D12Device5* device, const nvmg::Inputs& inputs, nvmg::RequirementsInfo& info)
         {
             const auto get = reinterpret_cast<nvmg::GetRequirementsFn>(function);

@@ -11,6 +11,7 @@ namespace ReDefinition.RaytracingPlayer
     // Every renderer of the scene, as the rays' scene.
     internal sealed class RtUnitySource : IRtSource
     {
+        // Every enabled mesh renderer's submeshes, with their materials and placement, every ray mask set.
         public void Collect(List<RtItem> into)
         {
             foreach (MeshRenderer renderer in UnityEngine.Object.FindObjectsOfType<MeshRenderer>())
@@ -36,10 +37,12 @@ namespace ReDefinition.RaytracingPlayer
     // transforms with a count, no renderer.
     internal sealed class RtGpuBoxes : IRtGpuSource
     {
+        // The transforms with their count, the mesh drawn at each, and its material.
         internal ComputeBuffer Transforms;
         internal Mesh Mesh;
         internal Material Material;
 
+        // Hands the boxes over as one GPU instance list, every ray mask set.
         public void CollectGpu(List<RtGpuItem> into)
         {
             into.Add(new RtGpuItem { Transforms = Transforms, Mesh = Mesh, SubMesh = 0, Material = Material, Mask = 0xFF });
@@ -60,6 +63,8 @@ namespace ReDefinition.RaytracingPlayer
     // camera turn instead (RtTurnRunner).
     public sealed class RtPlayerRunner : MonoBehaviour
     {
+        // The direction towards the sun, the output folder, whether the camera renders deferred and with
+        // Deferred's own shaders, the checks failed, the camera, its raytracing and the reflection probe.
         private readonly Vector3 towardsSun = new Vector3(0.3f, 0.6f, 0.74f).normalized;
         private string output;
         private bool deferred;
@@ -72,8 +77,11 @@ namespace ReDefinition.RaytracingPlayer
         private readonly Vector3 gpuBox = new Vector3(8f, 1f, -12f);
         private ComputeBuffer gpuTransforms;
 
+        // Whether -budget asked for the measurement instead of the checks.
         private bool budget;
 
+        // Hands over to RtTurnRunner for -turn; else reads the arguments, loads Deferred where asked, builds the
+        // scene and starts the run.
         private void Start()
         {
             if (Argument("-turn") != null)
@@ -93,13 +101,16 @@ namespace ReDefinition.RaytracingPlayer
             StartCoroutine(Run());
         }
 
+        // The value after the named command-line argument, or null without one.
         private static string Argument(string name) => RtTurnRunner.Argument(name);
 
+        // A line in the player's log, prefixed RTPLAYER for the tools that read it.
         private static void Log(string text)
         {
             Debug.Log("RTPLAYER " + text);
         }
 
+        // Logs a check as PASS or FAIL with what it saw, counting the failures.
         private void Check(bool passed, string what, string detail)
         {
             Log((passed ? "PASS  " : "FAIL  ") + what + " -- " + detail);
@@ -149,6 +160,8 @@ namespace ReDefinition.RaytracingPlayer
             return true;
         }
 
+        // The scene: the ground, a near box within the shadow maps' 25 m and a far one beyond, the sun, a
+        // reflection probe, the camera with the raytracing off, and boxes the GPU alone knows.
         private void BuildScene()
         {
             QualitySettings.shadows = ShadowQuality.All;
@@ -229,6 +242,7 @@ namespace ReDefinition.RaytracingPlayer
             raytracing.Scene.AddGpuSource(new RtGpuBoxes { Transforms = gpuTransforms, Mesh = cubeMesh, Material = template });
         }
 
+        // A cube of the size at the centre in the material.
         private static void Box(Vector3 centre, Vector3 size, Material material)
         {
             GameObject box = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -237,6 +251,9 @@ namespace ReDefinition.RaytracingPlayer
             box.GetComponent<Renderer>().sharedMaterial = material;
         }
 
+        // The run: without raytracing and with it, the images dumped and the shadows, the lit ground, the scene
+        // and the GPU's instances checked, then the further checks -- with Deferred the ocean, the floating
+        // origin and the night, without it the ambient light -- and the outcome; -only and -budget run one alone.
         private IEnumerator Run()
         {
             probe.RenderProbe();
@@ -556,6 +573,7 @@ namespace ReDefinition.RaytracingPlayer
             cam.transform.rotation = rotation;
         }
 
+        // The texture's mean per channel as a log line, or none without one.
         private static string Mean(RenderTexture texture)
         {
             if (texture == null) return "none";
@@ -697,6 +715,7 @@ namespace ReDefinition.RaytracingPlayer
             return (-a - root) / (0.38f * (0.228165f * v - 0.28f)) / 3f;
         }
 
+        // Counts the texture's pixels that are not numbers, zero or anything else, and the largest w, as a log line.
         private static string Census(RenderTexture texture)
         {
             if (texture == null) return "none";
@@ -942,11 +961,15 @@ namespace ReDefinition.RaytracingPlayer
             return centre - towardsSun * (centre.y / towardsSun.y);
         }
 
+        // Releases the GPU's transform buffers.
         private void OnDestroy()
         {
             gpuTransforms?.Release();
             budgetTransforms?.Release();
         }
+
+        // The budget scene's rocks from the GPU: their transforms, released with the runner.
+        private ComputeBuffer budgetTransforms;
 
         // The budget (docs/development/raytracing.md, "Plan"): on the RTX 4090 at 2560 by
         // 1440 with DLSS Quality, which renders 1707 by 960, everything together within
@@ -954,8 +977,6 @@ namespace ReDefinition.RaytracingPlayer
         // terrain quads come near the camera, 400 boxes as a vessel's parts and the
         // buildings, 20 000 rocks from the GPU as Parallax's scatter; all four signals,
         // two bounces, the denoiser.
-        private ComputeBuffer budgetTransforms;
-
         private IEnumerator Budget()
         {
             const int cells = 256;
@@ -1069,12 +1090,15 @@ namespace ReDefinition.RaytracingPlayer
                                   System.Globalization.CultureInfo.InvariantCulture, out value) ? value : 0f;
         }
 
+        // Logs the outcome and quits, with exit code 1 where a check failed.
         private void Finish()
         {
             Log(failures == 0 ? "all checks passed" : failures + " check(s) failed");
             Application.Quit(failures == 0 ? 0 : 1);
         }
 
+        // At the frame's end, the screen as a texture, written to -out as a PNG named after the rendering path and
+        // the label (with or without raytracing where none is given), and handed to done.
         private IEnumerator Capture(Action<Texture2D> done, string label = null)
         {
             yield return new WaitForEndOfFrame();

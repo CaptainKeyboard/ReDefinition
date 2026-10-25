@@ -21,6 +21,7 @@ namespace redefinition
 {
     namespace
     {
+        // A FILETIME as one 64-bit count of 100 ns units.
         uint64_t ToTicks(const FILETIME& time)
         {
             return (static_cast<uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;
@@ -47,9 +48,12 @@ namespace redefinition
         // sample of a handle, or when it could not be read.
         struct ThreadClock
         {
+            // The handle last sampled, and its CPU time then.
             HANDLE sampled = nullptr;
             uint64_t last = 0;
 
+            // The share of a core since the last sample of the same handle, at most 100; -1 where read is false
+            // (and the handle forgotten), on a new handle, or a clock that went back.
             float Sample(HANDLE thread, bool read, uint64_t now, double seconds)
             {
                 if (!read)
@@ -76,17 +80,20 @@ namespace redefinition
         // the game start.
         struct Pdh
         {
+            // PdhOpenQueryW, PdhAddEnglishCounterW, PdhCollectQueryData and PdhGetFormattedCounterArrayW.
             using OpenQueryFn = PDH_STATUS(WINAPI*)(LPCWSTR, DWORD_PTR, PDH_HQUERY*);
             using AddEnglishCounterFn = PDH_STATUS(WINAPI*)(PDH_HQUERY, LPCWSTR, DWORD_PTR, PDH_HCOUNTER*);
             using CollectFn = PDH_STATUS(WINAPI*)(PDH_HQUERY);
             using GetArrayFn = PDH_STATUS(WINAPI*)(PDH_HCOUNTER, DWORD, LPDWORD, LPDWORD,
                                                    PPDH_FMT_COUNTERVALUE_ITEM_W);
 
+            // The functions, resolved by Load.
             OpenQueryFn openQuery = nullptr;
             AddEnglishCounterFn addEnglishCounter = nullptr;
             CollectFn collect = nullptr;
             GetArrayFn getArray = nullptr;
 
+            // pdh.dll from the system folder and the four functions; false where one is missing.
             bool Load()
             {
                 const HMODULE module = LoadLibraryExW(L"pdh.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
@@ -101,8 +108,10 @@ namespace redefinition
             }
         };
 
+        // One GPU engine's load, in percent.
         struct Engine
         {
+            // Its load summed over every process, and this process' part.
             double total = 0.0;
             double own = 0.0;
         };
@@ -192,9 +201,11 @@ namespace redefinition
         // The seconds behind one figure of the log line.
         struct Average
         {
+            // The readings weighted by their seconds, and the seconds.
             double sum = 0.0;
             double seconds = 0.0;
 
+            // A reading weighted by the seconds it covers; unknown readings (below 0) are left out.
             void Add(float value, double duration)
             {
                 if (value < 0.0f || duration <= 0.0)
@@ -203,6 +214,7 @@ namespace redefinition
                 seconds += duration;
             }
 
+            // The average as "42 %", or n/a without a second of it.
             std::string Text() const
             {
                 if (seconds <= 0.0)
@@ -214,6 +226,7 @@ namespace redefinition
         };
     }
 
+    // The one instance, for the process.
     LoadMonitor& LoadMonitor::Get()
     {
         static LoadMonitor instance;
@@ -332,6 +345,7 @@ namespace redefinition
         return haveLatest;
     }
 
+    // The sampling thread, started once.
     void LoadMonitor::EnsureStarted()
     {
         // Never from DllMain: both callers run on the game's own threads. And
@@ -353,6 +367,7 @@ namespace redefinition
         }
     }
 
+    // The sampling thread's entry, which lets nothing escape into the game.
     DWORD WINAPI LoadMonitor::ThreadProc(LPVOID self)
     {
         // Nothing may leave a thread made with CreateThread: it would end KSP.
@@ -366,6 +381,7 @@ namespace redefinition
         return 0;
     }
 
+    // Once a second the two threads' CPU time and the GPU engines' counters; the log line every reportSeconds.
     void LoadMonitor::Run()
     {
         Pdh pdh;
@@ -504,6 +520,7 @@ namespace redefinition
 {
     namespace
     {
+        // Bytes as gibibytes with one decimal, for the memory line.
         std::string Gigabytes(unsigned long long bytes)
         {
             char text[32] = {};

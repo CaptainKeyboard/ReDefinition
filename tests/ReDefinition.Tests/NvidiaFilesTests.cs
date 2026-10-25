@@ -13,12 +13,15 @@ namespace ReDefinition.Tests
     [TestClass]
     public class NvidiaFilesTests
     {
-        private const uint RtxTuring = 0x4;     // TU104
-        private const uint GtxTuring = 0x8;     // TU116
+        // NVAPI's implementation ids: a Turing chip with DLSS, one without (a GTX 16), and an Ada chip.
+        private const uint RtxTuring = 0x4;     // TU104, a Turing chip with DLSS
+        private const uint GtxTuring = 0x8;     // TU116, a GTX 16: Turing without DLSS
         private const uint Ada102 = 0x2;
 
+        // The folder the test's files are placed in.
         private string folder;
 
+        // A fresh folder of the test's own in the temporary folder.
         [TestInitialize]
         public void MakeFolder()
         {
@@ -26,17 +29,21 @@ namespace ReDefinition.Tests
             Directory.CreateDirectory(folder);
         }
 
+        // Deletes the test's folder and everything in it.
         [TestCleanup]
         public void RemoveFolder()
         {
             Directory.Delete(folder, true);
         }
 
+        // Folders for both uses pointing at the test's folder.
         private NvidiaFiles.Folders Here()
         {
             return new NvidiaFiles.Folders { Dlss = folder, FrameGeneration = folder };
         }
 
+        // The GPU decides what is offered: nothing before Turing, on a GTX 16 or a Tegra; DLSS and Ray
+        // Reconstruction from Turing on; frame generation's files from Ada on, or on Ampere with the package.
         [TestMethod]
         public void TheGpuDecidesWhatIsOffered()
         {
@@ -61,6 +68,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(NvidiaFiles.All.Length, NvidiaFiles.For(0x1B0, Ada102).Count, "Blackwell");
         }
 
+        // The download for an Ada GPU, with DLSS, frame generation and Ray Reconstruction, is about 57 MB.
         [TestMethod]
         public void TheReleaseIsAboutFiftySevenMegabytesForAnAdaGpu()
         {
@@ -69,6 +77,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(bytes > 56000000 && bytes < 58500000, bytes.ToString());
         }
 
+        // An empty folder lacks everything; NGX's DLLs the player brought count whatever their version, while
+        // Streamline of another size or content counts as missing.
         [TestMethod]
         public void OnlyWhatIsNeededCountsAsMissing()
         {
@@ -92,6 +102,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(NvidiaFiles.Missing(Here(), all).Contains(interposer), "the right size, another content");
         }
 
+        // Each use's files are looked for in that use's folder, and DLSS's also where NGX looks second, next to
+        // KSP_x64.exe; the licence text goes with DLSS where that is fetched too.
         [TestMethod]
         public void EachUseIsLookedForInItsOwnFolder()
         {
@@ -125,6 +137,7 @@ namespace ReDefinition.Tests
                           "only DLSS's DLL is looked for there");
         }
 
+        // A licence text missing alone asks for no download; a DLL missing brings the licence texts of its use.
         [TestMethod]
         public void ALicenceTextAloneAsksForNoDownload()
         {
@@ -210,6 +223,7 @@ namespace ReDefinition.Tests
             };
         }
 
+        // Where the archive's central directory entry starts, found by its signature from the end.
         private static int FindCentralDirectory(byte[] archive)
         {
             for (int i = archive.Length - 4; i >= 0; i--)
@@ -219,6 +233,7 @@ namespace ReDefinition.Tests
             return -1;
         }
 
+        // A file's content of 5000 lines, large enough to be deflated, telling what it stands for.
         internal static byte[] Content(string what = "a file NVIDIA would ship")
         {
             StringBuilder text = new StringBuilder();
@@ -226,6 +241,7 @@ namespace ReDefinition.Tests
             return Encoding.UTF8.GetBytes(text.ToString());
         }
 
+        // The entry extracted from the bytes of its range.
         private static byte[] Extracted(NvidiaFiles.Entry entry, byte[] range)
         {
             using (MemoryStream output = new MemoryStream())
@@ -235,6 +251,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // An entry fetched as its range extracts to what went in.
         [TestMethod]
         public void AnEntryComesOutAsItWent()
         {
@@ -245,6 +262,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(content, Extracted(entry, range));
         }
 
+        // An entry cut short, under another name, with another checksum or with damaged data is refused.
         [TestMethod]
         public void ADamagedOrForeignEntryIsRefused()
         {
@@ -269,6 +287,7 @@ namespace ReDefinition.Tests
             Assert.ThrowsException<InvalidDataException>(() => Extracted(entry, corrupted), "damaged data");
         }
 
+        // A placement of the entry in the test's folder, its content already written to the partial file.
         private NvidiaFiles.Placement Planned(NvidiaFiles.Entry entry, byte[] content)
         {
             string target = Path.Combine(folder, entry.FileName);
@@ -277,6 +296,7 @@ namespace ReDefinition.Tests
             return new NvidiaFiles.Placement { Entry = entry, Target = target, Partial = partial };
         }
 
+        // A file already in place is kept as .old, then .old2, and replaced; the same file again is left alone.
         [TestMethod]
         public void AFileAlreadyThereIsKeptNotReplaced()
         {
@@ -299,6 +319,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(File.Exists(NvidiaFiles.PartialPath(target)));
         }
 
+        // Where a file cannot be placed part way, every file placed before goes back to what the player had, and
+        // neither .old nor partial files are left.
         [TestMethod]
         public void AFailurePartWayPutsEverythingBack()
         {

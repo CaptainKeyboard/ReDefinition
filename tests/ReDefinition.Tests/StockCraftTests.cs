@@ -12,6 +12,7 @@ namespace ReDefinition.Tests
     // (StockCrafts.cs).
     internal sealed class StockCraft
     {
+        // The craft's name, its stage rows as KSP counts them, and its parts' facts for the planner's model.
         public string Name;
         public List<StageRow> Rows;
         public List<PartFacts> Parts;
@@ -19,8 +20,10 @@ namespace ReDefinition.Tests
         public List<SimPart> Sim;
     }
 
+    // The stock crafts' data (StockCrafts.cs, generated) and the helpers the generated code builds it with.
     internal static partial class StockCrafts
     {
+        // A stage row as KSP's delta-v readout gives it, the thrust at Kerbin's sea level too.
         private static StageRow Row(int number, double start, double end, double deltaV, double thrust, double seaLevel, bool solid)
         {
             StageRow row = new StageRow
@@ -32,6 +35,7 @@ namespace ReDefinition.Tests
             return row;
         }
 
+        // A part's facts as the planner's model takes them, with the fuel it holds as each stage starts.
         private static PartFacts Facts(int parent, int decouple, int fires, double mass, double dry, string title, bool command,
                                        bool engine, bool legs, bool parachute, bool heatShield, bool lift, bool wheels, bool clamp, int crew,
                                        Separation separator, Dictionary<int, double[]> fuel)
@@ -46,6 +50,7 @@ namespace ReDefinition.Tests
             return facts;
         }
 
+        // A part as the planner's own simulation takes it.
         private static SimPart SimPartOf(int parent, int decouple, int fires, bool clamp, bool crossfeed, double dry,
                                          Dictionary<string, double> amount, int[] fuelLineSources, SimEngine rocket, SimEngine air)
         {
@@ -59,6 +64,7 @@ namespace ReDefinition.Tests
             return part;
         }
 
+        // A rocket engine mode, its thrust in vacuum and at Kerbin's sea level.
         private static SimEngine Rocket(double thrust, double isp, double seaLevel, bool solid, params SimPropellant[] propellants)
         {
             SimEngine engine = new SimEngine { Thrust = thrust, Isp = isp, Solid = solid };
@@ -76,6 +82,7 @@ namespace ReDefinition.Tests
             return engine;
         }
 
+        // A propellant an engine burns, in its ratio and flow.
         private static SimPropellant Prop(string name, double ratio, SimFlow flow)
         {
             return new SimPropellant { Name = name, Ratio = ratio, Flow = flow };
@@ -90,6 +97,7 @@ namespace ReDefinition.Tests
             return parts;
         }
 
+        // The stock craft of that name.
         internal static StockCraft Named(string name)
         {
             return All.Single(craft => craft.Name == name);
@@ -103,12 +111,16 @@ namespace ReDefinition.Tests
     [TestClass]
     public class StockCraftTests
     {
+        // MSTest's context, through which the flights' reports go to the test's output.
         public TestContext TestContext { get; set; }
 
+        // The bodies' indices in PlannerTests.Stock().
         private const int Kerbin = 1, Mun = 2, Minmus = 3;
 
+        // One craft flown along a route: what the tests check and the report they log.
         private sealed class Flight
         {
+            // The craft's name, the route's steps, the stage budget and the lift-off TWR.
             public string Craft;
             public List<RouteStep> Steps;
             public StageBudget.Result Budget;
@@ -119,6 +131,8 @@ namespace ReDefinition.Tests
             public string Report;
         }
 
+        // Flies the craft along the route of `goals` as PlannerView.Evaluate does, with the stage budget's
+        // margin, and reports it.
         private static Flight Fly(StockCraft craft, List<RouteStop> goals, double margin = 0.10)
         {
             List<PlannerBody> bodies = PlannerTests.Stock();
@@ -206,6 +220,7 @@ namespace ReDefinition.Tests
             return flight;
         }
 
+        // A step's number as the report writes it, counted from 1.
         private static string step(int index, List<RouteStep> steps)
         {
             return (index + 1).ToString(CultureInfo.InvariantCulture) + ".";
@@ -219,16 +234,19 @@ namespace ReDefinition.Tests
             return -1;
         }
 
+        // From Kerbin's surface to an 80 km orbit.
         private static List<RouteStop> ToOrbit()
         {
             return new List<RouteStop> { PlannerTests.Surface(Kerbin), PlannerTests.Orbit(Kerbin, 80000) };
         }
 
+        // From Kerbin's surface to its 80 km orbit and on to a 14 km orbit of the Mun.
         private static List<RouteStop> ToMunOrbit()
         {
             return new List<RouteStop> { PlannerTests.Surface(Kerbin), PlannerTests.Orbit(Kerbin, 80000), PlannerTests.Orbit(Mun, 14000) };
         }
 
+        // From Kerbin's surface by its 80 km orbit to the Mun's surface, and home to Kerbin's.
         private static List<RouteStop> MunAndBack()
         {
             return new List<RouteStop>
@@ -237,6 +255,7 @@ namespace ReDefinition.Tests
             };
         }
 
+        // From Kerbin's surface by its 80 km orbit to Minmus's surface, and home to Kerbin's.
         private static List<RouteStop> MinmusAndBack()
         {
             return new List<RouteStop>
@@ -245,12 +264,14 @@ namespace ReDefinition.Tests
             };
         }
 
+        // Writes the flight's report to the test's output and hands the flight on.
         private Flight Log(Flight flight)
         {
             TestContext.WriteLine(flight.Report);
             return flight;
         }
 
+        // Each stock craft built for orbit lifts off with a TWR of at least 1.2 and reaches a low Kerbin orbit.
         [TestMethod]
         public void TheOrbitalCraftsReachALowKerbinOrbit()
         {
@@ -267,6 +288,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The trainers do not reach orbit: short of delta-v, or too heavy to lift off.
         [TestMethod]
         public void TheTrainersDoNotReachOrbit()
         {
@@ -277,6 +299,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The crafts made for the Mun and Minmus get there as their descriptions say; the Kerbal X lands on the
+        // Mun and comes home without a margin, and falls a little short with the 10 % one.
         [TestMethod]
         public void TheMunCraftsAsTheirDescriptionsHaveThem()
         {
@@ -337,6 +361,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // Z-MAP reaches orbit as its description promises; the launchers whose descriptions name no destination
+        // give a planned flight.
         [TestMethod]
         public void TheOtherLaunchersAsTheModelHasThem()
         {

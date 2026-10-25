@@ -34,6 +34,8 @@ namespace ReDefinition.Raytracing
     // clouds take the sun's direction alone, without a colour to dim: nothing here then.
     internal static class EveCloudMoonlight
     {
+        // The Harmony id; the 2D cloud shader's keywords for its secondary lights; the cloud shaders' properties:
+        // the raymarched layers' one light, the 2D layers' sun colour and secondary lights, the layers' radii.
         private const string HarmonyId = "ReDefinition.ScattererCloudLight";
         private const string Keyword = "PLANETSHINE_ON";
         private const string KeywordOff = "PLANETSHINE_OFF";
@@ -45,6 +47,7 @@ namespace ReDefinition.Raytracing
         private static readonly int InnerId = Shader.PropertyToID("innerSphereRadius");
         private static readonly int OuterId = Shader.PropertyToID("outerSphereRadius");
 
+        // Scatterer's members read (InstallHook), and whether a failure inside Scatterer was logged.
         private static FieldInfo bodyNameField, handlerField, layersField, flatField, raymarchedField, probeField, atlasField;
         private static PropertyInfo scattererInstance;
         private static bool warned;
@@ -128,6 +131,8 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // After Scatterer set the clouds' light for the body of `skyNode`: the moon's light set for the body the camera
+        // is at, and taken back from another body's 2D layers.
         private static void Apply(object skyNode)
         {
             CelestialBody main = RtKspMods.SceneBody();
@@ -324,6 +329,7 @@ namespace ReDefinition.Raytracing
         private static int stateKind = -1;
         private static CelestialBody stateMoon;
 
+        // Notes the cloud light's kind (stateKind) for Describe and logs it when kind or moon change.
         private static void Report(int kind, CelestialBody moon)
         {
             if (kind == stateKind && moon == stateMoon) return;
@@ -336,6 +342,7 @@ namespace ReDefinition.Raytracing
             Debug.Log(Log.Tag + " Clouds: their light " + state + ".");
         }
 
+        // Rec. 709 luminance of a linear colour.
         private static float Luminance(Color c)
         {
             return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;

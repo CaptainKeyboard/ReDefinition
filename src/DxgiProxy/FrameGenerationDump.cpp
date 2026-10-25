@@ -18,6 +18,7 @@ namespace redefinition
 {
     namespace
     {
+        // The bytes into a new file at path; nothing where it cannot be opened.
         void WriteFile(const std::wstring& path, const void* bytes, size_t size)
         {
             FILE* file = nullptr;
@@ -27,6 +28,7 @@ namespace redefinition
             fclose(file);
         }
 
+        // Bytes per texel of the formats the rig dumps: 8 for RGBA half floats, 4 for the rest.
         UINT BytesPerTexel(DXGI_FORMAT format)
         {
             switch (format)
@@ -57,6 +59,7 @@ namespace redefinition
             device->CreateTexture2D(&desc, nullptr, &staging);
         }
 
+        // One matrix as a line of frames.txt: its name, then its sixteen values in order.
         void AppendMatrix(std::string& text, const char* name, const float* m)
         {
             text += name;

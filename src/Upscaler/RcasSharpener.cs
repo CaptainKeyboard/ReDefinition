@@ -30,6 +30,8 @@ namespace ReDefinition.Upscaler
         // Fsr3UpscalerContext dispatches it.
         private const int Block = 16;
 
+        // The RCAS pass and its kernel, its constants and FSR 3's upscaler constants (one struct each) with the
+        // binders that upload them, the 1x1 exposure texture, and the rig's output RCAS writes into.
         private readonly ComputeShader shader;
         private readonly int kernel;
         private readonly Fsr3Upscaler.RcasConstants[] rcas = new Fsr3Upscaler.RcasConstants[1];
@@ -42,6 +44,7 @@ namespace ReDefinition.Upscaler
         // What DLSS writes into; check IsCreated after construction.
         public RenderTexture Input { get; private set; }
 
+        // For the bundle's RCAS pass writing into `output`: makes the binders, the exposure and Input.
         public RcasSharpener(ComputeShader sharpenPass, RenderTexture output)
         {
             this.output = output;
@@ -66,6 +69,7 @@ namespace ReDefinition.Upscaler
             Input.Create();
         }
 
+        // Records into `buffer` the pass from Input into the output at the slider's `sharpness`.
         public void Schedule(CommandBuffer buffer, float sharpness)
         {
             rcas[0] = Fsr3UpscalerContext.RcasConstantsFor(sharpness);
@@ -77,6 +81,7 @@ namespace ReDefinition.Upscaler
             buffer.DispatchCompute(shader, kernel, (output.width + Block - 1) / Block, (output.height + Block - 1) / Block, 1);
         }
 
+        // Frees the constant buffers, Input and the exposure texture; the output stays the rig's.
         public void Release()
         {
             if (rcasBinder != null)

@@ -19,6 +19,7 @@ namespace redefinition
     // sl.dlss_d would hand NGX for the same RtReconstructPacket.
     struct NgxRrFrame
     {
+        // The colour, the output, depth, motion vectors and the two albedo guides.
         ID3D12Resource* colour;
         ID3D12Resource* output;
         ID3D12Resource* depth;
@@ -96,10 +97,13 @@ namespace redefinition
         void Shutdown(ID3D12Device* device);
 
     private:
+        // Only Get makes it.
         DlssRayReconstruction() = default;
 
+        // What a feature was made, or failed to be made, for.
         struct Settings
         {
+            // The render and output sizes, the quality value (-1 none) and the preset.
             uint32_t renderWidth = 0;
             uint32_t renderHeight = 0;
             uint32_t outputWidth = 0;
@@ -108,15 +112,25 @@ namespace redefinition
             uint32_t preset = 0;
         };
 
+        // NGX started on the device and its parameter map taken, Ray Reconstruction's support checked; a failure
+        // stands for the device, or until the search changes where it is stable.
         bool EnsureInitialisedLocked(ID3D12Device* device, std::string& problem);
+        // The feature made for the frame's sizes, quality and preset at NGX's optimal render size, after idle where an
+        // old one is replaced; a failure stands for those settings.
         bool EnsureFeatureLocked(ID3D12GraphicsCommandList* list, const NgxRrFrame& frame,
                                  const std::function<void()>& idle, std::string& problem);
+        // The feature let go; whether there was one.
         bool ReleaseFeatureLocked();
+        // The feature released, the parameter map let go where it is owned, and NGX shut down on the device.
         void ShutdownLocked();
         // A failure that stands, with what NGX's search looked like then.
         void FailStable(const std::string& why);
+        // The folders NGX searches and the stamp of nvngx_dlssd.dll in each: a stable failure stands while this
+        // stays the same.
         std::wstring SearchSignature() const;
 
+        // The device NGX runs on, its parameter map (owned where GetCapabilityParameters gave it), the feature,
+        // and the folders NGX searches.
         Microsoft::WRL::ComPtr<ID3D12Device> device;
         NgxParameters* parameters = nullptr;
         bool parametersOwned = false;

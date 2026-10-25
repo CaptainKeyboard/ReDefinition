@@ -17,6 +17,7 @@ namespace ReDefinition.Flight.Panel
     // does not stage it.
     internal static class FlightPanelEditor
     {
+        // The window's width and a row's height; the window shown, null while closed; the profile it edits, by its index.
         private const float Width = 400f;
         private const float RowHeight = 22f;
         private static PopupDialog shown;
@@ -27,14 +28,17 @@ namespace ReDefinition.Flight.Panel
         // controls: staging is on the space bar.
         private const string Lock = "ReDefinitionFlightPanelEditor";
 
+        // Opens the window on that profile.
         internal static void Open(int profile)
         {
             editing = Mathf.Clamp(profile, 0, FlightProfiles.Current.Count - 1);
             Show();
         }
 
+        // A name typed but not yet saved.
         private static bool renamed;
 
+        // Closes the window, saving a name typed, and lets go of the keyboard.
         internal static void Close()
         {
             if (renamed) FlightProfiles.Save();
@@ -53,6 +57,7 @@ namespace ReDefinition.Flight.Panel
             if (shown == null && InputLockManager.GetControlLock(Lock) != ControlTypes.None) InputLockManager.RemoveControlLock(Lock);
         }
 
+        // Makes the window anew for the profile edited, where it stood and scrolled as far, and holds the keyboard.
         private static void Show()
         {
             // Made anew after each change: where the player put the window and how
@@ -158,6 +163,7 @@ namespace ReDefinition.Flight.Panel
             return readout.Title;
         }
 
+        // Moves the readout `by` places up or down the profile.
         private static void Move(FlightProfile profile, int index, int by)
         {
             int to = index + by;
@@ -168,6 +174,7 @@ namespace ReDefinition.Flight.Panel
             Changed();
         }
 
+        // Takes the readout out of the profile.
         private static void Remove(FlightProfile profile, int index)
         {
             if (index < 0 || index >= profile.Keys.Count) return;
@@ -175,12 +182,14 @@ namespace ReDefinition.Flight.Panel
             Changed();
         }
 
+        // Adds the readout at the profile's end.
         private static void Add(FlightProfile profile, string key)
         {
             if (!profile.Keys.Contains(key)) profile.Keys.Add(key);
             Changed();
         }
 
+        // A new profile of the player's own, numbered after the others, and opened in the window.
         private static void NewProfile()
         {
             FlightProfiles.Current.Add(new FlightProfile { Name = "Profile " + (FlightProfiles.Current.Count + 1), Situation = PanelSituation.Manual });
@@ -197,6 +206,7 @@ namespace ReDefinition.Flight.Panel
             return button;
         }
 
+        // Deletes a profile of the player's own; the built-in ones stay.
         private static void Delete(FlightProfile profile)
         {
             if (profile.Builtin || FlightProfiles.Current.Count <= 1) return;
@@ -205,6 +215,7 @@ namespace ReDefinition.Flight.Panel
             Changed();
         }
 
+        // The built-in profiles as shipped.
         private static void Defaults()
         {
             // The situations' profiles as shipped, the same objects, so that their

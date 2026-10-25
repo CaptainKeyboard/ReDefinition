@@ -1,14 +1,14 @@
-/* Navball: a sphere seen from the front, turned by the vessel's attitude.
-   Directions are [north, east, up] unit vectors in the vessel's local frame, as ReDefinition
-   sends them. The look follows KSP's ball: a thin horizon, the north meridian in orange,
-   thin meridians every 45 degrees, short pitch ticks every 5 degrees on meridians every 22.5, and
-   pitch numbers painted on the ball between the meridians.
-
-   Everything painted on the ball is drawn once into a texture (an equirectangular map: longitude
-   across, latitude down). Each frame the graphics card lays that texture onto the turned sphere
-   (WebGL 2); without WebGL the same texture is looked up per pixel on the CPU. What stands upright
-   to the player (heading numbers, markers, the vessel's own marker) is drawn on a 2D canvas on top.
-   Nothing is drawn again while the attitude and the markers stay the same. */
+// Navball: a sphere seen from the front, turned by the vessel's attitude.
+// Directions are [north, east, up] unit vectors in the vessel's local frame, as ReDefinition
+// sends them. The look follows KSP's ball: a thin horizon, the north meridian in orange,
+// thin meridians every 45 degrees, short pitch ticks every 5 degrees on meridians every 22.5, and
+// pitch numbers painted on the ball between the meridians.
+//
+// Everything painted on the ball is drawn once into a texture (an equirectangular map: longitude
+// across, latitude down). Each frame the graphics card lays that texture onto the turned sphere
+// (WebGL 2); without WebGL the same texture is looked up per pixel on the CPU. What stands upright
+// to the player (heading numbers, markers, the vessel's own marker) is drawn on a 2D canvas on top.
+// Nothing is drawn again while the attitude and the markers stay the same.
 (function () {
 	"use strict";
 	const DEG = 180 / Math.PI, RAD = Math.PI / 180;
@@ -29,10 +29,14 @@
 	const GLYPH_DEG = 3.4; // height of a pitch number's characters, in degrees of arc
 	const CPU_MAX = 440;   // the CPU fallback draws at most this many pixels across
 
+	// The dot product of two 3-vectors.
 	const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+	// Whether v is a 3-vector of finite numbers, as every direction the mod sends must be to be drawn.
 	const valid = (v) => Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === "number" && isFinite(x));
+	// A colour [r, g, b] as a CSS rgb() string.
 	const rgb = (c) => "rgb(" + c[0] + "," + c[1] + "," + c[2] + ")";
 
+	// The unit vector [north, east, up] at a latitude and longitude of the ball, in degrees.
 	function direction(latDeg, lonDeg) {
 		const la = latDeg * RAD, lo = lonDeg * RAD;
 		return [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)];
@@ -51,11 +55,14 @@
 	// ---- The texture, painted once ----------------------------------------------------------------
 
 	let texture = null;
+	// Paints the ball's texture on its first call (sky and ground, meridians, ticks, horizon, pitch
+	// numbers); every later call hands back the same canvas.
 	function paintTexture() {
 		if (texture) return texture;
 		const c = document.createElement("canvas");
 		c.width = TEX_W; c.height = TEX_H;
 		const g = c.getContext("2d");
+		// A longitude's x and a latitude's y on the texture, in pixels.
 		const X = (lon) => lon * PX, Y = (lat) => (90 - lat) * PX;
 
 		g.fillStyle = rgb(SKY); g.fillRect(0, 0, TEX_W, TEX_H / 2);
@@ -79,6 +86,8 @@
 		// and on the numbered lines also a quarter of the way. Their lengths are in degrees of
 		// longitude, so they shrink towards the poles with the spacing between them.
 		g.fillStyle = "rgba(255,255,255,0.95)";
+		// One pitch tick at lat, reaching halfLon degrees of longitude either side of lon; across the
+		// 0/360 seam its other part is painted at the map's right edge.
 		const tick = (lat, lon, halfLon) => {
 			g.fillRect(X(lon - halfLon), Y(lat) - TICK_HW * PX, 2 * halfLon * PX, 2 * TICK_HW * PX);
 			if (lon - halfLon < 0) g.fillRect(X(360 + lon - halfLon), Y(lat) - TICK_HW * PX, 2 * halfLon * PX, 2 * TICK_HW * PX);
@@ -160,12 +169,15 @@ void main() {
 	color = vec4(mix(c * light, c, white), 1.0);
 }`;
 
+	// Sets up the WebGL 2 renderer, its canvas in stack under the overlay canvas. Null without WebGL 2,
+	// when its shaders fail, or with window.NAVBALL_FORCE_CPU set: then the CPU draws the ball.
 	function makeGpu(stack, overlay) {
 		if (window.NAVBALL_FORCE_CPU) return null;
 		const glCanvas = document.createElement("canvas");
 		fill(glCanvas);
 		const gl = glCanvas.getContext("webgl2", { premultipliedAlpha: true, antialias: false });
 		if (!gl) return null;
+		// Compiles one shader, throwing its log when it does not compile.
 		const shader = (type, src) => {
 			const s = gl.createShader(type);
 			gl.shaderSource(s, src); gl.compileShader(s);
@@ -198,6 +210,7 @@ void main() {
 			const aniso = gl.getExtension("EXT_texture_filter_anisotropic");
 			if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
 
+			// The location of one of the program's uniforms.
 			const u = (name) => gl.getUniformLocation(prog, name);
 			const uni = { right: u("uRight"), top: u("uTop"), nose: u("uNose"), size: u("uSize") };
 			gl.uniform1i(u("tex"), 0);
@@ -227,6 +240,8 @@ void main() {
 
 	let texPixels = null;
 	const CPU_TEX_W = 2048, CPU_TEX_H = 1024;
+	// Draws the ball on the CPU into ctx, S pixels square: the fragment shader's ray cut and shading per
+	// pixel, looked up in a 2048 x 1024 copy of the texture made on the first call.
 	function cpuBall(ctx, att, S) {
 		if (!texPixels) {
 			const c = document.createElement("canvas");
@@ -272,6 +287,8 @@ void main() {
 
 	// ---- What stands upright to the player ----------------------------------------------------------
 
+	// Draws what stands upright on the 2D canvas: heading numbers, vector markers, the target marker, the
+	// window's rim and the vessel's own marker.
 	function overlay(ctx, att, S) {
 		ctx.save();
 		ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2 - 4, 0, 2 * Math.PI); ctx.clip();
@@ -289,11 +306,13 @@ void main() {
 			}
 
 		// Vector markers.
+		// Draws a marker where a direction lands on the ball's near side; nothing for one the mod did not send.
 		const put = (vec, kind, color) => {
 			if (!valid(vec)) return;
 			const p = project(att, S, vec);
 			if (p) marker(ctx, S, p.x, p.y, kind, color);
 		};
+		// The opposite direction, null for one that is not valid.
 		const neg = (v) => (valid(v) ? [-v[0], -v[1], -v[2]] : null);
 		put(att.normal, "normal", "#c28cff"); put(neg(att.normal), "anti", "#c28cff");
 		put(att.radial, "radout", "#5ee1ff"); put(neg(att.radial), "radin", "#5ee1ff");
@@ -341,6 +360,7 @@ void main() {
 			const ca = Math.cos(a * RAD), sa = Math.sin(a * RAD), cd = Math.cos(d * RAD), sd = Math.sin(d * RAD);
 			return [0, 1, 2].map((i) => T[i] * cd + (U[i] * ca + R[i] * sa) * sd);
 		};
+		// A path through where the directions land on the canvas, broken where one is on the far side.
 		const path = (dirs, close) => {
 			ctx.beginPath();
 			let open = false;
@@ -351,6 +371,7 @@ void main() {
 			}
 			if (close) ctx.closePath();
 		};
+		// n + 1 evenly spaced values from a to b.
 		const steps = (a, b, n) => Array.from({ length: n + 1 }, (_, i) => a + (b - a) * i / n);
 		ctx.lineCap = "round"; ctx.lineJoin = "round";
 		for (const [c, w] of [[RIM, 0.018], ["#ffffff", 0.009]]) { // white, with the markers' dark rim
@@ -360,22 +381,28 @@ void main() {
 		}
 	}
 
-	// The navball's markers, drawn after KSP's: a ring of radius R with ticks and inner strokes,
-	// in units of R so they scale with the ball.
 	// The dark rim of our own target marker (KSP's markers have none).
 	const RIM = "#101418";
+	// The navball's markers, drawn after KSP's: a ring of radius R with ticks and inner strokes,
+	// in units of R so they scale with the ball.
 	function marker(ctx, S, cx, cy, kind, color) {
 		markerShape(ctx, S, cx, cy, kind, color, 0);
 	}
+	// Draws the marker of one kind centred on cx, cy, R being 4 % of S; extra widens every stroke and
+	// dot by that many pixels.
 	function markerShape(ctx, S, cx, cy, kind, color, extra) {
 		const R = S * 0.04, base = Math.max(2.5, S * 0.009);
 		ctx.save();
 		ctx.translate(cx, cy);
 		ctx.strokeStyle = color; ctx.fillStyle = color;
 		ctx.lineWidth = base + extra; ctx.lineCap = "round"; ctx.lineJoin = "round";
+		// A stroke from x1, y1 to x2, y2, in units of R.
 		const line = (x1, y1, x2, y2) => { ctx.moveTo(x1 * R, y1 * R); ctx.lineTo(x2 * R, y2 * R); };
+		// A circle of radius r R round the marker's centre.
 		const ring = (r) => { ctx.moveTo(r * R, 0); ctx.arc(0, 0, r * R, 0, 2 * Math.PI); };
+		// The filled centre dot.
 		const dot = () => { ctx.save(); ctx.beginPath(); ctx.arc(0, 0, R * 0.2 + extra / 2, 0, 2 * Math.PI); ctx.fill(); ctx.restore(); };
+		// The point r R from the centre at deg degrees, clockwise from the right as y points down.
 		const polar = (deg, r) => [Math.cos(deg * Math.PI / 180) * r, Math.sin(deg * Math.PI / 180) * r]; // y down
 		ctx.beginPath();
 		if (kind === "pro") {
@@ -448,6 +475,7 @@ void main() {
 	// Per overlay canvas: its frame, its GPU renderer (or null for the CPU) and what was drawn last.
 	const states = new WeakMap();
 
+	// Lays a canvas over its whole frame, letting taps through to what lies under it.
 	function fill(el) {
 		const s = el.style;
 		s.position = "absolute"; s.left = "0"; s.top = "0"; s.width = "100%"; s.height = "100%";
@@ -465,6 +493,7 @@ void main() {
 		return { stack, gpu: makeGpu(stack, canvas), key: null, room: null, cssSize: 0 };
 	}
 
+	// The vessel's pitch, heading and roll in degrees, from its attitude.
 	function readouts(att) {
 		const { nose, right, top } = att;
 		return {
@@ -474,6 +503,8 @@ void main() {
 		};
 	}
 
+	// Draws the ball turned by att onto canvas, setting the canvas up on its first call. Returns the
+	// pitch, heading and roll for the readouts; null without a valid attitude, the ball then cleared.
 	function draw(canvas, att) {
 		let st = states.get(canvas);
 		if (!st) { st = setUp(canvas); states.set(canvas, st); }

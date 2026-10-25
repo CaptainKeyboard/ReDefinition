@@ -23,15 +23,21 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class ScreenCheck : MonoBehaviour
     {
+        // The command-line switch that runs the check.
         internal const string Argument = "-redefinitionProbeScreenCheck";
 
+        // The window that has the keyboard focus: KSP's, for its client area's place on the desktop.
         [DllImport("user32.dll")] private static extern IntPtr GetActiveWindow();
+        // A point in a window's client area turned into desktop coordinates.
         [DllImport("user32.dll")] private static extern bool ClientToScreen(IntPtr window, ref Point point);
+        // Puts the cursor onto a desktop point.
         [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
 
+        // Windows' POINT, which ClientToScreen fills.
         [StructLayout(LayoutKind.Sequential)]
         private struct Point
         {
+            // The point's coordinates in pixels.
             public int X, Y;
         }
 
@@ -42,6 +48,7 @@ namespace ReDefinition.Probe
         private float worstInGui = -1f;
         private bool measureInGui;
 
+        // Notes which camera is Camera.current at this place in the frame.
         private void Note(string where)
         {
             System.Collections.Generic.HashSet<string> names;
@@ -50,6 +57,7 @@ namespace ReDefinition.Probe
             names.Add(camera == null ? "none" : camera.name + (Upscaler.CameraRedirect.InScreensPlace(camera) ? " (redirected)" : ""));
         }
 
+        // Off without the switch; with it, the check and the end-of-frame notes started.
         private void Start()
         {
             if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0)
@@ -61,16 +69,19 @@ namespace ReDefinition.Probe
             StartCoroutine(EndOfFrames());
         }
 
+        // Camera.current while the scripts' Update runs.
         private void Update()
         {
             Note("Update");
         }
 
+        // Camera.current while the scripts' LateUpdate runs.
         private void LateUpdate()
         {
             Note("LateUpdate");
         }
 
+        // Camera.current at the end of each frame.
         private IEnumerator EndOfFrames()
         {
             var end = new WaitForEndOfFrame();
@@ -81,6 +92,8 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Camera.current in OnGUI's repaint, and once measuring has begun the parts' screen points there against
+        // their viewport points times the screen's size.
         private void OnGUI()
         {
             if (Event.current.type != EventType.Repaint) return;
@@ -97,16 +110,19 @@ namespace ReDefinition.Probe
             }
         }
 
+        // One result line into the log.
         private static void Report(string line)
         {
             Debug.Log(Log.Tag + " Probe: screen check: " + line);
         }
 
+        // A number with two decimals, for the log.
         private static string F(float value)
         {
             return value.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
+        // The check: 25 s into the flight the Camera.current notes, then the three tests in turn, then KSP quits.
         private IEnumerator Run()
         {
             yield return new WaitForSeconds(25f);

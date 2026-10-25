@@ -9,13 +9,16 @@ namespace ReDefinition.Engineer
     // crossfeed, or from any part.
     internal enum SimFlow
     {
+        // Own: from its own part only; Stack: through crossfeed and fuel lines; Vessel: from any part.
         Own,
         Stack,
         Vessel,
     }
 
+    // One propellant an engine mode burns.
     internal sealed class SimPropellant
     {
+        // The resource's name, its share of the mix in units (Propellant.ratio), and how it flows to the engine.
         public string Name;
         public double Ratio;
         public SimFlow Flow;
@@ -30,6 +33,8 @@ namespace ReDefinition.Engineer
     // Mach number it can push the vessel to (AirLaunch.MachLimit).
     internal sealed class SimEngine
     {
+        // In kN and seconds; the propellants of mass; the thrust at each body's surface with air, by the body's name; whether
+        // it burns out once lit; for an air-breathing mode, the Mach number it reaches.
         public double Thrust;
         public double Isp;
         public readonly List<SimPropellant> Propellants = new List<SimPropellant>();
@@ -38,12 +43,16 @@ namespace ReDefinition.Engineer
         public double Mach;
     }
 
+    // One part as the planner's simulation takes it, by its index in the vessel's part list.
     internal sealed class SimPart
     {
+        // The parent's index in the part tree, -1 for the root, and the children's indices.
         public int Parent = -1;
         public readonly List<int> Children = new List<int>();
         // Parts whose fuel lines end here.
         public readonly List<int> FuelLineSources = new List<int>();
+        // Whether fuel crosses through it; the stage that decouples it, -1 for none; the stage that activates it
+        // (Part.inverseStage); whether it is a launch clamp, which never flies.
         public bool Crossfeed = true;
         public int DecoupleStage = -1;
         public int ActivatesAt = -1;
@@ -78,8 +87,12 @@ namespace ReDefinition.Engineer
     // Unity, tested.
     internal static class StageSim
     {
+        // One stage, or the air-breathing engines' row, as the simulation works it out.
         internal sealed class Row
         {
+            // The stage's number, one above the highest stage for the air-breathing row; its masses as it starts and ends, in
+            // tonnes; its delta-v, its thrust in kN and its burn time in seconds; whether it is the air-breathing row; whether
+            // only solid engines burn in it; and its thrust at each body's surface with air, by the body's name.
             public int Number;
             public double StartMass;
             public double EndMass;
@@ -91,8 +104,10 @@ namespace ReDefinition.Engineer
             public readonly Dictionary<string, double> ThrustAtSurface = new Dictionary<string, double>();
         }
 
+        // The rows worked out, what each part burns in them, and where rocket engines ran dry.
         internal sealed class Result
         {
+            // In the order they burn: the air-breathing row first, then the stages from the highest number down.
             public readonly List<Row> Rows = new List<Row>();
             // Per part, by row number: the mass of its resources as the row starts and
             // as it ends, where it burns any.
@@ -108,11 +123,15 @@ namespace ReDefinition.Engineer
         // and what the parts dropped by then held as they went.
         internal sealed class Dry
         {
+            // The propellants of the engines run dry; per resource, what the attached parts still hold and what the dropped
+            // parts held.
             public readonly HashSet<string> Propellants = new HashSet<string>();
             public readonly Dictionary<string, double> Left = new Dictionary<string, double>();
             public readonly Dictionary<string, double> Dropped = new Dictionary<string, double>();
         }
 
+        // Standard gravity, for the exhaust speed from Isp; the longest a stage is burnt, in seconds, and the most events
+        // worked out per stage, so that a burn that never ends stops; and the amount, in units, that counts as none.
         private const double G0 = StageTable.StandardGravity;
         private const double MaxTime = 100000.0;
         private const int MaxEvents = 5000;
@@ -260,6 +279,7 @@ namespace ReDefinition.Engineer
             return row;
         }
 
+        // For each attached part whose resources lost mass, that mass before and after, under the row's number.
         private static void Record(Result result, HashSet<int> attached, double[] before, double[] after, int number)
         {
             foreach (int i in attached)
@@ -269,17 +289,21 @@ namespace ReDefinition.Engineer
         // One resource drawn from one part, in units per second.
         private sealed class Draw
         {
+            // The part's index, the resource's name, and the units drawn per second.
             public int Part;
             public string Resource;
             public double Rate;
         }
 
+        // What each part holds as the simulation goes on, and how resources flow to the engines.
         private sealed class State
         {
+            // The parts; per resource, its density in tonnes per unit; per part, the units of each resource it holds now.
             internal readonly IList<SimPart> Parts;
             private readonly IDictionary<string, double> density;
             private readonly Dictionary<string, double>[] amount;
 
+            // Over the parts, holding `amount`, which it changes as the engines burn.
             internal State(IList<SimPart> parts, IDictionary<string, double> density, Dictionary<string, double>[] amount)
             {
                 Parts = parts;
@@ -287,18 +311,21 @@ namespace ReDefinition.Engineer
                 this.amount = amount;
             }
 
+            // Tonnes per unit; 0 for a resource of no mass or not known.
             internal double Density(string resource)
             {
                 double value;
                 return density.TryGetValue(resource, out value) ? value : 0.0;
             }
 
+            // The units of the resource the part holds now.
             private double Held(int part, string resource)
             {
                 double value;
                 return amount[part].TryGetValue(resource, out value) ? value : 0.0;
             }
 
+            // What the attached parts weigh now, in tonnes: their fixed mass and their resources.
             internal double Mass(HashSet<int> attached)
             {
                 double total = 0.0;
@@ -310,6 +337,7 @@ namespace ReDefinition.Engineer
                 return total;
             }
 
+            // Per part, the mass of its resources now, in tonnes; 0 for parts not attached.
             internal double[] FuelOf(HashSet<int> attached)
             {
                 double[] fuel = new double[Parts.Count];
@@ -318,6 +346,7 @@ namespace ReDefinition.Engineer
                 return fuel;
             }
 
+            // What is recorded as the engines run dry: their propellants, and what is left of each resource, attached and dropped.
             internal Dry DryOf(List<int> engines, HashSet<int> attached)
             {
                 Dry dry = new Dry();
@@ -370,6 +399,7 @@ namespace ReDefinition.Engineer
                 }
             }
 
+            // The seconds until the first of the drawn parts runs dry of its resource; 0 where nothing is drawn.
             internal double TimeToDry(List<Draw> draws)
             {
                 double time = double.MaxValue;
@@ -445,6 +475,7 @@ namespace ReDefinition.Engineer
         // taken at (PlannerBody.SpeedOfSound): about where jets are left behind for
         // rockets, some 20 km up on Kerbin.
         internal const double HighAir = 0.05;
+        // How far and in what steps the thrust curve is searched, and the peak's Mach below which an engine is held to Mach 1.
         private const double LastMach = 10.0;
         private const double MachStep = 0.01;
         private const double TransonicPeak = 1.5;

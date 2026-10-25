@@ -20,6 +20,7 @@ try {
     $parse = $combination.GetMethod('Parse', [Type[]]@([string]))
     $isText = $combination.GetMethod('IsText', [Type[]]@([string]))
 
+    # The text KeyCombination.Parse makes of the string, read and written back as the window shows it.
     function Text($s) { return $parse.Invoke($null, [object[]]@($s)).ToString() }
 
     # What the mods and KSP write, read and written back as the window shows it.

@@ -24,6 +24,7 @@ namespace ReDefinition.Engineer
         public List<SimPart> Sim;
         public Dictionary<string, double> Density;
 
+        // The vessel's mass with its resources, its crew and their inventory, in tonnes.
         public double WetMass;
         // The resources in it, without crew (ShipConstruct.GetShipMass).
         public double FuelMass;
@@ -325,6 +326,7 @@ namespace ReDefinition.Engineer
             return air;
         }
 
+        // Whether an engine on the vessel burns one of the air resources: only then does the planner simulate the stages itself.
         private static bool BreathesAir(List<Part> parts, HashSet<string> air)
         {
             foreach (Part part in parts)
@@ -442,6 +444,9 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // One of an engine's modes as the planner's simulation takes it: its thrust at the thrust limiter, its Isp (in the
+        // air near the ground for a jet, in vacuum for a rocket), its propellants of mass, its thrust at each body's surface
+        // with air (with oxygen for a jet) and a jet's top Mach; null where it gives no thrust or burns nothing of mass.
         private static SimEngine ModeOf(ModuleEngines engine, bool breathes, HashSet<string> air)
         {
             if (engine.atmosphereCurve == null || engine.propellants == null) return null;
@@ -471,6 +476,8 @@ namespace ReDefinition.Engineer
             return mode.Thrust > 0.0 && mode.Isp > 0.0 && mode.Propellants.Count > 0 ? mode : null;
         }
 
+        // KSP's flow mode as the planner's simulation takes it: no flow stays in its part, the stack modes follow crossfeed,
+        // the rest reach the whole vessel.
         private static SimFlow FlowOf(ResourceFlowMode mode)
         {
             switch (mode)
@@ -523,6 +530,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // One stage of KSP's simulation as a row of the planner, for the situation the delta-v app holds.
         private static StageRow RowOf(DeltaVStageInfo info)
         {
             // The figures for the situation chosen, as KSP's staging stack picks them:

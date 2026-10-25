@@ -35,16 +35,19 @@ namespace ReDefinition.Raytracing
     // grass is the meadow's mean colour there.
     internal static class RtStockTerrain
     {
+        // The PQS shaders' atlas, band and steep textures.
         private static readonly int AtlasId = Shader.PropertyToID("_AtlasTex");
         private static readonly int LowTexId = Shader.PropertyToID("_lowTex");
         private static readonly int MidTexId = Shader.PropertyToID("_midTex");
         private static readonly int HighTexId = Shader.PropertyToID("_highTex");
         private static readonly int SteepTexId = Shader.PropertyToID("_steepTex");
 
+        // The textures' averages per layer, and buffers for the meshes' uv2 (steepness) and uv3 (atlas layers).
         private static readonly Dictionary<Texture, Color[]> averages = new Dictionary<Texture, Color[]>();
         private static readonly List<Vector2> uv2 = new List<Vector2>();
         private static readonly List<Vector2> uv3 = new List<Vector2>();
 
+        // The space centre ground's blend mask, the size it is read at, the masks read by texture, and the uv1 buffer.
         private static readonly int BlendMaskId = Shader.PropertyToID("_BlendMaskTexture");
         private const int MaskSize = 256;
         private static readonly Dictionary<Texture, Color[]> masks = new Dictionary<Texture, Color[]>();
@@ -57,12 +60,14 @@ namespace ReDefinition.Raytracing
             return Pqs(material) || Ksc(material);
         }
 
+        // KSP's PQS terrain shaders, with an atlas or the three bands.
         private static bool Pqs(Material material)
         {
             return material.shader.name.StartsWith("Terrain/PQS/", System.StringComparison.Ordinal)
                    && (material.HasProperty(AtlasId) || material.HasProperty(LowTexId));
         }
 
+        // KSP's space centre ground shaders, or one drawn as Parallax's terrain, with their blend mask.
         private static bool Ksc(Material material)
         {
             return (material.shader.name.StartsWith("KSP/Scenery/Diffuse Ground KSC", System.StringComparison.Ordinal)
@@ -141,6 +146,7 @@ namespace ReDefinition.Raytracing
             return result;
         }
 
+        // The space centre's ground per vertex: grass and tarmac averages mixed by the blend mask at the vertex's uv1.
         private static Color32[] KscColours(Mesh mesh, Material material)
         {
             int count = mesh.vertexCount;
@@ -201,6 +207,7 @@ namespace ReDefinition.Raytracing
             return Color.Lerp(Color.Lerp(a, b, fx), Color.Lerp(c, d, fx), fy);
         }
 
+        // The mask's pixel at x, y, wrapped into the mask.
         private static Color Pixel(Color[] pixels, int x, int y)
         {
             x = ((x % MaskSize) + MaskSize) % MaskSize;
@@ -226,11 +233,13 @@ namespace ReDefinition.Raytracing
             return sum;
         }
 
+        // A colour channel from 0 to 1 as a byte, rounded and clamped.
         private static byte Byte(float value)
         {
             return (byte)Mathf.Clamp(Mathf.RoundToInt(value * 255f), 0, 255);
         }
 
+        // The material's float `name`, or `otherwise` where its shader has none.
         private static float Get(Material material, string name, float otherwise)
         {
             return material.HasProperty(name) ? material.GetFloat(name) : otherwise;

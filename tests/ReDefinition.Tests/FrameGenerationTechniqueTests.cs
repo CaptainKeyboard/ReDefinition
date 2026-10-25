@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class FrameGenerationTechniqueTests
     {
+        // FSR's frame generation is named FSR 3, with no multiplier whatever the proxy reports.
         [TestMethod]
         public void FsrIsNamedWithoutAMultiplier()
         {
@@ -16,6 +17,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("FSR 3", FrameGenerationBridge.TechniqueLabel(1, 2));
         }
 
+        // DLSS is named with its multiplier while it generates, and alone while it does not.
         [TestMethod]
         public void DlssShowsItsMultiplierWhileItGenerates()
         {
@@ -24,6 +26,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("DLSS 4x", FrameGenerationBridge.TechniqueLabel(2, 4));
         }
 
+        // XeSS is named with its multiplier up to 4x while it generates; above, the row names it alone.
         [TestMethod]
         public void XessShowsItsMultiplierWhileItGenerates()
         {
@@ -36,6 +39,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("XeSS", FrameGenerationBridge.TechniqueLabel(3, 5));
         }
 
+        // No technique (0) and one the mod does not know have no text.
         [TestMethod]
         public void NoneOrAnUnknownTechniqueHasNoName()
         {

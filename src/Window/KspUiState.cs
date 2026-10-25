@@ -19,8 +19,10 @@ namespace ReDefinition.Window
     // With the interface hidden by F2 the canvases are off, and it stays hidden.
     internal static class KspUiState
     {
+        // Whether the resync was logged: once per run.
         private static bool logged;
 
+        // Fires onShowUI where KSP's main canvas is on but the flag says hidden.
         internal static void ResyncShown()
         {
             UIMasterController ui = UIMasterController.Instance;

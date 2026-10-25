@@ -35,6 +35,7 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
     {
         ZTest Always Cull Off ZWrite Off
 
+        // The one pass: EVE's cloud buffer copied with the moon's light added, blitted by EveCloudRelight.
         Pass
         {
             CGPROGRAM
@@ -183,6 +184,7 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 return (1.0f - g * g) / pow(1.0f + g * g - 2.0f * g * cosine, 1.5f) / 4.0f * kPi;
             }
 
+            // One of EVE's phase functions: its two lobes (g in x and z) weighted by y and w.
             float Phase(float4 lobes, float cosine)
             {
                 return Lobe(lobes.x, cosine) * lobes.y + Lobe(lobes.z, cosine) * lobes.w;
@@ -222,6 +224,8 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 return exp(-depth * (span / 6.0f) / thickness * _ReDefinitionCloudMapFades.w * _ReDefinitionCloudMapFades.z);
             }
 
+            // The pixel's clouds as EVE wrote them plus the moon's direct and sky light at the cloud's point; with
+            // _ReDefinitionCloudDebug set, the probe's views instead.
             float4 frag(v2f_img i) : SV_Target
             {
                 float4 clouds = tex2Dlod(_MainTex, float4(i.uv, 0.0f, 0.0f));

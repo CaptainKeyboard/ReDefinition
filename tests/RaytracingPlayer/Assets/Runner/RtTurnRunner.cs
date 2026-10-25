@@ -37,6 +37,8 @@ namespace ReDefinition.RaytracingPlayer
     // into the folder; meta.txt lists them.
     public sealed class RtTurnRunner : MonoBehaviour
     {
+        // The display size, the circle the camera turns on and its eye height, the point it looks at, and the
+        // direction towards the sun.
         private const int Width = 1280;
         private const int Height = 720;
         private const float Radius = 18f;
@@ -44,6 +46,8 @@ namespace ReDefinition.RaytracingPlayer
         private static readonly Vector3 Target = new Vector3(0f, 6f, 0f);
         private readonly Vector3 towardsSun = new Vector3(0.3f, 0.6f, 0.74f).normalized;
 
+        // The output folder, the -turn mode, jitter, whether Deferred is loaded, the upscaler and its render size;
+        // the camera, its raytracing, the reflection probe, the camera's target and the turn's pass.
         private string output;
         private string mode;
         private bool jitter;
@@ -56,6 +60,7 @@ namespace ReDefinition.RaytracingPlayer
         private RenderTexture target;
         private RtTurnPass pass;
 
+        // The value after the named command-line argument, or null without one.
         internal static string Argument(string name)
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -65,11 +70,13 @@ namespace ReDefinition.RaytracingPlayer
             return null;
         }
 
+        // A line in the player's log, prefixed RTPLAYER for the tools that read it.
         private static void Log(string text)
         {
             Debug.Log("RTPLAYER " + text);
         }
 
+        // Reads the arguments, builds the scene and starts the run.
         private void Start()
         {
             mode = Argument("-turn");
@@ -88,6 +95,7 @@ namespace ReDefinition.RaytracingPlayer
             StartCoroutine(Run());
         }
 
+        // A checkerboard texture of the two colours, cells squares a side, mipmapped and repeating.
         private static Texture2D Checker(Color a, Color b, int cells)
         {
             var texture = new Texture2D(256, 256, TextureFormat.RGBA32, true);
@@ -102,6 +110,8 @@ namespace ReDefinition.RaytracingPlayer
             return texture;
         }
 
+        // The scene: grass and a concrete pad in squares, a banded rocket with boosters, a pole and buildings, the
+        // sun and a reflection probe, and the camera on its target with the raytracing and the turn's pass.
         private void BuildScene()
         {
             QualitySettings.shadows = ShadowQuality.All;
@@ -232,6 +242,9 @@ namespace ReDefinition.RaytracingPlayer
             cam.transform.LookAt(Target);
         }
 
+        // The run: renders the probe, checks Ray Reconstruction where asked, settles, flies the turn capturing
+        // each frame, then the references at each pose and the poses halfway, writes meta.txt and path.txt, logs
+        // the result and quits.
         private IEnumerator Run()
         {
             probe.RenderProbe();
@@ -320,19 +333,23 @@ namespace ReDefinition.RaytracingPlayer
             Finish();
         }
 
+        // Quits the player once the run is over.
         private void Finish()
         {
             Application.Quit();
         }
 
+        // The folder the turn is written to.
         internal string Output { get { return output; } }
     }
 
     // Shows the camera's target in the window.
     internal sealed class RtTurnShow : MonoBehaviour
     {
+        // The camera's target to show.
         internal RenderTexture Source;
 
+        // Draws the target into the window.
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             Graphics.Blit(Source, destination);
@@ -344,6 +361,9 @@ namespace ReDefinition.RaytracingPlayer
     // and the frames to keep read back.
     internal sealed partial class RtTurnPass : MonoBehaviour
     {
+        // The camera and its raytracing, the capture material, the frame's copies and their native handles, the
+        // command buffer, Ray Reconstruction's packet ring and packet, the last frame's view projection and number,
+        // and the output folder.
         private Camera cam;
         private RtCamera raytracing;
         private Material capture;
@@ -360,7 +380,11 @@ namespace ReDefinition.RaytracingPlayer
         private bool havePrevious;
         private readonly float[][] fgCamera = { new float[16], new float[16], new float[16], new float[16] };
 
+        // Whether Ray Reconstruction is asked for (-turn rr).
         internal bool WantsReconstruction { get; private set; }
+        // A reset of the history asked for the next frame, the capture's name asked for it, why Ray
+        // Reconstruction is not available, the read-backs pending and written, the frames reconstructed, and
+        // meta.txt's lines.
         internal bool Reset;
         internal string Capture;
         internal string Why = "";
@@ -376,6 +400,8 @@ namespace ReDefinition.RaytracingPlayer
         internal Matrix4x4 UnjitteredProjection;
         internal Matrix4x4 RenderedProjection;
 
+        // Sets the pass up for the camera and the raytracing: with or without Ray Reconstruction and jitter, the
+        // output folder, the capture material, the command buffer, the packet ring and meta.txt's header.
         internal void Init(Camera camera, RtCamera rt, bool reconstruct, bool withJitter)
         {
             jitter = withJitter;
@@ -402,6 +428,7 @@ namespace ReDefinition.RaytracingPlayer
             return UpscalerFailure();
         }
 
+        // Whether the proxy can run Ray Reconstruction with this packet's size, keeping its reason in Why.
         internal bool ReconstructionReady()
         {
             var why = new StringBuilder(256);
@@ -411,6 +438,7 @@ namespace ReDefinition.RaytracingPlayer
             return ready;
         }
 
+        // A point-filtered linear texture of the size and format, writable by compute where random is set.
         private RenderTexture Make(int w, int h, RenderTextureFormat format, bool random)
         {
             var texture = new RenderTexture(w, h, 0, format, RenderTextureReadWrite.Linear) { enableRandomWrite = random };
@@ -419,11 +447,13 @@ namespace ReDefinition.RaytracingPlayer
             return texture;
         }
 
+        // Each frame, with Ray Reconstruction wanted, renews the raytracing's lease on its guide buffers.
         private void Update()
         {
             if (raytracing != null && WantsReconstruction) raytracing.ReconstructionLease = Time.frameCount;
         }
 
+        // The radical inverse of the index in the radix: Halton's sequence, from 0 to 1.
         private static float Halton(int index, int radix)
         {
             float f = 1f, result = 0f;
@@ -435,6 +465,8 @@ namespace ReDefinition.RaytracingPlayer
             return result;
         }
 
+        // Before the frame is culled: the unjittered projection, and with jitter on the frame's Halton offset
+        // applied to it, as the upscaler jitters.
         private void OnPreCull()
         {
             cam.ResetProjectionMatrix();
@@ -442,7 +474,7 @@ namespace ReDefinition.RaytracingPlayer
             JitterPixels = Vector2.zero;
             if (jitter)
             {
-                // Fsr3Upscaler.GetJitterOffset with 8 phases, as at the render size.
+                // Fsr3Upscaler.GetJitterOffset with the phases InitUpscaler counted, 8 without an upscaler.
                 int phase = Time.frameCount % jitterPhases + 1;
                 JitterPixels = new Vector2(Halton(phase, 2) - 0.5f, Halton(phase, 3) - 0.5f);
                 cam.nonJitteredProjectionMatrix = UnjitteredProjection;
@@ -454,13 +486,18 @@ namespace ReDefinition.RaytracingPlayer
             RenderedProjection = cam.projectionMatrix;
         }
 
+        // Puts the unjittered projection back once the frame is rendered.
         private void OnPostRender()
         {
             if (jitter) cam.ResetProjectionMatrix();
         }
 
+        // The upscaled turn's reference frame, copied at its own size to be read back.
         private RenderTexture referenceCopy;
 
+        // Copies the frame's colour, depth and motion, reconstructs or upscales it, shows it, and where a capture
+        // is asked for writes it with its camera to meta.txt and reads its images back; references at twice the
+        // display size are kept as rendered.
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             // A reference of the upscaled turn: rendered at twice the display size, kept as
@@ -543,6 +580,7 @@ namespace ReDefinition.RaytracingPlayer
             havePrevious = true;
         }
 
+        // Appends the matrix to meta.txt's line, Unity's [row, column] row by row.
         private void AppendMatrix(Matrix4x4 m)
         {
             for (int r = 0; r < 4; r++)
@@ -550,6 +588,8 @@ namespace ReDefinition.RaytracingPlayer
                     Meta.Append(' ').Append(m[r, c].ToString("R", CultureInfo.InvariantCulture));
         }
 
+        // Reads the texture back without waiting and writes its bytes to the file in the output folder, counting
+        // it as pending until then and as written after.
         private void Read(RenderTexture texture, string file)
         {
             Pending++;

@@ -22,6 +22,7 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class PerfMonitor : MonoBehaviour
     {
+        // The switch that turns the monitor on, how often it writes to the log (s), and the Unity messages it times.
         internal const string Argument = "-redefinitionPerfMonitor";
         private const float Period = 10f;
         private static readonly string[] Messages =
@@ -30,13 +31,16 @@ namespace ReDefinition.Probe
             "OnWillRenderObject",
         };
 
+        // One timed method's sums: over the period, in the current frame and in the period's most costly frame.
         private sealed class Cost
         {
+            // Its name as logged, its ticks (period, this frame, most in a frame) and its calls in the period.
             public string Name;
             public long Ticks, FrameTicks, MostFrameTicks;
             public int Calls;
         }
 
+        // Every timed method's sums, by the method.
         private static readonly Dictionary<MethodBase, Cost> costs = new Dictionary<MethodBase, Cost>();
         // Unity's samplers: each one's recorder and its sum and largest over the period, in ns.
         private static readonly Dictionary<string, UnityEngine.Profiling.Recorder> unitySamplers =
@@ -56,6 +60,8 @@ namespace ReDefinition.Probe
         private static int physicsSteps;
         private float nextCameraLook;
 
+        // Off without the switch; with it, every per-frame method of ReDefinition (and, by the further switches, of
+        // the other mods, of chosen classes and of Unity's samplers) patched to be timed.
         private void Awake()
         {
             if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0)
@@ -170,6 +176,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Times one method with Before and After, once; false where it cannot be patched or already is.
         private static bool Patch(MethodBase method)
         {
             if (method == null || method.IsAbstract || method.ContainsGenericParameters || !patched.Add(method)) return false;
@@ -200,11 +207,13 @@ namespace ReDefinition.Probe
             return count;
         }
 
+        // Harmony prefix of every timed method: the start time, handed to the postfix.
         private static void Before(out long __state)
         {
             __state = Stopwatch.GetTimestamp();
         }
 
+        // Harmony postfix: the call's ticks added to its method's sums, and to the portrait's while one renders.
         private static void After(long __state, MethodBase __originalMethod)
         {
             long ticks = Stopwatch.GetTimestamp() - __state;
@@ -236,13 +245,16 @@ namespace ReDefinition.Probe
         private static int portraitRenders;
         private static readonly Dictionary<string, long> portraitCosts = new Dictionary<string, long>();
 
+        // Whether a method is one of the two portrait updates themselves, kept out of their own breakdown.
         private static bool IsPortraitMethod(MethodBase method)
         {
             return method.DeclaringType == typeof(Kerbal) && (method.Name == "kerbalAvatarUpdate" || method.Name == "kerbalSeatCamUpdate");
         }
 
+        // Whether the first portrait camera's settings are in the log already.
         private static bool portraitLogged;
 
+        // Harmony prefix of the portrait updates: logs the first portrait camera's settings once, then starts the timing.
         private static void PortraitBefore(Kerbal __instance, MethodBase __originalMethod, out long __state)
         {
             if (!portraitLogged)
@@ -263,6 +275,7 @@ namespace ReDefinition.Probe
             __state = Stopwatch.GetTimestamp();
         }
 
+        // Harmony postfix of the portrait updates: the render's ticks into the portraits' sum.
         private static void PortraitAfter(long __state)
         {
             portraitDepth--;
@@ -270,6 +283,7 @@ namespace ReDefinition.Probe
             portraitRenders++;
         }
 
+        // Hangs PortraitBefore and PortraitAfter on both portrait updates of Kerbal.
         private static void PatchPortraits()
         {
             foreach (string name in new[] { "kerbalAvatarUpdate", "kerbalSeatCamUpdate" })
@@ -281,7 +295,7 @@ namespace ReDefinition.Probe
             }
         }
 
-        // Last in the frame's scripts as far as it goes: the frame's sums closed.
+        // After each physics step (WaitForFixedUpdate): the step's time since the earliest FixedUpdate added to the frame's.
         private System.Collections.IEnumerator AfterPhysics()
         {
             var wait = new WaitForFixedUpdate();
@@ -297,6 +311,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Hangs the phase timers on KSP's TimingManager, once it exists, and starts AfterPhysics.
         private void HookPhases()
         {
             if (phasesHooked) return;
@@ -318,6 +333,8 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Last in the frame's scripts as far as it goes: the frame's sums closed, camera handlers looked for every 5 s,
+        // and every period the most costly methods, KSP's phases, Unity's samplers and the portraits into the log.
         private void LateUpdate()
         {
             HookPhases();

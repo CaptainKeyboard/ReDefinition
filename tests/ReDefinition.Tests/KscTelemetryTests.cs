@@ -8,6 +8,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class KscTelemetryTests
     {
+        // A building is named by the last part of its facility's path, the name the page and k.enter use; without
+        // a facility, by the building's own facilityName.
         [TestMethod]
         public void ABuildingGoesByItsFacilityOrElseByItsOwnName()
         {
@@ -17,6 +19,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("FlagPole", KscTelemetry.FacilityName("", "FlagPole"));
         }
 
+        // The page lists vessels one can fly, EVA kerbals among them; debris, flags, asteroids and comets,
+        // dropped parts and the unknown are left out.
         [TestMethod]
         public void TheVesselsListedAreNoDebrisFlagsOrSpaceObjects()
         {
@@ -27,6 +31,8 @@ namespace ReDefinition.Tests
                 Assert.IsFalse(KscTelemetry.Flyable(type), type.ToString());
         }
 
+        // The Space Center page's readings and commands are known outside the Space Center too: an unknown key
+        // is answered as unknown, so a page opened in another scene would stop asking for it.
         [TestMethod]
         public void TheSpaceCentersKeysAndCommandsAreKnownInEveryScene()
         {

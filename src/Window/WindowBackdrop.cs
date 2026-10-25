@@ -24,6 +24,7 @@ namespace ReDefinition.Window
     // their material.
     internal static class WindowBackdrop
     {
+        // The backdrop image's object name.
         private const string Name = "ReDefinitionBackdrop";
 
         // How much of the skin's own opacity the window keeps while the game runs
@@ -40,6 +41,8 @@ namespace ReDefinition.Window
         // The shadowed copy per material the texts came with.
         private static readonly Dictionary<int, Material> shadowed = new Dictionary<int, Material>();
 
+        // Where the window holds what is behind it, a copy of its background behind its contents; else its background
+        // thinner and its texts shadowed.
         internal static void Add(PopupDialog dialog, bool holding)
         {
             try
@@ -93,6 +96,7 @@ namespace ReDefinition.Window
             image.color = color;
         }
 
+        // Every text of the window drawn with its font's shadowed material.
         private static void ShadowTexts(GameObject window)
         {
             foreach (TextMeshProUGUI text in window.GetComponentsInChildren<TextMeshProUGUI>(true))
@@ -104,6 +108,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The shadowed copy of a font material, made once per material.
         private static Material Shadowed(Material material)
         {
             Material copy;

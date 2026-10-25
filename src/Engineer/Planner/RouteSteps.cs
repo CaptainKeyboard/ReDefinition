@@ -10,6 +10,8 @@ namespace ReDefinition.Engineer
     // burn that leaves and Arrive the burns after it.
     internal enum StepRole
     {
+        // Up from a surface into an orbit; the way across, or the burn that leaves where it is split; the burns after it;
+        // down onto the surface.
         Launch,
         Transfer,
         Arrive,
@@ -20,6 +22,8 @@ namespace ReDefinition.Engineer
     // the planner has it do by itself.
     internal enum SectionKind
     {
+        // Capsule: the crew's way home, which leaves everything else for good; Lander: lands where the rest waits; Satellite:
+        // stays at its destination.
         Capsule,
         Lander,
         Satellite,
@@ -31,7 +35,7 @@ namespace ReDefinition.Engineer
         // 1 and up; 0 is the rest.
         public int Id;
         public SectionKind Kind;
-        // "Lander", "Satellite 2".
+        // Its name for the player: "Lander", "Satellite 2".
         public string Name = "";
         // The section it is part of, 0 for the rest.
         public int Parent;
@@ -44,8 +48,10 @@ namespace ReDefinition.Engineer
         public int DeployAt = -1;
     }
 
+    // Who flies a step, as Flyer holds it.
     internal enum FlyerKind
     {
+        // The whole vessel; one section, with the sections part of it; the vessel leaving a section behind for good.
         Ship,
         Alone,
         Without,
@@ -56,26 +62,32 @@ namespace ReDefinition.Engineer
     // as a number: 0 the whole vessel, 1000 and 2000 on a section's id.
     internal struct Flyer
     {
+        // Who, and the section's id for Alone and Without.
         public FlyerKind Kind;
         public int Section;
 
+        // The whole vessel flies it.
         public static readonly Flyer Ship = new Flyer();
 
+        // One section flies, with the sections part of it.
         public static Flyer Alone(int section)
         {
             return new Flyer { Kind = FlyerKind.Alone, Section = section };
         }
 
+        // The vessel flies on, leaving the section behind for good.
         public static Flyer Without(int section)
         {
             return new Flyer { Kind = FlyerKind.Without, Section = section };
         }
 
+        // As kept in a stop's By: 0, or 1000 or 2000 on the section's id.
         public int Code
         {
             get { return Kind == FlyerKind.Ship ? 0 : (Kind == FlyerKind.Alone ? 1000 : 2000) + Section; }
         }
 
+        // From the number kept in a stop's By.
         public static Flyer FromCode(int code)
         {
             if (code >= 2000) return Without(code - 2000);
@@ -83,6 +95,7 @@ namespace ReDefinition.Engineer
             return Ship;
         }
 
+        // Whether it is of that kind, and for a section alone or left, that section.
         public bool Is(FlyerKind kind, int section)
         {
             return Kind == kind && (kind == FlyerKind.Ship || Section == section);
@@ -120,6 +133,7 @@ namespace ReDefinition.Engineer
         // What makes the step impossible as set, for the player; null where none.
         public string Problem;
 
+        // The leg it belongs to, counted from 0.
         public int Segment
         {
             get { return Goal - 1; }
@@ -129,6 +143,8 @@ namespace ReDefinition.Engineer
     // A section, or the rest (0), gone for good as a step starts (StageBudget.GoneGroup).
     internal sealed class GoneSection
     {
+        // The section, 0 for the rest; whether it stays as a vessel of its own; whether it waited elsewhere rather than flew
+        // with what flies.
         public int Section;
         public bool Stays;
         public bool Waiting;
@@ -155,19 +171,24 @@ namespace ReDefinition.Engineer
         // Finding the rest in its orbit and docking, over the climb to that orbit.
         internal const double Rendezvous = 50.0;
 
+        // Where one section is and what became of it, as the steps are walked through.
         private sealed class SectionState
         {
+            // The section as the route has it.
             internal RouteSection Section;
             // Flying on its own, rather than part of what carries it.
             internal bool Away;
+            // Left for good, and where, in words for the player; where it is while away; the last step it flew.
             internal bool Gone;
             internal string GoneAt;
             internal RouteStop At;
             internal RouteStep LastStep;
         }
 
+        // The rest and the sections as the steps are walked through, one destination after the other.
         private sealed class Walk
         {
+            // Where the rest is; each section's state, by id and in the player's order; who flew the step before.
             internal RouteStop Rest;
             internal readonly Dictionary<int, SectionState> Sections = new Dictionary<int, SectionState>();
             internal readonly List<SectionState> Order = new List<SectionState>();
@@ -180,6 +201,7 @@ namespace ReDefinition.Engineer
             internal int Index;
             internal System.Func<int, bool> Returns;
 
+            // The section's state; null for the rest (0) or an id the vessel does not have.
             internal SectionState Of(int id)
             {
                 SectionState state;
@@ -233,6 +255,8 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // The route's steps; with sections, walked through twice: who flies each step first, then the steps again with each
+        // section's climb going to the rest where it docks after it.
         internal static List<RouteStep> Build(IList<PlannerBody> bodies, IList<RouteStop> goals, IList<RouteSection> sections,
                                               bool planeChanges)
         {
@@ -347,6 +371,7 @@ namespace ReDefinition.Engineer
             return flyer.Kind == FlyerKind.Ship || walk.Of(flyer.Section) != null;
         }
 
+        // Who flies a step the player left to the planner, as the class's comment lists.
         private static Flyer Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, bool last)
         {
             if (walk.CapsuleOut != 0) return Flyer.Alone(walk.CapsuleOut);
@@ -397,11 +422,14 @@ namespace ReDefinition.Engineer
             return state != null && !state.Gone;
         }
 
+        // Whether `at` stands on the surface of the body the step starts from.
         private static bool OnSurface(RouteStop at, RouteStop from)
         {
             return at != null && at.Kind == StopKind.Surface && at.Body == from.Body;
         }
 
+        // The step as `flyer` flies it: a section leaving or left behind as it starts, the sections away docking as the whole
+        // vessel flies on, where it goes and its burns; and the walk moved on with it.
         private static RouteStep Fly(IList<PlannerBody> bodies, Walk walk, int g, StepRole role, Flyer flyer, RouteStop from,
                                      RouteStop goal, bool planeChanges)
         {
@@ -638,6 +666,7 @@ namespace ReDefinition.Engineer
             return orbit;
         }
 
+        // The body's low orbit, as a stop.
         private static RouteStop LowOrbit(IList<PlannerBody> bodies, int body)
         {
             return new RouteStop { Body = body, Kind = StopKind.Orbit, Altitude = bodies[body].LowOrbitAltitude };
@@ -649,12 +678,14 @@ namespace ReDefinition.Engineer
             return a != null && b != null && a.Body == b.Body && a.Kind == StopKind.Orbit && b.Kind == StopKind.Orbit;
         }
 
+        // Whether two stops are one place: the same body and kind, and for orbits altitudes within a tenth or a kilometre.
         internal static bool SamePlace(RouteStop a, RouteStop b)
         {
             if (a == null || b == null || a.Body != b.Body || a.Kind != b.Kind) return false;
             return a.Kind != StopKind.Orbit || Math.Abs(a.Altitude - b.Altitude) <= Math.Max(1000.0, a.Altitude * 0.1);
         }
 
+        // The section's name as it reads inside a sentence, its first letter small; "section" for none.
         private static string Lower(string name)
         {
             return string.IsNullOrEmpty(name) ? "section" : char.ToLowerInvariant(name[0]) + name.Substring(1);

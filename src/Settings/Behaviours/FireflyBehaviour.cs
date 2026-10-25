@@ -16,12 +16,15 @@ namespace ReDefinition.Settings.Behaviours
     // hdr_override is looked for alone: a build without it keeps the rest bundled.
     internal sealed class FireflyBehaviour : ModBehaviour
     {
+        // The keys every build bundled here must have, where its settings are there to ask.
         private static readonly string[] Keys = { "strength_base", "length_mult", "disable_bowshock", "disable_particles" };
 
+        // Firefly's ModSettings.I, its GetField, and ConfigField.UpdateUiText.
         private PropertyInfo instance;
         private MethodInfo getField;
         private MethodInfo updateUiText;
 
+        // The members this is written against, and every key of Keys where the settings are loaded already.
         public override bool Attach(RegisteredMod mod)
         {
             Type settings = TypeLookup.Find("Firefly.ModSettings");
@@ -49,6 +52,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // hdr_override left out where the loaded settings lack it; everything else through its path.
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
                                    out Action<string> write, out Type type)
         {
@@ -62,6 +66,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // After every write through the indexer, the field's window text brought up to date.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             string key = Key(registration.Member);

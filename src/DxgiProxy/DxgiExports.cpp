@@ -28,16 +28,20 @@ using Microsoft::WRL::ComPtr;
 
 namespace
 {
+    // The system dxgi.dll once loaded, and the once flags of loading it and patching the factory vtable.
     HMODULE g_realDxgi = nullptr;
     std::once_flag g_loadOnce;
     std::once_flag g_hookOnce;
 
+    // The signature of IDXGIFactory2::CreateSwapChainForHwnd as a vtable entry.
     using CreateSwapChainForHwndFn = HRESULT(STDMETHODCALLTYPE*)(
         IDXGIFactory2*, IUnknown*, HWND, const DXGI_SWAP_CHAIN_DESC1*,
         const DXGI_SWAP_CHAIN_FULLSCREEN_DESC*, IDXGIOutput*, IDXGISwapChain1**);
 
+    // The factory's own CreateSwapChainForHwnd, which the hook falls through to.
     CreateSwapChainForHwndFn g_originalCreateSwapChainForHwnd = nullptr;
 
+    // The system dxgi.dll from System32, loaded once by full path, never freed.
     void LoadRealDxgi()
     {
         std::call_once(g_loadOnce, [] {
@@ -87,6 +91,8 @@ namespace
         return nullptr;
     }
 
+    // An export of the system dxgi.dll as type T, loading it first; GetProcAddress where the export table has
+    // none of that name; null without the system library.
     template <typename T>
     T RealProc(const char* name)
     {
@@ -194,6 +200,7 @@ namespace
         });
     }
 
+    // The vtable hooked where the object a CreateDXGIFactory* returned is an IDXGIFactory2.
     void HookIfFactory(void* object)
     {
         if (object == nullptr)
@@ -208,6 +215,8 @@ namespace
     }
 }
 
+// Attach: the log opened, the ini read and the load monitor told whether the proxy is on. Detach: the log
+// closed, unless the process is ending.
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved)
 {
     switch (reason)
@@ -238,6 +247,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved)
     return TRUE;
 }
 
+// The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory).
 extern "C" HRESULT WINAPI CreateDXGIFactory(REFIID riid, void** factory)
 {
     using Fn = HRESULT(WINAPI*)(REFIID, void**);
@@ -252,6 +262,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory(REFIID riid, void** factory)
     return hr;
 }
 
+// The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory).
 extern "C" HRESULT WINAPI CreateDXGIFactory1(REFIID riid, void** factory)
 {
     using Fn = HRESULT(WINAPI*)(REFIID, void**);
@@ -266,6 +277,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory1(REFIID riid, void** factory)
     return hr;
 }
 
+// The system's factory, its CreateSwapChainForHwnd hooked on the way out (HookIfFactory).
 extern "C" HRESULT WINAPI CreateDXGIFactory2(UINT flags, REFIID riid, void** factory)
 {
     using Fn = HRESULT(WINAPI*)(UINT, REFIID, void**);
@@ -280,6 +292,7 @@ extern "C" HRESULT WINAPI CreateDXGIFactory2(UINT flags, REFIID riid, void** fac
     return hr;
 }
 
+// Passed to the system dxgi.dll; E_FAIL where it is missing.
 extern "C" HRESULT WINAPI DXGIDeclareAdapterRemovalSupport()
 {
     using Fn = HRESULT(WINAPI*)();
@@ -287,6 +300,7 @@ extern "C" HRESULT WINAPI DXGIDeclareAdapterRemovalSupport()
     return real != nullptr ? real() : E_FAIL;
 }
 
+// Passed to the system dxgi.dll; E_FAIL where it is missing.
 extern "C" HRESULT WINAPI DXGIGetDebugInterface1(UINT flags, REFIID riid, void** debug)
 {
     using Fn = HRESULT(WINAPI*)(UINT, REFIID, void**);

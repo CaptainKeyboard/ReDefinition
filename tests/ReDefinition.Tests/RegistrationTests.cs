@@ -8,6 +8,7 @@ namespace ReDefinition.Tests
     // names, and a setting beside it.
     internal static class ReadyFake
     {
+        // What the ready member names, null until the mod has loaded, and a setting beside it.
         internal static object Loaded;
         internal static int Depth;
     }
@@ -16,6 +17,7 @@ namespace ReDefinition.Tests
     // reached through member paths.
     internal static class DefaultsFake
     {
+        // The settings the registrations' member paths name.
         internal static int Depth = 0;
         internal static int Width = 0;
     }
@@ -24,10 +26,13 @@ namespace ReDefinition.Tests
     // (docs/modders/registration-reference.md): MyMod.ModSettings.I[strength].
     internal sealed class IndexerFake
     {
+        // The instance a member path reaches the indexer through.
         internal static readonly IndexerFake I = new IndexerFake();
 
+        // The settings behind the indexer.
         private readonly Dictionary<string, string> values = new Dictionary<string, string> { { "strength", "2" } };
 
+        // The settings by their names, as an indexer gives and takes them.
         internal string this[string key]
         {
             get { return values[key]; }
@@ -41,16 +46,20 @@ namespace ReDefinition.Tests
     [TestClass]
     public class RegistrationTests
     {
+        // The config node of that name in the text.
         private static ConfigNode Node(string name, string text)
         {
             return ConfigNode.Parse(text).GetNode(name);
         }
 
+        // The registered mod a MOD_SETTINGS text makes, its problems added to `problems`.
         private static RegisteredMod Build(string text, List<string> problems)
         {
             return new RegisteredMod(ModRegistration.FromConfigNode(Node(ModRegistration.NodeName, text), problems), problems);
         }
 
+        // Until the ready member holds something other than null or false, the mod's settings read nothing and
+        // do not apply: a 0 before the mod has loaded is not its value.
         [TestMethod]
         public void UntilItsReadyMemberHoldsSomethingAModIsNeitherReadNorSet()
         {
@@ -76,6 +85,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(depth.Applicable(), "False is not ready either");
         }
 
+        // A ready member the mod does not have leaves the mod out as not installed, naming it among the dropped.
         [TestMethod]
         public void AReadyMemberThatIsNotThereLeavesTheModOut()
         {
@@ -88,6 +98,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(new List<string>(mod.DroppedMembers).Exists(line => line.Contains("NotThere")));
         }
 
+        // A registration titled as given, from ReDefinition's own folder or from another.
         private static KeyValuePair<ConfigNode, string> Source(string title, bool own)
         {
             return new KeyValuePair<ConfigNode, string>(
@@ -166,6 +177,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(problem => problem.Contains("without a window")));
         }
 
+        // The mods stand in the window by their titles in any letter case, not by their names or files.
         [TestMethod]
         public void ModsStandByTitleWhereverTheirFilesAre()
         {
@@ -181,6 +193,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("a", mods[1].Id);
         }
 
+        // The registration's version is reported only where a default used came from it: values from the
+        // DEFAULTS block of the installed version, or for a setting this build lacks, are not.
         [TestMethod]
         public void AVersionIsReportedOnlyWhereAValueUsedWasReadFromIt()
         {
@@ -211,6 +225,7 @@ namespace ReDefinition.Tests
             StringAssert.Contains(problems[0], "version 0.1");
         }
 
+        // A member path through an indexer counts for needs and for a BUILD's has as a plain member does.
         [TestMethod]
         public void AnIndexerCountsForNeedsAndForABuildAsItDoesForAMember()
         {
@@ -229,6 +244,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("indexed", mod.Build, "an indexer tells the build as any member does");
         }
 
+        // A profile takes the blocks of its name for every build and for the installed one, not for another build;
+        // a profile with no block leaves the defaults, and a block for a profile not installed is reported.
         [TestMethod]
         public void AProfileTakesTheBlocksOfItsNameThatFitTheBuild()
         {
@@ -259,6 +276,8 @@ namespace ReDefinition.Tests
             StringAssert.Contains(unknown[0], "'high'");
         }
 
+        // A block for the installed build counts over the one for every build, in DEFAULTS and PROFILE alike,
+        // whichever comes first in the file.
         [TestMethod]
         public void ABlockForTheBuildCountsOverOneForEveryBuildWhereverAPatchPutsIt()
         {
@@ -278,6 +297,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("2", ModProfiles.Select(mods, "low")["profiledfake"]["Depth"]);
         }
 
+        // A DEFAULTS or PROFILE block for a build no BUILD block names is reported, a misspelling caught; with a
+        // behaviour that tells the build, and no BUILD, nothing is said.
         [TestMethod]
         public void ABlockForABuildNoBuildNamesIsSaid()
         {
@@ -301,6 +322,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
         }
 
+        // ALL_PROFILES blocks set settings of any kind for every profile, the block for the installed build over
+        // the one for every build, and a block for another build not at all.
         [TestMethod]
         public void EveryProfileTakesTheBlocksForEveryProfileWhateverTheKind()
         {
@@ -322,6 +345,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("3", all["Width"], "the block for the installed build, over the one for every build");
         }
 
+        // A key a MODULE node gives twice is reported, and the last one counts, even where it is refused and the
+        // setting so gets no value.
         [TestMethod]
         public void AModuleKeyGivenTwiceCountsOnceTheLastAndIsSaid()
         {

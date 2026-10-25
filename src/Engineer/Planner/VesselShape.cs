@@ -10,6 +10,7 @@ namespace ReDefinition.Engineer
     // them in the part tree.
     internal enum Separation
     {
+        // None: no separator; Decoupler: ModuleDecouple; Anchored: a radial decoupler (ModuleAnchoredDecoupler); DockingPort.
         None,
         Decoupler,
         Anchored,
@@ -90,6 +91,7 @@ namespace ReDefinition.Engineer
             return AttachedIn(DecoupleStage, stage);
         }
 
+        // As above, from the stage it decouples at: on until the stage that drops it fires.
         internal static bool AttachedIn(int decoupleStage, int stage)
         {
             return stage < 0 || decoupleStage < stage;
@@ -124,6 +126,7 @@ namespace ReDefinition.Engineer
     // falls into the rest and the sections by them (Split). Free of Unity, tested.
     internal static class VesselShape
     {
+        // Every side of every decoupler and docking port the player can pick as a section, trimmed as above, each side once.
         internal static List<PartGroupChoice> Candidates(IList<PartFacts> parts)
         {
             List<PartGroupChoice> choices = new List<PartGroupChoice>();
@@ -343,6 +346,7 @@ namespace ReDefinition.Engineer
             return split;
         }
 
+        // The group with the most, or null where every group has none.
         private static int? Largest(double[] values)
         {
             int best = -1;
@@ -425,6 +429,7 @@ namespace ReDefinition.Engineer
             return part.Command ? 2 : part.Engine ? 1 : 0;
         }
 
+        // Per part, the indices of its children in the part tree.
         private static List<int>[] Children(IList<PartFacts> parts)
         {
             List<int>[] children = new List<int>[parts.Count];
@@ -434,6 +439,7 @@ namespace ReDefinition.Engineer
             return children;
         }
 
+        // The part and every part under it in the tree.
         private static HashSet<int> Subtree(List<int>[] children, int top)
         {
             HashSet<int> set = new HashSet<int>();

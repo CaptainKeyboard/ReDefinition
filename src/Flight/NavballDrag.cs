@@ -49,18 +49,23 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballDrag : MonoBehaviour
     {
+        // The position KSP's transition animates from, kept privately (UIPanelTransition.panelPosition).
         private static readonly FieldInfo KeptPosition =
             typeof(UIPanelTransition).GetField("panelPosition", BindingFlags.Instance | BindingFlags.NonPublic);
 
 
+        // The scene's navball drag, for the postfix; whether the postfix is installed, once per game.
         private static NavballDrag current;
         private static bool hooked;
 
+        // KSP's show/hide transition of the navball, and the frame it moves.
         private UIPanelTransitionToggle panel;
         private RectTransform frame;
         // The offset the navball stands at now, in the canvas's units.
         private float applied;
 
+        // Waits for KSP's navball toggle, then draws the navball on top, puts the drag handle on its button and hooks
+        // KSP's placing of the navball.
         private IEnumerator Start()
         {
             if (!FlightUiSwitch.On(s => s.NavballDrag)) yield break;
@@ -128,6 +133,7 @@ namespace ReDefinition.Flight
                       + ", its frame " + (order + 2) + ".");
         }
 
+        // The postfix no longer finds this scene's navball.
         private void OnDestroy()
         {
             if (current == this) current = null;
@@ -147,6 +153,7 @@ namespace ReDefinition.Flight
             drag.Settle();
         }
 
+        // A few times a second: the navball settled again where the offset asked for or the room around it changed.
         private void Update()
         {
             if (panel == null || frame == null) return;
@@ -170,9 +177,11 @@ namespace ReDefinition.Flight
             drawnWidth = max - min;
         }
 
+        // When Update looks next; the room and the navball's drawn width it settled for last.
         private float lookAgain;
         private float roomLeft = float.NaN, roomRight = float.NaN, drawnWidth = float.NaN;
 
+        // Within half a unit, or both unknown.
         private static bool Same(float a, float b)
         {
             return Mathf.Abs(a - b) < 0.5f || float.IsNaN(a) && float.IsNaN(b);
@@ -185,6 +194,7 @@ namespace ReDefinition.Flight
             if (Mathf.Abs(wanted - applied) >= 0.5f) Shift(wanted - applied);
         }
 
+        // The root canvas the navball stands in; null where it has none.
         private RectTransform Root()
         {
             Canvas canvas = frame.GetComponentInParent<Canvas>();
@@ -235,6 +245,7 @@ namespace ReDefinition.Flight
             else min = max = float.NaN;
         }
 
+        // The four corners of a graphic's rectangle, filled anew for each.
         private static readonly Vector3[] Corners = new Vector3[4];
         // Filled anew at each look, a few times a second for the whole flight.
         private static readonly List<Graphic> Graphics = new List<Graphic>();
@@ -325,6 +336,7 @@ namespace ReDefinition.Flight
             return true;
         }
 
+        // Whether the room and the navball's reach went to the log since the last change.
         private bool logged;
 
         // One unit of the frame's offset in the root canvas's units.
@@ -352,6 +364,7 @@ namespace ReDefinition.Flight
             if (addon != null) addon.NavballOffset = requested = applied;
         }
 
+        // Moves the frame, both its states and KSP's kept position by `dx`.
         private void Shift(float dx)
         {
             Vector2 by = new Vector2(dx, 0f);
@@ -400,6 +413,7 @@ namespace ReDefinition.Flight
     // and hides it.
     internal sealed class NavballDragHandle : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
     {
+        // The navball drag it moves.
         internal NavballDrag Owner;
 
         // The press and the drag are on one object, so the input module would

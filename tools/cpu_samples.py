@@ -30,6 +30,7 @@ SYMBOL_PATH = ('srv*{0}*https://symbolserver.unity3d.com/;srv*{0}*https://msdl.m
 
 
 class SYMBOL_INFOW(ctypes.Structure):
+    """dbghelp's SYMBOL_INFOW, with room for a name of 512 characters, which SymFromAddrW fills."""
     _fields_ = [('SizeOfStruct', wintypes.ULONG), ('TypeIndex', wintypes.ULONG), ('Reserved', ctypes.c_uint64 * 2),
                 ('Index', wintypes.ULONG), ('Size', wintypes.ULONG), ('ModBase', ctypes.c_uint64),
                 ('Flags', wintypes.ULONG), ('Value', ctypes.c_uint64), ('Address', ctypes.c_uint64),
@@ -38,6 +39,7 @@ class SYMBOL_INFOW(ctypes.Structure):
 
 
 def load_dbghelp():
+    """dbghelp.dll, loaded from the cache's copy beside symsrv.dll; exits where either is not found."""
     import shutil
     dbghelp = next((p for p in DBGHELP if os.path.exists(p)), None)
     symsrv = next((p for p in SYMSRV if os.path.exists(p)), None)
@@ -54,6 +56,7 @@ def load_dbghelp():
 
 
 def main():
+    """Read the samples and modules, name the addresses with dbghelp, and write the report by module and function."""
     source = sys.argv[1]
     out = open(sys.argv[2], 'w', encoding='utf-8') if len(sys.argv) > 2 else sys.stdout
     modules = []

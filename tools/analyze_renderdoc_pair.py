@@ -28,6 +28,7 @@ STAGE = re.compile(r'(\d\d+) (\d+) (.+?) (TempBuffer 57 2560x1440|ReDefinition_T
 
 
 def stages(folder, tag):
+    """The stages listed in <tag>.txt (renderdoc_stages.py) that wrote the frame's colour target: index and shader name."""
     out = []
     for line in open(os.path.join(folder, tag + '.txt')):
         m = STAGE.match(line)
@@ -37,18 +38,21 @@ def stages(folder, tag):
 
 
 def colour(folder, tag, index):
+    """A stage's colour target (<tag>_<index>.dds, RGBA16F) as an RGB float array."""
     data = open(os.path.join(folder, '%s_%02d.dds' % (tag, index)), 'rb').read()
     # DDS with the DX10 header: 148 bytes, then RGBA16F.
     return np.frombuffer(data[148:], dtype=np.float16).reshape(HEIGHT, WIDTH, 4)[..., :3].astype(np.float32)
 
 
 def depth(folder, tag):
+    """The capture's depth buffer (<tag>_depth.dds) without its stencil."""
     data = open(os.path.join(folder, tag + '_depth.dds'), 'rb').read()
     # D32_FLOAT_S8X24: the depth, then the stencil in a second 32-bit word.
     return np.frombuffer(data[148:], dtype=np.float32).reshape(HEIGHT, WIDTH, 2)[..., 0]
 
 
 def pose_shift(folder):
+    """The shift (x, y) in pixels that best matches the two finished frames on the scenery right of the vessel."""
     a = np.asarray(Image.open(os.path.join(folder, 'with_final.png')).convert('L')).astype(np.float32)
     b = np.asarray(Image.open(os.path.join(folder, 'without_final.png')).convert('L')).astype(np.float32)
     x0, x1, y0, y1 = 1500, 2100, 600, 1250
@@ -58,6 +62,7 @@ def pose_shift(folder):
 
 
 def main():
+    """Check the pose, match the stages from the last deferred lighting on and print each one's difference by band."""
     parser = argparse.ArgumentParser()
     parser.add_argument('folder')
     parser.add_argument('--stat', choices=('p95', 'median'), default='p95')

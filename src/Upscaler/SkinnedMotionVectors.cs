@@ -33,18 +33,24 @@ namespace ReDefinition.Upscaler
     // and every ten seconds one catches the rest.
     internal sealed class SkinnedMotionVectors
     {
+        // A renderer changed here, with the state it had before, to be put back.
         private sealed class Original
         {
+            // The renderer, its skinnedMotionVectors flag and its motion vector mode as first seen.
             public SkinnedMeshRenderer Renderer;
             public bool SkinnedMotionVectors;
             public MotionVectorGenerationMode Mode;
         }
 
+        // Seconds between the sweeps that catch the rest, from an event to the follow-up sweep (and the
+        // editor's least gap), the least gap after other events, and how many names the diagnostics list.
         private const float SweepSeconds = 10f;
         private const float FollowUpSeconds = 1f;
         private const float MinEventSeconds = 0.25f;
         private const int NamesListed = 8;
 
+        // The renderers changed, in order and by instance id; when the next sweep is due and when the last
+        // ran (unscaled time); whether an event or the editor asked for one; whether the events are subscribed.
         private readonly List<Original> changed = new List<Original>();
         private readonly Dictionary<int, Original> byId = new Dictionary<int, Original>();
         private float nextSweep;
@@ -88,6 +94,8 @@ namespace ReDefinition.Upscaler
             dirty = true;
         }
 
+        // Listens to the events that bring kerbals and flags: vessels, flags planted, EVAs, camera modes, the
+        // editor's ship.
         private void Subscribe()
         {
             GameEvents.onVesselLoaded.Add(OnVessel);
@@ -100,6 +108,7 @@ namespace ReDefinition.Upscaler
             subscribed = true;
         }
 
+        // Stops listening to the events Subscribe added; nothing where it is not subscribed.
         private void Unsubscribe()
         {
             if (!subscribed) return;
@@ -113,26 +122,32 @@ namespace ReDefinition.Upscaler
             subscribed = false;
         }
 
+        // A vessel loaded, created or switched to, or a flag planted: a sweep soon.
         private void OnVessel(Vessel vessel)
         {
             dirty = true;
         }
 
+        // A kerbal went on EVA: a sweep soon.
         private void OnEva(GameEvents.FromToAction<Part, Part> action)
         {
             dirty = true;
         }
 
+        // The camera mode changed, the IVA view among them: a sweep soon.
         private void OnCamera(CameraManager.CameraMode mode)
         {
             dirty = true;
         }
 
+        // The editor's ship changed: a sweep, at most one a second.
         private void OnShip(ShipConstruct ship)
         {
             editorDirty = true;
         }
 
+        // Every skinned renderer in the scene gets skinnedMotionVectors on and Object for Camera mode; the
+        // state first seen is kept for Restore.
         private void Sweep()
         {
             // Renderers destroyed with their vessel.

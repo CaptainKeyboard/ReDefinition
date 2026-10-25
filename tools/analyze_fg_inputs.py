@@ -30,6 +30,8 @@ import fg_dump  # noqa: E402
 
 
 def load_frames(folder):
+    """The dump's frames from its index, with matrices as 4x4 arrays, colour as grey (RGB mean), depth and
+    motion (float16 pairs) read from the per-frame .bin files."""
     frames = fg_dump.read_index(folder)
     for f in frames:
         for name in fg_dump.MATRICES:
@@ -51,6 +53,7 @@ def load_frames(folder):
 
 
 def bilinear(image, x, y):
+    """The grey image sampled bilinearly at pixel positions x, y (arrays), clamped to its edges."""
     h, w = image.shape
     x = np.clip(x, 0, w - 1.001)
     y = np.clip(y, 0, h - 1.001)
@@ -64,6 +67,7 @@ def bilinear(image, x, y):
 
 
 def linear_depth(frame, depth):
+    """View distance from device depth through the frame's viewToClip; infinity where nothing is drawn (0)."""
     # viewToClip, row vectors: clip.z = c * z + d, clip.w = z.
     m = frame["viewToClip"]
     c, d = m[2, 2], m[3, 2]
@@ -72,6 +76,8 @@ def linear_depth(frame, depth):
 
 
 def analyse_pair(prev, cur, near_metres, step):
+    """Report lines for one frame pair, per depth region (near, far, nothing drawn) on every step-th pixel:
+    the colour error with the vectors scaled, the error with camera motion, and vectors against camera motion."""
     cw_, ch_ = cur["colour"].shape[1], cur["colour"].shape[0]
     mh, mw = cur["motion"].shape[:2]
     dh, dw = cur["depth"].shape
@@ -164,6 +170,7 @@ def block_motion(prev, cur, tile=64, search=96, stride=4):
 
 
 def main():
+    """Print the dump's frames, then the analysis of each consecutive pair (and block matching with --blocks)."""
     parser = argparse.ArgumentParser()
     parser.add_argument("folder")
     parser.add_argument("--near", type=float, default=15.0)

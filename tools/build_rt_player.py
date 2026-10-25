@@ -77,6 +77,7 @@ SHADERS = [
 ]
 
 def copy_in():
+    """Replace the player's Assets/Linked with fresh copies of SOURCES, and the SHADERS in its Resources."""
     if os.path.isdir(LINKED):
         shutil.rmtree(LINKED)
     os.makedirs(RESOURCES)
@@ -89,6 +90,7 @@ def copy_in():
 
 
 def build(unity):
+    """Build the player with Unity in batch mode and put the proxy beside it; exits with the log's errors if it fails."""
     exe = os.path.join(OUTPUT, 'RaytracingPlayer.exe')
     log = os.path.join(OUTPUT, 'build.log')
     os.makedirs(OUTPUT, exist_ok=True)
@@ -104,6 +106,7 @@ def build(unity):
 
 
 def run(exe, deferred_folder, label, extra=(), size=(1280, 720)):
+    """Run the player once (five minutes at most), print its RTPLAYER lines and say whether all checks passed."""
     log = os.path.join(OUTPUT, label + '.log')
     out = os.path.join(OUTPUT, label)
     arguments = [exe, '-logFile', log, '-out', out, '-screen-width', str(size[0]), '-screen-height', str(size[1]),
@@ -124,6 +127,7 @@ def run(exe, deferred_folder, label, extra=(), size=(1280, 720)):
 
 
 def turn(exe, streamline, deferred):
+    """Record the camera turn in each variant, measure them with analyze_rt_turn.py; 0 when all ran and passed."""
     # Streamline set up on the player's swapchain, as the game's proxy does with DLSS
     # frame generation, so that Ray Reconstruction runs; only for these runs.
     ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
@@ -156,6 +160,8 @@ def turn(exe, streamline, deferred):
 
 
 def upscale(exe, streamline, amd, ksp):
+    """Record the turn natively and through each upscaler at two scales, measure them with analyze_upscale_turn.py;
+    0 when all ran and passed."""
     # The proxy with DLSS from the Streamline SDK's folder and AMD's upscaler, as a
     # player names them; only for these runs.
     ini = os.path.join(OUTPUT, 'ReDefinitionProxy.ini')
@@ -187,6 +193,7 @@ def upscale(exe, streamline, amd, ksp):
 
 
 def main():
+    """Build the player unless --no-build, then run the turn, the upscaler turn, one check or all the runs."""
     parser = argparse.ArgumentParser()
     parser.add_argument('--unity', default=r'C:\Program Files\Unity\Editor\Unity.exe')
     # By default KspRoot, as the build takes it, or the Steam location.

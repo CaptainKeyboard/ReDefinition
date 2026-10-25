@@ -38,6 +38,10 @@ namespace ReDefinition.Upscaler
         private const float NativeStoppedSeconds = 2f;
         private const float NativeNeverShownSeconds = 1f;
 
+        // The link to the technique in the proxy (null for FSR 3, a bypass or pass-through); packets sent; the last
+        // state noted; whether the proxy's output is shown this frame and was in this rig at all; the reason it
+        // stopped, as last logged; since when it is stopped (-1 while it is not); and when a stopped state is
+        // noted again.
         private NativeUpscalerLink nativeLink;
         private int nativeSubmitted;
         private int nativeState;
@@ -47,6 +51,8 @@ namespace ReDefinition.Upscaler
         private float nativeStoppedSince = -1f;
         private float nextNativeCheck;
 
+        // This frame's packet for DLSS (or Ray Reconstruction), XeSS or AMD's DLL into the dispatch buffer, after
+        // noting the proxy's state; true where the proxy's output is the image to show.
         private bool SubmitNative()
         {
             int state = nativeSubmitted < NativeStateTrustedAfter ? 0 : nativeLink.State();

@@ -9,8 +9,10 @@ namespace ReDefinition.Window
     // line is broken at the last space before that.
     internal static class TooltipText
     {
+        // The longest line a tooltip keeps, in characters.
         internal const int MaxLine = 83;
 
+        // The text with every line longer than MaxLine broken at its last space before it.
         internal static string Wrap(string text)
         {
             if (string.IsNullOrEmpty(text)) return text;

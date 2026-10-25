@@ -7,6 +7,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class UiScaleDefaultTests
     {
+        // Below 1440 lines the default stays KSP's own 100 %.
         [TestMethod]
         public void FullHdAndBelowKeepKspsOwnHundredPercent()
         {
@@ -15,6 +16,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1", KspBehaviour.UiScaleFor(1200));
         }
 
+        // From 1440 lines up to below 2160 the default is 150 %.
         [TestMethod]
         public void From1440LinesItIsOneAndAHalf()
         {
@@ -22,6 +24,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1.5", KspBehaviour.UiScaleFor(1600));
         }
 
+        // From 2160 lines (4K) the default is 200 %.
         [TestMethod]
         public void From4kItIsTwo()
         {

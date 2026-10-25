@@ -9,7 +9,6 @@
 // traced before its lighting; the frame before's, carried over, where the trace follows
 // the frame (the test players) --, in place of the reflection probe (the block marked
 // ReDefinition in frag). Everything else is Deferred's. Its name is kept apart: ReDefinition/Internal-DeferredReflections.
-
 Shader "ReDefinition/Internal-DeferredReflections" {
 Properties {
     _SrcBlend ("", Float) = 1
@@ -34,21 +33,27 @@ CGPROGRAM
 #include "UnityStandardBRDF.cginc"
 #include "UnityPBSLighting.cginc"
 
+// Unity's G-buffer: diffuse colour and occlusion, specular colour and smoothness, normal.
 sampler2D _CameraGBufferTexture0;
 sampler2D _CameraGBufferTexture1;
 sampler2D _CameraGBufferTexture2;
 
+// Deferred's switches for the camera being drawn: the probe's light at all, the probe's reflections, its
+// screen-space reflections in their place; the probe's diffuse light's strength and how much of its colour
+// is kept; the IVA's rotation.
 int useReflectionProbeOnCurrentCamera;
 int disableProbeReflectionsOnCurrentCamera;
 int useSSROnCurrentCamera;
 float deferredAmbientBrightness, deferredAmbientTint;
 float4x4 internalSpaceToWorld; // Transform from internal space to world if on IVA camera, identity matrix otherwise
 
+// How far a point lies outside a box along each axis, 0 inside it.
 half3 distanceFromAABB(half3 p, half3 aabbMin, half3 aabbMax)
 {
     return max(max(p - aabbMax, aabbMin - p), half3(0.0, 0.0, 0.0));
 }
 
+// KSP's ambient light without Deferred, the floor the probe's diffuse light is mixed up from.
 float3 legacyAmbientColor;
 
 // ReDefinition: the raytraced diffuse light and reflections, set around the raytraced
@@ -103,6 +108,9 @@ float3 ReDefinitionRtSignal(float3 linearLight)
 #endif
 }
 
+// One probe's reflection and Deferred's diffuse ambient light at the pixel, the raytraced light in their
+// place where the raytraced frame has the point (or KSP's sea lit by its own reflection); alpha the
+// falloff at the probe's box. Nothing where Deferred has the probe off for the camera.
 half4 frag (unity_v2f_deferred i) : SV_Target
 {
     [branch]
@@ -283,13 +291,16 @@ Pass
 
         #include "UnityCG.cginc"
 
+        // Unity's reflection buffer, which the first pass filled probe by probe.
         sampler2D _CameraReflectionsTexture;
 
+        // What the vertex function hands the fragment function.
         struct v2f {
-            float2 uv : TEXCOORD0;
-            float4 pos : SV_POSITION;
+            float2 uv : TEXCOORD0; // the screen position the reflections are read at
+            float4 pos : SV_POSITION; // the quad's clip position
         };
 
+        // A full-screen quad, its screen position as the uv.
         v2f vert (float4 vertex : POSITION)
         {
             v2f o;
@@ -298,6 +309,8 @@ Pass
             return o;
         }
 
+        // The gathered reflections as the lighting buffer adds them: as they are in HDR, decoded from the
+        // logarithmic LDR buffer (exp2 of minus the value) otherwise.
         half4 frag (v2f i) : SV_Target
         {
             half4 c = tex2D (_CameraReflectionsTexture, i.uv);

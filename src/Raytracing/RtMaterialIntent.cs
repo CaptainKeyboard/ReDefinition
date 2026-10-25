@@ -30,12 +30,16 @@ namespace ReDefinition.Raytracing
     // * Unity's physically based shaders and every other one: the G-buffer's own.
     internal struct RtMaterialIntent
     {
+        // How the shine is meant (RtNative's Surface constants); the specular colour and smoothness the hits take where it is not
+        // Keep; for the legacy families what the G-buffer's smoothness is divided by for the gloss, and the gloss where
+        // no G-buffer gives it (the ground: whether it is drawn as Parallax's terrain already).
         public uint Mode;
         public Color Specular;
         public float Smoothness;
         public float GlossDivisor;
         public float GlossMean;
 
+        // The power of _Shininess in the divisor that gives the gloss back from Deferred's smoothness (see above).
         private const float LegacyShininessPower = 0.215f;
         // Unity's defaults, left on most of the space centre's specular materials.
         private const float DefaultShininess = 0.078125f;
@@ -49,6 +53,7 @@ namespace ReDefinition.Raytracing
         // (2026-10-25, tools/surface_sheet.py).
         private const float LawnGloss = 0.175f;
 
+        // The shaders already logged as taken as drawn, so that each is logged once.
         private static readonly HashSet<string> Unknown = new HashSet<string>();
 
         // Materials whose values were changed for Deferred's G-buffer (EditorHallShine),
@@ -58,16 +63,20 @@ namespace ReDefinition.Raytracing
         // the hall was changed.
         private static readonly Dictionary<Material, RtMaterialIntent> meant = new Dictionary<Material, RtMaterialIntent>();
 
+        // Holds the shine a material's own values mean before they are changed for Deferred (EditorHallShine).
         internal static void Hold(Material material, RtMaterialIntent intent)
         {
             if (material != null) meant[material] = intent;
         }
 
+        // Drops the shine held for a material, as its own values are put back.
         internal static void Release(Material material)
         {
             if (!ReferenceEquals(material, null)) meant.Remove(material);
         }
 
+        // The material's shine as meant; `scenery` for the space centre and other scenery, whose diffuse and default
+        // specular shaders stay matt where a vessel's part keeps the G-buffer's.
         internal static RtMaterialIntent Of(Material material, bool scenery)
         {
             var keep = new RtMaterialIntent { Mode = RtNative.SurfaceKeep, Specular = Color.black, Smoothness = 0f };
@@ -177,6 +186,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The home body's Parallax terrain shine, read from the config once GameDatabase is there; false without it.
         private static bool HomeTerrain(out RtMaterialIntent terrain)
         {
             if (!homeTerrainRead && GameDatabase.Instance != null)
@@ -202,11 +212,14 @@ namespace ReDefinition.Raytracing
             return homeTerrainFound;
         }
 
+        // No shine at all (RT_SURFACE_DRY).
         private static RtMaterialIntent Dry()
         {
             return new RtMaterialIntent { Mode = RtNative.SurfaceDry, Specular = Color.black, Smoothness = 0f };
         }
 
+        // A Blinn-Phong highlight of colour `specular` at exponent `exponent` as a shine: the roughness Unity relates to
+        // the exponent, the colour as bright as the highlight, the gloss read from the G-buffer by `divisor`.
         private static RtMaterialIntent Legacy(Color specular, float exponent, float divisor, uint mode)
         {
             float n = Mathf.Max(exponent, 0f);
@@ -228,6 +241,7 @@ namespace ReDefinition.Raytracing
         // shine). Its metal -- tanks, the water tower, pipes, steel beams -- keeps its shine.
         private static readonly string[] ConcreteNames = { "launchPad", "ramp", "floor", "Foundation", "runway", "concrete" };
 
+        // Whether a material's name is one of the space centre's concrete ones (ConcreteNames), steel excepted.
         private static bool Concrete(string name)
         {
             if (name.IndexOf("Steel", StringComparison.OrdinalIgnoreCase) >= 0) return false;
@@ -236,6 +250,7 @@ namespace ReDefinition.Raytracing
             return false;
         }
 
+        // The colour's brightest channel.
         private static float Max(Color c)
         {
             return Mathf.Max(c.r, Mathf.Max(c.g, c.b));

@@ -20,12 +20,15 @@ namespace ReDefinition.Flight
     // glide into the gap rather than jump.
     public class IconColumnsLayout : LayoutGroup
     {
+        // An icon's size in KSP's column; the gap between rows; and the blend, 0 for one column, 1 for two.
         public Vector2 Cell;
         public float Spacing;
         public float Blend;
 
+        // Per child, the place it starts at, counted from the first (CountSlots).
         private readonly List<float> slots = new List<float>();
 
+        // As wide as one column, or two, or between them by the blend.
         public override void CalculateLayoutInputHorizontal()
         {
             base.CalculateLayoutInputHorizontal();
@@ -78,6 +81,7 @@ namespace ReDefinition.Flight
             return new Vector2(0f, slot * (Cell.y + Spacing));
         }
 
+        // In two columns, a place on the straight line from one place to the next.
         private Vector2 Pair(float slot)
         {
             int whole = Mathf.FloorToInt(slot);
@@ -85,11 +89,13 @@ namespace ReDefinition.Flight
             return Vector2.Lerp(Place(whole), Place(whole + 1), part);
         }
 
+        // In two columns: left and right in turn, a row down after each pair.
         private Vector2 Place(int slot)
         {
             return new Vector2((slot % 2) * Cell.x, (slot / 2) * (Cell.y + Spacing));
         }
 
+        // Each child's x: centred in one column, or in two, blended between.
         public override void SetLayoutHorizontal()
         {
             float inner = rectTransform.rect.width - padding.horizontal;
@@ -99,6 +105,7 @@ namespace ReDefinition.Flight
                 SetChildAlongAxis(rectChildren[i], 0, Mathf.Lerp(single, pair + Pair(slots[i]).x, Blend), Cell.x);
         }
 
+        // Each child's y and height, blended between one column and two.
         public override void SetLayoutVertical()
         {
             for (int i = 0; i < rectChildren.Count && i < slots.Count; i++)

@@ -36,6 +36,7 @@ MODS = [
 
 
 def mod_of(shader):
+    """The mod a shader belongs to by MODS; copies, clears and actions without a shader are named apart."""
     for mod, prefixes in MODS:
         if shader.startswith(prefixes):
             return mod
@@ -47,6 +48,7 @@ out = open(OUT, 'w')
 
 
 def log(line):
+    """Write a line to the output file at once, so a crash of the replay leaves what came before."""
     out.write(line + '\n')
     out.flush()
 

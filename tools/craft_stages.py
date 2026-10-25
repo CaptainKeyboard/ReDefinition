@@ -69,6 +69,7 @@ def parse_nodes(text):
 
 
 def value(node, key, default=None):
+    """The first value of the key in the node, or the default."""
     for k, v in node[0]:
         if k == key:
             return v
@@ -76,14 +77,17 @@ def value(node, key, default=None):
 
 
 def values(node, key):
+    """Every value of the key in the node, in order."""
     return [v for k, v in node[0] if k == key]
 
 
 def children(node, name):
+    """The node's child nodes of that name."""
     return [n for k, n in node[1] if k == name]
 
 
 def number(text, default=0.0):
+    """The text as a float, or the default where it is missing or no number."""
     try:
         return float(text)
     except (TypeError, ValueError):
@@ -96,6 +100,7 @@ STOCK_FOLDERS = ('Squad', 'SquadExpansion')
 
 
 class Game:
+    """The installed game's part configs by name and its resources' density and flow mode."""
     def __init__(self, ksp, stock=False):
         """The parts and resources as the game loads them (ModuleManager.ConfigCache),
         or with stock, from Squad's own files alone, as KSP without mods has them."""
@@ -151,7 +156,10 @@ IGNORED = ('IntakeAir', 'ElectricCharge')
 
 
 class Engine:
+    """One engine module of a part: thrust, Isp, propellants and their flow, from its config and the craft."""
     def __init__(self, module, craft_module):
+        """From the part config's engine module, the thrust limited by the craft's thrustPercentage; Isp in vacuum
+        and at 1 atm from the atmosphereCurve, solid where the throttle is locked or it cannot shut down."""
         self.thrust = number(value(module, 'maxThrust'))
         percent = number(value(craft_module, 'thrustPercentage', '100'), 100.0) if craft_module else 100.0
         self.thrust *= percent / 100.0
@@ -193,10 +201,13 @@ class Engine:
 
 
 class Part:
+    """One part of a craft; load_craft sets its attributes: tree, mass, resources, engines, kind and decouple stage."""
     pass
 
 
 def load_craft(game, path):
+    """The craft file's parts with their tree, fuel lines, resources and engines, and per part the stage at which
+    the first decoupler between it and the root fires (decouple)."""
     root = parse_nodes(open(path, encoding='utf-8-sig', errors='replace').read())
     nodes = children(root, 'PART')
     ids = [value(n, 'part') for n in nodes]
@@ -302,10 +313,12 @@ def load_craft(game, path):
 # ------------------------------------------------------------------ simulation
 
 def mass_of(game, part):
+    """The part's mass now: dry mass and the mass of the resources it holds, in tonnes."""
     return part.dry + sum(amount * game.resources.get(name, (0.0, ''))[0] for name, amount in part.amount.items())
 
 
 def reachable(parts, start):
+    """The parts fuel can flow from to the start part: through crossfeeding parts and fuel lines, never a clamp."""
     seen = {start}
     todo = [start]
     while todo:
@@ -322,6 +335,8 @@ def reachable(parts, start):
 
 
 def simulate(game, parts):
+    """Burn the stages from the highest down; the rows (masses, delta-v, thrust, burn time, solid) and, per part and
+    stage that burnt from it, its resource mass at the start and the end."""
     attached = set(p.index for p in parts if not p.clamp)
     top = max([p.istg for p in parts] + [0])
     rows = []
@@ -374,6 +389,8 @@ def simulate(game, parts):
 
 
 def sources(game, parts, attached, engine_at, name):
+    """The attached parts the engine draws the resource from now, by its flow mode: of those holding some, the ones
+    dropped soonest."""
     density, mode = game.resources.get(name, (0.0, 'ALL_VESSEL'))
     if mode == 'NO_FLOW':
         pool = [engine_at]
@@ -389,10 +406,12 @@ def sources(game, parts, attached, engine_at, name):
 
 
 def feeds(game, parts, attached, part):
+    """Whether every propellant of the part's engines still has a source."""
     return all(sources(game, parts, attached, part.index, name) for e in part.engines for name, _ in e.propellants)
 
 
 def draw(game, parts, attached, engine_at, name, units):
+    """Take the units of the resource evenly from the engine's sources, moving on as they run dry; the mass burnt."""
     density = game.resources.get(name, (0.0, ''))[0]
     burnt = 0.0
     left = units
@@ -412,6 +431,7 @@ def draw(game, parts, attached, engine_at, name, units):
 # -------------------------------------------------------------------- C# out
 
 def cs_number(x):
+    """A number as a C# literal: floats rounded to four places."""
     return repr(round(x, 4)) if isinstance(x, float) else str(x)
 
 
@@ -420,6 +440,8 @@ FLOWS = {'NO_FLOW': 'SimFlow.Own', 'STACK_PRIORITY_SEARCH': 'SimFlow.Stack', 'ST
 
 
 def sim_engine(game, engine, kind):
+    """The engine as the planner's simulation takes it: a Rocket(...) or AirEngine(...) expression with its
+    propellants, the ignored ones and those without mass left out."""
     props = []
     for pname, ratio in engine.propellants:
         density, mode = game.resources.get(pname, (0.0, 'ALL_VESSEL'))
@@ -437,6 +459,7 @@ def sim_engine(game, engine, kind):
 
 
 def emit_sim(game, parts):
+    """The C# lines of the craft's Sim list: one SimPartOf(...) per part."""
     out = ['                Sim = new List<SimPart>', '                {']
     for p in parts:
         amounts = ', '.join('{ "%s", %s }' % (n, cs_number(a)) for n, a in sorted(p.initial.items())
@@ -452,6 +475,7 @@ def emit_sim(game, parts):
 
 
 def emit(name, parts, rows, fuel, game_parts_mass, game):
+    """The C# block of one StockCraft: its stage rows, its part facts and its Sim list."""
     out = []
     out.append('            new StockCraft')
     out.append('            {')
@@ -482,6 +506,7 @@ def emit(name, parts, rows, fuel, game_parts_mass, game):
 
 
 def main():
+    """Simulate every craft named, print its burning stages and write StockCrafts.cs with all of them."""
     arguments = sys.argv[1:]
     stock = '--stock' in arguments
     if stock:
@@ -509,10 +534,12 @@ def main():
               '// %s. Do not edit.\n' % source +
               'using System.Collections.Generic;\nusing ReDefinition.Engineer;\n\n'
               'namespace ReDefinition.Tests\n{\n    internal static partial class StockCrafts\n    {\n'
+              '        // The density of each resource with a mass, in tonnes a unit, as the game\'s resource definitions give it.\n'
               '        internal static readonly Dictionary<string, double> Density = new Dictionary<string, double>\n        {\n'
               + ''.join('            { "%s", %s },\n' % (n, cs_number(d)) for n, (d, _) in sorted(game.resources.items())
                         if d > 0 and n not in IGNORED)
               + '        };\n\n'
+              '        // Every stock craft the tests fly: its stage rows as KSP counts them, its parts\' facts and its simulation parts.\n'
               '        internal static readonly List<StockCraft> All = new List<StockCraft>\n        {\n')
     footer = '\n        };\n    }\n}\n'
     open(target, 'w', encoding='utf-8', newline='\r\n').write(header + '\n'.join(blocks) + footer)

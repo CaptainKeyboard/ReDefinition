@@ -11,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 def main():
+    """Write one captioned picture per shot name found in both runs (or named) into the out folder."""
     args = sys.argv[1:]
     left, right, out = args[0], args[1], args[2]
     rest = args[3:]

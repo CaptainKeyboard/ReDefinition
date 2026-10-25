@@ -26,6 +26,7 @@ namespace ReDefinition.Dashboard
             get { return HighLogic.LoadedScene == GameScenes.SPACECENTER || HighLogic.LoadedScene == GameScenes.TRACKSTATION; }
         }
 
+        // g.mode: KSP's name of the game's mode (CAREER, SCIENCE_SANDBOX, SANDBOX ...), null without a game.
         internal static object Mode()
         {
             return HighLogic.CurrentGame != null ? HighLogic.CurrentGame.Mode.ToString() : null;
@@ -37,6 +38,7 @@ namespace ReDefinition.Dashboard
             return HighLogic.CurrentGame != null && Funding.Instance != null ? (object)Funding.Instance.Funds : null;
         }
 
+        // g.science: the science points to spend; null where the game's mode keeps none.
         internal static object Science()
         {
             return HighLogic.CurrentGame != null && ResearchAndDevelopment.Instance != null
@@ -44,6 +46,7 @@ namespace ReDefinition.Dashboard
                 : null;
         }
 
+        // g.reputation: the space program's reputation; null where the game's mode keeps none.
         internal static object Reputation()
         {
             return HighLogic.CurrentGame != null && global::Reputation.Instance != null
@@ -51,6 +54,7 @@ namespace ReDefinition.Dashboard
                 : null;
         }
 
+        // g.ut: the universal time in seconds, null without a game.
         internal static object Ut()
         {
             return HighLogic.CurrentGame != null && Planetarium.fetch != null ? (object)Planetarium.GetUniversalTime() : null;
@@ -70,11 +74,13 @@ namespace ReDefinition.Dashboard
             return calendar == null ? null : new Dictionary<string, object> { { "day", calendar.Day }, { "year", calendar.Year } };
         }
 
+        // t.currentRate: the time warp's factor, where the scene shows warp.
         internal static object WarpRate()
         {
             return WarpShown ? (object)(double)TimeWarp.CurrentRate : null;
         }
 
+        // t.currentRateIndex: the index of that rate in the warp mode's rates, where the scene shows warp.
         internal static object WarpRateIndex()
         {
             return WarpShown ? (object)TimeWarp.CurrentRateIndex : null;

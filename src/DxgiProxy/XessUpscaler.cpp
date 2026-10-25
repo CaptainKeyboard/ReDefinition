@@ -14,6 +14,7 @@ namespace redefinition
 {
     namespace
     {
+        // The DLL's file name, looked for in RuntimeFolder().
         constexpr const wchar_t* kRuntimeName = L"libxess.dll";
 
         // xessDirectory, or next to the executable.
@@ -23,12 +24,14 @@ namespace redefinition
             return directory.empty() ? ExecutableDirectory() : directory;
         }
 
+        // The folder and the stamp of libxess.dll in it: a stop for -2 stands while this stays the same.
         std::wstring RuntimeSignature()
         {
             const std::wstring folder = RuntimeFolder();
             return folder + L"|" + FileStamp(folder + L"\\" + kRuntimeName);
         }
 
+        // One barrier on the list for the resource from one state to the other.
         void Transition(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource,
                         D3D12_RESOURCE_STATES from, D3D12_RESOURCE_STATES to)
         {
@@ -36,6 +39,7 @@ namespace redefinition
             commandList->ResourceBarrier(1, &barrier);
         }
 
+        // The description of a D3D11 resource that is a 2D texture; false for anything else.
         bool TextureDesc(void* texture, D3D11_TEXTURE2D_DESC& desc)
         {
             ComPtr<ID3D11Texture2D> texture2d;
@@ -46,6 +50,7 @@ namespace redefinition
             return true;
         }
 
+        // Whether a context made for a can take b: the same sizes and the same creation flags.
         bool SameContext(const XessUpscalerPacket& a, const XessUpscalerPacket& b)
         {
             const uint32_t creationFlags = kAmdUpscalerHdr | kAmdUpscalerDepthInverted | kAmdUpscalerAutoExposure;
@@ -54,6 +59,7 @@ namespace redefinition
                 && (a.flags & creationFlags) == (b.flags & creationFlags);
         }
 
+        // The shared texture made again unless it already has the size and the typed format of desc.
         bool Match(SharedTexture& shared, ID3D11Device* device11, ID3D12Device* device12,
                    const D3D11_TEXTURE2D_DESC& desc)
         {
@@ -100,6 +106,7 @@ namespace redefinition
             return best;
         }
 
+        // A result code as the status and the log write it.
         std::string ResultText(xess_result_t result)
         {
             return "XeSS result " + std::to_string(static_cast<int>(result));

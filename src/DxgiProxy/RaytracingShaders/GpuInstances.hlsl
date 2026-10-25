@@ -1,13 +1,18 @@
 // The instances the GPU made (Parallax's scatter) into the scene's instance buffers,
-// after the CPU's (Raytracing.cpp, AddGpuInstancesLocked): each one's descriptor for
+// after the CPU's (RaytracingScene.cpp, AddGpuInstancesLocked): each one's descriptor for
 // the acceleration structure and the data the passes look its mesh, material and
 // normals up by. The transforms come in t7's layout (Raytracing.h, kRtInputInstances);
 // one all zero is no instance, its mask 0.
 
 #include "RtContract.h"
 
+// A run of the GPU's instances as AddGpuInstancesLocked writes it (GpuGroup,
+// RaytracingScene.cpp): one mesh and material for all of them.
 struct Group
 {
+    // The mesh's structure's address, low half first; its descriptor slot; the material's index
+    // among the frame's; where the run starts in t7 and how long it is; its first instance's
+    // place among the GPU's instances.
     uint2 blas;
     uint meshSlot;
     uint material;
@@ -22,6 +27,7 @@ struct Group
 // bottom-level structure's address.
 struct InstanceDesc
 {
+    // The fields in the order the comment above gives them.
     float4 rows[3];
     uint idMask;
     uint contributionFlags;
@@ -31,6 +37,8 @@ struct InstanceDesc
 // RtCommon.hlsli's InstanceData.
 struct InstanceData
 {
+    // The mesh's descriptor slot, the material's index, the instance's flags, padding, and the
+    // normals' matrix in three padded rows.
     uint meshSlot;
     uint material;
     uint flags;
@@ -38,19 +46,24 @@ struct InstanceData
     float4 normalRows[3];
 };
 
+// The groups, t7's transforms, and the scene's descriptions and data, written past the CPU's
+// instances.
 StructuredBuffer<Group> groups : register(t0, space3);
 Texture2D<float4> transforms : register(t1, space3);
 RWStructuredBuffer<InstanceDesc> descs : register(u0, space3);
 RWStructuredBuffer<InstanceData> data : register(u1, space3);
 
+// The dispatch's root constants (AddGpuInstancesLocked).
 cbuffer Step : register(b1)
 {
+    // How many groups and GPU instances there are, and how many of the CPU's come before them.
     uint groupCount;
     uint gpuCount;
     uint cpuCount;
     uint unused;
 };
 
+// The instances to a row of t7, and the instance flags the descriptions take.
 static const uint kPerRow = RT_INSTANCES_PER_ROW;
 static const uint kCullDisable = 1u;   // D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
 static const uint kNonOpaque = 8u;     // D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
@@ -58,6 +71,8 @@ static const uint kDisableOmms = 32u;  // NVAPI_D3D12_RAYTRACING_INSTANCE_FLAG_D
 static const uint kTerrain = RT_INSTANCE_TERRAIN;
 static const uint kCutout = RT_INSTANCE_CUTOUT;
 
+// One GPU instance a thread: its group found, its transform read, its description and data
+// written at its place after the CPU's.
 [numthreads(64, 1, 1)]
 void GpuInstances(uint3 id : SV_DispatchThreadID)
 {
@@ -97,7 +112,7 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
     descs[index] = desc;
 
     // The normals' matrix, the inverse transpose of the 3x3: its cofactors over the
-    // determinant, as NormalMatrix in Raytracing.cpp.
+    // determinant, as NormalMatrix in RaytracingScene.cpp.
     float3 c0 = cross(r1.xyz, r2.xyz);
     float3 c1 = cross(r2.xyz, r0.xyz);
     float3 c2 = cross(r0.xyz, r1.xyz);

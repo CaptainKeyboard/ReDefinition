@@ -95,6 +95,8 @@ namespace redefinition
 
     namespace
     {
+        // The refresh rate of the window's monitor: the exact one from the display configuration, otherwise
+        // DEVMODE's whole hertz; 0 where neither knows.
         double QueryRefreshRate(HWND window)
         {
             const HMONITOR monitor = MonitorFromWindow(window, MONITOR_DEFAULTTONEAREST);

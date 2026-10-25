@@ -20,11 +20,15 @@ namespace ReDefinition.Settings
     //   }
     internal sealed class GraphicsProfile
     {
+        // The node a profile is, and the node of a module's values inside it.
         public const string NodeName = "GRAPHICS_PROFILE";
         public const string ModuleNodeName = "MODULE";
 
+        // The keys a profile's node may hold besides its MODULE nodes.
         private static readonly string[] ProfileKeys = { "name", "title", "summary", "description", "order", "hardware" };
 
+        // The name blocks and the settings file know it by, the title its button shows, and the description
+        // its tooltip.
         public string Name = "";
         public string Title = "";
         public string Description = "";

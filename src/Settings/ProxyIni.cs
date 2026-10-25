@@ -11,15 +11,19 @@ namespace ReDefinition.Settings
     // go in through here.
     internal static class ProxyIni
     {
+        // The section the proxy reads.
         private const string Section = "Proxy";
 
+        // Windows' own reading and writing of ini files, as the proxy reads the file.
         [DllImport("kernel32", CharSet = CharSet.Unicode)]
         private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder buffer,
                                                            uint size, string file);
 
+        // Writes the key's value into the section, the file made where it is missing.
         [DllImport("kernel32", CharSet = CharSet.Unicode)]
         private static extern bool WritePrivateProfileString(string section, string key, string value, string file);
 
+        // ReDefinitionProxy.ini's full path, beside KSP_x64.exe.
         public static string Path
         {
             get

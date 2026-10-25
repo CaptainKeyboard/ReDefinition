@@ -18,9 +18,11 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class KscGrassGap : MonoBehaviour
     {
+        // The command-line switch, and the random points measured on each grass submesh.
         internal const string Argument = "-redefinitionKscGrassGap";
         private const int PointsPerMesh = 40;
 
+        // With the switch, the measurement eight seconds into the flight.
         private IEnumerator Start()
         {
             if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0) yield break;
@@ -35,6 +37,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The gaps measured per facility's grass submesh, then KSP's flattening decals and Parallax's blade size, into the log.
         private static void Measure()
         {
             CelestialBody body = FlightGlobals.currentMainBody;
@@ -97,6 +100,7 @@ namespace ReDefinition.Probe
             Debug.Log(text.ToString());
         }
 
+        // Minimum, median and maximum of the values, and their count, for the log; sorts the list.
         private static string Stats(List<float> values)
         {
             if (values.Count == 0) return "none";

@@ -1,3 +1,5 @@
+// The dashboard's flight panels, its link to the mod and its demo; it shows the scene pages (menu.js, ksc.js,
+// editor.js) in their scenes and gives them window.Dashboard.
 (function () {
 	"use strict";
 	// ReDefinition's dashboard port. It is fixed because the manifest has to name it.
@@ -14,7 +16,9 @@
 	// right. A panel keeps its width; one in a row shorter than the widest grows to fill it.
 	const PANEL_W = { ctl: 630, agpanel: 230, ballpanel: 758, flight: 560, thr: 300 };
 	const PANEL_H = 677, GAP = 10, PAD = 10;
+	// An arrangement with f applied to every row of its one-, two- and three-row forms.
 	const copyRows = (a, f) => ({ 1: a[1].map(f), 2: a[2].map(f), 3: a[3].map(f) });
+	// An arrangement mirrored left to right: every row's panels in reverse order.
 	const mirror = (a) => copyRows(a, (r) => r.slice().reverse());
 	const STANDARD = { 1: [["ctl", "agpanel", "ballpanel", "flight", "thr"]], 2: [["ctl", "agpanel", "thr"], ["ballpanel", "flight"]], 3: [["ballpanel"], ["flight", "thr"], ["ctl", "agpanel"]] };
 	// Handheld: the navball at one end, then the buttons, the action groups, the flight data and the throttle.
@@ -28,9 +32,13 @@
 	const layout = { preset: "default", rows: "auto", custom: null };
 	if (served) try { Object.assign(layout, JSON.parse(localStorage.getItem(LAYOUT_KEY)) || {}); } catch (e) { /* no storage: the default */ }
 	layout.preset = OLD_PRESETS[layout.preset] || layout.preset;
+	// Keeps the layout choice in the browser's storage, where there is one.
 	const saveLayout = () => { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (e) { /* kept for this visit only */ } };
+	// The arrangement shown: the custom one once edited, else the chosen preset's (Default for an unknown one).
 	const arrangement = () => (layout.preset === "custom" && layout.custom ? layout.custom : PRESETS[layout.preset] || STANDARD);
+	// A row's width in layout pixels: its panels and the gaps between them.
 	const rowWidth = (row) => row.reduce((s, p) => s + PANEL_W[p], 0) + GAP * (row.length - 1);
+	// The layout size [width, height] of an arrangement's rows, the padding round them included.
 	const sizeOf = (rows) => [Math.max(...rows.map(rowWidth)) + 2 * PAD, rows.length * PANEL_H + (rows.length - 1) * GAP + 2 * PAD];
 	let shownRows = 1;
 
@@ -53,6 +61,8 @@
 		});
 	}
 
+	// Lays the panels out: in iCUE the one-row arrangement in the widget's own size; in a browser the
+	// arrangement scaled to the window and centred in it.
 	function fitScreen() {
 		const app = document.getElementById("app"), arr = arrangement();
 		// The ball takes the size of its new room at the next frame, also while no data changes.
@@ -85,10 +95,13 @@
 
 	// In a browser: buttons for the arrangement and full screen, in the navball panel's right column.
 	const fullscreenOk = served && (document.fullscreenEnabled || document.webkitFullscreenEnabled);
+	// Whether the page shows in full screen, WebKit's prefixed API included.
 	const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+	// Adds the LAYOUT and full-screen buttons to the navball panel's right column; nothing in iCUE.
 	function addBrowserButtons() {
 		if (!served) return;
 		const col = document.querySelector("#ballpanel .side.right");
+		// Appends one button to the column: its id, lens content, tooltip and click.
 		const add = (id, html, title, onClick) => {
 			const b = document.createElement("button");
 			b.id = id; b.className = "pb tool"; b.title = title; b.innerHTML = '<span class="lens">' + html + "</span>";
@@ -103,6 +116,7 @@
 				if (isFullscreen()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
 				else (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
 			});
+			// Lights the full-screen button as the state is, and fits the layout to the new size.
 			const mark = () => { fs.classList.toggle("lit", isFullscreen()); fitScreen(); };
 			document.addEventListener("fullscreenchange", mark);
 			document.addEventListener("webkitfullscreenchange", mark);
@@ -112,6 +126,7 @@
 	// The arranger: a bar over the dashboard with the presets and the number of rows. While it is
 	// open, tapping two panels swaps them, and the arrows move the chosen one to the row above or below.
 	let chosen = null;
+	// Opens the arranger bar, or closes it with open false; called again after each change to draw its buttons anew.
 	function openArranger(open) {
 		const app = document.getElementById("app");
 		let bar = document.getElementById("arranger");
@@ -120,6 +135,7 @@
 		if (!open) { chosen = null; markChosen(); if (bar) bar.remove(); return; }
 		if (!bar) { bar = document.createElement("div"); bar.id = "arranger"; document.body.appendChild(bar); }
 		const presets = Object.keys(PRESETS).concat(layout.custom ? ["custom"] : []);
+		// One of the bar's buttons, its data attribute carrying what it sets; on lights it.
 		const button = (attr, value, label, on) => "<button " + attr + '="' + value + '"' + (on ? ' class="on"' : "") + ">" + label + "</button>";
 		bar.innerHTML =
 			'<div class="grp">' + presets.map((p) => button("data-preset", p, PRESET_NAMES[p], layout.preset === p)).join("") + "</div>" +
@@ -144,7 +160,9 @@
 		}
 		return layout.custom[shownRows];
 	}
+	// The row and place of a panel in the rows, null when it is in none.
 	function where(rows, id) { for (let r = 0; r < rows.length; r++) { const i = rows[r].indexOf(id); if (i >= 0) return [r, i]; } return null; }
+	// A tap on a panel while arranging: chooses it, unchooses it on a second tap, or swaps it with the chosen one.
 	function choosePanel(id) {
 		if (!chosen || chosen === id) chosen = chosen === id ? null : id;
 		else {
@@ -155,6 +173,7 @@
 		}
 		markChosen(); openArranger(true);
 	}
+	// Moves the chosen panel to the end of the row above (dir -1) or below (1); a row's last panel stays.
 	function moveRow(dir) {
 		if (!chosen) return;
 		const rows = editable(), [r, i] = where(rows, chosen), to = r + dir;
@@ -162,11 +181,14 @@
 		rows[r].splice(i, 1); rows[to].push(chosen);
 		saveLayout(); fitScreen(); openArranger(true);
 	}
+	// Outlines the chosen panel, and no other.
 	function markChosen() { for (const id in PANEL_W) document.getElementById(id).classList.toggle("chosen", id === chosen); }
 	// While arranging, a tap on a panel chooses it instead of working its controls.
 	function arrangeTaps() {
 		const app = document.getElementById("app");
+		// Whether the arranger is open.
 		const arranging = () => app.classList.contains("arranging");
+		// Swallows a touch on the panels while arranging, so no control under it works.
 		const block = (e) => { if (arranging()) { e.stopPropagation(); if (e.type !== "pointerup") e.preventDefault(); } };
 		for (const t of ["pointerdown", "pointermove", "touchstart", "touchmove", "mousedown", "wheel"]) app.addEventListener(t, block, { capture: true, passive: false });
 		app.addEventListener("pointerup", (e) => {
@@ -188,9 +210,11 @@
 	const RATE_MS = 16;
 	let ws, data = {}, dragging = false, throttleSent = 0, connected = false, dirty = true;
 
+	// A finite number as it is, anything else (missing, NaN, text) as null.
 	const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
 	// Readouts as number and unit; the unit is drawn small.
 	const lcd = (value, unit) => (unit ? value + '<span class="u">' + unit + "</span>" : value);
+	// A distance as an LCD readout: whole metres, then km from 10 km on, Mm and Gm; "-" without one.
 	function dist(m) {
 		const v = num(m); if (v === null) return "-";
 		const a = Math.abs(v);
@@ -199,15 +223,20 @@
 		if (a >= 1e4) return lcd((v / 1e3).toFixed(2), "km");
 		return lcd(Math.round(v), "m");
 	}
+	// A speed as an LCD readout: m/s with one decimal, km/s with two from 10 km/s on; "-" without one.
 	function speed(v) { v = num(v); return v === null ? "-" : (Math.abs(v) >= 1e4 ? lcd((v / 1e3).toFixed(2), "km/s") : lcd(v.toFixed(1), "m/s")); }
+	// A time span as [d] hh:mm:ss with Kerbin's six-hour days; empty for none or a negative one.
 	function clock(s) {
 		s = num(s); if (s === null || s < 0) return "";
 		const d = Math.floor(s / 21600), h = Math.floor((s % 21600) / 3600), m = Math.floor((s % 3600) / 60), r = Math.floor(s % 60);
+		// A clock field with a leading zero.
 		const two = (x) => (x < 10 ? "0" : "") + x;
 		return (d ? d + "d " : "") + two(h) + ":" + two(m) + ":" + two(r);
 	}
+	// Whether a value the mod sends means on: true, 1 or the text True.
 	const truthy = (v) => v === true || v === 1 || v === "True" || v === "true";
 
+	// Sends an object to the mod as JSON while the connection is open; otherwise it is dropped.
 	function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
 	// Commands go to the mod, or without it to the demo rocket.
 	function run(cmd) {
@@ -215,6 +244,8 @@
 		else { const p = scenePage(); if (!p) demoRun(cmd); else if (p.demoRun) p.demoRun(cmd); }
 	}
 
+	// Builds the flight panels' controls from the tables above (resource tapes, toggles, SAS modes, action
+	// groups, warp, extras) and wires them and the levers, once at start.
 	function buildUi() {
 		for (const [key, label] of RESOURCES) {
 			const t = document.createElement("div");
@@ -222,6 +253,7 @@
 			t.innerHTML = '<div class="plate sm">' + label + '</div><div class="bar"><div class="fill"></div><div class="ticks"></div><div class="marks"></div></div><div class="v">-</div>';
 			$("tapes").appendChild(t);
 		}
+		// Adds a button to parent: its class, content and tap; key names the data that lights it (data-k).
 		const mk = (parent, cls, html, onTap, key) => {
 			const b = document.createElement("button");
 			b.className = cls; b.innerHTML = html;
@@ -251,6 +283,7 @@
 		extra("CIRC<br />@ AP", "o.circularizeAp"); // a maneuver node that makes the orbit circular at apoapsis
 		for (const b of document.querySelectorAll("[data-cmd]:not(.hold)")) b.addEventListener("click", () => run(b.dataset.cmd));
 		holdButton($("stage"));
+		// A click handler that moves the node's lead (the share of the burn before the node) by step percent, within 0 to 100.
 		const lead = (step) => () => run("o.nodeLead[" + Math.max(0, Math.min(100, (num(data["o.nodeLead"]) ?? 50) + step)) + "]");
 		$("leadDn").addEventListener("click", lead(-5));
 		$("leadUp").addEventListener("click", lead(5));
@@ -261,9 +294,11 @@
 	// Stage fires only when held, so a stray touch cannot launch or separate anything.
 	function holdButton(b) {
 		let timer = 0, t0 = 0, raf = 0; const prog = b.querySelector(".prog"); const HOLD = 450;
+		// Ends a hold early: the timer and the bar's animation stop, the bar empties.
 		const stop = () => { clearTimeout(timer); cancelAnimationFrame(raf); prog.style.width = "0"; };
 		b.addEventListener("pointerdown", () => {
 			t0 = performance.now();
+			// Fills the bar by the share of HOLD held so far, once per animation frame.
 			const tick = () => { prog.style.width = Math.min(100, ((performance.now() - t0) / HOLD) * 100) + "%"; raf = requestAnimationFrame(tick); };
 			tick();
 			timer = setTimeout(() => { stop(); run(b.dataset.cmd); }, HOLD);
@@ -277,7 +312,9 @@
 		const box = $("abort"), cover = $("cover"), lever = $("alever");
 		const SHUT_AFTER = 5000;
 		let shut = 0, drag = null;
+		// Shuts the cover again.
 		const close = () => { box.classList.remove("open"); clearTimeout(shut); };
+		// Keeps the cover open for SHUT_AFTER from now.
 		const keepOpen = () => { clearTimeout(shut); shut = setTimeout(close, SHUT_AFTER); };
 		cover.addEventListener("pointerdown", (e) => {
 			if (box.classList.contains("open")) return;
@@ -290,6 +327,7 @@
 			const LIFT = cover.offsetHeight - 18;
 			cover.style.transform = "translateY(" + Math.max(-LIFT, Math.min(0, (e.clientY - drag.y0) / uiScale)) + "px)";
 		});
+		// Lets go of the cover: lifted more than halfway it stays open, else it falls shut.
 		const coverUp = (e) => {
 			if (!drag || drag.id !== e.pointerId || drag.what !== "cover") return;
 			const lifted = (drag.y0 - e.clientY) / uiScale > (cover.offsetHeight - 18) * 0.5;
@@ -316,6 +354,7 @@
 				drag = null; box.classList.remove("held"); lever.style.top = ""; close();
 			}
 		});
+		// Lets go of the lever before the bottom: it springs back and nothing fires.
 		const leverUp = (e) => {
 			if (!drag || drag.id !== e.pointerId || drag.what !== "lever") return;
 			drag = null; box.classList.remove("held"); lever.style.top = "";
@@ -331,8 +370,11 @@
 		$("thrfill").style.height = Math.max(0, v * (slot.clientHeight - 16)) + "px";
 		$("thrv").innerHTML = lcd(Math.round(v * 100), "%");
 	}
+	// Wires the throttle slot: a press or drag puts the lever where the finger is and sends the throttle, at
+	// most every 80 ms.
 	function throttleLever() {
 		const slot = $("thrtrack");
+		// Sets the throttle at the finger's height on the slot.
 		const apply = (e) => {
 			const r = slot.getBoundingClientRect(), hh = $("thrhandle").offsetHeight;
 			const v = Math.min(1, Math.max(0, 1 - (e.clientY - r.top - hh / 2) / (r.height - hh)));
@@ -349,12 +391,18 @@
 	// The page is only written where what it shows changes: every write of a glowing LCD makes the
 	// browser lay out and paint it again, the same number or not.
 	const shown = new Map(), els = {};
+	// An element by id, looked up once and kept.
 	const el = (id) => els[id] || (els[id] = $(id));
+	// Writes an element's HTML when it differs from what it shows.
 	function put(id, html) { if (shown.get(id) !== html) { shown.set(id, html); el(id).innerHTML = html; } }
+	// Writes an element's text when it differs from what it shows.
 	function putText(id, text) { if (shown.get(id) !== text) { shown.set(id, text); el(id).textContent = text; } }
+	// Sets one style property of a node when it differs from the value last set under key.
 	function putStyle(node, key, prop, value) { if (shown.get(key) !== value) { shown.set(key, value); node.style[prop] = value; } }
 	let tapes = null, keyed = null, litButtons = null;
 
+	// Writes the flight panels from the data: readouts, node, orbit, stage, resource tapes, throttle, lit
+	// buttons and warp.
 	function render() {
 		const d = data, has = d["v.name"] !== undefined && d["v.name"] !== null;
 		const note = PAUSE_TEXT[d["p.paused"]];
@@ -437,16 +485,18 @@
 		putText("smode", (d["n.speedMode"] || "").toUpperCase());
 	}
 
-	// The page follows the game's scene: each scene page (menu.js, ksc.js) in its scenes, the flight
-	// panels in every other until those scenes have pages of their own; between two scenes the page
+	// The page follows the game's scene: each scene page (menu.js, ksc.js, editor.js) in its scenes, the
+	// flight panels in every other until those scenes have pages of their own; between two scenes the page
 	// stays. Each page is subscribed to its own keys, all to these. Without the game, a page's demo
-	// shows at its address (index.html#menu, #loading, #ksc).
+	// shows at its address (index.html#menu, #loading, #ksc, #vab).
 	const COMMON = ["p.paused", "g.scene"];
 	const PAGES = [MenuPage, KscPage, EditorPage];
 	let page = null, pageKeys = [];
+	// The scene page shown; null while the flight panels show.
 	const scenePage = () => PAGES.find((p) => p.id === page) || null;
 	// A page's keys may change while it shows, with its tab: then they are a function.
 	const keysOf = (p) => (typeof p.keys === "function" ? p.keys() : p.keys);
+	// Swaps the subscription to the shown page's present keys, for a page whose keys change with its tab.
 	function resubscribe() {
 		const p = scenePage();
 		if (!connected || !p) return;
@@ -454,6 +504,8 @@
 		send({ "-": pageKeys, "+": keys });
 		pageKeys = keys;
 	}
+	// The page the data calls for: by scene, the flight panels for scenes without a page, the page shown while
+	// the scene is unknown or between two; without the game the demo the address asks for.
 	function pageFor() {
 		if (!connected) { const p = PAGES.find((x) => x.demos.includes(location.hash)); return p ? p.id : "flight"; }
 		const scene = data["g.scene"];
@@ -461,6 +513,8 @@
 		const p = PAGES.find((x) => x.scenes.includes(scene));
 		return p ? p.id : "flight";
 	}
+	// Shows a page and swaps the subscribed keys from the last page's to its own; the flight panels are
+	// fitted to the screen anew.
 	function showPage(next) {
 		if (!next || next === page) return;
 		page = next;
@@ -471,6 +525,7 @@
 		if (page === "flight") { fitScreen(); dirty = panelsDirty = true; }
 	}
 
+	// The keys the flight panels read.
 	function subscription() {
 		const keys = ["v.name", "v.body", "v.situationString", "v.altitude", "v.surfaceVelocity", "v.surfaceSpeed", "v.verticalSpeed", "v.heightFromTerrain", "o.ApA", "o.PeA", "o.timeToAp", "o.timeToPe", "v.geeForce", "v.missionTime", "v.currentStage", "f.throttle", "f.sasEnabled", "f.sasMode", "v.rcsValue", "v.lightValue", "v.gearValue", "v.brakeValue", "t.currentRate", "t.currentRateIndex", "n.nose", "n.right", "n.top", "n.prograde", "n.normal", "n.radial", "n.speedMode", "n.maneuver", "o.nodeDvTotal", "o.nodeDv", "o.nodeTime", "o.nodeBurnTime", "o.nodeStartIn", "o.nodeLead", "n.steerTarget", "n.steerTargetTop", "n.steerAltitude", "n.steerSCurve", "n.steerCurve", "n.steerArmed", "t.physics", "m.mapIsEnabled", "v.precisionControlValue"];
 		for (let i = 1; i <= 10; i++) keys.push("v.ag" + i + "Value");
@@ -478,6 +533,7 @@
 		return keys;
 	}
 
+	// Connects to the mod, and again every 3 s while it cannot; asks for COMMON at RATE_MS.
 	function connect() {
 		try { ws = new WebSocket(URL); } catch (e) { setTimeout(connect, 3000); return; }
 		// The page's keys follow once the scene is known.
@@ -496,6 +552,7 @@
 		throttle: 0.6, warp: 0, stage: 4, fuel: 1, solid: 1, abortUntil: 0,
 		nose: null, top: null, target: null, targetTop: null, altitude: null, curve: "s", last: 0,
 	};
+	// A vector scaled to length 1.
 	const unit = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return v.map((x) => x / l); };
 	// Turns v towards to by at most maxRad, at an even pace at any angle (about the axis between
 	// them; straight opposite, about axis). Blending the two vectors instead would hardly move v when
@@ -509,6 +566,7 @@
 		const kv = cross(k, v), kd = dot3(k, v), cs = Math.cos(maxRad), sn = Math.sin(maxRad);
 		return unit(v.map((x, i) => x * cs + kv[i] * sn + k[i] * kd * (1 - cs)));
 	};
+	// Carries out a command on the demo rocket, as the mod would on the vessel.
 	function demoRun(cmd) {
 		const m = /^([^\[]+)(?:\[(.*)\])?$/.exec(cmd);
 		if (!m) return;
@@ -542,6 +600,7 @@
 		if (name === "v.steerReset") { demo.target = demo.targetTop = demo.altitude = null; return; }
 	}
 
+	// The demo rocket's frame at the moment t (ms): attitude, orbit, node, resources and switches.
 	function demoFrame(t) {
 		const s = t / 1000, rad = Math.PI / 180, dt = Math.min(0.1, demo.last ? s - demo.last : 0);
 		demo.last = s;
@@ -560,12 +619,15 @@
 			demo.top = t0.map((v, i) => v * Math.cos(r) - r0[i] * Math.sin(r));
 		}
 		const f = demo.nose, top = demo.top, right = cross(top, f);
+		// A direction off the nose by a, for the demo's markers.
 		const off = (a) => unit([f[0] + a, f[1] - a * 0.5, f[2] + a * 0.3]);
 		demo.fuel = Math.max(0, demo.fuel - demo.throttle * dt / 90);
 		// Boosters lit with the first stage: liquid ones that run dry at 2/3 and 1/3 of the fuel, small
 		// solid ones at half the solid fuel, the rest of the solid with the stage; each empty a while
 		// before it would be dropped.
 		demo.solid = demo.stage === 4 ? Math.max(0, demo.solid - dt / 40) : 0;
+		// The marks (shares of the fuel left) at which boosters still burning run dry; emptyAt: whether one
+		// ran dry within the last 6 % of the fuel, or the fuel is gone.
 		const dryAt = (marks, left) => marks.filter((m) => m < left), emptyAt = (marks, left) => left === 0 || marks.some((m) => left <= m && left > m - 0.06);
 		const liquid = [2 / 3, 1 / 3], solid = [1 / 2];
 		const aborting = t < demo.abortUntil;
@@ -608,10 +670,10 @@
 	const STEER_KEY = "kspdashboard.steer";
 	const steerPrefs = { rollLock: false, targetView: false };
 	try { Object.assign(steerPrefs, JSON.parse(localStorage.getItem(STEER_KEY)) || {}); } catch (e) { /* no storage: the default */ }
+	// Keeps the two switches in the browser's storage, where there is one.
 	const saveSteerPrefs = () => { try { localStorage.setItem(STEER_KEY, JSON.stringify(steerPrefs)); } catch (e) { /* kept for this visit only */ } };
 	setupSteering();
 	setupAltitude();
-	// One drawing loop at the display's pace: whatever arrived since the last frame is drawn once.
 	// Steering by touch. The navball is turned with the finger like a ball floating on water: the
 	// spot under the finger stays under it, and the attitude that ends up in the middle of the ball
 	// (direction and roll) is where the vessel turns and stays (the mod steers there). The two round
@@ -629,24 +691,27 @@
 		if (len > 1) { sx /= len; sy /= len; }
 		return [sx, sy, Math.sqrt(Math.max(0, 1 - sx * sx - sy * sy))];
 	}
+	// The cross product of two 3-vectors.
 	const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+	// The dot product of two 3-vectors.
 	const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-	// The ball turned the finger (or the fingers' midpoint) from v0 to v1, and two fingers turned its
-	// picture by phi counter-clockwise. What lies in the middle now (and what lies above it) was,
-	// before, the middle (and the top) turned back by both; in north/east/up through the attitude at
-	// the start. Returns the target's nose and top, six numbers. Turning the picture counter-clockwise
-	// is what rolling right looks like on the navball. The top turns with the ball, so the target
-	// goes over the zenith without turning round; with ROLL LOCK the roll is held instead.
 	// The roll as the readout shows it (against the horizon), and the top that gives a roll at a nose.
 	// Straight up or down the roll has no meaning, and the turned top is kept as it is.
 	const rollOf = (T, U) => Math.atan2(cross(U, T)[2], U[2]);
+	// The top that gives a roll at the nose T; straight up or down, fallback.
 	function topForRoll(T, roll, fallback) {
 		if (Math.abs(T[2]) > 0.995) return fallback;
 		const k = T[2], z0 = [-k * T[0], -k * T[1], 1 - k * T[2]], l = Math.hypot(z0[0], z0[1], z0[2]);
 		const z = z0.map((x) => x / l), r0 = cross(z, T), a = -roll;
 		return z.map((x, i) => x * Math.cos(a) + r0[i] * Math.sin(a));
 	}
+	// The ball turned the finger (or the fingers' midpoint) from v0 to v1, and two fingers turned its
+	// picture by phi counter-clockwise. What lies in the middle now (and what lies above it) was,
+	// before, the middle (and the top) turned back by both; in north/east/up through the attitude at
+	// the start. Returns the target's nose and top, six numbers. Turning the picture counter-clockwise
+	// is what rolling right looks like on the navball. The top turns with the ball, so the target
+	// goes over the zenith without turning round; with ROLL LOCK the roll is held instead.
 	function dragTarget(d) {
 		const turned = turnTarget(d, d.phi || 0);
 		if (!steerPrefs.rollLock) return turned;
@@ -657,10 +722,13 @@
 		if (d.phi) { const s0 = turnTarget(d, 0); delta = rollOf(T, U) - rollOf(s0.slice(0, 3), s0.slice(3)); }
 		return T.concat(topForRoll(T, baseRoll + delta, U));
 	}
+	// The target's nose and top the drag d gives, the picture turned by phi: what dragTarget sends without
+	// ROLL LOCK.
 	function turnTarget(d, phi) {
 		const v0 = d.v0, v1 = onBall(d.x, d.y);
 		let k = cross(v0, v1);
 		const s = Math.hypot(k[0], k[1], k[2]), c = Math.max(-1, Math.min(1, dot3(v0, v1)));
+		// Turns a direction in the ball's screen frame back by the drag's turn, then by phi about the line of sight.
 		const back = (w) => {
 			if (s > 1e-6) {
 				const kn = k.map((x) => x / s), kc = cross(kn, w), kw = dot3(kn, w);
@@ -672,6 +740,7 @@
 		// again moves an existing target on from where it is. It turns about the axes the ball is seen
 		// from (d.axes): the vessel's, or with VIEW TGT the target's own.
 		const a = d.axes, world = (w) => [0, 1, 2].map((i) => w[0] * a.right[i] + w[1] * a.top[i] + w[2] * a.nose[i]);
+		// A world direction in the frame the ball is seen from (right, top, nose).
 		const screen = (v) => [dot3(v, a.right), dot3(v, a.top), dot3(v, a.nose)];
 		return world(back(screen(d.base.nose))).concat(world(back(screen(d.base.top))));
 	}
@@ -680,6 +749,7 @@
 	// vessel's attitude) is turned the shortest way onto it, so its roll carries over; with ROLL LOCK
 	// its roll against the horizon does.
 	const TAP_MS = 300, TAP_PX = 10;
+	// The target's nose and top a tap at d.x0, d.y0 gives.
 	function tapTarget(d) {
 		const a = d.axes, w = onBall(d.x0, d.y0);
 		const to = [0, 1, 2].map((i) => w[0] * a.right[i] + w[1] * a.top[i] + w[2] * a.nose[i]);
@@ -710,11 +780,16 @@
 		const top = z.map((x, i) => x * Math.cos(a) + r0[i] * Math.sin(a));
 		run("v.steerTo[" + T.concat(top).map((x) => x.toFixed(4)).join(",") + "]");
 	}
+	// Snaps the target's roll to the nearest 45 degrees.
 	function snapRoll() { setRoll((roll) => Math.round(roll / (Math.PI / 4)) * (Math.PI / 4)); }
+	// Levels the target's roll to 0.
 	function levelRoll() { setRoll(() => 0); }
 
+	// Wires the steering by touch: drags and taps on the ball, the roll buttons, snap, level, ROLL LOCK and
+	// VIEW TGT.
 	function setupSteering() {
 		const wrap = $("ballwrap"), dot = $("dragdot");
+		// Shows the drag dot under the finger, or under the two fingers' midpoint.
 		const showDot = (e) => {
 			const r = $("ballpanel").getBoundingClientRect();
 			dot.style.display = "block"; dot.style.left = e.clientX - r.left + "px"; dot.style.top = e.clientY - r.top + "px";
@@ -724,10 +799,13 @@
 		// two-finger gesture nothing more happens until all fingers are off, so lifting one finger
 		// makes no jump.
 		const fingers = new Map();
+		// The two fingers' midpoint and the angle between them.
 		const pair = () => {
 			const [a, b] = [...fingers.values()];
 			return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, angle: Math.atan2(-(b.y - a.y), b.x - a.x) }; // angle with y up
 		};
+		// The attitude a gesture starts from: the vessel's, the target (or the vessel's attitude) as the base
+		// to turn, and the axes the ball is seen from.
 		const present = () => {
 			const att = { nose: data["n.nose"].slice(), right: data["n.right"].slice(), top: data["n.top"].slice() };
 			const has = Array.isArray(data["n.steerTarget"]) && Array.isArray(data["n.steerTargetTop"]);
@@ -764,6 +842,8 @@
 				showDot({ clientX: m.x, clientY: m.y });
 			} else if (e.pointerId === steer.drag.id) { steer.drag.x = e.clientX; steer.drag.y = e.clientY; showDot(e); }
 		});
+		// A finger lifted: a short, still tap sets the target under it; the drag ends with its finger, a
+		// two-finger drag with either.
 		const end = (e) => {
 			if (!fingers.delete(e.pointerId)) return;
 			if (steer.drag && (steer.drag.id === null || e.pointerId === steer.drag.id)) {
@@ -778,6 +858,7 @@
 		wrap.addEventListener("pointerup", end); wrap.addEventListener("pointercancel", end);
 		$("snapBtn").addEventListener("click", snapRoll);
 		$("levelBtn").addEventListener("click", levelRoll);
+		// Lights ROLL LOCK and VIEW TGT as they are set, and names the view.
 		const showPrefs = () => {
 			$("lockBtn").classList.toggle("lit", steerPrefs.rollLock);
 			$("viewBtn").classList.toggle("lit", steerPrefs.targetView);
@@ -789,10 +870,12 @@
 		for (const key of ["rollL", "rollR"]) {
 			const b = $(key);
 			b.addEventListener("pointerdown", (e) => { b.setPointerCapture(e.pointerId); steer[key] = true; b.classList.add("on"); });
+			// The roll button let go.
 			const off = () => { steer[key] = false; b.classList.remove("on"); };
 			b.addEventListener("pointerup", off); b.addEventListener("pointercancel", off);
 		}
 	}
+	// Sends the drag's target and the held roll every 50 ms while they last, and v.steerLetGo once the drag ends.
 	function steerTick(now) {
 		const roll = (steer.rollR ? 1 : 0) - (steer.rollL ? 1 : 0);
 		const dragging = steer.drag !== null;
@@ -818,14 +901,19 @@
 	const JOG_DEAD = 0.12, JOG_MID = 0.45, JOG_COARSE = 0.8, JOG_TICK = 250;
 	let lastStepAt = -1e9;
 	const jog = { id: null, y0: 0, d: 0, value: null, last: 0, sent: 0, acc: 0, zone: 0 };
+	// The fine step at an altitude: 100 m below 100 km, 1 km below 1000 km, 10 km above.
 	const fineStep = (m) => (m < 100000 ? 100 : m < 1e6 ? 1000 : 10000);
+	// The slider's zone at a deflection: 0 in the middle, then fine steps, ten times and a hundred times them.
 	const jogZone = (a) => (a < JOG_DEAD ? 0 : a < JOG_MID ? 1 : a < JOG_COARSE ? 2 : 3);
+	// One step from altitude m towards dir at the zone's size: onto its grid where m is off it, else one
+	// along it; never below 0.
 	function stepAltitude(m, dir, zone) {
 		const size = fineStep(dir > 0 ? m : Math.max(0, m - 1)) * Math.pow(10, zone - 1); // going down, the step below a boundary
 		const onGrid = Math.abs(m / size - Math.round(m / size)) < 1e-6;
 		if (!onGrid) return Math.max(0, (dir > 0 ? Math.ceil(m / size) : Math.floor(m / size)) * size);
 		return Math.max(0, Math.round(m / size) * size + dir * size);
 	}
+	// A step size as the knob shows it: 100m, 10km.
 	const stepLabel = (m) => (m >= 1000 ? m / 1000 + "km" : m + "m");
 	// The target altitude as its steps show it: metres below 10 km, then km with one decimal, then whole km.
 	// With step (metres) the digit that the next step changes is marked, as a cursor under it.
@@ -843,6 +931,7 @@
 		}
 		return lcd(html, unit);
 	}
+	// Wires the altitude slider, the curve switch, reset and play/pause.
 	function setupAltitude() {
 		const track = $("altjog"), knob = $("altknob");
 		track.addEventListener("pointerdown", (e) => {
@@ -859,6 +948,7 @@
 			knob.style.transform = "translateY(" + dy + "px)";
 			jog.d = -dy / travel;
 		});
+		// The slider let go: it springs back to the middle, and the altitude reached is sent.
 		const end = (e) => {
 			if (e.pointerId !== jog.id) return;
 			jog.id = null; jog.d = 0;
@@ -872,6 +962,8 @@
 		// Pause: a target can be set and adjusted without being flown; play flies it.
 		$("playBtn").addEventListener("click", () => run("v.steerArm[" + (data["n.steerArmed"] === false ? 1 : 0) + "]"));
 	}
+	// Steps the altitude each frame while the slider is held, and shows it: the stepped value, the mod's
+	// target or the present altitude.
 	function altitudeTick(now) {
 		const set = num(data["n.steerAltitude"]);
 		if (jog.id !== null) {
@@ -909,6 +1001,7 @@
 	const CURVE_NEXT = { linear: "s", s: "auto", auto: "linear" };
 	// A mod from before auto sends only whether the curve is an S-curve.
 	const curveShown = () => (CURVE_ICONS[data["n.steerCurve"]] ? data["n.steerCurve"] : data["n.steerSCurve"] === false ? "linear" : "s");
+	// Shows the play/pause button and the curve switch as the mod has them, writing them only on a change.
 	function renderSteerButtons() {
 		const playing = data["n.steerArmed"] !== false;
 		const pb = $("playBtn");
@@ -929,6 +1022,7 @@
 	// Without WebGL the ball is drawn on the CPU, about 12 ms a frame: there it is kept to 15 frames
 	// a second.
 	let lastPanels = 0, lastBall = 0, panelsDirty = true;
+	// One drawing loop at the display's pace: whatever arrived since the last frame is drawn once.
 	function frame(now) {
 		if (!connected) {
 			const p = PAGES.find((x) => x.id === pageFor());

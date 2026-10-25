@@ -23,13 +23,17 @@
 #include <vector>
 
 using Microsoft::WRL::ComPtr;
+// NVAPI's opacity micromap declarations (RaytracingOmm.h).
 namespace nv = redefinition::nvomm;
+// The proxy's baker (RaytracingOmmBake.h).
 namespace bake = redefinition::omm;
 
 namespace
 {
+    // The checks failed so far; RunOmmDriverChecks returns how many.
     int failures = 0;
 
+    // A check's line, PASS or FAIL, with what it checks and what it found; a failure counted.
     void Check(bool passed, const char* what, const std::string& detail)
     {
         printf("%s  %s -- %s\n", passed ? "PASS" : "FAIL", what, detail.c_str());
@@ -37,8 +41,11 @@ namespace
             ++failures;
     }
 
+    // NVAPI's functions for opacity micromaps, from the driver's nvapi64.dll.
     struct NvApi
     {
+        // The raytracing caps, the pipeline options, a micromap array's sizes and build, a
+        // structure's sizes and build with micromaps.
         nv::GetRaytracingCapsFn caps = nullptr;
         nv::SetCreatePipelineStateOptionsFn options = nullptr;
         nv::GetArrayPrebuildInfoFn arrayPrebuild = nullptr;
@@ -46,6 +53,8 @@ namespace
         nv::GetPrebuildInfoExFn prebuild = nullptr;
         nv::BuildStructureExFn build = nullptr;
 
+        // NVAPI loaded from System32 and initialised, the functions looked up by their ids;
+        // false where any is missing.
         bool Load()
         {
             using Query = void* (*)(uint32_t);
@@ -69,6 +78,7 @@ namespace
         }
     };
 
+    // A buffer's description: at least 256 bytes, row major.
     D3D12_RESOURCE_DESC BufferDesc(UINT64 size, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE)
     {
         D3D12_RESOURCE_DESC desc = {};
@@ -83,8 +93,11 @@ namespace
         return desc;
     }
 
+    // The checks' own Direct3D 12 device and what a probe records and waits on.
     struct Gpu
     {
+        // The device, its queue, allocator and list; the fence, its last value and the event
+        // waits take; the probe shader's root signature and pipeline (OmmProbe.hlsl); NVAPI.
         ComPtr<ID3D12Device5> device;
         ComPtr<ID3D12CommandQueue> queue;
         ComPtr<ID3D12CommandAllocator> allocator;
@@ -96,6 +109,8 @@ namespace
         ComPtr<ID3D12PipelineState> pipeline;
         NvApi nvapi;
 
+        // A committed buffer on that heap: upload buffers in GENERIC_READ, readback ones in
+        // COPY_DEST, the rest in the state given; null where it could not be made.
         ComPtr<ID3D12Resource> Buffer(UINT64 size, D3D12_HEAP_TYPE heap, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES state)
         {
             D3D12_HEAP_PROPERTIES properties = {};
@@ -111,6 +126,7 @@ namespace
             return buffer;
         }
 
+        // An upload buffer holding a copy of the bytes; null where it could not be made.
         ComPtr<ID3D12Resource> Upload(const void* bytes, size_t size)
         {
             ComPtr<ID3D12Resource> buffer = Buffer(size, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COMMON);
@@ -126,6 +142,7 @@ namespace
             return buffer;
         }
 
+        // Until the queue is past everything submitted so far.
         void Wait()
         {
             queue->Signal(fence.Get(), ++fenceValue);
@@ -141,6 +158,7 @@ namespace
     // times subdivided.
     struct Probe
     {
+        // The subdivision level, and the OMMs' format: 2 or 4 states.
         uint32_t level = 0;
         uint16_t format = nv::kFormat4State;
         // 0: OMM k has micro-triangle k opaque, the rest transparent;
@@ -161,8 +179,12 @@ namespace
         uint32_t expectation = 0;
     };
 
+    // What a probe found.
     struct Outcome
     {
+        // Whether it ran; the shader's 64 counts (misses, hits, rays that met a candidate, rays
+        // not as expected, then the first 60 of those); per ray its result where writeTable
+        // asked; the driver's sizes of the micromap array and the structure.
         bool ok = false;
         std::vector<uint32_t> counts;
         std::vector<uint32_t> table;
@@ -170,6 +192,8 @@ namespace
         UINT64 blasBytes = 0;
     };
 
+    // One probe on the driver: its OMMs and triangles built into an array and a structure, a
+    // ray at the centre of every micro-triangle traced, and what the rays met read back.
     Outcome Run(Gpu& gpu, const Probe& probe)
     {
         Outcome outcome;
@@ -445,9 +469,13 @@ namespace
     // many it leaves unknown that the samples all found uniform.
     struct Conservative
     {
+        // The micro-triangles checked; those whose state the samples contradict; those left
+        // unknown that the samples found uniform; those left unknown.
         uint64_t microTriangles = 0, wrong = 0, lost = 0, unknown = 0;
     };
 
+    // The baked micromaps of a mesh's triangles against the coverage sampled at sixteen points
+    // in each micro-triangle.
     Conservative Verify(const bake::TriangleUv* triangles, size_t count, const uint8_t* alpha, const bake::Baked& baked)
     {
         Conservative result;

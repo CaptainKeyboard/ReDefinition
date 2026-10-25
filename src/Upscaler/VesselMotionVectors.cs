@@ -49,6 +49,9 @@ namespace ReDefinition.Upscaler
     // saved, for a look with and without.
     internal sealed class VesselMotionVectors
     {
+        // The shader's passes (audit, repair, depth); the most parts tallied; the error in pixels that counts a pixel
+        // as off, and the share of them that counts a frame as off; how often the audit reports; and how many of
+        // the parts most off the report names.
         private const int AuditPass = 0;
         private const int RepairPass = 1;
         private const int DepthPass = 2;
@@ -58,6 +61,7 @@ namespace ReDefinition.Upscaler
         private const float ReportSeconds = 10f;
         private const int PartsListed = 5;
 
+        // The MotionAudit shader's properties, set on the capture before each pass.
         private static readonly int RasterId = Shader.PropertyToID("_AuditRasterViewProjection");
         private static readonly int ViewProjectionId = Shader.PropertyToID("_AuditViewProjection");
         private static readonly int PreviousViewProjectionId = Shader.PropertyToID("_AuditPreviousViewProjection");
@@ -71,20 +75,25 @@ namespace ReDefinition.Upscaler
         // The Debug switch; on at every start.
         internal static bool RepairEnabled = true;
 
+        // A renderer drawn with the shader, the index of its part in parts, and how many of its submeshes are drawn.
         private struct Drawn
         {
+            // The renderer, its part's index (the audit's tally slot), and the submeshes that have a material.
             internal Renderer Renderer;
             internal int Part;
             internal int Submeshes;
         }
 
+        // One part's audit over the report window.
         private sealed class PartTally
         {
+            // Pixels checked, those off by more than BadPixels, and the largest error in sixteenths of a pixel.
             internal long Pixels;
             internal long Bad;
             internal uint LargestSixteenths;
         }
 
+        // The mesh renderers whose motion is repaired and audited: opaque, not skinned.
         private readonly List<Drawn> drawn = new List<Drawn>();
         // Every opaque renderer of the vessel, skinned ones too: their depth needs no
         // previous pose.
@@ -113,9 +122,12 @@ namespace ReDefinition.Upscaler
         private Vector2Int size;
         private bool repairedThisWindow;
 
+        // KSP's physics steps counted so far, and the count at the frame before: whether a step fell in between.
         private static int physicsSteps;
         private int stepsAtPreviousFrame;
 
+        // The report window's audit: frames read back, with and without a physics step and how many of each were
+        // off, pixels read and those off, and frames left out for an origin shift or a reset.
         private int framesRead;
         private int framesWithStep;
         private int framesWithoutStep;
@@ -131,6 +143,7 @@ namespace ReDefinition.Upscaler
             physicsSteps++;
         }
 
+        // Frees the readback buffer, the audit's target and the material; Prepare makes them again.
         internal void Disable()
         {
             if (stats != null) stats.Release();
@@ -233,8 +246,10 @@ namespace ReDefinition.Upscaler
             capture.RequestAsyncReadback(stats, stepped ? readWithStep : readWithoutStep);
         }
 
+        // Frames in the report window the repair was left out because nothing of the vessels moved.
         private int standing;
 
+        // Whether any drawn renderer's matrix differs from the frame before's, or has none from it.
         private bool AnyMoved()
         {
             foreach (Drawn d in drawn)
@@ -257,6 +272,7 @@ namespace ReDefinition.Upscaler
             if (Time.unscaledTime - windowStart >= ReportSeconds) Report();
         }
 
+        // The matrices, texel size and textures the repair and the audit pass both read.
         private void SetCommon(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
         {
             capture.SetGlobalMatrix(RasterId, raster);
@@ -267,6 +283,8 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalTexture(DepthId, depth);
         }
 
+        // Every visible renderer of drawn with its previous matrix in that pass, and its part's index for the audit;
+        // a renderer without a matrix from the frame before is left out.
         private void Draw(CommandBuffer capture, int pass, bool withPart)
         {
             foreach (Drawn d in drawn)
@@ -281,6 +299,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // The material, the readback buffer and the audit's target at render size; false where the shader is
+        // missing (said once, and left out for good) or the target could not be made.
         private bool Prepare(Vector2Int renderSize)
         {
             if (state != null) return false;
@@ -316,6 +336,7 @@ namespace ReDefinition.Upscaler
         // The active vessel and the loaded vessels near it, the active one first.
         private readonly List<Vessel> near = new List<Vessel>();
 
+        // Fills near for vessel (NearVessels).
         private void Near(Vessel vessel)
         {
             NearVessels(vessel, near);
@@ -344,6 +365,8 @@ namespace ReDefinition.Upscaler
             return signature;
         }
 
+        // The renderers of vessel and the vessels near it chosen anew, up to MaxParts parts: skinned ones for the
+        // depth only, opaque mesh renderers for depth, repair and audit; the tallies cleared.
         private void Choose(Vessel vessel, int signature)
         {
             drawnFor = vessel;
@@ -408,6 +431,8 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // An audit's readback: four counters per part -- pixels, those off, the summed error and the largest, in
+        // sixteenths of a pixel; all but the sum added to the tallies and the window's frame counts.
         private void Read(AsyncGPUReadbackRequest request, bool withStep)
         {
             if (request.hasError) return;
@@ -441,6 +466,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // The window's log lines -- frames the repair was left out, and the audit with the parts most off -- and the
+        // window started afresh.
         private void Report()
         {
             float elapsed = Time.unscaledTime - windowStart;
@@ -472,6 +499,7 @@ namespace ReDefinition.Upscaler
             for (int i = 0; i < tallies.Length; i++) tallies[i] = null;
         }
 
+        // The PartsListed parts with the largest share of pixels off, with that share and their largest error.
         private void AppendParts(StringBuilder sb)
         {
             List<int> order = new List<int>();
@@ -494,6 +522,7 @@ namespace ReDefinition.Upscaler
             sb.Append('.');
         }
 
+        // part of whole as a percentage with up to three decimals; 0% for nothing.
         private static string Percent(long part, long whole)
         {
             if (whole <= 0) return "0%";

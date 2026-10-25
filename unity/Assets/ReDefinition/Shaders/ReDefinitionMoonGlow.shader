@@ -12,6 +12,7 @@ Shader "Hidden/ReDefinition/MoonGlow"
         ZTest Always Cull Off ZWrite Off
         Blend One One
 
+        // The one pass: a quad per moon over the screen, added (MoonGlow's command buffer, before the transparent pass).
         Pass
         {
             CGPROGRAM
@@ -19,6 +20,7 @@ Shader "Hidden/ReDefinition/MoonGlow"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // The scene camera's depth: the glow is added only where it holds the far plane, the sky.
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
             // xyz: towards the moon, world space; w: its angular radius, radians.
             float4 _ReDefinitionMoon;
@@ -45,12 +47,14 @@ Shader "Hidden/ReDefinition/MoonGlow"
                 return inside > 0.0 && along - sqrt(inside) > 0.0 && along - sqrt(inside) < _ReDefinitionMoonDistance;
             }
 
+            // What the vertex function hands the fragment function.
             struct v2f
             {
-                float4 pos : SV_POSITION;
-                float4 screen : TEXCOORD0;
+                float4 pos : SV_POSITION; // the quad corner's clip position
+                float4 screen : TEXCOORD0; // the screen position, divided by w in the fragment function
             };
 
+            // The quad's vertices are the screen's corners in clip space already; their screen position follows.
             v2f vert(float4 vertex : POSITION)
             {
                 v2f o;
@@ -59,6 +63,8 @@ Shader "Hidden/ReDefinition/MoonGlow"
                 return o;
             }
 
+            // The disc's and glow's light added to the pixel where it shows sky, no body stands in front of the moon
+            // and no ocean is drawn; nothing elsewhere.
             half4 frag(v2f i) : SV_Target
             {
                 float2 uv = i.screen.xy / i.screen.w;

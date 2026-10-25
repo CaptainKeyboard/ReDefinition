@@ -40,18 +40,22 @@ namespace ReDefinition.Scaling
     // which does the same, is kept from installing (OtherScalers).
     internal static class ModWindowScale
     {
+        // The Harmony id, and the priorities that put the prefix first and the postfix last among the patches.
         private const string HarmonyId = "ReDefinition.ModWindowScale";
         private const int First = 800;
         private const int Last = 0;
 
+        // The assemblies of mods that scale their windows themselves, and ReDefinition's own.
         private static readonly HashSet<string> ScaleThemselves = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "MechJeb2", "KerbalAlarmClock", "RCSBuildAid", "RCSBuildAidToolbar", "JanitorsCloset", "CameraTools",
             "Kopernicus", "KSPCommunityFixes", "RemoteTech", "KspCraftOrganizerPlugin", "ReDefinition",
         };
 
+        // A scaled window as it was last drawn.
         private sealed class Drawn
         {
+            // Where the window was last drawn, in the screen's pixels, and in which frame.
             public Rect Area;
             public int Frame;
             // The point the window is scaled about.
@@ -79,14 +83,17 @@ namespace ReDefinition.Scaling
         // before.
         private struct State
         {
+            // Whether the prefix set a matrix, the matrix before it, and whether the window has no background.
             public bool Applied;
             public Matrix4x4 Saved;
             public bool SeeThrough;
         }
+        // Whether the log has noted the first window scaled.
         private static bool noted;
         // Whether the hooks are in: without them 4kSP's window scaling stays (OtherScalers).
         internal static bool Installed;
 
+        // Patches every GUI.Window, GUI.ModalWindow and GUILayout.Window overload; from ScalingAddon.
         internal static void Install()
         {
             List<HarmonyHook> hooks = new List<HarmonyHook>();
@@ -118,17 +125,20 @@ namespace ReDefinition.Scaling
                                    nameof(Finalizer), First, Last);
         }
 
+        // Whether the overload takes a GUIStyle fifth.
         internal static bool StyleFifth(MethodInfo method)
         {
             ParameterInfo[] parameters = method.GetParameters();
             return parameters.Length > 4 && parameters[4].ParameterType == typeof(GUIStyle);
         }
 
+        // The prefix of the overloads without a style.
         private static void Prefix(int __0, Rect __1, GUI.WindowFunction __2, out State __state)
         {
             __state = Begin(__0, __1, __2, null);
         }
 
+        // The prefix of the overloads with a style fifth (StyleFifth).
         private static void PrefixStyled(int __0, Rect __1, GUI.WindowFunction __2, GUIStyle __4, out State __state)
         {
             __state = Begin(__0, __1, __2, __4);
@@ -193,6 +203,7 @@ namespace ReDefinition.Scaling
             }
         }
 
+        // Where window `id` was drawn on the screen this frame and where its call returned it.
         private static void Note(Dictionary<int, Drawn> where, int id, Rect area, Vector2 returned, bool seeThrough)
         {
             Drawn window;
@@ -245,6 +256,7 @@ namespace ReDefinition.Scaling
             return Over(drawn);
         }
 
+        // Over one of `windows` that has a background and was drawn in the last two frames.
         private static bool Over(Dictionary<int, Drawn> windows)
         {
             Prune(windows);
@@ -271,6 +283,7 @@ namespace ReDefinition.Scaling
             foreach (int id in stale) windows.Remove(id);
         }
 
+        // Whether the windows of the function's assembly are scaled: not Unity's, KSP's or those of ScaleThemselves.
         private static bool Scaled(GUI.WindowFunction function)
         {
             Type type = function.Method.DeclaringType;

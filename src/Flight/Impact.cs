@@ -12,10 +12,11 @@ namespace ReDefinition.Flight
     // on the ground already, or a periapsis above the highest ground there is.
     internal static class Impact
     {
+        // The steps along the way to the periapsis, and the halvings of the step where the ground is met.
         private const int Steps = 200;
         private const int Halvings = 16;
 
-        // One search per vessel and quarter second, for the gauge and the panel
+        // One search per vessel and fifth of a second, for the gauge and the panel
         // alike.
         private static readonly HeldVessel cachedFor = new HeldVessel();
         private static float cachedAt = -1f;
@@ -34,6 +35,7 @@ namespace ReDefinition.Flight
         private static double clearMiddle;
         private static Vector3d clearAtMiddle, clearAtEnd;
 
+        // The seconds until the vessel's path meets the ground; NaN where it does not.
         internal static double Seconds(Vessel vessel)
         {
             if (cachedFor.Is(vessel) && Time.unscaledTime - cachedAt < 0.2f) return cached;
@@ -44,6 +46,7 @@ namespace ReDefinition.Flight
             return cached;
         }
 
+        // Whether the last search's clear path still holds: the same vessel on the same path, before its end.
         private static bool StillClear(Vessel vessel)
         {
             if (double.IsNaN(clearUntil) || vessel == null || vessel.orbit == null || vessel.LandedOrSplashed) return false;
@@ -53,6 +56,7 @@ namespace ReDefinition.Flight
                    && (orbit.getRelativePositionAtUT(clearUntil) - clearAtEnd).magnitude < ClearTolerance;
         }
 
+        // The search the class's comment describes; a path that stays clear is held for half its length (StillClear).
         private static double Search(Vessel vessel)
         {
             clearUntil = double.NaN;

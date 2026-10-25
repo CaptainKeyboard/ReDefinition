@@ -11,15 +11,19 @@ namespace ReDefinition
     // them.
     public partial class ReDefinitionAddon
     {
+        // The frame time graph's size, and how many bars it draws.
         private const float SparklineWidth = 190f;
         private const float SparklineHeight = 44f;
         private const int SparklineBars = 120;
 
+        // The last 240 frame times (ms), when the strip is next due, and the graph's top and median, set at its refresh.
         private readonly FrameTimeRing frameTimes = new FrameTimeRing(240);
         private float nextStripRefresh;
         private float sparklineTop = 33.3f;
         private float sparklineMedian;
 
+        // The texts the refresh makes for the strip and the pages: what runs, the frame rates, the frame times, the
+        // latency, frame generation's technique, the low-latency mode, the presented-per-rendered ratio, the recording.
         private string runningText = "";
         private string fpsText = "-- fps";
         private string frameTimeText = "";
@@ -61,6 +65,7 @@ namespace ReDefinition
             return technique + " FG";
         }
 
+        // Makes the strip's texts afresh, at most four times a second.
         private void RefreshLiveStrip()
         {
             if (Time.unscaledTime < nextStripRefresh) return;
@@ -93,6 +98,8 @@ namespace ReDefinition
             recordingState = ScreenRecordingBridge.State();
         }
 
+        // The strip: what runs and the frame rate, then the graph, the frame time, latency and load lines, and the filter
+        // controls.
         private void DrawLiveStrip()
         {
             GUILayout.BeginHorizontal();

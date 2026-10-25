@@ -28,6 +28,7 @@ namespace ReDefinition.Probe
     // Nothing of it runs without the argument.
     internal static class SceneProbe
     {
+        // The switch that starts the probe; every other probe switch works only with it.
         internal const string Argument = "-redefinitionProbe";
         // -redefinitionProbeSave <folder>: another save than ReDefinitionProbe, a copy of a
         // player's (the probe saves the flight it leaves into it); -redefinitionProbeVessel
@@ -40,6 +41,7 @@ namespace ReDefinition.Probe
         internal static readonly string BodyName = ArgumentAfter("-redefinitionProbeBody");
         internal static readonly string MoonName = ArgumentAfter("-redefinitionProbeMoon") ?? "Mun";
 
+        // The command line's word after the switch named; null where the switch is not given or ends the line.
         internal static string ArgumentAfter(string name)
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -47,6 +49,7 @@ namespace ReDefinition.Probe
             return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
         }
 
+        // Whether the main menu has started the probe's flight already, so that a return to it does not again.
         internal static bool Launched;
         // -redefinitionProbeSea: a capsule afloat out at sea, no land within kilometres.
         internal const string SeaArgument = "-redefinitionProbeSea";
@@ -71,6 +74,7 @@ namespace ReDefinition.Probe
         // On each round trip the space centre first opens the VAB, then the flight.
         internal static bool EditorVisited;
 
+        // The round trips -redefinitionProbeScenes asks for; -1 without it.
         private static int SceneCount()
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -94,6 +98,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Whether -redefinitionProbe is on the command line, in any case.
         internal static bool Requested
         {
             get
@@ -109,6 +114,8 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     internal sealed class SceneProbeLauncher : MonoBehaviour
     {
+        // 3 s after the menu stands: a profile applied and KSP quit (-redefinitionProbeProfile), or the probe's
+        // save loaded and the flight of its vessel started.
         private IEnumerator Start()
         {
             if (SceneProbe.Launched || !SceneProbe.Requested) yield break;
@@ -341,6 +348,8 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     internal sealed class SceneProbeReturn : MonoBehaviour
     {
+        // A pending new launch of the staging probe first; else, 10 s in, every other round trip into the VAB,
+        // the others back to the flight of the vessel on the pad.
         private IEnumerator Start()
         {
             // The new launch the probe asked for (StagingProbe), once the space centre stands.
@@ -379,6 +388,7 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     internal sealed class SceneProbeEditor : MonoBehaviour
     {
+        // 35 s in: the VAB's shots, then the space centre.
         private IEnumerator Start()
         {
             if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
@@ -408,9 +418,13 @@ namespace ReDefinition.Probe
         }
     }
 
+    // In the probe's flight: whichever measurement the switches ask for, by default the camera path's stages
+    // around the vessel with and without it, for each variant; then KSP quits.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class SceneProbeRunner : MonoBehaviour
     {
+        // The proxy's CPU sampler (src/DxgiProxy/CpuSampler.h): the main thread sampled for seconds into path; 1
+        // started, 0 not.
         [System.Runtime.InteropServices.DllImport("dxgi.dll", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl,
                                                    CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int KspCpuSample(int seconds, string path);
@@ -424,20 +438,29 @@ namespace ReDefinition.Probe
         private const float StartPitchDegrees = -15f;
         private const float SettleSeconds = 20f;
 
+        // The flight's cameras whose foreign components and command buffers the variants switch off in turn.
         private static readonly string[] CameraNames = { "Camera ScaledSpace", "Camera 01", "Camera 00" };
 
+        // A stage of the scene camera's rendering a capture crops.
         private struct Station
         {
+            // Its name in the files (<capture>-<name>.bin); the camera event at whose end it is copied.
             internal string Name;
             internal CameraEvent Event;
         }
 
+        // A crop waiting to be read back: the file it goes to and the texture it is in.
         private sealed class Read
         {
+            // The file the crop's bytes are written to; the texture, released once read.
             internal string Path;
             internal RenderTexture Texture;
         }
 
+        // The scene camera (Camera 00); the run's folder; meta.txt's lines; the stations; the probe's command buffer
+        // on each event; the crops waiting to be read and 1 while one is read; the vessel's mask material and the
+        // full-size mask; the variant running; the capture's number and file prefix ("h" without the vessel); the
+        // path's segment being captured; the heading both passes start from; whether a sweep captures in RenderDoc.
         private Camera scene;
         private string folder;
         private readonly StringBuilder meta = new StringBuilder();
@@ -513,9 +536,7 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: reflection probe " + found.name + " (" + cube.width + ", " + cube.format + ") dumped.");
         }
 
-        // The raytraced camera's light at a few places of the pad's view, into the log: the
-        // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
-        // Unity's ambient probe up / side / down and the sun's colour.
+        // The camera events at whose end Stages reads the camera's target.
         private static readonly CameraEvent[] StageEvents =
         {
             CameraEvent.AfterGBuffer, CameraEvent.BeforeLighting, CameraEvent.AfterLighting, CameraEvent.AfterForwardOpaque,
@@ -523,6 +544,8 @@ namespace ReDefinition.Probe
             CameraEvent.AfterEverything,
         };
 
+        // At the nearest visible renderer so named (<name>@<parent's name>), a 32-pixel window of Camera 00's target
+        // at each of StageEvents: the brightest pixel and the mean into the log.
         private static IEnumerator Stages(string rendererName)
         {
             Camera scene = null;
@@ -595,6 +618,8 @@ namespace ReDefinition.Probe
             Debug.Log(line.ToString());
         }
 
+        // Camera 00's target after the G-buffer and before the lighting, each as <shot>-<event>.bin: width, height,
+        // then RGBA floats.
         private static IEnumerator LightBuffer(string folder, string shot)
         {
             Camera scene = null;
@@ -640,9 +665,11 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: light buffer of Camera 00 written.");
         }
 
+        // Windows' ini writer, for ReDefinitionProxy.ini's keys.
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern bool WritePrivateProfileString(string section, string key, string value, string file);
 
+        // Windows' ini reader: a key's value, or fallback where it is missing.
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder value, uint size,
                                                            string file);
@@ -745,12 +772,16 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini's values set back.");
         }
 
+        // A colour's red, green and blue for the log, four decimals, space-separated.
         private static string Rgb(Color c)
         {
             return c.r.ToString("0.0000", CultureInfo.InvariantCulture) + " " + c.g.ToString("0.0000", CultureInfo.InvariantCulture) + " "
                    + c.b.ToString("0.0000", CultureInfo.InvariantCulture);
         }
 
+        // The raytraced camera's light at a few places of the pad's view, into the log: the
+        // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
+        // Unity's ambient probe up / side / down and the sun's colour.
         private static IEnumerator LightValues()
         {
             Raytracing.RtCamera rt = Raytracing.RtCamera.Current;
@@ -933,6 +964,9 @@ namespace ReDefinition.Probe
                       + ", sun " + rt.TracedSunColour + ", path " + rt.Camera.actualRenderingPath + ".");
         }
 
+        // Only in the probe's flight, once it stands: the switches' single runs (each quits KSP), the scene round
+        // trips, else the default measurement -- the baseline, each variant asked for, the baseline again -- the
+        // reads finished, meta.txt written, and KSP quit.
         private IEnumerator Start()
         {
             // A new launch (StagingProbe) is the probe's flight whatever save folder KSP names then.
@@ -1374,12 +1408,14 @@ namespace ReDefinition.Probe
             Application.Quit();
         }
 
+        // Whether the variant is asked for: "all", or its name holds the text asked for, ignoring case.
         private static bool Wanted(string wanted, string name)
         {
             return string.Equals(wanted, "all", StringComparison.OrdinalIgnoreCase)
                    || name.IndexOf(wanted, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        // The enabled camera so named; null where there is none.
         private static Camera Find(string name)
         {
             foreach (Camera c in Camera.allCameras)
@@ -1387,6 +1423,7 @@ namespace ReDefinition.Probe
             return null;
         }
 
+        // Whether a component is another mod's: not Unity's, KSP's or ReDefinition's own.
         private static bool Foreign(Type type)
         {
             string assembly = type.Assembly.GetName().Name;
@@ -1394,6 +1431,7 @@ namespace ReDefinition.Probe
                    && assembly != "Assembly-CSharp-firstpass" && assembly != "ReDefinition";
         }
 
+        // A name for a folder: every character but letters and digits an underscore; "unnamed" for none.
         private static string Safe(string text)
         {
             if (string.IsNullOrEmpty(text)) return "unnamed";
@@ -1402,7 +1440,6 @@ namespace ReDefinition.Probe
             return safe.ToString();
         }
 
-        // One variant: the camera path with the vessel, then without.
         // Unity draws a ForceNoMotion renderer into the motion vectors with zero
         // motion; the vessel's renderers by mode, to read next to a capture.
         private static void LogMotionModes(Vessel vessel)
@@ -1431,6 +1468,7 @@ namespace ReDefinition.Probe
                       + ", custom shader " + (custom != null ? custom.name : "none") + ".");
         }
 
+        // One variant: the camera path with the vessel, then without.
         private IEnumerator Run(string name)
         {
             variant = name;
@@ -1451,6 +1489,7 @@ namespace ReDefinition.Probe
             Time.timeScale = timeScale;
         }
 
+        // The whole number after the switch named; 0 without it.
         private static int IntArgument(string name)
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -1459,6 +1498,7 @@ namespace ReDefinition.Probe
             return 0;
         }
 
+        // The soak's seconds, -redefinitionProbeSoak <seconds>; 0 without it.
         private static int SoakSeconds
         {
             get
@@ -1470,11 +1510,13 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Whether -redefinitionProbeFreeze stops game time for both passes of a variant.
         private static bool Freeze
         {
             get { return Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeFreeze") >= 0; }
         }
 
+        // The active vessel's enabled renderers disabled; those it disabled, to enable again.
         private static List<Renderer> HideVessel()
         {
             List<Renderer> hidden = new List<Renderer>();
@@ -1516,6 +1558,7 @@ namespace ReDefinition.Probe
         // A stretch of the path: per frame the change of heading and pitch, in degrees.
         private struct Segment
         {
+            // Its name, a capture's phase in meta.txt; the heading's and the pitch's change a frame; its frames.
             internal string Name;
             internal float Heading;
             internal float Pitch;
@@ -1640,6 +1683,7 @@ namespace ReDefinition.Probe
             foreach (CommandBuffer cb in buffers.Values) cb.Clear();
         }
 
+        // A new linear crop texture, Crop pixels square.
         private static RenderTexture Target(RenderTextureFormat format)
         {
             RenderTexture texture = new RenderTexture(Crop, Crop, 0, format, RenderTextureReadWrite.Linear);
@@ -1647,6 +1691,7 @@ namespace ReDefinition.Probe
             return texture;
         }
 
+        // The probe's command buffer on the scene camera's event, added the first time it is asked for.
         private CommandBuffer Buffer(CameraEvent e)
         {
             CommandBuffer cb;
@@ -1659,6 +1704,7 @@ namespace ReDefinition.Probe
             return cb;
         }
 
+        // The probe's command buffers taken off the scene camera.
         private void Detach()
         {
             foreach (KeyValuePair<CameraEvent, CommandBuffer> pair in buffers)

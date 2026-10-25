@@ -18,6 +18,8 @@ namespace ReDefinition.Flight
     // the situation the flight panel works out (FlightProfiles.Held).
     internal enum GaugeMode
     {
+        // Auto: the situation's figure; the stage's burn time; the manoeuvre's burn; the time to impact; the closing speed
+        // to the target; the angle of attack.
         Auto,
         Stage,
         Burn,
@@ -67,6 +69,7 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public partial class RoundGauge : MonoBehaviour
     {
+        // How often, in seconds, the figure is read again; the arc moves every frame.
         private const float Interval = 0.1f;
         // How far out the face reaches, as a share of the bezel's outer radius:
         // ZTheme's bezel starts just beyond, KSP's a little further out (read
@@ -77,6 +80,7 @@ namespace ReDefinition.Flight
         private const float ArcWidth = 3f;
         private const float ArcInset = 1.5f;
 
+        // The arc's colours: fine, close to a limit (amber), past it (red).
         private static readonly Color Fine = new Color(0.95f, 0.95f, 0.95f);
         private static readonly Color Close = new Color(1f, 0.72f, 0.2f);
         private static readonly Color Past = new Color(1f, 0.32f, 0.28f);
@@ -86,6 +90,9 @@ namespace ReDefinition.Flight
         private static readonly Color CautionBand = new Color(1f, 0.72f, 0.2f, 0.45f);
         private static readonly Color WarningBand = new Color(1f, 0.32f, 0.28f, 0.5f);
 
+        // On the face: the mode's name, the value and AUTO; the track, the caution and warning bands and the arc; the limit's
+        // tick and the arc's tip; the arc's radius and the dial's middle on the gauge; the label's dim colour; when the
+        // figure is read next; the arc's fill as shown and as wanted, and its colour.
         private TextMeshProUGUI title;
         private TextMeshProUGUI value;
         private TextMeshProUGUI auto;
@@ -104,8 +111,11 @@ namespace ReDefinition.Flight
         private float shownFill, wantedFill;
         private Color wantedColour = Fine;
 
+        // What the gauge shows, kept across flights in gauge.cfg.
         private static GaugeMode mode = Load();
 
+        // Waits for KSP's vertical speed gauge, paints its face over and builds the digital gauge on it; KSP's gauge stays
+        // as it is where its label or picture is not found, or the navball does not show the vertical speed.
         private IEnumerator Start()
         {
             // KSP's vertical speed gauge stays where the navball does not show the
@@ -214,15 +224,17 @@ namespace ReDefinition.Flight
         private static Vector2 blankCentre;
         private static float blankReach;
 
-        // The gauge's picture with its face painted over, where the dial's middle
-        // lies off the picture's, as a share of its size, and how far the face
-        // reaches, as a share of its width; false where the picture cannot be
-        // read. The dial is the picture's opaque part: its middle is that part's.
+        // Whether the painted picture is at hand for this sprite: the gauge's own
+        // picture it was painted from, or the painted one already on the gauge.
         private static bool BlankKnown(Sprite sprite)
         {
             return blankSprite != null && sprite != null && (sprite == blankFrom || sprite == blankSprite);
         }
 
+        // The gauge's picture with its face painted over, where the dial's middle
+        // lies off the picture's, as a share of its size, and how far the face
+        // reaches, as a share of its width; false where the picture cannot be
+        // read. The dial is the picture's opaque part: its middle is that part's.
         private static bool Blank(Image image, Color32[] pixels, int width, int height, out Vector2 centre, out float reach)
         {
             centre = Vector2.zero;
@@ -334,6 +346,7 @@ namespace ReDefinition.Flight
             return middle + new Vector2(Mathf.Sin(angle), Mathf.Cos(angle)) * (radius - ArcWidth / 2f);
         }
 
+        // The dot at the arc's tip.
         private Image Dot(Transform parent)
         {
             GameObject dot = ReDefinition.Window.UiHygiene.Child("ReDefinitionGaugeTip", parent, typeof(RectTransform), typeof(Image));
@@ -346,6 +359,7 @@ namespace ReDefinition.Flight
             return image;
         }
 
+        // The rings made, by their inner edge.
         private static readonly Dictionary<float, Sprite> annuli = new Dictionary<float, Sprite>();
 
         // A white ring, its inner edge at `inner` of its radius (0 for a disc),
@@ -359,6 +373,7 @@ namespace ReDefinition.Flight
             return made;
         }
 
+        // Draws the ring into a texture of 128 texels square.
         private static Sprite MakeAnnulus(float inner)
         {
             const int size = 128;
@@ -403,6 +418,7 @@ namespace ReDefinition.Flight
 
         // ------------------------------------------------------------ modes
 
+        // To the mode `by` steps on, round the list, kept at once.
         private void Step(int by)
         {
             int count = Enum.GetValues(typeof(GaugeMode)).Length;
@@ -412,6 +428,8 @@ namespace ReDefinition.Flight
             Debug.Log(Log.Tag + " The round gauge shows " + mode + ", picked by a click.");
         }
 
+        // Every frame the arc moves towards the value; every Interval the figure is read again for the mode shown, with its
+        // bands, tick, colour and texts.
         private void Update()
         {
             if (value == null) return;
@@ -460,6 +478,7 @@ namespace ReDefinition.Flight
             wantedColour = reading.Level >= 2 ? Past : reading.Level == 1 ? Close : Fine;
         }
 
+        // The tooltip over the gauge, naming what it shows.
         private KSP.UI.TooltipTypes.TooltipController_Text tooltip;
 
         // The figure's name for the tooltip.
@@ -476,6 +495,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The mode's name on the face, in capitals.
         private static string Title(GaugeMode mode)
         {
             switch (mode)
@@ -491,11 +511,13 @@ namespace ReDefinition.Flight
 
         // ------------------------------------------------------------ kept
 
+        // Where the mode is kept.
         private static string Path
         {
             get { return PluginData.Path("gauge.cfg"); }
         }
 
+        // The mode kept; Auto where none is, or it cannot be read.
         private static GaugeMode Load()
         {
             try
@@ -510,6 +532,7 @@ namespace ReDefinition.Flight
             return GaugeMode.Auto;
         }
 
+        // Keeps the mode in the file.
         private static void Save()
         {
             string directory = System.IO.Path.GetDirectoryName(Path);
@@ -524,8 +547,10 @@ namespace ReDefinition.Flight
     // the left one only.
     public class GaugeRightClick : MonoBehaviour, IPointerClickHandler
     {
+        // Told on a right-click.
         internal Action Pressed;
 
+        // A right-click on the gauge tells Pressed.
         public void OnPointerClick(PointerEventData data)
         {
             if (data.button == PointerEventData.InputButton.Right && Pressed != null) Pressed();

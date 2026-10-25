@@ -9,6 +9,8 @@ StructuredBuffer<float2> centres : register(t1);
 RWStructuredBuffer<uint> table : register(u0);
 RWStructuredBuffer<uint> counts : register(u1);
 
+// What the harness sets per dispatch: the grid, the rays, what to expect, whether to fill the table, and
+// the ray flags.
 cbuffer Constants : register(b0)
 {
     uint cells;       // micro-triangles of a triangle
@@ -21,6 +23,9 @@ cbuffer Constants : register(b0)
     uint rayFlags;
 };
 
+// One ray per thread up the grid; its result into table where asked, and into counts: misses, hits, rays
+// that met a candidate, then the rays whose hit was not the expected one, the first 60 of them as
+// triangle << 16 | micro-triangle.
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)
 {
@@ -45,7 +50,7 @@ void main(uint3 id : SV_DispatchThreadID)
         // passes would: committed.
         query.CommitNonOpaqueTriangleHit();
     }
-    // bit 0: a triangle hit was committed, 2..: the candidates met.
+    // bit 0: a triangle hit was committed, bits 1-4: the candidates met, at most 15.
     const uint result = (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT ? 1u : 0u) | (min(candidates, 15u) << 1);
     if (writeTable != 0u)
         table[t] = result;

@@ -11,15 +11,17 @@ namespace ReDefinition
     // the name a profile's MODULE node gives, a title, and its settings over
     // ReDefinition's settings file (OwnSettings), which the settings window and KSP's settings
     // dialog edit as a copy and commit through the add-on. Modelled on Community
-    // Shaders' Feature (src/Feature.h there), cut to what KSP needs. The modules
+    // Shaders' Feature (its header Feature.h), cut to what KSP needs. The modules
     // are OurModules.
     internal interface IGraphicsModule
     {
         // The name in a profile's MODULE node, e.g. "upscaler". Stable: profiles name it.
         string Name { get; }
 
+        // The module's name for people, e.g. "Frame generation".
         string Title { get; }
 
+        // The module's settings, in the order its rows stand.
         IList<ModuleSetting> Settings { get; }
 
         // A setting by its key in the MODULE node; null where the module has none.
@@ -30,6 +32,7 @@ namespace ReDefinition
     // steps -- which calls the continuation once the files are in place, and not when the player cancels.
     internal sealed class FilesNeeded
     {
+        // The tooltip's text, and what starts the way to the files with the continuation to call once they are in place.
         public string Text;
         public Action<Action> Begin;
     }
@@ -39,6 +42,7 @@ namespace ReDefinition
     // as a mod's DIALOG stands apart from its settings (RegisteredMod.Dialogs).
     internal sealed class ModuleDialog
     {
+        // The row's key, its label, the open button's tooltip, and the tab it stands in.
         public string Key;
         public string Title;
         public string Tooltip = "";
@@ -130,6 +134,7 @@ namespace ReDefinition
         // The tab its row stands in; the hotkeys stand under Keys.
         public SettingCategory Row = SettingCategory.General;
 
+        // Reads the setting's value out of ReDefinition's settings as text, and writes a text value into them.
         public Func<OwnSettings, string> Read;
         public Action<OwnSettings, string> Write;
 
@@ -195,6 +200,7 @@ namespace ReDefinition
             }
         }
 
+        // The choice the value names, case aside, in its own spelling; null where it names none.
         private string Choice(string value)
         {
             if (Choices == null || value == null) return null;
@@ -207,10 +213,12 @@ namespace ReDefinition
     // A module made of its settings.
     internal sealed class GraphicsModule : IGraphicsModule
     {
+        // The settings as given, which Setting searches by key.
         private readonly List<ModuleSetting> settings;
         // Asked for every frame the settings window is open.
         private readonly IList<ModuleSetting> readOnly;
 
+        // A module of the name its profiles use, its title, and its settings in the order of their rows.
         public GraphicsModule(string name, string title, params ModuleSetting[] settings)
         {
             Name = name;
@@ -219,15 +227,19 @@ namespace ReDefinition
             readOnly = this.settings.AsReadOnly();
         }
 
+        // The name in a profile's MODULE node.
         public string Name { get; private set; }
 
+        // The module's name for people.
         public string Title { get; private set; }
 
+        // The settings, read-only, made once so that the per-frame asks allocate nothing.
         public IList<ModuleSetting> Settings
         {
             get { return readOnly; }
         }
 
+        // The first setting of that key; null where the module has none.
         public ModuleSetting Setting(string key)
         {
             foreach (ModuleSetting setting in settings)

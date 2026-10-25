@@ -56,9 +56,11 @@ namespace redefinition
 {
     namespace
     {
+        // The 64-bit FNV-1a offset basis and prime.
         constexpr uint64_t kFnvBasis = 14695981039346656037ull;
         constexpr uint64_t kFnvPrime = 1099511628211ull;
 
+        // The bytes' 64-bit FNV-1a hash, a byte at a time, going on from hash.
         uint64_t Fnv(const void* bytes, size_t size, uint64_t hash = kFnvBasis)
         {
             const uint8_t* p = static_cast<const uint8_t*>(bytes);
@@ -67,6 +69,8 @@ namespace redefinition
             return hash;
         }
 
+        // A set's key: the hash of the mesh's texture coordinates, the texture's coverage and
+        // the subdivision level, so that meshes alike in all three share the set.
         uint64_t SetKey(uint64_t uvHash, uint64_t alphaHash, uint32_t maxLevel)
         {
             const uint64_t parts[3] = { uvHash, alphaHash, maxLevel };
@@ -78,6 +82,7 @@ namespace redefinition
         constexpr uint32_t kIdleUpdates = 300;
         constexpr uint32_t kOffGraceUpdates = 300;
 
+        // The value rounded up to a multiple of the granularity.
         UINT64 RoundUp(UINT64 value, UINT64 granularity)
         {
             return (value + granularity - 1) / granularity * granularity;

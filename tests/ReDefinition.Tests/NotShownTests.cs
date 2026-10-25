@@ -8,8 +8,10 @@ namespace ReDefinition.Tests
     // newer build added.
     internal sealed class PersistentFake
     {
+        // The instance the registrations' members reach.
         internal static PersistentFake Instance = new PersistentFake();
 
+        // The saved settings; addedLater stands for one a newer build added.
         [Persistent] public bool shadows = true;
         [Persistent] public int detail = 2;
         [Persistent] public bool addedLater = false;
@@ -21,13 +23,17 @@ namespace ReDefinition.Tests
     // A settings class that inherits saved fields from its base.
     internal class PersistentBaseFake
     {
+        // A saved field the derived class inherits.
         [Persistent] public int inherited = 1;
     }
 
+    // The settings class whose saved fields are its own and its base's.
     internal sealed class PersistentDerivedFake : PersistentBaseFake
     {
+        // The instance the registrations' members reach.
         internal static PersistentDerivedFake Instance = new PersistentDerivedFake();
 
+        // A saved field of the derived class's own.
         [Persistent] public bool own = true;
     }
 
@@ -37,6 +43,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class NotShownTests
     {
+        // The registered mod a MOD_SETTINGS text makes, its problems dropped.
         private static RegisteredMod Build(string text)
         {
             List<string> problems = new List<string>();
@@ -44,8 +51,10 @@ namespace ReDefinition.Tests
             return new RegisteredMod(ModRegistration.FromConfigNode(node, problems), problems);
         }
 
+        // The registration's head: PersistentFake's mod, detected by its type.
         private const string Head = "MOD_SETTINGS\n{\n name = persistentfake\n detect = ReDefinition.Tests.PersistentFake\n";
 
+        // Where the registration names every saved field, a left-out one included, nothing is reported.
         [TestMethod]
         public void EverySavedFieldNamedLeavesNothingOut()
         {
@@ -58,6 +67,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, mod.SettingsNotKnown.Count);
         }
 
+        // A [Persistent] field no registration names is reported as a setting not known; a field not saved is not.
         [TestMethod]
         public void ASavedFieldNoRegistrationNamesIsReported()
         {
@@ -70,6 +80,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(mod.SettingsNotKnown.Contains("runningTime"));
         }
 
+        // A row whose member this build of the mod does not have is reported by its title.
         [TestMethod]
         public void ARowThisBuildLacksIsReported()
         {
@@ -83,6 +94,8 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "Gone switch" }, new List<string>(mod.RowsNotShown));
         }
 
+        // A row without a place in the window was never shown, and an optional one a build is known to lack:
+        // neither is reported.
         [TestMethod]
         public void ARowWithoutAPlaceOrOneABuildIsKnownToLackIsNotReported()
         {
@@ -99,6 +112,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, mod.RowsNotShown.Count);
         }
 
+        // A field inherited from the settings class's base counts as known when a registration names it, though
+        // under another setting name.
         [TestMethod]
         public void AnInheritedFieldTheRegistrationNamesIsKnown()
         {
@@ -112,6 +127,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, mod.SettingsNotKnown.Count, string.Join(", ", new List<string>(mod.SettingsNotKnown).ToArray()));
         }
 
+        // A row whose default the member's type can no longer take is reported as not shown.
         [TestMethod]
         public void ARowWhoseDefaultNoLongerFitsIsReported()
         {

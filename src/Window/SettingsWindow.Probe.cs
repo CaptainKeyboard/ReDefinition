@@ -4,6 +4,8 @@ namespace ReDefinition.Window
     // as its button runs it.
     internal static partial class SettingsWindow
     {
+        // Writes a value into one of ReDefinition's rows of the open window, as a click would; false where there is no
+        // such row or no window.
         internal static bool ProbeSet(string module, string key, string value)
         {
             IGraphicsModule found = OurModules.Find(module);
@@ -13,6 +15,7 @@ namespace ReDefinition.Window
             return true;
         }
 
+        // Accepts what the window holds, as the Accept button does.
         internal static void ProbeAccept()
         {
             ApplyAndAskRestart();

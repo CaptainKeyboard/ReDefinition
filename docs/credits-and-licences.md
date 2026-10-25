@@ -44,6 +44,7 @@ Linking Exception (see `LICENSE`).
 | **Kerbal Space Program** | Squad; published by Private Division | proprietary | The game; its assemblies are referenced |
 | **Unity** | Unity Technologies | proprietary | The engine |
 | **ILSpy** | the ICSharpCode team | MIT | Tool: decompiling KSP and installed mods for research |
+| **Roslyn** (`Microsoft.CodeAnalysis.CSharp`) | the .NET Foundation and contributors | MIT | Tool: `tools/DocLock` parses the C# sources with it to find every declaration and its comment for the in-code documentation's coverage and lock |
 | **CKAN** | the KSP-CKAN team | -- | Tool: its download cache held the release archives of the installed mods, whose shipped settings were read for the defaults, and its registry ModuleManager's metadata |
 
 ## Mods ReDefinition talks to at run time

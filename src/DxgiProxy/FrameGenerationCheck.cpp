@@ -36,6 +36,7 @@ namespace redefinition
             return static_cast<char>('0' + std::min(std::max(tenths, 1), 9));
         }
 
+        // The Rec. 709 luminance of an RGBA8 pixel packed red in the low byte, 0 to 1.
         float Luminance(uint32_t rgba)
         {
             const float r = static_cast<float>(rgba & 0xFFu) / 255.0f;

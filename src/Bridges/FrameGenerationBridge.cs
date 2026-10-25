@@ -18,6 +18,7 @@ namespace ReDefinition.Bridges
     // Frame generation gets the engine's own per-pixel motion vectors and depth.
     internal static class FrameGenerationBridge
     {
+        // The proxy's file name, as the DllImports below resolve it in this process.
         private const string Proxy = "dxgi.dll";
 
         // Everything about one frame besides the textures. Field order and
@@ -32,20 +33,29 @@ namespace ReDefinition.Bridges
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
         public struct FramePacket : IRingPacket<FramePacket>
         {
+            // The packet's size in bytes and PacketMagic, set by SubmitFrame and checked by the proxy.
             public uint Size;
             public uint Magic;
+            // Unity's frame count of the frame the packet describes.
             public uint FrameIndex;
+            // The size depth and motion vectors are rendered at.
             public uint RenderWidth;
             public uint RenderHeight;
+            // 1 where the history must not be used: the upscaler's reset or a camera cut.
             public uint Reset;
+            // The frame's subpixel jitter, as the upscaler's dispatch has it.
             public float JitterX;
             public float JitterY;
+            // What turns the motion vectors into pixels: minus the render size.
             public float MotionVectorScaleX;
             public float MotionVectorScaleY;
+            // The camera's clip planes and vertical field of view.
             public float NearPlane;
             public float FarPlane;
             public float VerticalFovRadians;
+            // The time since the last frame, in milliseconds.
             public float FrameTimeDeltaMs;
+            // The camera's position, without the render interpolation's shift, and its up, right and forward.
             public float PositionX, PositionY, PositionZ;
             public float UpX, UpY, UpZ;
             public float RightX, RightY, RightZ;
@@ -58,76 +68,99 @@ namespace ReDefinition.Bridges
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToPrevClip;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevClipToClip;
 
+            // Into the ring's boxed copy, so a frame's packet is marshalled without a new box.
             void IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
             {
                 this = packet;
             }
         }
 
+        // The proxy's kFramePacketMagic; the render event the proxy reads the packet in; the ring of its slots.
         private const uint PacketMagic = 0x4B535046;   // 'KSPF'
         private const int PacketEvent = 1;
         private static PacketRing packetRing;
 
+        // The three input textures (RegisterInputs); renamed with every change of its arguments.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspFgRegisterInputs3(IntPtr depth, IntPtr motionVectors, IntPtr hudLess);
 
+        // Whether the mod wants frames generated now (SetEnabled).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspFgSetEnabled(int enabled);
 
+        // The native FramePacket's size in bytes, checked against this one's.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern uint KspFgPacketSize();
 
+        // The proxy's render event callback, for IssuePluginEventAndData.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr KspFgGetRenderEventFunc();
 
+        // What the native side sees, as text into the buffer (Describe).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgStatus(StringBuilder buffer, int size);
 
+        // 1 where the proxy's ini has frame generation switched on (Available).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgConfigured();
 
+        // 1 where a swapchain that generates exists (CanGenerate).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgCanGenerate();
 
+        // How the last attempt to make the context went: 0 fine, 1 retrying, 2 the failure stands.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgContextFailing();
 
+        // Another try at a context the proxy could not make (RetryContext).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspFgRetryContext();
 
+        // The HUD-less and motion vector check at once (RequestCheck).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspFgRequestCheck();
 
+        // The running totals of rendered and presented frames; 0 while none was counted.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgCounters(out uint rendered, out uint presented);
 
+        // The technique that presents (3 XeSS, 2 DLSS, 1 FSR, 0 none) and its frames per rendered frame.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgTechnique(out int multiplier);
 
+        // The multiplier the settings row chose, and whether DLSS-G's dynamic mode is asked for.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspFgSetMultiplier(int multiplier, int dynamic);
 
+        // The technique that runs, the most frames per rendered frame it allows, and its dynamic support.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgLimits(out int mostMultiplier, out int dynamicSupport);
 
+        // 1 while DLSS-G generates in its dynamic mode.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgDynamic();
 
+        // 0 where DLSS-G's build said it cannot present with V-Sync, 1 otherwise.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspFgDlssVsync();
 
+        // 1 where Intel's XeLL holds the proxy to one present per refresh at most.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspXellEveryRefresh();
 
+        // NVAPI's architecture and implementation of the adapter's NVIDIA GPU; 0 where there is none known.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspNvidiaGpu(out uint architecture, out uint implementation);
 
+        // The ini's dlssDirectory and streamlineDirectory, UTF-16, cut to size characters.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
         private static extern void KspNvidiaDirectories(StringBuilder dlss, StringBuilder streamline, int size);
 
+        // Tells the proxy's load monitor which thread is the main thread; called from it.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspPerfRegisterMainThread();
 
+        // The last second's load in percent: 1 with figures, 0 before one, -1 switched off in the ini.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspPerfLoad(out float mainThread, out float renderThread, out float gpu,
                                               out float gpuThisProcess);
@@ -148,6 +181,8 @@ namespace ReDefinition.Bridges
         // nothing.
         private static bool probed;
 
+        // Whether frame generation can be offered at all: the proxy is there and its ini allows it. False for
+        // the rest of the session after the first failure.
         public static bool Available
         {
             get
@@ -202,6 +237,7 @@ namespace ReDefinition.Bridges
             return TryNative(DynamicCall, out dynamic) && dynamic != 0;
         }
 
+        // Dynamic's call, made once.
         private static readonly Func<int> DynamicCall = KspFgDynamic;
 
         // The multiplier the settings row chose, live: Off is the switch's, so this takes
@@ -261,6 +297,7 @@ namespace ReDefinition.Bridges
             return true;
         }
 
+        // NvidiaGpu's answer, filled by the call below it.
         private static uint gpuArchitecture;
         private static uint gpuImplementation;
         private static readonly Func<int> NvidiaGpuCall = () => KspNvidiaGpu(out gpuArchitecture, out gpuImplementation);
@@ -311,6 +348,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // DlssFrameGenerationVsync's call, made once.
         private static readonly Func<int> DlssVsyncCall = KspFgDlssVsync;
 
         // Whether the proxy presents every refresh at most because Intel's XeLL lowers
@@ -329,15 +367,19 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // XellEveryRefresh's call, made once.
         private static readonly Func<int> XellEveryRefreshCall = KspXellEveryRefresh;
 
+        // The multiplier KspFgTechnique last answered with, and the call that fills it.
         private static int techniqueMultiplier;
         private static readonly Func<int> TechniqueCall = () => KspFgTechnique(out techniqueMultiplier);
+        // The settings row's names for DLSS-G by frames per rendered frame; 0 and 1 stand for none known.
         private static readonly string[] DlssNames = { "DLSS", "DLSS", "DLSS 2x", "DLSS 3x", "DLSS 4x", "DLSS 5x", "DLSS 6x" };
         // XeSS-FG generates xessFgFrames per rendered frame here, more than one only on
         // an Intel GPU (XessFg.cpp).
         private static readonly string[] XessNames = { "XeSS", "XeSS", "XeSS 2x", "XeSS 3x", "XeSS 4x" };
 
+        // The calls of the exports asked often, made once rather than a new delegate with every ask.
         private static readonly Func<int> CanGenerateCall = KspFgCanGenerate;
         private static readonly Func<int> ContextFailingCall = KspFgContextFailing;
         private static readonly Action RetryContextCall = KspFgRetryContext;
@@ -353,6 +395,7 @@ namespace ReDefinition.Bridges
             return false;
         }
 
+        // TryExport, for an export that answers with nothing.
         private static bool TryExport(Action call, string export)
         {
             if (TryNative(call)) return true;
@@ -360,6 +403,7 @@ namespace ReDefinition.Bridges
             return false;
         }
 
+        // Switches frame generation off for good, with the export the proxy lacks as the reason.
         private static void ProxyOlderThanMod(string export)
         {
             // Told first, while the bridge still reaches it: switched off here, the
@@ -378,6 +422,7 @@ namespace ReDefinition.Bridges
             get { return ContextState() != ContextFine; }
         }
 
+        // Whether the last failure to make the context stands, so the proxy does not try again before RetryContext.
         public static bool ContextFailureStands
         {
             get { return ContextState() == ContextStands; }
@@ -413,6 +458,7 @@ namespace ReDefinition.Bridges
             TryNative(RequestCheckCall);
         }
 
+        // KspFgContextFailing's answer; 0, fine, where frame generation is unavailable.
         private static int ContextState()
         {
             int state;
@@ -448,6 +494,8 @@ namespace ReDefinition.Bridges
             return packetRing.Issue(buffer, renderEvent, PacketEvent, ref packet);
         }
 
+        // Asks the proxy once for its packet size and render event; a size that differs from this build's
+        // switches frame generation off. True with a render event to send packets to.
         private static bool EnsureRenderEvent()
         {
             if (renderEventResolved) return renderEvent != IntPtr.Zero;
@@ -479,6 +527,7 @@ namespace ReDefinition.Bridges
             TryCall(enabled ? EnableCall : DisableCall);
         }
 
+        // SetEnabled's calls, made once rather than a new delegate every frame.
         private static readonly Action EnableCall = () => KspFgSetEnabled(1);
         private static readonly Action DisableCall = () => KspFgSetEnabled(0);
 
@@ -526,7 +575,18 @@ namespace ReDefinition.Bridges
             if (!TryNative(KspPerfRegisterMainThread)) perfMissing = true;
         }
 
-        public enum LoadState { Missing, SwitchedOff, NotYet, Measured }
+        // What ReadLoad found about the proxy's load figures.
+        public enum LoadState
+        {
+            // No proxy, or one older than the mod without the load exports.
+            Missing,
+            // The proxy measures no load: switched off in its ini.
+            SwitchedOff,
+            // No second of load has completed yet.
+            NotYet,
+            // The figures are those of the last completed second.
+            Measured
+        }
 
         // The last completed second of load, each in percent, -1 where unknown:
         // the main thread's and the render thread's CPU time as a share of one

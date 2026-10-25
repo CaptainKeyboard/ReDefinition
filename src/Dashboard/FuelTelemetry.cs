@@ -22,14 +22,18 @@ namespace ReDefinition.Dashboard
         // Less of a resource than this, in units, dropped with parts is none.
         private const double Thrown = 0.01;
 
+        // The vessel the run-dry marks were last simulated for, when (Time.unscaledTime), and the marks per propellant.
         private Vessel dryVessel;
         private float dryAt = float.MinValue;
         private readonly Dictionary<string, List<object>> dry = new Dictionary<string, List<object>>();
 
+        // The vessel and frame the empty propellants were last found for, and those propellants.
         private Vessel emptyVessel;
         private int emptyFrame = -1;
         private readonly HashSet<string> empty = new HashSet<string>();
 
+        // r.engineDry[name]: the totals of that propellant at which engines run dry, simulated again at most
+        // every DryInterval; an empty list where none do.
         internal object Dry(Vessel v, string[] args)
         {
             if (args.Length == 0) return null;
@@ -43,6 +47,7 @@ namespace ReDefinition.Dashboard
             return dry.TryGetValue(args[0], out marks) ? marks : new List<object>();
         }
 
+        // r.engineEmpty[name]: whether an engine lit now that burns that propellant is empty; found once a frame.
         internal object Empty(Vessel v, string[] args)
         {
             if (args.Length == 0) return null;
@@ -55,6 +60,7 @@ namespace ReDefinition.Dashboard
             return empty.Contains(args[0]);
         }
 
+        // Fills `empty` with every propellant, air aside, of each lit engine that reaches none of one of them.
         private void FindEmpty(Vessel v)
         {
             empty.Clear();
@@ -77,6 +83,8 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // Fills `dry` from the planner's simulation of the vessel as it flies (Marks); left empty where KSP's
+        // delta-v simulation has no drop stage for every part.
         private void Simulate(Vessel v)
         {
             dry.Clear();

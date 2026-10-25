@@ -27,14 +27,17 @@ namespace redefinition
         // AVOID STALLING PRESENT THREAD" (ProgrammingGuideDLSS_G.md 6.7).
         std::atomic<uint32_t> g_apiErrors{ 0 };
         std::atomic<long> g_lastApiError{ 0 };
+        // How many of the stored errors were logged already.
         uint32_t g_apiErrorsLogged = 0;
 
+        // Streamline's callback for errors of its Present: stored only, never logged from there.
         void OnStreamlineApiError(const sl::APIError& error)
         {
             g_lastApiError.store(error.hres);
             g_apiErrors.fetch_add(1);
         }
 
+        // The errors stored since the last frame, logged as one line with the last HRESULT.
         void LogStreamlineApiErrors()
         {
             const uint32_t errors = g_apiErrors.load();
@@ -45,12 +48,14 @@ namespace redefinition
             g_apiErrorsLogged = errors;
         }
 
+        // A row-major matrix of the packet into Streamline's float4x4, row by row.
         void CopyMatrix(sl::float4x4& target, const float source[16])
         {
             for (int row = 0; row < 4; ++row)
                 target[row] = sl::float4(source[4 * row], source[4 * row + 1], source[4 * row + 2], source[4 * row + 3]);
         }
 
+        // The 4x4 identity, for the constants that have no transform of their own.
         sl::float4x4 Identity()
         {
             sl::float4x4 m;
@@ -60,6 +65,7 @@ namespace redefinition
             return m;
         }
 
+        // DLSS-G's status bits in words for the log, "ok" for none; bits the header does not name in hex.
         std::string StatusText(uint32_t status)
         {
             if (status == 0)

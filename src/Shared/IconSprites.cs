@@ -7,6 +7,7 @@ namespace ReDefinition.Shared
     // once and kept: the textures stay loaded for the whole game.
     internal static class IconSprites
     {
+        // The sprites made so far by path; a null entry, where no texture was found, is looked up again.
         private static readonly Dictionary<string, Sprite> sprites = new Dictionary<string, Sprite>();
 
         // Null where GameDatabase has no texture under `path`.

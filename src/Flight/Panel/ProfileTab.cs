@@ -17,6 +17,8 @@ namespace ReDefinition.Flight.Panel
     // updateCooldownSeconds.
     public class ProfileTab : ManeuverNodeEditorTab
     {
+        // In KSP's UI units: a block's width, the gap between columns, and the height of a block with two values and
+        // with one.
         internal const float CellWidth = 88f;
         internal const float Gap = 1f;
         private const float PairHeight = 64f;
@@ -28,10 +30,13 @@ namespace ReDefinition.Flight.Panel
         // another's readouts; a tab whose profile is gone stays empty.
         public int Profile;
 
+        // The profile the tab shows, once bound (SetInitialValues).
         internal FlightProfile Bound;
 
+        // One readout's block on the tab.
         private sealed class Cell
         {
+            // The readout; its block; its value field and its second one (null for none); whether it shows now.
             internal Readout Readout;
             internal RectTransform Block;
             internal TextMeshProUGUI Value;
@@ -39,9 +44,11 @@ namespace ReDefinition.Flight.Panel
             internal bool Shown;
         }
 
+        // The tab's blocks in the profile's order, and how many columns they fill.
         private readonly List<Cell> cells = new List<Cell>();
         private int columns;
 
+        // KSP sets the tab up: bound to its profile, its blocks built and filled.
         public override void SetInitialValues()
         {
             if (Bound == null && Profile >= 0 && Profile < FlightProfiles.Current.Count) Bound = FlightProfiles.Current[Profile];
@@ -49,6 +56,7 @@ namespace ReDefinition.Flight.Panel
             UpdateUIElements();
         }
 
+        // The tab can always be picked.
         public override bool IsTabInteractable()
         {
             return true;
@@ -108,12 +116,14 @@ namespace ReDefinition.Flight.Panel
             Layout(true);
         }
 
+        // The block hangs from its top left, CellWidth wide and `height` high.
         private static void Anchor(RectTransform block, float height)
         {
             block.anchorMin = block.anchorMax = block.pivot = new Vector2(0f, 1f);
             block.sizeDelta = new Vector2(CellWidth, height);
         }
 
+        // Every block's values anew, a block hidden where its readout does not apply now; laid out again where that changed.
         public override void UpdateUIElements()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -144,6 +154,7 @@ namespace ReDefinition.Flight.Panel
             if (changed) Layout(false);
         }
 
+        // The readout's text; "-" where reading it fails.
         private static string Text(System.Func<ReadoutFrame, string> value, ReadoutFrame frame)
         {
             try
@@ -189,6 +200,7 @@ namespace ReDefinition.Flight.Panel
             get { return columns <= 0 ? 0f : columns * CellWidth + (columns - 1) * Gap; }
         }
 
+        // Shown again: the panel takes the tab's width.
         private void OnEnable()
         {
             if (cells.Count > 0) FlightPanel.Resize(this, Width);

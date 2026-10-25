@@ -39,9 +39,12 @@ namespace ReDefinition.Settings.Behaviours
     // ReDefinition.Api.Keys.
     internal sealed class ProvidedSettings : ModBehaviour
     {
+        // Every member of any visibility, static or not; and the static ones only, for Instance.
         private const BindingFlags Any = TypeLookup.Any;
         private const BindingFlags StaticAny = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
+        // The type as the registration names it and as found; its Read and Write, and the optional members of
+        // the table above as found -- null where the type has none of that shape -- and its static Instance.
         private readonly string typeName;
         private readonly Type type;
         private readonly MethodInfo read;
@@ -57,6 +60,7 @@ namespace ReDefinition.Settings.Behaviours
         private object made;
         private bool cannotMake;
 
+        // The optional members looked up; Read and Write were found by For.
         private ProvidedSettings(string typeName, Type type, MethodInfo read, MethodInfo write)
         {
             this.typeName = typeName;
@@ -104,6 +108,7 @@ namespace ReDefinition.Settings.Behaviours
             get { return save != null; }
         }
 
+        // The type's Version, where it has one and it answers.
         public override string Version(RegisteredMod mod)
         {
             if (version == null) return null;
@@ -119,6 +124,8 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // Every setting without a member and not a key binding, through Read and Write; its type from the
+        // registration (TypeOf).
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
                                    out Action<string> write, out Type type)
         {
@@ -136,6 +143,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // Ready gating every setting of the mod, and the setting's list asked for where the type has Choices.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             string name = registration.Name;
@@ -172,6 +180,7 @@ namespace ReDefinition.Settings.Behaviours
             save.Invoke(target, null);
         }
 
+        // The type's Read for the setting; null where its object is not there.
         private string Value(string name)
         {
             object target;
@@ -208,6 +217,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // The type's Default for the setting, where it has one; null keeps the registration's.
         public override string Default(RegisteredMod mod, string setting)
         {
             object target;
@@ -215,6 +225,7 @@ namespace ReDefinition.Settings.Behaviours
             return defaultOf.Invoke(target, new object[] { setting }) as string;
         }
 
+        // The type's Choices for the setting; null where its object is not there or it has no answer yet.
         private string[] Choices(string name)
         {
             object target;
@@ -328,6 +339,7 @@ namespace ReDefinition.Settings.Behaviours
             return method != null && method.ReturnType == of ? method : null;
         }
 
+        // The type of the member's value: a property's, a field's, or a method's return type.
         private static Type TypeOfMember(MemberInfo member)
         {
             PropertyInfo property = member as PropertyInfo;
@@ -336,6 +348,7 @@ namespace ReDefinition.Settings.Behaviours
             return field != null ? field.FieldType : ((MethodInfo)member).ReturnType;
         }
 
+        // The member's value on the target: a property read, a field read, or a method called.
         private static object Get(MemberInfo member, object target)
         {
             PropertyInfo property = member as PropertyInfo;
@@ -345,6 +358,7 @@ namespace ReDefinition.Settings.Behaviours
             return ((MethodInfo)member).Invoke(target, null);
         }
 
+        // Whether the member is static; for a property, its getter.
         private static bool IsStatic(MemberInfo member)
         {
             PropertyInfo property = member as PropertyInfo;

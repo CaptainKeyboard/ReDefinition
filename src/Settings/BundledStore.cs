@@ -37,6 +37,8 @@ namespace ReDefinition.Settings
     // holds; Distant Object writes the save's own file at once.
     internal sealed class BundledStore
     {
+        // The game as the store needs it; what is kept; the state (switch, buttons, notice, profile); whether
+        // bundled.cfg has been read; how many scenes have loaded, by which a value put back is tried once a scene.
         private readonly IStoreHost host;
         private readonly BundledLedger ledger = new BundledLedger();
         private readonly BundledState state = new BundledState();
@@ -47,6 +49,7 @@ namespace ReDefinition.Settings
         // every scene until they can.
         private readonly HashSet<IBundledMod> waiting = new HashSet<IBundledMod>();
 
+        // A store reading and writing through the host; nothing is read before the first ask.
         public BundledStore(IStoreHost host)
         {
             this.host = host;
@@ -119,6 +122,7 @@ namespace ReDefinition.Settings
             return fresh;
         }
 
+        // Whether the bundling is on (BundledSettings.Enabled).
         public bool Enabled
         {
             get
@@ -137,6 +141,7 @@ namespace ReDefinition.Settings
             return state.Enabled && !state.ButtonKept.Contains(modId);
         }
 
+        // A mod's toolbar button hidden with the bundling on, or kept by the player; written at once.
         public void SetHidesButton(string modId, bool hide)
         {
             Load();
@@ -156,6 +161,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Whether Restore has anything to do (BundledLedger.CanRestore).
         public bool CanRestore
         {
             get
@@ -347,6 +353,7 @@ namespace ReDefinition.Settings
             return true;
         }
 
+        // bundled.cfg written where the ledger changed since it was last written.
         public void SaveIfDirty()
         {
             Load();
@@ -497,6 +504,7 @@ namespace ReDefinition.Settings
             return list;
         }
 
+        // The mods as asked about by the main-menu notice, written at once.
         public void MarkAsked(IEnumerable<IBundledMod> list)
         {
             Load();
@@ -505,6 +513,7 @@ namespace ReDefinition.Settings
             Save();
         }
 
+        // The mod's value now; null, with a warning, where reading it threw.
         public string SafeRead(BundledSetting setting)
         {
             try
@@ -519,6 +528,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // When a change takes effect, as a log line says it.
         public static string When(ApplyWindow window)
         {
             switch (window)
@@ -638,6 +648,8 @@ namespace ReDefinition.Settings
             });
         }
 
+        // Every mod with values not yet saved -- `only` alone where given -- saved through its own routine, and
+        // what waited for that save done; a save that throws is tried again at the next scene change.
         private void SaveMods(IBundledMod only)
         {
             foreach (IBundledMod mod in ledger.UnsavedMods())
@@ -681,6 +693,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Whether the setting can be written now (BundledSetting.Applicable); false where asking threw.
         private bool SafeApplicable(BundledSetting setting)
         {
             if (setting.Applicable == null) return true;
@@ -754,6 +767,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // bundled.cfg, read once, at the first ask.
         private void Load()
         {
             if (loaded) return;

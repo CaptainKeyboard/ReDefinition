@@ -14,6 +14,7 @@
 // GPU limits the frame rate.
 namespace redefinition
 {
+    // One second's load: the two threads' share of a core, the GPU engine's and this process' part of it.
     struct LoadSample
     {
         float mainThread = -1.0f;       // percent of one core; -1 when unknown
@@ -22,14 +23,17 @@ namespace redefinition
         float gpuThisProcess = -1.0f;   // this process's share of that engine
     };
 
+    // The sampler of the main and render threads' CPU time and the GPU's load, described above.
     class LoadMonitor
     {
     public:
+        // The one instance, for the process.
         static LoadMonitor& Get();
 
         // From DllMain, with enabled from the ini: with enabled=0 the proxy
         // does nothing at all, and this monitor neither.
         void SetAllowed(bool allowed);
+        // Whether the ini lets the monitor run (SetAllowed).
         bool Allowed() const { return allowed.load(); }
 
         // Into the log with every report: what the game holds, what Windows has
@@ -51,14 +55,19 @@ namespace redefinition
         bool Latest(LoadSample& sample) const;
 
     private:
+        // Only Get makes it.
         LoadMonitor() = default;
 
         // Opens a handle to the thread and puts it in place of the old one,
         // which it closes. Caller holds mutex.
         bool SwapHandleLocked(HANDLE& handle, DWORD id, bool& failureLogged, const char* what);
 
+        // The sampling thread started once, from the game's threads, never from DllMain.
         void EnsureStarted();
+        // The sampling thread's entry, which lets nothing escape into the game.
         static DWORD WINAPI ThreadProc(LPVOID self);
+        // The sampling thread: once a second the two threads' CPU time and the GPU engines' counters, the log
+        // line every reportSeconds.
         void Run();
 
         std::atomic<bool> allowed{ false };

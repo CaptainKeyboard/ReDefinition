@@ -74,6 +74,11 @@ RWStructuredBuffer<float4> cacheValues : register(u2, space4);
 RWStructuredBuffer<uint> cacheMeta : register(u3, space4);
 RWStructuredBuffer<uint> cacheTouched : register(u4, space4);
 
+// The cache's state from cbuffer Frame (RaytracingCache.cpp, WriteRadianceCacheConstantsLocked):
+// whether the frame reads it and writes it; the frame's count and the cells' angle; the least
+// cell, the most samples an entry keeps, the samples a cell is read from, the chance a path
+// refreshes a warm cell; the buckets, the slots of a bucket, the entries, the frames an entry
+// is kept unmet, and the debug view (rtRadianceCacheDebug: 1 the values, 2 the cells; 0 none).
 #define CACHE_ON ((frameFlags & RT_FLAG_RADIANCE_CACHE) != 0u)
 #define CACHE_UPDATE ((frameFlags & RT_FLAG_RADIANCE_CACHE_UPDATE) != 0u)
 #define CACHE_FRAME (asuint(cacheTile.w))
@@ -103,6 +108,7 @@ RWStructuredBuffer<uint> cacheTouched : register(u4, space4);
 // an entry goes up to that many frames after CACHE_MAX_AGE.
 #define RT_CACHE_AGE_SLICES 8u
 
+// The entry index of no entry: a lookup that found none.
 static const uint kCacheNone = 0xFFFFFFFFu;
 // The tile the anchor is counted in, in metres: the largest cell, so that every cell size,
 // a power of two, divides it.
@@ -147,8 +153,10 @@ float CacheCellSize(float distance)
     return clamp(exp2(floor(log2(step))), CACHE_MIN_CELL, kCacheTile);
 }
 
+// Where a cell lies in the table: its bucket, and the fingerprint its slot holds (CacheKeyAt).
 struct CacheKey
 {
+    // The bucket's index (CACHE_BUCKETS of them), and the fingerprint, never 0.
     uint bucket;
     uint checksum;
 };

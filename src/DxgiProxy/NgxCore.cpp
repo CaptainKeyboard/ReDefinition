@@ -7,8 +7,10 @@ namespace redefinition
 {
     namespace
     {
+        // NGX's log lines since the last ResetNgxLog; past 200 none are logged.
         std::atomic<int> g_ngxLogLines{ 0 };
 
+        // The driver's NGX core once loaded, and the lock its loading takes.
         std::mutex g_coreMutex;
         HMODULE g_core = nullptr;
 
@@ -82,11 +84,13 @@ namespace redefinition
         LogLine("NGX: " + text + (line == 200 ? "   (further NGX lines are not logged)" : ""));
     }
 
+    // NgxLog's line count back to 0: the next start is logged in full.
     void ResetNgxLog()
     {
         g_ngxLogLines = 0;
     }
 
+    // An NGX result as eight hexadecimal digits, for messages.
     std::string NgxHex(uint32_t value)
     {
         char text[16] = {};
@@ -94,11 +98,13 @@ namespace redefinition
         return text;
     }
 
+    // A size as "1920x1080", for messages.
     std::string NgxSize(unsigned int width, unsigned int height)
     {
         return std::to_string(width) + "x" + std::to_string(height);
     }
 
+    // The folders taken, without empty ones and those already there (case ignored), and pointers to them.
     void NgxSearch::Set(const std::vector<std::wstring>& folders)
     {
         paths.clear();
@@ -115,6 +121,7 @@ namespace redefinition
             pointers.push_back(&path[0]);
     }
 
+    // The common info NGX's init takes: these folders, and its log into the proxy's alone.
     NgxCommonInfo NgxSearch::Info()
     {
         NgxCommonInfo info = {};

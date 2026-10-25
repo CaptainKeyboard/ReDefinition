@@ -8,6 +8,7 @@ namespace ReDefinition.Engineer
     // first, stage 0 last.
     internal sealed class StageRow
     {
+        // KSP's number for the stage: the highest fires first, stage 0 last.
         public int Number;
 
         // For the situation chosen (body, sea level, altitude or vacuum).

@@ -183,12 +183,14 @@ void DiffuseLightAt(uint3 id, bool cached)
     output1[id.xy] = float4(radiance, min(distance, kFp16Max));
 }
 
+// The diffuse light's pass (RT_DiffuseLight) without the radiance cache.
 [numthreads(8, 8, 1)]
 void DiffuseLight(uint3 id : SV_DispatchThreadID)
 {
     DiffuseLightAt(id, false);
 }
 
+// The diffuse light's pass with the radiance cache (RT_DiffuseLightCached, CachedPipelineLocked).
 [numthreads(8, 8, 1)]
 void DiffuseLightCached(uint3 id : SV_DispatchThreadID)
 {
@@ -308,12 +310,14 @@ void SpecularLightAt(uint3 id, bool cached)
     output2[id.xy] = float4(radiance, min(distance, kFp16Max));
 }
 
+// The reflections' pass (RT_SpecularLight) without the radiance cache.
 [numthreads(8, 8, 1)]
 void SpecularLight(uint3 id : SV_DispatchThreadID)
 {
     SpecularLightAt(id, false);
 }
 
+// The reflections' pass with the radiance cache (RT_SpecularLightCached, CachedPipelineLocked).
 [numthreads(8, 8, 1)]
 void SpecularLightCached(uint3 id : SV_DispatchThreadID)
 {

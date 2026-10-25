@@ -15,12 +15,14 @@ namespace ReDefinition.Dashboard
         // A save is looked for again at most this often, and only in the scenes that show the list.
         private const float SavesEvery = 3f;
 
+        // One save as last read: its files' times, by which a change is seen, and its entry in the list.
         private sealed class Save
         {
-            public DateTime SfsTime, MetaTime;
-            public Dictionary<string, object> Entry;
+            public DateTime SfsTime, MetaTime; // when persistent.sfs and persistent.loadmeta were last written
+            public Dictionary<string, object> Entry; // what the list shows of it (Entry)
         }
 
+        // The saves read so far by folder name, the list as JSON when it was last made, and when that was.
         private readonly Dictionary<string, Save> saves = new Dictionary<string, Save>();
         private Json.Raw savesShown;
         private float savesRead = -1e9f;
@@ -29,6 +31,7 @@ namespace ReDefinition.Dashboard
         private const float LoadAgainAfter = 10f;
         private float loadAskedAt = -1e9f;
 
+        // g.scene: the scene KSP has loaded, by its GameScenes name (MAINMENU, SPACECENTER, FLIGHT ...).
         internal static string Scene
         {
             get { return HighLogic.LoadedScene.ToString(); }
@@ -195,6 +198,7 @@ namespace ReDefinition.Dashboard
             return entry;
         }
 
+        // A value of the summary read as a number; false where it is missing or none.
         private static bool Number(ConfigNode node, string name, out double value)
         {
             return double.TryParse(node.GetValue(name), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
@@ -207,6 +211,7 @@ namespace ReDefinition.Dashboard
             catch (Exception) { return null; }
         }
 
+        // The main menu's private end of its Load dialog, which loads the save of that name; null where KSP has none.
         internal static readonly MethodInfo LoadDialogFinished = typeof(MainMenu).GetMethod("OnLoadDialogFinished",
             BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(string) }, null);
 
@@ -243,6 +248,7 @@ namespace ReDefinition.Dashboard
             Application.Quit();
         }
 
+        // A line in KSP.log under the dashboard's tag.
         private static void LogLine(string message)
         {
             Debug.Log(Log.Tag + " Dashboard: " + message);

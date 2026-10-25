@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     // beside it, or the whole combination as text.
     internal static class BindingFake
     {
+        // The members a KEY block names: the key, two modifiers kept beside it, and a combination kept as text.
         internal static KeyCode Key = KeyCode.F10;
         internal static KeyCode Modifier1 = KeyCode.None;
         internal static KeyCode Modifier2 = KeyCode.None;
@@ -20,6 +21,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class BindingMembersTests
     {
+        // The one setting a MOD_SETTINGS registration of BindingFake with the given KEY block makes, asserting
+        // the registration has no problems.
         private static BundledSetting Build(string key)
         {
             List<string> problems = new List<string>();
@@ -31,6 +34,7 @@ namespace ReDefinition.Tests
             return mod.Settings[0];
         }
 
+        // A key kept as a KeyCode alone offers no modifier; a combination written to it gives the member its key.
         [TestMethod]
         public void AKeyCodeAloneHoldsNoModifier()
         {
@@ -42,6 +46,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(KeyCode.F9, BindingFake.Key);
         }
 
+        // A key with one modifier member beside it offers one modifier.
         [TestMethod]
         public void OneModifierMemberHoldsOne()
         {
@@ -50,6 +55,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, setting.MaxModifiers);
         }
 
+        // A key with two modifier members offers two modifiers.
         [TestMethod]
         public void TwoModifierMembersHoldTwo()
         {
@@ -84,6 +90,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(KeyCode.None, BindingFake.Modifier2);
         }
 
+        // A key kept as text holds the whole combination, two modifiers with the key, and is written as given.
         [TestMethod]
         public void TextHoldsTheWholeCombination()
         {

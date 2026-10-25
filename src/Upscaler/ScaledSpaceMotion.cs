@@ -31,10 +31,12 @@ namespace ReDefinition.Upscaler
     // planet -- keeps the planet's motion under it.
     internal sealed class ScaledSpaceMotion
     {
+        // The scaled camera's name, the merge pass of the cloud motion shader, and the most bodies it is given.
         private const string CameraName = "Camera ScaledSpace";
         private const int MergePass = 2;
         private const int MaxBodies = 8;
 
+        // The merge pass's inputs: Unity's motion vectors and depth, the texel size, the bodies and the scaled camera.
         private static readonly int UnityMotionId = Shader.PropertyToID("_ReDefinitionUnityMotion");
         private static readonly int SceneDepthId = Shader.PropertyToID("_ReDefinitionCloudSceneDepth");
         private static readonly int TexelId = Shader.PropertyToID("_ReDefinitionCloudTexel");
@@ -46,23 +48,32 @@ namespace ReDefinition.Upscaler
         private static readonly int InverseViewProjectionId = Shader.PropertyToID("_ReDefinitionScaledInverseViewProjection");
         private static readonly int CameraPositionId = Shader.PropertyToID("_ReDefinitionScaledCameraPosition");
 
+        // The last state written to the log, so that each change is logged once.
         private const string NotLogged = "not logged";
         private static string loggedState = NotLogged;
 
+        // A body in view of the scaled camera, as Sample takes it this frame.
         private struct Body
         {
+            // Its outer radius over its distance, to keep the largest on screen; its centre and radius in scaled
+            // space; its atmosphere's radius, 0 with the camera inside it; and the change of its transform that
+            // moves a point back to where it stood the frame before.
             internal float AngularSize;
             internal Vector4 Sphere;
             internal float Outer;
             internal Matrix4x4 Motion;
         }
 
+        // Every body's transform of the frame before; the bodies in view; the arrays the shader is given (the spheres,
+        // then the outer radii, and the motions); and the order of the bodies, largest on screen first.
         private readonly Dictionary<CelestialBody, Matrix4x4> previousLocalToWorld = new Dictionary<CelestialBody, Matrix4x4>();
         private readonly List<Body> bodies = new List<Body>();
         private readonly Vector4[] spheres = new Vector4[MaxBodies * 2];
         private readonly Matrix4x4[] motions = new Matrix4x4[MaxBodies];
         private static readonly System.Comparison<Body> Larger = (a, b) => b.AngularSize.CompareTo(a.AngularSize);
 
+        // The scaled camera; the copy of Unity's motion vectors and the merged result; the merge material; the
+        // scaled camera's view and projection of the frame before; and the frame Sample last ran in.
         private Camera camera;
         private RenderTexture scene;
         private RenderTexture merged;
@@ -186,6 +197,7 @@ namespace ReDefinition.Upscaler
             havePrevious = true;
         }
 
+        // Drops the scaled camera, the bodies' last transforms and the textures; the merge stays off until Attach.
         internal void Detach()
         {
             Active = false;
@@ -197,6 +209,7 @@ namespace ReDefinition.Upscaler
             RenderTextures.Release(ref merged);
         }
 
+        // Detach, and the material destroyed with it, when the rig goes.
         internal void Dispose()
         {
             Detach();
@@ -204,6 +217,7 @@ namespace ReDefinition.Upscaler
             material = null;
         }
 
+        // The material and the two textures at the render size; why not, or null when all are there.
         private string Prepare(Vector2Int size)
         {
             if (camera == null) return "no scaled space camera in this scene";

@@ -29,16 +29,19 @@ namespace ReDefinition.Upscaler
             "Landscape Camera"
         };
 
+        // Whether the camera of this name belongs to the 3D stack the rig redirects.
         internal static bool IsSceneCamera(string name)
         {
             return Array.IndexOf(SceneCameras, name) >= 0;
         }
 
+        // The redirect on each camera of the stack, and the presenter camera's object, camera and component.
         private readonly List<CameraRedirect> redirects = new List<CameraRedirect>();
         private GameObject presenterObject;
         private Camera presenterCamera;
         private UpscalerPresenter presenter;
 
+        // The redirects of this stack, in the order of SceneCameras; read by the rig's inputs and diagnostics.
         internal List<CameraRedirect> Redirects
         {
             get { return redirects; }
@@ -140,6 +143,7 @@ namespace ReDefinition.Upscaler
             return mask;
         }
 
+        // Takes the presenter camera down and gives every redirected camera its own target back.
         internal void Release()
         {
             // Switched off before the deferred Destroy: a camera with OnRenderImage

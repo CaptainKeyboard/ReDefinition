@@ -15,6 +15,7 @@ namespace ReDefinition.Settings
     // tests and the check outside it.
     internal struct KeyCombination : IEquatable<KeyCombination>
     {
+        // An unbound combination as text, as KSP's settings.cfg writes it.
         public const string NoneText = "None";
 
         // The modifiers, in the order they are written.
@@ -32,10 +33,12 @@ namespace ReDefinition.Settings
             get { return ModifierOrder; }
         }
 
+        // The key, None where unbound, and the modifiers in their written order, None where there are fewer.
         public readonly KeyCode Key;
         public readonly KeyCode FirstModifier;
         public readonly KeyCode SecondModifier;
 
+        // The modifiers sorted into their written order, a modifier given twice kept once.
         public KeyCombination(KeyCode key, KeyCode firstModifier, KeyCode secondModifier)
         {
             Key = key;
@@ -53,18 +56,22 @@ namespace ReDefinition.Settings
             if (modifiers.Count > 1) SecondModifier = modifiers[1];
         }
 
+        // No key and no modifier.
         public static readonly KeyCombination None = new KeyCombination(KeyCode.None, KeyCode.None, KeyCode.None);
 
+        // Whether a key is bound.
         public bool IsBound
         {
             get { return Key != KeyCode.None; }
         }
 
+        // How many modifiers it holds: 0 to 2.
         public int ModifierCount
         {
             get { return (FirstModifier != KeyCode.None ? 1 : 0) + (SecondModifier != KeyCode.None ? 1 : 0); }
         }
 
+        // Whether that modifier is one of its own.
         public bool HasModifier(KeyCode modifier)
         {
             return modifier != KeyCode.None && (FirstModifier == modifier || SecondModifier == modifier);
@@ -97,6 +104,7 @@ namespace ReDefinition.Settings
             return new KeyCombination(Key, FirstModifier, KeyCode.None);
         }
 
+        // Whether the key is one of the modifiers, left or right.
         public static bool IsModifier(KeyCode key)
         {
             foreach (KeyCode modifier in ModifierOrder)
@@ -209,9 +217,11 @@ namespace ReDefinition.Settings
             return combination;
         }
 
+        // Parse's results by text, emptied once it holds more than 512.
         private static readonly System.Collections.Generic.Dictionary<string, KeyCombination> ParsedByText =
             new System.Collections.Generic.Dictionary<string, KeyCombination>(StringComparer.Ordinal);
 
+        // A KeyCode by its name, case aside; false for a name that is none.
         private static bool TryParseKey(string text, out KeyCode key)
         {
             key = KeyCode.None;
@@ -231,16 +241,19 @@ namespace ReDefinition.Settings
             }
         }
 
+        // The same key and the same modifiers.
         public bool Equals(KeyCombination other)
         {
             return Key == other.Key && FirstModifier == other.FirstModifier && SecondModifier == other.SecondModifier;
         }
 
+        // Equal to another combination of the same key and modifiers.
         public override bool Equals(object other)
         {
             return other is KeyCombination && Equals((KeyCombination)other);
         }
 
+        // From the key and both modifiers, as Equals compares them.
         public override int GetHashCode()
         {
             return (int)Key ^ ((int)FirstModifier << 9) ^ ((int)SecondModifier << 18);
@@ -255,12 +268,14 @@ namespace ReDefinition.Settings
             return IsBound && Input.GetKeyDown(Key) && ModifiersHeld();
         }
 
+        // In the game: the key held, with exactly this combination's modifiers.
         [MethodImpl(MethodImplOptions.NoInlining)]
         public bool Held()
         {
             return IsBound && Input.GetKey(Key) && ModifiersHeld();
         }
 
+        // In the game: the key let go this frame, with exactly this combination's modifiers held.
         [MethodImpl(MethodImplOptions.NoInlining)]
         public bool Released()
         {

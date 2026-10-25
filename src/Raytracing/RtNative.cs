@@ -18,18 +18,25 @@ namespace ReDefinition.Raytracing
     // tests/ReDefinition.Tests holds them to (RtContractTests).
     internal static class RtNative
     {
+        // The proxy the exports are in, the game's dxgi.dll next to KSP_x64.exe.
         private const string Proxy = "dxgi.dll";
 
+        // The render events' ids for RenderEvent: a frame, Ray Reconstruction, and the two releases.
         internal const int FrameEvent = 30;
         internal const int ReconstructEvent = 31;
         internal const int ReconstructReleaseEvent = 32;
         internal const int ReleaseEvent = 33;
 
-        internal const uint MeshMagic = 0x4B53524Du;        // 'KSRM'
-        internal const uint MaterialMagic = 0x4B535241u;    // 'KSRA'
-        internal const uint FrameMagic = 0x4B535246u;       // 'KSRF'
-        internal const uint ReconstructMagic = 0x4B535252u; // 'KSRR'
+        // Each structure's second word, which the proxy checks to reject what is not one of them.
+        internal const uint MeshMagic = 0x4B53524Du;        // 'KSRM', in a MeshDesc
+        internal const uint MaterialMagic = 0x4B535241u;    // 'KSRA', in a MaterialDesc
+        internal const uint FrameMagic = 0x4B535246u;       // 'KSRF', in a FramePacket
+        internal const uint ReconstructMagic = 0x4B535252u; // 'KSRR', in a ReconstructPacket
 
+        // A frame's flags (FramePacket.Flags, ReconstructPacket.Flags; Raytracing.h, kRtFrame*, says what each does):
+        // same frame (accepted without effect), reset the history, denoise, motion vectors given, Ray
+        // Reconstruction's guides, a further trace (the ocean's), water, the water's normals for the probe, the
+        // G-buffer's smoothness from legacy shaders, the surfaces' intent, and the clouds' shadow alone.
         internal const uint FlagSameFrame = 1u << 0;
         internal const uint FlagReset = 1u << 1;
         internal const uint FlagDenoise = 1u << 2;
@@ -42,12 +49,16 @@ namespace ReDefinition.Raytracing
         internal const uint FlagSurfaceIntent = 1u << 9;
         internal const uint FlagCloudShadow = 1u << 10;
 
+        // The signals a frame traces (FramePacket.Signals), each into its output slot: the sun's visibility, the
+        // ambient occlusion, the diffuse and the specular light, and the light to add to a forward-rendered frame.
         internal const uint SignalSun = 1u << 0;
         internal const uint SignalOcclusion = 1u << 1;
         internal const uint SignalDiffuse = 1u << 2;
         internal const uint SignalSpecular = 1u << 3;
         internal const uint SignalForwardLight = 1u << 4;
 
+        // The input slots of FramePacket.Inputs: the depth as Direct3D's clip-space z, the G-buffer in Unity's
+        // layout, the motion vectors, and the sky as a latitude-longitude image.
         internal const int InputDepth = 0;
         internal const int InputGBuffer0 = 1;
         internal const int InputGBuffer1 = 2;
@@ -65,6 +76,8 @@ namespace ReDefinition.Raytracing
         // Instances and groups for every frame without its own.
         internal const uint AnyFrame = 0xFFFFFFFFu;
 
+        // The output slots of FramePacket.Outputs, one for each signal; Surface and SurfaceMode the surfaces as their
+        // materials mean them and how each pixel's were found (FlagSurfaceIntent).
         internal const int OutputSun = 0;
         internal const int OutputDiffuse = 1;
         internal const int OutputSpecular = 2;
@@ -86,13 +99,18 @@ namespace ReDefinition.Raytracing
         internal const uint SurfaceMissed = 6;
         internal const uint SurfaceGround = 7;
 
+        // The material textures' side in texels: each material's main texture, copied small into one layer.
         internal const int MaterialTextureSize = 64;
         // As Raytracing.h: a Direct3D 12 texture array's most layers.
         internal const int MaxMaterialTextures = 2048;
 
+        // A mesh for KspRtSetMesh, as RtMeshDesc in Raytracing.h; the proxy copies the arrays before the call returns.
         [StructLayout(LayoutKind.Sequential)]
         internal struct MeshDesc
         {
+            // Its size in bytes and MeshMagic, the id this side gives the mesh, the counts, Flags reserved (0); then
+            // VertexCount positions and normals (three floats each), texture coordinates (two, or zero for none),
+            // and IndexCount indices, three per triangle.
             public uint Size;
             public uint Magic;
             public int Mesh;
@@ -107,13 +125,19 @@ namespace ReDefinition.Raytracing
             public IntPtr Colors;
         }
 
+        // A material for KspRtSetMaterial, as RtMaterialDesc in Raytracing.h.
         [StructLayout(LayoutKind.Sequential)]
         internal struct MaterialDesc
         {
+            // Its size in bytes and MaterialMagic, the id this side gives the material, and how its shine is meant
+            // (Surface*).
             public uint Size;
             public uint Magic;
             public int Material;
             public uint Flags;
+            // Linear albedo, and in A the alpha below which its texture cuts the surface out (0 for none); the
+            // specular colour, the smoothness as Unity's standard shading takes it, the emitted radiance, and the
+            // layer of the material textures (KspRtSetMaterialTexture), -1 for none.
             public float AlbedoR, AlbedoG, AlbedoB, AlbedoA;
             public float SpecularR, SpecularG, SpecularB;
             public float Smoothness;
@@ -133,12 +157,15 @@ namespace ReDefinition.Raytracing
             public float HighlightR, HighlightG, HighlightB, HighlightShape;
         }
 
+        // One instance of a mesh in a frame (KspRtSetInstances), as RtInstance in Raytracing.h.
         [StructLayout(LayoutKind.Sequential)]
         internal struct Instance
         {
+            // The 3x4 transform, rows first, from the mesh into camera-relative space.
             public float M00, M01, M02, M03;
             public float M10, M11, M12, M13;
             public float M20, M21, M22, M23;
+            // The mesh's and the material's ids, the ray mask (bits 0-7), and the flags (Instance*).
             public int Mesh;
             public int Material;
             public uint Mask;
@@ -149,6 +176,8 @@ namespace ReDefinition.Raytracing
         [StructLayout(LayoutKind.Sequential)]
         internal struct GpuGroup
         {
+            // The mesh and material its instances are, where the run starts in InputInstances and how long it is,
+            // the ray mask and flags each instance takes; the reserved words 0.
             public int Mesh;
             public int Material;
             public uint First;
@@ -159,9 +188,13 @@ namespace ReDefinition.Raytracing
             public uint Reserved1;
         }
 
+        // Event 30's packet, as RtFramePacket in Raytracing.h, which says each field's meaning in full: a frame to
+        // trace. Matrices rows first, for column vectors and camera-relative positions.
         [StructLayout(LayoutKind.Sequential)]
         internal struct FramePacket : Bridges.IRingPacket<FramePacket>
         {
+            // Its size in bytes and FrameMagic, the frame's index (the instances' and groups' frameIndex), its
+            // flags (Flag*), the size in pixels it is traced at, the signals it traces (Signal*); Reserved 0.
             public uint Size;
             public uint Magic;
             public uint FrameIndex;
@@ -170,24 +203,42 @@ namespace ReDefinition.Raytracing
             public uint Height;
             public uint Signals;
             public uint Reserved;
+            // The camera: clip to camera-relative world and back, and last frame's world to clip.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToWorld;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] WorldToClip;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevWorldToClip;
+            // Towards the sun with its angular radius in w, its radiance at the scene, linear, and the sky's where
+            // no environment is given.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] SunDirection;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] SunColor;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] SkyColor;
+            // The occlusion's distance, the bounces, the diffuse and specular rays' distances, the samples' clamp,
+            // and 1 for each of: an environment given, material textures, a G-buffer (RtCommon.hlsli, params0/1).
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] Params;
+            // The main body: its centre relative to the camera and its radius, 0 for none.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] BodySphere;
+            // Unity's ambient light, which its shading added already, linear: facing up (w 1 where Unity shades in
+            // gamma space), sideways, down.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] Ambient;
+            // The camera as AMD FSR Ray Regeneration takes it: the view looking down +z and the projection without
+            // the jitter, rows first for row vectors; the previous position minus this one; the jitter in pixels;
+            // the near and far planes.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] WorldToView;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ViewToClip;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] CameraDelta;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] Jitter;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2)] public float[] DepthRange;
+            // Up to two bodies lit by the sun as lights (RtReflectors): towards each with its angular radius, its
+            // radiance with how far its shadow ray goes. LightParams: how many are used, 1 for gamma-space colours,
+            // how strongly water mirrors the sun's disc, 1 where the sea is KSP's own.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] Lights;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] LightParams;
+            // The least diffuse light the forward light gives a point, as Unity's colours are.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] NightLight;
+            // The main body's albedo, linear, for rays that meet its sphere; w the time for KSP's own sea's waves.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Planet;
+            // Per light, its body's surface lit by the star (albedo times the star's colour), for a reflected ray
+            // that meets its disc.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] LightSurface;
             // The sea's frame, fixed to the main body (RtCamera.Sea): a point on the sea
             // relative to the camera, its east and north, each with a w; all 0 for none.
@@ -202,6 +253,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
+            // PacketRing's copy into its one boxed packet: the arrays by reference, which marshalling then copies.
             void Bridges.IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
             {
                 this = packet;
@@ -251,6 +303,9 @@ namespace ReDefinition.Raytracing
         [StructLayout(LayoutKind.Sequential)]
         internal struct ReconstructPacket : Bridges.IRingPacket<ReconstructPacket>
         {
+            // Its size in bytes and ReconstructMagic, the FrameIndex of the raytraced frame whose guides it takes,
+            // FlagReset and FlagLegacySmoothness, the render and output sizes in pixels, sl::DLSSMode's and
+            // sl::DLSSDPreset's values; the reserved words 0.
             public uint Size;
             public uint Magic;
             public uint FrameIndex;
@@ -263,6 +318,10 @@ namespace ReDefinition.Raytracing
             public uint Preset;
             public uint Reserved0;
             public uint Reserved1;
+            // ClipToWorld as the raytraced frame had it, for the guides; the other matrices as Streamline's
+            // constants take them, without the jitter, the view looking down +z; the jitter in pixels and the
+            // motion vectors' scale to Streamline's normalised units; the camera's axes, its planes and its
+            // vertical field of view.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToWorld;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ViewToClip;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToView;
@@ -279,6 +338,9 @@ namespace ReDefinition.Raytracing
             public float FarPlane;
             public float VerticalFov;
             public float Reserved2;
+            // The textures' native pointers: the noisy frame at the render size, the depth, the motion vectors,
+            // the G-buffer and the reflections for guides where the raytraced frame made none (the mod leaves them
+            // zero), and the output at the output size.
             public IntPtr Colour;
             public IntPtr Depth;
             public IntPtr Motion;
@@ -288,12 +350,14 @@ namespace ReDefinition.Raytracing
             public IntPtr Specular;
             public IntPtr Output;
 
+            // PacketRing's copy into its one boxed packet: the arrays by reference, which marshalling then copies.
             void Bridges.IRingPacket<ReconstructPacket>.CopyFrom(ref ReconstructPacket packet)
             {
                 this = packet;
             }
         }
 
+        // A Ray Reconstruction packet with its size, magic and arrays in place, the rest for the caller to fill.
         internal static ReconstructPacket NewReconstructPacket()
         {
             return new ReconstructPacket
@@ -315,6 +379,7 @@ namespace ReDefinition.Raytracing
             };
         }
 
+        // A frame packet with its size, magic and arrays in place, the rest for the caller to fill.
         internal static FramePacket NewFramePacket()
         {
             return new FramePacket
@@ -349,33 +414,44 @@ namespace ReDefinition.Raytracing
             };
         }
 
+        // Whether raytracing runs here: 1 ready, 0 no device yet, -1 not possible; the reason in buffer.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         internal static extern int KspRtAvailable(StringBuilder buffer, int size);
 
+        // The proxy's sizes of MeshDesc, MaterialDesc and Instance, and FramePacket's as the result (Ready).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern uint KspRtStructSizes(out uint mesh, out uint material, out uint instance);
 
+        // A mesh under its id, copied before the call returns: 1 taken, 0 rejected (KspRtStatus says why).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int KspRtSetMesh(ref MeshDesc desc);
 
+        // Frees the mesh of that id.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void KspRtReleaseMesh(int mesh);
 
+        // A material under its id: 1 taken, 0 rejected.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int KspRtSetMaterial(ref MaterialDesc desc);
 
+        // Frees the material of that id.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void KspRtReleaseMaterial(int material);
 
+        // A layer of the material textures: size by size RGBA8 pixels, sRGB, rows from the top; 1 taken.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int KspRtSetMaterialTexture(int layer, byte[] pixels, int size);
 
+        // The instances of the frame frameIndex (AnyFrame: of every frame without its own), copied: 1 taken.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int KspRtSetInstances(Instance[] instances, int count, uint frameIndex);
 
+        // The groups of the GPU's instances for the frame frameIndex, as KspRtSetInstances takes its instances.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern int KspRtSetGpuGroups(GpuGroup[] groups, int count, uint frameIndex);
 
+        // The service's status line into buffer; returns its generation, which changes with the device, when the
+        // meshes are to be handed over again.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         internal static extern int KspRtStatus(StringBuilder buffer, int size);
 
@@ -384,24 +460,33 @@ namespace ReDefinition.Raytracing
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern uint KspRtGeneration();
 
+        // Tells the service which generation the ids handed over from now on are of.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void KspRtHandOverFor(uint generation);
 
+        // Each pass's GPU time in milliseconds by signal bit, the radiance cache's in 5 and the denoiser's in 6,
+        // up to count of them.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern void KspRtPassTimings([Out] float[] timings, int count);
 
+        // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, with the reason in buffer.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
         internal static extern int KspRtReconstructionAvailable(StringBuilder buffer, int size);
 
+        // How many frames Ray Reconstruction has reconstructed since the proxy started.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern ulong KspRtReconstructedFrames();
 
+        // The proxy's size of ReconstructPacket, checked against this side's before the first.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern uint KspRtReconstructPacketSize();
 
+        // The proxy's render event callback, which every event id here goes through (shared with frame generation).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         internal static extern IntPtr KspFgGetRenderEventFunc();
 
+        // Whether Ready probed the proxy yet, why raytracing cannot run if the probe found it so (null if not), and
+        // the render event callback it found.
         private static bool probed;
         private static string problem;
         private static IntPtr renderEvent;
@@ -444,6 +529,7 @@ namespace ReDefinition.Raytracing
             return state == 1;
         }
 
+        // The proxy's render event callback for IssuePluginEventAndData, zero until Ready found matching layouts.
         internal static IntPtr RenderEvent
         {
             get { return renderEvent; }

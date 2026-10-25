@@ -18,12 +18,14 @@ namespace ReDefinition.Raytracing
     // in Unity's colour space. KSCTerrain.shader takes _GrassColor for the vertex colour.
     internal static class RtTerrainColour
     {
+        // The bands' textures, the influence map and the space centre's vertex colour of Parallax's terrain shaders.
         private static readonly int LowTexId = Shader.PropertyToID("_MainTexLow");
         private static readonly int MidTexId = Shader.PropertyToID("_MainTexMid");
         private static readonly int HighTexId = Shader.PropertyToID("_MainTexHigh");
         private static readonly int InfluenceId = Shader.PropertyToID("_InfluenceMap");
         private static readonly int GrassColorId = Shader.PropertyToID("_GrassColor");
 
+        // Each texture's average, kept for the textures' lifetime (Average).
         private static readonly Dictionary<Texture, Color> averages = new Dictionary<Texture, Color>();
 
         // Whether the material is Parallax's terrain with its influence map.

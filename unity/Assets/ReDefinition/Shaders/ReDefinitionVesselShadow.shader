@@ -49,13 +49,15 @@ Shader "Hidden/ReDefinition/VesselShadow"
             float4 _VesselShadowLight;
             float4x4 _VesselShadowPreviousModel;
 
+            // What the vertex function hands the fragment function.
             struct v2f
             {
-                float4 pos : SV_POSITION;
-                float3 moved : TEXCOORD0;
-                float distance : TEXCOORD1;
+                float4 pos : SV_POSITION; // the position in the light map
+                float3 moved : TEXCOORD0; // the position in the frame before minus the one now
+                float distance : TEXCOORD1; // from the map's near plane along the light
             };
 
+            // The vertex into the light map, with its move since the frame before and its distance along the light.
             v2f vert (float4 vertex : POSITION)
             {
                 float4 local = float4(vertex.xyz, 1.0);
@@ -68,6 +70,7 @@ Shader "Hidden/ReDefinition/VesselShadow"
                 return o;
             }
 
+            // How far the surface moved since the frame before, and its distance along the light.
             float4 frag (v2f i) : SV_Target
             {
                 return float4(i.moved, i.distance);
@@ -90,6 +93,8 @@ Shader "Hidden/ReDefinition/VesselShadow"
             #include "UnityCG.cginc"
             #include "../Include/ReDefinition.cginc"
 
+            // The scene camera's captured depth, its motion vectors, Unity's screen-space shadow mask for the sun,
+            // and pass 0's light map.
             sampler2D _VesselShadowDepth;
             sampler2D _VesselShadowMotion;
             sampler2D _VesselShadowMask;
@@ -117,6 +122,7 @@ Shader "Hidden/ReDefinition/VesselShadow"
             // after the origin shift: the Krakensbane step in fast flight.
             float3 _VesselShadowReceiverShift;
 
+            // The world position of the surface at a texture coordinate, from the captured depth.
             float3 WorldAt(float2 uv)
             {
                 float depth = tex2Dlod(_VesselShadowDepth, float4(uv, 0.0, 0.0)).r;
@@ -125,13 +131,15 @@ Shader "Hidden/ReDefinition/VesselShadow"
                 return world.xyz / world.w;
             }
 
-            // How far along the light a point lies, and where it falls in the light map.
+            // Where a point falls in the light map.
             float2 LightUv(float3 world)
             {
                 float4 clip = mul(_VesselShadowLightViewProjection, float4(world, 1.0));
                 return clip.xy / clip.w * 0.5 + 0.5;
             }
 
+            // Per pixel: the share of the sun the vessel takes, and the weight that chooses between leaving the
+            // shadow in place and leaving it to the motion vectors; or the mark for lit ground near the shadow.
             float4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.uv;
@@ -249,9 +257,11 @@ Shader "Hidden/ReDefinition/VesselShadow"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // The scene's colour at display size and pass 1's weight.
             sampler2D _MainTex;
             sampler2D _VesselShadowWeight;
 
+            // The colour where the vessel takes nine tenths of the sun or more, ramped in, with that ramp in alpha.
             float4 frag (v2f_img i) : SV_Target
             {
                 float taken = tex2D(_VesselShadowWeight, i.uv).g;
@@ -273,9 +283,11 @@ Shader "Hidden/ReDefinition/VesselShadow"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // The scene's colour at display size and pass 1's weight.
             sampler2D _MainTex;
             sampler2D _VesselShadowWeight;
 
+            // The colour where pass 1 marked lit ground near the shadow, with that mark in alpha.
             float4 frag (v2f_img i) : SV_Target
             {
                 float lit = tex2D(_VesselShadowWeight, i.uv).b;
@@ -297,6 +309,7 @@ Shader "Hidden/ReDefinition/VesselShadow"
             #pragma target 5.0
             #include "UnityCG.cginc"
 
+            // The scene's colour, pass 1's weight, and passes 2's and 3's mip chains.
             sampler2D _MainTex;
             sampler2D _VesselShadowWeight;
             sampler2D _VesselShadowShadowed;
@@ -322,6 +335,7 @@ Shader "Hidden/ReDefinition/VesselShadow"
                 return 1.0;
             }
 
+            // The colour brightened by the local ratio, in proportion to the weight; unchanged where it is 0.
             float4 frag (v2f_img i) : SV_Target
             {
                 float4 colour = tex2D(_MainTex, i.uv);

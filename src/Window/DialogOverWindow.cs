@@ -23,6 +23,7 @@ namespace ReDefinition.Window
     // page rather than acts.
     internal static class DialogOverWindow
     {
+        // The darkened screen's object name and colour, the dialog's edge colour and width, and the links' colour.
         private const string ScrimName = "ReDefinitionScrim";
         private static readonly Color Scrim = new Color(0f, 0f, 0f, 0.6f);
         private static readonly Color Edge = new Color(0.8f, 0.8f, 0.8f, 0.55f);
@@ -74,6 +75,7 @@ namespace ReDefinition.Window
             if (clear != null) clear.SetValue(button, true);
         }
 
+        // The UI_DIALOGS lock's name, and how many of these dialogs stand.
         private const string LockName = "ReDefinitionQuestion";
         private static int holding;
 

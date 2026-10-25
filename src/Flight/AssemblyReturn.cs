@@ -34,18 +34,23 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class AssemblyReturn : MonoBehaviour
     {
+        // How near the building the vessel has to stand, in metres.
         private const double Range = 3000.0;
 
+        // One assembly building: the editor it opens, and where it stands.
         private sealed class Building
         {
+            // The editor the building opens, and the building's place in the world.
             internal EditorFacility Facility;
             internal FacilitySpot Spot;
         }
 
+        // The two buildings, null where the space centre lacks one; the body the space centre is on; the button.
         private Building vab, sph;
         private CelestialBody home;
         private WorldButton marker;
 
+        // Waits for KSP's interface and the space centre's facilities, then finds both buildings and makes the button.
         private IEnumerator Start()
         {
             float until = Time.unscaledTime + 15f;
@@ -76,6 +81,7 @@ namespace ReDefinition.Flight
                       + ", on " + (home != null ? home.bodyName : "no body") + ".");
         }
 
+        // The building of that name and where it stands; null where the space centre has none such.
         private Building Find(SpaceCenterFacility building, EditorFacility editor)
         {
             CelestialBody body;
@@ -85,6 +91,7 @@ namespace ReDefinition.Flight
             return new Building { Facility = editor, Spot = spot };
         }
 
+        // Where the building stands, for the log.
         private static string Where(Building building)
         {
             return building == null || building.Spot.Place == null ? "missing" : "at " + building.Spot.Place.name;
@@ -97,6 +104,7 @@ namespace ReDefinition.Flight
             marker = null;
         }
 
+        // Places the button before the building while a revert or a recovery can be done there, and hides it otherwise.
         private void LateUpdate()
         {
             if (marker == null) return;
@@ -152,6 +160,7 @@ namespace ReDefinition.Flight
         private const string Far = "far";
         private const string Shown = "shown";
 
+        // Writes the reason to the log where it changed; false, so that Wanted can return it.
         private bool Note(string why)
         {
             string key = why.Length > 12 && char.IsDigit(why[0]) ? Far : why;
@@ -162,6 +171,7 @@ namespace ReDefinition.Flight
             return false;
         }
 
+        // Whether KSP's pause menu would offer a revert to the editor the ship was built in.
         private static bool CanRevert()
         {
             return HighLogic.CurrentGame != null && HighLogic.CurrentGame.Parameters.Flight.CanLeaveToEditor
@@ -169,6 +179,7 @@ namespace ReDefinition.Flight
                    && (ShipConstruction.ShipType == EditorFacility.VAB || ShipConstruction.ShipType == EditorFacility.SPH);
         }
 
+        // Whether KSP would let the vessel be recovered.
         private static bool CanRecover(Vessel vessel)
         {
             return HighLogic.CurrentGame != null && HighLogic.CurrentGame.Parameters.Flight.CanLeaveToSpaceCenter
@@ -184,6 +195,7 @@ namespace ReDefinition.Flight
 
         // ---------------------------------------------------------------- click
 
+        // Asks first: a revert loses the flight, a recovery ends it.
         private void Ask()
         {
             Building building;
@@ -198,6 +210,7 @@ namespace ReDefinition.Flight
                 () => Go(facility, revert), 110f);
         }
 
+        // Reverts to the editor, or recovers the vessel and has the editor open with it once the space centre has it.
         private static void Go(EditorFacility facility, bool revert)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -253,10 +266,12 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class AssemblyAfterRecovery : MonoBehaviour
     {
+        // Whether a recovery from the symbol is under way, the craft file to open (null for none), and the editor to open.
         private static bool planned;
         private static string craft;
         private static EditorFacility facility;
 
+        // Plans the editor to open in the space centre after the recovery.
         internal static void Plan(string path, EditorFacility where)
         {
             planned = true;
@@ -264,6 +279,7 @@ namespace ReDefinition.Flight
             facility = where;
         }
 
+        // Once KSP's recovery report is closed, opens the planned editor with the craft, or empty.
         private IEnumerator Start()
         {
             if (!planned) yield break;

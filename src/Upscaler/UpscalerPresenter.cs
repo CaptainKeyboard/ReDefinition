@@ -15,8 +15,11 @@ namespace ReDefinition.Upscaler
     // cameras.
     public class UpscalerPresenter : MonoBehaviour
     {
+        // The rig this camera belongs to, set as the rig makes the camera.
         public UpscalerRig Rig;
 
+        // The rig presents its image into the frame buffer; where it does not, the camera's own image passes
+        // through unchanged.
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             if (Rig == null || !Rig.Present(destination))

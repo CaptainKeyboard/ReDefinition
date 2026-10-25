@@ -7,6 +7,7 @@ namespace ReDefinition.Engineer
     // as it starts and ends that part, in tonnes, and its thrust in vacuum, in kN.
     internal sealed class BurnStage
     {
+        // The stage's number; its delta-v for this part, in m/s; its masses as it starts and ends it; its thrust in vacuum.
         public int Stage;
         public double DeltaV;
         public double Mass;
@@ -24,6 +25,7 @@ namespace ReDefinition.Engineer
     // orbit takes.
     internal sealed class Burn
     {
+        // The burn of the leg; how long it takes, and how long one round of its orbit takes, in seconds.
         public LegLine Line;
         public double Seconds;
         public double Period;
@@ -64,6 +66,8 @@ namespace ReDefinition.Engineer
         internal const double WarnLoss = 0.02;
         internal const double MaxLoss = 0.05;
 
+        // The leg's burns in a circular orbit, each with how long the stages take for it, burning on from where the burn
+        // before left them; burns not in such an orbit only use up the stages' delta-v.
         internal static List<Burn> Burns(IList<PlannerBody> bodies, Leg leg, IList<BurnStage> stages)
         {
             List<Burn> burns = new List<Burn>();
@@ -117,6 +121,7 @@ namespace ReDefinition.Engineer
             return mass * (1.0 - Math.Exp(-deltaV / exhaust)) * exhaust / stage.Thrust;
         }
 
+        // The mass after the stage has burnt `deltaV` from `mass` on (Tsiolkovsky).
         private static double MassAfter(BurnStage stage, double mass, double deltaV)
         {
             double exhaust = Exhaust(stage);

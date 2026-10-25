@@ -8,8 +8,10 @@ namespace ReDefinition.Tests
     // reference to ReDefinition, members found by name.
     internal sealed class ProviderFake
     {
+        // The instance the registration's behaviour reaches.
         internal static ProviderFake Instance = new ProviderFake();
 
+        // The mod's settings by name.
         internal readonly Dictionary<string, string> Values = new Dictionary<string, string>
         {
             { "quality", "Medium" },
@@ -17,36 +19,43 @@ namespace ReDefinition.Tests
             { "steps", "32" },
         };
 
+        // Whether the mod is ready, how often it saved, and the quality setting's list.
         internal bool CanTake = true;
         internal int Saves;
         internal string[] Lists = { "Low", "Medium", "High" };
 
+        // Whether the mod can take values now.
         public bool Ready
         {
             get { return CanTake; }
         }
 
+        // The mod's version, which its defaults are checked against.
         public string Version
         {
             get { return "2.3.4"; }
         }
 
+        // The setting's value by name, null for one the mod does not have.
         public string Read(string name)
         {
             string value;
             return Values.TryGetValue(name, out value) ? value : null;
         }
 
+        // Takes the value for the setting of that name.
         public void Write(string name, string value)
         {
             Values[name] = value;
         }
 
+        // The list the quality setting offers, none for the others.
         public string[] Choices(string name)
         {
             return name == "quality" ? Lists : null;
         }
 
+        // Counts each save the store asks for.
         public void Save()
         {
             Saves++;
@@ -56,8 +65,10 @@ namespace ReDefinition.Tests
     // A build of that mod without the two members a registration needs of it.
     internal sealed class ProviderWithoutReadFake
     {
+        // The instance the registration's behaviour reaches.
         internal static ProviderWithoutReadFake Instance = new ProviderWithoutReadFake();
 
+        // A save routine without Read and Write beside it.
         public void Save()
         {
         }
@@ -66,13 +77,16 @@ namespace ReDefinition.Tests
     // A bridge that refuses a value, as a mod may.
     internal static class RefusingProviderFake
     {
+        // The one setting the bridge holds.
         internal static string Value = "1";
 
+        // The value of level, null for any other name.
         public static string Read(string name)
         {
             return name == "level" ? Value : null;
         }
 
+        // Takes the value but refuses 9, answering false.
         public static bool Write(string name, string value)
         {
             if (value == "9") return false;
@@ -80,6 +94,7 @@ namespace ReDefinition.Tests
             return true;
         }
 
+        // Saves nothing: the values live in the field.
         public static void Save()
         {
         }
@@ -88,13 +103,16 @@ namespace ReDefinition.Tests
     // Everything static, and no Ready, Save or Choices: the smallest one.
     internal static class StaticProviderFake
     {
+        // The one setting the bridge holds.
         internal static string Value = "4";
 
+        // The value of detail, null for any other name.
         public static string Read(string name)
         {
             return name == "detail" ? Value : null;
         }
 
+        // Takes the value of detail and ignores any other name.
         public static void Write(string name, string value)
         {
             if (name == "detail") Value = value;
@@ -106,16 +124,19 @@ namespace ReDefinition.Tests
     [TestClass]
     public class ProvidedSettingsTests
     {
+        // The registered mod a MOD_SETTINGS text makes, its problems added to `problems`.
         private static RegisteredMod Build(string text, List<string> problems)
         {
             ConfigNode node = ConfigNode.Parse(text).GetNode(ModRegistration.NodeName);
             return new RegisteredMod(ModRegistration.FromConfigNode(node, problems), problems);
         }
 
+        // The registration's head: ProviderFake detected, and answering for its settings itself.
         private const string Head = "MOD_SETTINGS\n{\n name = providerfake\n"
                                     + " detect = ReDefinition.Tests.ProviderFake\n"
                                     + " behaviour = ReDefinition.Tests.ProviderFake\n";
 
+        // The mod's setting of that name, failing the test where there is none.
         private static BundledSetting Only(RegisteredMod mod, string name)
         {
             foreach (BundledSetting setting in mod.Settings)
@@ -124,12 +145,15 @@ namespace ReDefinition.Tests
             return null;
         }
 
+        // A fresh ProviderFake for each test.
         [TestInitialize]
         public void Reset()
         {
             ProviderFake.Instance = new ProviderFake();
         }
 
+        // A setting without a member is read and written through the mod's Read and Write, a True or False value
+        // making it a toggle.
         [TestMethod]
         public void ASettingWithoutAMemberIsReadAndWrittenByTheMod()
         {
@@ -143,6 +167,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("False", ProviderFake.Instance.Values["shadows"]);
         }
 
+        // A member path still counts for a setting that has one, beside the ones the mod answers for.
         [TestMethod]
         public void AMemberPathStillCountsBesideIt()
         {
@@ -160,6 +185,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("64", ProviderFake.Instance.Values["steps"]);
         }
 
+        // Where the mod gives choices for a setting, the row is a list of them, read again as the mod's list changes.
         [TestMethod]
         public void TheModsOwnListIsTheRowsList()
         {
@@ -175,6 +201,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "Low", "Medium", "High", "Ultra" }, quality.CurrentChoices());
         }
 
+        // Nothing is read and the setting does not apply while the mod's Ready says no.
         [TestMethod]
         public void NothingIsReadWhileTheModSaysItIsNotReady()
         {
@@ -191,6 +218,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(shadows.Applicable());
         }
 
+        // Saving calls the mod's own Save, but not while the mod is not ready: the store would count what waits
+        // for it as saved.
         [TestMethod]
         public void TheModSavesThroughItsOwnMethod()
         {
@@ -213,6 +242,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, ProviderFake.Instance.Saves);
         }
 
+        // The version the mod's Version gives is the one its defaults are checked against.
         [TestMethod]
         public void TheVersionTheModTellsCounts()
         {
@@ -221,6 +251,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("2.3.4", mod.Version);
         }
 
+        // A static type with Read and Write alone is enough to answer for a mod's settings.
         [TestMethod]
         public void StaticMembersAloneAreEnough()
         {
@@ -236,6 +267,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("8", StaticProviderFake.Value);
         }
 
+        // A behaviour type without Read and Write leaves the mod without settings, and that is reported.
         [TestMethod]
         public void ABuildWithoutReadAndWriteLeavesTheModOut()
         {
@@ -249,6 +281,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(p => p.Contains("Read")), string.Join("; ", problems.ToArray()));
         }
 
+        // A key binding stays ReDefinition's to keep, never passed to the mod's Write, with the bundling on or off;
+        // the mod reads it through ReDefinition.Api.Keys.
         [TestMethod]
         public void AKeyBindingStaysWithReDefinition()
         {
@@ -268,6 +302,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(binding.KeptHere);
         }
 
+        // A value the mod's Write refuses throws and is not taken; the mod keeps its value.
         [TestMethod]
         public void AValueTheModRefusesIsNotTaken()
         {
@@ -291,6 +326,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("4", RefusingProviderFake.Value);
         }
 
+        // The mod's Ready gates a setting with a member path as well: nothing is read while it is not ready.
         [TestMethod]
         public void ReadyGatesTheSettingsWithAMemberToo()
         {
@@ -308,6 +344,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("4", detail.Read());
         }
 
+        // A mod that keeps its values in its own files but has no Save is reported: what is set would not last.
         [TestMethod]
         public void AModThatKeepsValuesInItsFilesNeedsSomewhereToSave()
         {
@@ -320,6 +357,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(p => p.Contains("InModFiles")), string.Join("; ", problems.ToArray()));
         }
 
+        // A setting the mod answers for needs a default in the registration, and one without is reported.
         [TestMethod]
         public void ASettingWithoutADefaultIsReported()
         {
@@ -328,6 +366,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(p => p.Contains("needs a default")), string.Join("; ", problems.ToArray()));
         }
 
+        // A setting with a default gives no such report.
         [TestMethod]
         public void ASettingWithADefaultIsNotReported()
         {
@@ -337,6 +376,7 @@ namespace ReDefinition.Tests
                            string.Join("; ", problems.ToArray()));
         }
 
+        // A behaviour type the mod does not have leaves the mod without settings, naming the type.
         [TestMethod]
         public void ATypeThatIsNotThereLeavesTheModOut()
         {

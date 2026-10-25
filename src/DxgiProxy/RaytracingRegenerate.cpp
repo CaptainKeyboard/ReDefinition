@@ -30,6 +30,7 @@ namespace redefinition
 {
     namespace
     {
+        // The file name of AMD's denoiser DLL.
         constexpr const wchar_t* kRuntimeName = L"amd_fidelityfx_denoiser_dx12.dll";
 
         // Next to the executable, where the package puts it; else in amdUpscalerDirectory,
@@ -43,6 +44,7 @@ namespace redefinition
             return directory.empty() ? beside : directory + L"\\" + kRuntimeName;
         }
 
+        // A packet's matrix, rows first, as FidelityFX's matrix, copied as it is.
         FfxApiMatrix4x4 Matrix(const float* rows)
         {
             FfxApiMatrix4x4 m;
@@ -50,6 +52,8 @@ namespace redefinition
             return m;
         }
 
+        // The frame's signals AMD's denoiser takes, as its signal flags: the diffuse light and
+        // the reflections.
         uint32_t AmdSignals(uint32_t signals)
         {
             return ((signals & kRtSignalDiffuse) != 0 ? static_cast<uint32_t>(FFX_DENOISER_SIGNAL_INDIRECT_DIFFUSE) : 0u)

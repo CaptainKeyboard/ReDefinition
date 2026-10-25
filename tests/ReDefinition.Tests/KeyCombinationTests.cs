@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class KeyCombinationTests
     {
+        // A key without modifiers is read by its KeyCode name and written back the same.
         [TestMethod]
         public void AKeyOnItsOwnReadsAndWritesBack()
         {
@@ -19,6 +20,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("F11", combination.ToString());
         }
 
+        // Up to two modifiers go before the key, joined by plus signs, and are written back so.
         [TestMethod]
         public void ModifiersComeBeforeTheKey()
         {
@@ -33,6 +35,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("RightControl+RightShift+U", combination.ToString());
         }
 
+        // Modifiers written in another order give the same combination, written in its one order.
         [TestMethod]
         public void TheOrderOfTheModifiersDoesNotMakeAnotherCombination()
         {
@@ -41,12 +44,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(KeyCombination.Parse("RightControl+RightShift+U"), written);
         }
 
+        // Left and right modifiers are different combinations.
         [TestMethod]
         public void LeftAndRightAreToldApart()
         {
             Assert.AreNotEqual(KeyCombination.Parse("LeftAlt+F10"), KeyCombination.Parse("RightAlt+F10"));
         }
 
+        // "None" and blank text are an unbound key, written back as None; no text at all is refused.
         [TestMethod]
         public void NothingAndNoneAreUnbound()
         {
@@ -62,6 +67,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(combination.IsBound);
         }
 
+        // Text that cannot be a binding is refused: a modifier alone, the left and right mouse buttons, three
+        // modifiers, an unknown key, a modifier after the key, or no key after the plus.
         [TestMethod]
         public void WhatCannotBeABindingIsRefused()
         {
@@ -78,6 +85,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(KeyCombination.TryParse("LeftAlt+", out combination));
         }
 
+        // The mouse buttons beyond the two the game uses can be bound, with a modifier too.
         [TestMethod]
         public void TheOtherMouseButtonsCanBeBound()
         {
@@ -88,6 +96,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(KeyCode.Mouse3, combination.Key);
         }
 
+        // A modifier switch steps from none to the left key, to the right one and back to none.
         [TestMethod]
         public void AModifierSwitchGoesThroughLeftAndRightToNone()
         {
@@ -100,6 +109,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("F10", combination.ToString());
         }
 
+        // Switching one modifier keeps the other, and a third modifier, which has no room, changes nothing.
         [TestMethod]
         public void AModifierSwitchKeepsTheOtherModifier()
         {
@@ -112,6 +122,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(combination, combination.Cycled(KeyCode.LeftShift, KeyCode.RightShift));
         }
 
+        // Taking a new key keeps the modifiers; a modifier or AltGr is not taken as the key.
         [TestMethod]
         public void ANewKeyKeepsTheModifiers()
         {
@@ -122,6 +133,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(combination, combination.WithKey(KeyCode.AltGr));
         }
 
+        // AltGr cannot be bound and is no key in text: it is a modifier on the keyboards that have it.
         [TestMethod]
         public void AltGrIsNoKey()
         {
@@ -129,6 +141,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(KeyCombination.IsText("AltGr"));
         }
 
+        // The texts KSP's settings.cfg and other mods keep keys in, KeyCode names and None, are read as such.
         [TestMethod]
         public void KspsOwnSpellingIsTaken()
         {

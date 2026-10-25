@@ -22,12 +22,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(DlssPreset.L, DlssModels.Preset(DlssModel.L));
         }
 
+        // A fresh install leaves the model to NVIDIA.
         [TestMethod]
         public void NvidiasChoiceIsTheDefault()
         {
             Assert.AreEqual(DlssModel.Default, new OwnSettings().DlssModel);
         }
 
+        // The row offers Default first, then K, M and L, and counts as quality, which profiles set.
         [TestMethod]
         public void DefaultStandsFirstThenKMAndL()
         {
@@ -36,6 +38,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(SettingKind.Quality, row.Kind);
         }
 
+        // The model's row can be changed only while DLSS is the technique.
         [TestMethod]
         public void OnlyDlssOffersIt()
         {
@@ -44,6 +47,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(row.Interactable(new OwnSettings { Backend = UpscalerBackend.Fsr3 }));
         }
 
+        // A profile's upscaler module sets the model by its name.
         [TestMethod]
         public void AProfileSetsItByName()
         {
@@ -103,6 +107,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The value the bundled profile of that name sets for a module's setting on the card class given, or null
+        // where it sets none; the profile must read without problems.
         private static string Chosen(string profileName, GpuClass gpu, string module, string key)
         {
             string file = Path.Combine(Repository(), "GameData", "ReDefinition", "Profiles", "ReDefinition-Profiles.cfg");
@@ -121,6 +127,7 @@ namespace ReDefinition.Tests
             return null;
         }
 
+        // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition.
         private static string Repository()
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());

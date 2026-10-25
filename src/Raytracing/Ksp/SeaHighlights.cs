@@ -22,11 +22,13 @@ namespace ReDefinition.Raytracing
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     public class SeaHighlights : MonoBehaviour
     {
+        // Scatterer's glint property and how often the seas are looked for again; the shaders' properties set.
         private const string Property = "sunReflectionStrength";
         private const float RescanSeconds = 10f;
         private static readonly int PropertyId = Shader.PropertyToID(Property);
         private static readonly int SpecColorId = Shader.PropertyToID("_SpecColor");
 
+        // Scatterer's OceanNode type, its material and strength fields, and the nodes found.
         private Type node;
         private FieldInfo nodeMaterial, nodeStrength;
         private UnityEngine.Object[] nodes = new UnityEngine.Object[0];
@@ -37,6 +39,8 @@ namespace ReDefinition.Raytracing
         private CelestialBody scannedBody;
         private bool reported;
 
+        // Reads Scatterer's ocean members where its code is the one checked, then every second: the seas looked for
+        // again when due, the glint and the stock highlight set; stops for the scene after a failure.
         private IEnumerator Start()
         {
             node = ForeignAssumptions.ScattererOceanSun.Holds ? TypeLookup.Find("Scatterer.OceanNode") : null;
@@ -64,11 +68,13 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // KSP's sea gets its highlight back as the scene goes.
         private void OnDestroy()
         {
             StockSea(false);
         }
 
+        // Looks for Scatterer's ocean nodes and KSP's sea materials anew.
         private void Rescan()
         {
             rescanAt = Time.realtimeSinceStartup + RescanSeconds;
@@ -90,6 +96,7 @@ namespace ReDefinition.Raytracing
                         AddStockSea(renderer.sharedMaterial);
         }
 
+        // A material of KSP's sea shader with a highlight colour, kept once.
         private void AddStockSea(Material sea)
         {
             if (sea != null && sea.shader != null && sea.shader.name.StartsWith("Terrain/PQS/Ocean", StringComparison.Ordinal)
@@ -97,6 +104,8 @@ namespace ReDefinition.Raytracing
                 stockSeas.Add(sea);
         }
 
+        // Scatterer's glint on each ocean node's material: its configured strength at the player's percentage, none
+        // while the ocean takes the raytraced reflections.
         private void SetScattererGlint()
         {
             if (nodes.Length == 0) return;

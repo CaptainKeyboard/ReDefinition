@@ -26,6 +26,7 @@ namespace ReDefinition.Menu
         // in Kerbin's radii.
         internal const float Height = 0.35f;
 
+        // Whether the LoadScene prefix is installed, and whether the space centre's load is the one the way in starts.
         private static bool installed;
         private static bool passing;
         // The picture left from the menu, waiting for the space centre.
@@ -35,6 +36,7 @@ namespace ReDefinition.Menu
         internal static readonly bool Test = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionKscArrivalTest") >= 0;
         private static string testFolder;
 
+        // In the test, a screenshot of that name into this run's capture folder, made at the first.
         internal static void TestShot(string name)
         {
             if (!Test) return;
@@ -47,12 +49,14 @@ namespace ReDefinition.Menu
             ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(testFolder, name + ".png"));
         }
 
+        // Whether the player's setting (Zoom to the space centre) asks for the way in.
         internal static bool Enabled()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             return addon == null || addon.Live.MenuKscZoom;
         }
 
+        // Installs the prefix on HighLogic.LoadScene once.
         internal static void Install()
         {
             if (installed) return;
@@ -74,6 +78,7 @@ namespace ReDefinition.Menu
             return menu == null || !menu.Begin();
         }
 
+        // Loads the space centre past the prefix, at the end of the way in.
         internal static void LoadSpaceCentre()
         {
             passing = true;
@@ -174,6 +179,7 @@ namespace ReDefinition.Menu
         private static int frames;
         private static float frameSum, frameMost;
 
+        // Notes a frame's time for the part under way, and logs a frame over 100 ms.
         internal static void FrameTime()
         {
             float ms = Time.unscaledDeltaTime * 1000f;
@@ -184,6 +190,7 @@ namespace ReDefinition.Menu
                 Debug.Log(Log.Tag + " Menu to the space centre: a frame of " + ms.ToString("0", CultureInfo.InvariantCulture) + " ms.");
         }
 
+        // Logs the part's frame count, mean and longest frame time, and starts the counts over.
         internal static void FrameTimes(string part)
         {
             if (frames > 0)
@@ -194,6 +201,7 @@ namespace ReDefinition.Menu
             frameSum = frameMost = 0f;
         }
 
+        // In the test, a screenshot and the planet's screen share every tenth of a second of a part.
         internal static void TestFrame(string part, float elapsed, float share)
         {
             if (!Test || NoShots) return;
@@ -205,11 +213,13 @@ namespace ReDefinition.Menu
                       + " of the screen's height.");
         }
 
+        // The next test frame due at that time in a part.
         internal static void TestFramesFrom(float elapsed)
         {
             nextFrameShot = elapsed;
         }
 
+        // The home world: from FlightGlobals, or in the main menu from the planetary system KSP builds.
         internal static CelestialBody Home()
         {
             if (FlightGlobals.Bodies != null)
@@ -221,6 +231,7 @@ namespace ReDefinition.Menu
             return null;
         }
 
+        // Smoothstep: 0 to 1 with no speed at either end.
         internal static float Ease(float t)
         {
             t = Mathf.Clamp01(t);
@@ -240,6 +251,7 @@ namespace ReDefinition.Menu
             new Dictionary<Type, System.Reflection.MethodInfo>();
         private static bool resetWarned;
 
+        // Calls ResetHistory on every camera's Scatterer TAA and TUFX PostProcessLayer, the methods looked up once per type.
         internal static void ResetTemporalHistories()
         {
             try
@@ -278,21 +290,27 @@ namespace ReDefinition.Menu
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     internal sealed class KscArrivalMenu : MonoBehaviour
     {
+        // The one in the current main menu, for the LoadScene prefix; null outside it.
         internal static KscArrivalMenu Instance;
+        // How long the way in takes, in seconds.
         private const float Seconds = 2.2f;
+        // Whether the way in runs.
         private bool running;
 
+        // Installs the prefix as the main menu opens.
         private void Awake()
         {
             Instance = this;
             KscArrival.Install();
         }
 
+        // Gone with the main menu.
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
         }
 
+        // In the test, loads the probe's save into the space centre a few seconds after the menu opens.
         private IEnumerator Start()
         {
             if (!KscArrival.Test) yield break;
@@ -348,6 +366,8 @@ namespace ReDefinition.Menu
             }
         }
 
+        // The camera from where it stands to over the space centre's place, the sun turned on the way, KSP's interface
+        // hidden; then the last picture kept over the screen and the space centre loaded.
         private IEnumerator WayIn(Camera camera, Transform kerbin, float radius, Vector3 localUp, Vector3 localNorth)
         {
             var sun = new MenuSun();
@@ -425,11 +445,14 @@ namespace ReDefinition.Menu
     // it does not turn on and on.
     internal sealed class MenuSun
     {
+        // Every directional light of the menu, each one's rotation before the turns, and the one each turn wrote.
         private readonly List<Light> lights = new List<Light>();
         private readonly Dictionary<Light, Quaternion> before = new Dictionary<Light, Quaternion>();
         private readonly Dictionary<Light, Quaternion> written = new Dictionary<Light, Quaternion>();
+        // The light that stands for the sun, by MenuFireworks' rank.
         internal readonly Light Sun;
 
+        // Gathers the active directional lights and picks the sun among them.
         internal MenuSun()
         {
             foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
@@ -472,9 +495,11 @@ namespace ReDefinition.Menu
     // The picture over everything until the space centre's camera takes over.
     internal sealed class KscArrivalOverlay : MonoBehaviour
     {
+        // The image that shows the picture, and the picture, freed with the overlay.
         private RawImage image;
         private Texture2D picture;
 
+        // The picture over every canvas, kept across the scene change.
         internal static KscArrivalOverlay Show(Texture2D picture)
         {
             var root = new GameObject("ReDefinition menu to space centre");
@@ -496,16 +521,19 @@ namespace ReDefinition.Menu
             return overlay;
         }
 
+        // Sets the picture's opacity.
         internal void Fade(float alpha)
         {
             if (image != null) image.color = new Color(1f, 1f, 1f, Mathf.Clamp01(alpha));
         }
 
+        // Removes the overlay with its picture.
         internal void Close()
         {
             Destroy(gameObject);
         }
 
+        // Frees the picture, and forgets the overlay.
         private void OnDestroy()
         {
             if (picture != null) Destroy(picture);
@@ -517,14 +545,17 @@ namespace ReDefinition.Menu
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     internal sealed class KscArrivalDescent : MonoBehaviour
     {
+        // How long the descent and the picture's fade take, in seconds.
         private const float Seconds = 5f;
         private const float FadeSeconds = 0.8f;
         // The picture held whole this long first, the camera still: the space centre's
         // first frames are not yet its picture (measured 2026-10-05 under the picture:
         // rings at 0.05 s, black at 0.4 s, the planet from 0.7 s).
         private const float HoldSeconds = 1f;
+        // Whether the descent hid KSP's interface, which has to come back.
         private bool interfaceHidden;
 
+        // Left early: the interface and the picture are put back in order.
         private void OnDestroy()
         {
             // Left early, the interface comes back all the same, and the picture goes: it
@@ -533,6 +564,8 @@ namespace ReDefinition.Menu
             if (KscArrival.Overlay != null) KscArrival.Overlay.Close();
         }
 
+        // The descent: KSP's camera held over the place under the picture, then brought down to KSP's own view as the
+        // picture fades; a click or a key ends it. In the test, the check and quit afterwards.
         private IEnumerator Start()
         {
             KscArrivalOverlay overlay = KscArrival.Overlay;
@@ -675,6 +708,7 @@ namespace ReDefinition.Menu
             UnityEngine.Rendering.CameraEvent.AfterEverything,
         };
 
+        // Copies each stage of the three main cameras into a 4x4 float texture for five frames, then logs their means.
         private static IEnumerator SampleStages(string when)
         {
             var samples = new List<KeyValuePair<string, RenderTexture>>();
@@ -707,6 +741,7 @@ namespace ReDefinition.Menu
             Debug.Log(text.ToString());
         }
 
+        // The test's check: the cameras and the stages as arrived, then with the upscaler switched the other way and back.
         internal static IEnumerator Run()
         {
             yield return new WaitForSeconds(1f);
@@ -730,6 +765,7 @@ namespace ReDefinition.Menu
             }
         }
 
+        // Logs the rig's state and where each camera draws, with the mean of its target.
         private static void Report(string when)
         {
             var text = new System.Text.StringBuilder(Log.Tag + " Menu to the space centre: check " + when + ":");
@@ -747,7 +783,7 @@ namespace ReDefinition.Menu
         }
 
         // The texture's mean red and green, rendered down to 4 by 4 in float and read back,
-        // and how many of the 16 texels are not a number.
+        // and how many of the 16 texels are not finite (NaN or infinite).
         private static string Mean(RenderTexture texture)
         {
             RenderTexture small = RenderTexture.GetTemporary(4, 4, 0, RenderTextureFormat.ARGBFloat);

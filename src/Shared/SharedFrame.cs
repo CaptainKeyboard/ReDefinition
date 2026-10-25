@@ -16,12 +16,14 @@ namespace ReDefinition.Shared
     // docs/development/shared-foundation.md.
     internal static class SharedFrame
     {
+        // The version of the interface other mods read (ApiInfo.Version), also the fourth value of _ReDefinition_Frame.
         internal const int InterfaceVersion = 2;
 
         // In a class of their own, initialised when the first frame begins: the state's
         // properties are read outside Unity too (tests), where PropertyToID cannot run.
         private static class Ids
         {
+            // The shader globals Begin sets, as ReDefinition.cginc declares them.
             internal static readonly int Frame = Shader.PropertyToID("_ReDefinition_Frame");
             internal static readonly int RenderSize = Shader.PropertyToID("_ReDefinition_RenderSize");
             internal static readonly int DisplaySize = Shader.PropertyToID("_ReDefinition_DisplaySize");
@@ -29,6 +31,7 @@ namespace ReDefinition.Shared
             internal static readonly int OriginShift = Shader.PropertyToID("_ReDefinition_OriginShift");
         }
 
+        // Which frames reset the history; whether the camera and shift events are subscribed; the frame Begin last ran in.
         private static readonly HistoryResets resets = new HistoryResets();
         private static bool installed;
         private static int begunFrame = -1;
@@ -38,6 +41,8 @@ namespace ReDefinition.Shared
         private static Vector3d pendingBodyOffset;
         private static bool pendingShift;
 
+        // The hooks of ReDefinition.Api: told of history resets, drawing into the motion vectors, after upscaling and
+        // over the image, and told of profile changes. A throwing handler is removed and logged as a warning.
         internal static readonly HookList<Action<string>> HistoryResetHandlers =
             new HookList<Action<string>>("history resets", Report);
         internal static readonly HookList<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> MotionVectorHooks =
@@ -49,23 +54,35 @@ namespace ReDefinition.Shared
         internal static readonly HookList<Action<string>> ProfileChangedHandlers =
             new HookList<Action<string>>("profile changes", Report);
 
+        // Whether the upscaler reconstructs this frame, in any mode.
         internal static bool UpscalerActive { get; private set; }
+        // Whether frame generation receives this frame's inputs.
         internal static bool FrameGenerationActive { get; private set; }
+        // The upscaler's display name while it is active (UpscalerBackends.Name); null otherwise.
         internal static string Technique { get; private set; }
+        // The size the 3D cameras render at; the screen's without a rig.
         internal static Vector2Int RenderSize { get; private set; }
+        // The size of the image shown; the screen's without a rig.
         internal static Vector2Int DisplaySize { get; private set; }
+        // The jitter of this frame in pixels at render size, as the upscaler is told; zero without it.
         internal static Vector2 Jitter { get; private set; }
+        // The same jitter in normalized device coordinates, as CameraRedirect adds it to the projection.
         internal static Vector2 JitterNdc { get; private set; }
 
-        // Why this frame resets the history for the mods, and for the upscaler and
-        // frame generation (HistoryResets); null where it does not.
+        // Why this frame resets the history for the mods (HistoryResets); null where it does not.
         internal static string ResetReason { get; private set; }
+        // Why this frame resets the upscaler and frame generation when it begins; null where it does not.
         internal static string RigResetReason { get; private set; }
 
+        // The floating origin's shifts since the frame before, summed: what moved the active vessel, the camera and
+        // nearby objects.
         internal static Vector3d OriginShift { get; private set; }
+        // The same for the bodies (offset + nonFrame), which holds the Krakensbane step as well.
         internal static Vector3d BodyShift { get; private set; }
+        // Whether the floating origin shifted since the frame before.
         internal static bool Shifted { get; private set; }
 
+        // The profile PollProfile saw last, null before one is chosen.
         private static string lastProfile;
 
         // The handler KSP's GameEvents gets: an instance method. EventData's EvtDelegate
@@ -73,12 +90,14 @@ namespace ReDefinition.Shared
         // (NullReferenceException in EvtDelegate..ctor, measured in the game).
         private sealed class ShiftReceiver
         {
+            // Hands the shift to OnFloatingOriginShift.
             internal void OnShift(Vector3d offset, Vector3d nonFrame)
             {
                 OnFloatingOriginShift(offset, nonFrame);
             }
         }
 
+        // The receiver and the delegate subscribed to onFloatingOriginShift, kept to remove the same one.
         private static readonly ShiftReceiver shiftReceiver = new ShiftReceiver();
         private static EventData<Vector3d, Vector3d>.OnEvent shiftHandler;
 
@@ -92,6 +111,7 @@ namespace ReDefinition.Shared
             GameEvents.onFloatingOriginShift.Add(shiftHandler);
         }
 
+        // Removes what Install subscribed; a second call does nothing.
         internal static void Uninstall()
         {
             if (!installed) return;
@@ -101,6 +121,7 @@ namespace ReDefinition.Shared
             shiftHandler = null;
         }
 
+        // A mod's cut (ReDefinition.Api.Frame.RequestHistoryReset), decided when the frame begins or at its end.
         internal static void RequestHistoryReset(string reason)
         {
             resets.Request(reason);
@@ -145,11 +166,13 @@ namespace ReDefinition.Shared
             ProfileChangedHandlers.Invoke(handler => handler(profile));
         }
 
+        // The chosen bundled profile's name as of the last poll; null before one is chosen.
         internal static string Profile
         {
             get { return lastProfile; }
         }
 
+        // Begins the frame when the first of the 3D scene cameras culls in it (UpscalerRig.IsSceneCamera).
         private static void OnPreCull(Camera camera)
         {
             if (begunFrame == Time.frameCount || camera == null || !UpscalerRig.IsSceneCamera(camera.name)) return;
@@ -166,6 +189,8 @@ namespace ReDefinition.Shared
             pendingShift = true;
         }
 
+        // Decides the frame's state once: the history resets, the shifts summed since the last frame, the rig's state,
+        // the shader globals; then tells the mods' handlers of a reset.
         private static void Begin()
         {
             begunFrame = Time.frameCount;
@@ -212,11 +237,13 @@ namespace ReDefinition.Shared
             }
         }
 
+        // A size as a shader vector: width, height, and their reciprocals (zero for an empty size).
         private static Vector4 SizeVector(Vector2Int size)
         {
             return new Vector4(size.x, size.y, size.x > 0 ? 1f / size.x : 0f, size.y > 0 ? 1f / size.y : 0f);
         }
 
+        // Logs a hook list's removal of a handler as a warning.
         private static void Report(string message)
         {
             Debug.LogWarning(Log.Tag + " " + message);

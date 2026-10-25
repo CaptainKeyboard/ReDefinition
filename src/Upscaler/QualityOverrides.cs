@@ -15,18 +15,22 @@ namespace ReDefinition.Upscaler
     // texture quality stay the player's.
     internal class QualityOverrides
     {
+        // Whether the LOD bias is ReDefinition's now, the bias it replaced, and the factor it multiplies that by.
         private bool lodApplied;
         private float previousLodBias;
         private float lodRatio = 1f;
 
+        // Whether MSAA is held off now, the sample count it replaced, and the count written (0).
         private bool msaaApplied;
         private int previousAntiAliasing;
         private int appliedAntiAliasing;
 
+        // Whether anisotropic filtering is forced now, the setting it replaced, and the setting written.
         private bool anisoApplied;
         private AnisotropicFiltering previousAnisotropic;
         private AnisotropicFiltering appliedAnisotropic;
 
+        // The LOD bias written into QualitySettings; 0 while the bias is not ReDefinition's.
         public float AppliedLodBias { get; private set; }
 
         // Unity picks LOD levels from how many pixels an object covers on screen.
@@ -155,6 +159,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Puts all three back (and Parallax's tessellation), as when the upscaler stops.
         public void RestoreAll()
         {
             SetLodBias(false, 1f);
@@ -162,6 +167,7 @@ namespace ReDefinition.Upscaler
             SetAnisotropic(false);
         }
 
+        // A part of the rig's diagnostics line: each setting's value now, and what it replaced where it is ReDefinition's.
         public string Describe()
         {
             return "LOD bias " + (lodApplied

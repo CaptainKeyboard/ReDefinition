@@ -22,6 +22,7 @@ namespace ReDefinition.Bridges
     // Everything here is free of Unity, for the tests (NvidiaFilesTests).
     internal static class NvidiaFiles
     {
+        // NVIDIA's archive of the release, whose entries' bytes are fetched by range.
         public const string ArchiveUrl =
             "https://github.com/NVIDIA-RTX/Streamline/releases/download/v2.14.16/streamline-sdk-v2.14.16.zip";
 
@@ -45,6 +46,7 @@ namespace ReDefinition.Bridges
         private const uint TegraFrom = 0xE0000000;
         private static readonly uint[] RtxTuring = { 0x2, 0x4, 0x6 };
 
+        // What a file is fetched for.
         public enum Use
         {
             // nvngx_dlss.dll: DLSS itself.
@@ -59,10 +61,11 @@ namespace ReDefinition.Bridges
             Both,
         }
 
+        // A file of the release: where it lies in the archive, how it comes out, what it is for.
         public sealed class Entry
         {
-            public string Name;         // in the archive
-            public string FileName;     // on disk
+            public string Name;         // its path in the archive
+            public string FileName;     // its name on the player's disk
             public long Offset;         // of its local header
             public long CompressedSize;
             public long Size;
@@ -80,10 +83,13 @@ namespace ReDefinition.Bridges
 
             // The bytes of the archive that hold it: local header, name, data.
             public long RangeStart { get { return Offset; } }
+            // The range's last byte: 30 bytes of local header, the name, then the compressed data.
             public long RangeEnd { get { return Offset + 30 + Encoding.UTF8.GetByteCount(Name) + CompressedSize - 1; } }
+            // The size of that range in bytes.
             public long RangeLength { get { return RangeEnd - RangeStart + 1; } }
         }
 
+        // Every file NVIDIA's release gives, with the figures read from it.
         public static readonly Entry[] All =
         {
             new Entry
@@ -168,12 +174,14 @@ namespace ReDefinition.Bridges
             },
         };
 
+        // Whether the GPU runs DLSS: an RTX GPU from Turing on, and no Tegra.
         public static bool DlssRuns(uint architecture, uint implementation)
         {
             if (architecture == 0 || architecture >= TegraFrom) return false;
             return architecture > Turing || architecture == Turing && Array.IndexOf(RtxTuring, implementation) >= 0;
         }
 
+        // Whether the GPU runs DLSS frame generation by itself: Ada or later, and no Tegra.
         public static bool FrameGenerationRuns(uint architecture)
         {
             return architecture >= Ada && architecture < TegraFrom;
@@ -204,6 +212,7 @@ namespace ReDefinition.Bridges
         // too.
         public struct Folders
         {
+            // nvngx_dlss.dll's folder; the second one NGX searches for it, or none; the folder of Streamline's files.
             public string Dlss;
             public string DlssAlso;
             public string FrameGeneration;
@@ -252,6 +261,8 @@ namespace ReDefinition.Bridges
         private static readonly Dictionary<string, KeyValuePair<string, string>> checkedFiles =
             new Dictionary<string, KeyValuePair<string, string>>();
 
+        // Whether the entry's file is in the folder as needed: there, and for an exact version of NVIDIA's size
+        // and checksum, the checksum cached by size and time of writing.
         private static bool Present(string folder, Entry entry)
         {
             FileInfo file = new FileInfo(Path.Combine(folder, entry.FileName));
@@ -272,6 +283,7 @@ namespace ReDefinition.Bridges
             return hash == entry.Sha256;
         }
 
+        // The bytes the entries' ranges fetch together, for the download's size.
         public static long DownloadSize(IEnumerable<Entry> entries)
         {
             long total = 0;
@@ -345,6 +357,7 @@ namespace ReDefinition.Bridges
         // A file checked by Extract into Partial, to go to Target.
         public sealed class Placement
         {
+            // The entry, the checked file waiting beside its target, and where it goes.
             public Entry Entry;
             public string Partial;
             public string Target;
@@ -354,6 +367,7 @@ namespace ReDefinition.Bridges
             public bool Placed;
         }
 
+        // Where a file is written while it downloads, beside its target, until PlaceAll moves it there.
         public static string PartialPath(string target)
         {
             return target + ".redefinition-download";
@@ -422,16 +436,19 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // The SHA-256 of the stream from its position to its end, in upper-case hex.
         public static string Sha256(Stream stream)
         {
             using (SHA256 sha = SHA256.Create()) return Hex(sha.ComputeHash(stream));
         }
 
+        // The SHA-256 of the bytes, in upper-case hex.
         public static string Sha256(byte[] data)
         {
             using (SHA256 sha = SHA256.Create()) return Hex(sha.ComputeHash(data));
         }
 
+        // The hash as upper-case hex, as the entries' checksums are written.
         private static string Hex(byte[] hash)
         {
             StringBuilder text = new StringBuilder(hash.Length * 2);
@@ -439,6 +456,7 @@ namespace ReDefinition.Bridges
             return text.ToString();
         }
 
+        // Reads until the buffer is full or the stream ends; how many bytes were read.
         internal static int ReadFully(Stream stream, byte[] buffer)
         {
             int read = 0;
@@ -451,11 +469,13 @@ namespace ReDefinition.Bridges
             return read;
         }
 
+        // A little-endian unsigned 16-bit number at that offset, as zip headers hold it.
         internal static int ReadUInt16(byte[] bytes, int at)
         {
             return bytes[at] | bytes[at + 1] << 8;
         }
 
+        // A little-endian unsigned 32-bit number at that offset, as zip headers hold it.
         internal static uint ReadUInt32(byte[] bytes, int at)
         {
             return (uint)(bytes[at] | bytes[at + 1] << 8 | bytes[at + 2] << 16 | bytes[at + 3] << 24);
@@ -465,15 +485,18 @@ namespace ReDefinition.Bridges
         // inflating cannot read past it.
         internal sealed class LimitedStream : Stream
         {
+            // The stream beneath, and how many of its bytes may still be read.
             private readonly Stream inner;
             private long left;
 
+            // The length bytes from the stream's position on.
             public LimitedStream(Stream inner, long length)
             {
                 this.inner = inner;
                 left = length;
             }
 
+            // At most what is left of the length, from the stream beneath; 0 once it is used up.
             public override int Read(byte[] buffer, int offset, int count)
             {
                 if (left <= 0) return 0;
@@ -482,14 +505,23 @@ namespace ReDefinition.Bridges
                 return n;
             }
 
+            // True: the stream reads from the one beneath it.
             public override bool CanRead { get { return true; } }
+            // False: inflating reads it forwards only.
             public override bool CanSeek { get { return false; } }
+            // False: the stream only reads.
             public override bool CanWrite { get { return false; } }
+            // Not supported: what is left is known, the whole length is not.
             public override long Length { get { throw new NotSupportedException(); } }
+            // Not supported: the stream reads forwards only.
             public override long Position { get { throw new NotSupportedException(); } set { throw new NotSupportedException(); } }
+            // Nothing to flush in a stream that only reads.
             public override void Flush() { }
+            // Not supported: the stream reads forwards only.
             public override long Seek(long offset, SeekOrigin origin) { throw new NotSupportedException(); }
+            // Not supported: the stream cannot change its length.
             public override void SetLength(long value) { throw new NotSupportedException(); }
+            // Not supported: the stream only reads.
             public override void Write(byte[] buffer, int offset, int count) { throw new NotSupportedException(); }
         }
     }

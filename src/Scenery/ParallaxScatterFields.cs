@@ -25,8 +25,12 @@ namespace ReDefinition.Scenery
         // and the rays read it.
         internal const int ClumpStride = 64;
 
+        // The binding of the instance fields read.
         private const BindingFlags Members = BindingFlags.Public | BindingFlags.Instance;
 
+        // Whether Look ran, and the compiled getters it built: ScatterManager.Instance, the active renderers, each
+        // renderer's fields, its scatter's, and per level of detail the mesh, material and output buffer. strideWarned:
+        // whether the warning of an output buffer with another clump size was logged.
         private static bool looked;
         private static Func<object, object> manager;
         private static Func<object, IList> active;
@@ -50,6 +54,7 @@ namespace ReDefinition.Scenery
             }
         }
 
+        // Builds the getters once; any field missing, or Parallax changed (ForeignAssumptions), leaves manager null.
         private static void Look()
         {
             if (looked) return;
@@ -107,6 +112,7 @@ namespace ReDefinition.Scenery
             return instance != null ? active(instance) : null;
         }
 
+        // The body the renderer's scatter grows on; null where Parallax cannot be read.
         internal static string PlanetName(object renderer)
         {
             return Available && renderer != null ? planetName(renderer) : null;
@@ -135,11 +141,13 @@ namespace ReDefinition.Scenery
             return scatter != null && craftCentred(scatter);
         }
 
+        // The renderer's mesh at level of detail `lod` (0 to 2); null where there is none.
         internal static Mesh Mesh(object renderer, int lod)
         {
             return Available && renderer != null ? meshes[lod](renderer) : null;
         }
 
+        // The renderer's instanced material at level of detail `lod` (0 to 2); null where there is none.
         internal static Material Material(object renderer, int lod)
         {
             return Available && renderer != null ? materials[lod](renderer) : null;

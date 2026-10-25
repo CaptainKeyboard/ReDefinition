@@ -8,11 +8,14 @@ namespace ReDefinition.Tests
     [TestClass]
     public class FrameGenerationChoiceTests
     {
+        // Limits as DLSS frame generation reports them: its most frames and Dynamic's support (-1: not known).
         private static FrameGenerationChoice.Limits Dlss(int most, int dynamic)
         {
             return new FrameGenerationChoice.Limits { Technique = 2, Most = most, Dynamic = dynamic };
         }
 
+        // The row's values are Off, 2x to 6x and Dynamic; a multiplier's number is its frames, Dynamic's 0, and
+        // Off is no multiplier a setting can hold.
         [TestMethod]
         public void TheValuesAreOffTheMultipliersAndDynamic()
         {
@@ -26,6 +29,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(FrameGenerationChoice.Valid(null));
         }
 
+        // Every choice is offered and no note shown while the technique has reported nothing.
         [TestMethod]
         public void EverythingIsOfferedWhileTheTechniqueHasSaidNothing()
         {
@@ -35,6 +39,7 @@ namespace ReDefinition.Tests
             Assert.IsNull(FrameGenerationChoice.Note(none, false));
         }
 
+        // DLSS offers the multipliers up to the most its state reports, and a larger choice runs as that most.
         [TestMethod]
         public void DlssOffersUpToWhatItsStateReports()
         {
@@ -46,6 +51,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("3x", FrameGenerationChoice.Effective("3x", limits));
         }
 
+        // Dynamic is offered where the technique supports it and not held against it while that is unknown;
+        // unsupported, it runs as 2x.
         [TestMethod]
         public void DynamicNeedsTheSupportTheStateReports()
         {
@@ -54,6 +61,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(FrameGenerationChoice.Offered("Dynamic", Dlss(4, -1)), "not known yet: not held against it");
         }
 
+        // FSR offers 2x and XeSS up to its reported most, neither Dynamic.
         [TestMethod]
         public void FsrAndXessAreTwoTimesAndNeverDynamic()
         {
@@ -66,6 +74,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(FrameGenerationChoice.Offered("4x", xess));
         }
 
+        // The note names the steps not offered and why: the package's or the GPU's limit, with how to raise
+        // the package's, FSR's one frame between two, and Dynamic being DLSS's alone; none where all are offered.
         [TestMethod]
         public void TheNoteSaysWhichStepsAreNotOfferedAndWhy()
         {
@@ -134,6 +144,7 @@ namespace ReDefinition.Tests
                 "nothing said yet");
         }
 
+        // Where Dynamic is chosen but not supported the note says 2x runs instead; for a multiplier it does not.
         [TestMethod]
         public void TheNoteSaysWhatDynamicRunsAsWhereItIsNotSupported()
         {
@@ -143,6 +154,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(FrameGenerationChoice.Note(Dlss(4, 0), false, "3x").Contains("runs instead"));
         }
 
+        // The switch profiles set is still a setting but no row of the window; the multiplier is a row.
         [TestMethod]
         public void TheProfilesSwitchIsStillThereButNotARow()
         {
@@ -153,6 +165,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(OurModules.Rows().Contains(enabled));
         }
 
+        // The label says dynamic only for DLSS; XeSS and FSR keep their own text.
         [TestMethod]
         public void TheLabelNamesDynamicForDlssOnly()
         {

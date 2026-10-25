@@ -1,26 +1,32 @@
+// The scene pages' shared helpers, published as window.Pages for menu.js, ksc.js and editor.js.
 (function () {
 	"use strict";
 	// What the scene pages (menu.js, ksc.js) share: their hold buttons, how they write numbers and
 	// times, and text made safe for their HTML.
 	const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+	// A finite number as it is, anything else (missing, NaN, text) as null.
 	const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
+	// A number rounded and grouped in the viewer's locale; "-" without one.
 	const whole = (v) => (num(v) === null ? "-" : Math.round(v).toLocaleString());
 
 	// A button that fires once held for ms; its bar (.prog) fills while it is held.
 	function hold(b, ms, fire) {
 		let timer = 0, raf = 0, t0 = 0;
 		const prog = b.querySelector(".prog");
+		// Ends a hold early: the timer and the bar's animation stop, the bar empties.
 		const stop = () => { clearTimeout(timer); cancelAnimationFrame(raf); prog.style.width = "0"; };
 		b.addEventListener("pointerdown", (e) => {
 			if (b.disabled) return;
 			b.setPointerCapture(e.pointerId);
 			t0 = performance.now();
+			// Fills the bar by the share of ms held so far, once per animation frame.
 			const tick = () => { prog.style.width = Math.min(100, ((performance.now() - t0) / ms) * 100) + "%"; raf = requestAnimationFrame(tick); };
 			tick();
 			timer = setTimeout(() => { stop(); fire(); }, ms);
 		});
 		for (const e of ["pointerup", "pointercancel", "lostpointercapture"]) b.addEventListener(e, stop);
 	}
+	// The HTML of a hold button for hold(): its label, a HOLD hint and the empty bar; attrs go into the tag.
 	const holdButton = (label, attrs) => '<button class="shold"' + (attrs || "") + "><b>" + label + '</b><span class="hint">HOLD</span><i class="prog"></i></button>';
 
 	// Real time since a moment, for when a save was played.
@@ -42,6 +48,7 @@
 		const day = (calendar && calendar.day) || 21600, year = (calendar && calendar.year) || 9201600;
 		s = Math.floor(Math.abs(s));
 		const y = Math.floor(s / year), d = Math.floor((s % year) / day), r = s % day;
+		// A clock field with a leading zero.
 		const two = (x) => String(x).padStart(2, "0");
 		return (y ? y + "y " : "") + (y || d ? d + "d " : "") + two(Math.floor(r / 3600)) + ":" + two(Math.floor((r % 3600) / 60)) + ":" + two(r % 60);
 	}

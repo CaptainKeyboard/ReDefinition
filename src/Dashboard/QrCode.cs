@@ -17,11 +17,15 @@ namespace ReDefinition.Dashboard
         private static readonly int[] Blocks = { -1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5 };
         private const int FormatEcc = 0; // level M in the format bits
 
+        // Modules per side (17 + 4 per version), and per module whether it is dark and whether it belongs to a
+        // fixed pattern rather than the data.
         public readonly int Size;
-        private readonly bool[,] modules, isFunction; // [y, x]
+        private readonly bool[,] modules, isFunction; // [y, x]: dark, and part of a fixed pattern
 
+        // Whether the module at column x, row y is dark.
         public bool this[int x, int y] { get { return modules[y, x]; } }
 
+        // Encodes the text (as UTF-8 bytes) into the smallest version that holds it; throws past version 10.
         public QrCode(string text)
         {
             byte[] data = Encoding.UTF8.GetBytes(text);
@@ -52,6 +56,7 @@ namespace ReDefinition.Dashboard
             DrawFormatBits(0);
         }
 
+        // The modules of a version left for data and error correction once its fixed patterns are drawn.
         private static int RawDataModules(int ver)
         {
             int result = (16 * ver + 128) * ver + 64;
@@ -64,17 +69,21 @@ namespace ReDefinition.Dashboard
             return result;
         }
 
+        // The bytes of a version at level M that carry data, the error correction taken off.
         private static int DataCodewords(int ver)
         {
             return RawDataModules(ver) / 8 - EccPerBlock[ver] * Blocks[ver];
         }
 
+        // Sets a module of a fixed pattern, which the data and the mask then leave alone.
         private void SetFunction(int x, int y, bool dark)
         {
             modules[y, x] = dark;
             isFunction[y, x] = true;
         }
 
+        // The fixed patterns: timing lines, the three finder squares, the alignment squares, the format area
+        // and, from version 7, the version bits.
         private void DrawFunctionPatterns(int version)
         {
             for (int i = 0; i < Size; i++)
@@ -113,6 +122,7 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // A finder square centred at x, y with its light border, cut at the code's edge.
         private void DrawFinder(int x, int y)
         {
             for (int dy = -4; dy <= 4; dy++)
@@ -123,6 +133,7 @@ namespace ReDefinition.Dashboard
                 }
         }
 
+        // A five-by-five alignment square centred at x, y.
         private void DrawAlignment(int x, int y)
         {
             for (int dy = -2; dy <= 2; dy++)
@@ -130,6 +141,8 @@ namespace ReDefinition.Dashboard
                     SetFunction(x + dx, y + dy, Math.Max(Math.Abs(dx), Math.Abs(dy)) != 1);
         }
 
+        // The format bits (level M and the mask, with their BCH error correction) in both copies, and the
+        // dark module beside the lower one.
         private void DrawFormatBits(int mask)
         {
             int data = FormatEcc << 3 | mask;
@@ -147,6 +160,8 @@ namespace ReDefinition.Dashboard
             SetFunction(8, Size - 8, true);
         }
 
+        // Splits the data into the version's blocks, appends each block's Reed-Solomon bytes, and interleaves
+        // the blocks byte by byte as they are laid into the code.
         private static byte[] AddEccAndInterleave(byte[] data, int version)
         {
             int numBlocks = Blocks[version], blockEccLen = EccPerBlock[version];
@@ -174,6 +189,7 @@ namespace ReDefinition.Dashboard
             return result.ToArray();
         }
 
+        // The Reed-Solomon generator polynomial of that degree, highest coefficient left out.
         private static byte[] ReedSolomonDivisor(int degree)
         {
             var result = new byte[degree];
@@ -191,6 +207,7 @@ namespace ReDefinition.Dashboard
             return result;
         }
 
+        // The error correction bytes of a block: the remainder of its data divided by the generator.
         private static byte[] ReedSolomonRemainder(byte[] data, byte[] divisor)
         {
             var result = new byte[divisor.Length];
@@ -204,6 +221,7 @@ namespace ReDefinition.Dashboard
             return result;
         }
 
+        // The product of two bytes in GF(2^8) with QR's polynomial 0x11D.
         private static byte Multiply(int x, int y)
         {
             int z = 0;
@@ -215,6 +233,8 @@ namespace ReDefinition.Dashboard
             return (byte)z;
         }
 
+        // Lays the bytes' bits into the free modules in QR's zigzag: two columns at a time from the right,
+        // up and down in turn, the vertical timing line skipped.
         private void DrawCodewords(byte[] data)
         {
             int i = 0;
@@ -236,6 +256,7 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // Inverts the data modules of mask 0, those where x + y is even.
         private void ApplyMask() // mask 0: (x + y) even
         {
             for (int y = 0; y < Size; y++)

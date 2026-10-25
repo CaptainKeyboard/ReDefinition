@@ -26,11 +26,13 @@ namespace ReDefinition.EditorTools
     // instead of into the game's GameData.
     public static class BundleBuilder
     {
+        // The bundle's file name, which the mod's ShaderBundle loads; the shader sources; the Steam install.
         public const string BundleName = "redefinition.shaders";
         private const string ShaderFolder = "Assets/ReDefinition/Shaders";
         private const string DefaultKspRoot =
             @"C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program";
 
+        // Menu entry: builds into the KSP folder chosen with "Set KSP path" and shows the result in a dialog.
         [MenuItem("ReDefinition/Build AssetBundle")]
         public static void BuildFromMenu()
         {
@@ -44,6 +46,7 @@ namespace ReDefinition.EditorTools
                 EditorUtility.DisplayDialog("ReDefinition", "Failed:\n\n" + message, "Damn");
         }
 
+        // Menu entry: asks for the KSP root folder, checks it has a GameData, and keeps it in EditorPrefs.
         [MenuItem("ReDefinition/Set KSP path ...")]
         public static void ChooseKspRoot()
         {
@@ -82,6 +85,7 @@ namespace ReDefinition.EditorTools
             }
         }
 
+        // Builds into the GameData of kspRoot; message says what was written, or why it failed.
         public static bool Build(string kspRoot, out string message)
         {
             return Build(kspRoot, null, out message);
@@ -94,7 +98,7 @@ namespace ReDefinition.EditorTools
             foreach (string path in Directory.GetFiles(ShaderFolder, "*.compute", SearchOption.TopDirectoryOnly))
                 shaders.Add(path.Replace('\\', '/'));
             int computeShaders = shaders.Count;
-            // The masks' own shader, drawn by command buffers on the camera.
+            // Every .shader in the folder as well: the command buffers' and materials' shaders the mod loads by name.
             foreach (string path in Directory.GetFiles(ShaderFolder, "*.shader", SearchOption.TopDirectoryOnly))
                 shaders.Add(path.Replace('\\', '/'));
 
@@ -198,6 +202,7 @@ namespace ReDefinition.EditorTools
                       + string.Join(" + ", System.Array.ConvertAll(wanted, a => a.ToString())) + ".");
         }
 
+        // The command-line argument after the one named, compared without case; null when it is not given.
         private static string ArgumentValue(string name)
         {
             string[] args = Environment.GetCommandLineArgs();

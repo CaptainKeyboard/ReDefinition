@@ -10,9 +10,11 @@ namespace ReDefinition.Tests
     [TestClass]
     public class BundledStoreTests
     {
+        // The stand-in game and the store under test.
         private FakeHost host;
         private BundledStore store;
 
+        // A fresh host and store for each test.
         [TestInitialize]
         public void NewStore()
         {
@@ -20,6 +22,7 @@ namespace ReDefinition.Tests
             store = new BundledStore(host);
         }
 
+        // A fake mod of that id, saving as given, installed in the host.
         private FakeMod Mod(string id, SettingsSaving saving)
         {
             FakeMod mod = new FakeMod(id, saving);
@@ -27,6 +30,7 @@ namespace ReDefinition.Tests
             return mod;
         }
 
+        // A setting of the mod whose value is kept per save, the host's save telling which.
         private BundledSetting PerSave(FakeMod mod, string name, string value)
         {
             BundledSetting setting = mod.Add(name, value);
@@ -34,6 +38,8 @@ namespace ReDefinition.Tests
             return setting;
         }
 
+        // A value for a mod that saves it in its own files is kept until the mod has saved it, the value from
+        // before staying for Restore.
         [TestMethod]
         public void AValueForAModThatSavesIsKeptUntilTheModHasSavedIt()
         {
@@ -52,6 +58,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(store.CanRestore);
         }
 
+        // bundled.cfg is written with the value from before ahead of the mod getting the new one, otherwise only by a save
+        // while something kept changed.
         [TestMethod]
         public void OurFileIsWrittenOnlyWhenWhatIsKeptChanged()
         {
@@ -92,6 +100,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, host.FileWrites, "what is kept, saved with the next write");
         }
 
+        // No mod gets a value until its value from before is on disk; once the file can be written the kept
+        // choice reaches it.
         [TestMethod]
         public void NoModGetsAValueWhoseValueFromBeforeIsNotOnDisk()
         {
@@ -113,6 +123,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(written, host.FileWrites, "clean once written");
         }
 
+        // A choice taken from a mod's own window is written not from inside the mod's hook but at the next tick,
+        // once.
         [TestMethod]
         public void AChoiceTakenFromAModsOwnWindowIsWrittenAtTheNextTick()
         {
@@ -131,6 +143,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(written + 1, host.FileWrites, "and only once");
         }
 
+        // A value for a mod that cannot take it yet stays kept and reaches it on the tick once it can, saved then.
         [TestMethod]
         public void AValueForAModThatCannotTakeItYetReachesItOnTheTickOnceItCan()
         {
@@ -156,6 +169,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, trajectories.Saves, "nothing waits any more");
         }
 
+        // A value for a mod that reads it at every start stays kept, without asking the mod to save.
         [TestMethod]
         public void AValueSetAtEveryStartStaysKept()
         {
@@ -170,6 +184,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("False", store.Current(lights));
         }
 
+        // The value from before is kept per save: a choice for every save goes into each save that loads, with
+        // that save's own value kept for it.
         [TestMethod]
         public void TheValueFromBeforeIsKeptPerSave()
         {
@@ -190,6 +206,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Default-Flight", store.BeforeReDefinition(flight));
         }
 
+        // A per-save value counts as held only where a choice for every save is kept here; a value for the game as
+        // a whole is held by the mod holding it.
         [TestMethod]
         public void APerSaveValueIsAChoiceForEverySaveOnlyWhenKeptHere()
         {
@@ -205,6 +223,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(store.Holds(vsync, "1"), "a value for the game as a whole needs nothing more");
         }
 
+        // The reset of a mod without files of its own writes only where the mod differs from the default, and
+        // keeps nothing, so its own config stands at the next start.
         [TestMethod]
         public void TheResetOfAModWithoutFilesWritesOnlyWhereTheModDiffers()
         {
@@ -222,6 +242,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(store.Ledger.Contains(lights.Key), "its own config stands at the next start");
         }
 
+        // The reset of a mod that saves its values is written even where the mod shows the default already, and
+        // kept until it is saved.
         [TestMethod]
         public void TheResetOfAModThatSavesIsWrittenEvenWhereItShowsTheDefault()
         {
@@ -236,6 +258,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(store.Ledger.Contains(ocean.Key));
         }
 
+        // Restore puts back what the mod had before ReDefinition and saves it, leaving nothing to restore and no
+        // profile chosen.
         [TestMethod]
         public void RestorePutsBackWhatTheModHadBefore()
         {
@@ -250,6 +274,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("", store.ProfileName);
         }
 
+        // A per-save value is put back in the save it came from only, once that save loads again.
         [TestMethod]
         public void APerSaveValueIsPutBackInItsOwnSaveOnly()
         {
@@ -270,6 +295,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(store.CanRestore);
         }
 
+        // A row a profile releases goes back to what the mod had before and is no longer kept.
         [TestMethod]
         public void ARowAProfileReleasesGoesBackToWhatItHadBefore()
         {
@@ -283,6 +309,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(store.Ledger.Contains(ocean.Key));
         }
 
+        // A correction of a per-save value stays in the loaded save unless a choice for every save is kept, which
+        // then becomes the corrected value.
         [TestMethod]
         public void ACorrectionOfAPerSaveValueStaysInTheLoadedSave()
         {
@@ -301,6 +329,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Blackrack_TUFX", kept, "a choice kept for every save becomes the corrected one");
         }
 
+        // A value from a mod's own window that the other mods forbid is not taken: the kept choice goes back into
+        // the save and the reasons are told; an allowed one becomes the choice.
         [TestMethod]
         public void AValueTheModsForbidInTheirOwnWindowDoesNotBecomeTheChoice()
         {
@@ -321,6 +351,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Fine", kept);
         }
 
+        // What the installed mods require of a setting counts over the value set.
         [TestMethod]
         public void WhatTheModsRequireCountsOverEveryValueSet()
         {
@@ -333,6 +364,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1", ksp.Values["REFLECTION_PROBE_TEXTURE_RESOLUTION"]);
         }
 
+        // A choice the mod does not offer now stays kept and reaches it once the mod offers it again.
         [TestMethod]
         public void AChoiceTheModDoesNotOfferWaitsUntilItDoes()
         {
@@ -350,6 +382,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("From-A-Removed-Pack", tufx.Values["profileFlight"]);
         }
 
+        // A value whose mod failed to save it stays kept, with a warning, and is saved again at the next scene
+        // change.
         [TestMethod]
         public void AValueWhoseSaveFailedIsSavedAgainAtTheNextSceneChange()
         {
@@ -368,6 +402,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(store.Ledger.Contains(ocean.Key));
         }
 
+        // Switching the bundling off drops the values only ReDefinition kept and sets nothing more; the profile
+        // stays chosen, its upscaler part needing no bundling.
         [TestMethod]
         public void SwitchingTheBundlingOffDropsWhatOnlyReDefinitionKept()
         {
@@ -434,6 +470,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1", ksp.Values["SYNC_VBL"]);
         }
 
+        // A value from before already kept is not replaced by what KSP holds ahead of the window's steps.
         [TestMethod]
         public void AValueFromBeforeKeptAlreadyIsNotReplacedAheadOfTheSteps()
         {
@@ -446,6 +483,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("4", store.BeforeReDefinition(antialiasing));
         }
 
+        // Where the value from before cannot be written to disk, KeepBefore says so.
         [TestMethod]
         public void AValueFromBeforeThatCannotBeWrittenIsSaid()
         {
@@ -457,6 +495,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(store.KeepBefore(new[] { new KeyValuePair<BundledSetting, string>(antialiasing, "4") }));
         }
 
+        // A value that could not be put back is tried again in the next scene, not on every tick of this one.
         [TestMethod]
         public void AValueThatCouldNotBePutBackIsTriedAgainInTheNextSceneNotOnEveryTick()
         {
@@ -476,6 +515,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("False", scatterer.Values["useOceanShaders"]);
         }
 
+        // A mod installed since the profile was applied, or now of another build, is named as lacking the
+        // profile, until the profile is applied again.
         [TestMethod]
         public void AModInstalledOrBuiltDifferentlySinceTheProfileIsNamed()
         {
@@ -495,6 +536,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, store.ModsWithoutTheProfile().Count, "once they have it, they are not named again");
         }
 
+        // Without a profile chosen, or with the bundling off, no mod is named as lacking the profile.
         [TestMethod]
         public void WithNoProfileOrWithTheBundlingOffNoModIsNamed()
         {

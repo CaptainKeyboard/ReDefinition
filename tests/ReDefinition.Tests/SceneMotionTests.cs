@@ -10,6 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class SceneMotionTests
     {
+        // KSP's flight camera: near and far plane in metres, vertical field of view in degrees, a 16:9 screen.
         private const float Near = 0.21f, Far = 750000f, Fov = 60f, Aspect = 16f / 9f;
 
         // What GL.GetGPUProjectionMatrix(projection, false) gives on Direct3D 11:
@@ -51,6 +52,7 @@ namespace ReDefinition.Tests
             return new Quaternion(x * s, y * s, z * s, Mathf.Cos(half));
         }
 
+        // Two frames with the same placement and the same projection give no motion anywhere on the screen.
         [TestMethod]
         public void NoMoveGivesNoMotion()
         {
@@ -61,6 +63,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0f, motion.magnitude, 1e-6f);
         }
 
+        // A 10 m step sideways moves the ground 150 km ahead by its parallax, the angle 10 m make at that distance.
         [TestMethod]
         public void TenMetresSidewaysAt150KilometresMoveTheGroundByItsParallax()
         {
@@ -79,6 +82,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0f, motion.y, 1e-8f);
         }
 
+        // The same step and turn give the same motion 150 km from the origin as at it, to a ten-millionth: the
+        // matrix is built from the difference of the placements, not from two large positions.
         [TestMethod]
         public void TheSameMoveFarFromTheOriginGivesTheSameMotion()
         {
@@ -101,6 +106,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // A turn alone moves a point at the far plane across the screen by the tangent of its angle, whatever the
+        // distance.
         [TestMethod]
         public void ATurnMovesTheFarPlaneByItsAngle()
         {

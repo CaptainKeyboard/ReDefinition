@@ -18,11 +18,14 @@ namespace redefinition
 {
     namespace
     {
+        // The bytes of the stack copied from its top a sample, and the most module addresses kept from them.
         constexpr size_t kStackCopy = 64 * 1024;
         constexpr size_t kCallers = 64;
 
+        // A loaded module's address range, for telling return addresses from other values.
         struct Module
         {
+            // Where its image begins and ends, and its path.
             uint64_t base;
             uint64_t end;
             std::wstring name;
@@ -43,10 +46,13 @@ namespace redefinition
             }
         }
 
+        // NtQueryInformationThread's signature, the function looked up in ntdll.dll by name.
         typedef NTSTATUS(NTAPI* QueryThread)(HANDLE, THREADINFOCLASS, PVOID, ULONG, PULONG);
 
+        // THREAD_BASIC_INFORMATION as NtQueryInformationThread fills it: only the TEB's address is read.
         struct BasicInformation
         {
+            // In the layout ntdll writes, the TEB's address second.
             NTSTATUS exitStatus;
             PVOID tebBase;
             CLIENT_ID clientId;
@@ -69,6 +75,7 @@ namespace redefinition
                        : 0;
         }
 
+        // The process's loaded modules with their address ranges and paths, sorted by base.
         std::vector<Module> Modules()
         {
             std::vector<Module> modules;
@@ -91,6 +98,7 @@ namespace redefinition
             return modules;
         }
 
+        // Whether the address lies in one of the modules, which are sorted by base.
         bool InModule(const std::vector<Module>& modules, uint64_t address)
         {
             auto after = std::upper_bound(modules.begin(), modules.end(), address,
@@ -102,6 +110,7 @@ namespace redefinition
         }
     }
 
+    // The one instance, for the process.
     CpuSampler& CpuSampler::Get()
     {
         static CpuSampler instance;
@@ -132,12 +141,15 @@ namespace redefinition
         return true;
     }
 
+    // The sampling thread's entry.
     DWORD WINAPI CpuSampler::ThreadProc(LPVOID self)
     {
         static_cast<CpuSampler*>(self)->Run();
         return 0;
     }
 
+    // The sampling: about a thousand stops of the main thread a second, each its instruction pointer and the
+    // values on its stack that point into a module, then the file; the handle closed and the sampler free again.
     void CpuSampler::Run()
     {
         SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);

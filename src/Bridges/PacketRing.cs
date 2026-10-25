@@ -9,6 +9,7 @@ namespace ReDefinition.Bridges
     // boxing every packet anew would allocate with each of them, in every frame.
     internal interface IRingPacket<T> where T : struct
     {
+        // This packet becomes a copy of the one given.
         void CopyFrom(ref T packet);
     }
 
@@ -21,10 +22,12 @@ namespace ReDefinition.Bridges
     // (D3d12Bridge).
     internal sealed class PacketRing
     {
+        // The slots' unmanaged memory, how many slots there are, and the slot the next packet goes into.
         private readonly IntPtr memory;
         private readonly int slots;
         private int next;
 
+        // Slots of packetSize bytes each, allocated at once.
         internal PacketRing(int packetSize, int slots = 8)
         {
             PacketSize = packetSize;
@@ -32,6 +35,7 @@ namespace ReDefinition.Bridges
             memory = Marshal.AllocHGlobal(packetSize * slots);
         }
 
+        // A slot's size in bytes: the largest packet the ring sends.
         internal int PacketSize { get; }
 
         // The packet into the next slot, and the event with the slot into the
@@ -53,6 +57,7 @@ namespace ReDefinition.Bridges
         // Per packet type, for every ring: the main thread's only, as Issue is.
         private static class Boxed<T> where T : struct
         {
+            // The one boxed copy of the type, made at its first packet.
             internal static object Value;
         }
     }

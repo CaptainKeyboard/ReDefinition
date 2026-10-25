@@ -27,8 +27,10 @@ namespace ReDefinition.Bridges
     // Everything here is free of Unity, for the tests (IntelFilesTests).
     internal static class IntelFiles
     {
+        // The XeSS SDK release the files below were read from.
         public const string SdkVersion = "3.0.2";
 
+        // Intel's archive of the release, whose entries' bytes are fetched by range.
         public const string ArchiveUrl = "https://github.com/intel/xess/releases/download/v3.0.2/XeSS_SDK_3.0.2.zip";
 
         // The release's page and its licence, in the repository at the release's tag;
@@ -41,6 +43,7 @@ namespace ReDefinition.Bridges
         // XeSS SDK 2.1.1 ships 1.2.2.
         public const string FrameGenerationFloor = "1.2.2";
 
+        // What a file is fetched for.
         public enum Use
         {
             // libxess.dll: XeSS super resolution.
@@ -51,14 +54,17 @@ namespace ReDefinition.Bridges
             Notice,
         }
 
+        // A file of the release: NvidiaFiles' entry for it, what it is for, and the oldest version that runs.
         public sealed class Item
         {
+            // The archive's figures for the file, Use.Both to NvidiaFiles, and its use here.
             public NvidiaFiles.Entry Entry;
             public Use Use;
             // A file older than this does not run (a version, major.minor.build).
             public string MinimumVersion;
         }
 
+        // An item with its entry: Intel's release, a notice for the licence text.
         private static Item Make(string name, string fileName, long offset, long compressedSize, long size, string sha256,
                                  Use use, string minimumVersion = null)
         {
@@ -75,6 +81,7 @@ namespace ReDefinition.Bridges
             };
         }
 
+        // Every file of Intel's release the mod uses, with the figures read from it.
         public static readonly Item[] All =
         {
             Make("bin/libxess.dll", "libxess.dll", 405372, 59737353, 77795704,
@@ -93,10 +100,13 @@ namespace ReDefinition.Bridges
         // download puts them.
         public struct Folders
         {
+            // libxess.dll's folder, and that of libxess_fg.dll and libxell.dll.
             public string SuperResolution;
             public string FrameGeneration;
         }
 
+        // The folders from KSP's folder and the ini's xessDirectory and xessFgDirectory, either relative to KSP's
+        // folder or rooted.
         public static Folders FoldersOf(string game, string xessDirectory, string xessFgDirectory)
         {
             return new Folders
@@ -106,6 +116,7 @@ namespace ReDefinition.Bridges
             };
         }
 
+        // The folder as it stands where rooted, else under KSP's folder.
         private static string Rooted(string game, string folder)
         {
             return Path.IsPathRooted(folder) ? folder : Path.Combine(game, folder);
@@ -148,6 +159,7 @@ namespace ReDefinition.Bridges
             return "";
         }
 
+        // The key's value in the ini file's [Proxy] section; empty where the file cannot be read.
         public static string IniValue(string iniPath, string key)
         {
             try
@@ -181,6 +193,7 @@ namespace ReDefinition.Bridges
             return new Version(version.Major, version.Minor, Math.Max(version.Build, 0));
         }
 
+        // Whether the item's file is in the folder, and where it has a minimum version, of that version or later.
         private static bool Present(string folder, Item item)
         {
             string path = Path.Combine(folder, item.Entry.FileName);
@@ -236,6 +249,7 @@ namespace ReDefinition.Bridges
             return chosen;
         }
 
+        // The items' archive entries, for NvidiaFiles.
         public static List<NvidiaFiles.Entry> Entries(IEnumerable<Item> items)
         {
             List<NvidiaFiles.Entry> entries = new List<NvidiaFiles.Entry>();
@@ -243,6 +257,7 @@ namespace ReDefinition.Bridges
             return entries;
         }
 
+        // The bytes the items' ranges fetch together, for the download's size.
         public static long DownloadSize(IEnumerable<Item> items)
         {
             return NvidiaFiles.DownloadSize(Entries(items));

@@ -34,6 +34,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // What the gauge shows in that mode; null where there is nothing to show.
         private static GaugeReading Read(GaugeMode mode, ReadoutFrame frame)
         {
             switch (mode)
@@ -55,6 +56,7 @@ namespace ReDefinition.Flight
         private static readonly List<EngineFuel> stageEngines = new List<EngineFuel>();
         private static double stageBurn;
 
+        // The stage's burn time, the arc on the propellant left to the engine it is timed by; null where it burns nothing.
         private static GaugeReading StageReading(ReadoutFrame frame)
         {
             stageEngines.Clear();
@@ -87,6 +89,7 @@ namespace ReDefinition.Flight
             return GaugeReadings.Stage(stageEngines, stageBurn);
         }
 
+        // The first manoeuvre node planned; null for none.
         private static ManeuverNode Node(Vessel vessel)
         {
             PatchedConicSolver solver = vessel != null ? vessel.patchedConicSolver : null;
@@ -100,6 +103,7 @@ namespace ReDefinition.Flight
         private static ManeuverNode burnNode;
         private static double burnStart = double.NaN;
 
+        // The countdown to the node's burn, then the delta-v left of it; null without a node.
         private static GaugeReading BurnReading(ReadoutFrame frame)
         {
             ManeuverNode node = Node(frame.Vessel);
@@ -121,6 +125,7 @@ namespace ReDefinition.Flight
             return GaugeReadings.Burning(left, burnStart);
         }
 
+        // How long the stage takes for `deltaV` at its thrust and Isp in vacuum; NaN where it has none.
         private static double BurnLength(Vessel vessel, double deltaV)
         {
             DeltaVStageInfo stage = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.GetStage(vessel.currentStage) : null;
@@ -156,6 +161,7 @@ namespace ReDefinition.Flight
             return GaugeReadings.Closing(Vector3d.Dot(frame.RelativeVelocity, line / distance), distance);
         }
 
+        // The angle of attack against the wings' stall; null where the vessel moves under 1 m/s over the ground.
         private static GaugeReading AttackReading(ReadoutFrame frame)
         {
             double attack, sideslip;
@@ -165,10 +171,13 @@ namespace ReDefinition.Flight
 
         // ------------------------------------------------------------ watch
 
+        // Seconds between the log's lines of what the gauge shows.
         private const float TraceEvery = 10f;
         // How far the stage's arc may stand from where the digits put it, as a
         // share of the scale, before the log says so.
         private const double Tolerance = 0.05;
+        // The mode and the time of the log's next line; the vessel and stage the arc is checked in, the arc per second of
+        // burn time as that stage began, and whether it warned.
         private static GaugeMode traced = GaugeMode.Auto;
         private static float traceNext;
         private static readonly HeldVessel watchedVessel = new HeldVessel();
@@ -235,6 +244,7 @@ namespace ReDefinition.Flight
         // 30 in KSP's own Physics.cfg).
         private static double stall = double.NaN;
 
+        // Where KSP's wings stall, in degrees: read once from the lift curve, 30 where it cannot be.
         internal static double Stall
         {
             get

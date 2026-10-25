@@ -32,6 +32,7 @@ namespace ReDefinition.Upscaler
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class ScreenCoordinates : MonoBehaviour
     {
+        // Patches the five conversions once at start-up, then removes itself.
         private void Awake()
         {
             HarmonyHooks.Safely("screen-coordinates", "the cursor and the markers miss the scene at a lower render size", () =>
@@ -64,6 +65,8 @@ namespace ReDefinition.Upscaler
             return drawing == null || !CameraRedirect.InScreensPlace(drawing);
         }
 
+        // Postfix of WorldToScreenPoint and ViewportToScreenPoint: the texture's pixels Unity answers turned
+        // into the screen's.
         private static void ToScreen(Camera __instance, ref Vector3 __result)
         {
             float x, y;
@@ -72,6 +75,8 @@ namespace ReDefinition.Upscaler
             __result.y /= y;
         }
 
+        // Prefix of ScreenToWorldPoint and ScreenToViewportPoint: the screen position given turned into the
+        // texture's pixels before Unity reads it.
         private static void FromScreen(Camera __instance, ref Vector3 position)
         {
             float x, y;
@@ -80,6 +85,8 @@ namespace ReDefinition.Upscaler
             position.y *= y;
         }
 
+        // Prefix of ScreenPointToRay: the screen position turned into the texture's pixels, so the ray goes
+        // through the point under the cursor.
         private static void RayFromScreen(Camera __instance, ref Vector2 pos)
         {
             float x, y;

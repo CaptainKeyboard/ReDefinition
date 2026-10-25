@@ -19,8 +19,10 @@ namespace ReDefinition.Window
     // the binding's ConfigNode (SettingsInputBinding.SetupAxis and OnAccept).
     internal static class KspAxes
     {
+        // One of KSP's axes: its field, its title and its group in the Axes tab.
         internal sealed class Axis
         {
+            // The GameSettings field (or AXIS_CUSTOM[i].axisBinding), the title in the game's language, and the group.
             public string Name;
             public string Title;
             public string Group;
@@ -28,6 +30,7 @@ namespace ReDefinition.Window
             public Func<AxisBinding> Get;
         }
 
+        // The axes once listed.
         private static List<Axis> axes;
 
         // In the order and groups of KSP's input screen, with its titles.
@@ -67,6 +70,7 @@ namespace ReDefinition.Window
             return axes;
         }
 
+        // Adds a static AxisBinding of GameSettings by its field name; one KSP lacks is warned about and left out.
         private static void Add(string field, int localization, string group)
         {
             FieldInfo info = typeof(GameSettings).GetField(field, BindingFlags.Public | BindingFlags.Static);
@@ -85,6 +89,7 @@ namespace ReDefinition.Window
             });
         }
 
+        // KSP's text of that number, in the game's language; the fallback where it has none.
         private static string Title(int localization, string fallback)
         {
             try
@@ -130,6 +135,7 @@ namespace ReDefinition.Window
             return left.ToString() == right.ToString();
         }
 
+        // The shipped bindings by axis name, read once.
         private static Dictionary<string, AxisBinding> defaults;
 
         // What KSP ships for every axis (KspShipped), copied.

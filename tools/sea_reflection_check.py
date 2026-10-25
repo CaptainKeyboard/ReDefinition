@@ -54,6 +54,7 @@ BIN = 0.5  # degrees
 
 
 def read_pfm(path):
+    """A PFM image (colour or grey) as a float array of height x width x channels, row 0 at the bottom."""
     with open(path, 'rb') as f:
         kind = f.readline().strip()
         width, height = map(int, f.readline().split())
@@ -64,11 +65,14 @@ def read_pfm(path):
 
 
 def input_colour(c, gamma):
+    """A colour as the raytracing takes it: converted from gamma to linear by Unity's polynomial where the shot says
+    its inputs are gamma, else as it is; negative channels clamped."""
     c = np.maximum(np.asarray(c, float), 0.0)
     return c * (c * (c * 0.305306011 + 0.682171111) + 0.012522878) if gamma else c
 
 
 def g1(cos, m):
+    """Smith's shadowing for Beckmann's distribution of roughness m, in Walter et al.'s rational approximation."""
     cos = np.clip(cos, 1e-4, 1.0)
     a = cos / (m * np.sqrt(1.0 - cos * cos) + 1e-12)
     return np.where(a < 1.6, (3.535 * a + 2.181 * a * a) / (1.0 + 2.276 * a + 2.577 * a * a), 1.0)
@@ -89,10 +93,12 @@ def specular(n, v, l, m):
 
 
 def luminance(c):
+    """Rec. 709 luminance of linear RGB."""
     return c[..., 0] * 0.2126 + c[..., 1] * 0.7152 + c[..., 2] * 0.0722
 
 
 def traced_sun_colours(log):
+    """Per shot name, the colour the raytracing traced with, from the probe's 'Probe: light' lines in the log."""
     colours = {}
     for line in open(log, encoding='utf-8', errors='replace'):
         if 'Probe: light ' in line and ', traced RGBA(' in line:
@@ -378,6 +384,7 @@ def waves_in_place(folder, prefix):
 
 
 def main():
+    """Compare the waves (--waves), measure the ripple noise (--noise), or print the table of every shot."""
     args = sys.argv[1:]
     if args[:1] == ['--waves']:
         folder = args[1]

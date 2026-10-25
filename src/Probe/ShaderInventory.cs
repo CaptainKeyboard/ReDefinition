@@ -19,9 +19,11 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     internal sealed class ShaderInventory : MonoBehaviour
     {
+        // The command-line switch, and the scenes already written this session (each scene once).
         internal const string Argument = "-redefinitionShaderInventory";
         private static readonly HashSet<GameScenes> Done = new HashSet<GameScenes>();
 
+        // The material properties read: numbers as they are, colours by their largest channel, textures by whether set.
         private static readonly string[] Floats =
             { "_Shininess", "_Glossiness", "_Smoothness", "_GlossMapScale", "_Metallic", "_SpecularIntensity", "_SpecularPower",
               "_Fresnel", "_FresnelPower", "_RimFalloff", "_Opacity", "_Cutoff" };
@@ -29,8 +31,11 @@ namespace ReDefinition.Probe
         private static readonly string[] Textures =
             { "_MainTex", "_SpecMap", "_SpecGlossMap", "_MetallicGlossMap", "_BumpMap", "_Cube", "_Emissive", "_MaskTex" };
 
+        // One shader's materials and what they hold.
         private sealed class Group
         {
+            // The shader's name, its distinct materials, its renderers by kind (vessel, scenery, terrain ...), each
+            // property's values over the materials, how many set each texture, up to six examples, and its renderer count.
             public string Shader;
             public readonly HashSet<Material> Materials = new HashSet<Material>();
             public readonly Dictionary<string, int> Kinds = new Dictionary<string, int>();
@@ -40,6 +45,7 @@ namespace ReDefinition.Probe
             public int Renderers;
         }
 
+        // Six seconds into a scene not yet written, with the switch, its inventory into the capture folder.
         private IEnumerator Start()
         {
             if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0) yield break;
@@ -57,6 +63,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Where a renderer stands: a vessel's part, the space centre's scenery, the terrain, or else its layer.
         private static string Kind(Renderer renderer)
         {
             if (renderer.GetComponentInParent<Part>() != null) return "vessel";
@@ -65,6 +72,8 @@ namespace ReDefinition.Probe
             return "other(layer " + renderer.gameObject.layer + ")";
         }
 
+        // Gathers the scene's materials by shader and writes them, the space centre's and vessels' materials one by one,
+        // the transparent renderers near the vessel and the launch pad's and runway's levels into shader-inventory-<scene>.txt.
         private static void Write(GameScenes scene)
         {
             var groups = new Dictionary<string, Group>();
@@ -212,6 +221,7 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Shader inventory: " + groups.Count + " shaders in " + scene + " into " + file + ".");
         }
 
+        // One value of a property added to the group's list for it.
         private static void Add(Group group, string key, float value)
         {
             List<float> list;
@@ -219,6 +229,7 @@ namespace ReDefinition.Probe
             list.Add(value);
         }
 
+        // A number with up to three decimals, for the file.
         private static string F(float value)
         {
             return value.ToString("0.###", CultureInfo.InvariantCulture);

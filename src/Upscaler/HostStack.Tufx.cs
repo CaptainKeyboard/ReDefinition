@@ -76,6 +76,7 @@ namespace ReDefinition.Upscaler
         // the player's mode already and is saved as it is.
         private static bool tufxSaveHookTried;
 
+        // Installs the save hook on TUFX's profile type, once; without it a save while the upscaler runs writes None.
         private static void HookTufxSave(Type profileType)
         {
             if (tufxSaveHookTried || profileType == null) return;
@@ -115,6 +116,7 @@ namespace ReDefinition.Upscaler
             __state = swapped;
         }
 
+        // After the save: None again on the modes TufxSaveBefore swapped, where the profile still holds the player's.
         private static Exception TufxSaveAfter(object __instance, int __state, Exception __exception)
         {
             if (__state == 0 || __instance == null) return __exception;
@@ -172,6 +174,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Sets None on every PostProcessLayer of the enabled cameras and keeps what each held before, for
+        // RestoreLiveAntialiasing. Returns how many layers were set.
         private static int SetLiveAntialiasingNone(object none)
         {
             if (none == null) return 0;
@@ -201,6 +205,7 @@ namespace ReDefinition.Upscaler
             return count;
         }
 
+        // Drops the layers destroyed since from liveAntialiasing.
         private static void ForgetDestroyedLayers()
         {
             foreach (Component layer in liveAntialiasing.Keys)
@@ -225,6 +230,7 @@ namespace ReDefinition.Upscaler
             liveAntialiasing.Clear();
         }
 
+        // TUFX's current profile and its type, through TexturesUnlimitedFXLoader.INSTANCE; null without TUFX.
         private static object TufxProfile(out Type profileType)
         {
             profileType = null;
@@ -259,6 +265,7 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // Writes a mode into one of a profile's antialiasing struct fields (see TryGetAaMode).
         private static bool TrySetAaMode(object profile, Type profileType, string fieldName, object mode)
         {
             if (mode == null) return false;

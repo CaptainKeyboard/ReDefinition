@@ -18,6 +18,8 @@ namespace ReDefinition.Settings.Behaviours
     // offered.
     internal sealed class ParallaxScatterBehaviour : ModBehaviour
     {
+        // Parallax's members as Resolve finds them: the bodies' scatters, and the two conversions; whether they were
+        // looked for, and whether all are there.
         private FieldInfo scatterBodies;
         private FieldInfo fastScatters;
         private MethodInfo reverse;
@@ -25,6 +27,7 @@ namespace ReDefinition.Settings.Behaviours
         private bool resolved;
         private bool canRenormalise;
 
+        // Through the path where the scatters can be rebaked; left out, said so, where they cannot.
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
                                    out Action<string> write, out Type type)
         {
@@ -39,6 +42,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // After a write, the scatters rebaked as the next scene is asked for.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             Action<string> write = setting.Write;
@@ -49,6 +53,7 @@ namespace ReDefinition.Settings.Behaviours
             };
         }
 
+        // Parallax's members looked for, once.
         private void Resolve()
         {
             if (resolved) return;

@@ -27,8 +27,11 @@ namespace ReDefinition.Settings
         // profile chosen after it does not overwrite.
         internal enum Origin
         {
+            // A profile's own value, as described above.
             Profile,
+            // What the chosen profile hands back to its mod.
             Released,
+            // The default the reset filled in.
             Reset,
         }
 
@@ -43,19 +46,24 @@ namespace ReDefinition.Settings
             Reset,
         }
 
+        // One step of Apply: the setting, what is done with it, and the row's value.
         internal struct Step
         {
+            // The setting, what Apply does with it, and the value the row holds.
             public BundledSetting Setting;
             public StepKind Kind;
             public string Value;
         }
 
+        // What filled a row, and with which value.
         private struct Filled
         {
+            // What filled the row, and the value it filled in.
             public Origin From;
             public string Value;
         }
 
+        // What each row holds now, by setting key: as read, or as the player, a profile or the reset changed it.
         private readonly Dictionary<string, string> pending = new Dictionary<string, string>();
         // What each row held as it was read -- as the window opened, after Apply,
         // or as a sync found the mod's value changed.
@@ -93,6 +101,7 @@ namespace ReDefinition.Settings
         // The bundling switch as the window shows it (SetBundled), and the
         // profile the rows were last filled from; empty for none.
         public bool Bundled { get; private set; }
+        // The profile the rows were last filled from; empty for none.
         public string Profile = "";
 
         // The profiles' lists were worked out before a mod's value changed: read
@@ -103,20 +112,19 @@ namespace ReDefinition.Settings
         // Counts the changes to the rows, for what is asked every frame.
         public int Version { get; private set; }
 
+        // Whether Reset to defaults is chosen and waits for Apply.
         public bool Resetting
         {
             get { return resetValues.Count > 0; }
         }
 
-        // The rows as the window opens, or after Apply or Restore: each setting's
-        // value now -- null where it cannot be read, which leaves the row without
-        // a value -- with nothing filled and no reset chosen.
         // The toolbar buttons the window holds, by mod id: true where the button
         // is hidden. Filled by OpenButtons after Open, for the mods whose button
         // ReDefinition can hide at all.
         private readonly Dictionary<string, bool> buttons = new Dictionary<string, bool>();
         private readonly Dictionary<string, bool> buttonsOpened = new Dictionary<string, bool>();
 
+        // The toolbar buttons as the window opens, with whether each is hidden; nothing changed yet.
         public void OpenButtons(IEnumerable<KeyValuePair<string, bool>> hidden)
         {
             buttons.Clear();
@@ -136,6 +144,7 @@ namespace ReDefinition.Settings
             return buttons.TryGetValue(modId, out hidden) && hidden;
         }
 
+        // A button hidden or shown in the window, for a mod the window holds; set at Apply.
         public void SetButtonHidden(string modId, bool hidden)
         {
             bool now;
@@ -144,11 +153,13 @@ namespace ReDefinition.Settings
             Version++;
         }
 
+        // Every button the window holds, with whether it is to be hidden.
         public IEnumerable<KeyValuePair<string, bool>> Buttons
         {
             get { return buttons; }
         }
 
+        // Whether a button is hidden or shown otherwise than as the window opened.
         public bool ButtonsPending()
         {
             foreach (KeyValuePair<string, bool> pair in buttons)
@@ -159,6 +170,9 @@ namespace ReDefinition.Settings
             return false;
         }
 
+        // The rows as the window opens, or after Apply or Restore: each setting's
+        // value now -- null where it cannot be read, which leaves the row without
+        // a value -- with nothing filled and no reset chosen.
         public void Open(bool bundled, string profile, IEnumerable<KeyValuePair<string, string>> values)
         {
             buttons.Clear();
@@ -180,11 +194,13 @@ namespace ReDefinition.Settings
             Version++;
         }
 
+        // The row's value now; false for a row without one.
         public bool TryGetPending(string key, out string value)
         {
             return pending.TryGetValue(key, out value);
         }
 
+        // Whether the row has a value.
         public bool HasPending(string key)
         {
             return pending.ContainsKey(key);
@@ -474,6 +490,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Tells the window a value went into a row, so a choice row lists it (Offered).
         private void Offer(string key, string value)
         {
             if (Offered != null) Offered(key, value);

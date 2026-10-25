@@ -24,10 +24,14 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class SpaceCentreButtons : MonoBehaviour
     {
+        // How near a building the vessel has to stand, in metres.
         private const double Range = 3000.0;
 
+        // One of the space centre's other buildings and its button.
         private sealed class Facility
         {
+            // As in Wanted: its name, what the button says, the space centre's button it looks like, and its short name;
+            // whether it is the tracking station; where it stands; its button.
             internal string Name;
             internal string Title;
             internal string Look;
@@ -48,9 +52,11 @@ namespace ReDefinition.Flight
             new[] { "Administration", "Go to the Administration", "Buttons_Admin", "Admin" },
         };
 
+        // The buildings the space centre has, with their buttons; the body the space centre is on.
         private readonly List<Facility> facilities = new List<Facility>();
         private CelestialBody home;
 
+        // Waits for KSP's interface and the space centre's facilities, then makes a button for each building found.
         private IEnumerator Start()
         {
             float until = Time.unscaledTime + 15f;
@@ -77,12 +83,14 @@ namespace ReDefinition.Flight
             Debug.Log(Log.Tag + " Buttons over the space centre's buildings before a launch: " + facilities.Count + ".");
         }
 
+        // The buttons go with the flight scene.
         private void OnDestroy()
         {
             foreach (Facility facility in facilities) facility.Button.Destroy();
             facilities.Clear();
         }
 
+        // Each building's button before its front while the vessel waits on its launch site near it, and hidden otherwise.
         private void LateUpdate()
         {
             if (facilities.Count == 0) return;
@@ -105,6 +113,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // Whether the game lets the flight be left for that building.
         private static bool Allowed(Facility facility)
         {
             GameParameters parameters = HighLogic.CurrentGame.Parameters;
@@ -115,6 +124,7 @@ namespace ReDefinition.Flight
 
         // ---------------------------------------------------------------- click
 
+        // Asks first: the flight is left, the game saved.
         private void Ask(Facility facility)
         {
             if (HighLogic.CurrentGame == null || !Allowed(facility)) return;
@@ -146,13 +156,16 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class SpaceCentreEntry : MonoBehaviour
     {
+        // The facility to open once the space centre stands; null for none.
         private static string planned;
 
+        // Plans the facility to open in the space centre.
         internal static void Plan(string facility)
         {
             planned = facility;
         }
 
+        // Waits for the planned building and the scene's interface, then opens the building as a click on it would.
         private IEnumerator Start()
         {
             string facility = planned;
@@ -177,6 +190,7 @@ namespace ReDefinition.Flight
             building.OnLeftClick();
         }
 
+        // The space centre's building for the facility; null where there is none.
         private static SpaceCenterBuilding Find(string facility)
         {
             foreach (SpaceCenterBuilding building in FindObjectsOfType<SpaceCenterBuilding>())

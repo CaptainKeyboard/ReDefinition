@@ -7,6 +7,7 @@ namespace ReDefinition.Tests
 {
     internal static partial class StockCrafts
     {
+        // The density of each resource with a mass, in tonnes a unit, as the game's resource definitions give it.
         internal static readonly Dictionary<string, double> Density = new Dictionary<string, double>
         {
             { "Ablator", 0.001 },
@@ -19,6 +20,7 @@ namespace ReDefinition.Tests
             { "XenonGas", 0.0001 },
         };
 
+        // Every stock craft the tests fly: its stage rows as KSP counts them, its parts' facts and its simulation parts.
         internal static readonly List<StockCraft> All = new List<StockCraft>
         {
             new StockCraft

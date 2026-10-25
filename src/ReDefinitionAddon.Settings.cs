@@ -38,6 +38,7 @@ namespace ReDefinition
         // The diagnostic measurements (OwnSettings.DebugMode), read by the instruments
         // wherever they run.
         internal static bool DebugMode { get; private set; }
+        // Anisotropic filtering forced on every texture while the upscaler runs (UpscalerRig.ForceAnisotropic).
         private bool forceAnisotropic = true;
         // FSR's own exposure for its internal tonemapping, as AMD recommends
         // (UpscalerRig.AutoExposure).
@@ -58,13 +59,16 @@ namespace ReDefinition
         private bool frameGeneration;
         // 2x to 6x or Dynamic (FrameGenerationChoice): the proxy is told it live (SetFrameGenerationMultiplier).
         private string frameGenerationMultiplier = FrameGenerationChoice.Default;
-        // FSR 3 or DLSS (DlssBridge).
+        // The upscaler technique: FSR 3, DLSS, AMD's upscaler or XeSS (UpscalerBackend).
         private UpscalerBackend backend = UpscalerBackend.Fsr3;
         // DLSS's model in every mode (DlssModel).
         private DlssModel dlssModel = DlssModel.Default;
 
+        // Skinned meshes made to write motion vectors (UpscalerRig.ForceSkinnedMotionVectors).
         private bool skinnedMotionVectors = true;
 
+        // The settings object the add-on saves and the views copy: the live settings are read from it directly, the rest
+        // written into it by Collect.
         private readonly OwnSettings settings = new OwnSettings();
         // The raytracing (src/Raytracing/Ksp/RtKsp.cs), which the add-on keeps on the
         // scene camera.
@@ -74,6 +78,7 @@ namespace ReDefinition
         private float nextSettingsCheck;
         private bool saveFailureLogged;
 
+        // Takes the settings file's values into the add-on, with Auto resolved and everything off without a profile.
         private void LoadSettings()
         {
             OwnSettings loaded = OwnSettings.Load();
@@ -183,6 +188,7 @@ namespace ReDefinition
         private static int screenWidth, screenHeight;
         private static string screenSize = "";
 
+        // The screen's size as "WxH", the key the navball's place is kept under.
         private static string ScreenSize
         {
             get
@@ -207,13 +213,11 @@ namespace ReDefinition
         // What Auto was last resolved for (AutoSettings.Inputs); null asks for it again.
         private string resolvedFor;
 
-        // Auto depends on the card, the screen and the DLLs the proxy offers: settled again when one
-        // changes (a new resolution, a window resized, the proxy attached late) or after a hand pick,
-        // through Apply as every change.
         // The technique frame generation's choice stands for -- Auto resolved for the card and the files
         // in place -- into the proxy's ini, for its next start; again whenever that changes (a download).
         private string frameGenerationTechniqueWritten;
 
+        // Writes the technique the choice stands for into the proxy's ini, where it differs from the one last written.
         private void WriteFrameGenerationTechnique(string chosen = null)
         {
             string technique = AutoSettings.FrameGenerationTechnique(chosen ?? settings.FrameGenerationTechnique,
@@ -223,6 +227,9 @@ namespace ReDefinition
             FrameGenerationTechniqueSetting.Write(technique);
         }
 
+        // Auto depends on the card, the screen and the DLLs the proxy offers: settled again when one
+        // changes (a new resolution, a window resized, the proxy attached late) or after a hand pick,
+        // through Apply as every change.
         private void ResolveAutoOnNewScreen()
         {
             WriteFrameGenerationTechnique();
@@ -233,6 +240,7 @@ namespace ReDefinition
             Apply(now, now.Clone());
         }
 
+        // Writes the add-on's own fields into the settings object, which is then what is saved or copied.
         private OwnSettings Collect()
         {
             settings.Enabled = wantEnabled;
@@ -290,6 +298,7 @@ namespace ReDefinition
             }
         }
 
+        // Whether KSP's Settings buttons open ReDefinition's window.
         internal bool ReplaceKspSettings
         {
             get { return replaceKspSettings; }
@@ -319,6 +328,7 @@ namespace ReDefinition
             SaveSettingsIfChanged(true);
         }
 
+        // Whether the settings window holds the flight while it is open (WindowPause).
         internal bool PauseWhileOpen
         {
             get { return pauseWhileOpen; }
@@ -366,6 +376,7 @@ namespace ReDefinition
             SaveSettingsIfChanged(true);
         }
 
+        // The setters of what differs between the two, off before on, the upscaler's own switch last on.
         private void ApplyChanges(OwnSettings before, OwnSettings after)
         {
             if (before.Enabled != after.Enabled && !after.Enabled) SetEnabled(false);

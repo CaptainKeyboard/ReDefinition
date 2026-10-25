@@ -16,16 +16,21 @@ namespace ReDefinition.Flight
     // Patches/LegGrip.cfg, where ModuleManager is installed.
     public class ReDefinitionLegGrip : PartModule
     {
+        // The default physics material's static friction, which the grips' frictions are taken against.
         private const float DefaultFriction = 0.4f;
 
+        // The grips as the part keeps them, and as the button names them.
         private static readonly string[] Grips = { "Default", "MediumGrip", "HighGrip", "ExtremeGrip" };
         private static readonly string[] Names = { "Default", "Medium Grip", "High Grip", "Extreme Grip" };
 
+        // The grip chosen, kept with the vessel.
         [KSPField(isPersistant = true)]
         public string grip = "Default";
 
+        // The leg's wheel, whose friction multiplier the grip sets.
         private ModuleWheelBase wheel;
 
+        // Finds the leg's wheel and names the button after the grip.
         public override void OnStart(StartState state)
         {
             wheel = part.FindModuleImplementing<ModuleWheelBase>();
@@ -48,12 +53,14 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The grip chosen, and the button named after it.
         private void Set(string value)
         {
             grip = value;
             Label();
         }
 
+        // The button reads "Traction: " and the grip's name.
         private void Label()
         {
             int at = System.Array.IndexOf(Grips, grip);
@@ -69,6 +76,7 @@ namespace ReDefinition.Flight
             if (!Mathf.Approximately(wheel.frictionMultiplier, multiplier)) wheel.frictionMultiplier = multiplier;
         }
 
+        // The wheel's friction multiplier for the grip: its static friction over the default's; 1 for Default.
         internal static float Multiplier(string grip)
         {
             switch (grip)
@@ -80,6 +88,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The line in the part's info in the editor.
         public override string GetInfo()
         {
             return "Traction: Default, Medium, High or Extreme Grip, as on a grip pad.";

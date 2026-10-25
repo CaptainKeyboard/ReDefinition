@@ -19,8 +19,11 @@ namespace ReDefinition.Window
     // confirm and Escape to cancel, and neither reaches the game.
     internal static class KeyCapture
     {
+        // The id of the control lock held while listening or typing.
         private const string LockId = "ReDefinition-key-capture";
 
+        // The row listening (null for none), what it does with the key taken, whether it can still be seen, whether a
+        // modifier counts as a key, and whether the lock is set.
         private static string listening;
         private static Action<string> take;
         private static Func<bool> shown;
@@ -39,6 +42,7 @@ namespace ReDefinition.Window
         // button and joystick button as well.
         private static KeyCode[] candidates;
 
+        // Whether that row is listening.
         internal static bool Listening(string key)
         {
             return listening != null && listening == key;
@@ -52,6 +56,7 @@ namespace ReDefinition.Window
             get { return listening != null || takenFrame == Time.frameCount || Typing || EscapeGuard.Active; }
         }
 
+        // Whether a text field of ReDefinition's window had the keyboard this frame or the one before.
         private static bool Typing
         {
             get { return Time.frameCount <= typingFrame + 1; }
@@ -75,6 +80,7 @@ namespace ReDefinition.Window
             Lock();
         }
 
+        // Stops listening; the lock goes at the next Poll unless something still holds it.
         internal static void Stop()
         {
             listening = null;
@@ -137,6 +143,7 @@ namespace ReDefinition.Window
         // (SettingsInputBinding, ExtendedInput.DetectKeyDown).
         private static KeyCode[] anyCandidates;
 
+        // Those keys, made once.
         private static KeyCode[] AnyCandidates()
         {
             if (anyCandidates != null) return anyCandidates;
@@ -152,6 +159,8 @@ namespace ReDefinition.Window
             return anyCandidates;
         }
 
+        // The keys a binding of ReDefinition's or a mod's can hold, made once: every KeyCode CanBind allows but
+        // Escape and the joystick buttons.
         private static KeyCode[] Candidates()
         {
             if (candidates != null) return candidates;
@@ -176,6 +185,7 @@ namespace ReDefinition.Window
             locked = true;
         }
 
+        // Takes the control lock back where it is set.
         private static void Unlock()
         {
             if (!locked) return;

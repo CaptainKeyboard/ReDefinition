@@ -14,9 +14,11 @@ namespace ReDefinition.Tests
     [TestClass]
     public class IntelFilesTests
     {
+        // The test's folder, and IntelFiles' version reader as it was before a test replaced it.
         private string folder;
         private Func<string, Version> readVersion;
 
+        // A fresh folder of the test's own, and the version reader kept for the clean-up.
         [TestInitialize]
         public void MakeFolder()
         {
@@ -25,6 +27,7 @@ namespace ReDefinition.Tests
             readVersion = IntelFiles.ReadVersion;
         }
 
+        // Puts the version reader back and deletes the test's folder.
         [TestCleanup]
         public void RemoveFolder()
         {
@@ -32,21 +35,26 @@ namespace ReDefinition.Tests
             Directory.Delete(folder, true);
         }
 
+        // Folders for both uses pointing at the test's folder.
         private IntelFiles.Folders Here()
         {
             return new IntelFiles.Folders { SuperResolution = folder, FrameGeneration = folder };
         }
 
+        // The file names of the items.
         private static string[] Names(IEnumerable<IntelFiles.Item> items)
         {
             return items.Select(i => i.Entry.FileName).ToArray();
         }
 
+        // Puts a ten-byte stand-in of the file into the test's folder.
         private void Put(string name)
         {
             File.WriteAllBytes(Path.Combine(folder, name), new byte[10]);
         }
 
+        // The table holds the XeSS SDK release's four files at their places in its archive, each with a SHA-256
+        // in upper case and its use.
         [TestMethod]
         public void TheTableHoldsTheFilesOfTheXessSdkRelease()
         {
@@ -74,6 +82,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The whole download is about 73 MB, super resolution about 60 and frame generation about 13, the licence
+        // text counted with both.
         [TestMethod]
         public void TheReleaseIsAboutSeventyThreeMegabytes()
         {
@@ -87,6 +97,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(bytes + notice, superResolution + frameGeneration);
         }
 
+        // An empty folder lacks every file; with all DLLs in place nothing is missing, the licence text alone
+        // being no reason to download.
         [TestMethod]
         public void OnlyWhatIsNeededCountsAsMissing()
         {
@@ -104,6 +116,8 @@ namespace ReDefinition.Tests
                             "every DLL in place, and no download for the licence text alone");
         }
 
+        // A libxess_fg.dll older than 1.2.2, the oldest the proxy takes, counts as missing, with the licence
+        // text; a version that cannot be read is let through.
         [TestMethod]
         public void AFrameGenerationDllOlderThanTheProxyRunsCountsAsMissing()
         {
@@ -136,6 +150,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(File.Exists(fg));
         }
 
+        // Each use's files are looked for in that use's folder, and the licence text goes with super resolution
+        // where that is downloaded too, else with frame generation.
         [TestMethod]
         public void EachUseIsLookedForInItsOwnFolder()
         {
@@ -155,6 +171,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(frameGeneration, IntelFiles.FolderOf(notice, folders, false));
         }
 
+        // The ini's folders are read as the proxy reads them, from [Proxy], the key's case and quotes not counting;
+        // an empty folder is next to KSP_x64.exe, a relative one KSP's.
         [TestMethod]
         public void TheInisFoldersCountAsTheProxyReadsThem()
         {
@@ -183,6 +201,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("D:\\Intel\\XeSS", IntelFiles.FoldersOf("C:\\KSP", "D:\\Intel\\XeSS", null).SuperResolution);
         }
 
+        // The files in place are named in the window with their versions where those can be read; none in place
+        // is nothing to name.
         [TestMethod]
         public void TheFilesInPlaceAreNamedWithTheirVersions()
         {
@@ -193,6 +213,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("libxess.dll, libxell.dll 1.3.2.10", IntelFiles.InstalledText(Here()));
         }
 
+        // The uses of the files chosen decide what an acceptance covers: all of them both, the frame generation
+        // files alone frame generation alone.
         [TestMethod]
         public void TheUsesDecideWhatAnAcceptanceCovers()
         {
@@ -208,6 +230,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(frameGeneration);
         }
 
+        // The entry extracted from the bytes of its range.
         private static byte[] Extracted(NvidiaFiles.Entry entry, byte[] range)
         {
             using (MemoryStream output = new MemoryStream())
@@ -217,6 +240,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // A streamed entry, flagged with a data descriptor and without sizes in its local header, is fetched as
+        // its range and extracts to what went in.
         [TestMethod]
         public void AStreamedEntryComesOutAsItWent()
         {
@@ -232,6 +257,8 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(content, Extracted(entry, range));
         }
 
+        // A streamed entry is refused where its local header names other sizes than the central directory, where
+        // its flags are neither 0 nor 8, or where its data or checksum do not match; the refusal names Intel's release.
         [TestMethod]
         public void AStreamedEntryOfAnotherSizeOrFlagIsRefused()
         {
@@ -263,6 +290,7 @@ namespace ReDefinition.Tests
             StringAssert.Contains(checksum.Message, "Intel's release");
         }
 
+        // An NVIDIA entry's refusal still names NVIDIA's release: the release named is the entry's own.
         [TestMethod]
         public void NvidiasMessagesStillNameNvidia()
         {

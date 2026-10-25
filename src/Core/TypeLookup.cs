@@ -15,8 +15,10 @@ namespace ReDefinition.Core
         internal const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static
                                        | BindingFlags.Public | BindingFlags.NonPublic;
 
+        // The types found so far, by full name.
         private static readonly Dictionary<string, Type> cache = new Dictionary<string, Type>();
 
+        // The type of that full name from the first loaded assembly that has it; null when none has it.
         public static Type Find(string fullName)
         {
             // Hits are cached permanently, misses are not: the scan is cheap, and an

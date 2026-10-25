@@ -8,6 +8,8 @@ namespace ReDefinition.Bridges
     // Free of Unity, for the tests (FrameGenerationChoiceTests).
     internal static class FrameGenerationChoice
     {
+        // The row's ends: frame generation switched off, and DLSS-G's dynamic mode, where Streamline chooses the
+        // frames shown.
         public const string Off = "Off";
         public const string Dynamic = "Dynamic";
 
@@ -36,6 +38,7 @@ namespace ReDefinition.Bridges
             return value == Dynamic || StepIndex(value) >= 0;
         }
 
+        // Whether the value asks for DLSS-G's dynamic mode.
         public static bool IsDynamic(string value)
         {
             return value == Dynamic;
@@ -48,6 +51,7 @@ namespace ReDefinition.Bridges
             return at < 0 ? 0 : at + 2;
         }
 
+        // The value's position among Steps; -1 for Dynamic, Off or anything else.
         private static int StepIndex(string value)
         {
             return System.Array.IndexOf(Steps, value);
@@ -58,6 +62,7 @@ namespace ReDefinition.Bridges
         // say. Dynamic: -1 not known yet, 0 not supported, 1 supported.
         public struct Limits
         {
+            // The technique that runs, the most frames it shows per rendered frame, and its dynamic support.
             public int Technique;
             public int Most;
             public int Dynamic;

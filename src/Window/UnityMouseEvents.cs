@@ -44,8 +44,10 @@ namespace ReDefinition.Window
     {
         // The loop tells systems apart by type; Unity's profiler shows the names.
         private struct ReDefinitionLendScreens { }
+        // The system after Unity's mouse events, which takes the screens back.
         private struct ReDefinitionTakeBackScreens { }
 
+        // The cameras lent the screen for this pass, and the rig they belong to.
         private static readonly List<CameraRedirect> lent = new List<CameraRedirect>();
         private static UpscalerRig lentFor;
 
@@ -72,12 +74,14 @@ namespace ReDefinition.Window
         // dark goes nowhere, Unity's mouse events included.
         private static readonly List<PopupDialog> screens = new List<PopupDialog>();
 
+        // A dialog that holds the whole screen: while it stands, no click reaches anything behind it.
         internal static PopupDialog ShieldScreen(PopupDialog dialog)
         {
             if (dialog != null && !screens.Contains(dialog)) screens.Add(dialog);
             return dialog;
         }
 
+        // Whether a screen-holding dialog stands; those gone are forgotten.
         private static bool ScreenShielded()
         {
             for (int i = screens.Count - 1; i >= 0; i--)
@@ -126,6 +130,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Whether the loop or any of its subsystems is of that type.
         private static bool Contains(PlayerLoopSystem system, Type type)
         {
             if (system.type == type) return true;
@@ -208,6 +213,8 @@ namespace ReDefinition.Window
             }
         }
 
+        // After Unity's mouse events: every camera's event mask back, each lent camera on the rig's texture again, and
+        // the first hit noted.
         private static void TakeBackScreens()
         {
             UnmaskCameras();
@@ -251,6 +258,8 @@ namespace ReDefinition.Window
             return ImguiWindow.Contains(new Vector2(mouse.x, Screen.height - mouse.y));
         }
 
+        // Whether the cursor is over one of ReDefinition's windows: a screen-holding dialog, the diagnostics window, or a
+        // shielded dialog on a canvas that shows.
         private static bool OverShieldedWindow()
         {
             if (screens.Count > 0 && ScreenShielded()) return true;
@@ -294,6 +303,7 @@ namespace ReDefinition.Window
         // narrow what that lets through.
         private static bool passing;
 
+        // Lets raycasts through all of ReDefinition's dialogs, or blocks them again, on a change only.
         private static void PassThroughOurWindows(bool pass)
         {
             if (pass == passing) return;
@@ -301,6 +311,7 @@ namespace ReDefinition.Window
             foreach (PopupDialog dialog in shielded) PassThrough(dialog, pass);
         }
 
+        // Lets raycasts through one dialog's window, or blocks them, by a canvas group on its frame.
         private static void PassThrough(PopupDialog dialog, bool pass)
         {
             if (dialog == null || dialog.popupWindow == null || dialog.popupWindow == dialog.gameObject) return;
@@ -326,6 +337,7 @@ namespace ReDefinition.Window
             else InputLockManager.SetControlLock(ControlTypes.ALLBUTCAMERAS, LockName);
         }
 
+        // Sets every camera's event mask to nothing for the pass, their own masks kept.
         private static void MaskCameras()
         {
             int count = Camera.allCamerasCount;
@@ -384,6 +396,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Whether the camera is one lent the screen in this pass.
         private static bool WasLent(Camera camera)
         {
             for (int i = 0; i < lent.Count; i++)
@@ -393,6 +406,7 @@ namespace ReDefinition.Window
             return false;
         }
 
+        // Finds Unity's private hit array and its fields, for NoteFirstHit; nothing where Unity's shape differs.
         private static void ResolveHits()
         {
             Type type = typeof(Input).Assembly.GetType("UnityEngine.SendMouseEvents");

@@ -16,6 +16,8 @@ namespace ReDefinition.Engineer
     // number of rows, shown as the plan needs them.
     internal sealed partial class PlannerView
     {
+        // How many stops, stages and bar pieces the fixed rows are made for; in units, the icons' size, the timeline's
+        // column and a stop's letter.
         private const int MaxStops = 11;
         private const int MaxStages = 30;
         private const int MaxPieces = 24;
@@ -47,6 +49,7 @@ namespace ReDefinition.Engineer
         private const string Good = "#8fdc7a";
         private const string Dim = "#9a9a9a";
 
+        // Each step's bar, by leg and role; the altitude fields, for the typing lock; the roles in the order their steps come.
         private readonly SegmentBar[,] stepBars = new SegmentBar[MaxStops, RouteStop.Roles];
         private readonly List<DialogGUITextInput> altitudeFields = new List<DialogGUITextInput>();
         private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Arrive, StepRole.Land };
@@ -58,6 +61,8 @@ namespace ReDefinition.Engineer
         private readonly Sizer[,] barFillers = new Sizer[MaxStops, RouteStop.Roles];
         private SegmentBar totalBar;
 
+        // Every row of the planner, made once: the note while KSP's delta-v simulation is off, then the Craft, Route, Fuel
+        // plan and Thrust parts, each row shown as the plan needs it.
         internal List<DialogGUIBase> Rows()
         {
             altitudeFields.Clear();
@@ -115,6 +120,7 @@ namespace ReDefinition.Engineer
         private static readonly Color HeaderColour = new Color(1f, 1f, 1f, 0.10f);
         private static readonly Color BoxColour = new Color(0f, 0f, 0f, 0.22f);
 
+        // Whether the Craft and Route parts are open.
         private bool vesselShown = true;
         private bool routeShown = true;
 
@@ -129,6 +135,7 @@ namespace ReDefinition.Engineer
         private readonly List<KeyValuePair<TintImage, System.Func<bool>>> headerTints =
             new List<KeyValuePair<TintImage, System.Func<bool>>>();
 
+        // One part of the planner: its heading, which folds it, and its rows on a darker box.
         private IEnumerable<DialogGUIBase> Section(string title, System.Func<bool> shown, Callback toggle, string tooltip,
                                                    System.Func<string> summary, IEnumerable<DialogGUIBase> rows)
         {
@@ -141,6 +148,7 @@ namespace ReDefinition.Engineer
             yield return new DialogGUISpace(SectionGap);
         }
 
+        // Every frame: each heading's corners as its part is open or folded.
         private void ShapeHeaders()
         {
             foreach (KeyValuePair<TintImage, System.Func<bool>> header in headerTints)
@@ -231,6 +239,7 @@ namespace ReDefinition.Engineer
         // A section's name, then its buttons up to where a stop's cross ends.
         private const float SectionName = 90f;
 
+        // A section's parts button, from the column of who flies a step to the rows' end; 120 wide at least.
         private float PartButtonWidth
         {
             get { return Mathf.Max(120f, width - Timeline - SectionName - 4f * 2f - RowEnd); }
@@ -238,6 +247,8 @@ namespace ReDefinition.Engineer
 
         // ----------------------------------------------------------------- stops
 
+        // A stop's rows: its dot, letter and body, Surface or Orbit, the use of its air and its cross; under an orbit, its
+        // altitude.
         private IEnumerable<DialogGUIBase> StopRows(int index)
         {
             // KSP's layouts take no width of their own (DialogGUILayoutBase,
@@ -318,6 +329,7 @@ namespace ReDefinition.Engineer
             return row;
         }
 
+        // The timeline's line through a row of that height.
         private static DialogGUIBase TimelineLine(float height)
         {
             return new DialogGUIHorizontalLayout(Timeline, height, 0f, new RectOffset(9, 0, 0, 0), TextAnchor.MiddleLeft,
@@ -330,6 +342,7 @@ namespace ReDefinition.Engineer
             return Choice(() => label, chosen, choose, buttonWidth);
         }
 
+        // As above, with a label that may change.
         private static DialogGUIButton Choice(System.Func<string> label, System.Func<bool> chosen, Callback choose, float buttonWidth)
         {
             return new DialogGUIButton(() => chosen()
@@ -497,6 +510,7 @@ namespace ReDefinition.Engineer
             return "The " + string.Join(", the ", names.ToArray()) + (names.Count == 1 ? " is deployed here" : " are deployed here");
         }
 
+        // Whether the section flying the step docks with the rest at its end.
         private bool Docks(int leg, StepRole role)
         {
             int index = Slot(leg, role);
@@ -513,6 +527,7 @@ namespace ReDefinition.Engineer
             return goal.Kind == StopKind.Surface && goal.UseAtmosphere && bodies.Bodies[goal.Body].HasAtmosphere;
         }
 
+        // Whether the step has further choices behind "...".
         private bool HasMore(int leg, StepRole role)
         {
             return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || (role == StepRole.Transfer && CanSplit(leg)));
@@ -525,6 +540,7 @@ namespace ReDefinition.Engineer
             return HasBody(leg) && HasBody(leg + 1) && RouteSteps.Splits(bodies.Bodies, state.Stops[leg], state.Stops[leg + 1]);
         }
 
+        // The step's warning on that line; empty where it has fewer.
         private string WarningText(int leg, StepRole role, int line)
         {
             int index = Slot(leg, role);
@@ -532,6 +548,7 @@ namespace ReDefinition.Engineer
             return warnings[index][line];
         }
 
+        // What the step needs, with the margin; in red where something stands in its way.
         private string StepSpeed(int leg, StepRole role)
         {
             int index = Slot(leg, role);
@@ -543,6 +560,7 @@ namespace ReDefinition.Engineer
 
         // --------------------------------------------------------------- summary
 
+        // Under the route: the bar of the whole route's stages, and what is left and needed.
         private IEnumerable<DialogGUIBase> SummaryRows()
         {
             yield return new DialogGUISpace(8f);
@@ -553,6 +571,7 @@ namespace ReDefinition.Engineer
                 new DialogGUILabel(SummaryText, width - RowEnd, RowHeight));
         }
 
+        // "Left +1,200 m/s   Needed 4,500 m/s of 5,700 m/s"; in orange what the stages miss instead of what is left.
         private string SummaryText()
         {
             if (!Worked()) return "";
@@ -568,6 +587,7 @@ namespace ReDefinition.Engineer
         private const float HeadingTitle = 90f;
         private const float SignEdge = 12f;
 
+        // A part's heading: its title, its summary where the plan is worked out, and the sign; the whole bar folds the part.
         private DialogGUIBase CollapsibleHeading(string title, System.Func<bool> shown, Callback toggle, string tooltip,
                                                  System.Func<string> summary)
         {

@@ -6,6 +6,7 @@ namespace ReDefinition.Window
 {
     internal static partial class SettingsWindow
     {
+        // The width of the preset row's value column.
         private const float AmpereValueWidth = 90f;
 
         // The package's preset (AmpereOptions) under the DLSS-G on RTX 30/20 row: one step through the values,

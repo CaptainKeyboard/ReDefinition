@@ -24,12 +24,14 @@ namespace ReDefinition.Probe
     // materials as the scatter loads.
     internal static class ViewProbe
     {
+        // The switch with the poses, the surfaces written per view, and the Parallax properties that hold its shine.
         internal const string ViewsArgument = "-redefinitionProbeViews";
         private static readonly string[] SurfaceNames = { "gbuffer0", "gbuffer1", "gbuffer2", "surface", "surfacemode", "specular", "sun", "diffuse" };
         private static readonly int SpecularIntensity = Shader.PropertyToID("_SpecularIntensity");
         private static readonly int EnvironmentMapFactor = Shader.PropertyToID("_EnvironmentMapFactor");
         private static readonly int FresnelColor = Shader.PropertyToID("_FresnelColor");
 
+        // Whether KSP was started to take Parallax's shine off.
         internal static bool NoGloss
         {
             get { return Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoGloss") >= 0; }
@@ -64,6 +66,7 @@ namespace ReDefinition.Probe
             return changed;
         }
 
+        // TakeGlossOff every two seconds for as long as the flight lasts, each change logged.
         internal static IEnumerator KeepGlossOff()
         {
             while (true)
@@ -74,6 +77,8 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The views: the camera about the vessel or the named renderer, and for each raytracing mode and each set of
+        // proxy keys every pose shot, with its timings, surfaces and overlay where the switches ask for them.
         public static IEnumerator Run(string folder, string shot, string views)
         {
             if (FlightCamera.fetch == null || ReDefinitionAddon.Instance == null) yield break;
@@ -222,6 +227,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Six seconds of the raytracing passes' GPU times and the frame time at a pose, averaged, into the log.
         private static IEnumerator Timings(string name)
         {
             float[] passes = new float[8];
@@ -246,6 +252,7 @@ namespace ReDefinition.Probe
                       + traced.ToString("0.00", CultureInfo.InvariantCulture) + ".");
         }
 
+        // A number in the invariant culture; false where the text is none.
         private static bool Number(string text, out float value)
         {
             return float.TryParse(text.Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);

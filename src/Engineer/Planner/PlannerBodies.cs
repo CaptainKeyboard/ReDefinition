@@ -11,14 +11,18 @@ namespace ReDefinition.Engineer
     // followed by its moons, each level by the size of its orbit.
     internal sealed class PlannerBodies
     {
+        // The bodies in the game's order (FlightGlobals.Bodies), their indices in the planner's order, and the home body's.
         public readonly List<PlannerBody> Bodies = new List<PlannerBody>();
         public readonly List<int> Order = new List<int>();
         public int Home;
 
+        // In metres: a low orbit's height over the atmosphere, and over the highest ground of a body without air.
         private const double LowOrbitMargin = 10000.0;
         private const double TerrainMargin = 5000.0;
+        // Whether the low orbits went to the log yet: once per game.
         private static bool logged;
 
+        // The bodies of the system loaded now; none where the game has none yet.
         internal static PlannerBodies Read()
         {
             PlannerBodies read = new PlannerBodies();
@@ -89,6 +93,7 @@ namespace ReDefinition.Engineer
             return density > 0.0 ? body.GetSpeedOfSound(pressure, density) : 0.0;
         }
 
+        // The body, then each of its moons with their own moons, nearest orbit first.
         private void AddWithMoons(int body)
         {
             Order.Add(body);

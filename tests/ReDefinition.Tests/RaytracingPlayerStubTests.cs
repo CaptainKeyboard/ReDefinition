@@ -11,6 +11,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class RaytracingPlayerStubTests
     {
+        // The stub's MaximumSharpness, read from its source, equals UpscalerRig.MaximumSharpness: otherwise the
+        // test player would sharpen differently from the game.
         [TestMethod]
         public void TheStubHasTheRigsMaximumSharpness()
         {

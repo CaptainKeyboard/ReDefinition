@@ -12,6 +12,8 @@ namespace ReDefinition.Flight.Readouts
     // (a target for the rendezvous values, a docking port for the docking ones).
     internal sealed class Readout
     {
+        // As the class's comment names them: the key, the title, the group, the value, the second value (null for none),
+        // and when it applies (null for always).
         internal string Key;
         internal string Title;
         internal string Group;
@@ -19,6 +21,7 @@ namespace ReDefinition.Flight.Readouts
         internal Func<ReadoutFrame, string> Second;
         internal Func<ReadoutFrame, bool> Applies;
 
+        // Whether it shows two values.
         internal bool Paired
         {
             get { return Second != null; }
@@ -28,6 +31,7 @@ namespace ReDefinition.Flight.Readouts
     // Every value the flight panel can show, grouped as players look for them.
     internal static class ReadoutCatalog
     {
+        // The names of the groups the readouts are listed under.
         internal const string Orbit = "Orbit";
         internal const string Surface = "Surface";
         internal const string Vessel = "Vessel";
@@ -35,10 +39,13 @@ namespace ReDefinition.Flight.Readouts
         internal const string Rendezvous = "Rendezvous";
         internal const string Docking = "Docking";
 
+        // The groups in the order they are listed.
         internal static readonly string[] Groups = { Orbit, Surface, Vessel, Air, Rendezvous, Docking };
 
+        // Every number in the invariant culture.
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
+        // Every readout, in the order of their groups.
         internal static readonly List<Readout> All = new List<Readout>
         {
             // -------------------------------------------------------------- orbit
@@ -316,22 +323,27 @@ namespace ReDefinition.Flight.Readouts
             },
         };
 
+        // Whether the vessel has a target with an orbit.
         private static bool HasTarget(ReadoutFrame f)
         {
             return f.Target != null && f.TargetOrbit != null;
         }
 
+        // Whether the target is a docking port and the vessel has a control point.
         private static bool HasPort(ReadoutFrame f)
         {
             return f.TargetPort != null && f.TargetPort.nodeTransform != null && f.Vessel.ReferenceTransform != null;
         }
 
+        // `thrust` against the vessel's weight where it is, to two places; "-" where it weighs nothing.
         private static string Ratio(double thrust, ReadoutFrame f)
         {
             double weight = f.Vessel.totalMass * f.Gravity;
             return weight > 0.0 ? (thrust / weight).ToString("0.00", Invariant) : "-";
         }
 
+        // The countdown to the vessel's ascending or descending node with the target's plane, from the orbit round the
+        // target's body (Mutual); "-" where there is none.
         private static string RelativeNode(ReadoutFrame f, bool ascending)
         {
             Orbit target;
@@ -340,6 +352,7 @@ namespace ReDefinition.Flight.Readouts
             return ReadoutMath.Countdown(f.TimeToNode(own, ReadoutFrame.Normal(target, f.Now), ascending));
         }
 
+        // The readout with that key; null where there is none.
         internal static Readout Find(string key)
         {
             return All.Find(readout => readout.Key == key);

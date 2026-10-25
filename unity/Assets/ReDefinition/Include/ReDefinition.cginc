@@ -27,6 +27,7 @@ float4 _ReDefinition_Jitter;
 // xyz the floating origin's shift since the frame before, w 1 if it shifted.
 float4 _ReDefinition_OriginShift;
 
+// Whether ReDefinition runs and sets the globals: its interface version is not zero.
 inline bool ReDefinitionInstalled()
 {
     return _ReDefinition_Frame.w > 0.5;
@@ -39,6 +40,7 @@ inline bool ReDefinitionUpscalerActive()
     return _ReDefinition_Frame.x > 0.5;
 }
 
+// Whether ReDefinition's frame generation adds frames between the rendered ones.
 inline bool ReDefinitionFrameGenerationActive()
 {
     return _ReDefinition_Frame.y > 0.5;
@@ -74,6 +76,7 @@ inline float2 ReDefinitionJitterPixels()
     return _ReDefinition_Jitter.xy;
 }
 
+// The same jitter in normalized device coordinates, as added to the projection's x and y offsets.
 inline float2 ReDefinitionJitterNdc()
 {
     return _ReDefinition_Jitter.zw;
@@ -97,6 +100,7 @@ inline float3 ReDefinitionOriginShift()
     return _ReDefinition_OriginShift.xyz;
 }
 
+// Whether the floating origin shifted since the frame before.
 inline bool ReDefinitionOriginShifted()
 {
     return _ReDefinition_OriginShift.w > 0.5;

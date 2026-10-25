@@ -20,17 +20,21 @@ namespace ReDefinition.Engineer
     // as a PopupDialog creates its content (DialogGUIBase.Create, decompiled).
     internal sealed class PlannerPanel
     {
+        // The planner add-on it belongs to; the copy's transition and KSP's panel manager it was added to; the scroll
+        // list that holds the rows; and the rows' view, which works out the plan.
         private readonly EditorEngineer owner;
         private UIPanelTransition transition;
         private UIPanelTransitionManager manager;
         private DialogGUIBase root;
         private PlannerView view;
 
+        // Made only through Create, which builds it or leaves nothing of it.
         private PlannerPanel(EditorEngineer owner)
         {
             this.owner = owner;
         }
 
+        // The planner panel built beside KSP's crew panel; null where the editor has no crew panel or the build fails.
         internal static PlannerPanel Create(EditorEngineer owner)
         {
             EditorPanels panels = EditorPanels.Instance;
@@ -53,6 +57,8 @@ namespace ReDefinition.Engineer
         // What is left between the list and the panel's right edge.
         private const float EdgeGap = 2f;
 
+        // Copies the crew panel's frame, empties its content area, adds the copy to KSP's panel manager, and fills it with
+        // the planner's rows in a scroll list as wide as the parts list; false where the crew panel has no content area.
         private bool Build(EditorPanels panels)
         {
             UIPanelTransition crew = panels.crew;
@@ -147,6 +153,7 @@ namespace ReDefinition.Engineer
             return true;
         }
 
+        // Whether the panel stands in or is sliding.
         internal bool Shown
         {
             get { return transition != null && (transition.State == "In" || transition.Transitioning); }
@@ -184,6 +191,8 @@ namespace ReDefinition.Engineer
         // The holder the copy is made under, until it is destroyed in Build.
         private GameObject building;
 
+        // Takes the panel out of KSP's list of panels and destroys it, with the view's subscriptions and a holder left
+        // over from a failed build.
         internal void Destroy()
         {
             if (building != null) UnityEngine.Object.Destroy(building);
@@ -206,11 +215,13 @@ namespace ReDefinition.Engineer
             view.Tick();
         }
 
+        // The rows' view, which works out the plan; null before the panel is built.
         internal PlannerView View
         {
             get { return view; }
         }
 
+        // While the panel is shown: keeps the typing lock, works out the plan and updates the rows.
         internal void Tick()
         {
             if (root == null || !Shown) return;

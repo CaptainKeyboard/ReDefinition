@@ -6,16 +6,23 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Bridges
 {
+    // The technique that upscales, in the order the settings row steps through them (Next).
     internal enum UpscalerBackend
     {
+        // FSR 3 in the mod's own compute shaders (FSR3Unity), which runs wherever the mod does.
         Fsr3,
+        // NVIDIA's DLSS in the proxy (DlssBridge).
         Dlss,
+        // AMD's upscaler from the player's FidelityFX DLL in the proxy (AmdUpscalerBridge).
         Amd,
+        // Intel's XeSS from the player's DLL in the proxy (XessUpscalerBridge).
         Xess,
     }
 
+    // What the settings and the rig ask of an UpscalerBackend.
     internal static class UpscalerBackends
     {
+        // The technique as the settings row names it.
         internal static string Name(UpscalerBackend backend)
         {
             switch (backend)
@@ -79,11 +86,15 @@ namespace ReDefinition.Bridges
         internal const uint FlagAutoExposure = 1u << 2;
         internal const uint FlagReset = 1u << 3;
 
+        // The proxy's file name, as the DllImport below resolves it in this process.
         private const string Proxy = "dxgi.dll";
 
+        // The proxy's render event callback, shared by every technique and frame generation.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr KspFgGetRenderEventFunc();
 
+        // As the constructor takes them: the technique's name for messages, its packet's type, its exports for
+        // the native packet size and the status, its render events for a frame and the release, and the probe.
         private readonly string name;
         private readonly Type packetType;
         private readonly Func<uint> nativePacketSize;
@@ -91,8 +102,11 @@ namespace ReDefinition.Bridges
         private readonly int packetEvent;
         private readonly int releaseEvent;
         private readonly Action probe;
+        // The text Describe reads the status into, reused.
         private readonly StringBuilder statusBuffer = new StringBuilder(512);
 
+        // Whether Ready has asked the proxy; why the link is not ready, or null; the render event callback; the
+        // ring the packets go through, made once ready.
         private bool probed;
         private string problem;
         private IntPtr renderEvent = IntPtr.Zero;
@@ -177,6 +191,7 @@ namespace ReDefinition.Bridges
                    + name + ": the proxy is not installed, or it is older than the mod.";
         }
 
+        // Why the technique cannot run through the proxy, or null where it can.
         internal string Problem
         {
             get { return Ready ? null : problem; }
@@ -231,6 +246,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // What the proxy's side of the technique reports, as text, or why it cannot be asked.
         internal string Describe()
         {
             if (!Ready) return problem;

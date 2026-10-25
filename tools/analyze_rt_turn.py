@@ -29,6 +29,7 @@ DEPTH_TOLERANCE = 0.05
 
 
 def read_meta(folder):
+    """Per frame name in meta.txt: its size, whether Ray Reconstruction produced it, and its view and projection."""
     frames = {}
     for line in open(os.path.join(folder, 'meta.txt'), encoding='utf-8'):
         if line.startswith('#') or not line.strip():
@@ -43,6 +44,7 @@ def read_meta(folder):
 
 
 def load(folder, name, frame, what, channels, dtype):
+    """One buffer of a frame (<name>_<what>.bin) as a float array of the frame's size, or None where it is missing."""
     path = os.path.join(folder, '%s_%s.bin' % (name, what))
     if not os.path.exists(path):
         return None
@@ -51,6 +53,7 @@ def load(folder, name, frame, what, channels, dtype):
 
 
 def luminance(colour):
+    """Rec. 709 luminance, tone-mapped by y / (1 + y), so bright pixels do not dominate the error."""
     y = colour[..., 0] * 0.2126 + colour[..., 1] * 0.7152 + colour[..., 2] * 0.0722
     y = np.maximum(y, 0.0)
     return y / (1.0 + y)
@@ -60,6 +63,7 @@ class Geometry:
     """World positions from a frame's depth, and where they lie in another frame."""
 
     def __init__(self, frame, depth, flip):
+        """Unprojects every pixel of the depth through the frame's cameras; flip says the rows run bottom up."""
         h, w = depth.shape
         self.w, self.h, self.flip = w, h, flip
         xs = (np.arange(w) + 0.5) / w * 2.0 - 1.0
@@ -87,6 +91,7 @@ class Geometry:
 
 
 def view_distance(frame, depth, flip):
+    """The distance along the view axis of every pixel of the depth, in the frame's own camera."""
     g = Geometry(frame, depth, flip)
     view = np.concatenate([g.world, np.ones(g.world.shape[:2] + (1,))], axis=-1) @ frame['view'].T
     return -view[..., 2]
@@ -135,6 +140,8 @@ def motion_error(frame, depth, motion, before_frame, flip):
 
 
 def analyse(folder):
+    """Rows of the errors per turn frame against its reference (all, new, share new, recent, rest, motion, RR),
+    and the row order used; writes error_<frame>.png where much came into view and on every fifth frame."""
     frames = read_meta(folder)
     turn = sorted(n for n in frames if n.startswith('turn_'))
     colours, depths, motions = {}, {}, {}
@@ -183,6 +190,7 @@ def analyse(folder):
 
 
 def main():
+    """Analyse every folder given, print its rows and its pass or fail against the limits; exit 1 if any failed."""
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     summary = []

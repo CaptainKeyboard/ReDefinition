@@ -16,20 +16,27 @@ namespace ReDefinition.Probe
     // twenty-third.
     internal static class RenderDocCapture
     {
+        // eRENDERDOC_API_Version_1_1_2, and the entries' places in the table it hands out (counted from 0).
         private const int Version112 = 10102;
         private const int SetCaptureFilePathTemplateIndex = 11;
         private const int TriggerCaptureIndex = 15;
         private const int TriggerMultiFrameCaptureIndex = 22;
 
+        // RENDERDOC_GetAPI: 1 where the version is served, with the table in api.
         private delegate int GetApi(int version, out IntPtr api);
+        // SetCaptureFilePathTemplate: where the captures go, the path and file name's start.
         private delegate void SetPathTemplate([MarshalAs(UnmanagedType.LPStr)] string pathTemplate);
+        // TriggerCapture: the next frame captured.
         private delegate void Trigger();
+        // TriggerMultiFrameCapture: the next frames captured, this many.
         private delegate void TriggerMulti(uint frames);
 
+        // The two capture entries, null where RenderDoc is not in the process; and whether Look has run.
         private static Trigger trigger;
         private static TriggerMulti triggerMulti;
         private static bool looked;
 
+        // Whether RenderDoc is in the process and serves the API.
         internal static bool Available
         {
             get
@@ -39,6 +46,8 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Finds renderdoc.dll in the process once, takes the capture entries from its API and points its captures
+        // into the run's capture folder.
         private static void Look()
         {
             if (looked) return;
@@ -80,9 +89,11 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: RenderDoc capture of " + frames + " frames from " + Time.frameCount + " (" + why + ").");
         }
 
+        // The handle of a DLL already loaded into the process, zero where it is not.
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
         private static extern IntPtr GetModuleHandle(string name);
 
+        // The address of a DLL's exported function.
         [DllImport("kernel32.dll", CharSet = CharSet.Ansi)]
         private static extern IntPtr GetProcAddress(IntPtr module, string name);
     }

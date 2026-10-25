@@ -9,6 +9,7 @@ namespace ReDefinition
     // the upscaler, rendered and presented, and the load behind them.
     public partial class ReDefinitionAddon
     {
+        // The frame times with the upscaler running, and with it switched off, for FrameRateComparison.
         private readonly FrameRateMeter meterOn = new FrameRateMeter();
         private readonly FrameRateMeter meterOff = new FrameRateMeter();
 
@@ -82,6 +83,7 @@ namespace ReDefinition
             loadText = windowVisible ? DescribeLoad() : "Load: measuring ...";
         }
 
+        // The load line: the main thread's, the render thread's and the GPU's share of the frame, or why there is none.
         private static string DescribeLoad()
         {
             float mainThread;
@@ -102,6 +104,7 @@ namespace ReDefinition
             }
         }
 
+        // A share as a whole percentage; "n/a" where the proxy could not read it.
         private static string Percent(float value)
         {
             return value < 0f ? "n/a" : value.ToString("0") + " %";

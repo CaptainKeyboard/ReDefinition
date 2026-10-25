@@ -33,16 +33,20 @@ namespace ReDefinition.Window
     // button there stays.
     internal static class ToolbarTakeover
     {
+        // The buttons hidden here with the scenes they had, whose each button is (null for none of the bundled mods), and
+        // the mods whose hiding the log has told.
         private static readonly Dictionary<ApplicationLauncherButton, ApplicationLauncher.AppScenes> hidden =
             new Dictionary<ApplicationLauncherButton, ApplicationLauncher.AppScenes>();
         private static readonly Dictionary<ApplicationLauncherButton, IBundledMod> owners =
             new Dictionary<ApplicationLauncherButton, IBundledMod>();
         private static readonly HashSet<string> reported = new HashSet<string>();
 
+        // The launcher's lists of mod buttons, shown and hidden, looked up once.
         private static FieldInfo modList;
         private static FieldInfo modListHidden;
         private static bool resolved;
 
+        // ToolbarControl's static list of its instances and their nameSpace and stockButton fields, looked up once.
         private static FieldInfo tcList;
         private static FieldInfo tcNamespace;
         private static FieldInfo tcStock;
@@ -55,11 +59,14 @@ namespace ReDefinition.Window
         private static readonly Dictionary<ApplicationLauncherButton, ApplicationLauncher.AppScenes> ownHidden =
             new Dictionary<ApplicationLauncherButton, ApplicationLauncher.AppScenes>();
 
+        // Hides the ToolbarControl button of that namespace while the test says false, shows it again once it says true.
         internal static void KeepOwn(string nameSpace, Func<bool> shown)
         {
             ownButtons[nameSpace] = shown;
         }
 
+        // Every two seconds and at once after a change: ReDefinition's own buttons, then the bundled mods' buttons hidden
+        // or shown again as the bundling and the player's choices say.
         public static void Refresh()
         {
             if (ApplicationLauncher.Instance == null) return;
@@ -175,6 +182,7 @@ namespace ReDefinition.Window
             return CanHide(mod) && BundledSettings.HidesButton(mod.Id);
         }
 
+        // Whether the mod has a toolbar button in this scene; false where looking throws.
         internal static bool HasButton(IBundledMod mod)
         {
             try
@@ -213,6 +221,7 @@ namespace ReDefinition.Window
             return true;
         }
 
+        // The mod's button: the one ToolbarControl made for its namespace, else the launcher's button its assembly owns.
         private static ApplicationLauncherButton ButtonOf(IBundledMod mod)
         {
             if (mod == null || ApplicationLauncher.Instance == null) return null;
@@ -235,6 +244,7 @@ namespace ReDefinition.Window
             return null;
         }
 
+        // Hides the button, its scenes kept to give back, and logs it once per mod.
         private static void Hide(ApplicationLauncherButton button, IBundledMod mod)
         {
             // A button already hidden would be remembered as belonging in NEVER,
@@ -267,6 +277,7 @@ namespace ReDefinition.Window
             SwitchOff(button);
         }
 
+        // Switches the button's object off and has the launcher lay out its list again.
         private static void SwitchOff(ApplicationLauncherButton button)
         {
             if (!button.gameObject.activeSelf) return;
@@ -277,6 +288,7 @@ namespace ReDefinition.Window
             if (scaleModList != null) scaleModList.Invoke(ApplicationLauncher.Instance, null);
         }
 
+        // ApplicationLauncher.ScaleModList, looked up on first use.
         private static MethodInfo scaleModList;
 
         // The counterpart of KeepOff: the launcher switches a button on only as it
@@ -288,6 +300,7 @@ namespace ReDefinition.Window
             button.gameObject.SetActive(true);
         }
 
+        // The bundled mod a button belongs to, looked up once per button.
         private static IBundledMod CachedOwner(ApplicationLauncherButton button)
         {
             IBundledMod mod;
@@ -297,6 +310,7 @@ namespace ReDefinition.Window
             return mod;
         }
 
+        // Hides the ToolbarControl buttons of the bundled mods that are to be hidden.
         private static void HideToolbarControlButtons()
         {
             if (!ResolveToolbarControl()) return;
@@ -363,6 +377,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The installed bundled mod registered with that namespace in ToolbarControl; null for none.
         private static IBundledMod OwnerByNamespace(string ns)
         {
             if (string.IsNullOrEmpty(ns)) return null;
@@ -423,6 +438,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Every hidden button shown again with its scenes; one that throws is kept for the next pass.
         private static void RestoreAll()
         {
             int shown = 0;
@@ -476,6 +492,7 @@ namespace ReDefinition.Window
             Prune(owners);
         }
 
+        // Drops the destroyed buttons from a table.
         private static void Prune<T>(Dictionary<ApplicationLauncherButton, T> map)
         {
             List<ApplicationLauncherButton> gone = null;
@@ -489,6 +506,7 @@ namespace ReDefinition.Window
             foreach (ApplicationLauncherButton button in gone) map.Remove(button);
         }
 
+        // The bundled mod whose assembly holds the button's click handler; null for none.
         private static IBundledMod Owner(ApplicationLauncherButton button)
         {
             Callback onTrue = button.onTrue;
@@ -528,6 +546,7 @@ namespace ReDefinition.Window
             return buttons;
         }
 
+        // Adds the buttons of one of the launcher's lists.
         private static void Add(List<ApplicationLauncherButton> buttons, FieldInfo field)
         {
             IEnumerable list = field != null ? field.GetValue(ApplicationLauncher.Instance) as IEnumerable : null;

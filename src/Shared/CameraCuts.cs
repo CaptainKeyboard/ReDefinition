@@ -38,6 +38,7 @@ namespace ReDefinition.Shared
     // mode. Such a mod can report them (ReDefinition.Api.Frame.RequestHistoryReset).
     internal static class CameraCuts
     {
+        // The camera's state at the last look; stateKnown is false until the first look, which finds no cut.
         private static Transform lastTarget;
         private static Transform lastParent;
         private static Kerbal lastIvaKerbal;

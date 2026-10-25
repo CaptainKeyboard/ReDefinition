@@ -12,6 +12,7 @@ namespace ReDefinition.Engineer
     // highlights as it does without the mod. A marker whose marks are taken away is told (Lost).
     internal sealed class PartHighlight
     {
+        // The marker whose marks show now; whether the pointer taking them away went to the log; this marker's parts and colours.
         private static PartHighlight current;
         private static bool pointerLogged;
         private readonly Dictionary<Part, Color> marked = new Dictionary<Part, Color>();
@@ -20,6 +21,7 @@ namespace ReDefinition.Engineer
         // another marker.
         internal System.Action Lost;
 
+        // Marks these parts in their colours, in place of whatever was marked; none, or the pointer on a part, clears the marks.
         internal void Show(IDictionary<Part, Color> parts)
         {
             if (parts.Count == 0)
@@ -65,6 +67,7 @@ namespace ReDefinition.Engineer
                 if (part.Key != null && !Holds(part.Key, part.Value)) Apply(part.Key, part.Value);
         }
 
+        // The part's highlight always on, in the colour.
         private static void Apply(Part part, Color color)
         {
             part.SetHighlightType(Part.HighlightType.AlwaysOn);
@@ -72,6 +75,7 @@ namespace ReDefinition.Engineer
             part.SetHighlight(true, false);
         }
 
+        // Whether the part still shows the mark in that colour.
         private static bool Holds(Part part, Color color)
         {
             return part.highlightType == Part.HighlightType.AlwaysOn && part.HighlightActive && part.highlightColor == color;
@@ -93,6 +97,7 @@ namespace ReDefinition.Engineer
             if (had && Lost != null) Lost();
         }
 
+        // The marked parts' highlights back to KSP's default.
         internal void Clear()
         {
             foreach (Part part in marked.Keys)

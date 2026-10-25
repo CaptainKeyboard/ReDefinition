@@ -35,14 +35,18 @@ namespace ReDefinition.Settings.Behaviours
     // scaled value never reaches Parallax's file.
     internal static class ParallaxTessellation
     {
+        // The registered setting's key, Parallax's settings type whose save is hooked, and the hook's Harmony id.
         private const string Key = "parallax.tessellationEdgeLength";
         private const string SettingsTypeName = "Parallax.ParallaxSettings";
         private const string HarmonyId = "ReDefinition.ParallaxTessellation";
 
+        // The registered setting, taken over while scaled.
         private static BundledSetting setting;
         // The setting's own read and write, as registered.
         private static Func<string> read;
         private static Action<string> write;
+        // The player's value, the value written while scaled, the factor (render over display height), whether
+        // it is scaled now, and whether the save's hook is in or could not be.
         private static float playerValue;
         private static float applied;
         private static float factor = 1f;
@@ -50,6 +54,7 @@ namespace ReDefinition.Settings.Behaviours
         private static bool hooked;
         private static bool hookFailed;
 
+        // The edge length as the diagnostics show it: the player's value and the one written, or untouched.
         internal static string Describe()
         {
             return "Parallax edge length " + (scaled
@@ -93,6 +98,8 @@ namespace ReDefinition.Settings.Behaviours
             Apply();
         }
 
+        // The setting's own read and write back, and the player's value into Parallax where it still holds the
+        // scaled one.
         private static void Restore()
         {
             if (!scaled) return;
@@ -105,6 +112,7 @@ namespace ReDefinition.Settings.Behaviours
             factor = 1f;
         }
 
+        // The player's value times the factor into Parallax, where it does not hold that already.
         private static void Apply()
         {
             float now;
@@ -114,6 +122,7 @@ namespace ReDefinition.Settings.Behaviours
             if (!known || !Mathf.Approximately(now, wantedValue)) SafeWrite(Format(wantedValue));
         }
 
+        // The setting's read while scaled: the player's value where Parallax holds the one written here.
         private static string ReadPlayer()
         {
             string now = read();
@@ -122,6 +131,7 @@ namespace ReDefinition.Settings.Behaviours
             return Parse(now, out value) && Mathf.Approximately(value, applied) ? Format(playerValue) : now;
         }
 
+        // The setting's write while scaled: the player's value, scaled into Parallax.
         private static void WritePlayer(string text)
         {
             float value;
@@ -135,6 +145,7 @@ namespace ReDefinition.Settings.Behaviours
             write(Format(applied));
         }
 
+        // The hook on Parallax's save, once, where the build is the one checked; false where it is not in.
         private static bool Hook()
         {
             if (hooked) return true;
@@ -187,6 +198,7 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // Runs inside Parallax after its save, its exception passed on: the scaled value back in.
         private static Exception AfterSave(Exception __exception)
         {
             if (scaled)
@@ -206,6 +218,7 @@ namespace ReDefinition.Settings.Behaviours
             return __exception;
         }
 
+        // The reader's value; null where it throws.
         private static string SafeRead(Func<string> reader)
         {
             try
@@ -233,11 +246,13 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // A float read invariantly.
         private static bool Parse(string text, out float value)
         {
             return float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
         }
 
+        // A float written invariantly, round-trip exact.
         private static string Format(float value)
         {
             return value.ToString("R", CultureInfo.InvariantCulture);

@@ -6,6 +6,7 @@
 
 #include "RtCommon.hlsli"
 
+// ReconstructGuides' reflections, the hit distance in w; the four guides written.
 Texture2D<float4> specularLight : register(t0, space3);
 RWTexture2D<float4> diffuseAlbedo : register(u0, space3);
 RWTexture2D<float4> specularAlbedo : register(u1, space3);
@@ -22,6 +23,8 @@ void WriteSky(uint2 pixel)
     hitDistance[pixel] = float4(kFp16Max, 0.0f, 0.0f, 0.0f);
 }
 
+// A surface's guides at the pixel: its albedo, its specular albedo integrated over the view
+// (EnvBRDFApprox2), its normal with the roughness, the reflections' hit distance.
 void WriteGuides(uint2 pixel, float3 position, float3 albedo, float3 specular, float smoothness, float3 normal,
                  float hit)
 {
@@ -35,6 +38,8 @@ void WriteGuides(uint2 pixel, float3 position, float3 albedo, float3 specular, f
     hitDistance[pixel] = float4(hit, 0.0f, 0.0f, 0.0f);
 }
 
+// For Ray Reconstruction's own frame (RaytracingReconstruct.cpp): the guides from Unity's
+// G-buffer and the depth.
 [numthreads(8, 8, 1)]
 void ReconstructGuides(uint3 id : SV_DispatchThreadID)
 {

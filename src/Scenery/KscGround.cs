@@ -38,12 +38,17 @@ namespace ReDefinition.Scenery
         // on by distance and swaps a facility's models when it is upgraded.
         private const float LookSeconds = 5f;
 
+        // The globals the ground shader reads the colour map, its plane and its placement from; Parallax's textures
+        // and values the lawn takes.
         private static readonly int ColoursId = Shader.PropertyToID("_ReDefinitionKscColours");
         private static readonly int WorldToRootId = Shader.PropertyToID("_ReDefinitionKscWorldToRoot");
         private static readonly int GridId = Shader.PropertyToID("_ReDefinitionKscColourGrid");
         private static readonly string[] ParallaxTextures = { "_MainTexMid", "_BumpMapMid", "_InfluenceMap", "_OcclusionMap" };
         private static readonly string[] ParallaxFloats = { "_Tiling", "_BumpScale", "_SpecularPower", "_SpecularIntensity" };
 
+        // The ground shader; Parallax's terrain material the lawn is taken from; the space centre's root, whose plane
+        // the colour map lies in; the map and its placement (origin x and z, reciprocal extents); whether the
+        // replacements are in.
         private Shader shader;
         private Material parallax;
         private Transform root;
@@ -66,8 +71,11 @@ namespace ReDefinition.Scenery
             return material != null && material.shader != null && material.shader.name == ShaderLookup;
         }
 
+        // The name of this project's ground shader in the bundle.
         private const string ShaderLookup = "ReDefinition/Scenery/Diffuse Ground KSC";
 
+        // Waits up to a minute for Parallax's textures and the terrain under the space centre, then every LookSeconds
+        // applies or restores the materials by the setting; any failure restores them and stops.
         private IEnumerator Start()
         {
             if (!KscGrass.ParallaxInstalled) yield break;
@@ -112,11 +120,13 @@ namespace ReDefinition.Scenery
             }
         }
 
+        // The colour map's plane follows the space centre as the floating origin moves it.
         private void LateUpdate()
         {
             if (applied && root != null) Shader.SetGlobalMatrix(WorldToRootId, root.worldToLocalMatrix);
         }
 
+        // The materials back as they were, the replacements and the colour map destroyed.
         private void OnDestroy()
         {
             Restore();
@@ -126,6 +136,7 @@ namespace ReDefinition.Scenery
             if (colours != null) Destroy(colours);
         }
 
+        // Whether the player keeps the lawns as the terrain (OwnSettings.KscLawnTerrain); on where no settings exist.
         private static bool Enabled()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -169,6 +180,7 @@ namespace ReDefinition.Scenery
             return null;
         }
 
+        // The terrain's mean vertex colour over the colour map, for the log and LawnColour.
         private Color lawnVertexColour;
 
         // The vertex colours of the terrain's quads under and round the space centre, in the plane of its root
@@ -430,6 +442,8 @@ namespace ReDefinition.Scenery
             applied = true;
         }
 
+        // The replacement for a stock ground material, made once: its tarmac, mask and colours, the specular
+        // variant's tarmac normal map, and Parallax's lawn.
         private Material Replacement(Material stock)
         {
             Material replacement;
@@ -455,6 +469,7 @@ namespace ReDefinition.Scenery
             return replacement;
         }
 
+        // Parallax's textures and values of the lawn into a replacement, from its material as it is now.
         private void CopyParallax(Material replacement)
         {
             if (parallax == null || replacement == null) return;

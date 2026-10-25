@@ -14,8 +14,10 @@ namespace ReDefinition.EditorTools
     //     -logFile build/include-check.log
     public static class IncludeCheck
     {
+        // The shader that calls every function of ReDefinition.cginc.
         private const string CheckShader = "Assets/ReDefinition/Include/ReDefinitionIncludeCheck.shader";
 
+        // Entry point for batch mode: imports and bundles the check shader, exits 1 on any shader error or warning.
         public static void RunFromCommandLine()
         {
             List<string> problems = new List<string>();

@@ -21,6 +21,8 @@ namespace ReDefinition.Raytracing
         // from 1 km), the player's "far too wide".
         internal const float MoonBoost = 150f;
 
+        // 0 with the sun about 7 degrees or more over the eye's horizon, 1 with it as far under it, linear in the sine
+        // of its height between; 0 without a body or star.
         internal static float Night(Vector3d eye, CelestialBody main, CelestialBody star)
         {
             if (main == null || star == null) return 0f;

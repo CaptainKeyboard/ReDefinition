@@ -9,11 +9,14 @@ namespace ReDefinition.Bridges
     // KSP_x64.exe. A proxy without the exports makes both calls report that.
     internal static class ScreenRecordingBridge
     {
+        // The proxy's file name, as the DllImports below resolve it in this process.
         private const string Proxy = "dxgi.dll";
 
+        // Starts a recording of that many frames, with dumps not 0 the input dump too; 0 where one already runs.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspRecordScreen(int frames, int dumps);
 
+        // The recording's state as text; its length.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspRecordScreenState(StringBuilder buffer, int size);
 
@@ -31,6 +34,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // What the recording is doing, as the proxy says, or that the proxy has no recording.
         internal static string State()
         {
             try

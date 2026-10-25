@@ -18,6 +18,8 @@ namespace ReDefinition.Dashboard
     /// </summary>
     internal sealed class WebSocketServer
     {
+        // The GUID RFC 6455 appends to a client's key for the handshake's answer; the listener, the log, the
+        // connected clients under their lock, the thread that accepts them, and whether the server runs.
         private const string Guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
         private readonly TcpListener listener;
         private readonly Action<string> log;
@@ -31,8 +33,11 @@ namespace ReDefinition.Dashboard
         public event Action<Client> ClientConnected;
         public event Action<Client> ClientDisconnected;
 
+        // The key a WebSocket from the network must carry in its address, and the folder the files come from.
         private readonly string key, webRoot;
 
+        // A server on that port, on every interface where `network` is set, else on 127.0.0.1 only; it
+        // listens from Start on.
         public WebSocketServer(int port, Action<string> log, bool network, string key, string webRoot)
         {
             this.log = log;
@@ -41,6 +46,7 @@ namespace ReDefinition.Dashboard
             listener = new TcpListener(network ? IPAddress.Any : IPAddress.Loopback, port);
         }
 
+        // Opens the port, which throws where another program holds it, and starts accepting clients.
         public void Start()
         {
             listener.Start();
@@ -49,6 +55,7 @@ namespace ReDefinition.Dashboard
             acceptThread.Start();
         }
 
+        // Closes the port and every client; their threads end with their connections.
         public void Stop()
         {
             running = false;
@@ -57,11 +64,13 @@ namespace ReDefinition.Dashboard
                 foreach (var c in clients) c.Close();
         }
 
+        // The clients connected now, copied, so that the main thread can go through them while others connect.
         public Client[] Snapshot()
         {
             lock (clientsLock) return clients.ToArray();
         }
 
+        // The accept thread: each connection gets a thread of its own (Serve) until the listener stops.
         private void AcceptLoop()
         {
             while (running)
@@ -74,6 +83,8 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // One connection's thread: a file request is answered and closed; a WebSocket becomes a client, read
+        // here until it closes, and is announced on connecting and on leaving.
         private void Serve(TcpClient tcp)
         {
             Client client = null;
@@ -121,6 +132,8 @@ namespace ReDefinition.Dashboard
             return false;
         }
 
+        // Reads the HTTP request; a plain GET is served a file, a WebSocket upgrade with the key or from an
+        // allowed local origin is accepted. True only for an accepted WebSocket.
         private bool Handshake(System.IO.Stream stream, bool local, out string origin)
         {
             origin = null;
@@ -177,6 +190,7 @@ namespace ReDefinition.Dashboard
             return true;
         }
 
+        // The value of a parameter in the request's query string, URI-decoded; null where it has none.
         private static string QueryValue(string target, string name)
         {
             int q = target.IndexOf('?');
@@ -189,6 +203,7 @@ namespace ReDefinition.Dashboard
             return null;
         }
 
+        // The file types served, by extension, with their content types; any other file is not found.
         private static readonly Dictionary<string, string> ContentTypes = new Dictionary<string, string>
         {
             { ".html", "text/html; charset=utf-8" }, { ".js", "text/javascript; charset=utf-8" },
@@ -227,12 +242,15 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // An empty HTTP answer with that status; a client already gone is ignored.
         private static void Reply(System.IO.Stream stream, string status)
         {
             var b = Encoding.ASCII.GetBytes("HTTP/1.1 " + status + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
             try { stream.Write(b, 0, b.Length); } catch { }
         }
 
+        // Reads the client's frames: text messages, joined from their fragments, go to MessageReceived; pings
+        // are answered; a close, an unmasked or an oversized frame ends the connection.
         private void ReadLoop(Client client)
         {
             var stream = client.Stream;
@@ -272,6 +290,7 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // Exactly that many bytes from the stream; throws where it ends before.
         private static byte[] ReadExact(System.IO.Stream s, int count)
         {
             var buf = new byte[count];
@@ -285,24 +304,31 @@ namespace ReDefinition.Dashboard
             return buf;
         }
 
+        // One WebSocket connection, with its own writer thread that sends the queued frames.
         internal sealed class Client
         {
+            // The connection, the frames waiting to be written under their lock, the signal that wakes the
+            // writer, and whether the client is closed.
             private readonly TcpClient tcp;
             private readonly object queueLock = new object();
             private readonly Queue<byte[]> queue = new Queue<byte[]>();
             private readonly AutoResetEvent wake = new AutoResetEvent(false);
             private volatile bool closed;
 
+            // The connection's stream, read by the reader thread and written by the writer thread.
             public System.IO.Stream Stream { get; private set; }
+            // The Origin header of the handshake, null where the client sent none.
             public string Origin { get; private set; }
             /// <summary>State the dashboard keeps per client (its subscriptions); owned by the caller.</summary>
             public object State;
 
+            // A client on a connection whose handshake is done.
             public Client(TcpClient tcp, System.IO.Stream stream, string origin)
             {
                 this.tcp = tcp; Stream = stream; Origin = origin;
             }
 
+            // Starts the writer thread (WriteLoop).
             public void StartWriter()
             {
                 new Thread(WriteLoop) { IsBackground = true, Name = "ReDefinition dashboard writer" }.Start();
@@ -311,11 +337,13 @@ namespace ReDefinition.Dashboard
             /// <summary>Set when a frame was dropped for a slow reader; whoever sends changes only resends all.</summary>
             public volatile bool Dropped;
 
+            // Queues a text frame; from any thread.
             public void SendText(string text)
             {
                 EnqueueFrame(0x1, Encoding.UTF8.GetBytes(text));
             }
 
+            // Frames the payload, unmasked and unfragmented as a server sends it, queues it and wakes the writer.
             public void EnqueueFrame(int opcode, byte[] payload)
             {
                 var frame = new List<byte>(payload.Length + 10) { (byte)(0x80 | opcode) };
@@ -332,6 +360,7 @@ namespace ReDefinition.Dashboard
                 wake.Set();
             }
 
+            // The writer thread: writes the queued frames as they come; a failed write closes the client.
             private void WriteLoop()
             {
                 try
@@ -351,6 +380,7 @@ namespace ReDefinition.Dashboard
                 catch { Close(); }
             }
 
+            // Ends the writer and closes the connection, which ends the reader too; safe to call twice.
             public void Close()
             {
                 closed = true;

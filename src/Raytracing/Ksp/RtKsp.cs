@@ -11,9 +11,13 @@ namespace ReDefinition.Raytracing
     // raytracing replaces").
     internal enum RaytracingMode
     {
+        // KSP's and the mods' own lighting alone.
         Off,
+        // The sun's shadows raytraced.
         Shadows,
+        // Also the occlusion and the light from the sky and the surfaces around.
         Light,
+        // What Light raytraces, and the reflections.
         Full,
     }
 
@@ -26,8 +30,11 @@ namespace ReDefinition.Raytracing
     // and 25 / 21 at night with its own, by at most 6 grey.
     internal enum RaytracingLightColour
     {
+        // The rays' own colour.
         Raytraced,
+        // The colour of Deferred's ambient light, as without the raytracing.
         AsWithout,
+        // Grey, so that a surface in shadow keeps its own colour.
         Neutral,
     }
 
@@ -41,6 +48,7 @@ namespace ReDefinition.Raytracing
         // The setting's default, while no addon holds the player's choice.
         private static readonly RaytracingLightColour DefaultLightColour = new OwnSettings().RaytracingLightColour;
 
+        // The mode and bounces applied; the RtCamera on the scene camera and that camera; the scene's sources.
         private RaytracingMode mode;
         private int bounces = 2;
         private RtCamera attached;
@@ -66,8 +74,10 @@ namespace ReDefinition.Raytracing
         private float retryAt;
         private const float RetrySeconds = 5f;
 
+        // The mode last applied.
         internal RaytracingMode Mode { get { return mode; } }
 
+        // The player's mode and bounces (1 to 8), handed to the running camera; a camera that failed is tried again.
         internal void Apply(RaytracingMode newMode, int newBounces)
         {
             mode = newMode;
@@ -78,6 +88,8 @@ namespace ReDefinition.Raytracing
             if (mode == RaytracingMode.Off) Detach("off");
         }
 
+        // The passes a mode runs: Shadows the sun's shadows, Light also the occlusion and the diffuse light, Full also
+        // the reflections; the rest as RtSettings.Full.
         internal static RtSettings SettingsFor(RaytracingMode mode, int bounces)
         {
             RtSettings settings = RtSettings.Full();
@@ -115,6 +127,8 @@ namespace ReDefinition.Raytracing
             else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
         }
 
+        // Puts an RtCamera on the scene camera with all its inputs from KSP and the mods and its scene's sources;
+        // tried again in RetrySeconds while the proxy or the bundle is not ready, never again on a camera it failed on.
         private void Attach(Camera sceneCamera)
         {
             Detach("the scene camera changed");
@@ -271,6 +285,7 @@ namespace ReDefinition.Raytracing
                       + (RtLighting.ReflectionsReplaced ? ", with Deferred's lighting" : "") + ".");
         }
 
+        // A floating origin shift as the native side takes it.
         private static RtPosition Shift(Vector3d shift)
         {
             return new RtPosition(shift.x, shift.y, shift.z);
@@ -294,6 +309,7 @@ namespace ReDefinition.Raytracing
             Debug.Log(Log.Tag + " Raytracing off: " + why + ".");
         }
 
+        // Logs a reason the raytracing does not run, once until it changes.
         private void Problem(string text)
         {
             if (text == loggedProblem) return;
@@ -301,6 +317,7 @@ namespace ReDefinition.Raytracing
             Debug.Log(Log.Tag + " " + text);
         }
 
+        // The sky's reflection probe for the rays' environment, null while there is none.
         private ReflectionProbe Probe()
         {
             LookUp();
@@ -324,7 +341,6 @@ namespace ReDefinition.Raytracing
                 }
         }
 
-        // What went into the scene and what it cost, every thirty seconds into the log.
         // What the raytracing works from, as one line in the log whenever it changes, checked
         // every two seconds: what the scene camera draws into, whose sea there is and whether
         // it takes the raytraced reflections, and what is missing. Lines with "missing" name
@@ -333,6 +349,8 @@ namespace ReDefinition.Raytracing
         private float nextCheck;
         private readonly StringBuilder check = new StringBuilder(256);
 
+        // The self-check described above; the fields hold the line last logged, when the next check is due, and the
+        // line's buffer.
         private void SelfCheck(Camera sceneCamera)
         {
             if (Time.unscaledTime < nextCheck) return;
@@ -374,6 +392,7 @@ namespace ReDefinition.Raytracing
             Debug.Log(line);
         }
 
+        // What went into the scene and what it cost, every thirty seconds into the log.
         private void Report()
         {
             if (Time.unscaledTime < nextReport) return;

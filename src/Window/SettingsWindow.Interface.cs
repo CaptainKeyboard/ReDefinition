@@ -20,6 +20,7 @@ namespace ReDefinition.Window
                     yield return new KeyValuePair<string, bool>(mod.Id, BundledSettings.HidesButton(mod.Id));
         }
 
+        // The installed mods whose toolbar button ReDefinition can hide.
         private static List<IBundledMod> ButtonMods()
         {
             List<IBundledMod> mods = new List<IBundledMod>();
@@ -69,6 +70,8 @@ namespace ReDefinition.Window
             }
         }
 
+        // The tab's rows of the bundling: the switch with the mods it bundles, the toolbar block, Restore, and what is not
+        // shown here.
         private static DialogGUIBase[] InterfaceRows()
         {
             List<DialogGUIBase> notShown = NotShownRows();
@@ -179,12 +182,14 @@ namespace ReDefinition.Window
             return rows;
         }
 
+        // Whether Better Time Warp's toolbar button is to be hidden, over the copy the window edits.
         private static bool TimeWarpHidden
         {
             get { return edit != null && edit.After != null && !edit.After.TimeWarpToolbarButton; }
             set { if (edit != null && edit.After != null) edit.After.TimeWarpToolbarButton = !value; }
         }
 
+        // Whether every one of those mods' buttons is to be hidden; false for none.
         private static bool AllButtonsHidden(List<IBundledMod> mods)
         {
             foreach (IBundledMod mod in mods)
@@ -226,6 +231,7 @@ namespace ReDefinition.Window
             return rows;
         }
 
+        // Whether any loaded mod has something this window cannot show: the Mods / Toolbar tab's name marks it.
         private static bool AnyNotShown()
         {
             foreach (IBundledMod mod in BundledSettings.Mods)
@@ -236,6 +242,7 @@ namespace ReDefinition.Window
             return false;
         }
 
+        // What the window cannot show of the mod, in words; null where it shows everything.
         private static string NotShownText(RegisteredMod mod)
         {
             if (!mod.IsInstalled)
@@ -254,6 +261,7 @@ namespace ReDefinition.Window
                    + (mod.RowsNotShown.Count + mod.SettingsNotKnown.Count == 1 ? "it." : "them.");
         }
 
+        // The names in single quotes, separated by commas.
         private static string Joined(IList<string> names)
         {
             List<string> quoted = new List<string>();
@@ -261,6 +269,7 @@ namespace ReDefinition.Window
             return string.Join(", ", quoted.ToArray());
         }
 
+        // Asks before Restore, over the window.
         private static void ConfirmRestore()
         {
             ConfirmDialog.OverWindow("ReDefinitionRestore", "Restore settings from before ReDefinition",
@@ -269,6 +278,8 @@ namespace ReDefinition.Window
                 + "TUFX and Distant Object get theirs back in every save as it loads.", 420f, "Restore", Restore);
         }
 
+        // Puts every mod's settings back to what they were before ReDefinition, the profile cleared, and reads the rows
+        // again; refused while a change in the window waits.
         private static void Restore()
         {
             // The window stays usable behind the question: a row changed

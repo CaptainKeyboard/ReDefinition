@@ -12,6 +12,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class OurModulesTests
     {
+        // A GRAPHICS_PROFILE named test holding the given MODULE nodes.
         private static GraphicsProfile Profile(string modules)
         {
             ConfigNode node = ConfigNode.Parse("GRAPHICS_PROFILE\n{\n name = test\n" + modules + "}\n")
@@ -19,11 +20,14 @@ namespace ReDefinition.Tests
             return GraphicsProfile.FromConfigNode(node, new List<string>());
         }
 
+        // An upscaler MODULE node with the given value lines.
         private static string Upscaler(string values)
         {
             return " MODULE\n {\n  name = upscaler\n" + values + " }\n";
         }
 
+        // A profile's upscaler module switches the upscaler on and sets its mode by its name in any letter case, with
+        // technique Auto taken.
         [TestMethod]
         public void AProfileSetsTheUpscalerAndItsModeByName()
         {
@@ -37,6 +41,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
         }
 
+        // A mode given as a number is reported and not taken: the number of a mode is no name a player reads.
         [TestMethod]
         public void AModeIsANameNeverANumber()
         {
@@ -50,6 +55,8 @@ namespace ReDefinition.Tests
             StringAssert.Contains(problems[0], "quality = 2");
         }
 
+        // A profile sets frame generation but neither the sharpness, which is taste, nor the hotkeys: both are
+        // reported and left as they are.
         [TestMethod]
         public void AProfileLeavesTasteAndTheHotkeysToThePlayer()
         {
@@ -67,6 +74,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(2, problems.Count, string.Join("\n", problems));
         }
 
+        // A value can differ by the card: the first alternative naming the game's card class is taken, else the
+        // one without classes.
         [TestMethod]
         public void AValueDiffersByTheCard()
         {
@@ -78,6 +87,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Default", ModuleProfiles.Values(profile, null, GpuClass.Unknown)[0].Value);
         }
 
+        // A value with alternatives for some cards and none for all gives nothing on another card, leaving the
+        // setting as it is.
         [TestMethod]
         public void ACardNoAlternativeIsForGetsNoValue()
         {
@@ -87,6 +98,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, ModuleProfiles.Values(profile, null, GpuClass.Rtx20).Count);
         }
 
+        // Every alternative of a value is checked whatever card the game runs on: a value the setting cannot take,
+        // an unknown card class, and a value for every card that does not stand last are reported.
         [TestMethod]
         public void EveryAlternativeIsCheckedWhateverTheCard()
         {
@@ -102,6 +115,7 @@ namespace ReDefinition.Tests
             StringAssert.Contains(problems[2], "must stand last");
         }
 
+        // A setting a module does not have and a module that does not exist are each reported.
         [TestMethod]
         public void AModuleOrASettingThatIsNotThereIsReported()
         {
@@ -115,6 +129,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Any(problem => problem.Contains("'shaders': no such module")));
         }
 
+        // Each module value a profile sets that the settings do not hold yet counts as one difference, and
+        // none once the profile is applied.
         [TestMethod]
         public void EveryModuleValueThatDiffersCountsAsASetting()
         {
@@ -175,6 +191,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(reset.QualityAuto);
         }
 
+        // The General tab's own rows stand in their order, by title.
         [TestMethod]
         public void TheUpscalingRowsStandInTheirOrder()
         {
@@ -183,6 +200,7 @@ namespace ReDefinition.Tests
                 OurModules.Rows().Select(setting => setting.Title).ToArray());
         }
 
+        // The mode's list runs Auto first, then from Ultra Performance, the smallest render size, to AA only.
         [TestMethod]
         public void TheModesRunFromTheSmallestRenderSizeToAAOnly()
         {

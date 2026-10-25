@@ -18,10 +18,12 @@ namespace ReDefinition.Window
     // answer. A click on it still goes to the first handler above it.
     internal static class DialogTooltips
     {
+        // DialogGUIBase's private controller field, which keeps a changing tooltip current, and the game's tooltip prefab.
         private static readonly FieldInfo ControllerField =
             typeof(DialogGUIBase).GetField("toolTip", BindingFlags.Instance | BindingFlags.NonPublic);
         private static Tooltip_Text prefab;
 
+        // Gives every element with a tooltip, its children included, the game's tooltip controller.
         internal static void Attach(IEnumerable<DialogGUIBase> elements)
         {
             if (elements == null) return;
@@ -46,6 +48,7 @@ namespace ReDefinition.Window
             };
         }
 
+        // One element and its children, a scroll list's layout among them.
         private static void Attach(DialogGUIBase element)
         {
             if (element == null) return;

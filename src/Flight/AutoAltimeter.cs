@@ -15,16 +15,21 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class AutoAltimeter : MonoBehaviour
     {
+        // In metres over the ground: the ground's height below Low, the sea's above High; and how often, in seconds, the
+        // rule is checked.
         internal const double Low = 5000.0;
         internal const double High = 6000.0;
         private const float Interval = 0.25f;
 
+        // When the rule is checked next, and the vessel it was last checked for.
         private float next;
         private Vessel vessel;
         // What the rule wants now, and what was last set here; unknown at first.
         private AltimeterDisplayState wanted = AltimeterDisplayState.DEFAULT;
         private AltimeterDisplayState set = AltimeterDisplayState.DEFAULT;
 
+        // Every Interval: the altimeter set as the rule wants, unless the player set it by hand since and the rule has not
+        // changed its mind.
         private void Update()
         {
             if (Time.unscaledTime < next) return;

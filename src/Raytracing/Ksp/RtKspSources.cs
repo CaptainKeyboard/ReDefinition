@@ -26,6 +26,7 @@ namespace ReDefinition.Raytracing
         private static readonly List<Renderer> found = new List<Renderer>();
         private static Camera[] cameras = new Camera[8];
 
+        // The renderers under every camera and under the flight camera, found anew; from RtKsp every frame.
         internal static void FindOnCameras(Transform flightCamera)
         {
             onCameras.Clear();
@@ -36,6 +37,7 @@ namespace ReDefinition.Raytracing
             if (flightCamera != null) Take(flightCamera);
         }
 
+        // Every renderer under the transform, active or not.
         private static void Take(Transform root)
         {
             root.GetComponentsInChildren(true, found);
@@ -52,6 +54,7 @@ namespace ReDefinition.Raytracing
         // A renderer's materials, read into this list rather than a new array each time.
         private static readonly List<Material> sharedMaterials = new List<Material>();
 
+        // Below the transparent queues and not Parallax's DiscardAll; null is not.
         internal static bool Opaque(Material material)
         {
             if (material == null) return false;
@@ -66,12 +69,14 @@ namespace ReDefinition.Raytracing
             return !discard;
         }
 
+        // Enabled, active, on a layer of the culling mask, and not hung on a camera.
         internal static bool Drawn(Renderer renderer)
         {
             return renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy
                    && (CullingMask & (1 << renderer.gameObject.layer)) != 0 && !onCameras.Contains(renderer);
         }
 
+        // The renderer's mesh at its own transform, where it is drawn.
         internal static void Add(Renderer renderer, Mesh mesh, List<RtItem> into, uint flags = 0)
         {
             if (mesh == null || !Drawn(renderer)) return;
@@ -101,8 +106,10 @@ namespace ReDefinition.Raytracing
     // which the scene hands over again.
     internal sealed class RtVesselSource : IRtSource
     {
+        // A part's renderers as last found, and in which frame, looked for again every RefreshFrames.
         private sealed class PartRenderers
         {
+            // The part's mesh filters, found in its active children.
             public MeshFilter[] Filters;
             // Each filter's renderer, found with it.
             public MeshRenderer[] Renderers;
@@ -117,9 +124,12 @@ namespace ReDefinition.Raytracing
         private const int RefreshFrames = 300;
         private const int RefreshesPerFrame = 8;
 
+        // Each part's renderers by part.
         private readonly Dictionary<Part, PartRenderers> parts = new Dictionary<Part, PartRenderers>();
+        // A skinned renderer's bake.
         private sealed class Bake
         {
+            // The baked mesh, and the pose it was baked at (Pose).
             public Mesh Mesh;
             public Vector4 Pose;
             // The renderer's bones, read with its part's renderers: each read is a new array.
@@ -127,6 +137,8 @@ namespace ReDefinition.Raytracing
             public int BonesFrame;
         }
 
+        // The bakes by skinned renderer; lists for the frame's parts and those gone; the scene; the frame count; the
+        // bakes' turn (a quarter of the skinned meshes checked each frame); how near the eye a vessel is taken.
         private readonly Dictionary<SkinnedMeshRenderer, Bake> baked = new Dictionary<SkinnedMeshRenderer, Bake>();
         private readonly List<SkinnedMeshRenderer> goneSkinned = new List<SkinnedMeshRenderer>();
         private readonly List<Part> scratch = new List<Part>();
@@ -136,13 +148,17 @@ namespace ReDefinition.Raytracing
         private int bakeCursor;
         private const float range = 5000f;
 
+        // For the scene the parts are handed to, which takes their meshes.
         internal RtVesselSource(RtScene scene)
         {
             this.scene = scene;
         }
 
+        // How many parts were looked at this frame, for the log.
         internal int Parts { get; private set; }
 
+        // Every frame: the ship's parts in the editors, the loaded vessels' within range of the eye in flight, their
+        // meshes, and their skinned meshes baked where their pose changed.
         public void Collect(List<RtItem> into)
         {
             frame++;
@@ -267,6 +283,7 @@ namespace ReDefinition.Raytracing
             return sum;
         }
 
+        // Lets the baked meshes go and forgets the parts, as the raytracing stops.
         internal void Clear()
         {
             foreach (Bake bake in baked.Values)
@@ -285,8 +302,10 @@ namespace ReDefinition.Raytracing
     // material and is left out.
     internal sealed class RtTerrainSource : IRtSource
     {
+        // What a quad was when last handed over, to tell when its mesh changed.
         private sealed class QuadState
         {
+            // Where the quad stands on the planet and its edges' state when its filters were found.
             public Vector3d Place;
             public PQS.EdgeState Edge;
             // Parallax adds its finer copy as a child once the camera comes near and takes
@@ -312,19 +331,24 @@ namespace ReDefinition.Raytracing
         private const int ForgetFrames = 600;
         private int frame;
 
+        // Each quad's state by quad; the quads to let go; the walk's stack; the scene; how near the eye a quad is taken.
         private readonly Dictionary<PQ, QuadState> quads = new Dictionary<PQ, QuadState>();
         private readonly List<PQ> forgotten = new List<PQ>();
         private readonly Stack<PQ> stack = new Stack<PQ>();
         private readonly RtScene scene;
         internal const float Range = 30000f;
 
+        // For the scene the quads are handed to, which takes their meshes.
         internal RtTerrainSource(RtScene scene)
         {
             this.scene = scene;
         }
 
+        // How many quads went into the scene this frame, for the log.
         internal int Quads { get; private set; }
 
+        // Every frame: the visible leaves of the scene body's quad tree within Range of the eye, and the meshes under
+        // them; a mesh handed over again where its quad was reused or Parallax refilled it.
         public void Collect(List<RtItem> into)
         {
             Quads = 0;
@@ -413,6 +437,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // Forgets the quads as the raytracing stops; the scene lets their meshes go itself.
         internal void Clear()
         {
             quads.Clear();
@@ -425,6 +450,7 @@ namespace ReDefinition.Raytracing
     // around the camera, so what lies behind the camera further out casts no shadow.
     internal sealed class RtParallaxScatter : IRtGpuSource
     {
+        // How many scatter buffers went into the scene this frame, for the log.
         internal int Buffers { get; private set; }
 
         // -redefinitionProbeNoParallaxScatterRays: Parallax's own scatter left out of the
@@ -436,6 +462,7 @@ namespace ReDefinition.Raytracing
         private static readonly bool KscGrassLeftOut =
             System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoKscGrassRays") >= 0;
 
+        // Every frame in flight and at the space centre: the scatter buffers handed over, counted for the log.
         public void CollectGpu(List<RtGpuItem> into)
         {
             Buffers = HighLogic.LoadedSceneIsFlight || HighLogic.LoadedScene == GameScenes.SPACECENTER
@@ -452,6 +479,7 @@ namespace ReDefinition.Raytracing
         // hierarchy last changed, and the sphere they lie in, relative to its root.
         private sealed class Site
         {
+            // The city's or the hall's root transform, and whether its filters were looked for since it changed.
             public Transform Root;
             public bool Found;
             // Looked through again then: filters without their mesh yet.
@@ -468,6 +496,7 @@ namespace ReDefinition.Raytracing
             public float Radius;
         }
 
+        // The sites found; lists filled while a site is looked through.
         private readonly List<Site> sites = new List<Site>();
         private readonly List<MeshFilter> found = new List<MeshFilter>();
         private readonly List<SkinnedMeshRenderer> foundSkinned = new List<SkinnedMeshRenderer>();
@@ -485,6 +514,7 @@ namespace ReDefinition.Raytracing
         private float lookedAt;
         private const float range = 8000f;
 
+        // Subscribes once per run to the space centre's building events (changedAt).
         internal RtScenerySource(RtScene scene)
         {
             this.scene = scene;
@@ -504,6 +534,7 @@ namespace ReDefinition.Raytracing
         private static bool listening;
         private static float changedAt = -1f;
 
+        // How many renderers went into the scene this frame, for the log.
         internal int Renderers { get; private set; }
         // How often a site's filters were looked for again.
         internal static int Refreshes;
@@ -519,6 +550,8 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // Every frame: the sites' renderers and baked skinned meshes within range of the eye, the sites looked for
+        // again on a scene change and every ten seconds.
         public void Collect(List<RtItem> into)
         {
             // The sites found anew when the scene changes and every ten seconds, which is
@@ -551,7 +584,7 @@ namespace ReDefinition.Raytracing
                 FindSites();
             }
             Vector3 eye = scene.Eye;
-                        Renderers = 0;
+            Renderers = 0;
             foreach (Site site in sites)
             {
                 if (site.Root == null) continue;
@@ -597,6 +630,8 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The sites of the scene: the editor's hall in the editors, every PQSCity and PQSCity2 elsewhere; gone ones
+        // dropped, new ones added to be looked through.
         private void FindSites()
         {
             var roots = new List<Transform>();
@@ -651,6 +686,7 @@ namespace ReDefinition.Raytracing
             sitesOf = GameScenes.LOADING;
         }
 
+        // The skinned renderer's mesh baked once per frame, into a mesh of its own made the first time.
         private Mesh Baked(SkinnedMeshRenderer skinned)
         {
             Mesh mesh;

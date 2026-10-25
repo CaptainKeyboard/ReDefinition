@@ -16,6 +16,7 @@ namespace redefinition
 {
     namespace
     {
+        // NVSDK_NGX_Feature_SuperSampling, and DLAA's quality value (DlssPacket::quality).
         constexpr int kNgxFeatureSuperSampling = 1;
         constexpr int kNgxQualityDlaa = 5;
 
@@ -37,8 +38,10 @@ namespace redefinition
         // It shuts NGX down on every Direct3D 11 device, and this is the only one that starts it there.
         using ShutdownFn = uint32_t (*)();
 
+        // The driver's D3D11 exports the proxy calls.
         struct NgxD3d11
         {
+            // Init, the capability and parameter maps, the feature's creation, evaluation and release, shutdown.
             InitProjectIdFn initProjectId = nullptr;
             NgxGetParametersFn getCapabilityParameters = nullptr;
             NgxGetParametersFn getParameters = nullptr;
@@ -49,6 +52,7 @@ namespace redefinition
             ShutdownFn shutdown = nullptr;
         };
 
+        // The exports, resolved once from the driver's core.
         NgxD3d11 g_ngx;
 
         // The GPU a device renders on, for messages.
@@ -63,11 +67,13 @@ namespace redefinition
             return Narrow(desc.Description);
         }
 
+        // An NGX result as eight hexadecimal digits, for messages.
         std::string Hex(uint32_t value)
         {
             return NgxHex(value);
         }
 
+        // A size as "1920x1080", for messages.
         std::string Size(unsigned int width, unsigned int height)
         {
             return NgxSize(width, height);
@@ -86,6 +92,7 @@ namespace redefinition
             return signature;
         }
 
+        // Whether a feature made for a can take b: the same sizes, quality, preset and creation flags.
         bool SameFeature(const DlssPacket& a, const DlssPacket& b)
         {
             const uint32_t creationFlags = kDlssHdr | kDlssDepthInverted | kDlssAutoExposure;
@@ -95,6 +102,7 @@ namespace redefinition
                 && (a.flags & creationFlags) == (b.flags & creationFlags);
         }
 
+        // The parameter map behind the pointer the class keeps.
         NgxParameters* Map(void* parameters)
         {
             return static_cast<NgxParameters*>(parameters);

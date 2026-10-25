@@ -33,13 +33,14 @@ namespace ReDefinition.Settings
     // tests.
     internal interface IStoreHost
     {
-        // bundled.cfg, read into the ledger and the state once, and written whole;
-        // false where the writing failed.
+        // bundled.cfg, read into the ledger and the state once.
         void Read(BundledLedger ledger, BundledState state);
+        // The ledger and the state written whole; false where that failed.
         bool Write(BundledLedger ledger, BundledState state);
 
         // An installed mod's setting by its key; null where there is none.
         BundledSetting Find(string key);
+        // The installed mods, in the registrations' order.
         IList<IBundledMod> Installed();
 
         // The save a per-save mod keeps its values for now; empty outside a save.
@@ -47,13 +48,17 @@ namespace ReDefinition.Settings
 
         // What installed mods require of a setting (Requirements).
         string Adjust(BundledSetting setting, string value);
+        // Whether their requirements allow the value.
         bool Allows(BundledSetting setting, string value);
+        // On screen, the reasons the value fails them, once per run each.
         void Tell(BundledSetting setting, string value);
 
         // A line in the log, a warning, and a warning of a kind said a few times
         // at most (CompatibilityLog).
         void Info(string message);
+        // A warning in the log.
         void Warning(string message);
+        // A warning of its kind, said a few times at most.
         void Warn(string kind, string message);
     }
 
@@ -62,6 +67,8 @@ namespace ReDefinition.Settings
     // the store that touches KSP's ConfigNode and the disk.
     internal static class BundledFile
     {
+        // The file's root node; its values, its values from before ReDefinition with a SAVE node per save, the
+        // profile's builds per mod; a SAVE node's name key; the key that lists the keys marked to be put back.
         private const string RootName = "REDEFINITION_BUNDLED";
         private const string ValuesName = "VALUES";
         private const string BackupName = "BEFORE_REDEFINITION";
@@ -145,6 +152,8 @@ namespace ReDefinition.Settings
             ledger.Dirty = false;
         }
 
+        // The ledger and the state written whole, the folder made where it is missing; false, with a warning,
+        // where that failed.
         internal static bool Write(string path, BundledLedger ledger, BundledState state, IStoreHost host)
         {
             try
@@ -190,6 +199,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // One save's values from before ReDefinition into the ledger, with their marks to be put back.
         private static void ReadBackups(BundledLedger ledger, string context, ConfigNode node)
         {
             foreach (ConfigNode.Value value in node.values)
@@ -204,6 +214,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // One save's values from before ReDefinition, and the list of those marked to be put back.
         private static void WriteBackups(ConfigNode node, Dictionary<string, BundledLedger.Backup> values)
         {
             List<string> restore = new List<string>();
@@ -215,6 +226,8 @@ namespace ReDefinition.Settings
             if (restore.Count > 0) node.AddValue(RestoreName, string.Join(",", restore.ToArray()));
         }
 
+        // The unreadable file renamed to .unreadable, so it is not written over; the bundled settings start
+        // afresh.
         private static void SetAside(string path, IStoreHost host)
         {
             string aside = path + ".unreadable";

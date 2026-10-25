@@ -17,6 +17,8 @@ namespace ReDefinition.RaytracingPlayer
     //     -executeMethod ReDefinition.RaytracingPlayer.BuildPlayer.Build -output <exe>
     public static class BuildPlayer
     {
+        // Sets the player up, makes the materials and the runner's scene, builds to -output and exits Unity with 0
+        // on success, 1 on failure.
         public static void Build()
         {
             string output = Argument("-output") ?? Path.GetFullPath("../../build/RaytracingPlayer/RaytracingPlayer.exe");
@@ -71,6 +73,7 @@ namespace ReDefinition.RaytracingPlayer
             }
         }
 
+        // The value after the named command-line argument, or null without one.
         private static string Argument(string name)
         {
             string[] args = Environment.GetCommandLineArgs();

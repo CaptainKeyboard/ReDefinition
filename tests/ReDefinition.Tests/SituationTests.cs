@@ -10,6 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class SituationTests
     {
+        // A vessel in the air with the given vertical speed and height over the ground, no docking port near.
         private static FlightProfiles.Facts Aloft(double verticalSpeed, double overGround)
         {
             return new FlightProfiles.Facts { VerticalSpeed = verticalSpeed, OverGround = overGround, Port = double.NaN };
@@ -23,6 +24,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(PanelSituation.Ascent, FlightProfiles.Classify(Aloft(-30.0, 75000.0), PanelSituation.Ascent));
         }
 
+        // Coming down faster than 5 m/s below 20 km over the ground turns the ascent into a landing.
         [TestMethod]
         public void FallingBackLowIsALanding()
         {
@@ -53,6 +55,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(PanelSituation.Landing, FlightProfiles.Classify(Aloft(-200.0, 15000.0), PanelSituation.Orbit));
         }
 
+        // A target makes no rendezvous while climbing, only in orbit.
         [TestMethod]
         public void ATargetMattersInOrbitOnly()
         {
@@ -79,6 +82,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(PanelSituation.Rendezvous, FlightProfiles.Classify(facts, PanelSituation.Docking));
         }
 
+        // A winged vessel in the air is flying, even sinking fast low down, and not landing.
         [TestMethod]
         public void WingsInTheAirFlyAndDoNotLand()
         {
@@ -88,6 +92,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(PanelSituation.Air, FlightProfiles.Classify(facts, PanelSituation.Air));
         }
 
+        // The gauge's scales are logarithmic and fixed: time up to ten minutes, a minute at 64 %; speed up to
+        // 100 m/s, 1 m/s at 35 %.
         [TestMethod]
         public void TheGaugesScalesAreFixed()
         {

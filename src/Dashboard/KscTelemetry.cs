@@ -13,24 +13,33 @@ namespace ReDefinition.Dashboard
     // at the Space Center; times go out as UT, for the page to count down from g.ut.
     internal sealed class KscTelemetry
     {
+        // The lists are read again after this many seconds.
         private const float ListsEvery = 1f;
         // The alarms shown: the next ones.
         private const int AlarmsShown = 8;
 
+        // When the lists were last read (Time.realtimeSinceStartup), and each list as JSON then.
         private float listsRead = -1e9f;
         private Json.Raw buildings, vessels, alarms, contracts, crew;
 
+        // Whether the Space Center scene of a game is open: the lists and actions work there only.
         private static bool AtSpaceCenter
         {
             get { return HighLogic.LoadedScene == GameScenes.SPACECENTER && HighLogic.CurrentGame != null; }
         }
 
+        // k.buildings: the buildings (ReadBuildings), at the Space Center only.
         internal object Buildings() { return Lists() ? buildings : null; }
+        // k.vessels: the vessels to fly (ReadVessels), at the Space Center only.
         internal object Vessels() { return Lists() ? vessels : null; }
+        // k.alarms: the next alarms (ReadAlarms), at the Space Center only.
         internal object Alarms() { return Lists() ? alarms : null; }
+        // k.contracts: the active contracts (ReadContracts), at the Space Center only.
         internal object Contracts() { return Lists() ? contracts : null; }
+        // k.crew: the crew counted by status (ReadCrew), at the Space Center only.
         internal object Crew() { return Lists() ? crew : null; }
 
+        // Reads all lists again where ListsEvery has passed; false away from the Space Center.
         private bool Lists()
         {
             if (!AtSpaceCenter) return false;
@@ -45,6 +54,7 @@ namespace ReDefinition.Dashboard
             return true;
         }
 
+        // A list written as JSON once, so that every client's update between two readings reuses the text.
         private static Json.Raw Raw(object value)
         {
             return new Json.Raw(Json.Value(value));
@@ -92,6 +102,7 @@ namespace ReDefinition.Dashboard
                    && vessel.DiscoveryInfo.Level == DiscoveryLevels.Owned;
         }
 
+        // The vessels that can be flown, by name: id (for k.fly), name, type, situation, body and launch time.
         private static List<Dictionary<string, object>> ReadVessels()
         {
             var list = new List<Dictionary<string, object>>();
@@ -112,6 +123,8 @@ namespace ReDefinition.Dashboard
             return list;
         }
 
+        // The next AlarmsShown alarms of KSP's alarm clock still to come, the soonest first: id (for k.warpTo),
+        // title, vessel and UT.
         private static List<Dictionary<string, object>> ReadAlarms()
         {
             var list = new List<Dictionary<string, object>>();
@@ -134,6 +147,8 @@ namespace ReDefinition.Dashboard
             return list;
         }
 
+        // The active contracts, the nearest deadline first, those without one last: title, deadline (UT) and
+        // the funds, science and reputation their completion pays.
         private static List<Dictionary<string, object>> ReadContracts()
         {
             var list = new List<Dictionary<string, object>>();
@@ -155,6 +170,7 @@ namespace ReDefinition.Dashboard
             return list;
         }
 
+        // The roster's kerbals counted as available, assigned, and lost (every other status: dead, missing).
         private static Dictionary<string, object> ReadCrew()
         {
             int available = 0, assigned = 0, lost = 0;
@@ -224,6 +240,7 @@ namespace ReDefinition.Dashboard
             TimeWarp.fetch.WarpTo(alarm.ut);
         }
 
+        // A line in KSP.log under the dashboard's tag.
         private static void LogLine(string message)
         {
             Debug.Log(Log.Tag + " Dashboard: " + message);

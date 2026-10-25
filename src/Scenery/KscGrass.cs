@@ -37,12 +37,16 @@ namespace ReDefinition.Scenery
         private const float Footprint = 0.85f;
         // A collider this far over the lawn (a pipe, a wall) keeps clumps off.
         private const float Overhead = 0.3f;
+        // The height over the lawn the rays down onto it start from.
         private const float RayHeight = 30f;
         // Room beyond this many metres is not told apart.
         private const float MostRoom = 16f;
 
+        // One of Parallax's grass scatters, with what lifts and draws it.
         private sealed class Kind
         {
+            // The scatter's name and Parallax renderer, its mesh and material per level of detail, the reach that must
+            // stand on lawn, and the buffers its lifted clumps go into.
             public string Name;
             public object Renderer;
             public readonly Mesh[] Meshes = new Mesh[3];
@@ -60,11 +64,13 @@ namespace ReDefinition.Scenery
         // A triangle of the space centre's lawns, relative to the space centre's root.
         private sealed class Lawn
         {
+            // The corners, the blend mask's coordinates at them, and the mask's pixels and size (Mask null: all grass).
             public Vector3 A, B, C;
             public Vector2 UvA, UvB, UvC;
             public Color32[] Mask;
             public Vector2Int MaskSize;
 
+            // How much tarmac the blend mask holds at a texture coordinate, wrapped into the mask.
             public float Tarmac(Vector2 uv)
             {
                 int x = Mathf.Clamp((int)((uv.x - Mathf.Floor(uv.x)) * MaskSize.x), 0, MaskSize.x - 1);
@@ -73,6 +79,10 @@ namespace ReDefinition.Scenery
             }
         }
 
+        // The grass kinds found; the space centre's root; the lift and its kernel; the lawns' map and its placement
+        // (texel 0's x and z, the texel size, the lowest lawn); each source buffer's clump count, which the lift
+        // reads; the indirect arguments set; whether the map is made; each source buffer's capacity, by slot
+        // (kind * 3 + lod).
         private readonly List<Kind> kinds = new List<Kind>();
         private Transform root;
         private ComputeShader lift;
@@ -101,6 +111,7 @@ namespace ReDefinition.Scenery
         // Whether Parallax is installed, looked up once: the settings window asks it as it
         // draws the row.
         private static bool? parallaxInstalled;
+        // Asked by the settings window, the scene probe and KscGround.
         internal static bool ParallaxInstalled
         {
             get
@@ -109,8 +120,10 @@ namespace ReDefinition.Scenery
                 return parallaxInstalled.Value;
             }
         }
+        // The frames drawn, for the checks every 600 frames and the log at frame 300.
         private int drawnFrames;
 
+        // The lift's inputs (ReDefinitionKscGrass.compute) and Parallax's instance buffer in its material.
         private static readonly int SourceId = Shader.PropertyToID("_Source");
         private static readonly int CountsId = Shader.PropertyToID("_Counts");
         private static readonly int CountIndexId = Shader.PropertyToID("_CountIndex");
@@ -125,6 +138,8 @@ namespace ReDefinition.Scenery
         private static readonly int ReachId = Shader.PropertyToID("_Reach");
         private static readonly int InstanceDataId = Shader.PropertyToID("_InstanceData");
 
+        // Waits up to a minute for Parallax's grass renderers, loads the lift, maps the lawns and starts drawing; maps
+        // them again ten seconds later, when the space centre stands whole.
         private IEnumerator Start()
         {
             bool failed = false;
@@ -189,6 +204,7 @@ namespace ReDefinition.Scenery
             yield return MapLawns();
         }
 
+        // Stops drawing, ends a map in flight and lets go of every buffer and the map.
         private void OnDestroy()
         {
             Camera.onPreCull -= Draw;
@@ -207,6 +223,7 @@ namespace ReDefinition.Scenery
             if (lawnMap != null) Destroy(lawnMap);
         }
 
+        // The instance drawing now, for the rays' static calls; null while none is ready.
         private static KscGrass current;
 
         // The lifted clumps of this frame for the raytracing, as Parallax's own scatter
@@ -259,6 +276,7 @@ namespace ReDefinition.Scenery
             return own;
         }
 
+        // Whether the player keeps the grass on (OwnSettings.KscGrass); on where no settings exist.
         private static bool Enabled()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -455,6 +473,8 @@ namespace ReDefinition.Scenery
         // The lawns' map's data, worked out off the main thread.
         private sealed class LawnMap
         {
+            // Texel 0's corner and the lowest lawn, in metres of the root's space; the size in texels; each lawn texel's
+            // height; whether a texel is lawn (a covered one is not).
             public float X0, Z0, Y0;
             public int Width, Depth;
             private float[] height;
@@ -471,6 +491,8 @@ namespace ReDefinition.Scenery
             public int Covered;
             public ushort[] Texels;
 
+            // Lays the lawn triangles onto the map: its extent from them, each texel's highest lawn where the blend
+            // mask leaves grass, the ground under all of them, and the banks for the picture.
             public void Rasterise(List<Lawn> lawns, List<Lawn> banks)
             {
                 float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue, y0 = float.MaxValue;
@@ -781,11 +803,14 @@ namespace ReDefinition.Scenery
             }
         }
 
+        // The same without the clumps of other kinds.
         private void WriteMap(LawnMap map, List<Vector3> main, string file, string note)
         {
             WriteMap(map, main, null, file, note);
         }
 
+        // The lawns' map as a PPM picture in the run's capture folder, the vessel and the clumps given marked on it, for
+        // -redefinitionProbeLawnMap.
         private void WriteMap(LawnMap map, List<Vector3> main, List<Vector3> others, string file, string note)
         {
             int width = map.Width, depth = map.Depth;
@@ -832,11 +857,13 @@ namespace ReDefinition.Scenery
                       + " m of the space centre's root, the vessel at texel " + vx + ", " + vz + (note.Length > 0 ? "; " + note : "") + ".");
         }
 
+        // A buffer let go two frames after Draw replaced it (retired).
         private void Retire(ComputeBuffer buffer)
         {
             if (buffer != null) retired.Add(new KeyValuePair<ComputeBuffer, int>(buffer, Time.frameCount));
         }
 
+        // A texture coordinate through a texture's scale (xy) and offset (zw), as _ST holds them.
         private static Vector2 Scaled(Vector2 uv, Vector4 scale)
         {
             return new Vector2(uv.x * scale.x + scale.z, uv.y * scale.y + scale.w);

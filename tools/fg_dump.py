@@ -20,6 +20,7 @@ MATRICES = ("viewToClip", "clipToView", "clipToPrevClip", "prevClipToClip")
 
 
 def number(value):
+    """A float as frames.txt writes it: nine significant digits, as short as they allow."""
     return "%.9g" % value
 
 
@@ -42,6 +43,7 @@ def entry(index, packet_index, size, mv_scale, near, far, fov, dt_ms, matrices, 
 
 
 def write_index(folder, lines):
+    """Write the frames' lines as the folder's frames.txt."""
     with open(os.path.join(folder, "frames.txt"), "w", encoding="utf-8") as file:
         file.write("\n".join(lines) + "\n")
 

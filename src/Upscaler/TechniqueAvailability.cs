@@ -17,16 +17,22 @@ namespace ReDefinition.Upscaler
         [Flags]
         internal enum Needs
         {
+            // Nothing: the technique can be chosen at once.
             None = 0,
+            // NVIDIA's DLLs (DLSS, Streamline), from NVIDIA's download.
             NvidiaFiles = 1,
+            // Intel's XeSS DLLs, from Intel's download.
             IntelFiles = 2,
+            // AMD's upscaler DLL, which the player places in its folder.
             AmdDll = 4,
+            // The dlssg_for_sm86 package that runs DLSS frame generation on an RTX 30 or 20.
             AmperePackage = 8,
         }
 
         // What the reasons rest on.
         internal struct Facts
         {
+            // The class of the graphics card KSP renders on.
             public GpuClass Gpu;
             // The proxy is there; its DLSS; a frame generation swapchain of it presents now.
             public bool ProxyPresent;
@@ -51,6 +57,7 @@ namespace ReDefinition.Upscaler
         // Why a technique the card cannot run is greyed out: the button's own tooltip says which cards run it.
         internal const string NotThisCard = "Not on this card.";
 
+        // The facts last gathered and when (realtimeSinceStartup), for Current to answer from within a second.
         private static Facts facts;
         private static float askedAt = float.MinValue;
 
@@ -161,6 +168,8 @@ namespace ReDefinition.Upscaler
             return FrameGeneration(technique, f) == null && FrameGenerationNeeds(technique, f) == Needs.None;
         }
 
+        // What a frame generation choice the card can run still waits for: the RTX 30/20 package and NVIDIA's
+        // files for DLSS, Intel's files for XeSS; FSR 3's runtime comes with ReDefinition.
         public static Needs FrameGenerationNeeds(string choice, Facts f)
         {
             Needs needs = Needs.None;

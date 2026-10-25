@@ -159,6 +159,8 @@ namespace ReDefinition.Api
             return FromCompiled(name, null, fullPath, entryPoint);
         }
 
+        // Compiles the source or the file through the proxy and makes a pass of the bytecode; on a failed compile it
+        // leaves the reason in LastRefusal or LastCompilerMessages and returns 0.
         private static int FromCompiled(string name, string source, string path, string entryPoint)
         {
             byte[] bytecode;
@@ -192,8 +194,10 @@ namespace ReDefinition.Api
 
         /// <summary>
         /// One dispatch of a pass, executed at once. Call it where the textures read hold this frame's
-        /// image -- from <c>OnRenderImage</c>, or later: a render event issued from a camera's own
-        /// command buffer reads the frame before (measured in Unity 2019.4 with KSP's graphics jobs).
+        /// image -- from a camera's own command buffer after they are drawn, or from <c>OnRenderImage</c>:
+        /// a render event issued from a camera's command buffer reads this frame (measured in Unity
+        /// 2019.4 with every graphics jobs mode, 2026-10-01; an earlier "a frame late" was the delay of a
+        /// texture with MSAA, which Unity resolves only at the camera's end).
         /// The write textures hold the result when it returns, or with <paramref name="nextFrame"/> at
         /// the pass's next dispatch, which lets the pass run beside the rest of the frame. At most 32
         /// dispatches a frame.
@@ -265,6 +269,7 @@ namespace ReDefinition.Api
             D3d12Bridge.ReleaseTexture(texture);
         }
 
+        // The proxy's device capabilities, queried afresh on each call: the properties above read one field each.
         private static D3d12Bridge.Capabilities Capabilities()
         {
             D3d12Bridge.Capabilities capabilities;

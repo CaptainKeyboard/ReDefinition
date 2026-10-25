@@ -11,6 +11,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class AutoSettingsTests
     {
+        // DLSS on an RTX where it is usable, FSR 4 on a Radeon RX 7000 or 9000 with AMD's DLL, XeSS on Intel
+        // with its DLL, FSR 3 everywhere else, an RTX without DLSS's file or the proxy included.
         [TestMethod]
         public void TheTechniqueFollowsTheCard()
         {
@@ -49,6 +51,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(dlss, AutoSettings.Mode(screen, target, true).ToString());
         }
 
+        // On an RTX 20 or 30 Ray Reconstruction runs from the Full raytracing mode up, on an RTX 40 or 50 from
+        // Shadows up.
         [TestMethod]
         public void RayReconstructionStartsAtFullOnAnRtx20Or30AndAtShadowsOnAnRtx40Or50()
         {
@@ -63,6 +67,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(RaytracingMode.Shadows, from);
         }
 
+        // Ray Reconstruction is Auto's only on an RTX with DLSS chosen; FSR, FSR 4 or XeSS rule it out.
         [TestMethod]
         public void RayReconstructionNeedsAnRtxWithDlss()
         {
@@ -72,6 +77,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(AutoSettings.RayReconstruction(GpuClass.Intel, UpscalerBackend.Xess, out from));
         }
 
+        // Resolve fills in only the settings left to Auto: a technique the player chose stays, and Ray
+        // Reconstruction follows that technique, not the card's.
         [TestMethod]
         public void ResolveFillsInOnlyWhatIsAuto()
         {
@@ -89,6 +96,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(settings.RayReconstruction, "Ray Reconstruction needs DLSS, and FSR 3 was chosen");
         }
 
+        // The same render height gives another mode by the card's technique: on a 1080p screen DLSS takes
+        // NativeAA, having no 1.2x, where FSR 4 takes UltraQuality.
         [TestMethod]
         public void TheModeFollowsTheScreenAndTheTechnique()
         {
@@ -104,6 +113,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(Fsr3Upscaler.QualityMode.UltraQuality, settings.Quality);
         }
 
+        // The rows read Auto while the flag is set; writing a value clears the flag and writing Auto sets it
+        // again, and switching the upscaler off keeps Auto for when it is on again.
         [TestMethod]
         public void TheRowsReadAndWriteAutoAsAChoice()
         {
@@ -135,6 +146,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(settings.BackendAuto, "off keeps Auto for when it is on again");
         }
 
+        // A technique, mode or Ray Reconstruction set by name, as the probe's ini shots set them, is no longer
+        // Auto's.
         [TestMethod]
         public void AValueSetByNameIsNoLongerAutos()
         {
@@ -149,6 +162,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(settings.RayReconstructionAuto);
         }
 
+        // Ray Reconstruction set on by name runs from the Shadows mode up, every raytracing mode, as the row's On
+        // does.
         [TestMethod]
         public void RayReconstructionSetOnByNameRunsInEveryMode()
         {
@@ -159,6 +174,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(RaytracingMode.Shadows, settings.RayReconstructionFrom);
         }
 
+        // Resolve keeps what Auto would choose in ResolvedBackend even where the player chose another technique,
+        // so the row can name it.
         [TestMethod]
         public void TheRowsNameWhatAutoIsWhetherOrNotItIsChosen()
         {
@@ -170,6 +187,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(UpscalerBackend.Dlss, AutoSettings.ResolvedBackend);
         }
 
+        // A profile sets the raytracing's mode and the DLSS model, but not single raytracing settings such as
+        // the moonlight, nor taste such as the sharpness.
         [TestMethod]
         public void AProfileCannotSetTheSingleRaytracingSettings()
         {
@@ -179,6 +198,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(ModuleProfiles.CanSet(OurModules.Upscaler.Setting("dlssModel")));
         }
 
+        // What the player chose is kept as set by name: Auto for low latency is taken and an unknown value
+        // refused, and the render height and an Auto flag read back as written.
         [TestMethod]
         public void ThePlayersChoicesSurviveTheFile()
         {

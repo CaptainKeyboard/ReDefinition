@@ -21,9 +21,12 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballSpeeds : MonoBehaviour
     {
+        // The values of the two fields, V and H; null until they are made.
         private TextMeshProUGUI vertical;
         private TextMeshProUGUI horizontal;
 
+        // Waits for the navball and its SAS modes' layout, then puts the two fields under the modes, made from the heading
+        // field's texts.
         private IEnumerator Start()
         {
             if (!FlightUiSwitch.On(s => s.NavballSpeeds)) yield break;
@@ -159,6 +162,7 @@ namespace ReDefinition.Flight
         // A white plate with corners rounded by 5 texels, to be sliced.
         private static Sprite rounded;
 
+        // The plate, made once.
         private static Sprite Rounded()
         {
             if (rounded != null) return rounded;
@@ -192,6 +196,7 @@ namespace ReDefinition.Flight
         private double horizontalShown = double.NaN;
         private float next;
 
+        // Every Interval: both fields written again where their shown value changed.
         private void LateUpdate()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -201,6 +206,7 @@ namespace ReDefinition.Flight
             if (horizontal != null) Show(horizontal, vessel.horizontalSrfSpeed, ref horizontalShown);
         }
 
+        // Writes the speed into the field where it reads differently from `before`, which it then holds.
         private static void Show(TextMeshProUGUI field, double metresPerSecond, ref double before)
         {
             double shown = ReadoutMath.ShownSpeed(metresPerSecond);

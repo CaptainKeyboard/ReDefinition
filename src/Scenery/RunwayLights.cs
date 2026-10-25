@@ -21,11 +21,14 @@ namespace ReDefinition.Scenery
     [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]
     public sealed class RunwayLights : MonoBehaviour
     {
+        // The names of the runway's light meshes; the colour properties of materials no animation sets; the light
+        // renderers found, kept for the scene; the brightness, 0.5 unless the light probe sets it (Brightness).
         private static readonly Regex RunwayLight = new Regex(@"^(Section\d+|End\d+)_lights", RegexOptions.CultureInvariant);
         private static readonly string[] OwnColours = { "_TintColor", "_EmissiveColor" };
         private static readonly List<Renderer> lights = new List<Renderer>();
         private static float brightness = 0.5f;
 
+        // The time-of-day animations in the scene, from which a material's colour of the frame is read.
         private readonly List<TimeOfDayAnimation> animations = new List<TimeOfDayAnimation>();
         // Per light, found with it: its materials and, for each, the property its colour is
         // in and the time-of-day animation that sets it, if one does -- looked up when the
@@ -33,12 +36,14 @@ namespace ReDefinition.Scenery
         // garbage each time).
         private sealed class Light
         {
+            // The light's renderer, its shared materials, and by material the colour property and its animation.
             public Renderer Renderer;
             public Material[] Materials;
             public string[] Properties;
             public TimeOfDayAnimation[] Animations;
         }
 
+        // The lights found, each with what Dim needs of it.
         private readonly List<Light> resolved = new List<Light>();
         // Made in Start: Unity does not allow a MaterialPropertyBlock in a MonoBehaviour's
         // constructor, where a field initializer runs (a development player throws, and
@@ -110,6 +115,7 @@ namespace ReDefinition.Scenery
             }
         }
 
+        // Unsubscribes from the cameras and the space centre's events.
         private void OnDestroy()
         {
             Camera.onPreCull -= Dim;
@@ -118,16 +124,20 @@ namespace ReDefinition.Scenery
             GameEvents.OnKSCStructureRepaired.Remove(OnStructureChanged);
         }
 
+        // A facility was upgraded: the lights are looked for again a second later, when the new models stand.
         private void OnFacilityUpgraded(Upgradeables.UpgradeableFacility facility, int level)
         {
             changedAt = Time.unscaledTime;
         }
 
+        // A building collapsed or was repaired: the lights are looked for again a second later.
         private void OnStructureChanged(DestructibleBuilding building)
         {
             changedAt = Time.unscaledTime;
         }
 
+        // Every runway light mesh of every city, inactive ones included, added to those found, and the time-of-day
+        // animations found anew.
         private void LookForLights()
         {
             lights.RemoveAll(l => l == null);
@@ -147,6 +157,8 @@ namespace ReDefinition.Scenery
                           + animations.Count + " time-of-day animations.");
         }
 
+        // Before the first camera of each frame draws: every material of the runway's lights gets a block with its
+        // colour scaled by the brightness, or at full brightness KSP's own block back.
         private void Dim(Camera camera)
         {
             if (Time.frameCount == drawnFrame) return;
@@ -180,13 +192,14 @@ namespace ReDefinition.Scenery
             }
         }
 
-        // Each light's materials with the property and the animation of each.
         // Whether the lights were found and none of their materials has a time-of-day
         // animation found for it: the city's parts off as they were looked for. Where some
-        // have one, the others are materials no animation colours.
+        // have one, the others are materials no animation colours. animationsAt: when the
+        // animations alone were last looked for.
         private bool unanimated;
         private float animationsAt;
 
+        // Each light's materials with the property and the animation of each, found anew from lights and animations.
         private void Resolve()
         {
             resolved.Clear();

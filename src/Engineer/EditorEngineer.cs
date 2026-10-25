@@ -30,6 +30,7 @@ namespace ReDefinition.Engineer
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class EditorEngineer : MonoBehaviour
     {
+        // Where the planner button's own drawn tiles lie, without the state (Normal, Hover, Active).
         private const string TilePath = "ReDefinition/Icons/EngineerButton_";
         // The vessel read again only where it changed: KSP modified, loaded or
         // started a new one (onEditorShipModified, which the part action window's
@@ -43,6 +44,8 @@ namespace ReDefinition.Engineer
         // so that a change and the simulation it starts make one or two reads.
         private const float RefreshInterval = 0.25f;
 
+        // The editor; the planner's button, with the tile it shows as KSP's active mode (open) and as not clickable (closed);
+        // the planner's panel once made; whether the buttons went to the log; and whether the planner stands open.
         private EditorLogic editor;
         private Button button;
         private Sprite tileActive;
@@ -56,8 +59,10 @@ namespace ReDefinition.Engineer
         private float nextRefresh;
         private bool changed = true;
 
+        // The vessel as last read from KSP's delta-v simulation, which the planner works out its plan from.
         internal EditorReadout Readout { get; private set; }
 
+        // Waits for the editor's own buttons, then adds the planner's button beside them and listens for the vessel's changes.
         private IEnumerator Start()
         {
             // EditorLogic sets its buttons up in its own Start.
@@ -92,6 +97,7 @@ namespace ReDefinition.Engineer
             StartCoroutine(TilesAgainLater());
         }
 
+        // Lets go of KSP's events and the canvas hook, and destroys the panel, the button and the tiles made for it.
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
@@ -113,6 +119,8 @@ namespace ReDefinition.Engineer
         // it asks at every update it sends, and the planner works out its plan with the panel
         // closed as well, as long as it keeps asking.
         internal static EditorEngineer Instance { get; private set; }
+        // How long, in seconds, one ask of the dashboard keeps the planner working with its panel closed; the time of the last
+        // ask, and whether making the planner for the dashboard was tried.
         private const float AskedFor = 1f;
         private float dashboardAsked = -1e9f;
         private bool dashboardTried;
@@ -138,16 +146,20 @@ namespace ReDefinition.Engineer
             return panel != null ? panel.View : null;
         }
 
+        // Whether the dashboard asked for the planner within the last AskedFor seconds.
         private bool DashboardShows
         {
             get { return Time.unscaledTime - dashboardAsked < AskedFor; }
         }
 
+        // The dashboard finds the planner from the scene's start on.
         private void Awake()
         {
             Instance = this;
         }
 
+        // While the planner is open or the dashboard asks: reads the vessel again where it changed, at most once per
+        // RefreshInterval, and draws the panel, or works out its plan with the panel hidden.
         private void Update()
         {
             if (editor == null || (!open && !DashboardShows)) return;
@@ -181,21 +193,25 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // KSP's events of a changed vessel: each marks the vessel to be read again.
         private void OnShipModified(ShipConstruct ship)
         {
             changed = true;
         }
 
+        // The delta-v simulation finished, or KSP started a new vessel.
         private void OnShipChanged()
         {
             changed = true;
         }
 
+        // KSP loaded a vessel or merged one in.
         private void OnShipLoaded(ShipConstruct ship, CraftBrowserDialog.LoadType type)
         {
             changed = true;
         }
 
+        // The delta-v app took another body or altitude: the stages' numbers change with it.
         private void OnSituationChanged(DeltaVSituationOptions situation)
         {
             changed = true;
@@ -203,12 +219,14 @@ namespace ReDefinition.Engineer
 
         // --------------------------------------------------------------- opening
 
+        // The planner button: opens the planner, or closes it back to the parts list.
         internal void Toggle()
         {
             if (open) Close(true);
             else Open();
         }
 
+        // Opens the planner where KSP would allow a mode change, first switching to the parts mode where another is in.
         internal void Open()
         {
             if (open || editor == null || !ModeSwitchAllowed()) return;
@@ -251,6 +269,7 @@ namespace ReDefinition.Engineer
             panel.BringIn();
         }
 
+        // Brings the planner in once KSP's parts panel stands in, or after three seconds at most.
         private IEnumerator BringInWhenSettled()
         {
             UIPanelTransition parts = EditorPanels.Instance != null ? EditorPanels.Instance.partsEditor : null;
@@ -275,6 +294,7 @@ namespace ReDefinition.Engineer
             if (editor != null) editor.UpdateUI();
         }
 
+        // KSP changed mode: the planner closes, unless it switched the mode itself as it opens.
         private void OnScreenChange(EditorScreen screen)
         {
             if (!switching) Close(false);
@@ -299,6 +319,7 @@ namespace ReDefinition.Engineer
 
         // ---------------------------------------------------------------- button
 
+        // The planner's button, a copy of KSP's cargo button with the planner's click, tiles and tooltip.
         private void AddButton()
         {
             Button cargo = editor.cargoPanelBtn;
@@ -339,11 +360,13 @@ namespace ReDefinition.Engineer
         // starts. The drawn tiles stand in where one cannot be made.
         private Sprite madeFrom;
 
+        // A UI theme may have swapped the cargo button's pixels as the scene's UI got ready: the tiles are made again.
         private void OnGuiReady(GameScenes scene)
         {
             madeFrom = null;
         }
 
+        // A second time, one second after the editor starts, for a theme that sets its tiles later.
         private IEnumerator TilesAgainLater()
         {
             yield return new WaitForSecondsRealtime(1f);
@@ -355,6 +378,7 @@ namespace ReDefinition.Engineer
         private Button imagesOfCargo, imagesOfButton;
         private Image cargoImage, buttonImage;
 
+        // The cargo button's and the planner button's Images.
         private void Images(Button cargo, out Image source, out Image image)
         {
             if (!ReferenceEquals(cargo, imagesOfCargo) || !ReferenceEquals(button, imagesOfButton) || cargoImage == null || buttonImage == null)
@@ -368,6 +392,8 @@ namespace ReDefinition.Engineer
             image = buttonImage;
         }
 
+        // Makes the planner button's tiles from the cargo button's, where the cargo button shows a tile they were not yet
+        // made from; KSP's drawn tiles stand in for one that cannot be made.
         private void Tiles(Button cargo)
         {
             Image source, image;
@@ -404,12 +430,14 @@ namespace ReDefinition.Engineer
         // once the button shows newer ones, and with the editor.
         private readonly List<Sprite> madeTiles = new List<Sprite>();
 
+        // Keeps a made tile in the list of those to destroy, and passes it on.
         private static Sprite Made(Sprite sprite, List<Sprite> making)
         {
             if (sprite != null) making.Add(sprite);
             return sprite;
         }
 
+        // Destroys the tiles made before, with their textures.
         private void DestroyTiles()
         {
             foreach (Sprite sprite in madeTiles)
@@ -421,6 +449,7 @@ namespace ReDefinition.Engineer
             madeTiles.Clear();
         }
 
+        // One of the planner button's own drawn tiles, by its state.
         private static Sprite Tile(string state)
         {
             return Shared.IconSprites.Load(TilePath + state);
@@ -433,6 +462,7 @@ namespace ReDefinition.Engineer
         // sets the buttons as they belong again once the panels stand still.
         private bool locked;
 
+        // Whether one of the editor's panels is sliding in or out.
         private static bool PanelsSliding()
         {
             EditorPanels panels = EditorPanels.Instance;
@@ -442,6 +472,7 @@ namespace ReDefinition.Engineer
             return false;
         }
 
+        // Locks every mode button while a panel slides, and lets KSP set them again once the panels stand still.
         private void LockWhileSliding()
         {
             if (PanelsSliding())
@@ -516,6 +547,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // A button's size, scale, picture and place among its siblings, for the log.
         private static string Describe(Button button)
         {
             RectTransform rect = (RectTransform)button.transform;
@@ -533,6 +565,8 @@ namespace ReDefinition.Engineer
         // KSP's mode buttons, kept: asked for at every canvas render.
         private readonly Button[] modes = new Button[4];
 
+        // Places the planner button one step right of the rightmost shown mode button, and KSP's switch-editor button
+        // a step after it; the step is the distance between KSP's cargo and switch-editor anchors.
         private void Place()
         {
             Transform last = null;

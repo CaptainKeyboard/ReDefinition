@@ -8,6 +8,7 @@ generated frame are compared with the rendered frames either side of it.
 
     python tools/hud_probe.py run  <out folder> [--cases auto,c,...]    KSP started once per case
     python tools/hud_probe.py analyze <case folder>... [--regions ...]  the numbers, from the recordings
+    python tools/hud_probe.py truth <reference> <folder>... [--json f]  each recording against a reference one
     python tools/hud_probe.py crops <case folder> <out folder>          side-by-side crops of the HUD
 
 The KSP install's settings files are copied before the run and put back after it
@@ -39,6 +40,8 @@ LOG2 = {"Logging": {"Level": "2", "FrameTiming": "1"}}
 
 
 def case(preset, proxy=None, ini=None, arguments=None, launch=None):
+    """One case: the package's ini with the DLSS-G preset and level 2 logging plus the sections given, the proxy's
+    keys, KSP's extra arguments for the flip sweep, or in launch the whole command line in place of the sweep's."""
     ini_values = {"DLSSG": {"Preset": preset}}
     ini_values.update(LOG2)
     for section, keys in (ini or {}).items():
@@ -97,11 +100,13 @@ CASES = {
 
 
 def sha(path):
+    """The SHA-256 of the file as hex, to tell which build of a DLL is in place."""
     with open(path, "rb") as f:
         return hashlib.sha256(f.read()).hexdigest()
 
 
 def set_root_display(text, width, height, fullscreen):
+    """KSP's settings.cfg text with the screen size and full screen set; raises where a key is missing."""
     for key, value in (("SCREEN_RESOLUTION_WIDTH", width), ("SCREEN_RESOLUTION_HEIGHT", height),
                        ("FULLSCREEN", "True" if fullscreen else "False")):
         text, n = re.subn(r"(?m)^(\s*%s\s*=\s*).*$" % key, lambda m: m.group(1) + str(value), text)
@@ -111,6 +116,8 @@ def set_root_display(text, width, height, fullscreen):
 
 
 def run(args):
+    """Start KSP once per case with its package ini, proxy keys and settings, and copy each run's logs, shots,
+    recording and dumps into <out>/<case>; the install's files and DLLs are put back after."""
     install = bm.Install(args.ksp)
     if install.running():
         sys.exit("KSP is running; close it first.")
@@ -270,10 +277,12 @@ def parse_regions(text, width, height):
 
 
 def grey(a):
+    """An RGB image as grey (channel mean)."""
     return a.mean(axis=2)
 
 
 def gradient(a):
+    """The magnitude of the grey image's forward differences, one pixel smaller each way."""
     import numpy as np
     g = grey(a)
     gx = np.abs(np.diff(g, axis=1))[:-1, :]
@@ -291,6 +300,7 @@ def static_mask(reals, box, threshold):
 
 
 def psnr(mse):
+    """The PSNR in dB of a mean square error on 8-bit levels; 99 for none."""
     import math
     return 99.0 if mse <= 1e-9 else 10.0 * math.log10(255.0 * 255.0 / mse)
 
@@ -333,6 +343,8 @@ def measure(frames, regions, threshold=1.0, bad_levels=12.0):
 
 
 def analyze(args):
+    """Classify each recording's frames, print the HUD regions' measures of the generated frames, and write them to
+    --json if given."""
     summary = {}
     for folder in args.folders:
         frames = load_frames(os.path.join(folder, "frames") if os.path.isdir(os.path.join(folder, "frames")) else folder)
@@ -355,6 +367,7 @@ def analyze(args):
 
 
 def small(a, factor=8):
+    """The RGB image averaged over factor x factor blocks, for the cheap pose match."""
     h, w = a.shape[0] // factor * factor, a.shape[1] // factor * factor
     return a[:h, :w].reshape(h // factor, factor, w // factor, factor, 3).mean(axis=(1, 3))
 
@@ -366,6 +379,7 @@ def scene_window(frame_shape):
 
 
 def dilate(mask, radius):
+    """The mask grown by a square of the radius (wrapping at the image's edges)."""
     import numpy as np
     out = mask.copy()
     for dy in range(-radius, radius + 1):
@@ -426,10 +440,13 @@ def against_truth(reference, frames, regions):
 
 
 def frames_of_kind(frames, kind):
+    """The frames classified as that kind (real or generated)."""
     return [f for f in frames if f["kind"] == kind]
 
 
 def truth(args):
+    """Measure each recording against the reference recording, per region and kind of frame, print the table and
+    write it to --json if given."""
     reference = load_frames(os.path.join(args.reference, "frames") if os.path.isdir(os.path.join(args.reference, "frames"))
                             else args.reference)
     for f in reference:
@@ -459,6 +476,8 @@ def truth(args):
 
 
 def crops(args):
+    """Save, for three generated frames of the sweep, each region beside the rendered frames before and after it,
+    scaled up by --scale."""
     import numpy as np
     from PIL import Image
     folder = os.path.join(args.folder, "frames") if os.path.isdir(os.path.join(args.folder, "frames")) else args.folder
@@ -480,6 +499,7 @@ def crops(args):
 
 
 def main():
+    """Parse the command line and run the subcommand: run, analyze, truth or crops."""
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
     r = sub.add_parser("run")

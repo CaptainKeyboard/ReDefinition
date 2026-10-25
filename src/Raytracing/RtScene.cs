@@ -11,6 +11,8 @@ namespace ReDefinition.Raytracing
     // its transform. Sources fill these (IRtSource); the scene hands them over.
     internal struct RtItem
     {
+        // The mesh, its submesh and the material it is drawn with, its transform to the world, and the ray mask
+        // (bits 0-7; 0 for all rays).
         public Mesh Mesh;
         public int SubMesh;
         public Material Material;
@@ -24,6 +26,7 @@ namespace ReDefinition.Raytracing
     // game (src/Raytracing/Ksp), all renderers of a scene in the test player.
     internal interface IRtSource
     {
+        // Adds this frame's items to `into`.
         void Collect(List<RtItem> into);
     }
 
@@ -32,6 +35,8 @@ namespace ReDefinition.Raytracing
     // draws, as Parallax fills its scatter's (ScatterRenderer.outputLOD0-2).
     internal struct RtGpuItem
     {
+        // The append buffer of transforms, the mesh, its submesh and the material of every instance in it, and the
+        // ray mask (0 for all rays).
         public ComputeBuffer Transforms;
         public Mesh Mesh;
         public int SubMesh;
@@ -39,8 +44,10 @@ namespace ReDefinition.Raytracing
         public uint Mask;
     }
 
+    // Where the GPU's instances come from: Parallax's scatter in the game (RtKspMods).
     internal interface IRtGpuSource
     {
+        // Adds this frame's buffers to `into`.
         void CollectGpu(List<RtGpuItem> into);
     }
 
@@ -56,8 +63,11 @@ namespace ReDefinition.Raytracing
         private const int TexturesPerFrame = 4;
         private const int TexturesInFlight = 8;
 
+        // A submesh handed over.
         private sealed class MeshEntry
         {
+            // Its id, the frame it was last seen in, the mesh and submesh, and whether the mesh was built again since,
+            // to be handed over again.
             public int Id;
             public int LastSeen;
             public Mesh Mesh;
@@ -65,8 +75,10 @@ namespace ReDefinition.Raytracing
             public bool Dirty;
         }
 
+        // A material handed over.
         private sealed class MaterialEntry
         {
+            // The proxy's id of the material, and the frame it was last seen in.
             public int Id;
             public int LastSeen;
             // The space centre's (RtMaterialIntent).
@@ -84,6 +96,8 @@ namespace ReDefinition.Raytracing
         // with the render texture it was drawn into; kept and used again.
         private sealed class TextureRead
         {
+            // The texture drawn into, the material and its entry, the layer of the proxy's texture array it goes to,
+            // and whether it is world-mapped (its average taken).
             public RenderTexture Target;
             public Material Material;
             public MaterialEntry Entry;
@@ -95,6 +109,7 @@ namespace ReDefinition.Raytracing
             public Action<AsyncGPUReadbackRequest> Done;
         }
 
+        // The submeshes handed over, by Key.
         private readonly Dictionary<long, MeshEntry> meshes = new Dictionary<long, MeshEntry>();
         // Submeshes that can never be handed over -- not readable, or not triangles -- not
         // tried again each frame.
@@ -148,6 +163,7 @@ namespace ReDefinition.Raytracing
         private byte[] texturePixels;
         private static float[] srgbToLinear;
 
+        // How many instances this frame handed over, for the diagnostics.
         internal int InstanceCount { get; private set; }
         // This frame's GPU instances: the items the camera gathers, each run's place, and
         // their places together.
@@ -155,12 +171,17 @@ namespace ReDefinition.Raytracing
         internal readonly List<int> GpuFirst = new List<int>();
         // Each item's places this frame: what it took lately and a quarter more.
         internal readonly List<int> GpuPlaces = new List<int>();
+        // All GPU items' places this frame together: the instances the camera gathers.
         internal int GpuTotal { get; private set; }
         // Where the camera is this frame, for the sources' range.
         internal Vector3 Eye { get; private set; }
+        // How many submeshes are handed over, for the diagnostics.
         internal int MeshCount { get { return meshes.Count; } }
+        // How many materials are handed over, for the diagnostics.
         internal int MaterialCount { get { return materials.Count; } }
+        // How many items this frame left out because their mesh could not be handed over (yet).
         internal int Skipped { get; private set; }
+        // Why the last mesh was left out, for the diagnostics.
         internal string LastSkip { get; private set; }
 
         // In gamma space, as KSP renders, Unity's colours are gamma-space values; the
@@ -176,11 +197,13 @@ namespace ReDefinition.Raytracing
             get { return QualitySettings.activeColorSpace == ColorSpace.Gamma; }
         }
 
+        // Adds a source of items, once.
         internal void AddSource(IRtSource source)
         {
             if (!sources.Contains(source)) sources.Add(source);
         }
 
+        // Adds a source of GPU instances, once.
         internal void AddGpuSource(IRtGpuSource source)
         {
             if (!gpuSources.Contains(source)) gpuSources.Add(source);
@@ -290,6 +313,8 @@ namespace ReDefinition.Raytracing
             RtNative.KspRtSetGpuGroups(gpuGroups, groups, frameIndex);
         }
 
+        // The places handed over for a buffer: what it took lately, a quarter and 64 more, rounded up to 64; GpuFirstPlaces
+        // before a read-back; never more than its capacity.
         private int Places(ComputeBuffer buffer)
         {
             int taken;
@@ -303,15 +328,12 @@ namespace ReDefinition.Raytracing
             if (buffer != null) gpuTaken[buffer] = taken;
         }
 
+        // A submesh's key: the mesh's instance id in the high half, the submesh in the low.
         private static long Key(Mesh mesh, int subMesh)
         {
             return ((long)mesh.GetInstanceID() << 32) | (uint)subMesh;
         }
 
-        // The proxy's id of a submesh, handed over when first seen; 0 where it cannot
-        // be read.
-        // `material`: the one it is drawn with, for the colours KSP's terrain shaders make
-        // of its vertex colours (RtStockTerrain).
         // What reading meshes and handing them over may take of a frame: the rest waits for
         // the next frames, their instances left out until then. Read all in one frame, a
         // flight's first frames took up to 27 ms for one mesh and 30 ms for the scene's
@@ -319,11 +341,13 @@ namespace ReDefinition.Raytracing
         private const double UploadBudgetMs = 2.0;
         private long uploadTicks;
 
+        // Whether this frame's uploads are still within the budget; the first always is.
         private bool UploadAllowed
         {
             get { return uploadTicks == 0 || uploadTicks * 1000.0 / System.Diagnostics.Stopwatch.Frequency < UploadBudgetMs; }
         }
 
+        // Upload, its time counted against the frame's budget.
         private bool TimedUpload(Mesh mesh, int subMesh, int id, Material material)
         {
             long start = System.Diagnostics.Stopwatch.GetTimestamp();
@@ -332,6 +356,10 @@ namespace ReDefinition.Raytracing
             return done;
         }
 
+        // The proxy's id of a submesh, handed over when first seen; 0 where it cannot
+        // be read, or not yet within this frame's upload budget.
+        // `material`: the one it is drawn with, for the colours KSP's terrain shaders make
+        // of its vertex colours (RtStockTerrain).
         private int MeshId(Mesh mesh, int subMesh, Material material)
         {
             if (mesh == null) return 0;
@@ -378,6 +406,8 @@ namespace ReDefinition.Raytracing
             return id;
         }
 
+        // Hands a submesh's vertices, normals (flat ones where it has none), UVs, colours and triangles to the proxy
+        // under `id`; false, with LastSkip saying why, where it is empty or the proxy refuses it.
         private bool Upload(Mesh mesh, int subMesh, int id, Material material)
         {
             if (subMesh < 0 || subMesh >= mesh.subMeshCount
@@ -490,12 +520,16 @@ namespace ReDefinition.Raytracing
             return entry.Id;
         }
 
+        // The texture the rays take for the material's colour (RtMaterial.MainTexture).
         private static Texture MainTexture(Material material)
         {
             bool worldMapped;
             return RtMaterial.MainTexture(material, out worldMapped);
         }
 
+        // Hands the material's values to the proxy under `id`, its texture at `layer` of the proxy's array (-1 for
+        // none): the surface (RtMaterial), its colour from the terrain's where it is terrain, its shine as meant
+        // (RtMaterialIntent), its diffuse share and highlight for the forward light.
         private void SendMaterial(Material material, int id, int layer, bool scenery)
         {
             RtMaterial surface = RtMaterial.Of(material);
@@ -585,6 +619,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // Draws one material's texture small and reads it back, without waiting where AsyncGPUReadback is supported.
         private void ReadTexture(Material material, MaterialEntry entry, Texture texture, bool worldMapped)
         {
             TextureRead read = idleReads.Count > 0 ? idleReads.Pop() : NewRead();
@@ -631,6 +666,7 @@ namespace ReDefinition.Raytracing
             idleReads.Push(read);
         }
 
+        // A read with its target of MaterialTextureSize and its own callback.
         private TextureRead NewRead()
         {
             int size = RtNative.MaterialTextureSize;
@@ -678,6 +714,8 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The read texture into its layer of the proxy's array, then the material again with that layer; a read
+        // smaller than the size leaves the material without a texture.
         private void Deliver(TextureRead read, NativeArray<byte> raw)
         {
             MaterialEntry entry = read.Entry;
@@ -758,9 +796,12 @@ namespace ReDefinition.Raytracing
             return srgbToLinear;
         }
 
+        // ReleaseUnseen's lists of what it releases, kept so that a check allocates nothing.
         private readonly List<long> released = new List<long>();
         private readonly List<Material> releasedMaterials = new List<Material>();
 
+        // Releases the meshes and materials destroyed or not seen for UnseenFrames, their texture layers freed; now and
+        // then forgets the keys of destroyed meshes and the long lists of unusable and failed ones.
         private void ReleaseUnseen()
         {
             released.Clear();
@@ -845,8 +886,10 @@ namespace ReDefinition.Raytracing
     // A position in double precision, for the camera in a world KSP moves.
     internal struct RtPosition
     {
+        // The position in Unity's world.
         public double x, y, z;
 
+        // The position at x, y, z.
         public RtPosition(double x, double y, double z)
         {
             this.x = x;
@@ -854,6 +897,7 @@ namespace ReDefinition.Raytracing
             this.z = z;
         }
 
+        // A Unity position in double precision.
         public static RtPosition From(Vector3 v)
         {
             return new RtPosition(v.x, v.y, v.z);

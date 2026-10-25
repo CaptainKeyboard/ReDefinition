@@ -23,8 +23,10 @@ namespace ReDefinition.Window
     // decides.
     internal static class Conflicts
     {
+        // One binding registered by its row.
         private sealed class Entry
         {
+            // Its key, its text as the row holds it now, the situations it counts in, and KSP's switchState mask (-1: all).
             public string Key;
             public Func<string> Text;
             public int Situations;
@@ -39,6 +41,7 @@ namespace ReDefinition.Window
             public string Apart;
         }
 
+        // The bindings registered since the window was built, and the rows marked as sharing at the last count.
         private static readonly List<Entry> entries = new List<Entry>();
         private static readonly HashSet<string> sharing = new HashSet<string>();
         // Filled again at each count, never built again: the tab holds every one
@@ -51,6 +54,7 @@ namespace ReDefinition.Window
         private static KeyCombination[] parsedNow = new KeyCombination[0];
         private static int countedVersion = int.MinValue;
 
+        // Forgets every binding: the window is built anew.
         internal static void Clear()
         {
             entries.Clear();
@@ -103,6 +107,7 @@ namespace ReDefinition.Window
             return sharing.Contains(key);
         }
 
+        // Reads every binding's text and works out which rows share a combination, once per version.
         private static void Count(int version)
         {
             if (countedVersion == version) return;
@@ -132,8 +137,10 @@ namespace ReDefinition.Window
                 if (shared.Contains(entry.Key)) sharing.Add(entry.Row);
         }
 
+        // Each binding's `apart` group at the last count.
         private static readonly List<string> apartNow = new List<string>();
 
+        // The same without crossed bindings kept apart.
         internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> situations,
                                              IList<int> modes, IList<string> shipped)
         {
@@ -180,6 +187,7 @@ namespace ReDefinition.Window
             return shipped != null && KeyCombination.ParseLoose(text).Equals(KeyCombination.ParseLoose(shipped));
         }
 
+        // The text the call reads; None where it throws.
         private static string Safe(Func<string> read)
         {
             try

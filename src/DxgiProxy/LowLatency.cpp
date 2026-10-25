@@ -28,8 +28,11 @@ namespace redefinition
         constexpr uint32_t kSetLatencyMarker = 0xd9984c05;
         constexpr uint32_t kGetLatency = 0x1a587f9c;
 
+        // Reflex's mode, for NvAPI_D3D_SetSleepMode.
         struct SleepModeParams   // NV_SET_SLEEP_MODE_PARAMS_V1
         {
+            // The version, low latency mode and boost, the frame limit as the shortest frame in microseconds (0
+            // none), and options the proxy leaves at 0.
             uint32_t version;
             uint8_t lowLatencyMode;
             uint8_t lowLatencyBoost;
@@ -39,8 +42,10 @@ namespace redefinition
             uint8_t reserved[30];
         };
 
+        // A latency marker for a frame, for NvAPI_D3D_SetLatencyMarker.
         struct LatencyMarkerParams   // NV_LATENCY_MARKER_PARAMS_V1
         {
+            // The version, and the frame id the marker is for.
             uint32_t version;
             uint64_t frameId;
             int32_t markerType;   // NV_LATENCY_MARKER_TYPE
@@ -48,8 +53,11 @@ namespace redefinition
             uint8_t reserved[56];
         };
 
+        // One frame in NVIDIA's latency report.
         struct FrameReport   // NV_LATENCY_RESULT_PARAMS_V1::FrameReport
         {
+            // The frame's id, then its stages' times in the driver's units -- which ReportLocked derives from
+            // gpuFrameTimeUs -- and the GPU's times in microseconds.
             uint64_t frameId;
             uint64_t inputSampleTime;
             uint64_t simStartTime;
@@ -72,8 +80,10 @@ namespace redefinition
             uint8_t reserved[104];
         };
 
+        // What NvAPI_D3D_GetLatency fills: the reports of the last 64 frames.
         struct LatencyResultParams   // NV_LATENCY_RESULT_PARAMS_V1
         {
+            // The version, then the last 64 frames' reports.
             uint32_t version;
             FrameReport frameReport[64];
             uint8_t reserved[32];
@@ -88,34 +98,40 @@ namespace redefinition
         constexpr int kPresentStart = 4;
         constexpr int kPresentEnd = 5;
 
+        // A structure's version as NVAPI asks for it: its size, and the version above bit 16.
         uint32_t Version(size_t size, uint32_t version)   // MAKE_NVAPI_VERSION
         {
             return static_cast<uint32_t>(size) | (version << 16);
         }
 
+        // The four functions' signatures; each returns an NvAPI_Status, 0 for NVAPI_OK.
         using SetSleepModeFn = int (*)(IUnknown* device, SleepModeParams* params);
         using SleepFn = int (*)(IUnknown* device);
         using SetLatencyMarkerFn = int (*)(IUnknown* device, LatencyMarkerParams* params);
         using GetLatencyFn = int (*)(IUnknown* device, LatencyResultParams* params);
 
+        // NvAPI_D3D_SetSleepMode, looked up once; null where NVAPI lacks it.
         SetSleepModeFn SetSleepMode()
         {
             static const auto function = reinterpret_cast<SetSleepModeFn>(NvapiInterface(kSetSleepMode));
             return function;
         }
 
+        // NvAPI_D3D_Sleep, looked up once; null where NVAPI lacks it.
         SleepFn SleepCall()
         {
             static const auto function = reinterpret_cast<SleepFn>(NvapiInterface(kSleep));
             return function;
         }
 
+        // NvAPI_D3D_GetLatency, looked up once; null where NVAPI lacks it.
         GetLatencyFn GetLatency()
         {
             static const auto function = reinterpret_cast<GetLatencyFn>(NvapiInterface(kGetLatency));
             return function;
         }
 
+        // NvAPI_D3D_SetLatencyMarker, looked up once; null where NVAPI lacks it.
         SetLatencyMarkerFn SetLatencyMarker()
         {
             static const auto function = reinterpret_cast<SetLatencyMarkerFn>(NvapiInterface(kSetLatencyMarker));
@@ -123,7 +139,7 @@ namespace redefinition
         }
 
         // Anti-Lag 2's contexts, "persistent ... initialized with = {}", one per device
-        // it can be given; under LowLatency's mutex.
+        // it can be given; under LowLatency's antiLagMutex.
         AMD::AntiLag2DX12::Context g_antiLag12 = {};
         AMD::AntiLag2DX11::Context g_antiLag11 = {};
         bool g_antiLag12Ready = false;
@@ -135,12 +151,15 @@ namespace redefinition
         // Anti-Lag 2 which presented frames are interpolated.
         // {5083ae5b-8070-4fca-8ee5-3582dd367d13}
         const GUID kAntiLag2Data = { 0x5083ae5b, 0x8070, 0x4fca, { 0x8e, 0xe5, 0x35, 0x82, 0xdd, 0x36, 0x7d, 0x13 } };
+        // The private data's layout under kAntiLag2Data.
         struct AntiLag2Data
         {
+            // Anti-Lag 2's Direct3D 12 context, and whether it is on there.
             AMD::AntiLag2DX12::Context* context;
             bool enabled;
         };
 
+        // The performance counter's ticks per second, asked once.
         double Frequency()
         {
             static const double frequency = []()
@@ -152,6 +171,7 @@ namespace redefinition
             return frequency;
         }
 
+        // The performance counter now, in its ticks.
         int64_t Now()
         {
             LARGE_INTEGER now;
@@ -168,6 +188,7 @@ namespace redefinition
         return *instance;
     }
 
+    // What Describe reports, under textLock; logged where it changed and log is set.
     void LowLatency::SetText(int newKind, const std::string& newText, bool log)
     {
         bool changed = false;
@@ -274,6 +295,7 @@ namespace redefinition
         ApplyConfig();
     }
 
+    // Everything let go, the main thread's XeLL Sleep waited out first.
     void LowLatency::Detach(const void* caller)
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -324,6 +346,7 @@ namespace redefinition
         return owner != nullptr;
     }
 
+    // Whether XeLL's context is attached, which then takes the markers instead of Reflex.
     bool LowLatency::XellLocked() const
     {
         return TrackingLocked() && xell != nullptr;
@@ -370,11 +393,13 @@ namespace redefinition
         handOversUnlogged = 0;
     }
 
+    // Whether Reflex through NVAPI runs on the attached device.
     bool LowLatency::ReflexLocked() const
     {
         return TrackingLocked() && reflex && device != nullptr;
     }
 
+    // Whether Anti-Lag 2 is on, on the device it was initialised on.
     bool LowLatency::AntiLagLocked() const
     {
         return TrackingLocked() && (appliedAntiLag == 12 ? g_antiLag12Ready : appliedAntiLag == 11 && g_antiLag11Ready);
@@ -460,6 +485,7 @@ namespace redefinition
             SetText(0, "neither NVIDIA Reflex nor AMD Anti-Lag 2 on this GPU");
     }
 
+    // XeLL's marker where it is attached, otherwise Reflex's; the first failure logged.
     void LowLatency::MarkerLocked(uint32_t frameIndex, int marker)
     {
         if (XellLocked())
@@ -658,11 +684,13 @@ namespace redefinition
         return mapped ? streamlineIndex : index;
     }
 
+    // Streamline's index moved by the offset where the frame came with one.
     uint32_t LowLatency::IdLocked(uint32_t frameIndex) const
     {
         return frameIndex != 0 && mapped ? frameIndex + offset : frameIndex;
     }
 
+    // SIMULATION_END and the measure's stamp for the frame.
     void LowLatency::EndGameSimulation(uint32_t frameIndex)
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -723,6 +751,7 @@ namespace redefinition
         MarkerLocked(frameIndex, kPresentStart);
     }
 
+    // PRESENT_END, then the measure's fence for the meter thread and the report when it is due.
     void LowLatency::AfterPresent(uint32_t frameIndex)
     {
         std::lock_guard<std::mutex> lock(mutex);
@@ -742,6 +771,7 @@ namespace redefinition
         ReportLocked();
     }
 
+    // Waits, outside the lock, for each pending Present's fence and takes its latency and stages.
     void LowLatency::MeterThread()
     {
         std::unique_lock<std::mutex> lock(mutex);

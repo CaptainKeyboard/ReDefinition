@@ -71,11 +71,13 @@ namespace ReDefinition.Engineer
             totalBar.Set(total);
         }
 
+        // A piece of a bar: its width in units and its colour.
         private static KeyValuePair<float, Color> Piece(double pieceWidth, Color color)
         {
             return new KeyValuePair<float, Color>((float)pieceWidth, color);
         }
 
+        // The stage's colour on the bars, by its place among the stages with delta-v; the spare colour for another.
         private Color StageColour(int number)
         {
             int at = stages.FindIndex(row => row.Number == number);

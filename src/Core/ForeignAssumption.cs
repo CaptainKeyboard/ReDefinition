@@ -49,15 +49,19 @@ namespace ReDefinition.Core
     // (ForeignAssumptions) is checked outside the game too.
     internal sealed class ForeignAssumption
     {
+        // The assumption's name in the report and the log, and the mod it is about, as the report names it.
         public readonly string Id;
         public readonly string Mod;
         // What ReDefinition does with it, in the words of the report.
         public readonly string Uses;
 
+        // Whether ReDefinition keeps to it or falls back where its code has changed; Keep unless OnChange says otherwise.
         public WhenChanged Policy { get; private set; }
         // What happens where it does not hold.
         public string Fallback { get; private set; }
 
+        // What the builder calls collected: the types, the methods (looked up at evaluation, with their names for the
+        // report and whether each is fingerprinted), the fields, the literals, and the fingerprints and versions checked.
         private readonly List<string> types = new List<string>();
         private readonly List<Func<MethodBase>> methods = new List<Func<MethodBase>>();
         private readonly List<string> methodNames = new List<string>();
@@ -67,12 +71,15 @@ namespace ReDefinition.Core
         private readonly List<string> testedFingerprints = new List<string>();
         private readonly List<string> testedVersions = new List<string>();
 
+        // The outcome, worked out once by Evaluate: the state, why it does not hold, the installed code's fingerprint and
+        // the version of the mod's assembly.
         private bool evaluated;
         private ForeignState state;
         private string problem;
         private string fingerprint;
         private string version;
 
+        // An assumption with nothing named yet, kept where its code changes; the builder methods below add to it.
         public ForeignAssumption(string id, string mod, string uses)
         {
             Id = id;
@@ -102,6 +109,7 @@ namespace ReDefinition.Core
             return AddMethod(type, name, parameterTypes, false);
         }
 
+        // Adds a method to look up at evaluation, with its name for the report, and whether its code is fingerprinted.
         private ForeignAssumption AddMethod(string type, string name, string[] parameterTypes, bool fingerprint)
         {
             string[] wanted = parameterTypes != null && parameterTypes.Length > 0 ? parameterTypes : null;
@@ -126,6 +134,7 @@ namespace ReDefinition.Core
             return this;
         }
 
+        // The fingerprints of the code the assumption was checked against; another one makes it Changed.
         public ForeignAssumption Tested(params string[] fingerprints)
         {
             testedFingerprints.AddRange(fingerprints);
@@ -140,6 +149,7 @@ namespace ReDefinition.Core
             return this;
         }
 
+        // What to do where the code has changed, and the words for the report on what happens then.
         public ForeignAssumption OnChange(WhenChanged policy, string fallback)
         {
             Policy = policy;
@@ -147,6 +157,7 @@ namespace ReDefinition.Core
             return this;
         }
 
+        // Absent, Verified, Changed or Broken, evaluated on first use.
         public ForeignState State
         {
             get
@@ -187,6 +198,7 @@ namespace ReDefinition.Core
             }
         }
 
+        // The version of the mod's assembly installed; null where the mod is absent.
         public string Version
         {
             get
@@ -196,6 +208,7 @@ namespace ReDefinition.Core
             }
         }
 
+        // Works the outcome out once; an exception from reflection makes the assumption Broken.
         private void Evaluate()
         {
             if (evaluated) return;
@@ -216,6 +229,8 @@ namespace ReDefinition.Core
             }
         }
 
+        // Absent without the first type; Broken where anything named is missing; Changed where the fingerprint or the
+        // version is not one checked; Verified otherwise.
         private void Check()
         {
 
@@ -287,6 +302,8 @@ namespace ReDefinition.Core
                 : "version " + version + " is not one checked (" + string.Join(", ", testedVersions.ToArray()) + ")";
         }
 
+        // The method or constructor declared on the type by that name: the overload with exactly those parameter types,
+        // or without them the only one of that name; null where there is none or more than one.
         private static MethodBase FindMethod(string typeName, string name, string[] parameterTypes)
         {
             Type type = TypeLookup.Find(typeName);

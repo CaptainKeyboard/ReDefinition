@@ -7,6 +7,7 @@ namespace ReDefinition.Flight.Readouts
     // (ReadoutMathTests).
     internal static class ReadoutMath
     {
+        // Every number in the invariant culture; the distance units, each a thousand times the one before.
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
         private static readonly string[] DistanceUnits = { "m", "km", "Mm", "Gm", "Tm" };
 
@@ -111,7 +112,7 @@ namespace ReDefinition.Flight.Readouts
             return shown == 0.0 ? 0.0 : shown;
         }
 
-        // "12.3°".
+        // "12.3°": an angle in degrees, to a tenth; "-" for none.
         internal static string Angle(double degrees)
         {
             if (double.IsNaN(degrees) || double.IsInfinity(degrees)) return "-";

@@ -9,6 +9,7 @@ namespace ReDefinition
     // star; a row that does not apply greyed out with its reason beneath.
     public partial class ReDefinitionAddon
     {
+        // The narrowest a segment is drawn, in pixels.
         private const float SegmentMinimum = 44f;
 
         // What the rows draw with, made once (DiagnosticsContent).
@@ -29,6 +30,7 @@ namespace ReDefinition
             }
         }
 
+        // A group's heading among the rows, with space above it.
         private void Heading(string text)
         {
             GUILayout.Space(8f);
@@ -36,6 +38,8 @@ namespace ReDefinition
             GUILayout.Space(2f);
         }
 
+        // One option's row: its label, its control (greyed where it does not apply), its star and its marker, the reason
+        // beneath where it does not apply.
         private void DrawOptionRow(DebugOption option)
         {
             string reason;
@@ -67,6 +71,7 @@ namespace ReDefinition
             GUILayout.Label(content.MarkerFor(option.Persistence), styles.Marker, content.MarkerOption);
         }
 
+        // A button for an action; segments for a switch or a choice, a click setting the value.
         private void DrawControl(DebugOption option)
         {
             if (option.Kind == DebugKind.Action)
@@ -79,6 +84,7 @@ namespace ReDefinition
             if (picked != value) option.Set(picked);
         }
 
+        // The pin star, the glyph where the skin's font has it; a click pins or unpins at the next layout pass.
         private void DrawStar(DebugOption option)
         {
             bool pinned = pins.Has(option.Id);
@@ -129,6 +135,7 @@ namespace ReDefinition
             if (open) GUILayout.EndHorizontal();
         }
 
+        // How wide the option's chip is at the foot, measured once and kept with its row.
         private float ChipWidth(DebugOption option)
         {
             DiagnosticsContent.Row row = content.RowOf(option.Id);
@@ -144,6 +151,8 @@ namespace ReDefinition
             return width;
         }
 
+        // One pinned option at the foot: a button, a choice's label with its segments, or a toggle; greyed with its reason
+        // where it does not apply.
         private void DrawChip(DebugOption option)
         {
             string reason;

@@ -17,6 +17,7 @@ namespace redefinition
     {
         namespace
         {
+            // The levels whose tables are made, 0 to 8, the finest the baker bakes.
             constexpr uint32_t kTableLevels = 9;
 
             // One level's micro-triangles along the curve, and the cells of the grid by the
@@ -25,14 +26,18 @@ namespace redefinition
             // (a, b + 1) -- the cell's other half.
             struct Level
             {
+                // The micro-triangles in curve order; per cell, row by row, the index of its upright
+                // and of its inverted micro-triangle (UINT32_MAX for none); the grid's side, 2^level.
                 std::vector<Corners> triangles;
                 std::vector<uint32_t> upright;
                 std::vector<uint32_t> inverted;
                 uint32_t side = 0;
             };
 
+            // A point on the barycentric grid, in grid steps.
             struct Point
             {
+                // Its u and v, as Corners has them.
                 int32_t u, v;
             };
 
@@ -49,6 +54,8 @@ namespace redefinition
                 { 4, 5, 2 },
             };
 
+            // The triangle a, b, c at `depth` split along the curve down to `levels`, its
+            // micro-triangles appended to the level in curve order.
             void Descend(Level& level, Point a, Point b, Point c, uint32_t depth, uint32_t levels)
             {
                 if (depth == levels)
@@ -68,6 +75,7 @@ namespace redefinition
                     Descend(level, p[child[0]], p[child[1]], p[child[2]], depth + 1, levels);
             }
 
+            // A level's table, made on first use under a lock and kept for the process.
             const Level& LevelOf(uint32_t levels)
             {
                 static std::mutex lock;
@@ -101,6 +109,7 @@ namespace redefinition
             }
         }
 
+        // From the level's table (LevelOf).
         const Corners& MicroTriangle(uint32_t level, uint32_t index)
         {
             return LevelOf(std::min(level, kTableLevels - 1)).triangles[index];
@@ -156,8 +165,10 @@ namespace redefinition
 
         namespace
         {
+            // A point in texel space.
             struct Point2
             {
+                // Its coordinates, in texels.
                 double x, y;
             };
 
@@ -168,10 +179,12 @@ namespace redefinition
             // the hardware, may place in a neighbouring micro-triangle.
             struct Range
             {
+                // The alpha bytes, 0 to 255; an empty range until a texel is met.
                 int least = 255;
                 int greatest = 0;
             };
 
+            // How much larger the triangle is taken, in texels.
             constexpr double kMargin = 0.002;
 
             // Whether the triangle meets the box [x0, x1] x [y0, y1]: a separating axis among
@@ -201,6 +214,8 @@ namespace redefinition
                 return true;
             }
 
+            // The Range of a triangle or micro-triangle, its corners in texel space: the texels whose
+            // reach meets it, all of the texture where it spans nearly all of it.
             Range Footprint(const uint8_t* alpha, Point2 (&corners)[3])
             {
                 // The triangle in texel space, grown by the margin about its centre.
@@ -253,6 +268,8 @@ namespace redefinition
                 return range;
             }
 
+            // The state a Range calls for: transparent only where every texel is 0, opaque only
+            // where every one is 255, otherwise unknown, leaning to the side of the range's middle.
             State StateFrom(const Range& range)
             {
                 if (range.greatest == 0)
@@ -262,6 +279,7 @@ namespace redefinition
                 return range.least + range.greatest >= 255 ? kUnknownOpaque : kUnknownTransparent;
             }
 
+            // The special index of a triangle uniform in that state (nvomm::kIndexFully*).
             int32_t Special(State state)
             {
                 return state == kTransparent ? -1 : state == kOpaque ? -2 : state == kUnknownTransparent ? -3 : -4;

@@ -10,12 +10,15 @@
 #ifndef REDEFINITION_RT_CONTRACT
 #define REDEFINITION_RT_CONTRACT
 
-// The render events.
+// The render events' ids the managed side issues on Unity's render thread (ManagedBridge.cpp,
+// DispatchRenderEvent): a frame, a Ray Reconstruction frame, its release, the release of all.
 #define RT_FRAME_EVENT 30
 #define RT_RECONSTRUCT_EVENT 31
 #define RT_RECONSTRUCT_RELEASE_EVENT 32
 #define RT_RELEASE_EVENT 33
 
+// The magic in the second field of a mesh, a material, a frame and a Ray Reconstruction
+// packet, which the proxy checks with the size to reject a layout it does not share.
 #define RT_MESH_MAGIC 0x4B53524Du          // 'KSRM'
 #define RT_MATERIAL_MAGIC 0x4B535241u      // 'KSRA'
 #define RT_FRAME_MAGIC 0x4B535246u         // 'KSRF'

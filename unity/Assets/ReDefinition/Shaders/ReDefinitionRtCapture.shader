@@ -2,7 +2,7 @@
 // (src/Raytracing/RtCamera.cs): depth as Direct3D's clip-space z, the G-buffer as
 // Unity's deferred path left it, the motion vectors, and the sky's cube map as a
 // latitude-longitude image. Each pass writes one; the source of the blit is only
-// there for its orientation. The last pass makes a material's small texture
+// there for its orientation. Pass 6 makes a material's small texture
 // (src/Raytracing/RtScene.cs, ReadTexture) from its full-size one. Passes 7 to 10:
 // Scatterer's ocean as a surface for the raytraced reflections, and their result as
 // the reflections Scatterer's ocean reads (RtCamera, the ocean's reflections); pass 11
@@ -17,6 +17,8 @@ Shader "Hidden/ReDefinition/RtCapture"
     CGINCLUDE
     #include "UnityCG.cginc"
 
+    // The scene camera's depth, G-buffer and motion vectors; the sky's cube map and its HDR decoding; the blit's
+    // source; and the alpha below which a cut-out material drops a texel, 0 for none.
     UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
     sampler2D _CameraGBufferTexture0;
     sampler2D _CameraGBufferTexture1;
@@ -41,6 +43,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     // Scatterer's tonemapper (Utils.SetToneMapping: 0 none, 1 Bruneton's, 2 Uncharted's).
     int TONEMAPPING_MODE;
 
+    // Whether Scatterer's ocean depth holds the clear value: no ocean at the pixel.
     bool NoOcean(float depth)
     {
     #if defined(UNITY_REVERSED_Z)
@@ -50,12 +53,14 @@ Shader "Hidden/ReDefinition/RtCapture"
     #endif
     }
 
+    // What vert hands the fragment functions.
     struct v2f
     {
-        float4 pos : SV_POSITION;
-        float2 uv : TEXCOORD0;
+        float4 pos : SV_POSITION; // the blit quad's clip position
+        float2 uv : TEXCOORD0; // the blit's texture coordinates
     };
 
+    // The blit's quad, its texture coordinates as they are.
     v2f vert(appdata_img v)
     {
         v2f o;
@@ -64,15 +69,20 @@ Shader "Hidden/ReDefinition/RtCapture"
         return o;
     }
 
+    // The camera's depth as Direct3D's clip-space z.
     float fragDepth(v2f i) : SV_Target
     {
         return SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
     }
 
+    // The G-buffer's diffuse colour and occlusion.
     half4 fragGBuffer0(v2f i) : SV_Target { return tex2D(_CameraGBufferTexture0, i.uv); }
+    // The G-buffer's specular colour and smoothness.
     half4 fragGBuffer1(v2f i) : SV_Target { return tex2D(_CameraGBufferTexture1, i.uv); }
+    // The G-buffer's world normal, times a half plus a half.
     half4 fragGBuffer2(v2f i) : SV_Target { return tex2D(_CameraGBufferTexture2, i.uv); }
 
+    // Scatterer's ocean depth, the clear value where no ocean is drawn.
     float fragOceanDepth(v2f i) : SV_Target
     {
         return tex2D(oceanGbufferDepth, i.uv).r;
@@ -126,6 +136,7 @@ Shader "Hidden/ReDefinition/RtCapture"
         return v;
     }
 
+    // Scatterer's tonemapper per mode, from its light to a screen colour; ScattererLight's inverse.
     float3 ScattererScreen(float3 x)
     {
         if (TONEMAPPING_MODE == 2)
@@ -170,6 +181,29 @@ Shader "Hidden/ReDefinition/RtCapture"
         return float4(colour, 1.0);
     }
 
+    // The scene camera's screen position (-1 to 1, y up) to a world direction, without the
+    // upscaler's jitter (RtCamera, AttachOceanDiscs).
+    float4x4 _ReDefinitionOceanScreenToWorld;
+    // The frame as Scatterer's ocean left it, copied (RtCamera, AttachOceanDiscs).
+    sampler2D _ReDefinitionOceanFrame;
+
+    // What vertQuad hands the fragment functions.
+    struct v2fQuad
+    {
+        float4 pos : SV_POSITION; // the quad corner's clip position
+        float4 screen : TEXCOORD0; // the screen position, divided by w where it is read
+    };
+
+    // The camera's full-screen quad (RtCamera, screenQuad): the screen's textures at the
+    // pixel's place as the camera's projection has it.
+    v2fQuad vertQuad(float4 vertex : POSITION)
+    {
+        v2fQuad o;
+        o.pos = float4(vertex.xy, 0.0, 1.0);
+        o.screen = ComputeScreenPos(o.pos);
+        return o;
+    }
+
     // The sun's and the moons' discs the waves mirror (RtCommon.hlsli, BodiesMirroredAt;
     // the traced reflections where a ray met nothing, w 60000 and more), added to the
     // ocean Scatterer drew, before its atmosphere draws over it: its pixel turned back
@@ -183,28 +217,6 @@ Shader "Hidden/ReDefinition/RtCapture"
     // light by its luminance as the frame's colour, its own colour kept in proportion:
     // Scatterer's inverse taken per channel would tint a faint light towards its strongest
     // channel.
-    // The scene camera's screen position (-1 to 1, y up) to a world direction, without the
-    // upscaler's jitter (RtCamera, AttachOceanDiscs).
-    float4x4 _ReDefinitionOceanScreenToWorld;
-    // The frame as Scatterer's ocean left it, copied (RtCamera, AttachOceanDiscs).
-    sampler2D _ReDefinitionOceanFrame;
-
-    struct v2fQuad
-    {
-        float4 pos : SV_POSITION;
-        float4 screen : TEXCOORD0;
-    };
-
-    // The camera's full-screen quad (RtCamera, screenQuad): the screen's textures at the
-    // pixel's place as the camera's projection has it.
-    v2fQuad vertQuad(float4 vertex : POSITION)
-    {
-        v2fQuad o;
-        o.pos = float4(vertex.xy, 0.0, 1.0);
-        o.screen = ComputeScreenPos(o.pos);
-        return o;
-    }
-
     float4 fragOceanDiscs(v2fQuad i) : SV_Target
     {
         float2 uv = i.screen.xy / i.screen.w;
@@ -249,6 +261,7 @@ Shader "Hidden/ReDefinition/RtCapture"
         return float4(ScattererScreen(ScattererLight(frame.rgb) + fresnel * light), frame.a);
     }
 
+    // Unity's motion vectors at the texel.
     half2 fragMotion(v2f i) : SV_Target
     {
         return tex2D(_CameraMotionVectorsTexture, i.uv).rg;
@@ -304,17 +317,14 @@ Shader "Hidden/ReDefinition/RtCapture"
     // G-buffer's specular colour and smoothness (RtCamera, the surfaces written back).
     sampler2D _ReDefinitionRtSurface;
 
+    // The surfaces' specular colour and smoothness at the pixel, for the G-buffer.
     half4 fragSurface(v2fQuad i) : SV_Target
     {
         return tex2D(_ReDefinitionRtSurface, i.screen.xy / i.screen.w);
     }
 
-    // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
-    // shine as its material means it. Dark grey matt; blue to green to yellow to red from
-    // rough to smooth, brighter the stronger it reflects; striped where the G-buffer's own
-    // shine was kept (Unity's physically based or an unknown shader), striped across for the
-    // space centre's ground, striped down with magenta where no material was found at the
-    // pixel, each by the shine it gets; cyan KSP's sea; the sky as it is.
+    // The proxy's surface mode per pixel (RtCamera, surfaceMode): r which way its shine was found, in eighths;
+    // g the meadow's shade; a the occlusion, below a half where the raytracing found no surface.
     sampler2D _ReDefinitionRtSurfaceMode;
 
     // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn as bright as the
@@ -330,6 +340,12 @@ Shader "Hidden/ReDefinition/RtCapture"
         return half4(shade, shade, shade, occlusion) * 0.5;
     }
 
+    // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
+    // shine as its material means it. Dark grey matt; blue to green to yellow to red from
+    // rough to smooth, brighter the stronger it reflects; striped where the G-buffer's own
+    // shine was kept (Unity's physically based or an unknown shader), striped across for the
+    // space centre's ground, striped down with magenta where no material was found at the
+    // pixel, each by the shine it gets; cyan KSP's sea; the sky as it is.
     half4 fragSurfaceView(v2fQuad i) : SV_Target
     {
         float2 uv = i.screen.xy / i.screen.w;
@@ -375,6 +391,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     // its light.
     half4 _ReDefinitionFlatAmbient;
 
+    // The light buffer's texel less the albedo times the flat ambient light, where it holds that alone.
     half4 fragUnbakeAmbient(v2f i) : SV_Target
     {
         half4 light = tex2D(_MainTex, i.uv);
@@ -390,6 +407,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     // raytraced camera: the sun's other cameras leave what it wrote.
     float _ReDefinitionRtOn;
 
+    // The two texels of pass 15: Unity's fade data on the left, its fade centre and type on the right.
     float4 fragShadowFade(v2f i) : SV_Target
     {
         if (_ReDefinitionRtOn < 0.5)
@@ -402,70 +420,86 @@ Shader "Hidden/ReDefinition/RtCapture"
     {
         ZTest Always Cull Off ZWrite Off
 
+        // Pass 0: the camera's depth.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragDepth
             ENDCG }
+        // Pass 1: the G-buffer's diffuse colour and occlusion (G-buffer 0).
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragGBuffer0
             ENDCG }
+        // Pass 2: the G-buffer's specular colour and smoothness (G-buffer 1).
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragGBuffer1
             ENDCG }
+        // Pass 3: the G-buffer's world normal (G-buffer 2).
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragGBuffer2
             ENDCG }
+        // Pass 4: Unity's motion vectors.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragMotion
             ENDCG }
+        // Pass 5: the sky's cube map as a latitude-longitude image.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragEnvironment
             ENDCG }
+        // Pass 6: a material's small texture from its full-size one (RtScene, MaterialTexturePass).
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragMaterialTexture
             #pragma target 3.0
             ENDCG }
+        // Pass 7: Scatterer's ocean depth.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragOceanDepth
             ENDCG }
+        // Pass 8: the ocean's specular colour and smoothness as Unity's G-buffer 1.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragOceanSurface1
             ENDCG }
+        // Pass 9: the ocean's normal as Unity's G-buffer 2.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragOceanSurface2
             ENDCG }
+        // Pass 10: the traced reflections as the ocean reads them in place of Deferred's ssrOutput.
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragOceanCompose
             ENDCG }
+        // Pass 11: the mirrored discs added to the ocean Scatterer drew (OceanDiscsPass).
         Pass { CGPROGRAM
             #pragma vertex vertQuad
             #pragma fragment fragOceanDiscs
             #pragma target 3.0
             ENDCG }
+        // Pass 12: the surfaces' specular colour and smoothness into the G-buffer (SurfacePass).
         Pass { CGPROGRAM
             #pragma vertex vertQuad
             #pragma fragment fragSurface
             ENDCG }
+        // Pass 13: the surfaces' overlay, blended over the finished picture (SurfaceViewPass).
         Pass {
             Blend SrcAlpha OneMinusSrcAlpha
             CGPROGRAM
             #pragma vertex vertQuad
             #pragma fragment fragSurfaceView
             ENDCG }
+        // Pass 14: KSP's flat ambient light taken out of a copy of the light buffer (UnbakeAmbientPass).
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragUnbakeAmbient
             ENDCG }
+        // Pass 15: Unity's shadow fade for forward rendering, into two texels (ShadowFadePass).
         Pass { CGPROGRAM
             #pragma vertex vert
             #pragma fragment fragShadowFade

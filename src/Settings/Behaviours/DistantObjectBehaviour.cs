@@ -33,9 +33,11 @@ namespace ReDefinition.Settings.Behaviours
     //     (GalaxyCubeControl's line of sight to the sun, decompiled).
     internal sealed class DistantObjectBehaviour : ModBehaviour
     {
+        // The Harmony id the hooks are installed under, and where the registration's member paths start.
         private const string HarmonyId = "ReDefinition.DistantObjectHooks";
         private const string Root = "DistantObject.Settings.Instance.";
 
+        // The settings whose change goes through Commit, as its window's does.
         private static readonly string[] Commits = { "flaresEnabled", "renderVessels", "changeSkybox", "debugMode" };
 
         // The mod the hooks report to; one per run.
@@ -57,6 +59,8 @@ namespace ReDefinition.Settings.Behaviours
         // the solar system's internal Instance.
         private static Func<object, object> readSettings, readSkybox, readSolarSystem;
 
+        // Distant Object's members as Attach finds them: the settings type, its Instance, Commit and Load; the
+        // window's ApplySettings and its buffer, and the fields that hold a window.
         private Type settingsType;
         private PropertyInfo instance;
         private MethodInfo commit;
@@ -64,9 +68,12 @@ namespace ReDefinition.Settings.Behaviours
         private MethodInfo windowApply;
         private FieldInfo windowBuffer;
         private readonly List<FieldInfo> windowHolders = new List<FieldInfo>();
+        // The open windows' copies of the settings, looked for once in the frame buffersFrame names.
         private readonly List<object> buffers = new List<object>();
         private int buffersFrame = -1;
 
+        // The members this is written against; false where this build lacks the settings, Commit or Load. A
+        // window that keeps its values elsewhere only loses its following.
         public override bool Attach(RegisteredMod mod)
         {
             settingsType = TypeLookup.Find("DistantObject.Settings");
@@ -118,6 +125,7 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // The font as a choice, and every write followed by Commit for a switch, and into the open windows.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             FieldInfo group, field;
@@ -242,6 +250,7 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // The postfix on DarkenSky.Update, where this build's code is the one it was written against.
         private void InstallSkyHook()
         {
             Type darken = TypeLookup.Find("DistantObject.DarkenSky");
@@ -328,6 +337,7 @@ namespace ReDefinition.Settings.Behaviours
             return Expression.Lambda<Func<object, object, Camera, double>>(brightness, system, values, camera).Compile();
         }
 
+        // A field of the settings' group read as a double.
         private static Expression Number(Expression owner, FieldInfo field)
         {
             return Expression.Convert(Expression.Field(owner, field), typeof(double));
@@ -366,11 +376,13 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // A field read by reflection, where the compiled getter is refused.
         private static Func<object, object> Reflected(FieldInfo field)
         {
             return target => field.GetValue(target);
         }
 
+        // A property read by reflection, where the compiled getter is refused.
         private static Func<object, object> Reflected(PropertyInfo property)
         {
             return target => property.GetValue(target, null);

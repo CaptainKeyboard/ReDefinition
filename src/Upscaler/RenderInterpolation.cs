@@ -18,8 +18,9 @@ namespace ReDefinition.Upscaler
     // this reason (Unity's own interpolation). That one KSP cannot have: its physics reads
     // part positions from the transforms, which would then lag by up to a step.
     //
-    // So only for the length of the frame's drawing: as the first camera culls, the
-    // vessel's topmost part transforms are moved by the offset from the last step's
+    // So only for the length of the frame's drawing: after every other LateUpdate (or,
+    // where that did not run, as the first camera culls), the vessel's topmost part
+    // transforms are moved by the offset from the last step's
     // position to the one interpolated for this frame, (previous - current) *
     // (1 - alpha), alpha being the part of a step since the last one, as Unity
     // interpolates; as the next frame begins, before its first physics step and its
@@ -51,14 +52,18 @@ namespace ReDefinition.Upscaler
     [DefaultExecutionOrder(32000)]
     public sealed class RenderInterpolation : MonoBehaviour
     {
+        // The least jump between two frames, in metres, that resets a vessel's track instead of drawing between steps.
         private const float JumpMetres = 50f;
+        // Seconds between two log lines.
         private const float ReportSeconds = 10f;
 
         // The Debug switch; on at every start, off with -redefinitionProbeNoInterpolation.
         internal static bool Enabled = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoInterpolation") < 0;
 
+        // A part transform moved for this frame: its local position before, to restore exactly, and the world offset.
         private struct Moved
         {
+            // The transform, its local position before the move, the world offset it was moved by.
             internal Transform Transform;
             internal Vector3 LocalPosition;
             internal Vector3 Offset;
@@ -67,6 +72,8 @@ namespace ReDefinition.Upscaler
         // One vessel's way between its steps, against a reference that follows it.
         private sealed class Track
         {
+            // The vessel; its steps' positions relative to Reference; Reference, the root's position against the
+            // main body that positions are taken from; this frame's offset; the frame the track was last followed in.
             internal Vessel Vessel;
             internal readonly StepInterpolator Interpolator = new StepInterpolator();
             internal Vector3d Reference;
@@ -74,8 +81,11 @@ namespace ReDefinition.Upscaler
             internal int Frame;
         }
 
+        // The transforms moved this frame, in the order they were moved.
         private readonly List<Moved> moved = new List<Moved>();
+        // One vessel's part transforms at a time, for finding the topmost (Apply).
         private readonly HashSet<Transform> partTransforms = new HashSet<Transform>();
+        // The tracks of the active vessel and the vessels near it, by vessel.
         private readonly Dictionary<Vessel, Track> tracks = new Dictionary<Vessel, Track>();
         // Which track each part was drawn with the frame before, for a vessel that has just parted.
         private readonly Dictionary<Part, Track> trackOfPart = new Dictionary<Part, Track>();
@@ -87,6 +97,8 @@ namespace ReDefinition.Upscaler
         private const float RebaseMetres = 1000f;
         private int appliedFrame = -1;
 
+        // The log window's counts: the most vessels near the active one, frames drawn between steps, frames without
+        // a step of their own of all seen, the active vessel's offset summed and largest, and when the window began.
         private int othersMax;
         private int framesShifted;
         private int framesWithoutStep;
@@ -95,10 +107,13 @@ namespace ReDefinition.Upscaler
         private float offsetMax;
         private float windowStart = -1f;
 
+        // The running addon, for CameraShift.
         private static RenderInterpolation instance;
+        // The camera CameraShift last answered for this frame, and its answer.
         private Camera shiftCamera;
         private Vector3 cameraShift;
 
+        // Hooks the first camera's cull and the restore before the next frame's physics and Update.
         private void Start()
         {
             instance = this;
@@ -110,6 +125,7 @@ namespace ReDefinition.Upscaler
             TimingManager.UpdateAdd(TimingManager.TimingStage.ObscenelyEarly, Restore);
         }
 
+        // Unhooks and puts any moved parts back.
         private void OnDestroy()
         {
             Camera.onPreCull -= OnAnyPreCull;
@@ -231,6 +247,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Moves the topmost part transforms of every vessel followed this frame by its track's offset, and counts the
+        // active vessel's offset for the log.
         private void Apply()
         {
             foreach (Track track in tracks.Values)
@@ -261,6 +279,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // Moves a transform by a world offset, noting its local position for Restore.
         private void Move(Transform t, Vector3 offset)
         {
             moved.Add(new Moved { Transform = t, LocalPosition = t.localPosition, Offset = offset });
@@ -297,6 +316,7 @@ namespace ReDefinition.Upscaler
             shiftCamera = null;
         }
 
+        // Logs the window's counts, if any frame was drawn between steps, and starts a new window.
         private void Report()
         {
             float elapsed = Time.unscaledTime - windowStart;

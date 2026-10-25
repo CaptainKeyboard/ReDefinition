@@ -14,12 +14,15 @@ namespace ReDefinition.Settings
     // ReDefinition's PluginData, written at every change.
     internal static class KeptBindings
     {
+        // The file in ReDefinition's PluginData, and its root node.
         private const string FileName = "bindings.cfg";
         private const string NodeName = "KEPT_BINDINGS";
 
+        // The bindings by setting key, as text; whether bindings.cfg has been read.
         private static readonly Dictionary<string, string> bindings = new Dictionary<string, string>();
         private static bool loaded;
 
+        // The binding kept for the key; the fallback where none is kept.
         internal static string Get(string key, string fallback)
         {
             Load();
@@ -27,6 +30,7 @@ namespace ReDefinition.Settings
             return bindings.TryGetValue(key, out text) ? text : fallback;
         }
 
+        // The binding kept for the key from now on, None for none, and bindings.cfg written at once.
         internal static void Set(string key, string text)
         {
             Load();
@@ -34,6 +38,7 @@ namespace ReDefinition.Settings
             Save();
         }
 
+        // bindings.cfg, read once; a value that is no binding is left out.
         private static void Load()
         {
             if (loaded) return;
@@ -68,6 +73,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Every binding into bindings.cfg; throws where KSP could not write it.
         private static void Save()
         {
             string path = FilePath();

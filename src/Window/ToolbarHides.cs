@@ -18,6 +18,7 @@ namespace ReDefinition.Window
         // The row in its registration that shows and hides the window.
         private const string WindowRow = "persistentrotation.window";
 
+        // Hides Persistent Rotation's button while the row that takes its place is registered, where the mod is installed.
         private void Awake()
         {
             // Hidden only while the row is there to take its place: in another build of the

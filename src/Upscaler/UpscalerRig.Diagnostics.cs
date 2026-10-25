@@ -12,6 +12,7 @@ namespace ReDefinition.Upscaler
     // are needed.
     public partial class UpscalerRig
     {
+        // The CPU textures the readbacks land in: one pixel for SamplePixel, the downscaled image for ReadBack.
         private Texture2D probePixel;
         private Texture2D readback;
 
@@ -34,6 +35,7 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
+        // One texture's line: size, format and native pointer, against the pointer taken at setup.
         private static void AppendHandle(StringBuilder sb, string label, RenderTexture texture, IntPtr atSetup)
         {
             sb.AppendLine().Append("      ").Append(label.PadRight(28));
@@ -240,6 +242,7 @@ namespace ReDefinition.Upscaler
                    + redirect.GetComponents<CameraRedirect>().Length + "]";
         }
 
+        // The largest difference between two matrices, element by element; 0 where they are the same bit for bit.
         private static float MaxElementDelta(Matrix4x4 a, Matrix4x4 b)
         {
             float worst = 0f;
@@ -251,11 +254,13 @@ namespace ReDefinition.Upscaler
             return worst;
         }
 
+        // A projection's jitter terms (m02, m12) as a pair with six decimals.
         private static string Shear(float x, float y)
         {
             return "(" + x.ToString("0.000000") + ", " + y.ToString("0.000000") + ")";
         }
 
+        // The command buffers on the camera's common events, as event:name, for the camera list in the log.
         private static string DescribeHooks(Camera camera)
         {
             CameraEvent[] events =
@@ -325,6 +330,7 @@ namespace ReDefinition.Upscaler
                    + " f=" + (farIsNoise ? "~" + far.ToString("0") + " (unreliable)" : far.ToString("0"));
         }
 
+        // A reversed device depth as a distance, near plane / depth, in m or km; infinite at the far plane.
         private static string Distance(float near, float depth)
         {
             if (depth <= 1e-7f) return "infinite";
@@ -334,6 +340,8 @@ namespace ReDefinition.Upscaler
                 : metres.ToString("0.0") + " m";
         }
 
+        // The masks the rig sends: the transparency mask's coverage, the reactive source and its coverage, and for
+        // the renderers' mask how many draws it made of how many transparent renderers, with a problem it reported.
         private string DescribeInputMasks()
         {
             StringBuilder sb = new StringBuilder();
@@ -346,6 +354,7 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
+        // How much of a mask marks anything (red above 0.01) and its mean, from the downscaled readback.
         private string Coverage(RenderTexture texture)
         {
             if (texture == null) return "not present";
@@ -385,6 +394,7 @@ namespace ReDefinition.Upscaler
             return readback.GetPixels();
         }
 
+        // The red channel of the downscaled readback: depth, or a mask, one value per pixel.
         private float[] ReadLuminance(RenderTexture source)
         {
             Color[] pixels = ReadBack(source);

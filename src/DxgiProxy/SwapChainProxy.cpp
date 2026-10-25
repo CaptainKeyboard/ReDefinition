@@ -74,6 +74,7 @@ namespace redefinition
 
     namespace
     {
+        // A swapchain description in one line for the log.
         std::string Describe(const DXGI_SWAP_CHAIN_DESC1& desc)
         {
             return std::to_string(desc.Width) + "x" + std::to_string(desc.Height)
@@ -154,6 +155,8 @@ namespace redefinition
         return S_OK;
     }
 
+    // The GPU idle first; then low latency, the upscalers, compute and frame generation detached, and the
+    // swapchains and contexts of FidelityFX, XeSS-FG and Streamline torn down in the order their SDKs ask.
     SwapChainProxy::~SwapChainProxy()
     {
         HWND own = window;

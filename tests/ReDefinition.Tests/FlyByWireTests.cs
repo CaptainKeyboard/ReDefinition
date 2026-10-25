@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class FlyByWireTests
     {
+        // The simulated time step, a physics frame's 0.02 s, and one degree in radians.
         private const double Dt = 0.02, Degree = Math.PI / 180;
 
         // The target 60 degrees away with its top rolled 90 degrees further: the nose goes the
@@ -42,6 +43,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(Vector3d.Angle(top, aimTop) < 1, "top " + Vector3d.Angle(top, aimTop) + " degrees from the aim's");
         }
 
+        // Flies the body for `seconds`: each step takes FlyByWire.Inputs for its axes, adds input times alpha to
+        // the turning speed, turns nose, right and top by it, and then calls `watch`.
         private static void Fly(ref Vector3d nose, ref Vector3d right, ref Vector3d top, Vector3d aim, Vector3d aimTop, Vector3d alpha, double seconds,
                                 Action watch)
         {

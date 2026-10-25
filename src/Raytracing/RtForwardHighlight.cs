@@ -18,6 +18,7 @@ namespace ReDefinition.Raytracing
         private const float DielectricGamma = 0.220916301f;
         private const float DielectricLinear = 0.04f;
 
+        // The material's highlight as the class comment describes it, in gamma or linear colour; zero where not known.
         internal static Vector4 Of(Material material, bool gammaSpace)
         {
             if (material == null || material.shader == null) return Vector4.zero;

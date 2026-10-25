@@ -35,11 +35,13 @@ namespace redefinition
             return "result " + std::to_string(result);
         }
 
+        // Whether a value is finite and above 0.
         bool Positive(float value)
         {
             return std::isfinite(value) && value > 0.0f;
         }
 
+        // Whether a motion vector scale is finite and not 0.
         bool Scale(float value)
         {
             return std::isfinite(value) && value != 0.0f;

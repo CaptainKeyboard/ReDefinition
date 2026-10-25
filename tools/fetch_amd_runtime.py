@@ -27,6 +27,7 @@ TARGET_DIR = os.path.join(ROOT, "third_party", "amd")
 
 
 def sha256(path):
+    """The SHA-256 of the file, as lower-case hex."""
     digest = hashlib.sha256()
     with open(path, "rb") as f:
         for block in iter(lambda: f.read(1 << 20), b""):
@@ -35,6 +36,8 @@ def sha256(path):
 
 
 def fetch(name):
+    """Download one DLL into third_party/amd unless it is there and matches its .sha256 pin; 1 if the download does not
+    match (nothing is kept), else 0."""
     target = os.path.join(TARGET_DIR, name)
     with open(target + ".sha256", "r", encoding="ascii") as f:
         pinned = f.read().strip().lower()
@@ -59,6 +62,7 @@ def fetch(name):
 
 
 def main():
+    """Fetch every file; 1 if any failed."""
     return max(fetch(name) for name in FILES)
 
 

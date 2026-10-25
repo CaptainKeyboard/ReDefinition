@@ -14,15 +14,21 @@ namespace ReDefinition.Dashboard
     /// </summary>
     internal sealed class Telemetry
     {
+        // A key's value on the active vessel, from the arguments in its brackets.
         private delegate object Reader(Vessel v, string[] args);
+        // A command run on the active vessel with the arguments in its brackets.
         private delegate void Action(Vessel v, string[] args);
 
+        // The vessel's keys and commands by name, read and run in flight only, while the game is not paused.
         private readonly Dictionary<string, Reader> readers = new Dictionary<string, Reader>();
         private readonly Dictionary<string, Action> actions = new Dictionary<string, Action>();
 
-        // Keys and commands with no vessel, read and run in every scene: the menu page's.
+        // Keys and commands with no vessel, read and run in every scene: the menu's, the game's, the Space
+        // Center's and the editors' pages.
         private delegate object SceneReader(string[] args);
+        // A command of that kind, run with the arguments in its brackets.
         private delegate void SceneAction(string[] args);
+        // Those keys and commands by name, and the readers for each page's scene that keep state between reads.
         private readonly Dictionary<string, SceneReader> sceneReaders = new Dictionary<string, SceneReader>();
         private readonly Dictionary<string, SceneAction> sceneActions = new Dictionary<string, SceneAction>();
         private readonly MenuTelemetry menu = new MenuTelemetry();
@@ -34,6 +40,7 @@ namespace ReDefinition.Dashboard
         private int resourceFrame = -1;
         private readonly Dictionary<string, double[]> resources = new Dictionary<string, double[]>();
 
+        // KSP's ten custom action groups, behind v.ag1Value .. v.ag10Value and f.ag1 .. f.ag10.
         private static readonly KSPActionGroup[] CustomGroups =
         {
             KSPActionGroup.Custom01, KSPActionGroup.Custom02, KSPActionGroup.Custom03, KSPActionGroup.Custom04,
@@ -41,6 +48,7 @@ namespace ReDefinition.Dashboard
             KSPActionGroup.Custom09, KSPActionGroup.Custom10,
         };
 
+        // Registers every key and command by name, grouped by the page and the part of the game they belong to.
         public Telemetry()
         {
             // The game, in every scene: the scene's name (GameScenes), the versions, KSP's progress
@@ -156,9 +164,9 @@ namespace ReDefinition.Dashboard
             readers["n.steerTarget"] = (v, a) => FlyByWire.Target;       // where a navball drag turns the vessel, or null
             readers["n.steerTargetTop"] = (v, a) => FlyByWire.TargetTop; // where its top will point there, or null
             readers["n.steerAltitude"] = (v, a) => FlyByWire.TargetAltitude; // the turn is done by this altitude, or null
-            readers["n.steerSCurve"] = (v, a) => FlyByWire.SCurve;
+            readers["n.steerSCurve"] = (v, a) => FlyByWire.SCurve;          // the turn spread as an S-curve, else linearly
             readers["n.steerCurve"] = (v, a) => FlyByWire.CurveName;        // "linear", "s" or "auto"
-            readers["n.steerArmed"] = (v, a) => FlyByWire.Armed;            // play: steering to the target; pause: only holding it           // the turn spread as an S-curve, else linearly
+            readers["n.steerArmed"] = (v, a) => FlyByWire.Armed;            // play: steering to the target; pause: only holding it
             readers["n.prograde"] = (v, a) => Local(v, Prograde(v));
             readers["n.normal"] = (v, a) =>
             {
@@ -246,10 +254,11 @@ namespace ReDefinition.Dashboard
             };
             actions["c.nextMode"] = (v, a) => { if (FlightCamera.fetch != null) FlightCamera.fetch.SetNextMode(); };
             actions["f.precisionControl"] = (v, a) => FlightInputHandler.fetch.precisionMode = !FlightInputHandler.fetch.precisionMode;
-            // Quicksave as F5 does, where the game allows saving now.
+            // A maneuver node at the next apoapsis that makes the orbit circular there.
             actions["o.circularizeAp"] = (v, a) => CircularizeAtApoapsis(v);
             // o.nodeLead[percent]: the share of the burn to lie before the node.
             actions["o.nodeLead"] = (v, a) => nodeLead = Math.Max(0, Math.Min(100, Float(a, 0))) / 100.0;
+            // Quicksave as F5 does, where the game allows saving now.
             actions["f.quicksave"] = (v, a) =>
             {
                 ClearToSaveStatus status = FlightGlobals.ClearToSave();
@@ -292,6 +301,7 @@ namespace ReDefinition.Dashboard
         // then 0.01 km, 0.01 Mm, 0.01 Gm), speeds to 0.1 m/s, times to 0.1 s, directions to 1e-4.
         private static readonly Dictionary<string, Func<double, double>> Steps = new Dictionary<string, Func<double, double>>();
 
+        // Fills Steps: each rounded key with the step it is sent in, which may depend on the value's size.
         static Telemetry()
         {
             Func<double, double> distance = d => { d = Math.Abs(d); return d < 1e4 ? 1 : d < 1e6 ? 10 : d < 1e9 ? 1e4 : 1e7; };
@@ -343,6 +353,7 @@ namespace ReDefinition.Dashboard
             return true;
         }
 
+        // Whether the name is a key or a command here, read or run in any scene; arguments do not matter.
         public bool IsKnown(string key)
         {
             string name; string[] args;
@@ -351,6 +362,8 @@ namespace ReDefinition.Dashboard
                    || sceneActions.ContainsKey(name);
         }
 
+        // r.resource[name] (index 0) and r.resourceMax[name] (index 1): the vessel's amount or capacity of that
+        // resource, 0 where it carries none.
         private object Resource(Vessel v, string[] args, int index)
         {
             if (args.Length == 0) return null;
@@ -371,6 +384,7 @@ namespace ReDefinition.Dashboard
             return resources.TryGetValue(args[0], out total) ? total[index] : 0d;
         }
 
+        // The share of a node's burn to lie before the node (o.nodeLead), half until the dashboard sets it.
         private static double nodeLead = 0.5;
 
         /// <summary>
@@ -409,6 +423,7 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // The vessel's first maneuver node, null without one or before the solver exists.
         private static ManeuverNode FirstNode(Vessel v)
         {
             PatchedConicSolver solver = v.patchedConicSolver;
@@ -457,6 +472,7 @@ namespace ReDefinition.Dashboard
             if (spin.magnitude > 1.0 && Vector3d.Dot(east, spin) < 0) east = -east;
         }
 
+        // A world direction in the vessel's north, east, up frame, as the navball keys send it.
         private static double[] Local(Vessel v, Vector3d world)
         {
             Vector3d up, north, east;
@@ -464,6 +480,7 @@ namespace ReDefinition.Dashboard
             return new[] { Vector3d.Dot(world, north), Vector3d.Dot(world, east), Vector3d.Dot(world, up) };
         }
 
+        // The same for a single-precision direction, such as a transform's axis.
         private static double[] Local(Vessel v, Vector3 world)
         {
             return Local(v, (Vector3d)world);
@@ -483,12 +500,15 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // Toggles an action group, or with an argument sets it to true or false.
         private static void Group(Vessel v, KSPActionGroup group, string[] args)
         {
             if (args.Length == 0) v.ActionGroups.ToggleGroup(group);
             else v.ActionGroups.SetGroup(group, bool.Parse(args[0]));
         }
 
+        // The argument at i as a number with a decimal point; throws where it is missing or none, which fails
+        // the command (DashboardServer.Run logs it).
         private static float Float(string[] args, int i)
         {
             return float.Parse(args[i], CultureInfo.InvariantCulture);

@@ -12,6 +12,7 @@ namespace ReDefinition.Window
         // A segment's text as wide as it needs and not under the minimum.
         internal sealed class Segment
         {
+            // The segment's width, and the layout option of that width.
             public float Width;
             public GUILayoutOption Option;
         }
@@ -19,6 +20,7 @@ namespace ReDefinition.Window
         // What one option's row and chip draw with.
         internal sealed class Row
         {
+            // The label and the chip's text with their tooltips, and the chip's width once measured (-1 before).
             public readonly GUIContent Label = new GUIContent();
             public readonly GUIContent Chip = new GUIContent();
             public float ChipWidth = -1f;
@@ -30,6 +32,8 @@ namespace ReDefinition.Window
             return key == KeyCode.Escape || key == KeyCode.Return || key == KeyCode.KeypadEnter;
         }
 
+        // The persistence markers, the search's clear button, the reset button, the "Changed" chip, the pin star and the
+        // tooltip box, each made once and given its text where it changes.
         public readonly GUIContent Saved = new GUIContent("saved", "Saved");
         public readonly GUIContent Restart = new GUIContent("restart", "Needs A Restart");
         public readonly GUIContent Session = new GUIContent("session", "This Session Only");
@@ -43,8 +47,11 @@ namespace ReDefinition.Window
         public readonly GUILayoutOption MarkerOption = GUILayout.Width(MarkerWidth);
         public readonly GUILayoutOption TailOption = GUILayout.Width(MarkerWidth + 28f);
 
+        // The width of a persistence marker.
         public const float MarkerWidth = 56f;
 
+        // The "Changed" chip's count shown; the segments by label, the rows by option id, and the pages' entries with the
+        // count each shows.
         private int changedCount = -1;
         private readonly Dictionary<string, Segment> segments = new Dictionary<string, Segment>();
         private readonly Dictionary<string, Row> rows = new Dictionary<string, Row>();
@@ -70,6 +77,7 @@ namespace ReDefinition.Window
             return Star;
         }
 
+        // The marker of a persistence: saved, session or restart.
         public GUIContent MarkerFor(DebugPersistence persistence)
         {
             switch (persistence)
@@ -102,6 +110,7 @@ namespace ReDefinition.Window
             return content;
         }
 
+        // A segment as wide as its label in the style, not under the minimum, measured once per label.
         public Segment SegmentOf(GUIStyle style, string label, float minimum)
         {
             Segment segment;
@@ -112,6 +121,7 @@ namespace ReDefinition.Window
             return segment;
         }
 
+        // The option's row contents, made on first use.
         public Row RowOf(string id)
         {
             Row row;

@@ -8,8 +8,12 @@ namespace ReDefinition.Window
     // of what is switched off are the window's.
     internal sealed class DiagnosticsStyles
     {
+        // The height of a segment, and of the search field beside them.
         public const float RowHeight = 22f;
 
+        // The styles, each for what its name says it draws: small text, a row's label, a greyed one, a reason, a
+        // persistence marker, a segment, a page in the list, the pin star, a heading, the live strip, the frame rate, a
+        // value, a table cell, the tooltip box and the search field; and whether the font has the star glyphs.
         public readonly GUIStyle Small;
         public readonly GUIStyle Row;
         public readonly GUIStyle Dim;
@@ -27,9 +31,11 @@ namespace ReDefinition.Window
         public readonly GUIStyle Field;
         public readonly bool StarGlyph;
 
+        // The warning colour (a reason, a long frame), and the grey of what is switched off.
         public static readonly Color Warning = new Color(1f, 0.75f, 0.3f);
         public static readonly Color Grey = new Color(0.6f, 0.6f, 0.6f);
 
+        // Copies the skin's label, button, box and text field into the window's styles.
         public DiagnosticsStyles(GUISkin skin)
         {
             int size = skin.label.fontSize > 0 ? skin.label.fontSize : 13;

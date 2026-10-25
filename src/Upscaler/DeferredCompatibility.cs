@@ -28,8 +28,11 @@ namespace ReDefinition.Upscaler
     // OnPreRender.
     internal static class DeferredCompatibility
     {
+        // The full name of Deferred's screen-space reflections component.
         private const string SsrTypeName = "Deferred.ScreenSpaceReflections";
 
+        // Deferred's members, looked up once by Resolve: the component's type, its camera and screenColor
+        // history fields, the history's indexer (found on first use), and RecreateTexturesAndBuffers.
         private static bool resolved;
         private static Type ssrType;
         private static FieldInfo targetCamera;
@@ -37,10 +40,13 @@ namespace ReDefinition.Upscaler
         private static PropertyInfo historyItem;
         private static MethodInfo recreate;
 
+        // The components to size as their camera next culls, whether OnPreCull is subscribed for them, and the
+        // reason of the latest change, for the log.
         private static readonly List<Behaviour> pending = new List<Behaviour>();
         private static bool listening;
         private static string pendingReason;
 
+        // Whether Deferred is installed with the members this is written against.
         public static bool Present
         {
             get
@@ -50,6 +56,9 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // At the end of a frame in which the render size changed (ReDefinitionAddon's follow-up): every
+        // reflections component whose size is not its camera's any more is sized anew, or as its camera
+        // next culls where Deferred could not read the size now.
         public static void AfterRenderSizeChange(string reason)
         {
             if (!Present) return;
@@ -90,6 +99,7 @@ namespace ReDefinition.Upscaler
                           + reason + ").");
         }
 
+        // Queues a component to be sized as its camera next culls, subscribing to Camera.onPreCull once.
         private static void Defer(Behaviour ssr, string reason)
         {
             if (!pending.Contains(ssr)) pending.Add(ssr);
@@ -99,6 +109,8 @@ namespace ReDefinition.Upscaler
             listening = true;
         }
 
+        // Sizes the queued components of the camera culling now, where Deferred reads that camera's size (a
+        // warning where not); unsubscribes once the queue is empty.
         private static void OnPreCull(Camera culling)
         {
             for (int i = pending.Count - 1; i >= 0; i--)
@@ -150,6 +162,7 @@ namespace ReDefinition.Upscaler
             listening = false;
         }
 
+        // The size the camera renders at: for a redirected camera the rig texture's.
         private static Vector2Int PixelSize(Camera camera)
         {
             return new Vector2Int(camera.pixelWidth, camera.pixelHeight);
@@ -179,6 +192,7 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // Looks Deferred's type and members up once; warns where Deferred is there but its members are not.
         private static void Resolve()
         {
             if (resolved) return;

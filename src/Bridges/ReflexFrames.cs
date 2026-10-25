@@ -31,21 +31,29 @@ namespace ReDefinition.Bridges
     // the mod, both systems go quiet for the session.
     internal static class ReflexFrames
     {
+        // The proxy's file name, and the render event that carries a frame's index to its Present.
         private const string Proxy = "dxgi.dll";
         private const int FrameEvent = 40;
 
+        // Reflex's sleep and the frame's simulation start; the frame's index, or 0 where nothing marks frames.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern uint KspReflexFrameStart();
 
+        // The end of the frame's simulation, under the index KspReflexFrameStart gave.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspReflexSimulationEnd(uint frameIndex);
 
+        // The proxy's render event callback, shared with frame generation and the upscalers.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr KspFgGetRenderEventFunc();
 
+        // What lowers the latency, as text, and which: 1 Reflex through NVAPI, 2 Streamline's Reflex, 3 AMD
+        // Anti-Lag 2, 4 Intel XeLL, 0 none.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspLowLatency(StringBuilder buffer, int size);
 
+        // LowLatencyText's answer: the text it is read into, the kind and text last read and the text shown;
+        // and whether the proxy lacks the export.
         private static readonly StringBuilder latencyBuffer = new StringBuilder(256);
         private static int shownLatencyKind = -1;
         private static string shownLatencySource;
@@ -95,9 +103,11 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // The latency measure's median and 90th percentile in milliseconds; how many frames they rest on.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspLatencyMeasure(out double median, out double percentile90);
 
+        // Set once the proxy lacks KspLatencyMeasure, so it is not asked again.
         private static bool measureMissing;
 
         // The proxy's last latency report (LowLatency::Measure), from the frame's start to the
@@ -119,6 +129,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // Whether the builder holds the same text, compared without making a string of it.
         private static bool Same(StringBuilder text, string other)
         {
             if (text.Length != other.Length) return false;
@@ -131,8 +142,11 @@ namespace ReDefinition.Bridges
 
         // The loop tells systems apart by type; Unity's profiler shows the names.
         private struct ReDefinitionReflexFrameStart { }
+        // The system that ends the frame's simulation, after LateUpdate.
         private struct ReDefinitionReflexSimulationEnd { }
 
+        // Set once the proxy lacks the exports or a call failed: both systems go quiet. The render event, the
+        // buffer that sends the index, the frame's index from BeginFrame (0 for none), and whether it was logged.
         private static bool missing;
         private static IntPtr renderEvent = IntPtr.Zero;
         private static CommandBuffer buffer;
@@ -165,6 +179,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // Whether the system or one beneath it is of the type.
         private static bool Contains(PlayerLoopSystem system, Type type)
         {
             if (system.type == type) return true;
@@ -176,6 +191,7 @@ namespace ReDefinition.Bridges
             return false;
         }
 
+        // The new system right after the anchor's, wherever in the loop that stands; false where there is none.
         private static bool InsertAfter(ref PlayerLoopSystem system, Type anchor, Type type,
                                         PlayerLoopSystem.UpdateFunction update)
         {
@@ -264,6 +280,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // The frame's simulation is done: rendering follows.
         private static void EndSimulation()
         {
             if (frame == 0) return;

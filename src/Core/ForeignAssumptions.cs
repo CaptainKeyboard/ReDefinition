@@ -20,6 +20,7 @@ namespace ReDefinition.Core
     // and the fingerprint added.
     internal static class ForeignAssumptions
     {
+        // Full names of the Unity and system types the entries below pass as parameter and field types.
         private const string Camera = "UnityEngine.Camera";
         private const string Material = "UnityEngine.Material";
         private const string Mesh = "UnityEngine.Mesh";
@@ -35,6 +36,7 @@ namespace ReDefinition.Core
         private const string Float = "System.Single";
         private const string StringType = "System.String";
 
+        // Full names of the mods' types several entries name.
         private const string EveClouds = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
         private const string EveToScreen = "Atmosphere.DeferredRaymarchedRendererToScreen";
         private const string EveProperties = "Utils.ShaderProperties";
@@ -449,6 +451,8 @@ namespace ReDefinition.Core
                 .Tested("054d15081476") // Better Time Warp 2.3.14.2
                 .OnChange(WhenChanged.Keep, "its button is moved where the code still matches, else left");
 
+        // Maneuver Node Evolved's gizmo scaling turned off (Scaling.OtherScalers): a transpiler on LateUpdate and
+        // gizmoSpawn reroutes their writes to the gizmo's screenSize, so ReDefinition's UI scale is the only one.
         public static readonly ForeignAssumption ManeuverNodeEvolved =
             new ForeignAssumption("maneuver-node-evolved", "Maneuver Node Evolved", "the maneuver gizmo's size")
                 .Type("BetterManeuvering.ManeuverController")
@@ -563,6 +567,7 @@ namespace ReDefinition.Core
                 .Calls("Toolbar.ToolbarManager", "OnGUI")
                 .OnChange(WhenChanged.Keep, "its buttons show on the loading screen");
 
+        // The same for MechJeb's menu: MechJebCore's OnGUI skipped while the loading screen's camera is on.
         public static readonly ForeignAssumption MechJebLoadingScreen =
             new ForeignAssumption("mechjeb-loading-screen", "MechJeb", "MechJeb's menu off KSP's loading screen")
                 .Type("MuMech.MechJebCore")
@@ -669,6 +674,7 @@ namespace ReDefinition.Core
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "EVE's clouds take the moon's light all at once as the sun sets");
 
+        // The whole catalogue, in the order the report lists it.
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,

@@ -8,6 +8,7 @@ namespace ReDefinition
     // raytracing, low latency -- are the profile's, which the Reset chooses (High) over them.
     internal static class OwnSettingsReset
     {
+        // Fresh defaults with the player's own settings above taken over from now; defaults alone where there is none.
         internal static OwnSettings From(OwnSettings now, bool active)
         {
             OwnSettings reset = new OwnSettings();

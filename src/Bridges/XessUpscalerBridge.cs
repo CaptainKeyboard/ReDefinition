@@ -15,22 +15,29 @@ namespace ReDefinition.Bridges
     // (AmdUpscalerBridge.AmdPacket) with a magic of its own.
     internal static class XessUpscalerBridge
     {
+        // The proxy's file name, as the DllImports below resolve it in this process.
         private const string Proxy = "dxgi.dll";
 
+        // The proxy's magic for a XeSS packet, which tells it from one for AMD's upscaler.
         private const uint PacketMagic = 0x4B535058;   // 'KSPX'
 
+        // The native packet's size in bytes, checked against AmdPacket's.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern uint KspXessUpscalerPacketSize();
 
+        // What the native side sees, as text, with the state AMD's upscaler reports it in.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspXessUpscalerStatus(StringBuilder buffer, int size);
 
+        // 1 while the proxy presents through Direct3D 12 and XeSS has its devices.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspXessUpscalerReady();
 
+        // The version libxess.dll reports, as text; 0 before the DLL is loaded.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspXessUpscalerVersion(StringBuilder buffer, int size);
 
+        // The text KspXessUpscalerVersion answers into, reused.
         private static readonly StringBuilder versionBuffer = new StringBuilder(64);
         // The name as last made, made anew only when the proxy's answer changes: the
         // row asks every frame.
@@ -56,6 +63,7 @@ namespace ReDefinition.Bridges
             return shownName;
         }
 
+        // Whether the builder holds the same text, compared without making a string of it.
         private static bool Same(StringBuilder text, string other)
         {
             if (text.Length != other.Length) return false;
@@ -66,6 +74,8 @@ namespace ReDefinition.Bridges
             return true;
         }
 
+        // The link to the proxy's XeSS: render events 7 (a frame) and 8 (the rig gone), probed through
+        // KspXessUpscalerReady and KspXessUpscalerVersion.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("XeSS",
             typeof(AmdUpscalerBridge.AmdPacket), () => KspXessUpscalerPacketSize(),
             (buffer, size) => KspXessUpscalerStatus(buffer, size), 7, 8,
@@ -75,6 +85,7 @@ namespace ReDefinition.Bridges
                 KspXessUpscalerVersion(null, 0);
             });
 
+        // The link, for the rig's state and teardown.
         internal static NativeUpscalerLink Link
         {
             get { return link; }
@@ -88,6 +99,7 @@ namespace ReDefinition.Bridges
             get { return WhyNotOffered() == null; }
         }
 
+        // Why XeSS is not offered, for the settings row's tooltip; null where it is.
         internal static string WhyNotOffered()
         {
             if (!link.Ready) return link.Problem;
@@ -106,6 +118,8 @@ namespace ReDefinition.Bridges
                   + " (enabled=0 or measureOnly=1 in ReDefinitionProxy.ini, or its setup failed: ReDefinitionProxy.log says which).";
         }
 
+        // A frame for XeSS, recorded into the upscaler's buffer with its size and magic set; false where the link
+        // is not ready or the ring refused it.
         internal static bool Submit(CommandBuffer buffer, ref AmdUpscalerBridge.AmdPacket packet)
         {
             if (!link.Ready) return false;

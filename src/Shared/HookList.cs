@@ -7,33 +7,40 @@ namespace ReDefinition.Shared
     // that throws is removed and reported once, and the others still run.
     internal sealed class HookList<T> where T : class
     {
+        // The hook's name and the log the removal of a throwing handler goes to; the handlers in the order they
+        // registered, the copy the outermost Invoke runs over, and how deep Invoke is nested.
         private readonly string name;
         private readonly Action<string> report;
         private readonly List<T> handlers = new List<T>();
         private readonly List<T> snapshot = new List<T>();
         private int invoking;
 
+        // `name` is the hook as the log names it; `report` writes the line when a handler is removed.
         internal HookList(string name, Action<string> report)
         {
             this.name = name;
             this.report = report;
         }
 
+        // Whether any handler is registered: callers skip work no one would see.
         internal bool Any
         {
             get { return handlers.Count > 0; }
         }
 
+        // How many handlers are registered, for the log.
         internal int Count
         {
             get { return handlers.Count; }
         }
 
+        // Registers a handler once; null and a second registration of the same one are ignored.
         internal void Add(T handler)
         {
             if (handler != null && !handlers.Contains(handler)) handlers.Add(handler);
         }
 
+        // Removes a handler; one that is not registered is ignored. An Invoke running still calls it this time.
         internal void Remove(T handler)
         {
             if (handler != null) handlers.Remove(handler);
@@ -72,6 +79,7 @@ namespace ReDefinition.Shared
             }
         }
 
+        // The handler's method with its type and assembly, for the log; "unknown" for anything but a delegate.
         private static string Describe(T handler)
         {
             Delegate method = handler as Delegate;

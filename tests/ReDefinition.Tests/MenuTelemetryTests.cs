@@ -11,15 +11,19 @@ namespace ReDefinition.Tests
     [TestClass]
     public class MenuTelemetryTests
     {
+        // A career's persistent.loadmeta as KSP writes it.
         private const string CareerMeta = "vesselCount = 3\nUT = 17293.15681928899\ngameMode = CAREER\ngameNull = False\nkspVersion = 1.12.5\n"
                                           + "funds = 143625.90404933196\nscience = 8\nreputationPercent = 9\nongoingContracts = 1\n"
                                           + "missionExpansionVersion = \nlastWriteTime = 639262856283463812\n";
 
+        // A stand-in for the game's calendar: the whole seconds of universal time.
         private static string Date(double ut)
         {
             return "UT " + Math.Floor(ut);
         }
 
+        // From KSP's summary a save gives its mode, date, funds rounded, science, reputation, contracts and
+        // vessels, and the time it was saved in milliseconds; its KSP version only where that differs.
         [TestMethod]
         public void ASavesSummaryGivesItsModeDateAndNumbers()
         {
@@ -40,6 +44,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1.12.5", MenuTelemetry.Entry("Career", saved, CareerMeta, "1.12.4", Date)["version"]);
         }
 
+        // A save without KSP's summary still shows, with its name and when it was saved.
         [TestMethod]
         public void ASaveWithoutASummaryHasItsNameAndTimeOnly()
         {
@@ -47,6 +52,8 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEquivalent(new[] { "name", "played" }, new List<string>(entry.Keys));
         }
 
+        // The saves are the folders holding a persistent.sfs, the last saved first; a summary is read again only
+        // once it changed, and a missing saves folder gives none.
         [TestMethod]
         public void TheSavesAreTheFoldersWithAPersistentSaveLastPlayedFirst()
         {
@@ -80,6 +87,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // Makes a save folder: a persistent.sfs last written at `saved` and, given one, KSP's summary next to it.
         private static void Folder(string root, string name, DateTime saved, string meta)
         {
             string folder = Path.Combine(root, name);
@@ -90,6 +98,8 @@ namespace ReDefinition.Tests
             if (meta != null) File.WriteAllText(Path.Combine(folder, "persistent.loadmeta"), meta);
         }
 
+        // The loading fraction weighs each loader as KSP's loading bar does: the loaders done, plus the current
+        // one's own progress times its weight, over the total; nothing to load is nothing done.
         [TestMethod]
         public void LoadingCountsTheLoadersByTheirWeightAsKspsBarDoes()
         {
@@ -109,6 +119,8 @@ namespace ReDefinition.Tests
             Assert.IsNotNull(MenuTelemetry.LoadDialogFinished);
         }
 
+        // The menu page's readings and commands are known outside the main menu too: an unknown key is answered
+        // as unknown, so a page opened in another scene would stop asking for it.
         [TestMethod]
         public void TheMenuKeysAndCommandsAreKnownInEveryScene()
         {
@@ -117,6 +129,7 @@ namespace ReDefinition.Tests
                 Assert.IsTrue(telemetry.IsKnown(key), key);
         }
 
+        // The JSON writer writes a list of saves as an array of objects, with whole numbers without a point.
         [TestMethod]
         public void JsonWritesTheSavesAsObjects()
         {

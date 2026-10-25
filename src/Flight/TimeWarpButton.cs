@@ -31,6 +31,7 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
+        // Better Time Warp's main class, by its full name.
         internal const string ModType = "BetterTimeWarp.BetterTimeWarp";
         // Between the label and the button, in KSP's UI units.
         private const float Gap = 4f;
@@ -41,6 +42,7 @@ namespace ReDefinition.Flight
         // button is hidden from then on, not only once it stands.
         internal static bool Coming;
         private static TextMeshProUGUI label;
+        // The warp row's label once found, when it was last looked for, and how many of the mod's two calls Route routed.
         private static float lookedAt = -10f;
         private static int routed;
 
@@ -51,6 +53,7 @@ namespace ReDefinition.Flight
             get { return routed == 2; }
         }
 
+        // Whether Better Time Warp is loaded.
         internal static bool Installed
         {
             get { return TypeLookup.Find(ModType) != null; }
@@ -60,6 +63,8 @@ namespace ReDefinition.Flight
         // (BetterTimeWarp.MODID; its source read).
         private const string ToolbarNamespace = "BetterTimeWarp_NS";
 
+        // Where Better Time Warp is loaded: its toolbar button hidden while the copy stands, and its OnGUI routed through
+        // Toggle and Place.
         private void Awake()
         {
             System.Type mod = TypeLookup.Find(ModType);
@@ -115,6 +120,8 @@ namespace ReDefinition.Flight
             return original;
         }
 
+        // The mod's GUI.Toggle: not drawn while the copy stands, nor while loading or where there is no time panel; else
+        // drawn as the mod draws it.
         private static bool Toggle(Rect position, bool value, GUIContent content, GUIStyle style)
         {
             if (Replaced) return value;
@@ -176,6 +183,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The mod's settings class, by its full name; that type and its two switches once looked up; whether they were.
         private const string ParamsType = "BetterTimeWarp.BTWCustomParams";
         private static System.Type paramsType;
         private static FieldInfo paramEnabled, paramHidden;

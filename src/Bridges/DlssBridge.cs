@@ -12,7 +12,9 @@ namespace ReDefinition.Bridges
     // shows K = 11 ("Using App hint Preset K").
     internal enum DlssPreset : uint
     {
+        // No hint: the DLSS library's own preset for the mode.
         Default = 0,
+        // The presets J to M, by NGX's numbers.
         J = 10,
         K = 11,
         L = 12,
@@ -28,14 +30,18 @@ namespace ReDefinition.Bridges
     // balanced, M for performance and L for ultra performance (NGX's log).
     internal enum DlssModel
     {
+        // DLSS's own choice for each mode.
         Default,
+        // Preset K, M or L in every mode, in the order the settings row lists them.
         K,
         M,
         L,
     }
 
+    // DlssModel as the proxy and the settings row take it.
     internal static class DlssModels
     {
+        // The preset hint the packet carries for the model; a probe's preset overrides it.
         internal static DlssPreset Preset(DlssModel model)
         {
             if (probePreset.HasValue) return probePreset.Value;
@@ -51,6 +57,7 @@ namespace ReDefinition.Bridges
         // -redefinitionProbeDlssPreset J|K|L|M: that preset in every mode, for a probe's run.
         private static readonly DlssPreset? probePreset = ProbePreset();
 
+        // The preset named after -redefinitionProbeDlssPreset on the command line; null without one.
         private static DlssPreset? ProbePreset()
         {
             string[] args = System.Environment.GetCommandLineArgs();
@@ -59,6 +66,7 @@ namespace ReDefinition.Bridges
             return at >= 0 && at + 1 < args.Length && System.Enum.TryParse(args[at + 1], out preset) ? preset : (DlssPreset?)null;
         }
 
+        // The model as the settings row and the log show it: "Default" or "Preset K".
         internal static string Name(DlssModel model)
         {
             return model == DlssModel.Default ? "Default" : "Preset " + model;
@@ -71,6 +79,7 @@ namespace ReDefinition.Bridges
     // nvngx_dlss.dll comes from NVIDIA's release (NvidiaDownloader).
     internal static class DlssBridge
     {
+        // The proxy's file name, as the DllImports below resolve it in this process.
         private const string Proxy = "dxgi.dll";
 
         // Field order and types as DlssPacket in Dlss.h; size and magic are checked
@@ -78,46 +87,63 @@ namespace ReDefinition.Bridges
         [StructLayout(LayoutKind.Sequential)]
         internal struct DlssPacket : IRingPacket<DlssPacket>
         {
+            // The packet's size and PacketMagic, set by Submit.
             public uint Size;
             public uint Magic;
+            // Unity's native textures: the frame at render size, what DLSS writes at output size, depth and
+            // motion vectors.
             public IntPtr Colour;
             public IntPtr Output;
             public IntPtr Depth;
             public IntPtr MotionVectors;
+            // The render and the output size in pixels.
             public uint RenderWidth;
             public uint RenderHeight;
             public uint OutputWidth;
             public uint OutputHeight;
+            // NGX's quality value (Quality) and preset hint (DlssPreset).
             public int Quality;
             public uint Preset;
+            // NativeUpscalerLink's flags: HDR, inverted depth, auto exposure, reset.
             public uint Flags;
+            // The frame's subpixel jitter, and what turns the motion vectors into pixels.
             public float JitterX;
             public float JitterY;
             public float MotionVectorScaleX;
             public float MotionVectorScaleY;
 
+            // Into the ring's boxed copy, so a frame's packet is marshalled without a new box.
             void IRingPacket<DlssPacket>.CopyFrom(ref DlssPacket packet)
             {
                 this = packet;
             }
         }
 
+        // The proxy's kDlssPacketMagic, checked on every packet.
         private const uint PacketMagic = 0x4B535044;   // 'KSPD'
 
+        // The native DlssPacket's size in bytes, checked against this one's.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern uint KspDlssPacketSize();
 
+        // What the native side sees, as text: 1 running, -1 stopped, -2 stopped for a reason that stands, 0 not
+        // yet.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspDlssStatus(StringBuilder buffer, int size);
 
+        // The optimal render size and the range DLSS asked for at an output size and quality, width and height
+        // each; 0 before a feature or a query was made for them.
         [DllImport(Proxy, EntryPoint = "KspDlssRenderSizes2", CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspDlssRenderSizes(uint outputWidth, uint outputHeight, int quality,
                                                      [Out] uint[] optimal, [Out] uint[] minimum, [Out] uint[] maximum);
 
+        // The link to the proxy's DLSS: render events 2 (a frame) and 3 (the rig gone), probed through
+        // KspDlssRenderSizes2 so a proxy of another layout is not sent anything.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("DLSS", typeof(DlssPacket),
             () => KspDlssPacketSize(), (buffer, size) => KspDlssStatus(buffer, size), 2, 3,
             () => KspDlssRenderSizes(0, 0, 0, null, null, null));
 
+        // The link, for the rig's state and teardown.
         internal static NativeUpscalerLink Link
         {
             get { return link; }
@@ -127,18 +153,21 @@ namespace ReDefinition.Bridges
         [StructLayout(LayoutKind.Sequential)]
         private struct SizeQuery : IRingPacket<SizeQuery>
         {
+            // The query's size and SizeQueryMagic, any of Unity's textures for its device, and the output size.
             public uint Size;
             public uint Magic;
             public IntPtr Texture;
             public uint OutputWidth;
             public uint OutputHeight;
 
+            // Into the ring's boxed copy, as the packets' own.
             void IRingPacket<SizeQuery>.CopyFrom(ref SizeQuery packet)
             {
                 this = packet;
             }
         }
 
+        // The query's magic and the render event the proxy answers it in (Dlss::OnSizeQuery).
         private const uint SizeQueryMagic = 0x4B535051;   // 'KSPQ'
         private const int SizeQueryEvent = 6;
 
@@ -150,6 +179,7 @@ namespace ReDefinition.Bridges
             get { return WhyNotOffered() == null; }
         }
 
+        // Why DLSS is not offered, for the settings row's tooltip; null where it is.
         internal static string WhyNotOffered()
         {
             if (!link.Ready) return link.Problem;
@@ -158,6 +188,8 @@ namespace ReDefinition.Bridges
             return null;
         }
 
+        // A frame for DLSS, recorded into the upscaler's buffer with its size and magic set; false where the link
+        // is not ready or the ring refused it.
         internal static bool Submit(CommandBuffer buffer, ref DlssPacket packet)
         {
             if (!link.Ready) return false;

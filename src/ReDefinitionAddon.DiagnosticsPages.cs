@@ -11,6 +11,7 @@ namespace ReDefinition
     // The diagnostics window's pages.
     public partial class ReDefinitionAddon
     {
+        // A page's heading, with a little space under it.
         private void PageHeading(string text)
         {
             GUILayout.Label(text, styles.Heading);
@@ -168,6 +169,8 @@ namespace ReDefinition
             if (!profile) GUILayout.Label(NeedsProfileText, styles.Reason);
         }
 
+        // The preview's texture, taken at the layout pass; the number of upscaler modes; the techniques the overview offers
+        // and their names; and every technique there is.
         private Texture previewTexture;
         private const int ModeCount = 6;
         private readonly List<UpscalerBackend> offeredBackends = new List<UpscalerBackend>();
@@ -177,6 +180,7 @@ namespace ReDefinition
         // The modes, smaller render sizes to the left and AA at the right end; made when first drawn.
         private static string[] modeNames;
 
+        // The mode names from Ultra Performance on the left to native AA on the right.
         private static string[] MakeModeNames()
         {
             string[] names = new string[ModeCount];
@@ -226,12 +230,14 @@ namespace ReDefinition
             if (!string.IsNullOrEmpty(hostStackMessage)) GUILayout.Label(hostStackMessage);
         }
 
+        // The page of the upscaler's inputs: its options.
         private void DrawUpscalerInputs()
         {
             
             DrawOptions(OptionsOf(DebugCategory.UpscalerInputs));
         }
 
+        // The frame generation page: its options, then what runs now and a failed context's note.
         private void DrawFrameGeneration()
         {
             
@@ -244,12 +250,14 @@ namespace ReDefinition
             if (contextFailing) WarningLabel(ContextFailedNote());
         }
 
+        // The page of the game settings the upscaler changes: its options.
         private void DrawGameSettings()
         {
             
             DrawOptions(OptionsOf(DebugCategory.GameSettings));
         }
 
+        // The capture page: its options, and the state of the last screen recording.
         private void DrawCapture()
         {
             

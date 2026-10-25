@@ -27,15 +27,20 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class ModCost : MonoBehaviour
     {
+        // The switch; seconds a state settles before it is measured; seconds each state is measured.
         internal const string Argument = "-redefinitionProbeModCost";
         private const float Settle = 3f;
         private const float Measure = 5f;
 
+        // The proxy's load monitor: the main thread's, the render thread's and the GPU's load in per cent, overall and this process's.
         [DllImport("dxgi.dll", CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspPerfLoad(out float mainThread, out float renderThread, out float gpu, out float gpuThisProcess);
 
+        // One thing switched off and on: a mod, or a setting of KSP's.
         private sealed class Target
         {
+            // Its name in the log; which behaviours are its own; the shader name prefixes of the renderers that draw with
+            // its shaders; words in the names of its command buffers.
             public string Name;
             public Func<MonoBehaviour, bool> Behaviour;
             public string[] ShaderPrefixes = new string[0];
@@ -55,6 +60,7 @@ namespace ReDefinition.Probe
         private static float heldDistance;
         private static int heldCascades;
 
+        // Off window of "shadow distance halved": the distance kept and halved.
         private static int ShadowDistanceHalved()
         {
             heldDistance = QualitySettings.shadowDistance;
@@ -62,11 +68,13 @@ namespace ReDefinition.Probe
             return 1;
         }
 
+        // On again: the kept shadow distance back.
         private static void ShadowDistanceBack()
         {
             QualitySettings.shadowDistance = heldDistance;
         }
 
+        // Off window of "two shadow cascades": the count kept and set to two; nothing switched where it is two or less.
         private static int TwoCascades()
         {
             heldCascades = QualitySettings.shadowCascades;
@@ -75,11 +83,13 @@ namespace ReDefinition.Probe
             return 1;
         }
 
+        // On again: the kept cascade count back.
         private static void CascadesBack()
         {
             QualitySettings.shadowCascades = heldCascades;
         }
 
+        // Off window of the crew portraits: every kerbal's coroutines stopped; how many kerbals.
         private static int PortraitsOff()
         {
             stoppedKerbals.Clear();
@@ -91,6 +101,7 @@ namespace ReDefinition.Probe
             return stoppedKerbals.Count;
         }
 
+        // On again: each stopped kerbal's kerbalAvatarUpdateCycle started anew, found by reflection.
         private static void PortraitsOn()
         {
             System.Reflection.MethodInfo cycle = typeof(Kerbal).GetMethod("kerbalAvatarUpdateCycle",
@@ -101,12 +112,14 @@ namespace ReDefinition.Probe
             stoppedKerbals.Clear();
         }
 
+        // Whether the behaviour's assembly name holds one of the names, ignoring case.
         private static bool InAssembly(MonoBehaviour b, params string[] names)
         {
             string assembly = b.GetType().Assembly.GetName().Name;
             return names.Any(n => assembly.IndexOf(n, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
+        // What is measured, in this order.
         private static readonly Target[] Targets =
         {
             new Target { Name = "KSP's crew portraits", Behaviour = b => false, CustomOff = PortraitsOff, CustomOn = PortraitsOn },
@@ -139,8 +152,11 @@ namespace ReDefinition.Probe
             new Target { Name = "DistantObject", Behaviour = b => InAssembly(b, "DistantObject") },
         };
 
+        // What one off window switched off, to switch it on again.
         private sealed class Off
         {
+            // The behaviours disabled; the target's own switch back on and how many it switched; the renderers disabled;
+            // the command buffers taken off the cameras and the lights, with their events.
             public readonly List<Behaviour> Behaviours = new List<Behaviour>();
             public Action Custom;
             public int CustomCount;
@@ -151,6 +167,7 @@ namespace ReDefinition.Probe
                 new List<KeyValuePair<Light, KeyValuePair<LightEvent, CommandBuffer>>>();
         }
 
+        // Only with the switch: the exception counter on and the run started.
         private void Start()
         {
             if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0) return;
@@ -158,6 +175,7 @@ namespace ReDefinition.Probe
             StartCoroutine(Run());
         }
 
+        // The target switched off: its custom switch, its behaviours, its renderers and its command buffers.
         private static Off SwitchOff(Target target)
         {
             var off = new Off();
@@ -210,6 +228,7 @@ namespace ReDefinition.Probe
             return off;
         }
 
+        // All that SwitchOff took away given back, those destroyed meanwhile left out.
         private static void SwitchOn(Off off)
         {
             if (off.Custom != null) off.Custom();
@@ -223,13 +242,17 @@ namespace ReDefinition.Probe
                 if (b != null) b.enabled = true;
         }
 
+        // What one window of Measure seconds came to.
         private sealed class Window
         {
+            // The GPU's frame and the frame's time in ms on average; the main thread's and the GPU's load in per cent at
+            // its end (-1 without the proxy); the frames in it.
             public double Gpu, FrameMs;
             public float MainThread, GpuLoad;
             public int Frames;
         }
 
+        // A window measured: Settle seconds waited, then Measure seconds of frames, and the proxy's load at the end.
         private static IEnumerator MeasureInto(Window window)
         {
             yield return new WaitForSecondsRealtime(Settle);
@@ -263,6 +286,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The windows averaged; their frames summed.
         private static Window Mean(List<Window> windows)
         {
             var mean = new Window();
@@ -280,16 +304,19 @@ namespace ReDefinition.Probe
         // Exceptions logged meanwhile, of anyone's, as what a switch may break.
         private static int ExceptionCount;
 
+        // Log listener: counts the exceptions.
         private static void CountExceptions(string message, string stack, LogType type)
         {
             if (type == LogType.Exception) ExceptionCount++;
         }
 
+        // The log listener off.
         private void OnDestroy()
         {
             Application.logMessageReceived -= CountExceptions;
         }
 
+        // One log row of a window; with a baseline also its GPU and frame differences to it.
         private static string Row(string name, Window w, Window baseline)
         {
             string delta = baseline == null ? "" : string.Format(CultureInfo.InvariantCulture, "  (GPU {0:+0.00;-0.00} ms, frame {1:+0.00;-0.00} ms)",
@@ -298,6 +325,7 @@ namespace ReDefinition.Probe
                                  name, w.Gpu, w.FrameMs, w.MainThread, w.GpuLoad, delta);
         }
 
+        // The whole probe: everything on measured, then each target on, off, on, off, on, the result logged, KSP quit.
         private IEnumerator Run()
         {
             while (!FlightGlobals.ready || FlightGlobals.ActiveVessel == null) yield return null;

@@ -15,6 +15,7 @@ namespace redefinition
 {
     namespace
     {
+        // The à-trous filter's steps a frame, each at twice the spacing of the one before.
         constexpr UINT kAtrousSteps = 5;
         // The tables of one frame: the preparation, two per signal, one per à-trous step.
         constexpr UINT kDenoiserTables = 1 + 2 * kRtDenoisedSignals + kAtrousSteps;

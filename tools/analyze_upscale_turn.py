@@ -40,11 +40,13 @@ LIMITS = {
 
 
 def load_colour(folder, name, w, h):
+    """A frame's colour (<name>_colour.bin, RGBA16F, w x h) as an RGB float array."""
     path = os.path.join(folder, name + '_colour.bin')
     return np.fromfile(path, dtype=np.float16).reshape(h, w, 4).astype(np.float32)[..., :3]
 
 
 def load_depth(folder, name, aspect):
+    """A frame's depth at the render size, whose width and height follow from the data's size and the aspect."""
     path = os.path.join(folder, name + '_depth.bin')
     data = np.fromfile(path, dtype=np.float32)
     h = int(round((data.size / aspect) ** 0.5))
@@ -53,12 +55,15 @@ def load_depth(folder, name, aspect):
 
 
 def scale_mask(mask, w, h):
+    """The mask resized to w x h by nearest neighbour: from the render size to the display size."""
     ys = (np.arange(h) * mask.shape[0] // h)
     xs = (np.arange(w) * mask.shape[1] // w)
     return mask[ys][:, xs]
 
 
 def analyse(folder):
+    """The run's sizes, its new, recent and rest error over the moving frames, settled and flicker over the still
+    frames at the end, the per-frame rows and the row order."""
     frames = turn.read_meta(folder)
     names = sorted(n for n in frames if n.startswith('turn_'))
     path = [float(v) for v in open(os.path.join(folder, 'path.txt'), encoding='utf-8').read().split()]
@@ -112,6 +117,7 @@ def analyse(folder):
 
 
 def main():
+    """Analyse every folder given, print a table and a PASS or FAIL per run against LIMITS; exit 1 unless all pass."""
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     print('%-28s %-9s %-9s %8s %8s %8s %8s %8s' % ('run', 'render', 'display', 'new', 'recent', 'rest', 'settled',

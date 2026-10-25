@@ -19,11 +19,13 @@ namespace ReDefinition.Settings.Behaviours
     // setting goes as the registration has it, through the loaded quads.
     internal sealed class ParallaxKeywordsBehaviour : ModBehaviour
     {
+        // The fields of a body's ParallaxMaterials that hold its six terrain materials.
         private static readonly string[] MaterialFields =
         {
             "parallaxLow", "parallaxMid", "parallaxHigh", "parallaxLowMid", "parallaxMidHigh", "parallaxFull",
         };
 
+        // Texture blending and ambient occlusion: after a write, the keyword set in every body's materials too.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             string keyword = registration.Name == "advancedTextureBlending" ? "ADVANCED_BLENDING"
@@ -39,6 +41,7 @@ namespace ReDefinition.Settings.Behaviours
             };
         }
 
+        // The keyword switched on or off in all six terrain materials of every Parallax body.
         private static void SetEverywhere(string keyword, bool on)
         {
             try

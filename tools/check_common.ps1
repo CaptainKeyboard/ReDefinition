@@ -43,6 +43,7 @@ $global:resolving = $false
 
 $failures = 0
 $lastThrow = $null
+# Prints PASS or FAIL for one assertion and counts the failures; the cause in $lastThrow follows a failure.
 function Expect($what, $ok) {
     # A method that threw, or a cause set in $lastThrow, can never be a pass,
     # whatever the assertion made of it: the net belongs here, not at each call site.

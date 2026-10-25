@@ -47,6 +47,8 @@ namespace ReDefinition.Upscaler
         // the component is only switched off, and the report counts those.
         private sealed class SmaaState
         {
+            // The SMAA component, its camera, its own buffer and the event it attaches at; whether it was enabled and its
+            // buffer on the camera when switched off here.
             public Behaviour Owner;
             public Camera Camera;
             public CommandBuffer Buffer;
@@ -55,6 +57,7 @@ namespace ReDefinition.Upscaler
             public bool WasAttached;
         }
 
+        // Every SMAA switched off here with its buffer taken off, for HandBackSmaa.
         private static readonly List<SmaaState> smaaStates = new List<SmaaState>();
 
         // Where each mod attaches: its own static SMAACameraEvent, read from the
@@ -62,6 +65,7 @@ namespace ReDefinition.Upscaler
         // "BeforeImageEffects doesn't work well".
         private const CameraEvent DefaultSmaaEvent = CameraEvent.AfterForwardAlpha;
 
+        // The camera event a mod's SMAA attaches its buffer at, read from its static SMAACameraEvent.
         private static CameraEvent SmaaEventOf(Type type)
         {
             object value;
@@ -69,6 +73,8 @@ namespace ReDefinition.Upscaler
                 ? (CameraEvent)value : DefaultSmaaEvent;
         }
 
+        // Switches off every running SMAA of one mod's type and takes its buffer off its camera; one without a readable
+        // buffer is only switched off. Returns the report.
         private static string DisableSmaa(string typeName, string label)
         {
             Type type = TypeLookup.Find(typeName);
@@ -133,6 +139,7 @@ namespace ReDefinition.Upscaler
             return result;
         }
 
+        // The state kept for an SMAA component, or null.
         private static SmaaState FindSmaaState(Behaviour owner)
         {
             for (int i = 0; i < smaaStates.Count; i++)
@@ -140,6 +147,7 @@ namespace ReDefinition.Upscaler
             return null;
         }
 
+        // The component's SMAACommandBuffer; readable tells whether the field or property is there at all.
         private static CommandBuffer OwnSmaaBuffer(Behaviour owner, out bool readable)
         {
             object value;
@@ -174,6 +182,8 @@ namespace ReDefinition.Upscaler
         private const string ScattererSmaaBufferPrefix = "Scatterer SMAA CommandBuffer";
         private const string DeferredSmaaBufferPrefix = "Deferred editor SMAA CommandBuffer";
 
+        // The report row for one mod's SMAA: the buffers of that name on the cameras, plus every enabled component
+        // without one yet.
         private static void AddSmaaLine(List<Line> lines, string typeName, string bufferPrefix, string label)
         {
             Type type = TypeLookup.Find(typeName);
@@ -202,6 +212,7 @@ namespace ReDefinition.Upscaler
             });
         }
 
+        // The buffers at `evt` on `camera` whose name starts with `prefix`.
         private static int CountSmaaBuffers(Camera camera, string prefix, CameraEvent evt)
         {
             int count = 0;

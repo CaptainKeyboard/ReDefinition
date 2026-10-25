@@ -27,6 +27,7 @@ out = open(os.path.join(FOLDER, TAG + '.txt'), 'w')
 
 
 def log(line):
+    """Write a line to the stage list at once, so a crash of the replay leaves what came before."""
     out.write(line + '\n')
     out.flush()
 

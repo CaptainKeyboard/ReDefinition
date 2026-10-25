@@ -10,6 +10,7 @@ namespace ReDefinition.Window
     // either: the window's rows against what the game and the mods hold.
     internal static partial class SettingsWindow
     {
+        // Applies what waits, saves ReDefinition's settings and restarts KSP, the game saved first where one is loaded.
         private static void ApplyAndRestart()
         {
             if (Unapplied()) Apply();
@@ -46,6 +47,7 @@ namespace ReDefinition.Window
         private static int unappliedFrame = -1;
         private static bool unapplied;
 
+        // Worked out once a frame: KSP's keys, axes or layout pending, or a setting of a mod or of ReDefinition changed.
         private static bool Unapplied()
         {
             int frame = Time.frameCount;
@@ -69,6 +71,7 @@ namespace ReDefinition.Window
         private static float ownCheckedAt = -10f;
         private static bool ownPending;
 
+        // Whether the copy the window edits differs from the one it started from, snapshot against snapshot.
         private static bool OwnSettingsPending()
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;
@@ -85,6 +88,7 @@ namespace ReDefinition.Window
             return ownPending;
         }
 
+        // Every setting of every installed mod.
         private static IEnumerable<BundledSetting> InstalledSettings()
         {
             foreach (IBundledMod mod in BundledSettings.Installed())
@@ -149,6 +153,7 @@ namespace ReDefinition.Window
             return written;
         }
 
+        // Whether the mod can take the setting in this scene; false where asking throws.
         private static bool Applicable(BundledSetting setting)
         {
             try
@@ -169,6 +174,7 @@ namespace ReDefinition.Window
             return null;
         }
 
+        // The id of KSP's own registration among the bundled mods.
         private const string KspId = "ksp";
 
         // KSP's own reset, where the window resets (KspReset), so that what KSP's
@@ -247,6 +253,7 @@ namespace ReDefinition.Window
             });
         }
 
+        // Runs one step of Apply; an exception is a warning in the log, and Apply goes on.
         private static void Step(string failure, Action step)
         {
             try
@@ -259,6 +266,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Step 1: the toolbar buttons' choices, and the bundling switch; the toolbar refreshed where either changed.
         private static void ApplySwitches()
         {
             bool buttonsChanged = model.ButtonsPending();
@@ -309,6 +317,7 @@ namespace ReDefinition.Window
             if (model.Profile != BundledSettings.ProfileName) BundledSettings.ProfileName = model.Profile;
         }
 
+        // Step 7: ReDefinition's own settings through the add-on, and the copies taken afresh from what came of them.
         private static void ApplyOwn()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;

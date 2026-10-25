@@ -13,8 +13,10 @@ namespace ReDefinition.Bridges
     // Everything here is free of Unity, for the tests (AmpereOptionsTests).
     internal static class AmpereOptions
     {
+        // One key of the ini the window offers as a row.
         public sealed class Option
         {
+            // The [section] it stands in and its key, both matched without regard to case.
             public string Section;
             public string Key;
             // The values the file takes, in the order the window steps through them, with the
@@ -41,6 +43,7 @@ namespace ReDefinition.Bridges
                       + "the GPU time of Auto at the same look. Takes effect after a restart.",
         };
 
+        // The most frames the package generates per rendered frame: 1 to 5, shown as 2X to 6X.
         public static readonly Option MaxGeneratedFrames = new Option
         {
             Section = "FrameGeneration", Key = "MaxGeneratedFrames",
@@ -66,6 +69,7 @@ namespace ReDefinition.Bridges
         public const string FactoryPreset = "Auto";
         public const string InstalledPreset = "C";
 
+        // Whether the package's INT8 kernels run DLSS's presets L and M.
         public static readonly Option SuperResolution = new Option
         {
             Section = "SuperResolution", Key = "Mode",
@@ -81,6 +85,7 @@ namespace ReDefinition.Bridges
                       + "Applies after a restart of KSP.",
         };
 
+        // Whether the package logs the GPU time of each frame generation evaluate.
         public static readonly Option FrameTiming = new Option
         {
             Section = "Logging", Key = "FrameTiming",
@@ -94,6 +99,7 @@ namespace ReDefinition.Bridges
                       + "Applies after a restart of KSP.",
         };
 
+        // Every option, in the order the window shows them and Snapshot takes them.
         public static readonly Option[] All = { Preset, MaxGeneratedFrames, SuperResolution, FrameTiming };
 
         // The file's value for the option, or the option's default where the file, the
@@ -169,6 +175,8 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // The file's text without its UTF-8 byte order mark, and whether it had one; null for a file that cannot
+        // be read.
         private static string ReadText(string path, out bool bom)
         {
             bom = false;
@@ -184,8 +192,10 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // A line of the text: where it starts and where the next one does.
         private struct Span
         {
+            // The index of the line's first character, and of the first after its line end.
             public int Start;
             public int End;
         }
@@ -206,11 +216,13 @@ namespace ReDefinition.Bridges
             return lines.ToArray();
         }
 
+        // The line's text without its ending.
         private static string Content(string text, Span line)
         {
             return text.Substring(line.Start, line.End - line.Start).TrimEnd('\r', '\n');
         }
 
+        // Whether the line is a [section], and its name trimmed.
         private static bool IsSection(string content, out string name)
         {
             string trimmed = content.Trim();
@@ -233,6 +245,7 @@ namespace ReDefinition.Bridges
             return true;
         }
 
+        // The key's value in the section, the last where the section has it twice; null where it has none.
         private static string Find(string text, string section, string key)
         {
             bool inside = false;
@@ -253,6 +266,9 @@ namespace ReDefinition.Bridges
             return found;
         }
 
+        // The text with the key set to the value: its last line in the section where there is one, else a new
+        // line after the section's last content, else the section at the end of the text. Line endings as the
+        // text has them.
         internal static string Set(string text, string section, string key, string value)
         {
             string ending = text.Contains("\r\n") || text.Length == 0 ? "\r\n" : "\n";

@@ -20,8 +20,11 @@ namespace ReDefinition.Settings.Behaviours
     // saves that no registration names yet is bundled all the same, without a row.
     internal sealed class ScattererBehaviour : ModBehaviour
     {
+        // The node Scatterer loads its main settings from, in its config file.
         private const string NodeName = "Scatterer_config";
 
+        // Scatterer.Instance, its mainSettings and isActive, the settings type, and whether the node was written
+        // since the last save.
         private PropertyInfo instance;
         private FieldInfo mainSettings;
         private FieldInfo isActive;
@@ -40,6 +43,7 @@ namespace ReDefinition.Settings.Behaviours
         private MethodInfo savePluginData;
         private bool pluginDataChanged;
 
+        // The members this is written against; false where this build cannot be asked whether it runs.
         public override bool Attach(RegisteredMod mod)
         {
             Type scatterer = TypeLookup.Find("Scatterer.Scatterer");
@@ -59,6 +63,7 @@ namespace ReDefinition.Settings.Behaviours
             return false;
         }
 
+        // A main setting through its field, where Scatterer saves it; a binding through its plugin data.
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
                                    out Action<string> write, out Type type)
         {
@@ -97,6 +102,7 @@ namespace ReDefinition.Settings.Behaviours
             else if (number == "2") setting.CrossedWith = mod.Id + ".guiKey1";
         }
 
+        // Every field Scatterer saves that no registration names, bundled without a row.
         public override void Complete(RegisteredMod mod)
         {
             foreach (FieldInfo field in settingsType.GetFields(BindingFlags.Public | BindingFlags.Instance))
@@ -159,6 +165,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // The plugin data's field of that name and type; null where this build has none.
         private FieldInfo PluginField(string name, Type type)
         {
             Type pluginDataType = pluginData != null ? pluginData.FieldType : null;
@@ -166,6 +173,7 @@ namespace ReDefinition.Settings.Behaviours
             return field != null && field.FieldType == type ? field : null;
         }
 
+        // Scatterer's plugin data, where its instance is there.
         private object PluginData()
         {
             UnityEngine.Object scatterer = instance.GetValue(null, null) as UnityEngine.Object;
@@ -188,6 +196,7 @@ namespace ReDefinition.Settings.Behaviours
             nodeChanged = false;
         }
 
+        // A field's read and write, through the running object and the node.
         private void Reach(FieldInfo field, out Func<string> read, out Action<string> write)
         {
             read = () => Read(field);
@@ -234,6 +243,7 @@ namespace ReDefinition.Settings.Behaviours
             return SettingValues.Text(field.GetValue(parsed));
         }
 
+        // The value into the running object where Scatterer runs, and into the node for the next scene.
         private void Write(FieldInfo field, string text)
         {
             object value = SettingValues.Parse(text, field.FieldType);

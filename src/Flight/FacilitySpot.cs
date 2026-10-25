@@ -13,6 +13,8 @@ namespace ReDefinition.Flight
     // (WorldButton.Place).
     internal sealed class FacilitySpot
     {
+        // The facility's name; its transform in the space centre; the colliders of the building, once its hall is found;
+        // the button's place, in the building's own space, and whether it is measured.
         internal readonly string Name;
         internal readonly Transform Place;
         internal Collider[] Solid;
@@ -23,6 +25,7 @@ namespace ReDefinition.Flight
         private float retryAt;
         private const float RetryEvery = 1f;
 
+        // `name`: the facility's, for the log; `place`: its transform.
         internal FacilitySpot(string name, Transform place)
         {
             Name = name;

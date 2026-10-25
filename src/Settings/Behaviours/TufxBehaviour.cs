@@ -30,7 +30,9 @@ namespace ReDefinition.Settings.Behaviours
     // five scenes TUFX has profiles for.
     internal sealed class TufxBehaviour : ModBehaviour
     {
+        // The Harmony id of the hook on TUFX's window.
         private const string HarmonyId = "ReDefinition.TufxHooks";
+        // Every member, of any visibility, static or not.
         private const BindingFlags Any = TypeLookup.Any;
 
         // After a TUFX profile is applied: the upscaler's camera stack is put
@@ -40,6 +42,10 @@ namespace ReDefinition.Settings.Behaviours
         // The mod the hook reports to; one per run.
         private static RegisteredMod hooked;
 
+        // TUFX's members as Attach finds them: the loader's instance, its profiles, the profile applied, a
+        // profile by name, the name for a scene, the window's change, Utils' current scene; the configuration,
+        // its file, its main-menu profile and its node's name; the save's settings type and its setter; the
+        // scene enum and its MainMenu.
         private FieldInfo instance;
         private PropertyInfo profiles;
         private MethodInfo applyProfile;
@@ -60,6 +66,7 @@ namespace ReDefinition.Settings.Behaviours
         private string emptyProfile;
         private bool configurationChanged;
 
+        // The members this is written against; false where this build of TUFX lacks one.
         public override bool Attach(RegisteredMod mod)
         {
             Type loader = TypeLookup.Find("TUFX.TexturesUnlimitedFXLoader");
@@ -101,6 +108,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // The check Volumetric Clouds' requirement names: whether the flight profile has ambient occlusion.
         private const string AmbientOcclusionCheck = "TufxAmbientOcclusion";
 
         // TUFX is the same build either way; its defaults are Volumetric Clouds'
@@ -120,11 +128,13 @@ namespace ReDefinition.Settings.Behaviours
             return check == AmbientOcclusionCheck ? HasEffect(value, "AmbientOcclusion") : null;
         }
 
+        // The ambient occlusion check above.
         public override bool Provides(string check)
         {
             return check == AmbientOcclusionCheck;
         }
 
+        // The scene profiles, profile<Scene>, by TUFX's scene of that name, and its toolbar switch.
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
                                    out Action<string> write, out Type type)
         {
@@ -148,6 +158,8 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // The profiles as a choice among the names TUFX has loaded, which waits until it has them -- a save's
+        // scene also for a save loaded.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             if (registration.Name == "ShowToolbarButton")
@@ -177,6 +189,7 @@ namespace ReDefinition.Settings.Behaviours
             configurationChanged = false;
         }
 
+        // A postfix on ChangeProfileForScene, so a choice in TUFX's own window becomes the choice here.
         public override void InstallHooks(RegisteredMod mod)
         {
             HarmonyHooks.Install(HarmonyId, typeof(TufxBehaviour), new[]
@@ -260,11 +273,13 @@ namespace ReDefinition.Settings.Behaviours
                 () => BundledSettings.TakeFromMod(BundledSettings.Find(mod.Id + ".profile" + __args[1]), __args[0] as string));
         }
 
+        // TUFX's loader object; null before it has started.
         private object Loader()
         {
             return instance.GetValue(null);
         }
 
+        // Whether KSP shows one of the five scenes TUFX has profiles for.
         private static bool TufxScene()
         {
             GameScenes loaded = HighLogic.LoadedScene;
@@ -272,6 +287,7 @@ namespace ReDefinition.Settings.Behaviours
                    || loaded == GameScenes.FLIGHT || loaded == GameScenes.TRACKSTATION;
         }
 
+        // TUFX's scene of that name; null where this build has none.
         private object SceneValue(string sceneName)
         {
             try
@@ -328,12 +344,14 @@ namespace ReDefinition.Settings.Behaviours
             if (CurrentScene(scene)) Apply(scene, name);
         }
 
+        // The profiles TUFX has loaded, by name; null without its loader.
         private IDictionary All()
         {
             object loader = Loader();
             return loader != null ? profiles.GetValue(loader, null) as IDictionary : null;
         }
 
+        // Whether TUFX has loaded any profile.
         private bool HasProfiles()
         {
             IDictionary all = All();
@@ -362,6 +380,7 @@ namespace ReDefinition.Settings.Behaviours
             if (applied != null) applied();
         }
 
+        // The names of the profiles TUFX has loaded, sorted, for the row's choices.
         private string[] ProfileNames()
         {
             IDictionary all = All();

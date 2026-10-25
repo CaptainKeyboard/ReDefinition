@@ -10,6 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class FramePacketLayoutTests
     {
+        // FramePacket's size and the offsets of its four matrices match FramePacket in FrameGeneration.h.
         [TestMethod]
         public void ThePacketIsLaidOutAsTheProxyReadsIt()
         {
@@ -21,6 +22,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(296, Marshal.OffsetOf(packet, "PrevClipToClip").ToInt32());
         }
 
+        // The matrix arrays are marshalled inline: written to memory, a matrix's sixteen floats stand at its
+        // offset, where the proxy reads them, not a pointer to them.
         [TestMethod]
         public void TheMatricesTravelWithThePacket()
         {

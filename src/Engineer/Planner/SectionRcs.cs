@@ -12,6 +12,8 @@ namespace ReDefinition.Engineer
     // parts' dry mass. Free of Unity, tested.
     internal static class SectionRcs
     {
+        // `members`: the group's parts by index; `stage`: the stage they count as, -1 for none; `mass`: what the group weighs
+        // then, in tonnes. The outputs as above.
         internal static void Of(IList<PartFacts> parts, IEnumerable<int> members, int stage, double mass, out double thrust,
                                 out double overIsp, out double propellant, out double deltaV)
         {

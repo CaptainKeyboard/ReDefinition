@@ -17,6 +17,8 @@ namespace ReDefinition.Settings
     // every reset; they belong to the monitor, not to the game's defaults.
     internal static class KspReset
     {
+        // KSP's own reset -- its defaults, the keyboard layout's bindings, the terrain presets -- with the
+        // resolution and full screen kept, then applied as KSP's own screen applies it.
         internal static void Run()
         {
             int width = GameSettings.SCREEN_RESOLUTION_WIDTH;

@@ -15,6 +15,7 @@ namespace ReDefinition.Probe
     // too), and shots before and after. For what frame generation makes of parts the vessel drops.
     internal static class StagingProbe
     {
+        // The switches for the craft to launch and for the staging flight after it.
         internal const string LaunchArgument = "-redefinitionProbeLaunch";
         internal const string StagingArgument = "-redefinitionProbeStaging";
 
@@ -57,15 +58,19 @@ namespace ReDefinition.Probe
             return true;
         }
 
-        // Whether the probe started a new launch this session; whether one waits for the space centre.
+        // Whether the probe started a new launch this session.
         internal static bool Launched { get; private set; }
+        // Whether a new launch waits for the space centre to stand, set by the scene probe on its way there.
         internal static bool Pending;
 
+        // Whether KSP was started to fly the staging.
         internal static bool Requested
         {
             get { return SceneProbe.ArgumentAfter(StagingArgument) != null; }
         }
 
+        // The flight: full throttle, the first stage, and after the delay (10 s where the switch's value is no number)
+        // the next, recorded from just before, with shots before and after the drop.
         public static IEnumerator Run(string folder, string shot)
         {
             float delay;

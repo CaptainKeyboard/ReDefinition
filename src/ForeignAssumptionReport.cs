@@ -11,6 +11,8 @@ namespace ReDefinition
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     internal sealed class ForeignAssumptionReport : MonoBehaviour
     {
+        // Logs the assumptions of the installed mods once: the verified ones by id on one line, every other one on a
+        // line of its own.
         private void Start()
         {
             List<ForeignAssumption> installed = ForeignAssumptions.Installed();

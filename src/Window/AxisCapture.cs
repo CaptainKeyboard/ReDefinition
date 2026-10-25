@@ -15,25 +15,32 @@ namespace ReDefinition.Window
     // not fly the vessel on the way.
     internal static class AxisCapture
     {
+        // The control lock's id, the devices and axes per device KSP's input manager defines, and how far an axis must
+        // move to be taken.
         private const string LockId = "ReDefinition-axis-capture";
         private const int Devices = 11;
         private const int AxesPerDevice = 20;
         private const float Threshold = 0.5f;
 
+        // The axis taken, as KSP's binding holds it.
         internal struct Taken
         {
+            // "joy<device>.<axis>", the controller's name, and the device's and the axis's index.
             public string IdTag;
             public string Device;
             public int DeviceIndex;
             public int AxisIndex;
         }
 
+        // The row listening (null for none), what it does with the axis taken, whether it can still be seen, every axis's
+        // value as listening started, and whether the lock is set.
         private static string listening;
         private static Action<Taken> take;
         private static Func<bool> shown;
         private static float[] start;
         private static bool locked;
 
+        // Whether that row is listening.
         internal static bool Listening(string key)
         {
             return listening != null && listening == key;
@@ -57,6 +64,7 @@ namespace ReDefinition.Window
             Lock();
         }
 
+        // Stops listening and lets go of KSP's controls.
         internal static void Stop()
         {
             listening = null;
@@ -153,6 +161,7 @@ namespace ReDefinition.Window
             locked = true;
         }
 
+        // Takes the control lock back where it is set.
         private static void Unlock()
         {
             if (!locked) return;

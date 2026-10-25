@@ -1,3 +1,4 @@
+// The dashboard's VAB and SPH page, published as window.EditorPage for widget.js.
 (function () {
 	"use strict";
 	// The VAB and SPH page, in two tabs. The Engineer: the vessel as built, its parts, mass, cost
@@ -13,24 +14,33 @@
 	let tab = "engineer", folded = {};
 	try { tab = localStorage.getItem(TAB_KEY) || tab; folded = JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch (e) { /* no storage */ }
 	let shownShip, shownPlan, typing = false, picker = null;
+	// Sends a command to the mod through the dashboard's link.
 	const run = (cmd) => window.Dashboard.run(cmd);
+	// Sends one of the planner's changes, e.change[...] with its arguments joined by commas.
 	const change = (...args) => run("e.change[" + args.join(",") + "]");
 
 	// ------------------------------------------------------------ numbers
 
+	// A number with exactly digits decimals in the viewer's locale; "-" without one.
 	const fixed = (v, digits) => (num(v) === null ? "-" : v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits }));
+	// A mass in tonnes, two decimals.
 	const tonnes = (v) => fixed(v, 2) + '<span class="u">t</span>';
+	// A speed or delta-v in whole metres a second.
 	const speed = (v) => whole(v) + '<span class="u">m/s</span>';
+	// A burn time as hours, minutes and seconds, the leading zero parts left out; "-" without a burn.
 	function burn(s) {
 		s = num(s);
 		if (s === null || s <= 0) return "-";
 		const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = Math.floor(s % 60);
 		return (h ? h + "h " : "") + (h || m ? m + "m " : "") + r + "s";
 	}
+	// One figure: its plate label over the value on an LCD; over marks it red, past what the building allows.
 	const stat = (label, value, over) => '<div class="sstat' + (over ? " over" : "") + '"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 
 	// ------------------------------------------------------------ Engineer
 
+	// Draws the Engineer tab from e.ship: the craft's figures against the building's limits, the stage table,
+	// the resources and the crew; without parts only "No vessel yet".
 	function renderShip(s) {
 		$("efacility").textContent = s.facility === "SPH" ? "Spaceplane Hangar" : "Vehicle Assembly Building";
 		$("ename").textContent = s.name || "-";
@@ -42,6 +52,7 @@
 		}
 		const l = s.limits || {};
 		const size = s.size || [0, 0, 0], sizeOver = l.size && size.some((v, i) => v > l.size[i]);
+		// A figure followed by "of" the building's limit, where the building has one.
 		const of = (limit, text) => (limit != null ? text + '<span class="u">of ' + limit + "</span>" : text);
 		const stages = s.stages || [];
 		const dv = stages.reduce((sum, st) => sum + (num(st.dv) || 0), 0), dvVac = stages.reduce((sum, st) => sum + (num(st.dvVacuum) || 0), 0);
@@ -83,12 +94,17 @@
 		return '<div class="ephead" data-fold="' + id + '"><b>' + title + "</b><span>" + rich(summary || "") + "</span><i>" + (folded[id] ? "+" : "−") + "</i></div>" +
 			'<div class="epbody' + (folded[id] ? " folded" : "") + '">' + body + "</div>";
 	}
+	// A planner button; cmd is the command a tap sends (none for a button handled otherwise).
 	const button = (label, cmd, attrs) => '<button class="pb epbtn" ' + (cmd ? 'data-cmd="' + esc(cmd) + '"' : "") + (attrs || "") + '><span class="lens">' + label + "</span></button>";
+	// A button that folds out the planner's list named list for the row a, b, as its own button does.
 	const chooser = (label, list, a, b, cls) => '<button class="epchoose' + (cls ? " " + cls : "") + '" data-choices="' + list + "," + a + "," + b + '">' + rich(label) + "</button>";
+	// One option of a choice, lit when on; a tap sends cmd.
 	const choice = (label, on, cmd) => '<button class="epchoice' + (on ? " on" : "") + '" data-cmd="' + esc(cmd) + '">' + label + "</button>";
+	// A delta-v bar: each piece its share in its stage's colour, the rest left empty.
 	const bar = (pieces) => '<div class="epbar">' + (pieces || []).map((p) => '<i style="flex:' + Math.max(0.002, p.share) + " 0 0;background:" + p.color + '"></i>').join("") +
 		'<i style="flex:' + Math.max(0, 1 - (pieces || []).reduce((s, p) => s + p.share, 0)) + ' 0 0"></i></div>';
 
+	// Draws the planner tab from e.plan in its four parts: craft and sections, route, fuel plan and thrust.
 	function renderPlan(p) {
 		if (!p.ready) {
 			$("eplanner").innerHTML = '<section class="panel"><div class="snote">The planner is starting.</div></section>';
@@ -166,6 +182,7 @@
 	function thrustHtml(t) {
 		if (!t) return '<div class="snote">Pick a destination to check the thrust.</div>';
 		const heads = "<tr><th>Stage</th><th>Mass</th><th>Isp</th><th>Start</th><th>End</th><th>In air</th><th>Thrust</th><th>Burns</th></tr>";
+		// A table row of rich-text cells.
 		const row = (cells) => "<tr>" + cells.map((c) => "<td>" + rich(c) + "</td>").join("") + "</tr>";
 		return t.steps.map((s) =>
 			'<div class="epstep"><div class="eprow"><span class="epplace">' + rich(s.place) + '</span><span class="epflyer">' + rich(s.flyer) + "</span>" +
@@ -186,7 +203,9 @@
 		$("epickerlist").innerHTML = '<div class="snote">…</div>';
 		run("e.choices[" + list + "," + a + "," + b + "]");
 	}
+	// Hides the folded-out list and forgets what it was for.
 	function closePicker() { picker = null; $("epicker").hidden = true; }
+	// Fills the folded-out list once the mod's answer to this very request arrives; older answers are ignored.
 	function renderPicker(answer) {
 		if (!picker || picker.shown || !answer || answer.asked <= picker.after || answer.list !== picker.list || answer.a !== picker.a || answer.b !== picker.b) return;
 		picker.shown = true;
@@ -198,6 +217,7 @@
 
 	// ------------------------------------------------------------ page
 
+	// Shows the Engineer or the planner tab, remembers it, and has widget.js subscribe that tab's keys.
 	function showTab(next) {
 		tab = next === "planner" ? "planner" : "engineer";
 		try { localStorage.setItem(TAB_KEY, tab); } catch (e) { /* kept for this visit */ }
@@ -207,6 +227,7 @@
 		window.Dashboard.resubscribe();
 	}
 
+	// Draws the page from the frame's data: each tab only when its data is new. connected is false in the demo.
 	function render(d, connected) {
 		$("elink").textContent = connected ? "● LINK" : "DEMO";
 		$("elink").classList.toggle("ok", connected);
@@ -218,6 +239,7 @@
 		}
 	}
 
+	// Wires the tabs, the planner's buttons, folds and altitude fields, and the list, once when the page is set up.
 	function build() {
 		$("editor").dataset.tab = tab;
 		for (const b of document.querySelectorAll("#etabs button")) {
@@ -260,10 +282,14 @@
 	// Without the game: the Kerbal X with a plan to the Mun and back (index.html#vab).
 	const DEMOS = ["#vab"];
 	const G = "#8fdc7a", D = "#9a9a9a", R = "#e6474d", S1 = "#5aa9e6", S2 = "#e6c05a", S3 = "#c77ae6", S4 = "#6ae6b8";
+	// Text in a rich-text colour, as the mod's rows write it.
 	const c = (colour, text) => "<color=" + colour + ">" + text + "</color>";
+	// The made-up frame for the demo, built once: the Kerbal X with a Mun plan.
 	function demo() {
 		if (demo.data) return demo.data;
+		// A demo route step, the fields not given left empty.
 		const step = (leg, role, place, flyer, dv, bar, extra) => Object.assign({ leg, role, place, flyer, dv, bar, separation: "", deployed: "", warnings: [] }, extra || {});
+		// A demo stage of the fuel plan, in its colour, usable and droppable.
 		const fuelStage = (number, colour, gives, keeps, twr, use) => ({ number, name: "<b>" + c(colour, "S" + number) + "</b>", color: colour, gives: c(colour, gives), keeps, twr: twr ? c(D, twr) : "", use, canUse: true, drop: false, canDrop: true });
 		demo.data = {
 			"g.scene": "EDITOR",

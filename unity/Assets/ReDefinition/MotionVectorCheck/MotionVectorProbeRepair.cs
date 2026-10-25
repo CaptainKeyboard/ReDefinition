@@ -15,11 +15,13 @@ namespace ReDefinition.MotionVectorCheck
     // "repair", to the result file.
     public partial class MotionVectorProbe
     {
+        // Unity's motion vectors as the repair reads them, copied before pass 3 writes over them.
         private RenderTexture repairCopy;
         // What the buffer holds right after the mark, at the end of the frame.
         private RenderTexture markedCopy;
         private CommandBuffer repairBuffer;
 
+        // Adds the repair to the check camera, and the mark that clears the motion vectors at the end of each frame.
         private void AttachRepair()
         {
             repairCopy = new RenderTexture(Width, Height, 0, RenderTextureFormat.RGHalf);
@@ -41,6 +43,7 @@ namespace ReDefinition.MotionVectorCheck
             cam.AddCommandBuffer(CameraEvent.AfterEverything, mark);
         }
 
+        // The repair case: clears Unity's motion vectors before the repair, moves the camera and writes the "repair" line.
         private IEnumerator RepairCase()
         {
             GameObject ball = GameObject.CreatePrimitive(PrimitiveType.Sphere);

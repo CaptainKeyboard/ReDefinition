@@ -6,11 +6,14 @@ namespace ReDefinition.Settings
     // tried there); Off writes the switches off into the proxy's ini.
     internal static class LowLatencySetting
     {
+        // The row's two values, as the settings file holds them.
         public const string Auto = "Auto";
         public const string Off = "Off";
 
+        // The row's buttons, in the order they stand.
         public static readonly string[] All = { Auto, Off };
 
+        // Whether the text is one of the row's values.
         public static bool Valid(string text)
         {
             return text == Auto || text == Off;

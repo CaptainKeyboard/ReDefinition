@@ -39,6 +39,8 @@ namespace ReDefinition.Upscaler
         // cascades between OnPreCull and OnPreRender, so the shadows are built from
         // the unjittered matrix while the image renders offset.
 
+        // The camera, its target before the redirect and the rig's texture it draws into instead; whether the
+        // screen is lent back for Unity's mouse events; the projection ApplyJitter found and whether Unity computed it.
         private Camera cam;
         private RenderTexture previousTarget;
         private RenderTexture target;
@@ -53,6 +55,8 @@ namespace ReDefinition.Upscaler
         private static readonly HashSet<Camera> touchedCameras = new HashSet<Camera>();
         private static bool keepInStepInstalled;
 
+        // Unity's onPreRender for every camera: keeps nonJitteredProjectionMatrix equal to the projection on a touched
+        // camera that no longer has a redirect.
         private static void KeepInStep(Camera camera)
         {
             if (camera == null || !touchedCameras.Contains(camera)) return;
@@ -61,6 +65,8 @@ namespace ReDefinition.Upscaler
             camera.nonJitteredProjectionMatrix = camera.projectionMatrix;
         }
 
+        // Records that a redirect assigned the camera's nonJitteredProjectionMatrix, drops destroyed cameras from the set
+        // and installs KeepInStep once.
         private static void Touch(Camera camera)
         {
             if (!touchedCameras.Add(camera)) return;
@@ -69,6 +75,8 @@ namespace ReDefinition.Upscaler
             keepInStepInstalled = true;
             Camera.onPreRender += KeepInStep;
         }
+        // The camera's useJitteredProjectionMatrixForTransparentRendering before the first jitter and whether it is saved;
+        // whether the projection is jittered now, waiting for ReleaseJitter; whether the camera draws into the rig's texture.
         private bool previousJitteredTransparents;
         private bool transparentFlagSaved;
         private bool projectionOverridden;
@@ -76,9 +84,11 @@ namespace ReDefinition.Upscaler
 
         // For diagnostics: what was found and what was set while rendering.
         public Matrix4x4 CapturedProjection { get; private set; }
+        // The jittered projection ApplyJitter set this frame.
         public Matrix4x4 AppliedProjection { get; private set; }
         // The jitter in AppliedProjection, in normalized device coordinates.
         public Vector2 AppliedJitter { get; private set; }
+        // Whether ApplyJitter jittered the camera in this render; cleared in OnPreCull.
         public bool DidJitter { get; private set; }
 
         // The matrix the camera had when rendering finished. Other code writes
@@ -86,17 +96,22 @@ namespace ReDefinition.Upscaler
         // gets an image without subpixel offset while DidJitter still reports
         // true.
         public Matrix4x4 RenderedProjection { get; private set; }
+        // Whether RenderedProjection was read in this render.
         public bool CapturedRendered { get; private set; }
 
         // How often the jitter was applied and released within one frame. Catches
         // a camera rendering more than once per frame and a second CameraRedirect
         // on the same camera, either of which would confuse the reading above.
         public int ApplyCount { get; private set; }
+        // How often the jitter was released within one frame (see ApplyCount).
         public int ReleaseCount { get; private set; }
+        // The frame ApplyCount and ReleaseCount belong to.
         private int countedFrame = -1;
 
+        // The camera this redirect sits on, looked up on first use when Awake has not run yet.
         public Camera Camera { get { return cam != null ? cam : (cam = GetComponent<Camera>()); } }
 
+        // Looks up the camera on the same object.
         private void Awake()
         {
             cam = GetComponent<Camera>();
@@ -129,6 +144,7 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // Ends LendScreen: the rig's texture back on the camera.
         public void TakeBackScreen()
         {
             if (!screenLent) return;
@@ -165,6 +181,8 @@ namespace ReDefinition.Upscaler
             return DidJitter;
         }
 
+        // Shifts the camera's projection by JitterNdc for this render and records what it found, for ReleaseJitter and the
+        // diagnostics. Without jitter, keeps a touched camera's nonJitteredProjectionMatrix in step instead.
         private void ApplyJitter()
         {
             if (Camera == null) return;
@@ -207,6 +225,7 @@ namespace ReDefinition.Upscaler
             DidJitter = true;
         }
 
+        // After rendering: records the matrix the frame was rendered with and releases the jitter.
         private void OnPostRender()
         {
             // Read before restoring: the matrix the frame was rendered with,
@@ -262,6 +281,7 @@ namespace ReDefinition.Upscaler
             return own == projection;
         }
 
+        // Resets ApplyCount and ReleaseCount at the first apply or release of a new frame.
         private void CountFrame()
         {
             if (countedFrame == Time.frameCount) return;
@@ -270,6 +290,7 @@ namespace ReDefinition.Upscaler
             ReleaseCount = 0;
         }
 
+        // Ends the redirect: the jitter released, the transparent-rendering flag and the camera's own target put back.
         public void Restore()
         {
             if (cam == null) return;
@@ -331,6 +352,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // A disabled component leaves the camera as it found it.
         private void OnDisable()
         {
             Restore();

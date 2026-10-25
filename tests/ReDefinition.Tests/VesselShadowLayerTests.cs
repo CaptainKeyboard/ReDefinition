@@ -8,14 +8,18 @@ namespace ReDefinition.Tests
     [TestClass]
     public class VesselShadowLayerTests
     {
+        // The vessel's position the bounds are measured against.
         private static readonly Vector3 Vessel = new Vector3(10f, 2f, -5f);
 
+        // A part's bounds a few metres in size, next to the vessel, count.
         [TestMethod]
         public void PartsBoundsCount()
         {
             Assert.IsTrue(CasterBounds.Plausible(new Bounds(Vessel + new Vector3(3f, 0f, 1f), new Vector3(4f, 1f, 6f)), Vessel));
         }
 
+        // The bounds of 10^17 m a renderer gave in flight do not count: they would stretch the light map until
+        // the vessel's shadow vanished.
         [TestMethod]
         public void BoundsAsMeasuredInFlightDoNot()
         {
@@ -24,18 +28,21 @@ namespace ReDefinition.Tests
             Assert.IsFalse(CasterBounds.Plausible(huge, Vessel));
         }
 
+        // A renderer 300 m long, beyond the 250 m allowed a side, does not count.
         [TestMethod]
         public void BoundsLongerThanAVesselDoNot()
         {
             Assert.IsFalse(CasterBounds.Plausible(new Bounds(Vessel, new Vector3(300f, 1f, 1f)), Vessel));
         }
 
+        // A small renderer whose centre lies 600 m from the vessel, beyond the 500 m allowed, does not count.
         [TestMethod]
         public void BoundsFarFromTheVesselDoNot()
         {
             Assert.IsFalse(CasterBounds.Plausible(new Bounds(Vessel + new Vector3(600f, 0f, 0f), Vector3.one), Vessel));
         }
 
+        // Bounds with a NaN centre or an infinite size do not count.
         [TestMethod]
         public void BoundsNotFiniteDoNot()
         {

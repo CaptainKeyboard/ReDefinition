@@ -4,6 +4,7 @@ namespace ReDefinition.Upscaler
     // check of the sharpness), as src/Upscaler/UpscalerRig.cs has it.
     internal static class UpscalerRig
     {
+        // The rig's ceiling for the sharpness, which RaytracingPlayerStubTests checks against the rig's own.
         internal const float MaximumSharpness = 1.2f;
     }
 }

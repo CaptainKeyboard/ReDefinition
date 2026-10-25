@@ -14,6 +14,7 @@ namespace ReDefinition.Settings
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     public class ProfileReport : MonoBehaviour
     {
+        // The one log entry, at the main menu.
         private void Start()
         {
             try

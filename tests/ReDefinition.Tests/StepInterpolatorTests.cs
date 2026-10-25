@@ -10,10 +10,14 @@ namespace ReDefinition.Tests
     [TestClass]
     public class StepInterpolatorTests
     {
+        // Unity's loop as KSP runs it: the physics step and a frame at 59 fps, in seconds, and the body's
+        // steady velocity in metres per second.
         private const float FixedDelta = 0.02f;
         private const float FrameDelta = 1f / 59f;
         private static readonly Vector3 Velocity = new Vector3(100f, 0f, 0f);
 
+        // With the interpolator's offset a body in steady motion moves by the same distance every frame, where
+        // the raw physics positions stand still in about one frame in six.
         [TestMethod]
         public void EveryFrameMovesOnWherePhysicsStandsStill()
         {
@@ -51,6 +55,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(frames > 500);
         }
 
+        // A rebase by the shift the positions are given in keeps the offset an interpolator would give without
+        // it: a floating origin shift must not make the vessel jump.
         [TestMethod]
         public void ARebaseKeepsTheOffsets()
         {
@@ -87,6 +93,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(-1f, a.x, 1e-4f);
         }
 
+        // Two steps run in one frame: the offset draws the body where the second step began, the first step's
+        // 2 m back, and the interpolator counts both.
         [TestMethod]
         public void TwoStepsInOneFrameAreSpreadOverTheFrame()
         {

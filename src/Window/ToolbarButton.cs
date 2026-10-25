@@ -21,6 +21,7 @@ namespace ReDefinition.Window
     // below stands in where that file is missing.
     internal class ToolbarButton
     {
+        // The drawn icon's size in pixels.
         private const int IconSize = 38;
 
         // The icon in GameData, without the extension, as KSP's GameDatabase holds it.
@@ -34,11 +35,13 @@ namespace ReDefinition.Window
         private Texture2D icon;
         private bool registered;
 
+        // A button whose click, on or off, calls the handler.
         public ToolbarButton(Callback clickHandler)
         {
             onClick = clickHandler;
         }
 
+        // Adds the button now where the launcher stands, and again whenever KSP makes the launcher anew.
         public void Register()
         {
             if (registered) return;
@@ -51,6 +54,7 @@ namespace ReDefinition.Window
             Add();
         }
 
+        // Removes the button and stops following the launcher.
         public void Unregister()
         {
             if (!registered) return;
@@ -71,6 +75,7 @@ namespace ReDefinition.Window
             else button.SetFalse(false);
         }
 
+        // Adds the button to the launcher, with the icon from GameData or the drawn one, its tooltip, at the front.
         private void Add()
         {
             if (button != null || ApplicationLauncher.Instance == null) return;
@@ -149,6 +154,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The launcher's mod button with that icon, in every scene of a game.
         private ApplicationLauncherButton AddWith(Texture texture)
         {
             return ApplicationLauncher.Instance.AddModApplication(
@@ -163,11 +169,13 @@ namespace ReDefinition.Window
                 texture);
         }
 
+        // The launcher is gone, and its button with it.
         private void Forget()
         {
             button = null;
         }
 
+        // Takes the button out of the launcher and frees the drawn icon.
         private void Remove()
         {
             if (button != null && ApplicationLauncher.Instance != null)
@@ -217,6 +225,7 @@ namespace ReDefinition.Window
             return texture;
         }
 
+        // Whether the pixel lies inside the icon's square with its corners rounded.
         private static bool InsideRoundedSquare(int x, int y)
         {
             const int radius = 6;

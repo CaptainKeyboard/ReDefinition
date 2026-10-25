@@ -38,6 +38,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
             float4 _ReDefinitionCloudJitterDelta;
             float4 _ReDefinitionCloudTexel;
 
+            // The clouds' motion vectors without the jitter change, their faded transmittance, and whether valid.
             float4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.pos.xy * _ReDefinitionCloudTexel.xy;
@@ -65,11 +66,13 @@ Shader "Hidden/ReDefinition/CloudMotion"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // The copy of Unity's motion vectors, pass 0's or 4's output, the scene depth, and the texel size.
             sampler2D _ReDefinitionUnityMotion;
             sampler2D _ReDefinitionCloudMotion;
             sampler2D _ReDefinitionCloudSceneDepth;
             float4 _ReDefinitionCloudTexel;
 
+            // The clouds' motion where they cover the pixel, blended into Unity's by their transmittance.
             float4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.pos.xy * _ReDefinitionCloudTexel.xy;
@@ -110,8 +113,9 @@ Shader "Hidden/ReDefinition/CloudMotion"
             #include "UnityCG.cginc"
             #include "../Include/ReDefinition.cginc"
 
-            #define MAX_BODIES 8
+            #define MAX_BODIES 8 // the most bodies the arrays hold: MaxBodies in ScaledSpaceMotion
 
+            // The copy of Unity's motion vectors, the scene depth, and the texel size of the camera's target.
             sampler2D _ReDefinitionUnityMotion;
             sampler2D _ReDefinitionCloudSceneDepth;
             float4 _ReDefinitionCloudTexel;
@@ -137,6 +141,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
             // motion is replaced, and 1 while this frame has the matrices above.
             float4 _ReDefinitionSceneRange;
 
+            // The distance along the view axis a depth value stands for, from _ReDefinitionSceneRange's planes.
             float SceneDistance(float depth)
             {
                 float nearPlane = _ReDefinitionSceneRange.x;
@@ -148,12 +153,14 @@ Shader "Hidden/ReDefinition/CloudMotion"
             #endif
             }
 
+            // The motion vector of a pixel at a depth through a clip-to-previous-clip matrix.
             float2 SceneMotion(float4x4 clipToPrevClip, float2 uv, float depth)
             {
                 float4 clip = float4(uv * 2.0 - 1.0, depth, 1.0);
                 return ReDefinitionMotionVector(clip, mul(clipToPrevClip, clip)).xy;
             }
 
+            // The scene camera's motion where it drew something, replaced far away; elsewhere the nearest body's.
             float4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.pos.xy * _ReDefinitionCloudTexel.xy;
@@ -238,6 +245,8 @@ Shader "Hidden/ReDefinition/CloudMotion"
             #include "UnityCG.cginc"
             #include "../Include/ReDefinition.cginc"
 
+            // The copy of Unity's motion vectors and the depth taken at the same event, their texel size, and the
+            // clip-to-previous matrices and range as for pass 2.
             sampler2D _ReDefinitionRepairMotion;
             sampler2D _ReDefinitionRepairDepth;
             float4 _ReDefinitionRepairTexel;
@@ -245,6 +254,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
             float4x4 _ReDefinitionSkyClipToPrevClip;
             float4 _ReDefinitionSceneRange;
 
+            // Unity's value where it wrote one; else the camera's move, against the main body or its turn alone.
             float4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.pos.xy * _ReDefinitionRepairTexel.xy;
@@ -287,6 +297,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
             #include "UnityCG.cginc"
             #include "../Include/ReDefinition.cginc"
 
+            // EVE's reconstructed clouds, its fade, and the texel size of the camera's target, as for pass 0.
             sampler2D scattererReconstructedCloud;
             float _ReDefinitionCloudFade;
             float4 _ReDefinitionCloudTexel;
@@ -303,6 +314,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
             // CPU: negative inside the sphere.
             float4 _ReDefinitionCloudShell;
 
+            // The clouds' transmittance with the fade, and where the ray meets the shell, that point's motion and 1.
             float4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.pos.xy * _ReDefinitionCloudTexel.xy;

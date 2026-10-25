@@ -10,9 +10,11 @@ namespace ReDefinition.Core
     // another.
     internal static class CompatibilityLog
     {
+        // How many warnings each kind writes, and how many each kind has written so far.
         private const int PerKind = 3;
         private static readonly Dictionary<string, int> Counts = new Dictionary<string, int>();
 
+        // Writes the warning unless its kind has used up its three; the last one says that further ones are dropped.
         public static void Warn(string kind, string message)
         {
             int count;

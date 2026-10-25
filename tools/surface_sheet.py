@@ -43,6 +43,7 @@ REGIONS = [
 
 
 def read_bin(path):
+    """One of the probe's surface images (width, height, then RGBA floats) as an array, rows from the top."""
     with open(path, 'rb') as f:
         width, height = struct.unpack('<ii', f.read(8))
         data = np.frombuffer(f.read(), dtype='<f4')
@@ -51,12 +52,14 @@ def read_bin(path):
 
 
 def linear(png, size):
+    """A screenshot resized to the size, from sRGB to linear light."""
     image = Image.open(png).convert('RGB').resize(size, Image.BILINEAR)
     srgb = np.asarray(image, dtype=np.float32) / 255.0
     return np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
 
 
 def luma(rgb):
+    """Rec. 709 luminance of linear RGB."""
     return rgb[..., 0] * 0.2126 + rgb[..., 1] * 0.7152 + rgb[..., 2] * 0.0722
 
 
@@ -71,6 +74,7 @@ def heat(value, top):
 
 
 def regions_of(surface, mode):
+    """Each pixel's region (RT_REGION_*, -2 for the space centre's ground without shine, 0 for the sky)."""
     region = np.rint(mode[..., 2] * 8.0).astype(int)
     shine = surface[..., :3].max(axis=2)
     region[(region == 2) & (shine <= 1e-4)] = -2
@@ -79,6 +83,7 @@ def regions_of(surface, mode):
 
 
 def label(image, text):
+    """The image with the text drawn white on black at its top left corner."""
     draw = ImageDraw.Draw(image)
     font = ImageFont.load_default()
     draw.rectangle([0, 0, 8 + 7 * len(text), 16], fill=(0, 0, 0))
@@ -87,6 +92,7 @@ def label(image, text):
 
 
 def sheet(folder, prefix, out):
+    """Write the sheet and the region table of one view into out, and print the table."""
     names = {n: os.path.join(folder, prefix + '-' + n + '.bin')
              for n in ('surface', 'surfacemode', 'specular', 'gbuffer0', 'gbuffer1', 'sun', 'diffuse')}
     surface = read_bin(names['surface'])
@@ -166,6 +172,7 @@ def sheet(folder, prefix, out):
 
 
 def main():
+    """Make the sheet of every view named, or of every *-surface.bin in the run folder."""
     args = sys.argv[1:]
     if not args:
         print(__doc__)

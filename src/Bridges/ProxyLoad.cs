@@ -15,12 +15,15 @@ namespace ReDefinition.Bridges
     // CodeIntegrity log named the proxy, and KSP loaded System32's).
     internal static class ProxyLoad
     {
+        // A loaded module's handle by name or full path; zero where none of it is loaded.
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern IntPtr GetModuleHandle(string name);
 
+        // The full path of a loaded module.
         [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
         private static extern uint GetModuleFileName(IntPtr module, StringBuilder name, int size);
 
+        // Whether Refused has found out, and what it found.
         private static bool asked;
         private static string refused;
 
@@ -48,6 +51,8 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // The refusal, put into words with what may have caused it; null where the proxy is the one loaded or
+        // there is none beside the game.
         private static string Ask()
         {
             string game = Path.GetDirectoryName(Path.GetFullPath(Application.dataPath));

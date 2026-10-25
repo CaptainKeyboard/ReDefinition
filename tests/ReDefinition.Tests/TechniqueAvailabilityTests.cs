@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class TechniqueAvailabilityTests
     {
+        // Facts for the card given with the proxy present and every technique offered, nothing missing.
         private static TechniqueAvailability.Facts Gpu(GpuClass gpu)
         {
             return new TechniqueAvailability.Facts
@@ -17,6 +18,8 @@ namespace ReDefinition.Tests
             };
         }
 
+        // DLSS is offered on an RTX where the proxy offers it; on a Radeon it is not this card's, and without
+        // the proxy the reason names it.
         [TestMethod]
         public void DlssNeedsAnRtxAndTheProxy()
         {
@@ -27,6 +30,8 @@ namespace ReDefinition.Tests
             StringAssert.Contains(TechniqueAvailability.Upscaler("Dlss", noProxy), "proxy");
         }
 
+        // A missing DLL does not grey a technique out: it stays lit and waits for its download, while FSR 3 and
+        // Auto need nothing.
         [TestMethod]
         public void AMissingFileDoesNotGreyATechniqueOutItMakesItWaitForTheDownload()
         {
@@ -41,6 +46,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(TechniqueAvailability.Needs.None, TechniqueAvailability.UpscalerNeeds("Auto", facts));
         }
 
+        // FSR 4 runs only on a Radeon RX 7000 or 9000; without AMD's DLL it stays lit and waits for it.
         [TestMethod]
         public void Fsr4RunsOnARadeon7000Or9000Only()
         {
@@ -54,6 +60,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(TechniqueAvailability.Needs.AmdDll, TechniqueAvailability.UpscalerNeeds("Amd", missing));
         }
 
+        // DLSS frame generation on an RTX 30 is lit but waits for the package and NVIDIA's files, then for
+        // Streamline's files alone; an RTX 40 needs no package.
         [TestMethod]
         public void DlssFrameGenerationOnAnRtx30WaitsForThePackageAndStreamline()
         {
@@ -71,6 +79,7 @@ namespace ReDefinition.Tests
                 "an RTX 40 needs no package");
         }
 
+        // Without the proxy only Off can be chosen, and DLSS frame generation is greyed out on a Radeon.
         [TestMethod]
         public void NoFrameGenerationButOffWithoutTheProxyAndNoDlssOffARadeon()
         {
@@ -82,6 +91,8 @@ namespace ReDefinition.Tests
             Assert.IsNotNull(TechniqueAvailability.FrameGeneration("Dlss", Gpu(GpuClass.Radeon9000)));
         }
 
+        // Without its runtime FSR frame generation is greyed out naming the DLL, which comes with ReDefinition;
+        // DLSS and XeSS need neither it nor a swapchain that generates now, and with none of the three Auto says why.
         [TestMethod]
         public void FsrFrameGenerationNamesTheMissingRuntimeThatComesWithReDefinition()
         {
@@ -105,6 +116,8 @@ namespace ReDefinition.Tests
             StringAssert.Contains(TechniqueAvailability.FrameGeneration("Auto", radeon), "install ReDefinition again");
         }
 
+        // Auto takes the card's own frame generation where it runs with nothing to fetch, else the next that
+        // does: on an RTX DLSS, then FSR, then XeSS; on an Intel card XeSS, then FSR; on a Radeon FSR.
         [TestMethod]
         public void AutoFrameGenerationIsTheCardsOwnWhereItRunsAndTheNextOneElse()
         {
@@ -129,6 +142,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Xess", AutoSettings.FrameGenerationTechnique("Xess", Gpu(GpuClass.Rtx40)), "a choice is itself");
         }
 
+        // XeSS frame generation stays lit without Intel's files and waits for their download.
         [TestMethod]
         public void XessFrameGenerationWaitsForIntelsFiles()
         {
@@ -139,11 +153,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(TechniqueAvailability.Needs.IntelFiles, TechniqueAvailability.FrameGenerationNeeds("Xess", facts));
         }
 
+        // The limits the proxy reports for the technique that runs: its kind, its most frames, Dynamic's support.
         private static FrameGenerationChoice.Limits Running(int technique, int most, int dynamic)
         {
             return new FrameGenerationChoice.Limits { Technique = technique, Most = most, Dynamic = dynamic };
         }
 
+        // The steps follow the limits the running technique reports: DLSS up to its most and Dynamic only with
+        // the driver that supports it, FSR one generated frame between two and no Dynamic.
         [TestMethod]
         public void TheStepsFollowTheTechniqueThatRuns()
         {
@@ -160,6 +177,8 @@ namespace ReDefinition.Tests
             StringAssert.Contains(TechniqueAvailability.Step("Dynamic", "Auto", fsr), "DLSS frame generation only");
         }
 
+        // A technique chosen but not running yet is judged by what it allows everywhere: DLSS every step and
+        // Dynamic, FSR one frame between two, XeSS up to 4x.
         [TestMethod]
         public void AChosenTechniqueThatIsNotRunningYetIsJudgedByWhatItDoesEverywhere()
         {
@@ -170,6 +189,7 @@ namespace ReDefinition.Tests
             StringAssert.Contains(TechniqueAvailability.Step("5x", "Xess", Running(1, 2, -1)), "up to 4x");
         }
 
+        // No step is greyed out while no technique has reported what it allows.
         [TestMethod]
         public void NothingIsGreyedBeforeTheTechniqueHasSaidWhatItAllows()
         {

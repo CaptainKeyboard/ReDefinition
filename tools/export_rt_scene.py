@@ -28,14 +28,17 @@ import UnityPy
 
 
 def load(ksp, name):
+    """One of the game's asset files under KSP_x64_Data, opened with UnityPy."""
     return UnityPy.load(os.path.join(ksp, 'KSP_x64_Data', name))
 
 
 def objects_of(env):
+    """The objects of the environment's first file, by path id."""
     return list(env.files.values())[0].objects
 
 
 def quaternion_matrix(q):
+    """The 3x3 rotation matrix of a unit quaternion."""
     x, y, z, w = q.x, q.y, q.z, q.w
     return [
         [1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
@@ -45,6 +48,7 @@ def quaternion_matrix(q):
 
 
 def local_matrix(transform):
+    """A Transform's local rotation, scale and position as a 4x4 matrix, parent from local."""
     r = quaternion_matrix(transform.m_LocalRotation)
     s = transform.m_LocalScale
     p = transform.m_LocalPosition
@@ -54,6 +58,7 @@ def local_matrix(transform):
 
 
 def multiply(a, b):
+    """The product a b of two 4x4 matrices."""
     return [[sum(a[i][k] * b[k][j] for k in range(4)) for j in range(4)] for i in range(4)]
 
 
@@ -92,6 +97,8 @@ def mesh_arrays(mesh):
 
 
 def collect(env, root_name, offset, meshes, instances, mesh_index):
+    """Add the meshes and instances below the object of that name, moved by offset; each mesh is added once, its
+    instances get a grey albedo from the mesh's name and smoothness 0.3."""
     objects = objects_of(env)
     transforms = {}
     children = {}
@@ -149,6 +156,7 @@ def collect(env, root_name, offset, meshes, instances, mesh_index):
 
 
 def main():
+    """Collect the launch pad and the SPH's exterior and write them to the scene file."""
     if len(sys.argv) != 3:
         raise SystemExit(__doc__)
     ksp, output = sys.argv[1], sys.argv[2]

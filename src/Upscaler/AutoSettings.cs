@@ -18,6 +18,7 @@ namespace ReDefinition.Upscaler
     // and again when the screen changes.
     internal static class AutoSettings
     {
+        // The value a setting's row stores and offers for Auto.
         public const string Auto = "Auto";
 
         // The values last resolved, for the rows to name what Auto is now.
@@ -140,6 +141,7 @@ namespace ReDefinition.Upscaler
             return f.AmdOffered && !f.AmdDllMissing;
         }
 
+        // Whether XeSS can run: the proxy offers it and Intel's DLL is in its folder.
         private static bool XessUsable(TechniqueAvailability.Facts f)
         {
             return f.XessOffered && !f.XessDllMissing;
@@ -150,6 +152,7 @@ namespace ReDefinition.Upscaler
         private static float dlssAskedAt = float.MinValue;
         private static bool dlssUsable;
 
+        // The answer above, asked anew at most every two seconds.
         public static bool DlssUsable()
         {
             float now = Time.realtimeSinceStartup;
@@ -159,6 +162,8 @@ namespace ReDefinition.Upscaler
             return dlssUsable;
         }
 
+        // Whether a DLL NVIDIA's DLSS needs is missing from the folders (licence texts do not count); false
+        // on a GPU that is not NVIDIA's.
         private static bool DlssFileMissing()
         {
             foreach (NvidiaFiles.Entry entry in ReDefinition.Window.NvidiaDownloader.Needed())

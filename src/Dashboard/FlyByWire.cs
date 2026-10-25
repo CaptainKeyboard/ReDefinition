@@ -18,6 +18,7 @@ namespace ReDefinition.Dashboard
     /// </summary>
     internal static class FlyByWire
     {
+        // How long a rate or a roll-button press holds without being repeated.
         public const float HoldSeconds = 0.3f;
 
         // KSP's pitch axis, checked in the game: positive raises the nose, like a nose-up input.
@@ -36,9 +37,9 @@ namespace ReDefinition.Dashboard
         //   thrust cannot hold it short of the target.
         private const double MAX_RATE = 20 * Math.PI / 180;
         private const double BRAKE = 0.5;       // share of the vessel's alpha planned for braking
-        private const double SETTLE = 0.8;      // seconds
-        private const double RESPONSE = 0.25;   // seconds
-        private const double INTEGRAL = 1.5;    // seconds
+        private const double SETTLE = 0.8;      // seconds: near the target the error is closed over this time
+        private const double RESPONSE = 0.25;   // seconds in which the input brings the turning speed to the wanted one
+        private const double INTEGRAL = 1.5;    // seconds in which a steady lag adds as much again through the integral part
         private const double MIN_ALPHA = 0.02;  // radians per second squared, when nothing is known
         private const float ALPHA_EVERY = 0.5f; // seconds between readings of the vessel's torque
         // How fast the roll buttons turn the target about its axis, in radians per second.
@@ -49,9 +50,13 @@ namespace ReDefinition.Dashboard
         // joystick's resting noise).
         private const float PLAYER_INPUT = 0.05f;
 
+        // The rates last set and when they run out (Time.realtimeSinceStartup), and the vessel whose
+        // OnFlyByWire carries Apply.
         private static float pitch, yaw, roll, until;
         private static Vessel attached;
 
+        // Whether a target attitude is held (target, targetTop), with the roll buttons' direction and their
+        // end, the turn's state, the vessel's alpha and when it was read.
         private static bool steering;
         // Paused, a target can be set and adjusted but is not steered to; play starts the turn.
         private static bool armed = true;
@@ -59,7 +64,7 @@ namespace ReDefinition.Dashboard
         private static double rollDir;
         private static float rollUntil;
         private static readonly Turn turn = new Turn();
-        private static Vector3d alpha = new Vector3d(MIN_ALPHA, MIN_ALPHA, MIN_ALPHA); // pitch, roll, yaw
+        private static Vector3d alpha = new Vector3d(MIN_ALPHA, MIN_ALPHA, MIN_ALPHA); // pitch, roll, yaw: as Alpha last read it, every ALPHA_EVERY
         private static float alphaAt = -1f;
 
         // The target altitude, and the turn spread over the way there: it started at startAttitude
@@ -74,13 +79,13 @@ namespace ReDefinition.Dashboard
         // the turn ending at 85 % of the atmosphere's height or the target altitude if lower; the nose
         // stays within 2000 Pa*rad / dynamic pressure of the surface prograde (MechJeb's Q-alpha limit).
         // Going down it is the S-curve.
-        public enum Curve { Linear, S, Auto }
-        private static Curve curve = Curve.S;
-        private const double AUTO_SHAPE = 0.4;
+        public enum Curve { Linear, S, Auto } // evenly, slow-faster-slow, or MechJeb's classic ascent
+        private static Curve curve = Curve.S; // the shape chosen, the S-curve until the dashboard picks another
+        private const double AUTO_SHAPE = 0.4; // the power the share of the way climbed is raised to
         private const double AUTO_TURN_START_SHARE = 0.05, AUTO_TURN_START_SPEED = 98.9; // m/s, MechJeb's 18.5^3 / 64
         private const double AUTO_TURN_END_SHARE = 0.85;
         private const double AUTO_VACUUM_START = 25; // metres climbed first on an airless body
-        private const double Q_ALPHA = 2000;          // Pa * rad
+        private const double Q_ALPHA = 2000;          // Pa * rad, MechJeb's limit on dynamic pressure times angle of attack
         // Above the prograde the nose may go this many times further: a climb that has gone flatter
         // than the curve has to be pulled up again, or it would follow its prograde to the horizon.
         private const double AOA_UP = 3;
@@ -96,6 +101,7 @@ namespace ReDefinition.Dashboard
             until = Time.realtimeSinceStartup + HoldSeconds;
         }
 
+        // Ends the rates at once (v.fbwOff); a target attitude stays.
         public static void Release()
         {
             until = 0f;
@@ -245,6 +251,7 @@ namespace ReDefinition.Dashboard
             SetCurve(name == "auto" ? Curve.Auto : name == "linear" ? Curve.Linear : Curve.S);
         }
 
+        // Changes the shape; a turn under way starts again from where it is, so it does not jump.
         private static void SetCurve(Curve c)
         {
             if (c == curve) return;
@@ -253,7 +260,6 @@ namespace ReDefinition.Dashboard
             if (steering && c == Curve.Auto) Restart(); // auto may bring its own altitude
         }
 
-        /// <summary>Drops the target and the target altitude.</summary>
         /// <summary>Play (true) steers to the target; pause (false) only holds it, to be adjusted.</summary>
         public static void SetArmed(bool on)
         {
@@ -263,8 +269,10 @@ namespace ReDefinition.Dashboard
             if (on && steering) Restart(); // the spread turn begins from where the vessel points now
         }
 
+        // n.steerArmed: whether play is on, the vessel steered to the target rather than it only held.
         public static bool Armed { get { return armed; } }
 
+        // Drops the target and the target altitude (v.steerReset, and on a change of vessel).
         public static void Reset()
         {
             steering = false;
@@ -290,8 +298,10 @@ namespace ReDefinition.Dashboard
             get { return altitudeSet ? (object)targetAltitude : null; }
         }
 
+        // n.steerSCurve: whether the turn is spread as an S-curve.
         public static bool SCurve { get { return curve == Curve.S; } }
 
+        // n.steerCurve: the shape's name as SetCurve(string) takes it, "linear", "s" or "auto".
         public static string CurveName { get { return curve == Curve.Auto ? "auto" : curve == Curve.Linear ? "linear" : "s"; } }
 
         /// <summary>Keeps the callback on the vessel the player flies. Called every frame.</summary>
@@ -309,6 +319,7 @@ namespace ReDefinition.Dashboard
             Reset();
         }
 
+        // The vessel's OnFlyByWire, each physics step: steers to the target, then adds the rates while they hold.
         private static void Apply(FlightCtrlState s)
         {
             float now = Time.realtimeSinceStartup;
@@ -330,6 +341,8 @@ namespace ReDefinition.Dashboard
             top = new Vector3d(Vector3d.Dot(t, north), Vector3d.Dot(t, east), Vector3d.Dot(t, up));
         }
 
+        // One step of the turn to the target: rolls the target while a roll button holds, gives the target up
+        // where the player steers, and otherwise sets pitch, yaw and roll from Inputs.
         private static void Steer(FlightCtrlState s)
         {
             Vessel v = attached;
@@ -380,10 +393,11 @@ namespace ReDefinition.Dashboard
         // from them, the axis the nose turns about, the roll error, the integral parts.
         internal sealed class Turn
         {
-            public bool HaveLast;
-            public Vector3d Nose, Right, Top, Spin, Axis;
-            public double Roll, PitchI, YawI, RollI;
+            public bool HaveLast; // whether the fields below hold a previous frame
+            public Vector3d Nose, Right, Top, Spin, Axis; // the axes last frame, the turning speed, the nose's axis
+            public double Roll, PitchI, YawI, RollI; // the roll error last frame and each axis's integral part
 
+            // Forgets the last frame, the turning speed and the integral parts, for a turn that starts anew.
             public void Clear()
             {
                 HaveLast = false;
@@ -506,6 +520,7 @@ namespace ReDefinition.Dashboard
             return a;
         }
 
+        // A control input held within -1 to 1.
         private static double Clamp(double x)
         {
             return x < -1 ? -1 : x > 1 ? 1 : x;

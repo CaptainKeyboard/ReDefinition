@@ -8,6 +8,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class EditorTelemetryTests
     {
+        // The editor page's readings and commands are known outside the editor too: an unknown key is
+        // answered to the page as unknown, so a page opened in another scene would stop asking for it.
         [TestMethod]
         public void TheEditorsKeysAndCommandsAreKnownInEveryScene()
         {

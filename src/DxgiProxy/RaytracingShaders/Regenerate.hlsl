@@ -7,6 +7,7 @@
 
 #include "RtCommon.hlsli"
 
+// The four guides written: linear depth, motion, normals, specular albedo.
 RWTexture2D<float> linearDepthOut : register(u0, space3);
 RWTexture2D<float4> motionOut : register(u1, space3);
 RWTexture2D<float4> normalsOut : register(u2, space3);
@@ -14,6 +15,7 @@ RWTexture2D<float4> specularAlbedoOut : register(u3, space3);
 // The linear depth this pass wrote the frame before.
 Texture2D<float> linearDepthBefore : register(t0, space3);
 
+// The dispatch's root constants (RunRegenerationLocked).
 cbuffer Step : register(b1)
 {
     uint stepFlags;   // 2: motion vectors in t5; 4: linearDepthBefore is the frame before's
@@ -34,6 +36,7 @@ float2 NormalToOctahedronUv(float3 n)
     return n.xy * 0.5f + 0.5f;
 }
 
+// The uv of a point in the frame before, from its clip position there; v from the top.
 float2 PreviousUv(float4 previousClip)
 {
     return float2(previousClip.x / previousClip.w * 0.5f + 0.5f, 0.5f - previousClip.y / previousClip.w * 0.5f);
@@ -49,6 +52,7 @@ bool SurfaceBefore(float2 previousUv, float expectedDepth)
     return zBefore > 0.0f && abs(zBefore - expectedDepth) < 0.03f * expectedDepth + 0.02f;
 }
 
+// Per pixel the four guides of the comment at the top; the sky past every far plane.
 [numthreads(8, 8, 1)]
 void RegenerationGuides(uint3 id : SV_DispatchThreadID)
 {

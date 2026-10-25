@@ -11,6 +11,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class StreamlineCameraTests
     {
+        // The projection's near and far plane in metres.
         private const float Near = 0.3f;
         private const float Far = 750000f;
 
@@ -50,6 +51,7 @@ namespace ReDefinition.Tests
                 v.x * m[3] + v.y * m[7] + v.z * m[11] + v.w * m[15]);
         }
 
+        // A Unity matrix times a column vector, as Unity multiplies.
         private static Vector4 ColumnTimes(Matrix4x4 m, Vector4 v)
         {
             return new Vector4(
@@ -59,17 +61,20 @@ namespace ReDefinition.Tests
                 m.m30 * v.x + m.m31 * v.y + m.m32 * v.z + m.m33 * v.w);
         }
 
+        // Asserts the two points lie within the tolerance of each other, naming both where they do not.
         private static void AssertClose(Vector3 expected, Vector3 actual, float tolerance, string what)
         {
             Assert.IsTrue((expected - actual).magnitude <= tolerance, what + ": expected " + expected.ToString("F6")
                                                                      + ", got " + actual.ToString("F6"));
         }
 
+        // Clip coordinates after the divide by w.
         private static Vector3 Divide(Vector4 clip)
         {
             return new Vector3(clip.x / clip.w, clip.y / clip.w, clip.z / clip.w);
         }
 
+        // Invert gives the inverse of a view projection matrix: their product is the identity.
         [TestMethod]
         public void TheInverseUndoesTheMatrix()
         {
@@ -80,6 +85,7 @@ namespace ReDefinition.Tests
                     Assert.AreEqual(row == column ? 1f : 0f, product[row, column], 1e-4f, "[" + row + "," + column + "]");
         }
 
+        // A matrix written row-major transforms a row vector as Unity's matrix does the column vector.
         [TestMethod]
         public void RowMajorIsTheSameTransformForRowVectors()
         {
@@ -95,6 +101,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(byUnity.w, byStreamline.w, 1e-3f);
         }
 
+        // The view to clip matrix Streamline gets looks down +z with depth reversed, 1 at the near plane, keeps
+        // up as up, and clipToView undoes it.
         [TestMethod]
         public void ViewSpaceLooksDownPlusZWithDepthReversed()
         {
@@ -122,6 +130,7 @@ namespace ReDefinition.Tests
                         "clipToView");
         }
 
+        // clipToPrevClip takes a point's clip position this frame to the last frame's, and prevClipToClip back.
         [TestMethod]
         public void ClipToPrevClipReprojectsIntoTheLastFrame()
         {
@@ -141,6 +150,7 @@ namespace ReDefinition.Tests
                         "prevClipToClip");
         }
 
+        // A camera that stands still gives identity reprojections both ways.
         [TestMethod]
         public void AStillCameraHasNoReprojection()
         {

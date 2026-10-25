@@ -9,6 +9,7 @@ namespace ReDefinition.Dashboard
         // The last picture made; one dialog stands at a time, so the one before goes.
         private static Texture2D picture;
 
+        // The dialog's rows: the QR code with the address under it, or a line saying why there is none.
         internal static DialogGUIBase[] Content()
         {
             OwnSettings settings = DashboardServer.Settings;

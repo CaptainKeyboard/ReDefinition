@@ -24,9 +24,11 @@ namespace ReDefinition.Probe
     //   shot=<name>              a shot, <shot>-win-<name>.png
     internal static class WindowProbe
     {
+        // Puts the cursor onto a desktop point.
         [DllImport("user32.dll")]
         private static extern bool SetCursorPos(int x, int y);
 
+        // Runs the steps in turn, each logged, with a pause after each for the window to follow.
         public static IEnumerator Run(string folder, string shot, string steps)
         {
             foreach (string raw in steps.Split(';'))
@@ -104,6 +106,7 @@ namespace ReDefinition.Probe
             return found;
         }
 
+        // The pointer onto the n-th button (#n, from 1, the first where none is given) whose text is the one given.
         private static bool Hover(string argument)
         {
             int index = 1;
@@ -130,6 +133,7 @@ namespace ReDefinition.Probe
             return false;
         }
 
+        // Clicks the topmost button of that text, or switches on a toggle button of it; false where there is none.
         private static bool Click(string text)
         {
             foreach (Selectable selectable in Buttons(text))
@@ -156,6 +160,7 @@ namespace ReDefinition.Probe
             return RectTransformUtility.WorldToScreenPoint(ui, element.position);
         }
 
+        // The pointer onto a UI element's place on the screen.
         private static bool PointAt(Transform element)
         {
             Vector2 point = ScreenOf(element);
@@ -163,6 +168,7 @@ namespace ReDefinition.Probe
             return SetCursorPos((int)point.x, Screen.height - (int)point.y);
         }
 
+        // A label's text without its rich-text tags.
         private static string StripTags(string text)
         {
             return System.Text.RegularExpressions.Regex.Replace(text, "<[^>]+>", "");

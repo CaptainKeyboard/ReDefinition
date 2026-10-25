@@ -10,6 +10,7 @@ namespace ReDefinition.Upscaler
     // (UpscalerMasks).
     internal sealed class UpscalerInputs
     {
+        // The masks, EVE's clouds in the motion vectors and the distant planets' motion, each with its own buffers.
         internal readonly UpscalerMasks Masks = new UpscalerMasks();
         internal readonly CloudMotionVectors CloudMotion = new CloudMotionVectors();
         internal readonly ScaledSpaceMotion ScaledMotion = new ScaledSpaceMotion();
@@ -17,16 +18,19 @@ namespace ReDefinition.Upscaler
         // On the camera that produces depth and motion vectors, where the built-in
         // identifiers are valid, before the image effects; recorded every frame.
         internal CommandBuffer Capture { get; private set; }
+        // The camera the capture buffer was added to, so it can be removed from it again.
         private Camera captureCamera;
 
         // Made once: the capture buffer is recorded every frame.
         private static class DepthTargets
         {
+            // _CameraDepthTexture, Unity's resolved depth buffer, and the depth buffer of the camera's target.
             internal static readonly RenderTargetIdentifier Global = new RenderTargetIdentifier("_CameraDepthTexture");
             internal static readonly RenderTargetIdentifier Resolved = new RenderTargetIdentifier(BuiltinRenderTextureType.ResolvedDepth);
             internal static readonly RenderTargetIdentifier Depth = new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
         }
 
+        // The depth the capture and the masks read, for the configured DepthSource.
         internal static RenderTargetIdentifier DepthIdentifier(UpscalerRig.DepthSource source)
         {
             switch (source)
@@ -40,6 +44,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Puts the capture buffer on cam at BeforeImageEffects, filled once here and recorded anew by Record.
         internal void AttachCapture(Camera cam, UpscalerTextures textures, UpscalerRig.DepthSource depth)
         {
             Capture = new CommandBuffer { name = "ReDefinition.CaptureInputs" };
@@ -87,6 +92,7 @@ namespace ReDefinition.Upscaler
             ScaledMotion.Dispose();
         }
 
+        // Takes the capture buffer off its camera and frees it; Record needs AttachCapture again after it.
         internal void ReleaseCapture()
         {
             if (Capture == null) return;

@@ -25,6 +25,7 @@ namespace ReDefinition.Window
     // bindings by reflection and parse its text in every frame.
     internal static partial class SettingsWindow
     {
+        // The widths of a binding's key button, of its clear button and of a modifier switch.
         private const float BindingWidth = 90f;
         private const float BindingButtonWidth = 22f;
         private const float ModifierWidth = 50f;
@@ -33,6 +34,7 @@ namespace ReDefinition.Window
         private const float KeySourceWidth = 52f;
         private const string ListeningText = "<color=#ffdd55>Press a key...</color>";
 
+        // What is typed into the window's search field, trimmed; the Keys tab's rows and every other tab filter by it.
         private static string keySearch = "";
 
         // Counts every change to a binding in the tab: what the rows show is kept
@@ -41,12 +43,15 @@ namespace ReDefinition.Window
         private static int keysVersion;
         private static float keysVersionTime;
 
+        // A row's text as last read, and the version of the bindings it was read at.
         private struct Shown
         {
+            // The version it was read at, and the text.
             public int Version;
             public string Text;
         }
 
+        // The texts last read, by the row's key.
         private static readonly Dictionary<string, Shown> shownTexts = new Dictionary<string, Shown>();
 
         // Whether a row's button can be seen: not on a page left, in a group
@@ -56,11 +61,13 @@ namespace ReDefinition.Window
             return element != null && element.uiItem != null && element.uiItem.activeInHierarchy;
         }
 
+        // Marks every row's text as due to be read again.
         private static void KeysChanged()
         {
             keysVersion++;
         }
 
+        // The bindings' version, moved once a second besides the changes, so that a value changed elsewhere shows.
         private static int KeysVersion()
         {
             if (Time.unscaledTime >= keysVersionTime)
@@ -110,6 +117,7 @@ namespace ReDefinition.Window
         private static string searchWordsFor;
         private static string[] searchWords = new string[0];
 
+        // The search's words, split anew only when the search changed.
         private static string[] SearchWords()
         {
             if (searchWordsFor != keySearch)
@@ -120,6 +128,7 @@ namespace ReDefinition.Window
             return searchWords;
         }
 
+        // The Keys tab's rows: every binding by its section, each section under a header that folds it.
         private static DialogGUIBase[] KeyRows()
         {
             shownTexts.Clear();
@@ -190,6 +199,7 @@ namespace ReDefinition.Window
         private static readonly Dictionary<string, List<string[]>> sectionMembers =
             new Dictionary<string, List<string[]>>(StringComparer.OrdinalIgnoreCase);
 
+        // Adds a row's builder to its section, keeping the sections' order, and notes its name and source for the search.
         private static void AddToSection(Dictionary<string, List<Func<DialogGUIBase>>> sections, List<string> order,
                                          string section, string title, string owner, Func<DialogGUIBase> build)
         {
@@ -261,6 +271,7 @@ namespace ReDefinition.Window
             return header;
         }
 
+        // Whether a section's rows stand: while it is open, or while something is searched.
         private static bool GroupOpen(string group)
         {
             return keySearch.Length > 0 || openGroups.Contains(group);
@@ -291,6 +302,7 @@ namespace ReDefinition.Window
             return groupsShown.Contains(group);
         }
 
+        // A row for one of KSP's bindings: its name, its two keys, and KSP as its source; filtered by the search.
         private static DialogGUIBase KspBindingRow(KspKeyBindings.Binding binding)
         {
             KspKeyBindings.Binding shown = binding;
@@ -361,6 +373,7 @@ namespace ReDefinition.Window
             return written;
         }
 
+        // Writes a binding's pending key to KSP's settings; false where none waits, or the write failed (logged).
         private static bool Write(KspKeyBindings.Binding binding, bool second)
         {
             string key = "ksp." + binding.Name + (second ? ".secondary" : ".primary");
@@ -396,6 +409,7 @@ namespace ReDefinition.Window
             KeysChanged();
         }
 
+        // Puts one of KSP's keys back to the layout's shipped default, where it has one.
         private static void ResetOne(KspKeyBindings.Binding binding, string layout, bool second)
         {
             string shipped = binding.DefaultIn(layout, second);
@@ -457,6 +471,7 @@ namespace ReDefinition.Window
             new[] { KeyCode.LeftShift, KeyCode.RightShift },
         };
 
+        // The switches' labels, in ModifierPairs' order.
         private static readonly string[] ModifierLabels = { "Ctrl", "Alt", "Shift" };
 
         // The row itself: the name, the key as a button that listens when it is
@@ -565,6 +580,7 @@ namespace ReDefinition.Window
             return yellow;
         }
 
+        // The yellow labels made so far, by their text.
         private static readonly Dictionary<string, string> yellowLabels = new Dictionary<string, string>();
     }
 }

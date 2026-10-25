@@ -8,10 +8,13 @@ namespace ReDefinition.Tests
     [TestClass]
     public class GpuClassTests
     {
+        // The PCI vendor ids of NVIDIA, AMD and Intel.
         private const int Nvidia = 0x10DE;
         private const int Amd = 0x1002;
         private const int Intel = 0x8086;
 
+        // Without NVAPI an NVIDIA card's class comes from its name: the RTX model number's generation, A for
+        // Ampere workstation cards, Ada for Ada's; a GTX is NvidiaOlder.
         [DataTestMethod]
         [DataRow("NVIDIA GeForce RTX 2060", "Rtx20")]
         [DataRow("NVIDIA GeForce RTX 2080 Ti", "Rtx20")]
@@ -28,6 +31,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(expected, GpuClasses.Of(Nvidia, name, 0, 0).ToString());
         }
 
+        // Where NVAPI answers, its architecture decides over the name: a Turing implementation DLSS does not run
+        // on (a GTX 16) is NvidiaOlder, Ampere an RTX 30, Ada an RTX 40, Blackwell an RTX 50.
         [DataTestMethod]
         [DataRow(0x160u, 0x4u, "Rtx20")]
         [DataRow(0x160u, 0x7u, "NvidiaOlder")]
@@ -41,6 +46,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(expected, GpuClasses.Of(Nvidia, "NVIDIA GeForce RTX 5090", architecture, implementation).ToString());
         }
 
+        // A Radeon's class by the first digit of its RX model number; a Radeon without one, an integrated
+        // graphics, is RadeonOlder.
         [DataTestMethod]
         [DataRow("AMD Radeon RX 9070 XT", "Radeon9000")]
         [DataRow("AMD Radeon RX 7900 XTX", "Radeon7000")]
@@ -52,6 +59,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(expected, GpuClasses.Of(Amd, name, 0, 0).ToString());
         }
 
+        // Any Intel adapter is Intel, another vendor's Other, and no vendor at all Unknown.
         [TestMethod]
         public void IntelAndTheRest()
         {
@@ -60,6 +68,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(GpuClass.Unknown, GpuClasses.Of(0, "", 0, 0));
         }
 
+        // A class is read from a profile line by its name in any letter case; another text or a number is Unknown.
         [TestMethod]
         public void AClassIsReadByItsName()
         {

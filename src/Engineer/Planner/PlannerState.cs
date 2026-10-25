@@ -29,8 +29,11 @@ namespace ReDefinition.Engineer
     // plan back when it is loaded into the editor again.
     internal sealed class PlannerState
     {
+        // The group key of a section the planner finds by itself, rather than one the player picked.
         internal const string Automatic = "Automatic";
 
+        // The route, the start first; the margin over the route's delta-v, 0.1 for ten per cent; whether plane changes count;
+        // the sections, with the planner's found ones once kept.
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
         public bool PlaneChanges = true;
@@ -45,6 +48,7 @@ namespace ReDefinition.Engineer
         internal const int FoundSatellite = 902;
         internal const int FoundLander = 903;
 
+        // A new section of the player's, with the next free id below the planner's own.
         internal PlannedSection AddSection(SectionKind kind, string group)
         {
             // Below the planner's own ids, and free.
@@ -89,6 +93,7 @@ namespace ReDefinition.Engineer
             Stops[index].Stages = new[] { new StagePlan(), new StagePlan(), new StagePlan(), new StagePlan() };
         }
 
+        // The file in PluginData the plans are kept in, and how many vessels' plans it keeps at most.
         private const string FileName = "planner.cfg";
         private const int MaxPlans = 200;
 
@@ -102,6 +107,7 @@ namespace ReDefinition.Engineer
             return state;
         }
 
+        // The vessel's plan from the file; the default plan where it has none, or none that can be read.
         internal static PlannerState Load(string vessel, PlannerBodies bodies)
         {
             try
@@ -124,6 +130,7 @@ namespace ReDefinition.Engineer
             return Default(bodies);
         }
 
+        // Writes the vessel's plan to the file in place of its old one, as the newest, keeping at most MaxPlans plans.
         internal void Save(string vessel, PlannerBodies bodies)
         {
             try
@@ -154,6 +161,7 @@ namespace ReDefinition.Engineer
             return Uri.EscapeDataString(vessel ?? "");
         }
 
+        // Whether the file holds a plan for the vessel.
         internal static bool Exists(string vessel)
         {
             try
@@ -184,6 +192,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Who flies a step from the file's text: a Flyer's code, -1 for Auto or a text it does not know.
         private static int FlyerCode(string text)
         {
             text = (text ?? "").Trim();
@@ -194,6 +203,7 @@ namespace ReDefinition.Engineer
             return -1;
         }
 
+        // The plan as the file keeps it: a PLAN node with its sections, its stops and their stage choices.
         private ConfigNode ToNode(string vessel, PlannerBodies bodies)
         {
             ConfigNode node = new ConfigNode("PLAN");
@@ -235,6 +245,7 @@ namespace ReDefinition.Engineer
             return node;
         }
 
+        // One stage choice for one step on the way to the stop: Save or DropAfter.
         private static void AddStage(ConfigNode stopNode, StepRole role, int stage, string choice)
         {
             ConfigNode node = stopNode.AddNode("STAGE");
@@ -243,6 +254,8 @@ namespace ReDefinition.Engineer
             node.AddValue("choice", choice);
         }
 
+        // The plan from its PLAN node. A stop on a body the loaded system does not have is left out, and with it the stage
+        // choices of the stops after it and every satellite's destination.
         private static PlannerState FromNode(ConfigNode node, PlannerBodies bodies)
         {
             PlannerState state = new PlannerState();

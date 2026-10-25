@@ -30,19 +30,24 @@ namespace ReDefinition.Raytracing
         // body's own texture, once loaded, is another texture or the same one filled.
         private static readonly Dictionary<Texture, Vector3Int> placeholders = new Dictionary<Texture, Vector3Int>();
 
+        // A texture's size and update count, which change when it is filled or replaced.
         private static Vector3Int Shape(Texture texture)
         {
             return new Vector3Int(texture.width, texture.height, (int)texture.updateCount);
         }
 
+        // Whether the texture was read as a white placeholder and has not changed since.
         private static bool Placeholder(Texture texture)
         {
             Vector3Int shape;
             return placeholders.TryGetValue(texture, out shape) && shape == Shape(texture);
         }
 
+        // A body's light as Fill weighs it, before the two brightest are handed over.
         private struct Candidate
         {
+            // The direction from the eye to the body, its angular radius, its light, the distance to its surface, the
+            // light's luminance, and its disc's colour as a reflected ray sees it.
             internal Vector3 Towards;
             internal float Radius;
             internal Color Colour;
@@ -54,6 +59,7 @@ namespace ReDefinition.Raytracing
             internal CelestialBody Body;
         }
 
+        // The frame's candidates, brightest first after sorting, and the bodies of the camera's planet's system.
         private static readonly List<Candidate> candidates = new List<Candidate>();
         private static readonly List<CelestialBody> system = new List<CelestialBody>();
         // Luminance 1: 0.2126 * 0.83 + 0.7152 * 1.01 + 0.0722 * 1.42.
@@ -203,6 +209,7 @@ namespace ReDefinition.Raytracing
             return recent;
         }
 
+        // The lights Fill handed over last, by their luminance, for the diagnostics log (RtKsp.Report).
         internal static string Describe()
         {
             if (lastCount == 0) return "no moonlight";
@@ -218,6 +225,7 @@ namespace ReDefinition.Raytracing
             return main != null && main.scaledBody != null ? ColourOf(main) : Grey;
         }
 
+        // Rec. 709 luminance of a linear colour.
         private static float Luminance(Color c)
         {
             return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;

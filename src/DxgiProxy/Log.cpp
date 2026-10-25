@@ -11,6 +11,7 @@ namespace redefinition
 {
     namespace
     {
+        // The open log file, null while closed, and the mutex every line and the opening and closing hold.
         std::mutex g_mutex;
         FILE* g_file = nullptr;
 

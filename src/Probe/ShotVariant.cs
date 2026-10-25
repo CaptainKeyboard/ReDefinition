@@ -12,6 +12,7 @@ namespace ReDefinition.Probe
     // without the change, "none", at the same place and moment
     // (docs/development/performance-findings.md). Only for that run.
     //   cascades2      two shadow cascades instead of the quality level's
+    //   cascades1Low   one cascade at low resolution, the shadow distance kept
     //   distanceHalf   the shadow distance halved
     //   shadowsMinimal one cascade, 200 m, low resolution: where only the raytracing
     //                  shades the sun, and where the shadow maps still show
@@ -27,6 +28,7 @@ namespace ReDefinition.Probe
     //   noFlags        the renderers named flag hidden
     internal static class ShotVariant
     {
+        // The variant the switch names, changed once in the flight, then two seconds to settle.
         internal static IEnumerator Apply()
         {
             string name = SceneProbe.ArgumentAfter("-redefinitionProbeShotVariant");
@@ -46,6 +48,7 @@ namespace ReDefinition.Probe
             yield return new WaitForSeconds(2f);
         }
 
+        // Makes the named change and says what it did, for the log.
         private static string Change(string name)
         {
             switch (name)
@@ -127,8 +130,10 @@ namespace ReDefinition.Probe
             return cameras + " portrait cameras to layers 0x" + layers.ToString("X8") + " (" + names + ")";
         }
 
+        // The shadow distance held while a portrait renders with 10 m; -1 while none does.
         private static float heldDistance = -1f;
 
+        // Whether a camera is one of the crew portraits' (pilotCamera...).
         private static bool IsPortrait(Camera camera)
         {
             return camera != null && camera.name.StartsWith("pilotCamera", StringComparison.Ordinal);
@@ -208,6 +213,7 @@ namespace ReDefinition.Probe
             return changed + " flags set to blend the light probes";
         }
 
+        // Camera.onPreCull for portraitShadows: a portrait's camera renders with a shadow distance of 10 m.
         private static void ShortShadows(Camera camera)
         {
             if (!IsPortrait(camera) || heldDistance >= 0f) return;
@@ -215,6 +221,7 @@ namespace ReDefinition.Probe
             QualitySettings.shadowDistance = 10f;
         }
 
+        // Camera.onPostRender for portraitShadows: the held shadow distance back after the portrait.
         private static void ShadowsBack(Camera camera)
         {
             if (!IsPortrait(camera) || heldDistance < 0f) return;
@@ -222,6 +229,7 @@ namespace ReDefinition.Probe
             heldDistance = -1f;
         }
 
+        // Takes every command buffer whose name holds the keyword off every camera in a scene; how many.
         private static int RemoveBuffers(string keyword)
         {
             int removed = 0;
@@ -269,6 +277,7 @@ namespace ReDefinition.Probe
             return changed;
         }
 
+        // A field's or unindexed property's value by name, public or not; null where there is none.
         private static object Read(object from, string member)
         {
             if (from == null) return null;

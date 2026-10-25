@@ -34,20 +34,25 @@ namespace ReDefinition.Window
     // configs they read.
     internal static class ModWindowClose
     {
+        // The Harmony id of the two hooks, and the close button's size in pixels.
         private const string HarmonyId = "ReDefinition.ModWindowClose";
         private const float Size = 20f;
 
+        // One mod window's swap: the mod's own window function wrapped in one that draws the close button first.
         private sealed class Closable
         {
+            // The mod, the wrapping function handed to Unity, and the mod's own function.
             public readonly IBundledMod Mod;
             public readonly GUI.WindowFunction Outer;
             private readonly GUI.WindowFunction inner;
+            // The window's width in its own coordinates, where the button goes.
             public float Width;
             // Where it was last drawn, in the screen's pixels from the top left,
             // and in which frame.
             public Rect Area;
             public int Frame = -1;
 
+            // Wraps the mod's function; Outer is made once, so Unity sees the same delegate every event.
             public Closable(IBundledMod mod, GUI.WindowFunction inner)
             {
                 Mod = mod;
@@ -55,6 +60,7 @@ namespace ReDefinition.Window
                 Outer = Draw;
             }
 
+            // The close button at the top right where the window is wide enough, then the mod's own content.
             private void Draw(int id)
             {
                 try
@@ -77,11 +83,13 @@ namespace ReDefinition.Window
         // SettingsGuiOnGameScenes; decompiled).
         private sealed class Owner
         {
+            // The mod, the type that draws its window, and the drawing method's name.
             public IBundledMod Mod;
             public Type Type;
             public string Method;
         }
 
+        // Every bundled mod's settings window as an owner, null until the mods are built.
         private static List<Owner> owners;
         // Whether any of those methods is static, drawn by a delegate with no
         // object to tell its type by.
@@ -119,6 +127,7 @@ namespace ReDefinition.Window
         private static readonly Dictionary<IBundledMod, float> expected = new Dictionary<IBundledMod, float>();
         private static readonly List<IBundledMod> due = new List<IBundledMod>();
 
+        // Notes the opening of a mod's own window, for the report a second later.
         internal static void ExpectOpening(IBundledMod mod)
         {
             if (mod != null) expected[mod] = Time.unscaledTime;
@@ -147,6 +156,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Installs the prefixes and the postfix on GUILayout.DoWindow and GUI.DoWindow.
         internal static void Install()
         {
             MethodInfo layout = typeof(GUILayout).GetMethod("DoWindow", BindingFlags.NonPublic | BindingFlags.Static);
@@ -158,6 +168,7 @@ namespace ReDefinition.Window
             });
         }
 
+        // Drops every wrapped window: at a scene change.
         internal static void Forget()
         {
             known.Clear();
@@ -179,11 +190,13 @@ namespace ReDefinition.Window
             return false;
         }
 
+        // GUILayout.DoWindow's prefix: the window function swapped where it is a bundled mod's settings window.
         private static void LayoutWindowPrefix(ref GUI.WindowFunction func, Rect screenRect, out object __state)
         {
             __state = Swap(ref func, screenRect);
         }
 
+        // GUI.DoWindow's prefix, the same for windows drawn without layout.
         private static void WindowPrefix(ref GUI.WindowFunction func, Rect clientRect, out object __state)
         {
             __state = Swap(ref func, clientRect);
@@ -258,6 +271,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Builds the owners from the installed mods' OwnWindow, once the mods are built; false before.
         private static bool Resolve()
         {
             if (!BundledSettings.Built) return false;
@@ -277,6 +291,7 @@ namespace ReDefinition.Window
             return true;
         }
 
+        // The owners a type drawing a window can be, by type and its bases, looked up once per type; null for none.
         private static List<Owner> OwnersOf(Type type)
         {
             List<Owner> found;
@@ -292,6 +307,7 @@ namespace ReDefinition.Window
             return found;
         }
 
+        // The wrapper of that window function, made on first use; wrappers not drawn for over two frames go.
         private static Closable ClosableFor(GUI.WindowFunction func, IBundledMod mod)
         {
             Closable closable;

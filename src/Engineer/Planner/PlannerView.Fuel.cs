@@ -29,6 +29,7 @@ namespace ReDefinition.Engineer
         private readonly HashSet<int> fuelOpen = new HashSet<int>();
         private bool fuelShown;
 
+        // The fuel plan's rows: the columns' names, each step's rows, and how many steps more than it shows.
         private IEnumerable<DialogGUIBase> FuelRows()
         {
             DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
@@ -46,26 +47,31 @@ namespace ReDefinition.Engineer
             yield return more;
         }
 
+        // A label in the dim colour, for a column's name.
         private static DialogGUILabel DimLabel(string text, float labelWidth)
         {
             return new DialogGUILabel("<color=" + Dim + ">" + text + "</color>", labelWidth);
         }
 
+        // Whether the fuel plan shows the step: open, or every row asked for by the dashboard, and the plan worked out.
         private bool FuelStepShown(int step)
         {
             return (fuelShown || everyRow) && Worked() && step < steps.Count;
         }
 
+        // The step's key in fuelOpen: its destination and role, kept as steps come and go before it.
         private int FuelKey(int step)
         {
             return steps[step].Goal * RouteStop.Roles + (int)steps[step].Role;
         }
 
+        // Whether the step's stages are shown: opened by the player, or every row asked for.
         private bool FuelIsOpen(int step)
         {
             return FuelStepShown(step) && (everyRow || fuelOpen.Contains(FuelKey(step)));
         }
 
+        // Opens the step's stages, or folds them.
         private void ToggleFuel(int step)
         {
             if (!FuelStepShown(step)) return;
@@ -83,6 +89,7 @@ namespace ReDefinition.Engineer
             return budget.Stages[step][row];
         }
 
+        // How many stages what flies the step has with fuel as it starts.
         private int FuelStageCount(int step)
         {
             return FuelStepShown(step) && budget.Stages[step] != null ? budget.Stages[step].Count : 0;
@@ -151,6 +158,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // The most lines under an open step: its burns, the margin, a refill and what stays there.
         private const int MaxFuelLines = 8;
 
         // The lines of an open step, as name and value: each burn, the margin, a
@@ -176,20 +184,24 @@ namespace ReDefinition.Engineer
             return lines;
         }
 
+        // No lines, for a step that is not open.
         private static readonly List<KeyValuePair<string, string>> NoLines = new List<KeyValuePair<string, string>>();
 
+        // The name of the open step's line; empty where it has fewer.
         private string FuelLineName(int step, int line)
         {
             List<KeyValuePair<string, string>> lines = FuelLines(step);
             return line < lines.Count ? lines[line].Key : "";
         }
 
+        // The value of the open step's line; empty where it has fewer.
         private string FuelLineValue(int step, int line)
         {
             List<KeyValuePair<string, string>> lines = FuelLines(step);
             return line < lines.Count ? lines[line].Value : "";
         }
 
+        // The open step's warning on that line; empty where it has fewer.
         private string FuelWarning(int step, int line)
         {
             if (!FuelIsOpen(step) || step >= warnings.Length || warnings[step] == null || line >= warnings[step].Count) return "";
@@ -236,6 +248,7 @@ namespace ReDefinition.Engineer
             return line;
         }
 
+        // Whether the stage is the air-breathing engines' row, which cannot be kept or dropped.
         private bool AirStage(int number)
         {
             StageRow row = allStages.Find(s => s.Number == number);
@@ -257,11 +270,13 @@ namespace ReDefinition.Engineer
         }
 
         // "To Mun orbit".
+        // Where the step goes, while the fuel plan shows it.
         private string FuelPlace(int step)
         {
             return FuelStepShown(step) ? StepName(step) : "";
         }
 
+        // Who flies the step, while the fuel plan shows it.
         private string FuelFlyer(int step)
         {
             return FuelStepShown(step) ? StepFlyer(step) : "";
@@ -273,11 +288,13 @@ namespace ReDefinition.Engineer
             return step >= 0 && step < steps.Count ? "To " + RouteSteps.Place(bodies.Bodies, steps[step].To) : "";
         }
 
+        // Who flies the step, dim.
         private string StepFlyer(int step)
         {
             return step >= 0 && step < steps.Count ? "<color=" + Dim + ">" + FlyerName(steps[step].Flyer) + "</color>" : "";
         }
 
+        // What the step needs, with the margin, while the fuel plan shows it.
         private string FuelNeedsText(int step)
         {
             return FuelStepShown(step) ? EngineerFormat.Speed(budget.Needed[step]) : "";
@@ -293,6 +310,7 @@ namespace ReDefinition.Engineer
             return "<color=" + Good + ">" + EngineerFormat.Speed(budget.LeftAfter[step]) + "</color>";
         }
 
+        // What the stage gives the step, in its colour; a dim 0 for none.
         private string StageGivesText(int step, int row)
         {
             StageBudget.StepStage stage = FuelStage(step, row);
@@ -336,16 +354,17 @@ namespace ReDefinition.Engineer
             return decides && twr < least ? "<color=" + Problem + ">" + text + "</color>" : "<color=" + Dim + ">" + text + "</color>";
         }
 
-        // "S3" in the colour of its stage.
         // "S4", or "S4+3" for stages that burn together at lift-off (ClampedLaunch).
         private readonly Dictionary<int, string> stageLabels = new Dictionary<int, string>();
 
+        // The stage's name: its label where it has one ("Air", "S4+3"), else "S" and its number.
         private string StageLabel(int number)
         {
             string label;
             return stageLabels.TryGetValue(number, out label) ? label : "S" + number;
         }
 
+        // "S3" in the colour of its stage, bold; empty for no stage.
         private string ColouredStage(int number)
         {
             if (number < 0) return "";

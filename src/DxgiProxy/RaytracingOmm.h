@@ -26,6 +26,7 @@ namespace redefinition
 {
     namespace nvomm
     {
+        // The functions' ids for nvapi_QueryInterface (nvapi_interface.h), each NVAPI name beside it.
         constexpr uint32_t kGetRaytracingCaps = 0x85a6c2a0;     // NvAPI_D3D12_GetRaytracingCaps
         constexpr uint32_t kSetCreatePipelineStateOptions = 0x5c607a27;   // NvAPI_D3D12_SetCreatePipelineStateOptions
         // NvAPI_D3D12_GetRaytracingOpacityMicromapArrayPrebuildInfo
@@ -82,22 +83,31 @@ namespace redefinition
         constexpr uint32_t kInstanceForceOmm2State = 1u << 4;
         constexpr uint32_t kInstanceDisableOmms = 1u << 5;
 
+        // How many micromaps of one subdivision level and format an array holds, or a
+        // geometry's triangles use.
         struct UsageCount   // NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_USAGE_COUNT
         {
+            // The count, the level and the format (kFormat*).
             uint32_t count;
             uint32_t subdivisionLevel;
             uint32_t format;
         };
 
+        // One micromap of an array: where its states start in the array's input data, its
+        // subdivision level and format.
         struct Desc   // NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_DESC
         {
+            // In the order the comment above names them.
             uint32_t byteOffset;
             uint16_t subdivisionLevel;
             uint16_t format;
         };
 
+        // What a micromap array is built from.
         struct ArrayInputs   // NVAPI_D3D12_BUILD_RAYTRACING_OPACITY_MICROMAP_ARRAY_INPUTS
         {
+            // The build flags (kArray*); the usage counts of the micromaps in it; the GPU
+            // address of their states; the address and stride of their descriptions (Desc).
             uint32_t flags;
             uint32_t numOMMUsageCounts;
             const UsageCount* pOMMUsageCounts;
@@ -105,42 +115,56 @@ namespace redefinition
             D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE perOMMDescs;
         };
 
+        // The memory a micromap array's build needs, as the driver gives it.
         struct ArrayPrebuildInfo   // NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_ARRAY_PREBUILD_INFO
         {
+            // The most the array takes, and the build's scratch, in bytes.
             uint64_t resultDataMaxSizeInBytes;
             uint64_t scratchDataSizeInBytes;
         };
 
+        // What the function of the id kGetArrayPrebuildInfo takes.
         struct ArrayPrebuildParams   // NVAPI_GET_RAYTRACING_OPACITY_MICROMAP_ARRAY_PREBUILD_INFO_PARAMS_V1
         {
+            // Version(sizeof, 1); the inputs asked about; where the driver writes the sizes.
             uint32_t version;
             const ArrayInputs* pDesc;
             ArrayPrebuildInfo* pInfo;
         };
 
+        // A micromap array's build: where it goes, what it is built from, its scratch.
         struct ArrayBuildDesc   // NVAPI_D3D12_BUILD_RAYTRACING_OPACITY_MICROMAP_ARRAY_DESC
         {
+            // In the order the comment above names them, GPU addresses.
             D3D12_GPU_VIRTUAL_ADDRESS destOpacityMicromapArrayData;
             ArrayInputs inputs;
             D3D12_GPU_VIRTUAL_ADDRESS scratchOpacityMicromapArrayData;
         };
 
+        // Information an array's build writes after it; the service asks for none.
         struct ArrayPostbuildInfoDesc   // NVAPI_D3D12_RAYTRACING_OPACITY_MICROMAP_ARRAY_POSTBUILD_INFO_DESC
         {
+            // Where it is written, and which information it is.
             D3D12_GPU_VIRTUAL_ADDRESS destBuffer;
             uint32_t infoType;
         };
 
+        // What the function of the id kBuildArray takes.
         struct ArrayBuildParams   // NVAPI_BUILD_RAYTRACING_OPACITY_MICROMAP_ARRAY_PARAMS_V1
         {
+            // Version(sizeof, 1); the build; the information to write after it, here none.
             uint32_t version;
             const ArrayBuildDesc* pDesc;
             uint32_t numPostbuildInfoDescs;
             const ArrayPostbuildInfoDesc* pPostbuildInfoDescs;
         };
 
+        // How a geometry's triangles find their micromaps in an array.
         struct Attachment   // NVAPI_D3D12_RAYTRACING_GEOMETRY_OMM_ATTACHMENT_DESC
         {
+            // Per triangle the index of its micromap or a kIndexFully* state, with its format;
+            // what is added to each index; the array; the usage counts of the micromaps the
+            // triangles use.
             D3D12_GPU_VIRTUAL_ADDRESS_AND_STRIDE opacityMicromapIndexBuffer;
             DXGI_FORMAT opacityMicromapIndexFormat;
             uint32_t opacityMicromapBaseLocation;
@@ -149,8 +173,10 @@ namespace redefinition
             const UsageCount* pOMMUsageCounts;
         };
 
+        // Triangles with micromaps: D3D12's own description of them and the attachment.
         struct OmmTriangles   // NVAPI_D3D12_RAYTRACING_GEOMETRY_OMM_TRIANGLES_DESC
         {
+            // The two parts the comment above names.
             D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC triangles;
             Attachment ommAttachment;
         };
@@ -160,56 +186,76 @@ namespace redefinition
         // (its displacement micromap, sphere and linear swept sphere members).
         struct GeometryDescEx
         {
+            // kGeometryType*, and D3D12_RAYTRACING_GEOMETRY_FLAGS.
             int32_t type;
             uint32_t flags;
+            // The description the type says, in NVAPI's union.
             union
             {
+                // The plain triangles, the triangles with micromaps, and the union's full size.
                 D3D12_RAYTRACING_GEOMETRY_TRIANGLES_DESC triangles;
                 OmmTriangles ommTriangles;
                 uint8_t union_[160];
             };
         };
 
+        // A structure's inputs as D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS has them,
+        // with a stride for the geometries and the extended geometry descriptions.
         struct InputsEx   // NVAPI_D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS_EX
         {
+            // Top or bottom level; the build flags (kBuild*); how many descriptions and in which
+            // layout; the bytes from one geometry's description to the next.
             int32_t type;
             uint32_t flags;
             uint32_t numDescs;
             int32_t descsLayout;
             uint32_t geometryDescStrideInBytes;
+            // The descriptions, by the type and the layout.
             union
             {
+                // A top level's instances on the GPU; a bottom level's geometries as an array, or
+                // as an array of pointers.
                 D3D12_GPU_VIRTUAL_ADDRESS instanceDescs;
                 const GeometryDescEx* pGeometryDescs;
                 const GeometryDescEx* const* ppGeometryDescs;
             };
         };
 
+        // What the function of the id kGetPrebuildInfoEx takes.
         struct PrebuildExParams   // NVAPI_GET_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO_EX_PARAMS_V1
         {
+            // Version(sizeof, 1); the inputs asked about; where the driver writes the sizes.
             uint32_t version;
             const InputsEx* pDesc;
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO* pInfo;
         };
 
+        // A structure's build as D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC has it, with
+        // the extended inputs.
         struct BuildDescEx   // NVAPI_D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC_EX
         {
+            // Where it goes; its inputs; the structure an update starts from (0 for a build);
+            // its scratch.
             D3D12_GPU_VIRTUAL_ADDRESS destAccelerationStructureData;
             InputsEx inputs;
             D3D12_GPU_VIRTUAL_ADDRESS sourceAccelerationStructureData;
             D3D12_GPU_VIRTUAL_ADDRESS scratchAccelerationStructureData;
         };
 
+        // What the function of the id kBuildStructureEx takes.
         struct BuildExParams   // NVAPI_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_EX_PARAMS_V1
         {
+            // Version(sizeof, 1); the build; the information to write after it.
             uint32_t version;
             const BuildDescEx* pDesc;
             uint32_t numPostbuildInfoDescs;
             const D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC* pPostbuildInfoDescs;
         };
 
+        // What the function of the id kSetCreatePipelineStateOptions takes.
         struct PipelineOptionsParams   // NVAPI_D3D12_SET_CREATE_PIPELINE_STATE_OPTIONS_PARAMS_V1
         {
+            // Version(sizeof, 1), and the flags for the pipelines created after (kPipeline*).
             uint32_t version;
             uint32_t flags;
         };
@@ -219,6 +265,7 @@ namespace redefinition
         static_assert(sizeof(Attachment) == 48, "NVAPI_D3D12_RAYTRACING_GEOMETRY_OMM_ATTACHMENT_DESC");
         static_assert(sizeof(GeometryDescEx) == 168, "NVAPI_D3D12_RAYTRACING_GEOMETRY_DESC_EX");
 
+        // MAKE_NVAPI_VERSION: the structure's size, the version number in the high word.
         constexpr uint32_t Version(size_t size, uint32_t version)
         {
             return static_cast<uint32_t>(size) | (version << 16);

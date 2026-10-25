@@ -17,6 +17,8 @@ Shader "Hidden/ReDefinition/RtForwardLight"
     #include "UnityCG.cginc"
     #include "ReDefinitionRtReproject.cginc"
 
+    // The camera's depth; the proxy's light to add (may be negative; the reflections for the relighting pass) and
+    // the forward ratio (rgb k, w the ceiling on c), both in the raytraced frame; the copy of the frame to relight.
     UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
     sampler2D _ReDefinitionRtForward;
     sampler2D _ReDefinitionRtForwardRatio;
@@ -27,12 +29,14 @@ Shader "Hidden/ReDefinition/RtForwardLight"
     sampler2D _ReDefinitionRtOcean;
     float4 _ReDefinitionWaterSphere;
 
+    // What the vertex function hands the fragment functions.
     struct v2f
     {
-        float4 pos : SV_POSITION;
-        float4 screen : TEXCOORD0;
+        float4 pos : SV_POSITION; // the quad corner's clip position
+        float4 screen : TEXCOORD0; // the screen position, divided by w where it is read
     };
 
+    // The quad's vertices are the screen's corners in clip space already; their screen position follows.
     v2f vert(float4 vertex : POSITION)
     {
         v2f o;
@@ -69,6 +73,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         return RtUvFilled(world, previous);
     }
 
+    // The proxy's light to add at the pixel, negative where light is taken; 0 where nothing was traced.
     float3 Added(v2f i)
     {
         float2 previous;
@@ -78,6 +83,8 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         return tex2Dlod(_ReDefinitionRtForward, float4(previous, 0.0, 0.0)).rgb;
     }
 
+    // Forward rendering's frame from its copy: KSP's sea with its traced reflection, everything else with the
+    // light worked out from the ratio and the reflections added; the copy unchanged where nothing was traced.
     half4 fragRelight(v2f i) : SV_Target
     {
         // The copy at the texel this pixel is: a copy of the screen itself, where the
@@ -118,21 +125,25 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         return half4(max(c + min(c, ratio.w) * ratio.rgb + reflections, 0.0), 1.0);
     }
 
+    // The light to add where it is positive, for the adding pass.
     half4 fragAdd(v2f i) : SV_Target
     {
         return half4(max(Added(i), 0.0), 0.0);
     }
 
+    // The light to take, as a positive value, for the subtracting pass.
     half4 fragTake(v2f i) : SV_Target
     {
         return half4(max(-Added(i), 0.0), 0.0);
     }
 
+    // The factor exp2(-added) the third pass multiplies the logarithmic buffer by.
     half4 fragEncodedAdd(v2f i) : SV_Target
     {
         return half4(exp2(-max(Added(i), 0.0)), 1.0);
     }
 
+    // The factor exp2(taken) - 1 the fourth pass's blend turns into exp2(taken).
     half4 fragEncodedTake(v2f i) : SV_Target
     {
         return half4(exp2(max(-Added(i), 0.0)) - 1.0, 0.0);
@@ -144,6 +155,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
         ZTest Always Cull Off ZWrite Off
         ColorMask RGB
 
+        // 0: the light added, onto a target that holds the light as it is.
         Pass
         {
             Blend One One
@@ -152,6 +164,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
             #pragma fragment fragAdd
             ENDCG
         }
+        // 1: the light taken, subtracted from the target.
         Pass
         {
             BlendOp RevSub
@@ -161,6 +174,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
             #pragma fragment fragTake
             ENDCG
         }
+        // 2: deferred without HDR, the light added: the buffer times exp2(-added).
         Pass
         {
             Blend DstColor Zero
@@ -169,6 +183,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
             #pragma fragment fragEncodedAdd
             ENDCG
         }
+        // 3: deferred without HDR, the light taken: the buffer times exp2(taken).
         Pass
         {
             Blend DstColor One
@@ -177,6 +192,7 @@ Shader "Hidden/ReDefinition/RtForwardLight"
             #pragma fragment fragEncodedTake
             ENDCG
         }
+        // 4: forward rendering, the frame written anew from its copy with the light and reflections.
         Pass
         {
             Blend Off

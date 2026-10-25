@@ -8,9 +8,12 @@ namespace ReDefinition.Tests
     [TestClass]
     public class CloudLightBlendTests
     {
+        // Kerbin's radius in metres, and one degree in radians.
         private const double Kerbin = 600000.0;
         private const double Degree = Math.PI / 180.0;
 
+        // The dip at which the sun leaves a cloud: about 4.9 degrees at 2.2 km on Kerbin, 10.4 at 10 km, none
+        // below the ground.
         [TestMethod]
         public void OnKerbinACloudAtTwoKilometresSeesTheSunFiveDegreesDownAndAtTenTen()
         {
@@ -19,6 +22,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, CloudLightBlend.Dip(Kerbin, Kerbin - 1.0));
         }
 
+        // The sun's share is full down to the base's dip, none beyond the top's, and falls steadily between.
         [TestMethod]
         public void TheSunLightsAloneDownToTheBaseAndNotBeyondTheTop()
         {
@@ -72,6 +76,8 @@ namespace ReDefinition.Tests
                 Assert.IsTrue(CloudLightBlend.Handoff(e * Degree, farthest) >= CloudLightBlend.Handoff((e + 0.1) * Degree, farthest));
         }
 
+        // The moon's light per pixel is none from 5 degrees of sun elevation up, full from the horizon down, and
+        // half at 2.5 degrees.
         [TestMethod]
         public void TheMoonsLightPerPixelEasesInAsTheSunGoesDown()
         {
@@ -82,6 +88,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1.0, CloudLightBlend.Dusk(-30.0 * Degree));
         }
 
+        // A layer whose base and top see the sun leave at the same dip still fades over the narrowest window
+        // of two degrees, not at once.
         [TestMethod]
         public void AThinLayerStillFadesOverTwoDegrees()
         {
@@ -91,6 +99,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(CloudLightBlend.Reach(-6.0 * Degree, lowest, lowest) > 0.0);
         }
 
+        // As the sun's reach falls from 1 to 0 the light's direction turns steadily towards the moon, unit
+        // length throughout: the sun's direction at full reach, the moon's at none.
         [TestMethod]
         public void TheLightMovesFromTheSunToTheMoonWithoutAJump()
         {
@@ -114,6 +124,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(moon[1], last[1], 1e-12);
         }
 
+        // Where neither light has any weight, or the two cancel, the light keeps a direction of unit length
+        // along one of them instead of none.
         [TestMethod]
         public void WithoutWeightOrWhereTheyCancelTheStrongerOneStays()
         {
@@ -124,6 +136,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1.0, Math.Abs(towards[0]), 1e-12);
         }
 
+        // Scales a three-component vector to unit length in place.
         private static void Normalize(double[] v)
         {
             double length = Math.Sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);

@@ -26,6 +26,7 @@ namespace ReDefinition.Upscaler
     // nothing changes.
     internal static partial class HostStack
     {
+        // Post Processing v2's layer, the component TUFX's antialiasing runs on.
         private const string PostProcessLayerTypeName = "UnityEngine.Rendering.PostProcessing.PostProcessLayer";
 
         // The layers set to None here, with the mode each had.
@@ -36,6 +37,7 @@ namespace ReDefinition.Upscaler
         private static MethodInfo effectiveRole;
         private static bool duplicatesFailed;
 
+        // Whether a layer is set to None here at the moment.
         public static bool DuplicatesTaken
         {
             get { return duplicateLayers.Count > 0; }
@@ -65,6 +67,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Sets None on the PostProcessLayer of every camera a Scatterer TAA resolves on, and gives the layers back where
+        // it no longer does.
         private static void TakeDuplicates()
         {
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
@@ -113,6 +117,7 @@ namespace ReDefinition.Upscaler
                           + " resolves, given back on " + givenBack.Count + ".");
         }
 
+        // Gives a layer its mode back, where it still holds None.
         private static void GiveBack(Component layer, object before)
         {
             object now;
@@ -123,6 +128,7 @@ namespace ReDefinition.Upscaler
             TrySet(layer, layer.GetType(), "antialiasingMode", before);
         }
 
+        // Gives every layer set to None here its mode back and logs `why`.
         private static void GiveBackDuplicates(string why)
         {
             int count = 0;

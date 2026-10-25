@@ -32,6 +32,7 @@ namespace ReDefinition.Window
     // settings do.
     internal static class UiHygiene
     {
+        // A Selectable taken off the keyboard's navigation, so that Space, Return and the direction keys leave it alone.
         internal static void MouseOnly(Selectable selectable)
         {
             if (selectable == null) return;
@@ -114,6 +115,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Whether the condition is KSP's own default, compiled into KSP's assembly.
         private static bool KspOwn(Func<bool> condition)
         {
             Type owner = condition.Method.DeclaringType;
@@ -150,6 +152,7 @@ namespace ReDefinition.Window
         // go of it then would keep it from ever taking it.
         private static TMP_InputField typed;
 
+        // Lets go of a text field under `root` whose edit has ended, once it was seen being typed into.
         internal static void ReleaseEnded(GameObject root)
         {
             EventSystem events = EventSystem.current;
@@ -185,6 +188,7 @@ namespace ReDefinition.Window
     // that the list it stands in scrolls (ScrollThrough).
     public class ScrollForwarder : MonoBehaviour, IScrollHandler
     {
+        // Hands the scroll to the first scroll handler above the object.
         public void OnScroll(PointerEventData data)
         {
             Transform above = transform.parent;

@@ -11,8 +11,11 @@ namespace ReDefinition.Tests
     [TestClass]
     public class DashboardTests
     {
+        // A phone's address as the QR code carries it: host, port and the key, 40 bytes.
         private const string PhoneAddress = "http://192.168.178.20:8765/?key=abcdefgh";
 
+        // As shipped the dashboard is open on the network and has no key yet: the server makes one at its first
+        // start.
         [TestMethod]
         public void TheDashboardOpensOnTheNetworkAsItShipsAndItsKeyIsMadeAtTheFirstStart()
         {
@@ -21,6 +24,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("", settings.DashboardKey);
         }
 
+        // A reset keeps the key the paired phones hold, so they stay connected, and turns the network back on.
         [TestMethod]
         public void ResetKeepsTheKeyThePhonesHold()
         {
@@ -46,6 +50,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(live.DashboardNetwork);
         }
 
+        // The Devices tab has the network switch and the Connect button in its Dashboard section, the switch
+        // needing no profile; the General tab has no dialog rows.
         [TestMethod]
         public void TheSwitchAndTheConnectButtonStandInDevicesUnderDashboard()
         {
@@ -62,6 +68,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, OurModules.DialogRows(SettingCategory.General).Count);
         }
 
+        // The JSON reader takes a dashboard's message: arrays of strings, numbers as doubles, and empty arrays.
         [TestMethod]
         public void JsonReadsWhatADashboardSends()
         {
@@ -72,6 +79,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, ((List<object>)message["run"]).Count);
         }
 
+        // The JSON sent to the page writes numbers with a point under a German culture too, and escapes quotes in
+        // text.
         [TestMethod]
         public void JsonWritesNumbersInvariantlyAndEscapesText()
         {
@@ -91,7 +100,7 @@ namespace ReDefinition.Tests
             }
         }
 
-        // 41 bytes need version 3 at level M: 29 modules a side.
+        // The address's 40 bytes need version 3 at level M: 29 modules a side.
         [TestMethod]
         public void TheQrCodeIsTheSmallestVersionThatHoldsTheAddress()
         {
@@ -99,6 +108,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(21, new QrCode("http://a").Size);
         }
 
+        // The code's three finder patterns stand in their corners as rings of seven modules, and the timing
+        // row and column alternate between them.
         [TestMethod]
         public void TheQrCodeHasItsFinderPatternsAndTiming()
         {

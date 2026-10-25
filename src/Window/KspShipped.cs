@@ -11,6 +11,7 @@ namespace ReDefinition.Window
     // wrong. The exception `read` threw, or null.
     internal static class KspShipped
     {
+        // Runs `read` over the defaults SetDefaultValues sets, every static field of GameSettings put back afterwards.
         internal static Exception Read(Action read)
         {
             List<FieldInfo> fields = new List<FieldInfo>();

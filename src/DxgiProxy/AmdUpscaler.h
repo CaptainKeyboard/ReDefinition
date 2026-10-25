@@ -24,6 +24,9 @@ namespace redefinition
     // magic on every packet and by KspAmdUpscalerPacketSize before the first.
     struct AmdUpscalerPacket
     {
+        // The packet's size and magic; Unity's four textures as ID3D11Resource pointers; the render and output
+        // sizes; the kAmdUpscaler... flags; the jitter in pixels and the scale that turns Unity's motion vectors
+        // into pixels.
         uint32_t size;
         uint32_t magic;
         void* colour;
@@ -53,8 +56,11 @@ namespace redefinition
     static_assert(sizeof(AmdUpscalerPacket) == 112, "AmdUpscalerPacket layout changed: update the managed side");
     static_assert(offsetof(AmdUpscalerPacket, reactive) == 96, "AmdUpscalerPacket layout changed");
 
+    // The packet's magic for AMD's upscaler, which OnPacket checks before reading the rest.
     constexpr uint32_t kAmdUpscalerPacketMagic = 0x4B535041u;   // 'KSPA'
 
+    // The packet's flags: an HDR colour target, reversed depth and automatic exposure (which the context is
+    // made with), and a history reset for this frame.
     constexpr uint32_t kAmdUpscalerHdr = 1u << 0;
     constexpr uint32_t kAmdUpscalerDepthInverted = 1u << 1;
     constexpr uint32_t kAmdUpscalerAutoExposure = 1u << 2;
@@ -87,6 +93,7 @@ namespace redefinition
         // From the swapchain proxy, which owns both devices and the queue.
         void Attach(const void* owner, ID3D11Device5* device11, ID3D11DeviceContext4* context11,
                     ID3D12Device* device12, ID3D12CommandQueue* queue);
+        // Lets go of everything, the devices too, where owner is the one attached; otherwise nothing.
         void Detach(const void* owner);
 
         // Whether a swapchain proxy presents through D3D12 and has handed over
@@ -112,22 +119,36 @@ namespace redefinition
         int Provider(char* buffer, int size) const;
 
     private:
+        // Only Get makes it.
         AmdUpscaler() = default;
 
+        // The DLL loaded and its FidelityFX API functions resolved; tried again at most once a second, and only
+        // once its folder or file changed.
         bool EnsureRuntimeLocked();
+        // The fence shared with D3D11, the command allocators and the list, made once per attachment.
         bool EnsureFenceLocked();
+        // The four shared textures, made again where the frame's differ in size or format.
         bool EnsureTexturesLocked(const AmdUpscalerPacket& packet);
         bool EnsureMaskLocked(SharedTexture& shared, void* texture);
+        // The context made for the frame's sizes and creation flags, with the provider it runs looked up; a
+        // failure stands until those change.
         bool EnsureContextLocked(const AmdUpscalerPacket& packet);
+        // The frame across: inputs copied on D3D11, the dispatch on the D3D12 queue, the result copied back into
+        // Unity's output, the two devices ordered by the shared fence.
         bool UpscaleLocked(const AmdUpscalerPacket& packet);
+        // Blocks until the queue has finished every list handed to it.
         void WaitForListsLocked();
+        // The context destroyed and the shared textures released, after the queue has finished.
         void ReleaseLocked();
+        // The state and text Status reports; a stop is logged where it changes.
         void SetStatus(int state, const std::string& text);
         // No context, so no FSR that Provider names.
         void ClearProviderLocked();
 
+        // Held by every entry point: Attach and Detach come from the swapchain proxy, the rest from Unity's render thread.
         mutable std::mutex mutex;
 
+        // The swapchain proxy attached, whether it gave a D3D12 device and queue, and its devices.
         const void* owner = nullptr;
         std::atomic<bool> attached{ false };
         Microsoft::WRL::ComPtr<ID3D11Device5> device11;
@@ -135,6 +156,7 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12Device> device12;
         Microsoft::WRL::ComPtr<ID3D12CommandQueue> queue;
 
+        // amd_fidelityfx_upscaler_dx12.dll, its API functions, and whether loading it was tried.
         HMODULE module = nullptr;
         ffxFunctions api = {};
         bool runtimeTried = false;

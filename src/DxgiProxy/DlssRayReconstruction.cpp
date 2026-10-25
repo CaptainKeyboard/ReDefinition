@@ -59,8 +59,10 @@ namespace redefinition
         // made while the first still lives would lose NGX with this one's.
         using ShutdownFn = uint32_t (*)();
 
+        // The driver's D3D12 exports the proxy calls.
         struct NgxD3d12
         {
+            // Init, the capability and parameter maps, the feature's creation, evaluation and release, shutdown.
             InitProjectIdFn initProjectId = nullptr;
             NgxGetParametersFn getCapabilityParameters = nullptr;
             NgxGetParametersFn getParameters = nullptr;
@@ -71,8 +73,10 @@ namespace redefinition
             ShutdownFn shutdown = nullptr;
         };
 
+        // The exports, resolved once from the driver's core.
         NgxD3d12 g_ngx;
 
+        // The folder without trailing separators.
         std::wstring Folder(std::wstring folder)
         {
             while (!folder.empty() && (folder.back() == L'\\' || folder.back() == L'/'))
@@ -87,6 +91,7 @@ namespace redefinition
             return { Folder(StreamlineDirectory()), Folder(DlssDirectory()), ExecutableDirectory() };
         }
 
+        // Whether the frame asks for these sizes, quality and preset.
         bool Same(const NgxRrFrame& frame, uint32_t renderWidth, uint32_t renderHeight, uint32_t outputWidth,
                   uint32_t outputHeight, int32_t quality, uint32_t preset)
         {

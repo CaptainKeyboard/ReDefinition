@@ -18,6 +18,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class RtContractTests
     {
+        // Every integer constant of RtNative has its RT_ define in the contract with the same value, so the
+        // proxy and the shaders read flags, slots and limits as the mod sets them.
         [TestMethod]
         public void EveryConstantIsTheContracts()
         {
@@ -34,6 +36,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(compared > 30, "only " + compared + " constants compared");
         }
 
+        // The frame and reconstruct packets' field offsets and sizes, and the sizes of the mesh, material,
+        // instance and GPU group records, are the contract's: a shifted field would feed the shaders wrong data.
         [TestMethod]
         public void ThePacketsAreLaidOutAsTheContractSays()
         {
@@ -46,6 +50,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(contract["RT_GPU_GROUP_SIZE"], Marshal.SizeOf(typeof(RtNative.GpuGroup)));
         }
 
+        // Asserts each public field of the packet has its offset in the contract under the prefix, and the
+        // packet its size.
         private static void Check(Dictionary<string, long> contract, Type packet, string prefix)
         {
             foreach (FieldInfo field in packet.GetFields(BindingFlags.Instance | BindingFlags.Public))

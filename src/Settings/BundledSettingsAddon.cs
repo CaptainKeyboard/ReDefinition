@@ -33,14 +33,19 @@ namespace ReDefinition.Settings
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class BundledSettingsAddon : MonoBehaviour
     {
+        // Seconds between the ticks below, in unscaled time.
         private const float TickInterval = 2f;
 
+        // The add-on, for the static queues' scheduling; the follow-ups for the end of the frame and for the next
+        // scene change, by key, a later one replacing an earlier of the same key.
         private static BundledSettingsAddon instance;
         private static readonly Dictionary<string, Action> endOfFrame = new Dictionary<string, Action>();
         private static readonly Dictionary<string, Action> beforeScene = new Dictionary<string, Action>();
+        // Whether a coroutine already waits for the end of the frame, and when the next tick is due.
         private bool endOfFrameScheduled;
         private float nextTick;
 
+        // Kept across scenes, its handlers on KSP's events subscribed at the start of the game.
         private void Awake()
         {
             instance = this;
@@ -52,6 +57,7 @@ namespace ReDefinition.Settings
             GameEvents.OnGameSettingsApplied.Add(OnGameSettingsApplied);
         }
 
+        // Its handlers off KSP's events.
         private void OnDestroy()
         {
             GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
@@ -122,6 +128,7 @@ namespace ReDefinition.Settings
             beforeScene[key] = action;
         }
 
+        // Runs the end-of-frame queue once the frame has been drawn.
         private IEnumerator RunAtEndOfFrame()
         {
             yield return new WaitForEndOfFrame();
@@ -129,6 +136,7 @@ namespace ReDefinition.Settings
             Run(endOfFrame, "bundled-end-of-frame");
         }
 
+        // Every follow-up queued, each on its own: a failure is a warning, the rest run.
         private static void Run(Dictionary<string, Action> queue, string kind)
         {
             if (queue.Count == 0) return;
@@ -148,6 +156,8 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Before the next scene loads: what is kept here to the mods, failures tried again, then the queued
+        // follow-ups.
         private void OnSceneLoadRequested(GameScenes scene)
         {
             BundledSettings.ReapplyStored("before " + scene, sceneChange: true);
@@ -159,6 +169,7 @@ namespace ReDefinition.Settings
         // profile's values. The player should not have to press Apply for that.
         private static bool caughtUp;
 
+        // The graphics profile to mods that have not had it, once per run, its problems reported.
         internal static void CatchUpProfile(string when)
         {
             if (caughtUp) return;
@@ -176,6 +187,7 @@ namespace ReDefinition.Settings
             ProfileApplier.Report("Graphics profile, " + when, problems);
         }
 
+        // The scene has loaded: the profile caught up, what is kept here to the mods, the requirements enforced.
         private void OnLevelLoaded(GameScenes scene)
         {
             CatchUpProfile(scene + " loaded");
@@ -184,6 +196,8 @@ namespace ReDefinition.Settings
             Requirements.Enforce(scene + " loaded");
         }
 
+        // The scene's GUI is ready, after the mods' own applies: what is kept here to the mods again, the
+        // requirements enforced.
         private void OnLevelReady(GameScenes scene)
         {
             BundledSettings.ReapplyStored(scene + " ready");
@@ -198,11 +212,13 @@ namespace ReDefinition.Settings
             Requirements.Enforce("KSP's settings applied");
         }
 
+        // TUFX applies its own profile at a change of camera mode: what is kept here goes back over it.
         private void OnCameraChange(CameraManager.CameraMode mode)
         {
             BundledSettings.ReapplyStored("camera now " + mode);
         }
 
+        // The end-of-frame queue scheduled where it waits, and every TickInterval the tick described above.
         private void Update()
         {
             Schedule();   // anything queued while this was disabled

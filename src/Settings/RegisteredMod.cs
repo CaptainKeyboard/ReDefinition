@@ -18,8 +18,11 @@ namespace ReDefinition.Settings
     // setting, is a settings object of another shape, and is not bundled at all.
     internal sealed partial class RegisteredMod : IBundledMod
     {
+        // Every member of a type, of any visibility, static or not.
         private const BindingFlags Any = TypeLookup.Any;
 
+        // The registration it is built from, the mod's folder (null while not detected), and the behaviours
+        // made so far by name -- null for a name that could not be made.
         private readonly ModRegistration registration;
         private readonly ModFolder folder;
         private readonly Dictionary<string, ModBehaviour> behaviours = new Dictionary<string, ModBehaviour>();
@@ -40,6 +43,7 @@ namespace ReDefinition.Settings
         // The member of a `required` setting is not there.
         private bool lostRequired;
 
+        // The registration it was built from.
         public ModRegistration Registration
         {
             get { return registration; }
@@ -58,43 +62,52 @@ namespace ReDefinition.Settings
         // without that type (LoadedAssemblyOf). Its own code runs either way.
         internal bool AssemblyLoaded { get; private set; }
 
+        // The assemblies of the mod's folder, its member paths resolve in; null while it is not detected.
         internal ModFolder Folder
         {
             get { return folder; }
         }
 
+        // The registration's name, the stem of every setting's key.
         public string Id
         {
             get { return registration.Name; }
         }
 
+        // The registration's title, localized.
         public string ModName
         {
             get { return title; }
         }
 
+        // The registration's `button`: its toolbar button's assembly.
         public string ButtonAssembly
         {
             get { return registration.Button; }
         }
 
+        // The registration's `toolbarControl` namespace.
         public string ToolbarControlNamespace
         {
             get { return registration.ToolbarControl; }
         }
 
+        // How a value set here lasts, as the registration's `saving` says.
         public SettingsSaving Saving
         {
             get { return registration.Saving; }
         }
 
+        // Bundled here: detected, and with a setting or a dialog left.
         public bool IsInstalled { get; private set; }
 
+        // The settings bundled, in the registration's order and then those a behaviour found.
         public IList<BundledSetting> Settings
         {
             get { return settings; }
         }
 
+        // What was left out and why, "name -- why" each, for the log and the diagnostics.
         public IList<string> DroppedMembers
         {
             get { return dropped; }
@@ -110,11 +123,13 @@ namespace ReDefinition.Settings
             get { return rowsNotShown; }
         }
 
+        // The [Persistent] fields of the mod's settings objects that no registration names.
         public IList<string> SettingsNotKnown
         {
             get { return settingsNotKnown; }
         }
 
+        // RowsNotShown's and SettingsNotKnown's lists.
         private readonly List<string> rowsNotShown = new List<string>();
         private readonly List<string> settingsNotKnown = new List<string>();
 
@@ -124,12 +139,16 @@ namespace ReDefinition.Settings
         private readonly HashSet<Type> settingsTypes = new HashSet<Type>();
         private readonly HashSet<string> namedFields = new HashSet<string>();
 
+        // The registration's `window` as "Type.Method", where this build has it; null otherwise.
         public string OwnWindow { get; private set; }
 
+        // The type of OwnWindow, from the mod's folder.
         public Type OwnWindowType { get; private set; }
 
+        // The installed version: the behaviour's word where it has one, else the detect type's assembly's.
         public string Version { get; private set; }
 
+        // The behaviour's word on the build where it has one, else the first BUILD whose member this build has.
         public string Build
         {
             get
@@ -268,6 +287,7 @@ namespace ReDefinition.Settings
             return true;
         }
 
+        // The behaviour's save, then the registration's `save`; throws while `ready` holds nothing.
         public void Save()
         {
             // Not before the mod can take values: its save would do nothing, and what
@@ -279,6 +299,7 @@ namespace ReDefinition.Settings
             if (save != null) save.Invoke();
         }
 
+        // The behaviour's hooks on the mod's own window and save, where it has a behaviour.
         public void InstallHooks()
         {
             if (modBehaviour != null) modBehaviour.InstallHooks(this);
@@ -337,6 +358,7 @@ namespace ReDefinition.Settings
             if (entry.Required) lostRequired = true;
         }
 
+        // Whether a setting of that name is bundled.
         internal bool Has(string name)
         {
             string key = Id + "." + name;
@@ -390,6 +412,8 @@ namespace ReDefinition.Settings
             return setting;
         }
 
+        // One SETTING or KEY block made a setting, through its behaviour or its member path; left out, with
+        // the reason, where this build cannot give it.
         private void AddFrom(SettingRegistration entry, string modWhere, List<string> problems)
         {
             string where = modWhere + ", setting '" + entry.Name + "'";
@@ -629,6 +653,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Whether `ready` holds something now, and not False.
         private bool IsReady()
         {
             object value = SafeGet(ready);
@@ -658,6 +683,7 @@ namespace ReDefinition.Settings
             return behaviour;
         }
 
+        // A new setting of the mod, a toggle until its control is set, among its settings.
         private BundledSetting Add(string name, string title, ApplyWindow window,
                                    string tooltip, Func<string> read, Action<string> write)
         {
@@ -676,6 +702,7 @@ namespace ReDefinition.Settings
             return setting;
         }
 
+        // The setting as a slider over min to max.
         private static void Slider(BundledSetting setting, float min, float max, bool wholeNumbers)
         {
             setting.Control = SettingControl.Slider;
@@ -684,6 +711,7 @@ namespace ReDefinition.Settings
             setting.WholeNumbers = wholeNumbers;
         }
 
+        // The setting as a choice among the values, shown with the labels where given.
         private static void Choice(BundledSetting setting, string[] choices, string[] labels)
         {
             setting.Control = SettingControl.Choice;
@@ -742,6 +770,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // The path's value; null where reading it throws.
         private static object SafeGet(MemberPath path)
         {
             try
@@ -754,12 +783,14 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Whether the text is True or False.
         private static bool IsBool(string text)
         {
             bool value;
             return text != null && bool.TryParse(text, out value);
         }
 
+        // Whether the text is a number, read invariantly.
         private static bool IsNumber(string text)
         {
             double value;

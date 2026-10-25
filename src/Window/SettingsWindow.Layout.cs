@@ -21,6 +21,7 @@ namespace ReDefinition.Window
         private static string layoutPending;
         private static bool rebindPending;
 
+        // The layouts KSP has presets for (GameSettings.KeyboardLayouts); none where it has none.
         private static List<string> LayoutNames()
         {
             List<string> names = new List<string>();
@@ -52,6 +53,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The layout the row shows: the one chosen in the window, else KSP's.
         private static string LayoutShown()
         {
             return layoutPending ?? LayoutNow();
@@ -77,6 +79,7 @@ namespace ReDefinition.Window
             return string.IsNullOrEmpty(layout) ? "--" : layout;
         }
 
+        // The Keys tab's layout rows: the system's keyboard, the layout to choose, and the rebind button.
         private static DialogGUIBase[] LayoutRows()
         {
             List<string> names = LayoutNames();
@@ -118,6 +121,7 @@ namespace ReDefinition.Window
             return rows.ToArray();
         }
 
+        // Shows the next or the previous layout; KSP's own one shown again waits for nothing.
         private static void StepLayout(int step)
         {
             List<string> names = LayoutNames();
@@ -163,8 +167,10 @@ namespace ReDefinition.Window
             return true;
         }
 
+        // The layout KSP detected, asked for once per window.
         private static string detectedLayout;
 
+        // Forgets what the layout rows wait for, and the detected layout.
         private static void ClearLayoutPending()
         {
             layoutPending = null;

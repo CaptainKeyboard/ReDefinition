@@ -8,16 +8,23 @@ namespace ReDefinition.Settings
     // How a requirement tests a setting's value (REQUIRES).
     internal enum RequirementTest
     {
+        // The setting must hold exactly the value.
         Equals,
+        // The setting's number must not be above the value.
         AtMost,
+        // The setting's number must not be below the value.
         AtLeast,
+        // The setting must stand at the last of its choices.
         Highest,
+        // A named check decides; the fix, where given, is the value that passes it.
         Check,
     }
 
     // One setting of a registered mod, as its SETTING node gives it.
     internal sealed class SettingRegistration
     {
+        // Its key, unique within the mod; the member path the value lives at (null: the behaviour answers, or
+        // ReDefinition keeps a binding); the row's title and tooltip; the default as text; and its kind.
         public string Name = "";
         public string Member;
         public string Title = "";
@@ -75,6 +82,7 @@ namespace ReDefinition.Settings
     // opens it, drawn by ReDefinition around what the mod's method hands it.
     internal sealed class DialogRegistration
     {
+        // Its key: the mod's name and this give its row's key, as a setting's do.
         public string Name = "";
         // A method without parameters returning the dialog's content: a
         // DialogGUIBase or an array of them.
@@ -92,12 +100,14 @@ namespace ReDefinition.Settings
         public string Optional;
         public string RowUnless;
 
+        // The dialog's width where the block names none; a width is taken from 200 to 1200.
         public const float DefaultWidth = 360f;
     }
 
     // A build of a mod, told by a member it has.
     internal sealed class BuildRegistration
     {
+        // The build's name, which a block's `build` refers to, and the member path whose presence tells it.
         public string Name = "";
         public string Has = "";
     }
@@ -106,9 +116,11 @@ namespace ReDefinition.Settings
     // ALL_PROFILES block, taken by ModDefaults.Fitting.
     internal abstract class ValueBlock
     {
+        // The build it is for (null or empty: every build), and the values as text by setting name.
         public string Build;
         public readonly Dictionary<string, string> Values = new Dictionary<string, string>();
 
+        // Whether the block names no build and so applies to each.
         public bool ForEveryBuild
         {
             get { return string.IsNullOrEmpty(Build); }
@@ -123,6 +135,7 @@ namespace ReDefinition.Settings
         // How a problem names the block, after its mod.
         public abstract string Where(string mod);
 
+        // The " for build X" a problem's place ends with; empty for a block of every build.
         protected string ForBuild()
         {
             return ForEveryBuild ? "" : " for build " + Build;
@@ -132,18 +145,22 @@ namespace ReDefinition.Settings
     // Defaults for one build, over the settings' own.
     internal sealed class DefaultsRegistration : ValueBlock
     {
+        // The mod's version the defaults were taken from, as its `version` key gives it.
         public string Version;
 
+        // `version`, which is no setting's value.
         public override string OwnKey
         {
             get { return "version"; }
         }
 
+        // "defaults", as a problem about a node inside it says.
         public override string Kind
         {
             get { return "defaults"; }
         }
 
+        // "<mod>, defaults", with the build where it names one.
         public override string Where(string mod)
         {
             return mod + ", defaults" + ForBuild();
@@ -154,18 +171,22 @@ namespace ReDefinition.Settings
     // settings only.
     internal sealed class ProfileRegistration : ValueBlock
     {
+        // The graphics profile it is for, as GraphicsProfile names them.
         public string Name = "";
 
+        // `name`, the profile's, which is no setting's value.
         public override string OwnKey
         {
             get { return "name"; }
         }
 
+        // "a profile block", as a problem about a node inside it says.
         public override string Kind
         {
             get { return "a profile block"; }
         }
 
+        // "<mod>, profile '<name>'", with the build where it names one.
         public override string Where(string mod)
         {
             return mod + ", profile '" + Name + "'" + ForBuild();
@@ -177,16 +198,19 @@ namespace ReDefinition.Settings
     // the upscaler antialiases the image.
     internal sealed class AllProfilesRegistration : ValueBlock
     {
+        // None: every key besides `build` is a setting's.
         public override string OwnKey
         {
             get { return null; }
         }
 
+        // "a block for every profile", as a problem about a node inside it says.
         public override string Kind
         {
             get { return "a block for every profile"; }
         }
 
+        // "<mod>, every profile", with the build where it names one.
         public override string Where(string mod)
         {
             return mod + ", every profile" + ForBuild();
@@ -196,6 +220,7 @@ namespace ReDefinition.Settings
     // What a mod needs of another setting while it is installed.
     internal sealed class RequirementRegistration
     {
+        // The key of the setting it tests (mod and name, as BundledSettings finds it) and how it tests it.
         public string Setting = "";
         public RequirementTest Test;
         // The value of equals, atMost or atLeast; the check's name for check.
@@ -218,6 +243,7 @@ namespace ReDefinition.Settings
     // read, is left out; a mod without its name or detect is skipped.
     internal sealed class ModRegistration
     {
+        // The node names of a registration and of the blocks inside it.
         public const string NodeName = "MOD_SETTINGS";
         public const string SettingNodeName = "SETTING";
         public const string KeyNodeName = "KEY";
@@ -228,12 +254,14 @@ namespace ReDefinition.Settings
         public const string AllProfilesNodeName = "ALL_PROFILES";
         public const string DialogNodeName = "DIALOG";
 
+        // The keys a MOD_SETTINGS node may hold; any other is reported and ignored.
         private static readonly string[] ModKeys =
         {
             "name", "title", "detect", "needs", "version", "save", "ready", "saving", "window", "button", "toolbarControl",
             "tab", "behaviour", "direct",
         };
 
+        // The keys a SETTING block may hold.
         private static readonly string[] SettingKeys =
         {
             "name", "member", "title", "tooltip", "default", "kind", "row", "order", "takesEffect", "min", "max",
@@ -259,13 +287,16 @@ namespace ReDefinition.Settings
             "rowUnless",
         };
 
+        // The keys a BUILD block may hold.
         private static readonly string[] BuildKeys = { "name", "has" };
 
+        // The keys a REQUIRES block may hold.
         private static readonly string[] RequiresKeys =
         {
             "setting", "equals", "atMost", "atLeast", "highest", "check", "fix", "lock", "reason", "whenInstalled",
         };
 
+        // The keys of a REQUIRES block that name its test, of which it holds exactly one.
         private static readonly string[] TestKeys = { "equals", "atMost", "atLeast", "highest", "check" };
 
         // Where a row or an Advanced button can be.
@@ -276,12 +307,15 @@ namespace ReDefinition.Settings
             SettingCategory.Effects, SettingCategory.Keys, SettingCategory.Axes, SettingCategory.Devices,
         };
 
+        // The tabs of Tabs, as a problem lists them.
         private const string TabNames = "Gameplay, Audio, Display, General, Detail, ShadowsAndReflections, Planets,"
                                         + " Effects, Keys, Axes or Devices";
 
         // When a change can take effect, as the guide names them.
         private static readonly ApplyWindow[] Windows = { ApplyWindow.Live, ApplyWindow.NextScene, ApplyWindow.Restart };
 
+        // The mod's key (lower-case letters, digits and _), the title its tab and rows show, and the member path
+        // whose presence tells the mod is installed.
         public string Name = "";
         public string Title = "";
         public string Detect = "";
@@ -303,6 +337,7 @@ namespace ReDefinition.Settings
         // window can stand in for.
         public bool Direct;
 
+        // The blocks the node holds, each kind in the order it stands.
         public readonly List<SettingRegistration> Settings = new List<SettingRegistration>();
         public readonly List<BuildRegistration> Builds = new List<BuildRegistration>();
         public readonly List<DefaultsRegistration> Defaults = new List<DefaultsRegistration>();
@@ -311,6 +346,7 @@ namespace ReDefinition.Settings
         public readonly List<RequirementRegistration> Requirements = new List<RequirementRegistration>();
         public readonly List<DialogRegistration> Dialogs = new List<DialogRegistration>();
 
+        // The setting or binding of that name; null where the mod has none.
         public SettingRegistration Setting(string name)
         {
             foreach (SettingRegistration setting in Settings)
@@ -453,6 +489,7 @@ namespace ReDefinition.Settings
             return mod;
         }
 
+        // A PROFILE block, which needs its name; left out without one.
         private static void ReadProfile(ModRegistration mod, ConfigNode node, string where, List<string> problems)
         {
             string name = Last(node, "name", where, problems);
@@ -466,6 +503,7 @@ namespace ReDefinition.Settings
             mod.Profiles.Add(block);
         }
 
+        // An ALL_PROFILES block: its build and values only.
         private static void ReadAllProfiles(ModRegistration mod, ConfigNode node, string where, List<string> problems)
         {
             AllProfilesRegistration block = new AllProfilesRegistration();
@@ -490,6 +528,8 @@ namespace ReDefinition.Settings
                 problems.Add(blockWhere + ": node '" + child.name + "' inside " + block.Kind + " -- ignored.");
         }
 
+        // A SETTING block, or with `binding` a KEY block, added to the mod's settings; a later one of the same name
+        // replaces an earlier. Left out where its name, member or a binding's default cannot be used.
         private static void ReadSetting(ModRegistration mod, ConfigNode node, string modWhere, List<string> problems,
                                         bool binding)
         {
@@ -641,6 +681,7 @@ namespace ReDefinition.Settings
             mod.Settings.Add(setting);
         }
 
+        // A DIALOG block, added to the mod's dialogs; left out without a usable name, content or row.
         private static void ReadDialog(ModRegistration mod, ConfigNode node, string modWhere, List<string> problems)
         {
             string name = Last(node, "name", modWhere, problems);
@@ -712,6 +753,7 @@ namespace ReDefinition.Settings
             mod.Dialogs.Add(dialog);
         }
 
+        // A setting's min, max and step: a slider only where min and max are both numbers, min not above max.
         private static void ReadSlider(SettingRegistration setting, ConfigNode node, string where, List<string> problems)
         {
             string minText = Last(node, "min", where, problems);
@@ -753,6 +795,7 @@ namespace ReDefinition.Settings
             setting.Step = step;
         }
 
+        // A setting's choices and their labels; choices win over a slider read before them.
         private static void ReadChoices(SettingRegistration setting, ConfigNode node, string where, List<string> problems)
         {
             string choices = Last(node, "choices", where, problems);
@@ -785,6 +828,7 @@ namespace ReDefinition.Settings
             setting.Labels = shown;
         }
 
+        // A BUILD block, which needs both its name and has.
         private static void ReadBuild(ModRegistration mod, ConfigNode node, string where, List<string> problems)
         {
             BuildRegistration build = new BuildRegistration
@@ -801,6 +845,7 @@ namespace ReDefinition.Settings
             mod.Builds.Add(build);
         }
 
+        // A DEFAULTS block: its version, build and values.
         private static void ReadDefaults(ModRegistration mod, ConfigNode node, string where, List<string> problems)
         {
             DefaultsRegistration block = new DefaultsRegistration { Version = Last(node, "version", where, problems) };
@@ -808,6 +853,8 @@ namespace ReDefinition.Settings
             mod.Defaults.Add(block);
         }
 
+        // A REQUIRES block: one test with a value it can test, a fix only with check, and a reason the player is
+        // shown.
         private static void ReadRequirement(ModRegistration mod, ConfigNode node, string modWhere, List<string> problems)
         {
             string setting = Last(node, "setting", modWhere, problems);
@@ -885,6 +932,7 @@ namespace ReDefinition.Settings
             return value.Length > 0 ? value : null;
         }
 
+        // A key's True or False; null where it is missing or neither.
         private static bool? Bool(ConfigNode node, string key, string where, List<string> problems)
         {
             string text = Last(node, key, where, problems);
@@ -895,6 +943,7 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // A key that names another mod, as leftOutWith and rowUnless do; null where it is missing or no mod's name.
         private static string ModName(ConfigNode node, string key, string where, List<string> problems)
         {
             string text = Last(node, key, where, problems);
@@ -928,11 +977,13 @@ namespace ReDefinition.Settings
             return false;
         }
 
+        // A tab by name, among those a row may stand in.
         private static bool TryTab(string text, out SettingCategory tab)
         {
             return TryName(text, out tab) && Array.IndexOf(Tabs, tab) >= 0;
         }
 
+        // Whether the text is a finite number, read invariantly.
         private static bool IsNumber(string text)
         {
             double number;

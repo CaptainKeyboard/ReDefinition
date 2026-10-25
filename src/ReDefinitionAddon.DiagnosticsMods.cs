@@ -13,24 +13,32 @@ namespace ReDefinition
     // filters by line. The lines are made at the layout pass and read by the event after it.
     public partial class ReDefinitionAddon
     {
+        // The page's three lists, picked by the buttons at its top: the mods' state, their registrations,
+        // their code.
         private enum ModsList { State, Registrations, Code }
 
+        // One line of a list: its name column, its text, and the colour it is drawn in.
         private struct ModRow
         {
+            // The name column, the text beside it, and the line's colour.
             public string Name;
             public string Text;
             public Color Tint;
         }
 
+        // The list shown, the one picked for the next layout pass, its lines, and a note above them, or null.
         private ModsList modsList = ModsList.State;
         private ModsList? pendingModsList;
         private readonly List<ModRow> modRows = new List<ModRow>();
         private string modRowsNote;
 
+        // The code list's colours: yellow for an assumption changed but kept, orange for one that does not hold.
         private static readonly Color Caution = new Color(1f, 0.9f, 0.4f);
         private static readonly Color Orange = new Color(1f, 0.6f, 0.3f);
+        // The list buttons' labels, in ModsList's order.
         private static readonly string[] ModsListNames = { "Their state", "Registrations", "Their code" };
 
+        // The page: the list buttons, the note, and the lines of the list that contain the search.
         private void DrawOtherMods()
         {
             
@@ -67,6 +75,7 @@ namespace ReDefinition
             if (shown == 0 && modRows.Count > 0) GUILayout.Label("No line contains \"" + wanted + "\".", styles.Dim);
         }
 
+        // Makes the chosen list's lines afresh, at the layout pass; a list picked takes effect here.
         private void BuildModRows()
         {
             if (pendingModsList.HasValue) modsList = pendingModsList.Value;

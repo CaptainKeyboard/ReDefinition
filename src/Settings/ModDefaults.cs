@@ -65,6 +65,8 @@ namespace ReDefinition.Settings
             return fitting;
         }
 
+        // The defaults of the installed registered mods, by mod id; empty, with the problem said, while the
+        // game is still loading.
         private static Dictionary<string, Dictionary<string, string>> Read(List<string> problems)
         {
             List<IBundledMod> installed = BundledSettings.Installed();
@@ -131,6 +133,7 @@ namespace ReDefinition.Settings
             return selected;
         }
 
+        // A problem where defaults read from one version of the mod meet another installed, said once.
         private static void Version(IBundledMod mod, string version, List<string> problems)
         {
             if (string.IsNullOrEmpty(version) || !Known(mod.Version) || version == mod.Version) return;

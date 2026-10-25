@@ -13,6 +13,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class SharedFoundationTests
     {
+        // A camera cut found as the frame begins resets the upscaler and the mods in that frame, with its reason;
+        // a frame without one resets nobody.
         [TestMethod]
         public void ACutBeforeTheFrameResetsEveryone()
         {
@@ -27,6 +29,7 @@ namespace ReDefinition.Tests
             Assert.IsNull(forRig);
         }
 
+        // Requests made before a frame reset everyone once, with the first reason; the frame after resets no one.
         [TestMethod]
         public void AModsRequestBeforeTheFrameResetsEveryoneOnce()
         {
@@ -42,6 +45,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(forMods);
         }
 
+        // A mod's request and a camera cut before the same frame are one reset, the cut's reason going out; the
+        // request is not carried into a later frame.
         [TestMethod]
         public void ACutAndARequestInOneFrameAreOneReset()
         {
@@ -57,6 +62,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(forRig);
         }
 
+        // A reset found while the frame renders resets the upscaler then, and reaches the mods in the next frame
+        // only, without a second upscaler reset.
         [TestMethod]
         public void AResetFoundWhileTheFrameRendersReachesTheModsInTheNextFrameOnly()
         {
@@ -74,6 +81,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(forMods);
         }
 
+        // A handler that throws is reported once under the list's name and removed; the others go on running,
+        // and the same handler added twice is kept once.
         [TestMethod]
         public void AHandlerThatThrowsIsRemovedAndTheOthersRun()
         {
@@ -95,6 +104,7 @@ namespace ReDefinition.Tests
             StringAssert.Contains(reports[0], "probes");
         }
 
+        // The Direct3D 12 compute packets' sizes and field offsets match the proxy's.
         [TestMethod]
         public void TheDirect3D12PacketsAreLaidOutAsTheProxyReadsThem()
         {
@@ -105,6 +115,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(24, Marshal.SizeOf(typeof(D3d12Bridge.HandlePacket)));
         }
 
+        // The wrapper mods copy (docs/modders/examples/ReDefinitionApi.cs) finds every member of the interface,
+        // and reports its version and that ReDefinition is installed.
         [TestMethod]
         public void TheWrapperFindsEveryMemberOfTheInterface()
         {
@@ -115,6 +127,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(YourMod.ReDefinitionApi.Installed);
         }
 
+        // The wrapper hands on the interface's values, and an out parameter binds through it.
         [TestMethod]
         public void TheWrapperReturnsTheInterfacesValues()
         {
@@ -127,6 +140,8 @@ namespace ReDefinition.Tests
             Assert.IsNotNull(status);
         }
 
+        // Reading the frame's values through the wrapper 100 000 times allocates next to nothing: the wrapper
+        // does not box the values, so mods can read them every frame without making garbage.
         [TestMethod]
         public void ReadingTheFrameThroughTheWrapperAllocatesNothing()
         {

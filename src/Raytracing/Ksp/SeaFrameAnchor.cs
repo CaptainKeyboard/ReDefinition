@@ -10,10 +10,13 @@ namespace ReDefinition.Raytracing
     // away, or on another body, and the waves' pattern starts afresh there.
     internal sealed class SeaFrameAnchor
     {
+        // How far the camera may go from the point before it is set anew; the body and the place of the point.
         private const double RebaseMetres = 50000.0;
         private CelestialBody body;
         private double latitude, longitude;
 
+        // The frame for a camera at `eye` over `main`, the point relative to the eye; false where the body has no sea.
+        // The point is set anew where it lies farther from the eye than RebaseMetres plus the eye's altitude.
         internal bool Frame(CelestialBody main, Vector3d eye, out Vector3 origin, out Vector3 east, out Vector3 north)
         {
             origin = east = north = Vector3.zero;

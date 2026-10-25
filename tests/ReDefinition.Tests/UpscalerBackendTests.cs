@@ -10,6 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class UpscalerBackendTests
     {
+        // The Upscaler row offers Off and Auto, then FSR 3, DLSS, AMD's FSR and XeSS in that order.
         [TestMethod]
         public void TheRowOffersFsr3DlssAmdAndXessInThatOrder()
         {
@@ -17,6 +18,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "Off", "Auto", "Fsr3", "Dlss", "Amd", "Xess" }, row.Choices);
         }
 
+        // Each technique's name as the window shows it; the DLL ones say so.
         [TestMethod]
         public void EachTechniqueHasItsName()
         {
@@ -26,6 +28,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("XeSS (DLL)", UpscalerBackends.Name(UpscalerBackend.Xess));
         }
 
+        // Writing a technique switches the upscaler on and reads back by name; Off switches it off and keeps the
+        // technique chosen.
         [TestMethod]
         public void XessIsWrittenAndReadByName()
         {

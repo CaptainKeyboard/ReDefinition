@@ -14,6 +14,8 @@ namespace ReDefinition.RaytracingPlayer
     // jitter; the frame kept is the upscaled one, at the display size.
     internal sealed partial class RtTurnPass
     {
+        // The upscaler asked for, the display and render sizes, the jitter's phase count, the upscaled target with
+        // its native handle, FSR 3's context and dispatch, the frames upscaled, and a reset asked for the next.
         private string upscaler;
         private Vector2Int displaySize, renderSize;
         private int jitterPhases = 8;
@@ -28,19 +30,23 @@ namespace ReDefinition.RaytracingPlayer
         // "x", "y" or "xy" negated): the right ones measure best.
         private Vector2 jitterSign = Vector2.one, motionSign = Vector2.one;
 
+        // The sign per axis an argument's value negates: -1 on the axes it names.
         private static Vector2 Signs(string axes)
         {
             if (axes == null) return Vector2.one;
             return new Vector2(axes.Contains("x") ? -1f : 1f, axes.Contains("y") ? -1f : 1f);
         }
+        // Why the upscaler could not be set up or dispatched, for UpscalerFailure.
         internal string UpscalerProblem;
 
+        // Whether an upscaler is asked for, not the native render.
         internal bool Upscaling { get { return upscaler != null && upscaler != "native"; } }
 
         // -masks: empty reactive and transparency masks for AMD's upscaler, as the rig
         // hands its own; empty, they leave the image as it is without them.
         private System.IntPtr reactiveHandle, transparencyHandle;
 
+        // A mask of the size cleared to nothing, by its native handle.
         private static System.IntPtr EmptyMask(Vector2Int size, string name)
         {
             var mask = new RenderTexture(size.x, size.y, 0, RenderTextureFormat.R8, RenderTextureReadWrite.Linear) { name = name };
@@ -52,6 +58,8 @@ namespace ReDefinition.RaytracingPlayer
             return mask.GetNativeTexturePtr();
         }
 
+        // RCAS after Ray Reconstruction with its input's native handle, the -sharpness given (-1 without), and
+        // whether -sharpness was looked for yet.
         private ReDefinition.Upscaler.RcasSharpener sharpener;
         private System.IntPtr sharpenInputHandle;
         private float sharpness = -1f;
@@ -77,11 +85,14 @@ namespace ReDefinition.RaytracingPlayer
             return sharpener;
         }
 
+        // Switches the camera's jitter on or off.
         internal void SetJitter(bool on)
         {
             jitter = on;
         }
 
+        // Sets the turn up for the upscaler named (-upscale: native, fsr3, dlss or amd) at the two sizes: the
+        // sign checks, the jitter's phase count, and for an upscaler the display-size target and AMD's empty masks.
         internal void InitUpscaler(string name, Vector2Int display, Vector2Int render)
         {
             upscaler = name;

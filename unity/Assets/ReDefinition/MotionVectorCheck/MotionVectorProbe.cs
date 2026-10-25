@@ -16,22 +16,27 @@ namespace ReDefinition.MotionVectorCheck
     // vectors over them.
     public partial class MotionVectorProbe : MonoBehaviour
     {
+        // The shaders the editor side gives the probe: the pass under test, the lit surface, the vessel audit.
         public Shader cloudMotion;
         public Shader surface;
         public Shader motionAudit;
         // Opaque, and drawn in the forward path only: it has no deferred pass.
         public Shader forwardOnly;
-        public Shader vesselShadow;
+        public Shader vesselShadow; // Hidden/ReDefinition/VesselShadow, for the shadow cases
 
+        // The size of every render texture of the check, and the frames waited before each move.
         private const int Width = 320, Height = 180;
         private const int StillFrames = 30;
 
+        // The check camera and sphere, the textures the cases render, capture and compare, the CloudMotion
+        // material, and the result file's lines.
         private Camera cam;
         private GameObject sphere;
         private RenderTexture color, unityMotion, sceneDepth, farDepth, noMotion, computed, auditTarget;
         private Material pass;
         private readonly StringBuilder result = new StringBuilder();
 
+        // Sets up the scene, runs every case in turn, writes the result file and quits the player.
         private IEnumerator Start()
         {
             string path = ResultPath();
@@ -92,6 +97,7 @@ namespace ReDefinition.MotionVectorCheck
             Application.Quit();
         }
 
+        // The result file: the -result argument, else next to the player's data folder.
         private static string ResultPath()
         {
             string[] args = System.Environment.GetCommandLineArgs();
@@ -100,11 +106,14 @@ namespace ReDefinition.MotionVectorCheck
             return System.IO.Path.Combine(Application.dataPath, "../motion-vector-check.txt");
         }
 
+        // The check camera's view-projection as the GPU uses it, not flipped for a render texture.
         private Matrix4x4 ViewProjection()
         {
             return GL.GetGPUProjectionMatrix(cam.projectionMatrix, false) * cam.worldToCameraMatrix;
         }
 
+        // One case: makes the move, then at the end of its frame has pass 2 compute the sphere's motion vectors and
+        // writes the sphere's pixels, those covered and both means; before it the line on unwritten pixels.
         private IEnumerator Measure(string label, System.Action move)
         {
             Matrix4x4 previousViewProjection = ViewProjection();
@@ -165,11 +174,6 @@ namespace ReDefinition.MotionVectorCheck
                 label, pixels, covered, unityMean.x, unityMean.y, oursMean.x, oursMean.y));
         }
 
-        // Hidden/ReDefinition/MotionAudit, as VesselMotionVectors in the plugin draws it, over
-        // the sphere moved in this frame: once with the sphere's previous matrix, where
-        // it must find Unity's motion vectors right, and once with the current matrix in
-        // its place, where it must find them wrong; then pass 1 writes them into empty
-        // motion vectors, where pass 0 must find them right.
         // Which of the camera's depth sources hold an opaque object drawn in the forward
         // path after the deferred one: a cube with a forward-only shader in front of the
         // sphere. The rig captures ResolvedDepth; frame generation and the vessel checks
@@ -235,6 +239,11 @@ namespace ReDefinition.MotionVectorCheck
             Destroy(cube);
         }
 
+        // Hidden/ReDefinition/MotionAudit, as VesselMotionVectors in the plugin draws it, over
+        // the sphere moved in this frame: once with the sphere's previous matrix, where
+        // it must find Unity's motion vectors right, and once with the current matrix in
+        // its place, where it must find them wrong; then pass 1 writes them into empty
+        // motion vectors, where pass 0 must find them right.
         private IEnumerator Audit()
         {
             Matrix4x4 previousViewProjection = ViewProjection();
@@ -257,6 +266,7 @@ namespace ReDefinition.MotionVectorCheck
             AuditLine("repair", previousViewProjection, previousModel, written);
         }
 
+        // The globals of Hidden/ReDefinition/MotionAudit for the sphere, as VesselMotionVectors sets them.
         private void SetAuditGlobals(CommandBuffer draw, Matrix4x4 previousViewProjection, Matrix4x4 previousModel,
                                      RenderTexture motion)
         {
@@ -272,6 +282,8 @@ namespace ReDefinition.MotionVectorCheck
             draw.SetGlobalTexture("_AuditDepth", sceneDepth);
         }
 
+        // Draws pass 0 of the audit over the sphere and writes the pixels it audited and found off, and the mean
+        // difference, from its counters.
         private void AuditLine(string label, Matrix4x4 previousViewProjection, Matrix4x4 previousModel,
                                RenderTexture motion)
         {
@@ -315,6 +327,7 @@ namespace ReDefinition.MotionVectorCheck
                 mirrored < 0f ? -1f : Mathf.HalfToFloat((ushort)mirrored)));
         }
 
+        // Reads a render texture back into a texture in the given format.
         private static Texture2D Read(RenderTexture texture, TextureFormat format)
         {
             RenderTexture previous = RenderTexture.active;

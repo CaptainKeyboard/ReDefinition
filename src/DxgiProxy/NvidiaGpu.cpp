@@ -24,8 +24,10 @@ namespace redefinition
         // (nvapi_lite_common.h).
         constexpr int kNvidiaDeviceNotFound = -6;   // NVAPI_NVIDIA_DEVICE_NOT_FOUND
 
+        // A logical GPU's data (NvAPI_GPU_GetLogicalGpuInfo): its adapter and physical GPUs.
         struct LogicalGpuData   // NV_LOGICAL_GPU_DATA_V1
         {
+            // The version, the adapter's LUID behind a pointer, and the physical GPUs behind the logical one.
             uint32_t version;
             void* osAdapterId;
             uint32_t physicalGpuCount;
@@ -33,19 +35,24 @@ namespace redefinition
             uint32_t reserved[8];
         };
 
+        // A physical GPU's architecture (NvAPI_GPU_GetArchInfo).
         struct ArchInfo   // NV_GPU_ARCH_INFO_V2
         {
+            // The version, then NV_GPU_ARCHITECTURE_ID, NV_GPU_ARCH_IMPLEMENTATION_ID and the revision.
             uint32_t version;
             uint32_t architecture;
             uint32_t implementation;
             uint32_t revision;
         };
 
+        // MAKE_NVAPI_VERSION: the structure's size, and the version above bit 16.
         uint32_t Version(size_t size, uint32_t version)
         {
             return static_cast<uint32_t>(size) | (version << 16);
         }
 
+        // nvapi_QueryInterface and the NVAPI functions taken through it; each returns an NvAPI_Status, 0 for
+        // NVAPI_OK.
         using QueryInterfaceFn = void* (*)(uint32_t);
         using InitializeFn = int (*)();
         using EnumPhysicalGpusFn = int (*)(void** handles, uint32_t* count);
@@ -79,6 +86,8 @@ namespace redefinition
         return function != nullptr && function(&version, branch) == 0 ? version : 0u;
     }
 
+    // The physical GPUs, each one's LUID through its logical GPU, and the architecture of the one with the
+    // adapter's.
     NvidiaGpuAnswer NvidiaGpu(const LUID& adapter, NvidiaGpuInfo& result)
     {
         result = NvidiaGpuInfo();
@@ -201,6 +210,8 @@ namespace redefinition
         return g_adapterKnown;
     }
 
+    // The swapchain adapter's NVIDIA GPU, NVAPI asked again where it did not answer, at most every ten seconds
+    // and kAttempts times.
     bool KnownNvidiaGpu(NvidiaGpuInfo& info)
     {
         std::lock_guard<std::mutex> lock(g_gpuMutex);

@@ -18,18 +18,23 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.FlightEditorAndKSC, false)]
     public class KscButtons : MonoBehaviour
     {
+        // One facility button's four sprites.
         internal sealed class Look
         {
+            // Its normal, highlighted, pressed and disabled sprites; the normal one stands in for a missing one.
             internal Sprite Normal, Highlighted, Pressed, Disabled;
         }
 
+        // The facility buttons taken, by their names.
         internal static readonly string[] Wanted =
         {
             "Buttons_VAB", "Buttons_SPH", "Buttons_Launchpad", "Buttons_Runway", "Buttons_TrackingStation",
             "Buttons_MissionControl", "Buttons_AstronautComplex", "Buttons_RnD", "Buttons_Admin",
         };
+        // The buttons held so far, by name.
         private static readonly Dictionary<string, Look> looks = new Dictionary<string, Look>();
 
+        // The button of that name with its states; null where it is not held.
         internal static Look Get(string name)
         {
             Look look;
@@ -45,12 +50,14 @@ namespace ReDefinition.Flight
         private float until;
         private float every = 2f;
 
+        // The first look a second into the scene, and in the space centre ten seconds more to look again.
         private void Awake()
         {
             next = Time.unscaledTime + 1f;
             until = HighLogic.LoadedScene == GameScenes.SPACECENTER ? next + 10f : next;
         }
 
+        // Looks for the buttons not held yet until all are or the time is over, then writes what it holds to the log.
         private void Update()
         {
             if (next <= 0f || Time.unscaledTime < next) return;
@@ -73,6 +80,7 @@ namespace ReDefinition.Flight
                       + Wanted.Length + (found < Wanted.Length ? " (" + Missing() + " not loaded in this scene)" : "") + ".");
         }
 
+        // Takes every wanted button not held yet from the loaded sprites; how many are held after.
         private static int Capture()
         {
             if (Held() == Wanted.Length) return Wanted.Length;
@@ -101,6 +109,7 @@ namespace ReDefinition.Flight
             return Held();
         }
 
+        // How many of the wanted buttons are held.
         private static int Held()
         {
             int held = 0;
@@ -109,6 +118,7 @@ namespace ReDefinition.Flight
             return held;
         }
 
+        // The wanted buttons not held, for the log.
         private static string Missing()
         {
             List<string> missing = new List<string>();

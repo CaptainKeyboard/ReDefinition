@@ -33,6 +33,7 @@ namespace ReDefinition.Menu
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class MenuFireworks : MonoBehaviour
     {
+        // The command-line switch that fires a burst every half second, for screenshots.
         internal const string BurstArgument = "-redefinitionFireworksBurst";
         // With it as well: a screenshot into the session's capture folder (CaptureFolder.Run)
         // after some bursts, then quit.
@@ -52,12 +53,15 @@ namespace ReDefinition.Menu
         private const float SizeOfRadius = 0.03f;
         private const float LeastAngle = 0.004f;
 
+        // The pool's size, the most particles a burst's system holds, a rocket's rise in seconds, its trail's particles
+        // per second, and the burst interval with the test switch.
         private const int PoolSize = 8;
         private const int MaxParticles = 400;
         private const float RiseSeconds = 0.7f;
         private const float TrailPerSecond = 90f;
         private const float TestInterval = 0.5f;
 
+        // The bursts' colours; a burst takes one, sometimes a second for half its sparks.
         private static readonly Color[] Colours =
         {
             new Color(1f, 0.25f, 0.2f), new Color(1f, 0.75f, 0.25f), new Color(0.35f, 1f, 0.4f),
@@ -65,8 +69,11 @@ namespace ReDefinition.Menu
             new Color(0.3f, 1f, 0.95f),
         };
 
+        // One burst's particle system from the pool and where it stands in its life.
         private sealed class Burst
         {
+            // Its system; whether it is in use and has exploded; its age; its ground point and the planet's up there; its
+            // size; its two colours; and the trail's particles not yet emitted.
             public ParticleSystem System;
             public bool Busy;
             public bool Exploded;
@@ -79,6 +86,9 @@ namespace ReDefinition.Menu
             public float Trail;
         }
 
+        // The pool; the active area's Kerbin, the light that stands for the sun, the menu's camera and Kerbin's radius;
+        // whether the test switch is on; when the next burst and the extra ones of a salvo go; the shared material and
+        // spark texture; whether the first burst was logged; and whether the fireworks have stopped on a failure.
         private readonly List<Burst> pool = new List<Burst>();
         private Transform kerbin;
         private Light sun;
@@ -92,6 +102,8 @@ namespace ReDefinition.Menu
         private bool firstLogged;
         private bool failed;
 
+        // A frame after the menu starts: the scene found, the pool built and the scene logged; with the test switches a
+        // screenshot after six seconds, then quit.
         private IEnumerator Start()
         {
             // MainMenuEnvLogic.Awake has activated its area by now; one frame on,
@@ -119,6 +131,7 @@ namespace ReDefinition.Menu
             Application.Quit();
         }
 
+        // Advances every burst in flight, and launches the next and a salvo's extras when they are due while switched on.
         private void Update()
         {
             if (failed || kerbin == null || pool.Count == 0) return;
@@ -155,6 +168,7 @@ namespace ReDefinition.Menu
             }
         }
 
+        // Frees the material, the texture and the pool's objects.
         private void OnDestroy()
         {
             if (material != null) Destroy(material);
@@ -163,12 +177,14 @@ namespace ReDefinition.Menu
                 if (pool[i].System != null) Destroy(pool[i].System.gameObject);
         }
 
+        // Whether the player's Fireworks setting is on.
         private static bool Enabled()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             return addon == null || addon.Live.MenuFireworks;
         }
 
+        // Stops the fireworks for good, with one line in the log.
         private void Fail(string where, Exception e)
         {
             failed = true;
@@ -216,12 +232,16 @@ namespace ReDefinition.Menu
             return true;
         }
 
+        // How well a light's name says it is the menu's sun: PlanetLight or "Directional light" 2, a back light 0, any
+        // other 1.
         internal static int Rank(Light light)
         {
             return light.name == "PlanetLight" || light.name == "Directional light" ? 2
                    : light.name.IndexOf("Back", StringComparison.OrdinalIgnoreCase) >= 0 ? 0 : 1;
         }
 
+        // The shared material and spark texture, and PoolSize particle systems on Kerbin's layer, each its sparks fading,
+        // shrinking, slowing and falling.
         private void BuildPool()
         {
             dot = SoftDot(32);
@@ -285,6 +305,7 @@ namespace ReDefinition.Menu
             }
         }
 
+        // The first of the shaders that is there; null for none.
         private static Shader FindShader(params string[] names)
         {
             foreach (string name in names)
@@ -341,6 +362,8 @@ namespace ReDefinition.Menu
             return false;
         }
 
+        // Starts a free burst at a point of the night side, sized for the planet and the camera's distance; nothing where
+        // no burst is free or no point is found.
         private void Launch()
         {
             Burst burst = null;
@@ -384,6 +407,7 @@ namespace ReDefinition.Menu
             }
         }
 
+        // The rocket rising with its trail until it explodes; the burst is free again once its sparks are gone.
         private void Advance(Burst burst, float dt)
         {
             burst.Age += dt;
@@ -412,6 +436,7 @@ namespace ReDefinition.Menu
             if (burst.Age > RiseSeconds + 0.5f && burst.System.particleCount == 0) burst.Busy = false;
         }
 
+        // A flash and 70 to 110 sparks in every direction from the top of the rise.
         private void Explode(Burst burst)
         {
             burst.Exploded = true;

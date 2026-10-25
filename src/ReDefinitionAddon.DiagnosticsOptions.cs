@@ -14,6 +14,7 @@ namespace ReDefinition
     // always did, log line included.
     public partial class ReDefinitionAddon
     {
+        // Every option of the window, made on its first draw, and the options pinned to its foot.
         private DebugOptionSet debugOptions;
         private readonly DebugPins pins = new DebugPins();
         // Why a row is greyed out, as the last layout pass found it: the rows must stay the
@@ -21,9 +22,11 @@ namespace ReDefinition
         private readonly Dictionary<string, string> optionReasons = new Dictionary<string, string>();
         private int changedCount;
 
+        // Why a row is greyed out: no graphics profile chosen, or a technique that takes no masks running.
         private const string NeedsProfileText = "needs a graphics profile (ReDefinition's window, Profiles)";
         private const string NeedsMasksText = "needs FSR 3 or AMD";
 
+        // Makes the options on the window's first draw, with the pins, the page and the place it had last session.
         private void EnsureOptions()
         {
             if (debugOptions != null) return;
@@ -48,6 +51,7 @@ namespace ReDefinition
             }
         }
 
+        // The technique the rig runs, the chosen one where no rig runs.
         private UpscalerBackend RunningBackend
         {
             get { return rig != null ? rig.Backend : backend; }
@@ -64,6 +68,7 @@ namespace ReDefinition
             }
         }
 
+        // An on/off option.
         private static DebugOption Switch(string id, DebugCategory category, string group, string label,
                                           DebugPersistence persistence, bool defaultOn, Func<bool> get, Action<bool> set)
         {
@@ -76,6 +81,7 @@ namespace ReDefinition
             };
         }
 
+        // An option of several values, the index of the chosen one its value.
         private static DebugOption Choice(string id, DebugCategory category, string group, string label,
                                           DebugPersistence persistence, string[] choices, int defaultChoice,
                                           Func<int> get, Action<int> set)
@@ -90,6 +96,7 @@ namespace ReDefinition
             };
         }
 
+        // A button that runs an action; nothing to save.
         private static DebugOption Button(string id, DebugCategory category, string group, string label, string text, Action run)
         {
             return new DebugOption(id, category, label, DebugKind.Action, DebugPersistence.SessionOnly)
@@ -100,6 +107,8 @@ namespace ReDefinition
             };
         }
 
+        // Every option of every page: the switches, choices and buttons, each with its setter, default, saving and the
+        // reason it may be greyed out.
         private DebugOptionSet BuildDebugOptions()
         {
             // The defaults the code starts from: the settings' own for what is saved.

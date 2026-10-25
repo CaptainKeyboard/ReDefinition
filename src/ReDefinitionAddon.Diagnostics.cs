@@ -15,8 +15,10 @@ namespace ReDefinition
     // drawn by DiagnosticsRows.
     public partial class ReDefinitionAddon
     {
+        // Whether the diagnostics window is open.
         private bool windowVisible;
 
+        // The note where frame generation is on but the proxy could not make its context.
         private const string ContextFailedText =
             "frame generation's context could not be made (see ReDefinitionProxy.log)";
 
@@ -28,6 +30,7 @@ namespace ReDefinition
                 : "");
         }
 
+        // The window's size as made, and the width of the pages' list on its left.
         private const float WindowWidth = 720f;
         private const float WindowHeight = 600f;
         private const float CategoryWidth = 150f;
@@ -37,6 +40,7 @@ namespace ReDefinition
         {
             get { return Mathf.Max(360f, Mathf.Min(WindowHeight, Screen.height - 40f)); }
         }
+        // The search field's IMGUI control name, and the name of the keyboard lock it holds while typed into.
         private const string SearchControl = "ReDefinitionDiagnosticsSearch";
         private const string TypingLock = "ReDefinitionDiagnosticsSearch";
 
@@ -57,16 +61,20 @@ namespace ReDefinition
         private bool searchTyping;
         private Rect searchRect;
 
+        // The changes the events ask for, made at the next layout pass (ApplyPendingChanges): the page to show, the
+        // option to pin or unpin, the "Changed" filter to flip, and the reset of every switch.
         private DebugCategory? pendingCategory;
         private string pendingPin;
         private bool pendingChangedToggle;
         private bool pendingReset;
 
+        // The window's place and size, its IMGUI id, the styles made from KSP's skin, and the tooltip under the pointer.
         private Rect window = new Rect(60f, 60f, WindowWidth, WindowHeight);
         private int windowId;
         private DiagnosticsStyles styles;
         private string tooltipNow = "";
 
+        // Whether a search or the "Changed" filter narrows what the pages show.
         private bool FilterActive
         {
             get { return query.Trim().Length > 0 || changedOnly; }
@@ -85,6 +93,7 @@ namespace ReDefinition
         private bool contextFailing;
         private bool contextFailingAny;
 
+        // Drops the lists kept for the last layout pass, and asks the proxy afresh whether the context failed.
         private void ForgetLists()
         {
             pageLists.Clear();
@@ -122,6 +131,7 @@ namespace ReDefinition
             return list;
         }
 
+        // How many of the page's options pass the search and the filter, counted once per layout pass.
         private int PassCount(DebugCategory page)
         {
             int count;
@@ -129,11 +139,13 @@ namespace ReDefinition
             return count;
         }
 
+        // The pinned options, for the window's foot, made once per layout pass.
         private List<DebugOption> Pinned()
         {
             return pinnedList ?? (pinnedList = pins.Options(debugOptions));
         }
 
+        // Opens or closes the window; closing it gives the keyboard back.
         private void ToggleWindow()
         {
             windowVisible = !windowVisible;
@@ -192,6 +204,7 @@ namespace ReDefinition
             UnityMouseEvents.ImguiWindow = window;
         }
 
+        // The window's content: the live strip, the pages' list beside the page, and the foot.
         private void DrawWindow(int id)
         {
             if (Event.current.type == EventType.Layout) ApplyPendingChanges();
@@ -271,6 +284,7 @@ namespace ReDefinition
             GUILayout.EndVertical();
         }
 
+        // The pages in the order the list shows them.
         private static readonly DebugCategory[] Pages =
         {
             DebugCategory.Overview, DebugCategory.UpscalerInputs, DebugCategory.FrameGeneration,
@@ -345,6 +359,7 @@ namespace ReDefinition
         }
 
 
+        // The tooltip box beside the pointer, kept inside the window.
         private void DrawTooltip()
         {
             if (tooltipNow.Length == 0) return;
@@ -366,6 +381,7 @@ namespace ReDefinition
             else InputLockManager.RemoveControlLock(TypingLock);
         }
 
+        // Takes the keyboard from the search field where it had it.
         private void ReleaseTyping()
         {
             if (!searchTyping) return;

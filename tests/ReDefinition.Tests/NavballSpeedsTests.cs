@@ -7,6 +7,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class NavballSpeedsTests
     {
+        // Below 100 m/s either way a speed is written with tenths, above it in whole metres per second.
         [TestMethod]
         public void TenthsBelowAHundredWholeAbove()
         {
@@ -16,6 +17,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("-2290m/s", NavballSpeeds.Speed(-2290.2));
         }
 
+        // A small negative speed that rounds to nothing is written without a minus sign.
         [TestMethod]
         public void NothingIsNeverNegative()
         {

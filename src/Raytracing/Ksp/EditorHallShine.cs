@@ -16,14 +16,18 @@ namespace ReDefinition.Raytracing
     // raytracing stops or the scene goes.
     internal sealed class EditorHallShine
     {
+        // A material's values before the change, for Restore.
         private sealed class Original
         {
+            // The shader and the highlight values the material had, and which of the two properties it has.
             public Shader Shader;
             public Color SpecColor;
             public float Shininess;
             public bool HasSpecColor, HasShininess;
         }
 
+        // The materials changed with their values before; the scene they were changed in (LOADING: none); the
+        // specular variant found for each shader name, null for none; the gloss the highlight is set for.
         private readonly Dictionary<Material, Original> changed = new Dictionary<Material, Original>();
         private GameScenes appliedIn = GameScenes.LOADING;
         private readonly Dictionary<string, Shader> specularVariants = new Dictionary<string, Shader>();
@@ -92,6 +96,8 @@ namespace ReDefinition.Raytracing
             };
         }
 
+        // A matt material: the specular variant of its shader (found once per name) with a black specular colour and
+        // the lowest shininess; false where its shader has no such variant, and the material stays as it is.
         private bool Matt(Material material, RtMaterialIntent intent)
         {
             string name = material.shader.name;

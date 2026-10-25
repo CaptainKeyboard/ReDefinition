@@ -16,9 +16,11 @@
 // one line a sample.
 namespace redefinition
 {
+    // The main thread's sampler described above, one run at a time.
     class CpuSampler
     {
     public:
+        // The one instance, for the process.
         static CpuSampler& Get();
 
         // From the main thread: samples it for seconds into path, then stops. False if
@@ -26,10 +28,14 @@ namespace redefinition
         bool Start(int seconds, const std::wstring& path);
 
     private:
+        // Only Get makes it.
         CpuSampler() = default;
+        // The sampling thread's entry.
         static DWORD WINAPI ThreadProc(LPVOID self);
+        // Samples the thread for the seconds asked, writes the file and lets go of the handle.
         void Run();
 
+        // The main thread's handle, the seconds and the file of the run, and whether one is going on.
         HANDLE target = nullptr;
         int seconds = 0;
         std::wstring path;

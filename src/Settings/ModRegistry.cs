@@ -24,6 +24,8 @@ namespace ReDefinition.Settings
                    && PartLoader.Instance != null && PartLoader.Instance.IsReady();
         }
 
+        // Every MOD_SETTINGS node of the GameDatabase read, once loading is done; what the reading notes goes
+        // to the log.
         public static List<ModRegistration> LoadAll(List<string> problems)
         {
             if (!Ready())

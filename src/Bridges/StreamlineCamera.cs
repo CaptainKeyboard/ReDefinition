@@ -21,6 +21,8 @@ namespace ReDefinition.Bridges
     // tests run without the game (StreamlineCameraTests).
     internal static class StreamlineCamera
     {
+        // Invert's [matrix | identity], kept so that every frame's inversion allocates nothing; the main
+        // thread's only.
         private static readonly double[,] Augmented = new double[4, 8];
 
         // gpuProjection: GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix,
@@ -54,6 +56,7 @@ namespace ReDefinition.Bridges
                     target[4 * row + column] = m[column, row];
         }
 
+        // Unity's view space into one that looks down +z: z negated.
         internal static Matrix4x4 FlipZ()
         {
             Matrix4x4 flip = Matrix4x4.identity;

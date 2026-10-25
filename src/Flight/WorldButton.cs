@@ -37,6 +37,9 @@ namespace ReDefinition.Flight
         private static readonly System.Reflection.FieldInfo BlockingMask = typeof(GraphicRaycaster).GetField("m_BlockingMask",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 
+        // The canvas in the world and its object; its size in metres; the button's rectangle, picture, fallback label,
+        // Button and tooltip; its name, for the log; the space centre's button it was asked to look like, and whether it
+        // shows that one rather than the fallback.
         private readonly GameObject root;
         private readonly Canvas canvas;
         private readonly float metres;
@@ -109,6 +112,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The tooltip's text, set only where it changes.
         internal string Tooltip
         {
             set { if (tooltip != null && tooltip.textString != value) tooltip.textString = value; }
@@ -257,11 +261,13 @@ namespace ReDefinition.Flight
             return share < 1f ? share * 0.97f : 1f;
         }
 
+        // Hidden until it is placed again.
         internal void Hide()
         {
             if (root != null && root.activeSelf) root.SetActive(false);
         }
 
+        // The camera that measures the clicks, one for every button (Eyes).
         private static Camera eyes;
 
         // A camera where `scene` stands, looking as it looks, on the screen, drawing
@@ -290,6 +296,7 @@ namespace ReDefinition.Flight
             return eyes;
         }
 
+        // The button goes with the add-on that made it.
         internal void Destroy()
         {
             if (root != null) Object.Destroy(root);
@@ -305,8 +312,10 @@ namespace ReDefinition.Flight
             return bounds.extents.magnitude;
         }
 
+        // The round plate of the fallback look, made once.
         private static Sprite disc;
 
+        // A white disc, its edge smoothed over a texel.
         private static Sprite Disc()
         {
             if (disc != null) return disc;

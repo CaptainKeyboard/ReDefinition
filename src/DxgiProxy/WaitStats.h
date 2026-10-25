@@ -11,6 +11,7 @@
 // (Gfx.WaitForPresentOnGfxThread), told apart from the GPU's own frame time.
 namespace redefinition
 {
+    // The waits told apart, each with its own sum; Count is their number.
     enum class WaitKind
     {
         PresentFrame,       // a frame's allocator still in flight (SwapChainProxy::WaitForFrame)
@@ -19,6 +20,7 @@ namespace redefinition
         Count,
     };
 
+    // Per kind: the ticks waited and the waits counted since the last report, which takes and clears them.
     inline std::atomic<int64_t> g_waitTicks[static_cast<int>(WaitKind::Count)];
     inline std::atomic<int64_t> g_waitCount[static_cast<int>(WaitKind::Count)];
     // The same waits summed since the start, never reset, and how long the
@@ -31,7 +33,9 @@ namespace redefinition
     class WaitTimer
     {
     public:
+        // Starts timing the wait now.
         explicit WaitTimer(WaitKind kind) : kind(kind) { QueryPerformanceCounter(&start); }
+        // Adds the time since it was made to its kind's sum and count and to the total.
         ~WaitTimer()
         {
             LARGE_INTEGER end;
@@ -42,6 +46,7 @@ namespace redefinition
         }
 
     private:
+        // The kind it counts as, and the counter when it was made.
         WaitKind kind;
         LARGE_INTEGER start;
     };

@@ -19,12 +19,15 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballDockingMarker : MonoBehaviour
     {
+        // The markers' material property that fades them.
         private static readonly int OpacityId = Shader.PropertyToID("_Opacity");
 
+        // The navball; the marker, once made; its own material with the picture.
         private NavBall navBall;
         private Transform marker;
         private Material material;
 
+        // Waits for the navball, then makes the marker as a hidden copy of the target's, with the docking picture.
         private IEnumerator Start()
         {
             float until = Time.unscaledTime + 15f;
@@ -48,6 +51,7 @@ namespace ReDefinition.Flight
             Debug.Log(Log.Tag + " The navball shows where to point for a docking port as the target.");
         }
 
+        // While a docking port is the target: the marker placed and faded in the direction into the port; hidden otherwise.
         private void LateUpdate()
         {
             if (marker == null || navBall == null) return;
@@ -77,6 +81,7 @@ namespace ReDefinition.Flight
             return opacity;
         }
 
+        // The marker's own material goes with the scene.
         private void OnDestroy()
         {
             if (material != null) Destroy(material);

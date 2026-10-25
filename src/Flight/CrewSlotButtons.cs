@@ -19,10 +19,13 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class CrewSlotButtons : MonoBehaviour
     {
+        // KSP's members of the portrait gallery that are not public, public ones too.
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
+        // The gallery's add-slot and remove-slot buttons.
         private static readonly FieldInfo AddSlot = typeof(KerbalPortraitGallery).GetField("btnAddSlot", Private);
         private static readonly FieldInfo RemoveSlot = typeof(KerbalPortraitGallery).GetField("btnRemSlot", Private);
 
+        // Waits for the portraits and the staging stack, then gives both slot buttons the stack's add and delete look.
         private IEnumerator Start()
         {
             if (!FlightUiSwitch.On(s => s.CrewSlotButtons)) yield break;

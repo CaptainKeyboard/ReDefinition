@@ -24,8 +24,10 @@ namespace ReDefinition.Window
     // does not enter.
     internal sealed class ScreenFit : MonoBehaviour
     {
+        // The room KSP keeps between a dialog and the screen's edge, in canvas units.
         private const float Margin = 30f;
 
+        // The dialog's canvas and its window, and their sizes at the last fit.
         private RectTransform canvas;
         private RectTransform window;
         private Vector2 canvasSize;
@@ -43,11 +45,13 @@ namespace ReDefinition.Window
             return dialog;
         }
 
+        // Fitted again each frame, where a size has changed.
         private void LateUpdate()
         {
             Fit();
         }
 
+        // Scales the window about its middle to fit within the canvas less the margins, never above 1.
         private void Fit()
         {
             if (canvas == null || window == null) return;

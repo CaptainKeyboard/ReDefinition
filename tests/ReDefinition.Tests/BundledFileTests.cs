@@ -10,9 +10,11 @@ namespace ReDefinition.Tests
     [TestClass]
     public class BundledFileTests
     {
+        // The file the test writes and reads, and the host that takes its warnings.
         private string path;
         private FakeHost host;
 
+        // A bundled.cfg in a fresh folder of its own and a host that collects warnings, for each test.
         [TestInitialize]
         public void Folder()
         {
@@ -20,6 +22,7 @@ namespace ReDefinition.Tests
             host = new FakeHost();
         }
 
+        // Deletes the test's folder with the file.
         [TestCleanup]
         public void RemoveFolder()
         {
@@ -27,12 +30,15 @@ namespace ReDefinition.Tests
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
 
+        // Writes the text as the file, making its folder.
         private void FileHolds(string text)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllText(path, text);
         }
 
+        // Everything the file keeps -- kept values, the profile, the mods asked, the buttons kept, the backups per
+        // save and their restore marks -- reads back as written, without warnings and not dirty.
         [TestMethod]
         public void WhatIsKeptComesBackAsItWasWritten()
         {
@@ -67,6 +73,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(read.Dirty);
         }
 
+        // With the bundling switched off no value kept for a mod is read back, but the backups are, so the way
+        // back stays.
         [TestMethod]
         public void WithTheBundlingOffNoValueOfOursIsReadBack()
         {
@@ -86,6 +94,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(read.TryBackup("", "ksp.SYNC_VBL", out backup), "the way back is kept whatever the switch says");
         }
 
+        // A file that is no config node is moved aside as .unreadable, and the bundling starts on as by default.
         [TestMethod]
         public void AFileThatCannotBeReadIsSetAside()
         {

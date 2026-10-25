@@ -8,6 +8,7 @@ namespace ReDefinition.Engineer
     // out once lit (StageRow.Solid).
     internal sealed class BudgetStage
     {
+        // KSP's stage number; the mass as it starts and ends burning, in tonnes; its delta-v in vacuum; whether it is solid.
         public int Number;
         public double StartMass;
         public double EndMass;
@@ -22,14 +23,17 @@ namespace ReDefinition.Engineer
     // later leg, or dropped once the leg is over.
     internal sealed class StagePlan
     {
+        // The stages saved on the leg, and those dropped once it is over.
         public readonly HashSet<int> Save = new HashSet<int>();
         public readonly HashSet<int> DropAfter = new HashSet<int>();
 
+        // Whether the player chose nothing for the leg.
         public bool Empty
         {
             get { return Save.Count == 0 && DropAfter.Count == 0; }
         }
 
+        // A copy to change without changing this plan.
         public StagePlan Copy()
         {
             StagePlan copy = new StagePlan();
@@ -58,16 +62,19 @@ namespace ReDefinition.Engineer
         // (ByStages). From the parts, it is what KSP drops there, and goes.
         public bool RestStaysForLander;
 
+        // Every group's mass zero; at least one group.
         internal VesselSplit(int groups)
         {
             Mass = new double[Math.Max(1, groups)];
         }
 
+        // How many groups: the rest and the sections.
         public int Groups
         {
             get { return Mass.Length; }
         }
 
+        // Shares that give everything to the group, held within the groups there are.
         internal double[] Unit(int group)
         {
             double[] shares = new double[Groups];
@@ -106,6 +113,7 @@ namespace ReDefinition.Engineer
             return split;
         }
 
+        // Where in `order`, highest number first, the stages numbered up to `top` begin; the count for none or for -1.
         private static int First(List<BudgetStage> order, int top)
         {
             if (top < 0) return order.Count;
@@ -120,6 +128,7 @@ namespace ReDefinition.Engineer
     // flies, so that what it held goes with it, or waited elsewhere.
     internal sealed class GoneGroup
     {
+        // The group; whether it stays as a vessel of its own; whether it waited elsewhere rather than flew with what flies.
         public int Group;
         public bool Stays;
         public bool Waiting;
@@ -130,12 +139,15 @@ namespace ReDefinition.Engineer
     // once it is over, and the groups left at its destination once it is over.
     internal sealed class BudgetStep
     {
+        // The delta-v the step needs with no margin; per group, whether it flies the step; the groups gone for good as it
+        // starts; the group refilled from the rest once it is over, -1 for none.
         public double Need;
         public bool[] Side;
         public readonly List<GoneGroup> Gone = new List<GoneGroup>();
         public int RefuelGroup = -1;
         // The stage of the rest that refuels it first, by its number; -1 for KSP's order.
         public int RefuelFrom = -1;
+        // The groups left at the step's destination once it is over.
         public readonly List<int> Deploy = new List<int>();
     }
 
@@ -162,8 +174,10 @@ namespace ReDefinition.Engineer
     // KSP's order. Free of Unity, tested.
     internal static class StageBudget
     {
+        // One stage's part in one step.
         internal sealed class StageUse
         {
+            // The stage's number, the step, and the delta-v the stage gives to it.
             public int Stage;
             public int Leg;
             public double DeltaV;
@@ -176,6 +190,7 @@ namespace ReDefinition.Engineer
         // A stage of what flies a step, with propellant as the step starts.
         internal sealed class StepStage
         {
+            // The stage, by KSP's number.
             public int Stage;
             // What it gives to the step, and what it still gives once the step is
             // over, or what it held where it was dropped then.
@@ -186,8 +201,10 @@ namespace ReDefinition.Engineer
             public bool CanDrop;
         }
 
+        // What the budget works out for the route.
         internal sealed class Result
         {
+            // Every burn of every stage on every step, in the order they happen.
             public readonly List<StageUse> Uses = new List<StageUse>();
             // Per step: what it needs with the margin, and what no stage covers.
             public double[] Needed;
@@ -213,6 +230,7 @@ namespace ReDefinition.Engineer
             // numbers, for a refill to come from.
             public List<int>[] Tankers;
 
+            // The delta-v no stage covers over the whole route.
             public double TotalShort
             {
                 get
@@ -223,6 +241,7 @@ namespace ReDefinition.Engineer
                 }
             }
 
+            // The delta-v all stages still have at the route's end, or held where they were dropped or left behind.
             public double TotalLeft
             {
                 get
@@ -234,6 +253,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Less than this, in tonnes, counts as none.
         private const double Tiny = 1e-9;
 
         // `steps`: what each step needs and who flies it; `margin`: 0.1 for ten per
@@ -245,8 +265,13 @@ namespace ReDefinition.Engineer
             return new Run(stages, plans, split).Allocate(steps, margin);
         }
 
+        // One working-out of the budget, holding what each stage and group has as the route goes on.
         private sealed class Run
         {
+            // The stages in KSP's order, highest number first, and the player's plans per step; the stages' and the groups'
+            // counts; per stage and group, in tonnes: the propellant held now, what it held as the vessel started, and the mass
+            // KSP drops after the stage; per stage: its exhaust velocity, whether it is solid, whether it burns on the first step
+            // only, and the group whose parts it fires.
             private readonly List<BudgetStage> order;
             private readonly IList<StagePlan> plans;
             private readonly int count;
@@ -260,12 +285,14 @@ namespace ReDefinition.Engineer
             private readonly int[] owner;
             // Fired past: what flies no longer comes back to it.
             private readonly bool[] done;
+            // Per group: what it weighs now, in tonnes, and whether it is still with the vessel.
             private readonly double[] mass;
             private readonly bool[] alive;
             // By stage number: what a deployed stage still gives as it stays.
             private readonly Dictionary<int, double> stayed = new Dictionary<int, double>();
             // Per group, the last step it flew, -1 for none.
             private readonly int[] lastFlown;
+            // From the split (VesselSplit.RestStaysForLander); and the route's steps.
             private readonly bool restStaysForLander;
             private IList<BudgetStep> steps;
             // The step worked out now, and what flies it.
@@ -273,6 +300,8 @@ namespace ReDefinition.Engineer
             private bool[] flying;
             private Result result;
 
+            // Each stage's propellant (start less end mass), exhaust velocity and drop, shared out over the groups by the split;
+            // without a split, the stage-number model with no lander and no capsule.
             internal Run(IList<BudgetStage> stages, IList<StagePlan> plans, VesselSplit split)
             {
                 order = new List<BudgetStage>(stages);
@@ -329,6 +358,8 @@ namespace ReDefinition.Engineer
                 }
             }
 
+            // A stage's shares over the groups from the split's table, summed to one; everything to `fallback` where the table
+            // has none.
             private double[] Shares(VesselSplit split, Dictionary<int, double[]> table, int number, int fallback)
             {
                 double[] shares;
@@ -341,6 +372,8 @@ namespace ReDefinition.Engineer
                 return result;
             }
 
+            // Works the route through step by step: the groups gone as it starts, the burn, a refill, the drops after it and the
+            // groups deployed.
             internal Result Allocate(IList<BudgetStep> steps, double margin)
             {
                 this.steps = steps;
@@ -403,6 +436,7 @@ namespace ReDefinition.Engineer
                 }
             }
 
+            // Every group still with the vessel.
             private bool[] Everything()
             {
                 bool[] side = new bool[groups];
@@ -412,6 +446,7 @@ namespace ReDefinition.Engineer
 
             // ----------------------------------------------------------- sides
 
+            // What the side's groups weigh now, in tonnes.
             private double MassOf(bool[] side)
             {
                 double total = 0.0;
@@ -420,6 +455,7 @@ namespace ReDefinition.Engineer
                 return total;
             }
 
+            // The propellant the stage holds now in the side's groups, in tonnes.
             private double FuelOf(int at, bool[] side)
             {
                 double total = 0.0;
@@ -436,6 +472,7 @@ namespace ReDefinition.Engineer
                 return -1;
             }
 
+            // The side's stage KSP fires first; -1 for none.
             private int FirstOf(bool[] side)
             {
                 return NextOf(side, -1);
@@ -454,11 +491,13 @@ namespace ReDefinition.Engineer
 
             // ----------------------------------------------------------- burning
 
+            // The player's plan for that step; null where there is none.
             private StagePlan PlanOf(int at)
             {
                 return plans != null && at >= 0 && at < plans.Count ? plans[at] : null;
             }
 
+            // Whether the player saved the stage on the step worked out now.
             private bool Saved(int at)
             {
                 StagePlan plan = PlanOf(leg);
@@ -484,6 +523,8 @@ namespace ReDefinition.Engineer
                 return false;
             }
 
+            // Burns the stage for what the step still needs, or all it has where it is solid or holds less, on the mass the
+            // side pushes, and records the burn.
             private void BurnOne(int at, bool[] side, ref double need)
             {
                 double available = FuelOf(at, side);
@@ -521,6 +562,8 @@ namespace ReDefinition.Engineer
                 }
             }
 
+            // The delta-v the stage gives burning `available` tonnes with `pushed` tonnes in all (Tsiolkovsky); 0 where it
+            // has nothing or no exhaust velocity.
             private double DeltaV(int at, double available, double pushed)
             {
                 if (available <= Tiny || exhaust[at] <= 0.0 || pushed <= available) return 0.0;
@@ -580,6 +623,7 @@ namespace ReDefinition.Engineer
                 }
             }
 
+            // The stage goes with what it still holds, recorded as the delta-v that was.
             private void Jettison(int at, bool[] side)
             {
                 double available = FuelOf(at, side);
@@ -683,6 +727,7 @@ namespace ReDefinition.Engineer
                 return weight;
             }
 
+            // A side of that group alone.
             private bool[] Single(int group)
             {
                 bool[] side = new bool[groups];
@@ -728,6 +773,7 @@ namespace ReDefinition.Engineer
                 return total;
             }
 
+            // Into `left`: the delta-v each of the side's stages still gives, burning on in KSP's order with what each drops.
             private void BurnOn(Dictionary<int, double> left, bool[] side)
             {
                 double pushed = MassOf(side);

@@ -22,13 +22,18 @@ namespace ReDefinition.Settings.Behaviours
     // back over the one set here.
     internal sealed class EveBehaviour : ModBehaviour
     {
+        // Every member, of any visibility, the generic base's statics included.
         private const BindingFlags Any = TypeLookup.Any | BindingFlags.FlattenHierarchy;
 
+        // EVE's members as Attach finds them: the quality manager's instance and configs, its SaveConfig and
+        // its Apply, which an older build may lack.
         private FieldInfo managerInstance;
         private FieldInfo configs;
         private MethodInfo saveConfig;
         private MethodInfo apply;
 
+        // The quality manager and renderer this is written against; false where this build cannot be asked to
+        // save.
         public override bool Attach(RegisteredMod mod)
         {
             Type manager = TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager");
@@ -102,6 +107,7 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
+        // Each setting waits for EVE's quality config; the noise switch applies the node anew after a write.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             setting.Applicable = () => FirstObjectNode() != null;
@@ -125,6 +131,7 @@ namespace ReDefinition.Settings.Behaviours
             };
         }
 
+        // The quality manager's Apply, as its window's: the statics, the renderers and every cloud layer anew.
         private void ApplyQuality()
         {
             try
@@ -159,6 +166,7 @@ namespace ReDefinition.Settings.Behaviours
             return null;
         }
 
+        // The folder of Volumetric Clouds' Stock pack, whose file the registration's defaults are.
         private const string StockPack = "StockVolumetricClouds/";
 
         // As its own window's Save: the files of its configs.

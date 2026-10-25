@@ -10,6 +10,8 @@
 
 #include "RtCommon.hlsli"
 
+// A dispatch's root constants (RaytracingDenoise.cpp); iteration is the à-trous step's number
+// from 0.
 cbuffer Step : register(b1)
 {
     uint stepSize;      // the à-trous step, 1, 2, 4...
@@ -23,7 +25,7 @@ cbuffer Step : register(b1)
     uint iteration;
 };
 
-// The denoiser's bindings in space 3 of the service's root signature (Raytracing.cpp,
+// The denoiser's bindings in space 3 of the service's root signature (RaytracingDevice.cpp,
 // BuildPipelinesLocked).
 Texture2D<float4> inputA : register(t0, space3);
 Texture2D<float4> inputB : register(t1, space3);
@@ -43,6 +45,7 @@ Texture2D<float4> inputD : register(t5, space3);
 RWTexture2D<float4> outputC : register(u2, space3);
 RWTexture2D<float4> outputD : register(u3, space3);
 
+// The value the filter weighs by: a scalar signal's x, a colour's luminance (Rec. 709).
 float Luminance(float4 value)
 {
     return signalKind == 0u ? value.x : dot(value.rgb, float3(0.2126f, 0.7152f, 0.0722f));
@@ -176,6 +179,8 @@ void DenoiseTemporal(uint3 id : SV_DispatchThreadID)
     }
 }
 
+// How much a tap at view distance zq counts for a pixel at zp: falling with their difference
+// relative to zp, the more slowly the wider the step.
 float DepthWeight(float zp, float zq, float step)
 {
     return exp(-abs(zp - zq) / (zp * 0.01f * step + 1e-3f));
@@ -191,6 +196,7 @@ float Pow32(float x)
     return x * x;
 }
 
+// x to the 64th power: Pow32 squared.
 float Pow64(float x)
 {
     float x32 = Pow32(x);
@@ -246,11 +252,13 @@ void DenoiseVariance(uint3 id : SV_DispatchThreadID)
 // diffuse light, the reflections, the occlusion (Raytracing.h, kRtDenoised).
 static const uint kAtrousSignals = 4u;
 
+// Whether the à-trous signal s is a colour (the diffuse light, the reflections).
 bool IsColour(uint s)
 {
     return s == 1u || s == 2u;
 }
 
+// The à-trous signal s at pixel p, from its input (A to D).
 float4 ReadSignal(uint s, int2 p)
 {
     switch (s)
@@ -262,6 +270,7 @@ float4 ReadSignal(uint s, int2 p)
     }
 }
 
+// Luminance for the à-trous signal s, which takes its kind from s rather than signalKind.
 float SignalLuminance(uint s, float4 value)
 {
     return IsColour(s) ? dot(value.rgb, float3(0.2126f, 0.7152f, 0.0722f)) : value.x;

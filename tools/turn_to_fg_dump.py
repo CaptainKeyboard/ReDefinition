@@ -19,6 +19,7 @@ import fg_dump  # noqa: E402
 
 
 def main():
+    """Write the turn frames from first to last, with their textures and frames.txt, into the dump folder."""
     if len(sys.argv) < 3:
         sys.exit(__doc__)
     source, target = sys.argv[1], sys.argv[2]

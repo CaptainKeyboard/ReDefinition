@@ -1,3 +1,4 @@
+// The dashboard's Space Center page, published as window.KscPage for widget.js.
 (function () {
 	"use strict";
 	// The Space Center page: the program's funds, science and reputation, time warp and the crew; the
@@ -23,8 +24,11 @@
 	const shown = {};
 	let pending = null;
 
+	// One figure: its plate label over the value on an LCD.
 	const stat = (label, value) => '<div class="sstat"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 
+	// The buildings' buttons in BUILDINGS' order, a tap entering one; destroyed ones marked, levels as pips
+	// in a career. Buildings the mod does not send are left out.
 	function renderBuildings(list, career) {
 		const byId = {};
 		for (const b of list) byId[b.id] = b;
@@ -41,6 +45,7 @@
 		for (const b of document.querySelectorAll("#kbgrid [data-enter]")) b.addEventListener("click", () => window.Dashboard.run("k.enter[" + b.dataset.enter + "]"));
 	}
 
+	// The vessels in flight, each with its body, situation, mission time and a FLY button held to switch to it.
 	function renderVessels(list) {
 		$("kvcount").textContent = list.length ? String(list.length) : "";
 		$("kvlist").innerHTML = list.map((v) =>
@@ -54,6 +59,7 @@
 			});
 	}
 
+	// The alarms, each with its countdown and a WARP TO button that warps to it at a tap.
 	function renderAlarms(list) {
 		$("kacount").textContent = list.length ? String(list.length) : "";
 		$("kalarms").innerHTML = list.map((a) =>
@@ -63,8 +69,10 @@
 		for (const b of document.querySelectorAll("#kalarms [data-alarm]")) b.addEventListener("click", () => window.Dashboard.run("k.warpTo[" + b.dataset.alarm + "]"));
 	}
 
+	// The active contracts, each with its rewards and, where it has one, the countdown to its deadline.
 	function renderContracts(list) {
 		$("kccount").textContent = list.length ? String(list.length) : "";
+		// A contract's funds, science and reputation, the ones it gives.
 		const reward = (c) => [num(c.funds) ? "Funds " + whole(c.funds) : "", num(c.science) ? "Science " + whole(c.science) : "", num(c.reputation) ? "Reputation " + whole(c.reputation) : ""]
 			.filter((s) => s).join("  ·  ");
 		$("kcontracts").innerHTML = list.map((c) =>
@@ -79,6 +87,8 @@
 		return Array.isArray(value) || (value && typeof value === "object");
 	}
 
+	// Draws the page from the frame's data: figures, warp and crew where they changed, lists sent anew,
+	// the clocks when g.ut moves on. connected is false in the demo.
 	function render(d, connected) {
 		const mode = d["g.mode"], career = mode === "CAREER", science = career || mode === "SCIENCE_SANDBOX";
 		const now = num(d["g.ut"]), calendar = d["g.calendar"];
@@ -114,8 +124,11 @@
 		}
 	}
 
+	// Wires the warp, quicksave and main-menu buttons, once when the page is set up.
 	function build() {
+		// A click handler that asks for the warp rate index to() gives, never below 1x.
 		const warp = (to) => () => window.Dashboard.run("t.timeWarp[" + Math.max(0, to()) + "]");
+		// The warp rate index KSP is at now, from the last data.
 		const index = () => num(window.Dashboard.data()["t.currentRateIndex"]) || 0;
 		$("kw1").addEventListener("click", warp(() => 0));
 		$("kwdn").addEventListener("click", warp(() => index() - 1));
@@ -127,6 +140,7 @@
 	// Without the game: a career at the Space Center (index.html#ksc).
 	const DEMOS = ["#ksc"];
 	const demoState = { warp: 0 };
+	// The made-up frame for the demo at the moment now (ms): game time runs at the demo's warp rate.
 	function demo(now) {
 		const rates = [1, 5, 10, 50, 100, 1000, 10000, 100000];
 		demoState.ut = (demoState.ut || 2.31e6) + (rates[demoState.warp] * (now - (demoState.last || now))) / 1000;

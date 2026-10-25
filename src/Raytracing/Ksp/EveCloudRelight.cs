@@ -36,6 +36,7 @@ namespace ReDefinition.Raytracing
     // in mono.
     internal static class EveCloudRelight
     {
+        // The Harmony id, EVE's renderer and volume types, and the camera event EVE's command buffer runs at.
         private const string HarmonyId = "ReDefinition.EveCloudRelight";
         private const string RendererType = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
         private const string VolumeType = "Atmosphere.CloudsRaymarchedVolume";
@@ -70,6 +71,8 @@ namespace ReDefinition.Raytracing
         // that EVE's own buffer can be read.
         internal static bool ProbeAlways;
 
+        // The buffers EVE binds its reconstructed clouds as, which get the copy, and the shader's inputs
+        // (ReDefinitionCloudMoonlight.shader).
         private static readonly int ColourBufferId = Shader.PropertyToID("colorBuffer");
         private static readonly int ReconstructedId = Shader.PropertyToID("scattererReconstructedCloud");
         private static readonly int DistanceId = Shader.PropertyToID("_ReDefinitionCloudDistance");
@@ -118,6 +121,8 @@ namespace ReDefinition.Raytracing
         private static readonly int SkyWId = Shader.PropertyToID("SKY_W");
         private static readonly int SkyHId = Shader.PropertyToID("SKY_H");
 
+        // Compiled getters of EVE's members (InstallHook); whether the hooks are in, whether a failure turned the light
+        // per pixel off for the session, whether it was logged; the material of ReDefinitionCloudMoonlight.shader.
         private static Func<object, Camera> readCamera;
         private static Func<object, bool> readRendering, readProbe, readFlip;
         private static Func<object, IList> readVolumes;
@@ -142,8 +147,11 @@ namespace ReDefinition.Raytracing
         // Frames asked for in a row in which the light could not be added.
         private static int missed;
 
+        // A camera's pass: its own command buffer and copy, made once.
         private sealed class PerCamera
         {
+            // The command buffer and the copy it fills; EVE's buffer copied this frame; the camera; whether the command
+            // buffer is on the camera; whether the camera was logged; the frame it was last prepared in.
             internal CommandBuffer Command;
             internal RenderTexture Target;
             internal RenderTexture Source;
@@ -153,6 +161,7 @@ namespace ReDefinition.Raytracing
             internal int Frame = -10;
         }
 
+        // By camera instance id: each camera's command buffer and copy.
         private static readonly Dictionary<int, PerCamera> cameras = new Dictionary<int, PerCamera>();
 
         // Whether the light can be added per pixel: the hooks in, the shader there, and not
@@ -188,6 +197,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // Whether loading the shader was tried, and the frame the light per pixel paused in (-1: not paused).
         private static bool shaderTried;
         private static int missedSince = -1;
 
@@ -212,6 +222,7 @@ namespace ReDefinition.Raytracing
                    + SkyGain.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture) + (missed > 0 ? ", " + missed + " frames missed" : "");
         }
 
+        // The number after -redefinitionCloudRelightDebug on the command line; 0 without it.
         private static float DebugArgument()
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -328,6 +339,9 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // For one camera of EVE's renderer, after it set up its clouds: where the light was asked for this frame and all
+        // inputs are there, the copy sized to EVE's buffer, the command buffer filled with the moon's light, the
+        // atmosphere and the rays' cloud map, and attached once; otherwise a missed frame.
         private static void Prepare(object renderer)
         {
             if (HeldOff || Time.frameCount - requested > 1 || (strength <= 0f && !ProbeAlways) || body == null) return;
@@ -452,6 +466,7 @@ namespace ReDefinition.Raytracing
         // first time it comes.
         private static readonly HashSet<string> missesLogged = new HashSet<string>();
 
+        // Counts a missed frame towards the pause in Ready and logs its reason once by its first 24 characters.
         private static void Miss(string why)
         {
             missed++;
@@ -459,6 +474,7 @@ namespace ReDefinition.Raytracing
             if (missesLogged.Add(kind)) Debug.Log(Log.Tag + " Clouds: the moon's light per pixel missed a frame: " + why + ".");
         }
 
+        // The camera's state, made with its command buffer the first time; a new camera sweeps the gone ones first.
         private static PerCamera For(Camera camera)
         {
             PerCamera state;
@@ -472,6 +488,7 @@ namespace ReDefinition.Raytracing
         // The cameras gone since, with their targets.
         private static readonly List<int> gone = new List<int>();
 
+        // Drops the cameras that are gone, releasing their command buffers and copies.
         private static void Sweep()
         {
             gone.Clear();
@@ -507,6 +524,7 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
+        // The mean red, green and blue of a render texture, read back on the CPU: for the probe only, as it stalls.
         private static Color Mean(RenderTexture texture)
         {
             RenderTexture before = RenderTexture.active;

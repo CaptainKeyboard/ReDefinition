@@ -15,6 +15,7 @@ namespace redefinition
 {
     namespace
     {
+        // The two DLLs' file names, looked for in RuntimeFolder().
         constexpr const wchar_t* kXellName = L"libxell.dll";
         constexpr const wchar_t* kFgName = L"libxess_fg.dll";
 
@@ -35,6 +36,7 @@ namespace redefinition
         constexpr int kLogLines = 200;
         std::atomic<int> g_logLines{ 0 };
 
+        // Whether one more DLL message may go into the log; says so once when the limit is reached.
         bool TakeLogLine()
         {
             const int line = g_logLines.fetch_add(1);
@@ -43,23 +45,27 @@ namespace redefinition
             return line < kLogLines;
         }
 
+        // The name of a logging level, the same numbers for both DLLs (debug 0 to error 3).
         const char* LevelName(int level)
         {
             return level <= 0 ? "debug" : level == 1 ? "info" : level == 2 ? "warning" : "error";
         }
 
+        // libxess_fg.dll's logging callback, into the log under the shared line limit.
         void OnFgMessage(const char* message, int32_t level, void*)
         {
             if (message != nullptr && TakeLogLine())
                 LogLine(std::string("XeSS-FG ") + LevelName(level) + ": " + message);
         }
 
+        // libxell.dll's logging callback, into the log under the shared line limit.
         void OnXellMessage(const char* message, xell_logging_level_t level)
         {
             if (message != nullptr && TakeLogLine())
                 LogLine(std::string("XeLL ") + LevelName(static_cast<int>(level)) + ": " + message);
         }
 
+        // The DLL's export of that name into the function pointer; false where it lacks it.
         template <typename T>
         bool Resolve(HMODULE module, const char* name, T& function)
         {
@@ -67,6 +73,7 @@ namespace redefinition
             return function != nullptr;
         }
 
+        // A result code as the log writes it.
         std::string ResultText(int result)
         {
             return "result " + std::to_string(result);

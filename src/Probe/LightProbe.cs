@@ -21,6 +21,7 @@ namespace ReDefinition.Probe
     // The screenshots land in ReDefinitionCaptures\<time>-light.
     internal static class LightProbe
     {
+        // The switch for the light probe, by day and night at the launch pad.
         internal const string Argument = "-redefinitionProbeLight";
         // With it, the ocean out at sea instead: the sun's and the Mun's reflections, each
         // body low, half up and high, with the raytracing on in full.
@@ -37,15 +38,19 @@ namespace ReDefinition.Probe
         // With it, EVE's clouds by the light of the sun rising and setting and of the Mun at night (CloudShots).
         internal const string CloudLightArgument = "-redefinitionProbeCloudLight";
 
+        // Seconds each shot waits for the denoiser to settle; the passes' times are averaged over its second half.
         private const float SettleSeconds = 4f;
 
+        // Whether the light probe was asked for on the command line; the scene probe runs it then.
         internal static bool Requested
         {
             get { return Array.IndexOf(Environment.GetCommandLineArgs(), Argument) >= 0; }
         }
 
+        // A camera pose of the pad shots: its name in the file names and its pitch.
         private struct Pose
         {
+            // The name in the shots' file names; the camera's pitch in degrees.
             internal string Name;
             internal float Pitch;
         }
@@ -63,6 +68,7 @@ namespace ReDefinition.Probe
         // looks at the vessel, so from Height / sin(Down) metres out.
         private struct SeaCase
         {
+            // The case's name in the shots ("case01"); the camera's metres over the sea and degrees down.
             internal string Name;
             internal float Height, Down;
         }
@@ -70,6 +76,7 @@ namespace ReDefinition.Probe
         // -redefinitionProbeCases sun-case09,mun-case06: only these shots.
         private const string CasesArgument = "-redefinitionProbeCases";
 
+        // Whether the shot is to be taken: every shot without -redefinitionProbeCases, else only those it names.
         private static bool Wanted(string shot)
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -78,12 +85,15 @@ namespace ReDefinition.Probe
             return Array.IndexOf(args[at + 1].Split(','), shot) >= 0;
         }
 
+        // One height of a body over the horizon, with the sea cases shot there.
         private struct BodyHeight
         {
+            // The body's elevation in degrees (warped to within 2.5 of it); the cases at it.
             internal float Elevation;
             internal SeaCase[] Cases;
         }
 
+        // The ocean's heights, lowest first, each with its cases.
         private static readonly BodyHeight[] Heights =
         {
             new BodyHeight { Elevation = 5f, Cases = new[] { new SeaCase { Name = "case01", Height = 2f, Down = 1f },
@@ -98,6 +108,9 @@ namespace ReDefinition.Probe
             new BodyHeight { Elevation = 65f, Cases = new[] { new SeaCase { Name = "case08", Height = 2000f, Down = 55f } } },
         };
 
+        // The probe into folder: one of the single runs a switch asks for (Firefly, clouds, frame times, the pad's
+        // smoke, the runway, the ocean), or else the day and night shots, the mirror and the runway; the
+        // raytracing's mode and light set back at the end.
         internal static IEnumerator Run(string folder)
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -479,6 +492,8 @@ namespace ReDefinition.Probe
         // The VAB's place, west of the pad: its faces and the roads before it, seen flat.
         private const double VabLatitude = -0.0967, VabLongitude = -74.6187;
 
+        // By day, the camera low behind the vessel looking 4 degrees down towards the VAB: the raytracing off, on,
+        // with the G-buffer's shine as Deferred gives it, and the surfaces' overlay.
         private static IEnumerator BuildingShots(ReDefinitionAddon addon, string folder, string time)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -507,6 +522,9 @@ namespace ReDefinition.Probe
             RtCamera.SurfaceView = false;
         }
 
+        // The pad shots of one time of day: by day the buildings first; for each pose the raytracing off, then on
+        // with each moonlight variant, with the G-buffer's specular and the surfaces as PFM beside them, and by
+        // day also the Deferred shine and the surfaces' overlay.
         private static IEnumerator Shots(ReDefinitionAddon addon, string folder, string time, float heading, bool night)
         {
             RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
@@ -753,23 +771,26 @@ namespace ReDefinition.Probe
             result[2] = new Color(frames, 0f, 0f, 0f);
         }
 
+        // MeanClouds with EveCloudRelight's debug mode set to mode first.
         private static IEnumerator MeanCloudsIn(Camera camera, float mode, Color[] result)
         {
             EveCloudRelight.DebugMode = mode;
             yield return MeanClouds(camera, result);
         }
 
+        // A colour's red, green and blue for the log, six decimals, in brackets.
         private static string Rgb(Color c)
         {
             return "(" + c.r.ToString("0.000000", CultureInfo.InvariantCulture) + ", " + c.g.ToString("0.000000", CultureInfo.InvariantCulture)
                    + ", " + c.b.ToString("0.000000", CultureInfo.InvariantCulture) + ")";
         }
 
+        // The cloud cover (CloudCover) from which the sky counts as cloudy.
+        private const float CloudyEnough = 0.15f;
+
         // How much cloud there is to see from the vessel: EVE's density along rays 8 degrees up
         // in 16 directions, through the layer's shell, the densest direction's mean; the
         // direction into `towards` (flat, world). -1 where EVE's layer is not in the rays.
-        private const float CloudyEnough = 0.15f;
-
         private static float CloudCover(out Vector3 towards)
         {
             towards = Vector3.zero;
@@ -810,6 +831,7 @@ namespace ReDefinition.Probe
             return best;
         }
 
+        // Whether the cloud cover reaches CloudyEnough.
         private static bool Cloudy()
         {
             Vector3 towards;
@@ -865,6 +887,8 @@ namespace ReDefinition.Probe
             done(found);
         }
 
+        // The cloud shots at one time of CloudShots, by the light of the body named: logged with the body's and the
+        // sun's elevation, then the views below.
         private static IEnumerator CloudShotsAt(ReDefinitionAddon addon, string folder, string time, CelestialBody light,
                                                 RaytracingMode on, float moonlight, float nightAmbient)
         {
@@ -1047,10 +1071,11 @@ namespace ReDefinition.Probe
             }
         }
 
-        // The clouds out of the frame for the ocean's checks: EVE's components (namespace
-        // Atmosphere) and every renderer drawing with one of its shaders (EVE/...).
+        // Whether HideClouds has hidden the clouds already.
         private static bool cloudsHidden;
 
+        // The clouds out of the frame for the ocean's checks: EVE's components (namespace
+        // Atmosphere) and every renderer drawing with one of its shaders (EVE/...).
         internal static void HideClouds()
         {
             // -redefinitionProbeClouds: the clouds kept, for the raytraced clouds' checks.
@@ -1179,6 +1204,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The ocean's traced reflections, the frame's depth and the ocean's own depth as PFM, with the shot's data.
         private static void WriteNormals(string folder, string name, RtCamera camera)
         {
             RenderTexture traced = camera.OceanTracedTexture;
@@ -1193,9 +1219,12 @@ namespace ReDefinition.Probe
                          c => new Color(c.r, 0f, 0f));
             WriteShotData(Path.Combine(folder, name + ".json"), camera, traced);
         }
+        // How many frames of the traced reflections AverageTraced reads, and the seconds between them.
         private const int TracedSamples = 16;
         private const float TracedSpacing = 0.5f;
 
+        // The ocean's traced reflections averaged over TracedSamples frames, into done; null where there are none or
+        // the texture changes meanwhile.
         private static IEnumerator AverageTraced(Action<Color[]> done)
         {
             RtCamera camera = RtCamera.Current;
@@ -1225,6 +1254,8 @@ namespace ReDefinition.Probe
             done(sum);
         }
 
+        // The ocean's reflection textures of a shot: written as pictures beside it (the traced light, its mean when
+        // given, roughness, normals, depth, G-buffer) with the shot's data, and summed up into the log.
         private static void LogOceanTextures(string folder, string name, Color[] mean)
         {
             RtCamera camera = RtCamera.Current;
@@ -1345,6 +1376,7 @@ namespace ReDefinition.Probe
                       + "), traced rays met something on " + hit + ".");
         }
 
+        // A colour PFM file (little-endian floats, bottom row first, as Unity's pixels come), each pixel through value.
         private static void WritePfm(string path, Color[] pixels, int width, int height, Func<Color, Color> value)
         {
             using (var file = new FileStream(path, FileMode.Create))
@@ -1410,6 +1442,7 @@ namespace ReDefinition.Probe
             File.WriteAllText(path, text.ToString());
         }
 
+        // A render texture's pixels read back to the CPU as linear floats.
         private static Color[] Read(RenderTexture texture)
         {
             RenderTexture before = RenderTexture.active;
@@ -1422,6 +1455,7 @@ namespace ReDefinition.Probe
             return pixels;
         }
 
+        // The raytracing's mode, moonlight and night light in per cent applied as the settings window would.
         private static void Set(ReDefinitionAddon addon, RaytracingMode mode, float moonlight, float nightAmbient)
         {
             OwnSettings before = addon.Live.Clone();
@@ -1523,6 +1557,7 @@ namespace ReDefinition.Probe
             UnityEngine.Object.Destroy(read);
         }
 
+        // Three values for the log, three decimals, comma-separated.
         private static string Triple(double r, double g, double b)
         {
             return r.ToString("0.000", CultureInfo.InvariantCulture) + ", " + g.ToString("0.000", CultureInfo.InvariantCulture)
@@ -1601,6 +1636,7 @@ namespace ReDefinition.Probe
             done(found);
         }
 
+        // The degrees towards stands over the plane up is normal to, whole, for the log.
         private static string Elevation(Vector3d up, Vector3d towards)
         {
             return (90.0 - Vector3d.Angle(up, towards)).ToString("0", CultureInfo.InvariantCulture);

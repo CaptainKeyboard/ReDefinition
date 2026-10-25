@@ -66,79 +66,124 @@ namespace redefinition
             const DXGI_SWAP_CHAIN_DESC1& desc,
             IDXGISwapChain1** result);
 
-        // IUnknown
+        // IUnknown. The interfaces up to IDXGISwapChain1 always, the later ones only where the swapchain behind
+        // has them; anything else goes to the real swapchain in measuring mode and is refused, logged, otherwise.
         HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** object) override;
+        // One reference more on the proxy's own count.
         ULONG STDMETHODCALLTYPE AddRef() override;
+        // One reference fewer; the proxy deletes itself when none is left.
         ULONG STDMETHODCALLTYPE Release() override;
 
-        // IDXGIObject
+        // IDXGIObject: private data and the parent are those of the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE SetPrivateData(REFGUID name, UINT size, const void* data) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE SetPrivateDataInterface(REFGUID name, const IUnknown* unknown) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetPrivateData(REFGUID name, UINT* size, void* data) override;
+        // The factory of the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetParent(REFIID riid, void** parent) override;
 
-        // IDXGIDeviceSubObject
+        // IDXGIDeviceSubObject: the D3D11 device the caller made the swapchain with, never the D3D12 one.
         HRESULT STDMETHODCALLTYPE GetDevice(REFIID riid, void** device) override;
 
-        // IDXGISwapChain
+        // IDXGISwapChain. The frame Unity rendered copied into the D3D12 swapchain and presented
+        // (CopyAndPresent); DXGI_PRESENT_TEST only asks (PresentTest); timed in either mode.
         HRESULT STDMETHODCALLTYPE Present(UINT syncInterval, UINT flags) override;
+        // The shared texture for every index: the backbuffer Unity renders into.
         HRESULT STDMETHODCALLTYPE GetBuffer(UINT buffer, REFIID riid, void** surface) override;
         HRESULT STDMETHODCALLTYPE SetFullscreenState(BOOL fullscreen, IDXGIOutput* target) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetFullscreenState(BOOL* fullscreen, IDXGIOutput** target) override;
+        // The description of the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetDesc(DXGI_SWAP_CHAIN_DESC* desc) override;
+        // The D3D12 swapchain resized and the shared texture made again for it, after frame generation has let go
+        // of the old one; the tearing flag it was made with is kept.
         HRESULT STDMETHODCALLTYPE ResizeBuffers(UINT bufferCount, UINT width, UINT height,
                                                 DXGI_FORMAT format, UINT flags) override;
+        // Forwarded with DLSS-G off first, and logged the first 20 times with SetFullscreenState.
         HRESULT STDMETHODCALLTYPE ResizeTarget(const DXGI_MODE_DESC* target) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetContainingOutput(IDXGIOutput** output) override;
+        // DXGI's statistics of the swapchain behind (Target), which is what reaches the monitor.
         HRESULT STDMETHODCALLTYPE GetFrameStatistics(DXGI_FRAME_STATISTICS* stats) override;
+        // The present count of the swapchain behind (Target), not the game's Presents through the proxy.
         HRESULT STDMETHODCALLTYPE GetLastPresentCount(UINT* count) override;
 
-        // IDXGISwapChain1
+        // IDXGISwapChain1: the description of the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetDesc1(DXGI_SWAP_CHAIN_DESC1* desc) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetFullscreenDesc(DXGI_SWAP_CHAIN_FULLSCREEN_DESC* desc) override;
+        // The window the caller made the swapchain for.
         HRESULT STDMETHODCALLTYPE GetHwnd(HWND* hwnd) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetCoreWindow(REFIID riid, void** unk) override;
+        // As Present; parameters (dirty rectangles, scroll) are dropped, the frame being copied whole, and passed
+        // on in measuring mode only.
         HRESULT STDMETHODCALLTYPE Present1(UINT syncInterval, UINT flags,
                                            const DXGI_PRESENT_PARAMETERS* parameters) override;
+        // Forwarded to the swapchain behind (Target).
         BOOL STDMETHODCALLTYPE IsTemporaryMonoSupported() override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetRestrictToOutput(IDXGIOutput** output) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE SetBackgroundColor(const DXGI_RGBA* colour) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetBackgroundColor(DXGI_RGBA* colour) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE SetRotation(DXGI_MODE_ROTATION rotation) override;
+        // Forwarded to the swapchain behind (Target).
         HRESULT STDMETHODCALLTYPE GetRotation(DXGI_MODE_ROTATION* rotation) override;
 
         // IDXGISwapChain2 -- GetFrameLatencyWaitableObject is the one KSP needs.
         HRESULT STDMETHODCALLTYPE SetSourceSize(UINT width, UINT height) override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain2.
         HRESULT STDMETHODCALLTYPE GetSourceSize(UINT* width, UINT* height) override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain2.
         HRESULT STDMETHODCALLTYPE SetMaximumFrameLatency(UINT maxLatency) override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain2.
         HRESULT STDMETHODCALLTYPE GetMaximumFrameLatency(UINT* maxLatency) override;
         HANDLE STDMETHODCALLTYPE GetFrameLatencyWaitableObject() override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain2.
         HRESULT STDMETHODCALLTYPE SetMatrixTransform(const DXGI_MATRIX_3X2_F* matrix) override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain2.
         HRESULT STDMETHODCALLTYPE GetMatrixTransform(DXGI_MATRIX_3X2_F* matrix) override;
 
-        // IDXGISwapChain3
+        // IDXGISwapChain3: the index of the swapchain behind, 0 where it has no IDXGISwapChain3. Unity's
+        // backbuffer is the one shared texture whatever it says.
         UINT STDMETHODCALLTYPE GetCurrentBackBufferIndex() override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain3.
         HRESULT STDMETHODCALLTYPE CheckColorSpaceSupport(DXGI_COLOR_SPACE_TYPE space,
                                                          UINT* support) override;
+        // Forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain3.
         HRESULT STDMETHODCALLTYPE SetColorSpace1(DXGI_COLOR_SPACE_TYPE space) override;
+        // ResizeBuffers, the node mask and queues dropped: only the proxy owns a D3D12 queue. Forwarded as it is
+        // in measuring mode.
         HRESULT STDMETHODCALLTYPE ResizeBuffers1(UINT bufferCount, UINT width, UINT height,
                                                  DXGI_FORMAT format, UINT flags,
                                                  const UINT* nodeMask,
                                                  IUnknown* const* presentQueue) override;
 
-        // IDXGISwapChain4
+        // IDXGISwapChain4: forwarded to the swapchain behind; E_NOINTERFACE where it has no IDXGISwapChain4.
         HRESULT STDMETHODCALLTYPE SetHDRMetaData(DXGI_HDR_METADATA_TYPE type, UINT size,
                                                  void* metaData) override;
 
     private:
+        // Only Create and CreateMeasuring make one, with a reference count of 1.
         SwapChainProxy() = default;
+        // The GPU idle first; then low latency, the upscalers, compute and frame generation detached, and
+        // FidelityFX's, XeSS-FG's and Streamline's swapchains and contexts torn down in the order their SDKs ask.
         ~SwapChainProxy();
 
+        // WRL's ComPtr, short.
         template <typename T>
         using ComPtr = Microsoft::WRL::ComPtr<T>;
 
+        // The proxy's command allocators, one per frame in flight on its queue.
         static constexpr UINT kFrameCount = 3;
 
+        // Proxy mode set up: the D3D12 device on the D3D11 device's adapter, Streamline where it is wanted, the queue,
+        // the presentation swapchain, the shared fence and backbuffer, and the parts that run on both devices
+        // attached. A failure leaves the caller to make the swapchain Unity asked for.
         HRESULT Initialise(IDXGIFactory2* factory, ID3D11Device* device, HWND hwnd,
                            const DXGI_SWAP_CHAIN_DESC1& desc,
                            const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
@@ -168,6 +213,8 @@ namespace redefinition
         // made through that proxy. False, with Streamline shut down again,
         // wherever it does not run.
         bool SetUpStreamline(IDXGIAdapter* adapter, bool frameGenerationWanted);
+        // The swapchain made on Streamline's queue proxy through its proxy of Unity's factory; the native swapchain
+        // behind it kept for DXGI_PRESENT_TEST. Failures go into Streamline's state.
         HRESULT CreateStreamlineSwapChain(IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
                                           const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
                                           IDXGIOutput* restrictToOutput);
@@ -232,7 +279,10 @@ namespace redefinition
         void ApplyPacingTuning();
 
         HRESULT CreateSharedColour(UINT width, UINT height, DXGI_FORMAT format);
+        // Both sides of the shared backbuffer released, the D3D12 one first.
         void ReleaseSharedColour();
+        // Present in proxy mode: frame generation's inputs taken, Unity's frame copied into the D3D12 backbuffer, and
+        // the Present through whichever swapchain this is, paced as the settings ask.
         HRESULT CopyAndPresent(UINT syncInterval, UINT flags);
 
         // DXGI_PRESENT_TEST: the swapchain's state asked of DXGI -- occluded or
@@ -252,6 +302,7 @@ namespace redefinition
         // markers then wrap it; 0 where none was taken, and the frame stays for the
         // next Present.
         HRESULT PresentUncopied(UINT syncInterval, UINT flags, const char* why, uint32_t lowLatencyFrame = 0);
+        // Presents that went out uncopied so far, for the log.
         unsigned long long uncopiedPresents = 0;
         // The two halves of a Present's command list, shared by CopyAndPresent and
         // PresentWithStreamlineOff: this allocator's list reset once its last frame
@@ -259,6 +310,7 @@ namespace redefinition
         // colour copied into the backbuffer, the list closed and executed. The list
         // is closed on every way out of the second.
         HRESULT ResetCommandList();
+        // The second half: Unity's texture copied into the current backbuffer, the list closed and executed.
         HRESULT CopySharedColourAndExecute();
         // Whether Unity's backbuffer exists, said once while it does not.
         bool HasSharedColour();
@@ -266,7 +318,9 @@ namespace redefinition
         // D3D11 so far; and a frame's end on the queue, its fence signalled for
         // this allocator and whatever waits for the frame, which it returns.
         HRESULT WaitForUnityWork();
+        // The frame's end on the queue: the frame fence signalled for this allocator, the next allocator taken.
         UINT64 SignalFrameDone();
+        // Blocks until the frame fence has reached value, timed as a wait for a frame in flight (WaitStats.h).
         void WaitForFrame(UINT64 value);
         void NoteDeviceRemoved();
 
@@ -280,11 +334,15 @@ namespace redefinition
 
         // Frame times, recorded for the log's report.
         void RecordFrameTime();
+        // The frame times since the last report into the log -- mean, percentiles, presented per rendered, what
+        // DXGI says reached the monitor -- and the render thread's waits per frame; the times start again after.
         void ReportFrameTimes();
 
+        // Measuring mode, and the swapchain the game asked for, which it then wraps and forwards to.
         bool measureOnly = false;
         ComPtr<IDXGISwapChain1> realSwapChain;
 
+        // The swapchain behind seen as IDXGISwapChain2, 3 and 4, null where it lacks one (ResolveTargetInterfaces).
         ComPtr<IDXGISwapChain2> target2;
         ComPtr<IDXGISwapChain3> target3;
         ComPtr<IDXGISwapChain4> target4;

@@ -10,6 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class DebugOptionsTests
     {
+        // The values the options below read and set; writes counts the jitter's setter and the action's runs.
         private int jitter = 1;
         private int exposure = 1;
         private int mask;
@@ -19,6 +20,8 @@ namespace ReDefinition.Tests
         private bool hasMasks;
         private int writes;
 
+        // A set of the options a diagnostics page has: a main switch, switches and choices with defaults and
+        // reasons, one shown on a second page, and an action, all over the fields above.
         private DebugOptionSet Build()
         {
             DebugOptionSet set = new DebugOptionSet();
@@ -75,6 +78,7 @@ namespace ReDefinition.Tests
             return set;
         }
 
+        // The ids of the options, in their order.
         private static List<string> Ids(IEnumerable<DebugOption> options)
         {
             List<string> ids = new List<string>();
@@ -82,6 +86,7 @@ namespace ReDefinition.Tests
             return ids;
         }
 
+        // A search finds a part of a label in any letter case, and nothing where no label has it.
         [TestMethod]
         public void ASearchFindsALabelPartInAnyCase()
         {
@@ -91,6 +96,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, set.Filter("nothing like it", false).Count);
         }
 
+        // A search also finds an option by its keywords, its group, its choices and its page's title.
         [TestMethod]
         public void ASearchAlsoFindsKeywordsGroupsChoicesAndPages()
         {
@@ -101,6 +107,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "hookProbe", "write" }, Ids(set.Filter("capture", false)), "page");
         }
 
+        // An empty, blank or missing search lets every option through.
         [TestMethod]
         public void AnEmptyOrBlankSearchLetsEverythingThrough()
         {
@@ -110,6 +117,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(set.All.Count, set.Filter(null, false).Count);
         }
 
+        // The Changed filter keeps only the options away from their default, and together with a search both
+        // have to hold.
         [TestMethod]
         public void TheChangedFilterKeepsOnlyOptionsAwayFromTheirDefault()
         {
@@ -124,6 +133,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "vesselShadow" }, Ids(set.Filter("shadow", true)));
         }
 
+        // The main switches and the actions never count as changed: they are no diagnostics to put back.
         [TestMethod]
         public void TheMainSwitchesAndActionsAreNeverChanged()
         {
@@ -134,6 +144,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, set.Filter(null, true).Count);
         }
 
+        // A page holds its own options and those shown on it too, and its count follows the search.
         [TestMethod]
         public void APageHoldsItsOwnOptionsAndThoseShownThereToo()
         {
@@ -146,6 +157,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, set.Count(DebugCategory.FrameGeneration, "jitter", false));
         }
 
+        // An option shown on a second page is found by a search once.
         [TestMethod]
         public void AnOptionShownOnTwoPagesIsInTheResultsOnce()
         {
@@ -154,6 +166,8 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "vesselShadow" }, found);
         }
 
+        // The reset puts back only the options away from their default, each through its own setter, leaves the
+        // main switches alone, and says how many it put back.
         [TestMethod]
         public void TheResetPutsBackOnlyWhatChangedThroughItsSetter()
         {
@@ -171,6 +185,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, set.Reset());
         }
 
+        // A row that does not apply is greyed out with its reason, and usable again once it applies.
         [TestMethod]
         public void ARowThatDoesNotApplyIsGreyedOutWithItsReason()
         {
@@ -185,6 +200,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(set.ById("autoExposure").Unavailable());
         }
 
+        // A row greyed out by its reason stays usable while away from its default, so it can be put back, unless
+        // the option says it cannot be.
         [TestMethod]
         public void ARowAwayFromItsDefaultStaysUsableSoItCanBePutBack()
         {
@@ -201,6 +218,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("needs FSR 3 or AMD", fixedOption.Unavailable());
         }
 
+        // An action is greyed out by its reason alone, having no default to be away from.
         [TestMethod]
         public void AnActionIsBlockedByItsReasonAlone()
         {
@@ -211,6 +229,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("a recording is about to start", action.Unavailable());
         }
 
+        // A dynamic label reads its text at the moment it is shown, so a count-down can change it.
         [TestMethod]
         public void ADynamicLabelReadsNow()
         {
@@ -224,6 +243,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Recording in 3 s", option.CurrentLabel);
         }
 
+        // A second option with an id already in the set is refused.
         [TestMethod]
         public void TwoOptionsWithTheSameIdAreRefused()
         {
@@ -232,6 +252,7 @@ namespace ReDefinition.Tests
                 () => set.Add(new DebugOption("jitter", DebugCategory.Capture, "Again", DebugKind.Switch, DebugPersistence.Saved)));
         }
 
+        // Every page of the window has a title of its own.
         [TestMethod]
         public void EveryPageHasATitleAndTheTitlesDiffer()
         {
@@ -244,6 +265,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // Pins keep the order they were made in, load only known ids, each once, toggle on and off, and read
+        // back as the text they are saved as.
         [TestMethod]
         public void PinsKeepTheirOrderAndLoadOnlyKnownIds()
         {
@@ -267,6 +290,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, again.Ids.Count);
         }
 
+        // The ring keeps only its newest frame times, oldest first, with their maximum; an index past them throws.
         [TestMethod]
         public void TheFrameTimeRingKeepsTheNewestAndOrdersThemOldestFirst()
         {
@@ -288,6 +312,8 @@ namespace ReDefinition.Tests
             Assert.ThrowsException<System.ArgumentOutOfRangeException>(() => ring[4].ToString());
         }
 
+        // A percentile is the frame time below which that share of the frames lies; shares beyond 0 and 1 give
+        // the longest and the shortest.
         [TestMethod]
         public void ThePercentilesOfTheFrameTimes()
         {

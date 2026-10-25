@@ -13,6 +13,8 @@ namespace ReDefinition.Tests
         private const double MunRadius = 200000.0;
         private const double MunDistance = 12000000.0;
 
+        // Lambert's phase function: 1 at no phase angle, 1/pi at a half moon, 0 at the new, and falling in
+        // between.
         [TestMethod]
         public void TheSphereIsFullAtNoPhaseAngleAndDarkAtHalfACircle()
         {
@@ -23,6 +25,8 @@ namespace ReDefinition.Tests
                 Assert.IsTrue(RtReflectorLight.Phase(a + 0.1) < RtReflectorLight.Phase(a));
         }
 
+        // The full Mun sends the albedo times 2/3 times its angular radius squared, between 5 and 6
+        // hundred-thousandths of the sunlight.
         [TestMethod]
         public void TheFullMunSendsAFewHundredThousandthsOfTheSunlight()
         {
@@ -31,6 +35,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(share > 5e-5 && share < 6e-5, share.ToString());
         }
 
+        // No light from a body when the observer is inside it or it has no radius, and no brightness without a
+        // share or a percentage.
         [TestMethod]
         public void NothingFromInsideABodyOrWithoutOne()
         {
@@ -40,6 +46,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, RtReflectorLight.Brightness(1e-4, 0.0));
         }
 
+        // At the default 100 % the full Mun lights the scene with between 5 and 7 hundredths of the sunlight.
         [TestMethod]
         public void TheFullMunLightsWithSomeSixHundredthsOfTheSun()
         {
@@ -48,6 +55,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(brightness > 0.05 && brightness < 0.07, brightness.ToString());
         }
 
+        // A larger share always gives more brightness, but never reaches the ceiling of 0.3 of the sunlight.
         [TestMethod]
         public void BrighterBodiesStayBrighterAndBelowTheCeiling()
         {
@@ -61,6 +69,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The player's percentage scales the brightness in proportion.
         [TestMethod]
         public void ThePercentageScalesTheBrightness()
         {

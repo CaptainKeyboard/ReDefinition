@@ -11,6 +11,8 @@ namespace ReDefinition.Raytracing
     // (docs/development/raytracing.md, "Installed mods").
     internal static class RtKspMods
     {
+        // Whether the assemblies were looked through (Look); Kopernicus's current star and the light of a Sun;
+        // PlanetShine's switch.
         private static bool looked;
         private static FieldInfo kopernicusCurrent;
         private static PropertyInfo starLight;
@@ -48,6 +50,8 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // Looks once through the loaded assemblies for Kopernicus, PlanetShine, Scatterer and Deferred and the members
+        // read from each; a mod whose members are not found is left out.
         private static void Look()
         {
             if (looked) return;
@@ -118,6 +122,7 @@ namespace ReDefinition.Raytracing
         private static Color frameStarColour;
         private static CelestialBody frameStarBody;
 
+        // Finds the star, its light and its colour once per frame.
         private static void LookAtStar()
         {
             if (starFrame == Time.frameCount) return;
@@ -162,6 +167,7 @@ namespace ReDefinition.Raytracing
             return starFrame == Time.frameCount ? frameStarBody : FindStarBody();
         }
 
+        // SunLight's lookup: Kopernicus's current star's light, KSP's sun's, or the brightest directional light.
         private static Light FindSunLight()
         {
             Look();
@@ -178,6 +184,7 @@ namespace ReDefinition.Raytracing
             return BrightestDirectional();
         }
 
+        // StarColour's lookup: the colour Kopernicus's current star gives its light, white without Kopernicus.
         private static Color FindStarColour()
         {
             Look();
@@ -190,6 +197,7 @@ namespace ReDefinition.Raytracing
             return Color.white;
         }
 
+        // StarBody's lookup: Kopernicus's current star, KSP's Sun, or the planetarium's sun.
         private static CelestialBody FindStarBody()
         {
             Look();
@@ -208,6 +216,7 @@ namespace ReDefinition.Raytracing
         private static bool brightestFound;
         private static float brightestAt = float.NegativeInfinity;
 
+        // The scene's brightest active directional light, as described above; null for none.
         private static Light BrightestDirectional()
         {
             if (Time.unscaledTime - brightestAt < 1f)
@@ -351,6 +360,8 @@ namespace ReDefinition.Raytracing
         private static bool planetShineBefore;
         private static bool planetShineLeft;
 
+        // Holds (true) or gives back (false) PlanetShine's light as described above; called every frame while the
+        // raytracing runs and with false on Detach.
         internal static void HoldPlanetShine(bool hold)
         {
             Look();
@@ -427,6 +438,7 @@ namespace ReDefinition.Raytracing
         private static readonly List<UnityEngine.Object> oceanNodes = new List<UnityEngine.Object>();
         private static float oceanSearchedAt = float.NegativeInfinity;
 
+        // Whether Scatterer draws an ocean on `body`, as described above; true where its fields are not found.
         internal static bool ScattererOcean(CelestialBody body)
         {
             Look();
@@ -489,6 +501,8 @@ namespace ReDefinition.Raytracing
             return reads;
         }
 
+        // Holds (true) or gives back (false) the reflections as described above; called every frame from RtKsp.Update
+        // and with false on Detach.
         internal static void HoldDeferredReflections(bool hold, Camera sceneCamera)
         {
             Look();

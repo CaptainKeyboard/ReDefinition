@@ -30,6 +30,8 @@ namespace redefinition
     // managed side's textures are copied into these once per frame.
     struct SharedTexture
     {
+        // The D3D11 texture, a write view on it for the flip (null where none could be made), the D3D12 side
+        // opened from it, and its size and format.
         Microsoft::WRL::ComPtr<ID3D11Texture2D> d3d11;
         Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> uav;
         Microsoft::WRL::ComPtr<ID3D12Resource> d3d12;
@@ -37,9 +39,13 @@ namespace redefinition
         UINT height = 0;
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
 
+        // Both sides made anew: the D3D11 texture shareable through an NT handle, opened on D3D12; false where
+        // either fails. A missing write view leaves it unflippable, not invalid.
         bool Create(ID3D11Device* device11, ID3D12Device* device12,
                     UINT width, UINT height, DXGI_FORMAT format);
+        // Both sides released and the size forgotten.
         void Reset();
+        // Whether both sides exist.
         bool Valid() const { return d3d11 != nullptr && d3d12 != nullptr; }
         // usage: added to what the resource's description implies; state: the
         // state the resource is in when FSR reads it.
@@ -62,6 +68,9 @@ namespace redefinition
     // sizeof against KspFgPacketSize before it sends anything.
     struct FramePacket
     {
+        // Size and magic first; then the frame's index, its render size, whether the history resets, the jitter
+        // and motion vector scale as the upscaler has them, the camera's near and far planes and vertical field of
+        // view, and the frame time in milliseconds.
         uint32_t size;
         uint32_t magic;
         uint32_t frameIndex;
@@ -93,6 +102,7 @@ namespace redefinition
         float prevClipToClip[16];
     };
 
+    // The packet's magic, which OnFramePacket checks before reading the rest.
     constexpr uint32_t kFramePacketMagic = 0x4B535046u;   // 'KSPF'
 
     // The layout the managed side's FramePacket is tested against
@@ -108,6 +118,7 @@ namespace redefinition
     class FrameGeneration
     {
     public:
+        // The one instance, never destroyed: it holds Unity's textures across a swapchain made anew.
         static FrameGeneration& Get();
 
         // From the managed side. These take the lock themselves.
@@ -120,6 +131,7 @@ namespace redefinition
         // submitted.
         void RegisterInputs(ID3D11Resource* depth, ID3D11Resource* motionVectors,
                             ID3D11Resource* hudLess);
+        // The mod's switch, every frame; takes the lock only when it changes, and logs the change.
         void SetEnabled(bool enabled);
 
         // The multiplier the mod asks for, live, as the switch is: the frames shown per rendered
@@ -129,13 +141,16 @@ namespace redefinition
         // Never more than the technique that runs allows (StreamlineMultiplierMost,
         // XessFramesMost); fewer where the display cannot show so many.
         void SetMultiplier(int multiplier, bool dynamic);
+        // The multiplier asked for (SetMultiplier), 0 for none.
         int AskedMultiplier() const { return static_cast<int>(askedPacked.load() & 0xFFFFu); }
+        // Whether Dynamic Multi Frame Generation is asked for, from the same packed value.
         bool AskedDynamic() const { return (askedPacked.load() >> 16) != 0; }
 
         // From the render thread, with the packet the managed side sent for
         // this frame.
         void OnFramePacket(const void* data);
 
+        // Whether the mod wants frame generation on (SetEnabled).
         bool Enabled() const;
 
         // Whether the rendered frame rate holds frame generation off (fgMinimumFps).
@@ -178,6 +193,7 @@ namespace redefinition
         // written into folder (FrameGenerationDump.cpp): from the first frame the camera
         // turns by more than kDumpTurnDegrees, or after kDumpWaitFrames frames without.
         void StartInputDump(int frames, const std::wstring& folder);
+        // The turn in degrees between two frames that starts a dump, and how many frames it waits for one.
         static constexpr float kDumpTurnDegrees = 1.0f;
         static constexpr int kDumpWaitFrames = 600;
 
@@ -193,7 +209,9 @@ namespace redefinition
         // context that could not be made gets another try at once.
         void RetryContext();
 
+        // Whether depth and motion vectors have their shared textures in this frame's slot.
         bool HasInputs() const;
+        // Whether the HUD-less copy has its shared texture in this frame's slot.
         bool HasHudLess() const;
 
         // The share of the frame that differed from its HUD-less copy at the
@@ -319,6 +337,7 @@ namespace redefinition
         // D3D11 is. Null where DLSS-G gives none.
         struct StreamlinePresent
         {
+            // The frames presented, and the fence and value of DLSS-G's work on the inputs.
             uint32_t presented = 0;
             Microsoft::WRL::ComPtr<ID3D12Fence> inputsFence;
             uint64_t inputsFenceValue = 0;
@@ -350,7 +369,9 @@ namespace redefinition
             const int frames = streamlineFramesNow.load();
             return frames > 0 ? frames + 1 : 0;
         }
+        // Whether DLSS-G supports Dynamic Multi Frame Generation: -1 not known yet, 0 no, 1 yes.
         int StreamlineDynamicSupport() const { return streamlineDynamicNow.load(); }
+        // Whether DLSS-G generates in the dynamic mode now.
         bool StreamlineDynamicActive() const { return streamlineDynamicActive.load(); }
 
         // Whether this build of DLSS-G presents with V-Sync while it generates
@@ -393,6 +414,7 @@ namespace redefinition
         // and the most its swapchain was made for; 0 without its swapchain. From any
         // thread.
         int XessFrames() const { return xessFramesNow.load(); }
+        // The most generated frames per rendered its swapchain was made for; 0 without one.
         int XessFramesMost() const { return xessFramesMostNow.load(); }
 
         // Caller must hold ContextMutex. Whether XeSS-FG was last told to generate.
@@ -408,12 +430,15 @@ namespace redefinition
         }
 
     private:
+        // Only Get makes it.
         FrameGeneration() = default;
 
         // Once, where XeSS-FG would not switch on or off by itself: whether the
         // swapchain is in exclusive full screen, which it cannot generate in.
         void NoteExclusiveFullScreen(IDXGISwapChain* chain);
 
+        // FSR's frame generation context made, unless it exists; after a failure at most once a second, and not
+        // while one stands.
         bool EnsureContextLocked();
         void DestroyContextLocked(void* swapChain);
         // Forgets failed context attempts, standing ones too: a new swapchain or
@@ -433,6 +458,7 @@ namespace redefinition
         // One registered Unity texture and its two shared twins.
         struct Input
         {
+            // Unity's texture, a typed view on it for the flip, its two shared slots, and its name for the log.
             Microsoft::WRL::ComPtr<ID3D11Resource> unity;
             Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> unityView;
             SharedTexture buffers[2];
@@ -442,6 +468,7 @@ namespace redefinition
         // The slot in use this frame.
         SharedTexture& S(Input& input) { return input.buffers[slot]; }
         const SharedTexture& S(const Input& input) const { return input.buffers[slot]; }
+        // This frame's slot, 0 or 1, set by CaptureForPresent.
         unsigned int slot = 0;
 
         // Whether the context was made with async workload support
@@ -462,9 +489,12 @@ namespace redefinition
         // rather than by its code.
         bool contextEscalated = false;
 
+        // Both slots of an input made anew for Unity's texture, the old ones retired; false where it is no 2D
+        // texture or a slot cannot be made.
         bool CreateInputLocked(Input& input, ID3D11Resource* unity, DXGI_FORMAT sharedFormat);
         // The three of them shared on the devices attached (RegisterInputs, Attach).
         void ShareInputsLocked(ID3D11Resource* newDepth, ID3D11Resource* newMotion, ID3D11Resource* newHudLess);
+        // Unity's texture into this frame's slot, flipped where flip is asked and possible, copied otherwise.
         void CopyInputLocked(Input& input, bool flip);
 
         // Replaced shared textures that frames on the GPU may still read.
@@ -472,9 +502,11 @@ namespace redefinition
         // value that covers them.
         struct Retired
         {
+            // The texture, and the frame fence value after which it may go.
             SharedTexture texture;
             uint64_t releaseAfter = 0;
         };
+        // The retired textures, and how many retirements were logged (at most ten).
         std::vector<Retired> retired;
         int retiredLogged = 0;
         void RetireLocked(SharedTexture& texture);
@@ -486,6 +518,7 @@ namespace redefinition
         // Whether an input has what a flip needs: a variant for its format, a view
         // on Unity's texture and a write view on the shared one.
         bool CanFlipLocked(Input& input);
+        // The input flipped vertically into its shared slot by the compute shader; false where it cannot be.
         bool FlipLocked(Input& input);
 
         void CheckHudLessLocked(bool copied);
@@ -495,12 +528,17 @@ namespace redefinition
         // made at Present from the presented frame and the HUD-less copy, into two shared
         // textures used alternately like the inputs. uiPlaneFresh: this Present's was made.
         bool SplitUiLocked();
+        // The two planes and the frame copy at the backbuffer's size and format; a size that failed is not tried again.
         bool EnsureUiPlaneLocked();
+        // The plane's compute shader compiled for the mode and threshold asked, unless it already is; a failure
+        // is not tried again for the same pair.
         bool EnsureUiShaderLocked(bool minimal, float thresholdLevels);
+        // The planes retired, as the inputs are, and the views and the frame copy released.
         void ReleaseUiPlaneLocked();
         // Everything of the plane and its shader, for a device or swapchain made anew: the
         // objects belong to the devices they were made on.
         void ResetUiLocked();
+        // The two UI planes, and the copy of the presented frame they are made from with its view and format.
         SharedTexture uiPlane[2];
         Microsoft::WRL::ComPtr<ID3D11Texture2D> uiFrameCopy;
         Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> uiFrameView;
@@ -527,10 +565,12 @@ namespace redefinition
         // written once all are taken.
         struct DumpFrame
         {
+            // The frame's packet, whether its inputs were flipped, and the copies of colour, depth, motion and frame.
             FramePacket packet = {};
             bool flipped = false;
             Microsoft::WRL::ComPtr<ID3D11Texture2D> staging[4];
         };
+        // The frames taken so far.
         std::vector<DumpFrame> dumpTaken;
         // The staging textures for the frames to take, made while the dump waits for
         // the camera to turn: made in the frames taken, thirty-two textures of up to
@@ -542,9 +582,12 @@ namespace redefinition
         // for a quarter of a second.
         struct DumpFile
         {
+            // Where it goes, and its rows without the mapping's padding.
             std::wstring path;
             std::vector<uint8_t> bytes;
         };
+        // The files read back so far, frames.txt's text, the textures read back, the frames still to take, and the
+        // folder written into.
         std::vector<DumpFile> dumpFiles;
         std::string dumpText;
         size_t dumpRead = 0;
@@ -554,7 +597,10 @@ namespace redefinition
         int dumpWaited = 0;
         bool dumpHaveForward = false;
         float dumpForward[3] = {};
+        // The check's staging textures at the backbuffer's size, depth and motion vectors where their formats are
+        // the rig's; false, with the check off, for a backbuffer it cannot compare.
         bool CreateCheckTexturesLocked();
+        // The check's staging textures released, and a check in progress dropped.
         void ReleaseCheckLocked();
         // Sizes are those of the staging textures that were mapped, never the
         // inputs': a mode change replaces the inputs, and reading a mapping by
@@ -569,13 +615,17 @@ namespace redefinition
                                  const D3D11_MAPPED_SUBRESOURCE& motionRows,
                                  UINT width, UINT height, UINT motionWidth, UINT motionHeight);
 
+        // The context lock (ContextMutex): held by the present path, the render thread's packets and the calls from
+        // the managed side.
         mutable std::mutex mutex;
 
+        // The swapchain proxy attached and its devices, which the shared textures are made on.
         const void* owner = nullptr;
         Microsoft::WRL::ComPtr<ID3D11Device> device11;
         Microsoft::WRL::ComPtr<ID3D11DeviceContext> context11;
         Microsoft::WRL::ComPtr<ID3D12Device> device12;
 
+        // The three registered inputs, each with its two shared slots.
         Input depth;
         Input motion;
         Input hudLess;
@@ -673,6 +723,7 @@ namespace redefinition
         uint32_t presentCapFactor = 2;
         bool heldByCap = false;
         void NoteFrameRateLocked(float frameTimeMs);
+        // The most frames DLSS-G generates per rendered frame, as its state last said (numFramesToGenerateMax).
         uint32_t streamlineFrames = 1;
         // The frames this Present was set to generate, which its state reports on.
         uint32_t streamlineFramesSet = 1;

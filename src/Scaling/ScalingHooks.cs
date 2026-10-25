@@ -29,13 +29,16 @@ namespace ReDefinition.Scaling
     // portraits' enabling only, Kopernicus the orbits' colours).
     internal static class ScalingHooks
     {
+        // The id the postfixes are installed under.
         private const string HarmonyId = "ReDefinition.UiScaling";
         // KSP's orbit and target line widths (OrbitRendererBase.MakeLine,
         // OrbitTargeter.DottedLineUpdate).
         private const float OrbitLine = 5f;
 
+        // The binding of every member looked up.
         private const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
+        // The patch's VectorLine, which PatchRendering keeps private.
         private static readonly FieldInfo PatchLine = typeof(PatchRendering).GetField("vectorLine", Any);
         // The gizmos' own ScreenSpaceObjectScaling, which they size by.
         private static readonly FieldInfo OffsetScaling = typeof(GizmoOffset).GetField("ssScaling", Any);
@@ -58,11 +61,13 @@ namespace ReDefinition.Scaling
             };
         }
 
+        // A method with the name of its postfix, for Targets.
         private static KeyValuePair<MethodBase, string> Target(MethodBase method, string postfix)
         {
             return new KeyValuePair<MethodBase, string>(method, postfix);
         }
 
+        // Patches every target with its postfix; from ScalingAddon.
         internal static void Install()
         {
             List<HarmonyHook> hooks = new List<HarmonyHook>();
@@ -73,6 +78,7 @@ namespace ReDefinition.Scaling
                       + " gallery's room.");
         }
 
+        // The gizmo's screen size, from its prefab, times the scale as the gizmo attaches.
         private static void GizmoPostfix(Component __result)
         {
             HarmonyHooks.Safely("scale-gizmo", "An editor gizmo could not be scaled", () =>
@@ -91,6 +97,7 @@ namespace ReDefinition.Scaling
             ___textBounds = new Bounds(___textBounds.center * scale, ___textBounds.size * scale);
         }
 
+        // An orbit's line at KSP's 5 px times the scale, as it is made.
         private static void OrbitLinePostfix(ref VectorLine l)
         {
             if (l != null) l.lineWidth = OrbitLine * UiScaling.World;
@@ -104,6 +111,7 @@ namespace ReDefinition.Scaling
             if (Mathf.Abs(line.lineWidth - width) > 0.01f) line.lineWidth = width;
         }
 
+        // A patch's line at its own width (PatchRendering.lineWidth) times the scale.
         private static void PatchLinePostfix(PatchRendering __instance)
         {
             HarmonyHooks.Safely("scale-patch-line", "An orbit patch's line could not be scaled", () =>

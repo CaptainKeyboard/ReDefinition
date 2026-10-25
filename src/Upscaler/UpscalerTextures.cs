@@ -8,12 +8,18 @@ namespace ReDefinition.Upscaler
     // HUD-less copy, and the native handles the proxy is given.
     internal sealed class UpscalerTextures
     {
+        // The 3D stack's image at render size, with a 24-bit depth buffer: the redirected cameras' target.
         internal RenderTexture LowRes { get { return lowRes; } }
+        // The upscaler's output at display size, written by UAV; null in pass-through.
         internal RenderTexture Upscaled { get { return upscaled; } }
+        // The rig's copy of the motion vectors at render size (RGHalf).
         internal RenderTexture MotionVectors { get { return motionVectors; } }
+        // The rig's copy of the depth at render size (RFloat).
         internal RenderTexture DepthCopy { get { return depthCopy; } }
+        // Frame generation's HUD-less image at display size, in the backbuffer's format.
         internal RenderTexture HudLess { get { return hudLess; } }
 
+        // The textures behind LowRes and Upscaled.
         private RenderTexture lowRes;
         private RenderTexture upscaled;
 
@@ -32,9 +38,13 @@ namespace ReDefinition.Upscaler
         // compared on demand -- GetNativeTexturePtr flushes the render thread,
         // so it must never be called per frame.
         internal IntPtr UpscaledHandle { get; private set; }
+        // LowRes's native texture as captured at setup.
         internal IntPtr LowResHandle { get; private set; }
+        // DepthCopy's native texture as captured at setup.
         internal IntPtr DepthHandle { get; private set; }
+        // MotionVectors' native texture as captured at setup.
         internal IntPtr MotionHandle { get; private set; }
+        // The frame the handles were captured on, for the diagnostics; -1 before.
         internal int HandleFrame { get; private set; } = -1;
 
         // The textures at render and display size; null, or the reason where one
@@ -85,6 +95,7 @@ namespace ReDefinition.Upscaler
             return null;
         }
 
+        // Asks Unity once for the native handles the proxy is given, after Make.
         internal void CaptureHandles()
         {
             UpscaledHandle = upscaled != null ? upscaled.GetNativeTexturePtr() : IntPtr.Zero;
@@ -94,23 +105,24 @@ namespace ReDefinition.Upscaler
             HandleFrame = Time.frameCount;
         }
 
-        // Every texture whose native pointer went to the proxy at setup, and extra where
-        // there is one. Unity: "render texture contents can become "lost" on certain
-        // events, like loading a new level, system going to a screensaver mode, in and
-        // out of fullscreen", and they "will become "not yet created" again, you can
-        // check for that with IsCreated function" (ScriptReference, RenderTexture,
-        // 2019.4). The rig is rebuilt rather than handing on pointers to what is gone.
         // The native handles asked for once after the textures are made and again when the
         // game window has its focus back: asking synchronises with the render thread, and
         // once a second that held a frame for up to 18.6 ms (measured 2026-10-06). Lost
         // textures show in IsCreated each frame, as Unity documents.
         private bool nativeWanted = true;
 
+        // Has the next Created ask for the native handles too, as when the game window has its focus back.
         internal void WantNativeCheck()
         {
             nativeWanted = true;
         }
 
+        // Whether every texture whose native pointer went to the proxy at setup, and extra where
+        // there is one, is still there. Unity: "render texture contents can become "lost" on certain
+        // events, like loading a new level, system going to a screensaver mode, in and
+        // out of fullscreen", and they "will become "not yet created" again, you can
+        // check for that with IsCreated function" (ScriptReference, RenderTexture,
+        // 2019.4). The rig is rebuilt rather than handing on pointers to what is gone.
         internal bool Created(bool passThrough, RenderTexture extra)
         {
             if (!(RenderTextures.Created(lowRes) && (passThrough || RenderTextures.Created(upscaled))
@@ -139,6 +151,7 @@ namespace ReDefinition.Upscaler
             RenderTextures.Release(ref upscaled);
         }
 
+        // Releases the copies of motion vectors and depth and the HUD-less image.
         internal void ReleaseInputs()
         {
             RenderTextures.Release(ref motionVectors);

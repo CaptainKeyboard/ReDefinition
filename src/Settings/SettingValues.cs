@@ -110,6 +110,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // A switch's text turned round, for a setting the registration inverts; null stays null.
         public static string Invert(string text)
         {
             return text == null ? null : Text(!bool.Parse(text));

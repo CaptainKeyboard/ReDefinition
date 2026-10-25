@@ -15,9 +15,11 @@ namespace ReDefinition.Flight
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class FlightStartMode : MonoBehaviour
     {
+        // KSP's FlightUIModeController.UpdateHighlighting, not public; null where it has none.
         private static readonly MethodInfo UpdateHighlighting =
             typeof(FlightUIModeController).GetMethod("UpdateHighlighting", BindingFlags.Instance | BindingFlags.NonPublic);
 
+        // Waits for KSP's own Start to set the staging mode, then switches to the maneuver mode as its button does.
         private IEnumerator Start()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;

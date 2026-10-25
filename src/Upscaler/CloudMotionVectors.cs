@@ -35,10 +35,14 @@ namespace ReDefinition.Upscaler
     // keep Unity's.
     internal sealed class CloudMotionVectors
     {
+        // The cloud motion shader's passes: the clouds' motion from Scatterer's reconstruction, the blend over
+        // Unity's motion vectors, and the clouds' motion worked out from the shell.
         private const int EvePass = 0;
         private const int BlendPass = 1;
         private const int ShellPass = 4;
 
+        // EVE's globals of the clouds' history and motion vectors, and the globals the passes read: fade,
+        // texel size, the two motion textures and the depth for the blend, and pass 4's camera and shell.
         private static readonly int CloudTextureId = Shader.PropertyToID("scattererReconstructedCloud");
         private static readonly int CloudMotionTextureId = Shader.PropertyToID("scattererReconstructedCloudMotionVectors");
         private static readonly int FadeId = Shader.PropertyToID("_ReDefinitionCloudFade");
@@ -52,13 +56,15 @@ namespace ReDefinition.Upscaler
         private static readonly int OriginId = Shader.PropertyToID("_ReDefinitionCloudOrigin");
         private static readonly int ShellId = Shader.PropertyToID("_ReDefinitionCloudShell");
 
+        // What LogState last wrote, and whether it wrote at all: the log says each change once.
         private static string loggedState;
         private static bool loggedFromShell;
         private static bool logged;
 
+        // The material of the bundle's cloud motion shader, made once it is wanted.
         private Material material;
-        // A shader from the bundle with too few passes, not made into a material
-        // again every frame; and the reconstruction last judged, with its verdict.
+        // The reconstruction shader last judged, with its verdict: null where it is
+        // Scatterer's, why the clouds' motion comes from the shell otherwise.
         private Shader judgedReconstruction;
         private string reconstructionVerdict;
         private RenderTexture clouds;
@@ -191,6 +197,7 @@ namespace ReDefinition.Upscaler
             capture.Blit(Texture2D.blackTexture, motionVectors, material, BlendPass);
         }
 
+        // Takes the buffer off its camera and frees the textures and the material.
         internal void Dispose()
         {
             Detach();
@@ -201,6 +208,8 @@ namespace ReDefinition.Upscaler
             Active = false;
         }
 
+        // Null where the clouds can be blended in this frame, the reason otherwise; decides fromShell and
+        // makes the material on the way.
         private string Why(Camera camera)
         {
             if (!EveCloudMotion.Present) return "EVE's volumetric clouds are not installed";
@@ -263,6 +272,7 @@ namespace ReDefinition.Upscaler
             Debug.Log(Log.Tag + " EVE's cloud motion vectors: " + line);
         }
 
+        // Takes the command buffer off the camera it was added to and releases it.
         private void Detach()
         {
             Active = false;

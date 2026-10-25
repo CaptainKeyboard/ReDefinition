@@ -27,6 +27,7 @@ namespace ReDefinition.Upscaler
     // (RtCamera); the guides, the reflections' hit distance with them, are frame N's.
     public partial class UpscalerRig
     {
+        // How long Ray Reconstruction may show no new frame before Super Resolution takes over, and for how long.
         private const float ReconstructionGiveUpSeconds = 1f;
         private const float ReconstructionRetrySeconds = 10f;
 
@@ -52,16 +53,14 @@ namespace ReDefinition.Upscaler
         private Matrix4x4 lastReconstructViewProjection;
         private int lastReconstructFrame = -1;
 
+        // Whether Ray Reconstruction takes this frame, in DLSS Super Resolution's place.
         internal bool Reconstructing { get; private set; }
 
-        // Whether the raytraced frame goes to Ray Reconstruction at all; without it the
-        // raytracing's own denoiser and DLSS Super Resolution take it.
-        // The player's "Ray Reconstruction" (OwnSettings.RayReconstruction) and
-        // -redefinitionProbeNoRayReconstruction, without it for a probe's run.
         // sl::DLSSDPreset: 0 eDefault; -redefinitionProbeRrPreset <4 to 6> (D to F) for a
         // probe's run.
         private static readonly uint ReconstructionPreset = ProbeReconstructionPreset();
 
+        // The preset after -redefinitionProbeRrPreset on the command line, or 0 (eDefault).
         private static uint ProbeReconstructionPreset()
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -70,6 +69,10 @@ namespace ReDefinition.Upscaler
             return at >= 0 && at + 1 < args.Length && uint.TryParse(args[at + 1], out preset) ? preset : 0u;
         }
 
+        // Whether the raytraced frame may go to Ray Reconstruction at all; without it the
+        // raytracing's own denoiser and DLSS Super Resolution take it. Off with
+        // -redefinitionProbeNoRayReconstruction, for a probe's run; the player's "Ray
+        // Reconstruction" (OwnSettings.RayReconstruction) is asked beside it (SubmitReconstruction).
         internal static bool UseRayReconstruction =
             Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoRayReconstruction") < 0;
 
@@ -170,6 +173,8 @@ namespace ReDefinition.Upscaler
             own.Release();
         }
 
+        // Whether the proxy offers Ray Reconstruction with a packet of this layout, asked once a second; the log
+        // says when the answer changes, and why.
         private bool ReconstructionReady()
         {
             if (Time.unscaledTime >= nextReconstructionCheck)
@@ -250,6 +255,7 @@ namespace ReDefinition.Upscaler
             reconstructPacket = p;
         }
 
+        // A direction into the packet's four floats, w zero.
         private static void Write(Vector3 v, float[] target)
         {
             target[0] = v.x;

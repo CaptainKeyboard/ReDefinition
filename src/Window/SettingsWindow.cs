@@ -28,6 +28,8 @@ namespace ReDefinition.Window
     // them are the model's.
     internal static partial class SettingsWindow
     {
+        // The window's size, the tab column's width, the page's size, and the widths of a row's columns -- name,
+        // control, value, source -- and its height, and the widths of the Reset and restart buttons.
         private const float WindowWidth = 740f;
         private const float WindowHeight = 540f;
         private const float TabWidth = 170f;
@@ -41,6 +43,8 @@ namespace ReDefinition.Window
         private const float ResetWidth = 80f;
         private const float RestartWidth = 140f;
 
+        // The dialog while it is open, null otherwise; the tab shown; ReDefinition's own settings as the window edits
+        // them (a copy from opening, and the changed one).
         private static PopupDialog dialog;
         private static SettingCategory current = SettingCategory.Profiles;
         private static KspSettingsSection.Edit edit;
@@ -60,6 +64,7 @@ namespace ReDefinition.Window
         // settings screen has applied (FollowModSoon).
         private static readonly HashSet<string> dueMods = new HashSet<string>();
 
+        // Whether the window is open.
         public static bool Visible { get { return dialog != null; } }
 
         // Whether something in the window waits for Accept.
@@ -80,6 +85,7 @@ namespace ReDefinition.Window
             return field != null && field.isFocused;
         }
 
+        // Opens the window, or closes it where it is open: the toolbar button and the hotkey.
         public static void Toggle()
         {
             if (Visible) Close();
@@ -95,6 +101,7 @@ namespace ReDefinition.Window
             Open();
         }
 
+        // Closes the window and lets go of what it held: the flight, a row listening for a key or an axis.
         public static void Close()
         {
             // The flight goes on as it was before this window held it.
@@ -106,6 +113,8 @@ namespace ReDefinition.Window
             dialog = null;
         }
 
+        // Builds and opens the window on the tab last shown, from the settings as they are now; a failure is logged and
+        // leaves it closed.
         private static void Open()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -181,6 +190,7 @@ namespace ReDefinition.Window
             model.OpenButtons(ButtonStates());
         }
 
+        // Every installed mod's settings with the value each has now.
         private static IEnumerable<KeyValuePair<string, string>> CurrentValues()
         {
             foreach (IBundledMod mod in BundledSettings.Installed())
@@ -190,6 +200,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The window's content: the tab column beside the pages, one page per tab with rows, and the buttons at the foot.
         private static DialogGUIBase[] Build(UISkinDef skin)
         {
             choiceRows.Clear();
@@ -306,6 +317,7 @@ namespace ReDefinition.Window
                 GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ApplyAndRestart);
         }
 
+        // A tab's name in the tab column and as its page's heading.
         private static string Title(SettingCategory category)
         {
             switch (category)
@@ -328,6 +340,8 @@ namespace ReDefinition.Window
             }
         }
 
+        // A tab's rows: Graphics' profiles, Detail's groups, or the tab's own rows and the mods' settings, with the
+        // Advanced row of the mods that have their own window.
         private static DialogGUIBase[] Rows(SettingCategory category)
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
@@ -478,6 +492,7 @@ namespace ReDefinition.Window
             return bySection;
         }
 
+        // Adds a row of ReDefinition's own to its section's list, searchable by its title and section.
         private static void AddOwn(Dictionary<string, List<DialogGUIBase>> bySection, string section, DialogGUIBase row,
             string title)
         {
@@ -498,6 +513,7 @@ namespace ReDefinition.Window
                 new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
         }
 
+        // Opens one of ReDefinition's own dialogs over the window; a dialog whose content throws is logged and not opened.
         private static void OpenOwnDialog(ModuleDialog dialog)
         {
             DialogGUIBase[] content;
@@ -513,6 +529,7 @@ namespace ReDefinition.Window
             if (content != null && content.Length > 0) OpenDialogOverWindow(dialog.Key, dialog.Heading ?? dialog.Title, dialog.Width, content);
         }
 
+        // Takes ReDefinition's own rows of the section out of the list, for its fold; none where it has none.
         private static List<DialogGUIBase> TakeOwn(Dictionary<string, List<DialogGUIBase>> own, string section)
         {
             List<DialogGUIBase> rows;
@@ -583,6 +600,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Adds the hint row, searchable by those words, where there is one.
         private static void AddHint(List<DialogGUIBase> rows, DialogGUIBase hint, string searchText)
         {
             if (hint != null) rows.Add(Searchable(hint, searchText));
@@ -633,18 +651,22 @@ namespace ReDefinition.Window
         // Texts joined for the search.
         private sealed class StringBuilderText
         {
+            // The text joined so far.
             private readonly System.Text.StringBuilder text;
 
+            // Starts with that text.
             public StringBuilderText(string start)
             {
                 text = new System.Text.StringBuilder(start);
             }
 
+            // Adds a text after a space; nothing for an empty one.
             public void Add(string more)
             {
                 if (!string.IsNullOrEmpty(more)) text.Append(' ').Append(more);
             }
 
+            // Everything joined so far, as one string.
             public string Text
             {
                 get { return text.ToString(); }
@@ -667,9 +689,11 @@ namespace ReDefinition.Window
             return line;
         }
 
+        // Intel's download status as the window shows it, made anew only when it changes: the label asks every frame.
         private static string intelStatus;
         private static string intelStatusText = "";
 
+        // Intel's download status, grey; empty while there is none.
         private static string IntelStatus()
         {
             string now = IntelDownloader.Status;
@@ -681,6 +705,7 @@ namespace ReDefinition.Window
             return intelStatusText;
         }
 
+        // The parts that say something, one to a line.
         private static string JoinStatus(params string[] parts)
         {
             System.Text.StringBuilder joined = new System.Text.StringBuilder();
@@ -698,6 +723,7 @@ namespace ReDefinition.Window
         private static string nvidiaStatus;
         private static string nvidiaStatusText = "";
 
+        // NVIDIA's download status, grey; empty while there is none.
         private static string NvidiaStatus()
         {
             string now = NvidiaDownloader.Status;
@@ -737,6 +763,7 @@ namespace ReDefinition.Window
             return new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft, items.ToArray());
         }
 
+        // Opens the mod's own window through its toolbar button; a screen message where it has none in this scene.
         private static void OpenOwnWindow(IBundledMod mod)
         {
             try
@@ -794,6 +821,7 @@ namespace ReDefinition.Window
         // Accept sets. Not while a reset waits, which has set every one of them.
         private static string ownLiveSnapshot;
 
+        // Takes the live settings where they changed since the last look, the rows changed here kept as they are.
         private static void SyncOwn()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -850,6 +878,7 @@ namespace ReDefinition.Window
             if (row.Control.slider != null) row.Control.slider.maxValue = row.Control.max;
         }
 
+        // Opens the diagnostics window, on the upscaler's page where it was closed.
         private static void ShowDiagnostics()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;

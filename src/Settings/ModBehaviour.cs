@@ -39,7 +39,7 @@ namespace ReDefinition.Settings
         {
         }
 
-        // After every setting.
+        // After every setting of the registration is built: settings only the behaviour finds.
         public virtual void Complete(RegisteredMod mod)
         {
         }
@@ -51,6 +51,7 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // The installed version, where the assembly cannot tell it; empty: it cannot be told at all.
         public virtual string Version(RegisteredMod mod)
         {
             return null;
@@ -76,6 +77,8 @@ namespace ReDefinition.Settings
             get { return true; }
         }
 
+        // Once, as the mod is built in the game: hooks that let a change in the mod's own window reach
+        // ReDefinition's (IBundledMod.InstallHooks).
         public virtual void InstallHooks(RegisteredMod mod)
         {
         }
@@ -112,6 +115,7 @@ namespace ReDefinition.Settings
     // The behaviours by the names registrations give them.
     internal static class ModBehaviours
     {
+        // A new behaviour for each name, made for each mod that names it.
         private static readonly Dictionary<string, Func<ModBehaviour>> known = new Dictionary<string, Func<ModBehaviour>>
         {
             { "DistantObject", () => new DistantObjectBehaviour() },
@@ -124,6 +128,7 @@ namespace ReDefinition.Settings
             { "Tufx", () => new TufxBehaviour() },
         };
 
+        // A new behaviour of that name; null for a name this ReDefinition has none of.
         public static ModBehaviour Create(string name)
         {
             Func<ModBehaviour> make;

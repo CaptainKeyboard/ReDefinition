@@ -19,9 +19,11 @@ namespace ReDefinition.Core
     // counts as not there.
     internal static class ForeignCode
     {
+        // The opcodes by their byte: one-byte ones by value, two-byte ones (0xfe prefix) by their second byte.
         private static readonly OpCode[] OneByte = new OpCode[0x100];
         private static readonly OpCode[] TwoByte = new OpCode[0x100];
 
+        // Fills the two opcode tables from OpCodes' fields.
         static ForeignCode()
         {
             foreach (FieldInfo field in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
@@ -80,9 +82,11 @@ namespace ReDefinition.Core
             return strings.Contains(literal);
         }
 
+        // Each assembly's string literals, read once by AssemblyLoads.
         private static readonly Dictionary<Assembly, HashSet<string>> AssemblyStrings =
             new Dictionary<Assembly, HashSet<string>>();
 
+        // Whether the method's own instructions load the string; false where it has no body.
         public static bool Loads(MethodBase method, string literal)
         {
             HashSet<string> strings = new HashSet<string>(StringComparer.Ordinal);
@@ -135,6 +139,7 @@ namespace ReDefinition.Core
             return name.ToString();
         }
 
+        // Every member the type declares itself, public or not, static or not.
         private const BindingFlags Declared = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public
                                               | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
 
@@ -191,6 +196,8 @@ namespace ReDefinition.Core
             return true;
         }
 
+        // Reads the IL instruction by instruction: each opcode and its operand, tokens resolved to names, go to text and
+        // loaded strings to strings, where those are given.
         private static void Walk(byte[] il, Module module, Type[] typeArguments, Type[] methodArguments, StringBuilder text,
                                  HashSet<string> strings)
         {
@@ -266,12 +273,15 @@ namespace ReDefinition.Core
             }
         }
 
+        // The name the call returns, or "?" where resolving the token throws.
         private static string Resolve(Func<string> resolve)
         {
             try { return resolve(); }
             catch (Exception) { return "?"; }
         }
 
+        // A type by TypeName, any other member as its declaring type, "::" and its name; a method with its type
+        // arguments and its parameter types.
         private static string Name(MemberInfo member)
         {
             if (member == null) return "?";
@@ -301,6 +311,7 @@ namespace ReDefinition.Core
             return name.ToString();
         }
 
+        // The first six bytes of the text's SHA-1 (UTF-8), as twelve lower-case hex digits.
         private static string Hash(string text)
         {
             using (SHA1 sha = SHA1.Create())

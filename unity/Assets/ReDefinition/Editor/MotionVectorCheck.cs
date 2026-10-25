@@ -26,6 +26,8 @@ namespace ReDefinition.EditorTools
     //     -logFile build/motion-vector-check.log
     public static class MotionVectorCheck
     {
+        // The scene made for the player and deleted after the run, the shaders the probe is given, where the
+        // player is built, and how long it may run.
         private const string ScenePath = "Assets/ReDefinition/MotionVectorCheck/MotionVectorCheck.unity";
         private const string ShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionCloudMotion.shader";
         private const string AuditShaderPath = "Assets/ReDefinition/Shaders/ReDefinitionMotionAudit.shader";
@@ -38,6 +40,7 @@ namespace ReDefinition.EditorTools
         private const float RelativeTolerance = 0.03f;
         private const float AbsoluteTolerance = 2e-4f;
 
+        // Entry point for batch mode: builds and runs the player, judges its result file, exits 1 on any problem.
         public static void RunFromCommandLine()
         {
             List<string> problems = new List<string>();
@@ -63,6 +66,7 @@ namespace ReDefinition.EditorTools
             EditorApplication.Exit(0);
         }
 
+        // Saves a scene holding only the probe with its shaders and builds the player from it; null when it fails.
         private static string BuildPlayer(List<string> problems)
         {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -102,6 +106,7 @@ namespace ReDefinition.EditorTools
             return player;
         }
 
+        // Runs the player windowed at 640 x 360 and waits for it to write its result file, killing it after the timeout.
         private static void RunPlayer(string player, string resultPath, List<string> problems)
         {
             if (File.Exists(resultPath)) File.Delete(resultPath);
@@ -123,6 +128,7 @@ namespace ReDefinition.EditorTools
             if (!File.Exists(resultPath)) problems.Add("the player wrote no result; see its player.log.");
         }
 
+        // Logs each line of the result and checks it against the limits for its case; also that every case is there.
         private static void Judge(string resultPath, List<string> problems)
         {
             string[] lines = File.ReadAllLines(resultPath);
@@ -318,11 +324,13 @@ namespace ReDefinition.EditorTools
                 problems.Add("shadowParked: mean choice " + choice + "; a shadow moving with the ground must be left to it.");
         }
 
+        // Parses a number of the result file, written in the invariant culture.
         private static float Float(string text)
         {
             return float.Parse(text, CultureInfo.InvariantCulture);
         }
 
+        // A motion vector with five decimals, for the problem messages.
         private static string Show(Vector2 value)
         {
             return value.ToString("F5");

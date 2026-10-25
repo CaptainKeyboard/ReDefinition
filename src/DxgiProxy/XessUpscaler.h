@@ -21,6 +21,7 @@ namespace redefinition
     // One frame for XeSS, in the same layout as AMD's (AmdUpscaler.h), which the
     // managed side fills alike; a magic of its own.
     using XessUpscalerPacket = AmdUpscalerPacket;
+    // The packet's magic for XeSS, which OnPacket checks before reading the rest.
     constexpr uint32_t kXessUpscalerPacketMagic = 0x4B535058u;   // 'KSPX'
 
     // Intel's XeSS Super Resolution on the proxy's D3D12 device, from the player's
@@ -45,14 +46,20 @@ namespace redefinition
     class XessUpscaler
     {
     public:
+        // The one instance, made on first use and never destroyed.
         static XessUpscaler& Get();
 
+        // The swapchain proxy that made the devices hands them over; what an earlier owner left is released.
         void Attach(const void* owner, ID3D11Device5* device11, ID3D11DeviceContext4* context11,
                     ID3D12Device* device12, ID3D12CommandQueue* queue);
+        // Lets go of everything, the devices too, where owner is the one attached; otherwise nothing.
         void Detach(const void* owner);
+        // Whether a D3D12 device and queue are attached, which XeSS needs to run at all.
         bool Attached() const { return attached.load(); }
 
+        // Render event 7: checks the frame, makes what is missing (DLL, fence, textures, context) and upscales.
         void OnPacket(const void* data);
+        // Render event 8: the context and the textures released; the DLL stays loaded.
         void OnRelease();
 
         // As AmdUpscaler::Status: 1 running, -1 stopped, -2 stopped for a reason that
@@ -64,19 +71,33 @@ namespace redefinition
         int Version(char* buffer, int size) const;
 
     private:
+        // Only Get makes it.
         XessUpscaler() = default;
 
+        // libxess.dll loaded and its functions resolved; tried again at most once a second, and only once its
+        // folder or file changed.
         bool EnsureRuntimeLocked();
+        // The fence shared with D3D11, the command allocators and the list, made once per attachment.
         bool EnsureFenceLocked();
+        // The four shared textures, made again where the frame's differ in size or format.
         bool EnsureTexturesLocked(const XessUpscalerPacket& packet);
+        // The context made and initialised for the frame's sizes and creation flags, with the preset whose input
+        // range holds the render size; a failure stands until those change.
         bool EnsureContextLocked(const XessUpscalerPacket& packet);
+        // The frame across: inputs copied on D3D11, XeSS on the D3D12 queue, the result copied back into Unity's
+        // output, the two devices ordered by the shared fence.
         bool UpscaleLocked(const XessUpscalerPacket& packet);
+        // Blocks until the queue has finished every list handed to it.
         void WaitForListsLocked();
+        // The context destroyed and the shared textures released, after the queue has finished.
         void ReleaseLocked();
+        // The state and text Status reports; a stop is logged where it changes.
         void SetStatus(int state, const std::string& text);
 
+        // Held by every entry point: Attach and Detach come from the swapchain proxy, the rest from Unity's render thread.
         mutable std::mutex mutex;
 
+        // The swapchain proxy attached, whether it gave a D3D12 device and queue, and its devices.
         const void* owner = nullptr;
         std::atomic<bool> attached{ false };
         Microsoft::WRL::ComPtr<ID3D11Device5> device11;
@@ -84,7 +105,7 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12Device> device12;
         Microsoft::WRL::ComPtr<ID3D12CommandQueue> queue;
 
-        // libxess.dll's functions.
+        // libxess.dll and the functions it must have.
         HMODULE module = nullptr;
         decltype(&xessD3D12CreateContext) createContext = nullptr;
         decltype(&xessD3D12Init) init = nullptr;
@@ -95,11 +116,15 @@ namespace redefinition
         // Optional: a libxess.dll before 1.3.0 has only the legacy scale factors.
         decltype(&xessForceLegacyScaleFactors) forceLegacyScaleFactors = nullptr;
         decltype(&xessGetOptimalInputResolution) getOptimalInputResolution = nullptr;
+        // Whether loading was tried, the folder and file stamp it was tried with, when it may be tried next, and
+        // the "XeSS 3.0.2" the DLL reported.
         bool runtimeTried = false;
         std::wstring runtimeSignature;
         ULONGLONG nextRuntimeCheck = 0;
         std::string versionName;
 
+        // The fence both devices share (one value counted up for both), the event to wait on it, and three
+        // allocators in turn for the one list, each with the fence value that marks it finished.
         Microsoft::WRL::ComPtr<ID3D12Fence> fence12;
         Microsoft::WRL::ComPtr<ID3D11Fence> fence11;
         HANDLE fenceEvent = nullptr;
@@ -110,20 +135,26 @@ namespace redefinition
         UINT listIndex = 0;
         Microsoft::WRL::ComPtr<ID3D12GraphicsCommandList> list;
 
+        // The frame's textures as both devices see them: Unity's are copied in, the output copied out.
         SharedTexture colour;
         SharedTexture depth;
         SharedTexture motion;
         SharedTexture output;
 
+        // XeSS's context, the packet it was made for, whether making it failed for that packet, and the velocity
+        // scale last set on it.
         xess_context_handle_t context = nullptr;
         XessUpscalerPacket created = {};
         bool contextFailed = false;
         float velocityScaleX = 0.0f;
         float velocityScaleY = 0.0f;
 
+        // Frames upscaled since the context was made, and the state last set, read without the status lock.
         uint64_t upscaled = 0;
         int renderState = 0;
 
+        // What Status and Version report, under their own lock: the state, its text, the folder and file stamp a
+        // -2 stands for, and the version once loaded.
         mutable std::mutex statusLock;
         int state = 0;
         std::string statusText = "no frame for XeSS yet";

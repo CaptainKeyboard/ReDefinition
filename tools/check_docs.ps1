@@ -16,11 +16,13 @@ $root = Split-Path -Parent $PSScriptRoot
 $failures = 0
 $styleIssues = 0
 
+# Reports a problem that fails the run.
 function Fail([string]$text) {
     Write-Host "FAIL  $text"
     $script:failures++
 }
 
+# Reports a style issue, which fails the run only with -Strict.
 function Style([string]$text) {
     Write-Host "style $text"
     $script:styleIssues++

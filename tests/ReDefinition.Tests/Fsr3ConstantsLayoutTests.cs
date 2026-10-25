@@ -14,14 +14,17 @@ namespace ReDefinition.Tests
     [TestClass]
     public class Fsr3ConstantsLayoutTests
     {
+        // The size in bytes both sides must have.
         private const int UpscalerConstantsSize = 148;
 
+        // The C# UpscalerConstants marshal to that size.
         [TestMethod]
         public void TheUpscalerConstantsHaveTheShadersSize()
         {
             Assert.AreEqual(UpscalerConstantsSize, Marshal.SizeOf(typeof(Fsr3Upscaler.UpscalerConstants)));
         }
 
+        // The fields of KspCb_cbFSR3Upscaler in the ported shader header add up to that size.
         [TestMethod]
         public void TheShadersStructHasTheSameSize()
         {
@@ -47,6 +50,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(UpscalerConstantsSize, size);
         }
 
+        // The repository's root, found as the first folder above the test's that holds unity/Assets/ReDefinition.
         private static string Repository()
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());

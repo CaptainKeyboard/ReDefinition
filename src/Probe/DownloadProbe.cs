@@ -18,8 +18,11 @@ namespace ReDefinition.Probe
     // acceptance of the vendors' licences: the probe runs only where its caller asked for it.
     internal static class DownloadProbe
     {
+        // The longest wait for one download or install to end, in seconds.
         private const float Timeout = 900f;
 
+        // The run: the Display page shot before, each technique chosen in turn with its dialogs' buttons clicked, and
+        // the buttons' states and the page shot after.
         public static IEnumerator Run(string folder, string shot)
         {
             ModuleSetting upscaler = OurModules.Upscaler.Setting("technique");
@@ -115,6 +118,7 @@ namespace ReDefinition.Probe
             TabScrollList.ProbePosition = null;
         }
 
+        // Clicks the first active button whose label holds the text; false where there is none.
         private static bool ClickButton(string text)
         {
             foreach (Button button in UnityEngine.Object.FindObjectsOfType<Button>())

@@ -13,15 +13,18 @@ namespace ReDefinition.Engineer
         public string Id;
         // Its parent's index in the list, -1 for the star.
         public int Parent = -1;
+        // Its gravitational parameter, in m^3/s^2, its radius and its atmosphere's height in metres, its day in seconds.
         public double Mu;
         public double Radius;
         public double RotationPeriod;
         public double AtmosphereDepth;
         // At sea level, in atmospheres.
         public double SurfacePressure;
+        // Its orbit's semi-major axis around the parent, in metres.
         public double SemiMajorAxis;
         // Degrees, against the parent's reference plane.
         public double Inclination;
+        // In metres; infinite for the star.
         public double SphereOfInfluence = double.PositiveInfinity;
         // Above the atmosphere or the highest ground.
         public double LowOrbitAltitude;
@@ -31,6 +34,7 @@ namespace ReDefinition.Engineer
         public bool Oxygen;
         public double SpeedOfSound;
 
+        // Whether it has air at all.
         public bool HasAtmosphere
         {
             get { return AtmosphereDepth > 0.0; }
@@ -44,6 +48,7 @@ namespace ReDefinition.Engineer
     // transfer's burns (RouteSteps).
     internal enum StopKind
     {
+        // On the ground; in a circular orbit; on the way down into the air; on the way across between its two burns.
         Surface,
         Orbit,
         Entry,
@@ -56,6 +61,7 @@ namespace ReDefinition.Engineer
         // A destination whose body the player has not picked yet.
         internal const int NoBody = -1;
 
+        // The body's index in the planner's list, or NoBody; where at it the stop is.
         public int Body;
         public StopKind Kind = StopKind.Orbit;
         // Above the surface, for an orbit.
@@ -87,6 +93,7 @@ namespace ReDefinition.Engineer
         internal RouteStop Origin;
         internal RouteStop Final;
 
+        // A copy whose arrays and stage plans can be changed without changing this stop.
         public RouteStop Copy()
         {
             RouteStop copy = (RouteStop)MemberwiseClone();
@@ -98,8 +105,10 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // One burn of a leg, as the planner lists it.
     internal sealed class LegLine
     {
+        // What the burn is for the player ("Circularise"), and the delta-v it takes, in m/s.
         public string Name;
         public double DeltaV;
         // A burn in a circular orbit: the body and the orbit's radius, in metres; -1
@@ -111,10 +120,12 @@ namespace ReDefinition.Engineer
     // What going from one stop to the next costs, burn by burn.
     internal sealed class Leg
     {
+        // The stops it goes from and to, by their index in the route, and its burns.
         public int From;
         public int To;
         public readonly List<LegLine> Lines = new List<LegLine>();
 
+        // The delta-v of all its burns, in m/s.
         public double DeltaV
         {
             get
@@ -125,6 +136,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Adds a burn, leaving out one under half a metre per second.
         internal void Add(string name, double deltaV, int body = -1, double radius = 0.0)
         {
             if (deltaV > 0.5) Lines.Add(new LegLine { Name = name, DeltaV = deltaV, Body = body, Radius = radius });
@@ -158,6 +170,7 @@ namespace ReDefinition.Engineer
         // Where an aerobraking pass dips to, as a share of the atmosphere's depth.
         private const double AerobrakeDepth = 0.5;
 
+        // What each step from one stop to the next costs.
         internal static List<Leg> Legs(IList<PlannerBody> bodies, IList<RouteStop> stops, bool planeChanges)
         {
             List<Leg> legs = new List<Leg>();
@@ -169,6 +182,8 @@ namespace ReDefinition.Engineer
         // transfer arrives.
         internal const string LeavingBurn = "Transfer burn";
 
+        // What going from `from` to `to` costs, burn by burn; `index`: the leg's number, counted from 0. `planeChanges`:
+        // with the plane change between the bodies' orbits on the way across.
         internal static Leg LegOf(IList<PlannerBody> bodies, RouteStop from, RouteStop to, int index, bool planeChanges)
         {
             // A way across split in two: the burn that leaves, then the rest.
@@ -319,6 +334,7 @@ namespace ReDefinition.Engineer
             return Math.Sqrt(speed * speed + 2.0 * own.Mu / radius) - Circular(own.Mu, radius);
         }
 
+        // Up from the surface into the body's low orbit: the estimate the constants above describe.
         internal static double Launch(PlannerBody body)
         {
             double radius = body.Radius + body.LowOrbitAltitude;
@@ -349,6 +365,8 @@ namespace ReDefinition.Engineer
             return Math.Max(0.0, TurnFactor * orbital - rotation + VacuumAllowance);
         }
 
+        // The two burns of a Hohmann transfer between circular orbits of radius `r1` and `r2`: the one that leaves and the
+        // one that circularises.
         internal static void Hohmann(double mu, double r1, double r2, out double first, out double second)
         {
             double a = (r1 + r2) / 2.0;
@@ -356,16 +374,19 @@ namespace ReDefinition.Engineer
             second = Math.Abs(Circular(mu, r2) - VisViva(mu, r2, a));
         }
 
+        // The speed in a circular orbit of that radius.
         internal static double Circular(double mu, double radius)
         {
             return Math.Sqrt(mu / radius);
         }
 
+        // The speed at `radius` on an orbit of that semi-major axis.
         internal static double VisViva(double mu, double radius, double semiMajorAxis)
         {
             return Math.Sqrt(mu * (2.0 / radius - 1.0 / semiMajorAxis));
         }
 
+        // The radius of the stop's orbit: its own, or the body's low orbit for a stop that is not one.
         private static double OrbitRadius(PlannerBody body, RouteStop stop)
         {
             double altitude = stop.Kind != StopKind.Orbit ? body.LowOrbitAltitude : Math.Max(stop.Altitude, 0.0);
@@ -380,6 +401,7 @@ namespace ReDefinition.Engineer
             return chain;
         }
 
+        // The first body of `up` that `down` has too; -1 for none.
         private static int CommonAncestor(List<int> up, List<int> down)
         {
             foreach (int body in up)
@@ -395,6 +417,7 @@ namespace ReDefinition.Engineer
             return at > 0 ? chain[at - 1] : -1;
         }
 
+        // Metres as whole kilometres, for a burn's name ("80 km").
         internal static string Km(double metres)
         {
             return (metres / 1000.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " km";

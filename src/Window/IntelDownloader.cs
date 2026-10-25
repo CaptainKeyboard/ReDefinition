@@ -26,11 +26,14 @@ namespace ReDefinition.Window
     // makes its swapchain.
     internal static class IntelDownloader
     {
+        // Whether a download, its check or its placing is under way: a second one is not started meanwhile.
         public static bool Running { get; private set; }
 
         // Placed this session: the row then offers nothing more.
         public static bool Installed { get; private set; }
 
+        // The outcome for the row; whether bytes are coming in; the bytes received (from the download's thread) and those
+        // expected; and the progress text with the tenth of a megabyte it was made for.
         private static string status;
         private static volatile bool downloading;
         private static long received;
@@ -62,6 +65,7 @@ namespace ReDefinition.Window
         // when a download ends: not each frame, which would ask the file system.
         private static string installedLine;
 
+        // Looks at what of Intel's files is in place, for the row's line.
         public static void Refresh()
         {
             try
@@ -201,6 +205,7 @@ namespace ReDefinition.Window
         // What waits for the files: called when they are in place, dropped where the player cancels.
         private static Action onInstalled;
 
+        // Starts the download as a coroutine on the add-on, unless one runs already.
         private static void Start(List<IntelFiles.Item> items)
         {
             if (Running || ReDefinitionAddon.Instance == null) return;
@@ -233,6 +238,8 @@ namespace ReDefinition.Window
             }
         }
 
+        // Fetches every file's range from the archive, then inflates, checks and places them on a thread; any failure
+        // ends it through Finish with nothing changed.
         private static IEnumerator Run(List<IntelFiles.Item> items)
         {
             Installed = false;
@@ -382,6 +389,8 @@ namespace ReDefinition.Window
             if (superResolutionFetched && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.IntelFilesPlaced();
         }
 
+        // Ends the download: the range files deleted, the outcome logged, put on the screen and kept for the row, what is
+        // in place looked at again, and the continuation called where the files are in place.
         private static void Finish(string outcome, List<string> rangeFiles)
         {
             foreach (string file in rangeFiles)

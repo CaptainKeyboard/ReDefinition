@@ -25,6 +25,7 @@ namespace ReDefinition.Raytracing
     // within 4 of 255 in each channel (lawn 46,58,42 against 48,61,42).
     internal static class RtDeferredLook
     {
+        // The terrain's and the space centre's ground shaders: Deferred shades them metallic at 0.
         private static readonly HashSet<string> Metallic = new HashSet<string>
         {
             "KSP/Scenery/Diffuse Ground KSC", "KSP/Scenery/Diffuse Ground KSC Specular", "KSP/Scenery/Diffuse Multiply",
@@ -37,6 +38,7 @@ namespace ReDefinition.Raytracing
             "Terrain/PQS/Sphere Projection SURFACE QUAD (AP) ", "Terrain/PQS/Sphere Projection SURFACE QUAD",
         };
 
+        // KSP's shaders with a highlight (SPECULAR_ON): Deferred's specular is their _SpecColor / pi.
         private static readonly HashSet<string> WithHighlight = new HashSet<string>
         {
             "KSP/Alpha/Translucent Specular", "KSP/Bumped Specular (Cutoff)", "KSP/Bumped Specular Opaque (Cutoff)",
@@ -46,17 +48,20 @@ namespace ReDefinition.Raytracing
             "KSP/Specular",
         };
 
+        // KSP's diffuse shaders: Deferred gives them a specular of 0.5 / pi.
         private static readonly HashSet<string> Diffuse = new HashSet<string>
         {
             "KSP/Alpha/Cutoff", "KSP/Alpha/Translucent", "KSP/Bumped", "KSP/Diffuse", "KSP/Emissive/Diffuse",
             "KSP/Scenery/Bumped", "KSP/Scenery/Diffuse",
         };
 
+        // KSP's shaders with a specular map: the specular from the map's mean colour.
         private static readonly HashSet<string> Mapped = new HashSet<string>
         {
             "KSP/Bumped Specular (Mapped)", "KSP/Emissive/Bumped Specular (Mapped)",
         };
 
+        // unity_ColorSpaceDielectricSpec in the active colour space.
         private static float Dielectric
         {
             get { return QualitySettings.activeColorSpace == ColorSpace.Gamma ? 0.220916301f : 0.04f; }

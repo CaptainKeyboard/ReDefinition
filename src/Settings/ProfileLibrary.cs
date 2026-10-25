@@ -9,6 +9,7 @@ namespace ReDefinition.Settings
     // ModuleManager's pass, so the guard is ModRegistry.Ready's.
     internal static class ProfileLibrary
     {
+        // Every GRAPHICS_PROFILE node read, once loading is done; empty, with the problem said, before.
         public static List<GraphicsProfile> LoadAll(List<string> problems)
         {
             List<GraphicsProfile> profiles = new List<GraphicsProfile>();

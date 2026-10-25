@@ -28,10 +28,13 @@ namespace ReDefinition.Scaling
     // as the mod means them to.
     internal static class OtherScalers
     {
+        // The Harmony id the patches are installed under (one suffix per mod), the type of 4kSP Expanded's R&D
+        // screen hook, and the binding of every method looked up.
         private const string HarmonyId = "ReDefinition.UiScaling.OtherScalers";
         private const string FourkSpRnDScene = "_4kSP_RnD.RDSceneScaler";
         private const BindingFlags Any = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
+        // Turns off the scaling of each of those mods that is installed; from ScalingAddon as the game starts.
         internal static void Install()
         {
             // The map's icons and captions are scaled by MapNodeScale, an addon of each map
@@ -46,6 +49,7 @@ namespace ReDefinition.Scaling
             Guarded("Maneuver Node Evolved", KeepManeuverGizmo);
         }
 
+        // Runs one installer; a failure is logged as a warning, and the other mods are still handled.
         private static void Guarded(string mod, System.Action install)
         {
             try
@@ -59,6 +63,7 @@ namespace ReDefinition.Scaling
             }
         }
 
+        // Redirects Maneuver Node Evolved's writes to the gizmo's screenSize to Store (KeepScreenSize).
         private static void KeepManeuverGizmo()
         {
             System.Type controller = TypeLookup.Find(UiScaling.ManeuverNodeEvolved);
@@ -83,6 +88,7 @@ namespace ReDefinition.Scaling
                       + " writes); ReDefinition scales the gizmo.");
         }
 
+        // Warns that a method to turn off was not found in the installed mod.
         private static void Missing(string mod, string name)
         {
             CompatibilityLog.Warn("other-scalers", mod + ": " + name + " not found, so what it scales may apply on top of "
@@ -93,6 +99,7 @@ namespace ReDefinition.Scaling
         // By method skipped: whether ReDefinition's own scaling of the same runs.
         private static readonly Dictionary<MethodBase, System.Func<bool>> skipWhen = new Dictionary<MethodBase, System.Func<bool>>();
 
+        // Patches the named methods of `type` to be skipped while `oursRuns`; nothing where the mod is not installed.
         private static void Skip(string mod, string type, System.Func<bool> oursRuns, params string[] names)
         {
             System.Type found = TypeLookup.Find(type);
@@ -116,6 +123,7 @@ namespace ReDefinition.Scaling
             Debug.Log(Log.Tag + " UI scaling: " + mod + "'s " + string.Join(", ", skipped.ToArray()) + " turned off; ReDefinition scales that.");
         }
 
+        // Harmony prefix of every method Skip patched: false, skipping the original, while ReDefinition's scaling runs.
         private static bool SkipOriginal(MethodBase __originalMethod)
         {
             System.Func<bool> oursRuns;
@@ -131,6 +139,7 @@ namespace ReDefinition.Scaling
             }
         }
 
+        // How many stores to screenSize KeepScreenSize redirected, counted for the log.
         private static int replaced;
 
         // Every store to ManeuverGizmoBase.screenSize a call to Store, which takes

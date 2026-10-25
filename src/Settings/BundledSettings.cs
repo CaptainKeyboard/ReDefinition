@@ -12,10 +12,13 @@ namespace ReDefinition.Settings
     // require, and ReDefinition's log.
     internal static class BundledSettings
     {
+        // ReDefinition's file in its PluginData.
         private const string FileName = "bundled.cfg";
 
+        // The store, with the game as its host.
         private static readonly BundledStore store = new BundledStore(new GameHost());
 
+        // The mods once built (Mods), and their installed settings by key once asked for (Find).
         private static List<IBundledMod> mods;
         private static Dictionary<string, BundledSetting> byKey;
 
@@ -47,6 +50,7 @@ namespace ReDefinition.Settings
             get { return !string.IsNullOrEmpty(store.ProfileName); }
         }
 
+        // bundled.cfg's full path.
         public static string Path
         {
             get { return PluginData.Path(FileName); }
@@ -72,6 +76,7 @@ namespace ReDefinition.Settings
             get { return store.CanRestore; }
         }
 
+        // Whether the mods have been built from their registrations.
         internal static bool Built
         {
             get { return built; }
@@ -135,6 +140,7 @@ namespace ReDefinition.Settings
                           + string.Join("; ", new List<string>(mod.DroppedMembers).ToArray()) + ".");
         }
 
+        // The mod's hooks on its own window and save; a failure is a warning, the mod stays bundled.
         private static void InstallHooks(IBundledMod mod)
         {
             try
@@ -149,6 +155,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // The mods that are installed, in the registrations' order.
         public static List<IBundledMod> Installed()
         {
             List<IBundledMod> list = new List<IBundledMod>();
@@ -176,116 +183,139 @@ namespace ReDefinition.Settings
             return key != null && byKey.TryGetValue(key, out found) ? found : null;
         }
 
+        // The value the window starts from (BundledStore.Current).
         public static string Current(BundledSetting setting)
         {
             return store.Current(setting);
         }
 
+        // What a setting had before ReDefinition first changed it (BundledStore.BeforeReDefinition).
         internal static string BeforeReDefinition(BundledSetting setting)
         {
             return store.BeforeReDefinition(setting);
         }
 
+        // Whether the mod holding the value is all a choice of it needs (BundledStore.Holds).
         internal static bool Holds(BundledSetting setting, string value)
         {
             return store.Holds(setting, value);
         }
 
+        // The player's change, from the window or a profile (BundledStore.Set).
         public static void Set(BundledSetting setting, string value, bool save)
         {
             store.Set(setting, value, save);
         }
 
+        // A setting the new profile leaves alone goes back to what it had (BundledStore.Release).
         public static void Release(BundledSetting setting)
         {
             store.Release(setting);
         }
 
+        // The value Reset to defaults gives a setting (BundledStore.ResetTo).
         internal static void ResetTo(BundledSetting setting, string value)
         {
             store.ResetTo(setting, value);
         }
 
+        // The values settings had before something outside the store changed them (BundledStore.KeepBefore).
         internal static bool KeepBefore(IEnumerable<KeyValuePair<BundledSetting, string>> coming)
         {
             return store.KeepBefore(coming);
         }
 
+        // A value a requirement puts right (BundledStore.Correct).
         internal static bool Correct(BundledSetting setting, string value)
         {
             return store.Correct(setting, value);
         }
 
+        // A change made in a per-save mod's own window, followed here (BundledStore.TakeFromMod).
         internal static bool TakeFromMod(BundledSetting setting, string value, bool save = true)
         {
             return store.TakeFromMod(setting, value, save);
         }
 
+        // bundled.cfg written where something changed since.
         internal static void SaveIfDirty()
         {
             store.SaveIfDirty();
         }
 
+        // bundled.cfg and every mod with changes not yet saved (BundledStore.SaveNow).
         public static void SaveNow()
         {
             store.SaveNow();
         }
 
+        // As SaveNow, with the mods the window wrote directly saved too.
         internal static void SaveNow(IEnumerable<IBundledMod> also)
         {
             store.SaveNow(also);
         }
 
+        // What is kept here, to the mods where it is not there yet (BundledStore.ReapplyStored).
         public static void ReapplyStored(string when, IBundledMod only = null, bool sceneChange = false)
         {
             store.ReapplyStored(when, only, sceneChange);
         }
 
+        // The mods a value could not reach before, asked again (BundledStore.ReapplyWaiting).
         public static void ReapplyWaiting(string when)
         {
             store.ReapplyWaiting(when);
         }
 
+        // Every setting back to what it had before ReDefinition (BundledStore.RestoreBackup).
         public static void RestoreBackup()
         {
             store.RestoreBackup();
         }
 
+        // The bundling switched on or off (BundledStore.SetEnabled).
         public static void SetEnabled(bool on)
         {
             store.SetEnabled(on);
         }
 
+        // The mods the chosen profile was applied to noted, with their builds (BundledStore.NoteProfileApplied).
         public static void NoteProfileApplied()
         {
             store.NoteProfileApplied();
         }
 
+        // The mods that have not had the chosen profile (BundledStore.ModsWithoutTheProfile).
         public static List<string> ModsWithoutTheProfile()
         {
             return store.ModsWithoutTheProfile();
         }
 
+        // Whether a mod's toolbar button is hidden (BundledStore.HidesButton).
         public static bool HidesButton(string modId)
         {
             return store.HidesButton(modId);
         }
 
+        // A mod's toolbar button hidden, or kept by the player.
         public static void SetHidesButton(string modId, bool hide)
         {
             store.SetHidesButton(modId, hide);
         }
 
+        // Installed mods the main-menu notice has not asked about.
         public static List<IBundledMod> NotYetAsked()
         {
             return store.NotYetAsked();
         }
 
+        // The mods as asked about by the main-menu notice.
         public static void MarkAsked(IEnumerable<IBundledMod> list)
         {
             store.MarkAsked(list);
         }
 
+        // The mod's value now; null, with a warning, where reading it threw.
         internal static string SafeRead(BundledSetting setting)
         {
             return store.SafeRead(setting);
@@ -294,56 +324,67 @@ namespace ReDefinition.Settings
         // The game as the store's host.
         private sealed class GameHost : IStoreHost
         {
+            // bundled.cfg into the ledger and the state.
             public void Read(BundledLedger ledger, BundledState state)
             {
                 BundledFile.Read(Path, ledger, state, this);
             }
 
+            // The ledger and the state into bundled.cfg; false where that failed.
             public bool Write(BundledLedger ledger, BundledState state)
             {
                 return BundledFile.Write(Path, ledger, state, this);
             }
 
+            // An installed mod's setting by key (BundledSettings.Find).
             public BundledSetting Find(string key)
             {
                 return BundledSettings.Find(key);
             }
 
+            // The installed mods (BundledSettings.Installed).
             public IList<IBundledMod> Installed()
             {
                 return BundledSettings.Installed();
             }
 
+            // The save loaded now, as RegisteredMod tells it.
             public string LoadedSave()
             {
                 return RegisteredMod.LoadedSave();
             }
 
+            // The value as installed mods' requirements allow it (Requirements.Adjust).
             public string Adjust(BundledSetting setting, string value)
             {
                 return Requirements.Adjust(setting, value);
             }
 
+            // Whether installed mods' requirements allow the value (Requirements.Allows).
             public bool Allows(BundledSetting setting, string value)
             {
                 return Requirements.Allows(setting, value);
             }
 
+            // On screen, why installed mods' requirements refuse the value (Requirements.Tell).
             public void Tell(BundledSetting setting, string value)
             {
                 Requirements.Tell(setting, value);
             }
 
+            // A line in ReDefinition's log.
             public void Info(string message)
             {
                 Debug.Log(Log.Tag + " " + message);
             }
 
+            // A warning in ReDefinition's log.
             public void Warning(string message)
             {
                 Debug.LogWarning(Log.Tag + " " + message);
             }
 
+            // A warning of a kind said a few times at most (CompatibilityLog.Warn).
             public void Warn(string kind, string message)
             {
                 CompatibilityLog.Warn(kind, message);

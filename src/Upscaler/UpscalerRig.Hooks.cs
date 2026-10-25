@@ -10,6 +10,7 @@ namespace ReDefinition.Upscaler
     // overlay after the scene.
     public partial class UpscalerRig
     {
+        // The buffer the after-upscaling handlers record into, made with the first of them and run in Present.
         private CommandBuffer afterUpscalingBuffer;
 
         // The overlay: a camera behind the last camera that draws the scene, made
@@ -74,6 +75,8 @@ namespace ReDefinition.Upscaler
         // generation, appended to the capture.
         private int vesselShadowFrame = -1;
 
+        // The scene camera about to render: once a frame, the vessel's shadow into the capture while the
+        // HUD-less capture was recorded with it.
         private void OnPreRender()
         {
             if (textures.LowRes == null || inputs.Capture == null || vesselShadowFrame == Time.frameCount) return;
@@ -165,6 +168,7 @@ namespace ReDefinition.Upscaler
             SharedFrame.OverlayHooks.Invoke(callOverlayHook);
         }
 
+        // Takes the overlay camera down with its buffer, while no handler is registered or with the rig.
         private void DestroyOverlay()
         {
             if (overlayBuffer != null)
@@ -178,6 +182,7 @@ namespace ReDefinition.Upscaler
             overlayCamera = null;
         }
 
+        // At teardown: the overlay camera and the after-upscaling buffer.
         private void ReleaseHooks()
         {
             DestroyOverlay();

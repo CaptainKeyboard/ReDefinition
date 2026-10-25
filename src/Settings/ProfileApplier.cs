@@ -33,6 +33,7 @@ namespace ReDefinition.Settings
             return profiles;
         }
 
+        // The profile of that name among the profiles; null for none or an empty name.
         public static GraphicsProfile Find(IList<GraphicsProfile> profiles, string name)
         {
             if (string.IsNullOrEmpty(name)) return null;
@@ -319,6 +320,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // The registered mod of that id, installed or not; null where there is none.
         private static IBundledMod Mod(string id)
         {
             foreach (IBundledMod mod in BundledSettings.Mods)

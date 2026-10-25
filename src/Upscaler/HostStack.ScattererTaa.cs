@@ -17,6 +17,7 @@ namespace ReDefinition.Upscaler
         // to ReassertInterval later. Reassert stays as the net under it.
         private static bool taaHookTried;
 
+        // Hooks the TAA's Awake and RegisterVesselRenderers, once, each on its own.
         private static void HookScattererTaa(Type taaType)
         {
             if (taaHookTried || taaType == null) return;
@@ -77,6 +78,7 @@ namespace ReDefinition.Upscaler
             });
         }
 
+        // A new TAA component switched off as it wakes while the upscaler runs, with the shader and globals its Awake set.
         private static void ScattererTaaAwakePostfix(object __instance)
         {
             Component taa = __instance as Component;
@@ -109,6 +111,8 @@ namespace ReDefinition.Upscaler
         // again sets it itself as it renders (TemporalAntiAliasing.OnPreCull, decompiled).
         private static int? savedUseFloatingOrigin;
 
+        // Sets Scatterer's floating origin globals to no correction, saving the switch the first time; false puts the
+        // saved switch back.
         private static void NeutraliseFloatingOrigin(bool neutralise)
         {
             if (neutralise)
@@ -225,8 +229,10 @@ namespace ReDefinition.Upscaler
             return renderers;
         }
 
+        // BuiltinMotionVectorShader's cache, null until first asked.
         private static Shader builtinMotionVectorShader;
 
+        // Unity's own motion vector shader (Hidden/Internal-MotionVectors), looked up once.
         private static Shader BuiltinMotionVectorShader()
         {
             if (builtinMotionVectorShader == null)
@@ -234,18 +240,21 @@ namespace ReDefinition.Upscaler
             return builtinMotionVectorShader;
         }
 
+        // Whether a component is on; one that is no Behaviour has no switch and counts as on.
         private static bool IsEnabled(Component component)
         {
             Behaviour behaviour = component as Behaviour;
             return behaviour == null || behaviour.enabled;
         }
 
+        // Switches a Behaviour off; anything else is left alone.
         private static void Disable(Component component)
         {
             Behaviour behaviour = component as Behaviour;
             if (behaviour != null) behaviour.enabled = false;
         }
 
+        // Whether taaBackups already holds the component.
         private static bool HasBackup(Component component)
         {
             for (int i = 0; i < taaBackups.Count; i++)
@@ -253,6 +262,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // Scatterer's TAA components on the cameras (OnCameras); none without Scatterer.
         private static List<Component> ScattererTaaComponents()
         {
             List<Component> found = new List<Component>();

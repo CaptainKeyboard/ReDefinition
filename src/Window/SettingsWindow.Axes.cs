@@ -14,6 +14,7 @@ namespace ReDefinition.Window
     // copies; Apply writes them into KSP's bindings and KSP saves its settings.
     internal static partial class SettingsWindow
     {
+        // The widths of an axis row's columns: the Primary/Secondary label, the bind button, a slider and its value.
         private const float AxisSideWidth = 70f;
         private const float AxisButtonWidth = 112f;
         private const float AxisSliderWidth = 64f;
@@ -22,6 +23,7 @@ namespace ReDefinition.Window
         // The copies edited, by axis name, until Apply.
         private static readonly Dictionary<string, AxisBinding> axisPending = new Dictionary<string, AxisBinding>();
 
+        // The tab's rows: a hint, then the axes in folds by their group, each with its two sides under column captions.
         private static DialogGUIBase[] AxisRows()
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
@@ -61,6 +63,7 @@ namespace ReDefinition.Window
             return rows.ToArray();
         }
 
+        // Whether the axis's copy differs from KSP's binding.
         private static bool AxisChanged(KspAxes.Axis axis)
         {
             AxisBinding copy;
@@ -98,8 +101,10 @@ namespace ReDefinition.Window
             return secondary ? binding.secondary : binding.primary;
         }
 
+        // What the bind button shows while it listens.
         private const string AxisListeningText = "<color=#ffdd55>Move an axis...</color>";
 
+        // One side of an axis: the bind button and its clear, invert, sensitivity and deadzone, each over the copy.
         private static DialogGUIBase AxisSide(KspAxes.Axis axis, bool secondary)
         {
             KspAxes.Axis shown = axis;
@@ -185,12 +190,14 @@ namespace ReDefinition.Window
                 }, AxisValueWidth));
         }
 
+        // The sensitivity as the slider shows it, from 0 (KSP's least) to 1 (its most).
         private static float SensitivityShown(AxisBinding_Single side)
         {
             if (side == null) return 0f;
             return 1f - Mathf.InverseLerp(GameSettings.AxisSensitivityMin, GameSettings.AxisSensitivityMax, side.sensitivity);
         }
 
+        // A slider's value with two decimals.
         private static string Number(float value)
         {
             return value.ToString("0.00", CultureInfo.InvariantCulture);

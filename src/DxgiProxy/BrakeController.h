@@ -31,6 +31,7 @@ namespace redefinition
         // The sleep is at most this share of a frame's work.
         static constexpr double kSleepShare = 0.5;
 
+        // Back to the start: no sleep, nothing smoothed yet.
         void Reset()
         {
             *this = BrakeController();

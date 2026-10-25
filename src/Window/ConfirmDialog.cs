@@ -6,6 +6,7 @@ namespace ReDefinition.Window
     // Cancel, shielded from clicks through it (UnityMouseEvents.Shield).
     internal static class ConfirmDialog
     {
+        // In the middle of the screen: the button that does it on the left, KSP's Cancel on the right, both that wide.
         internal static void Show(string name, string title, string message, float width, string act, Callback onAct,
                                   float buttonWidth)
         {

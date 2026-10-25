@@ -8,6 +8,7 @@ namespace ReDefinition.Window
     // switches).
     internal enum DebugCategory
     {
+        // In the order the window lists them (DebugOptionSet.Title names them).
         Overview,
         UpscalerInputs,
         FrameGeneration,
@@ -17,9 +18,10 @@ namespace ReDefinition.Window
         OtherMods,
     }
 
+    // How an option is drawn and used.
     internal enum DebugKind
     {
-        // On or off.
+        // On or off, as two segments.
         Switch,
         // One of a few named states, shown as segments.
         Choice,
@@ -30,6 +32,7 @@ namespace ReDefinition.Window
     // Whether what an option is set to survives, and for how long.
     internal enum DebugPersistence
     {
+        // Kept in the settings file; for this session only; taking effect after KSP starts again.
         Saved,
         SessionOnly,
         NeedsRestart,
@@ -40,6 +43,7 @@ namespace ReDefinition.Window
     // Free of Unity, so that those decisions are tested outside the game.
     internal sealed class DebugOption
     {
+        // Fixed at creation: the id the pins and the probe name it by, its page, its label, its kind and its persistence.
         public readonly string Id;
         public readonly DebugCategory Category;
         public readonly string Label;
@@ -62,6 +66,7 @@ namespace ReDefinition.Window
         // The label as it reads now, for one that counts down.
         public Func<string> DynamicLabel;
 
+        // The value as an index (a switch's 0 or 1, a choice's index), its setter, an action's work, and the default value.
         public Func<int> Get = () => 0;
         public Action<int> Set = value => { };
         public Action Run = () => { };
@@ -76,6 +81,7 @@ namespace ReDefinition.Window
         public Func<string> Blocked = () => null;
         public bool PutBack = true;
 
+        // An option with its fixed parts; the rest is set by the initializer that makes it.
         public DebugOption(string id, DebugCategory category, string label, DebugKind kind, DebugPersistence persistence)
         {
             Id = id;
@@ -85,6 +91,7 @@ namespace ReDefinition.Window
             Persistence = persistence;
         }
 
+        // The label shown now: the dynamic one where there is one.
         public string CurrentLabel
         {
             get { return DynamicLabel != null ? DynamicLabel() : Label; }
@@ -122,6 +129,7 @@ namespace ReDefinition.Window
             return false;
         }
 
+        // Whether the text contains the part, case aside; false for no text.
         private static bool Contains(string text, string part)
         {
             return text != null && text.IndexOf(part, StringComparison.OrdinalIgnoreCase) >= 0;
@@ -131,13 +139,16 @@ namespace ReDefinition.Window
     // The window's options in the order they are shown, with the decisions on them.
     internal sealed class DebugOptionSet
     {
+        // The options in the order they were added, which is the order they are shown.
         private readonly List<DebugOption> options = new List<DebugOption>();
 
+        // Every option, in that order.
         public IList<DebugOption> All
         {
             get { return options; }
         }
 
+        // Adds an option at the end; two of the same id are a mistake and throw.
         public void Add(DebugOption option)
         {
             foreach (DebugOption known in options)
@@ -145,6 +156,7 @@ namespace ReDefinition.Window
             options.Add(option);
         }
 
+        // The option of that id; null where there is none.
         public DebugOption ById(string id)
         {
             foreach (DebugOption option in options)
@@ -152,6 +164,7 @@ namespace ReDefinition.Window
             return null;
         }
 
+        // A page's name in the list and as the heading of found options.
         public static string Title(DebugCategory category)
         {
             switch (category)
@@ -194,6 +207,7 @@ namespace ReDefinition.Window
             return result;
         }
 
+        // Whether the option matches the search, and is away from its default where only those are wanted.
         private static bool Passes(DebugOption option, string query, bool changedOnly)
         {
             return option.Matches(query) && (!changedOnly || option.Changed);
@@ -224,13 +238,16 @@ namespace ReDefinition.Window
     // pinned, kept as one text in the settings.
     internal sealed class DebugPins
     {
+        // The pinned ids, in pin order.
         private readonly List<string> ids = new List<string>();
 
+        // The pinned ids, in pin order, as the window reads them.
         public IList<string> Ids
         {
             get { return ids; }
         }
 
+        // Whether the option of that id is pinned.
         public bool Has(string id)
         {
             return ids.Contains(id);
@@ -242,6 +259,7 @@ namespace ReDefinition.Window
             if (!ids.Remove(id)) ids.Add(id);
         }
 
+        // The ids as the settings keep them, separated by commas.
         public string Text
         {
             get { return string.Join(",", ids.ToArray()); }
@@ -275,25 +293,30 @@ namespace ReDefinition.Window
     // The last frame times, newest last: what the window's strip draws.
     internal sealed class FrameTimeRing
     {
+        // The ring's storage, the slot the next time goes into, and how many are kept so far.
         private readonly float[] times;
         private int next;
         private int count;
 
+        // A ring that keeps the last `capacity` frame times.
         public FrameTimeRing(int capacity)
         {
             times = new float[capacity];
         }
 
+        // How many frame times are kept, up to the capacity.
         public int Count
         {
             get { return count; }
         }
 
+        // How many frame times the ring keeps at most.
         public int Capacity
         {
             get { return times.Length; }
         }
 
+        // Adds a frame time in milliseconds, over the oldest once the ring is full.
         public void Add(float milliseconds)
         {
             times[next] = milliseconds;
@@ -312,6 +335,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The longest frame time kept; 0 while there is none.
         public float Max
         {
             get

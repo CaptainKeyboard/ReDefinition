@@ -28,6 +28,8 @@ namespace ReDefinition.Upscaler
     // other mods register, the camera and its cuts, the diagnostics and the preview.
     public partial class UpscalerRig : MonoBehaviour
     {
+        // The quality mode, which sets the render size (and DLSS's own mode), and the RCAS strength after FSR 3,
+        // DLSS and XeSS, up to MaximumSharpness.
         public Fsr3Upscaler.QualityMode QualityMode = Fsr3Upscaler.QualityMode.NativeAA;
         public float Sharpness = 0.4f;
 
@@ -73,8 +75,9 @@ namespace ReDefinition.Upscaler
         // sub-element of the camera target is not available either.
         public enum DepthSource
         {
+            // The two sources, each named on its line: a global texture, or Unity's built-in resolved depth.
             GlobalDepthTexture,  // _CameraDepthTexture, filled because of depthTextureMode
-            ResolvedDepth,       // BuiltinRenderTextureType.ResolvedDepth
+            ResolvedDepth,       // Unity's BuiltinRenderTextureType.ResolvedDepth, the depth buffer resolved from deferred
         }
 
         // ResolvedDepth: in KSP's deferred path the only source that holds depth;
@@ -113,37 +116,50 @@ namespace ReDefinition.Upscaler
         public bool TransparencyMask;
         internal UpscalerMasks.ReactiveSource ReactiveMask = UpscalerMasks.ReactiveSource.Off;
 
+        // Whether the rig's textures and FSR 3 run in HDR: the scene camera's allowHDR at Setup.
         public bool EffectiveHdr { get; private set; }
 
+        // Whether the rig is set up as an upscaler: its textures made, not pass-through, and FSR 3's context
+        // made unless it bypasses or upscales in the proxy.
         public bool Ready
         {
             get { return textures.LowRes != null && !PassThrough && (Bypass || context != null || Backend != UpscalerBackend.Fsr3); }
         }
+        // What the rig is doing, or why Setup failed, in words for the log and the window.
         public string Status { get; private set; }
+        // The size the 3D stack renders at: the quality mode's, or the one DLSS asks for.
         public Vector2Int RenderSize { get { return renderSize; } }
+        // The screen's size the rig was built for, which the upscaler writes.
         public Vector2Int DisplaySize { get { return displaySize; } }
 
         // Set once the rig cannot go on as built; the add-on builds a new one
         // (RequestRebuild). With a reason when the technique stopped for good and
         // FSR 3 is to run in its place (NoteNativeState).
         internal bool RebuildWanted { get; private set; }
+        // Why the technique in the proxy stopped for good, which the add-on keeps to run FSR 3 instead; else null.
         internal string FallbackReason { get; private set; }
 
         // Whether the proxy called that failure one that stands (state -2).
         internal bool FallbackStable { get; private set; }
 
+        // The scene camera the rig is built on; FSR 3's context (null for the proxy's upscalers, a bypass or
+        // pass-through), its per-frame dispatch description, and the buffer each frame's dispatch and packet go in.
         private Camera cam;
         private Fsr3UpscalerContext context;
         private readonly Fsr3Upscaler.DispatchDescription dispatch = new Fsr3Upscaler.DispatchDescription();
         private CommandBuffer dispatchBuffer;
 
+        // The rig's parts: its render targets, the inputs beside the colour, and the redirected cameras.
         private readonly UpscalerTextures textures = new UpscalerTextures();
         private readonly UpscalerInputs inputs = new UpscalerInputs();
         private readonly UpscalerCameras cameras = new UpscalerCameras();
 
+        // The screen's size the rig was built for, and the size the 3D stack renders at.
         private Vector2Int displaySize;
         private Vector2Int renderSize;
 
+        // The helpers the rig drives each frame: mipmap bias, game-wide quality settings, TUFX after the
+        // upscaler, the motion vector audit, the vessel's own motion vectors and its shadow layer.
         private readonly KspMipmapBias mipmapBias = new KspMipmapBias();
         private readonly QualityOverrides quality = new QualityOverrides();
         private readonly TufxPostProcessing tufx = new TufxPostProcessing();
@@ -183,6 +199,7 @@ namespace ReDefinition.Upscaler
             return SharedFrame.Shifted ? previous * Matrix4x4.Translate((Vector3)SharedFrame.OriginShift) : previous;
         }
 
+        // The scene camera's depthTextureMode before Setup, and the bits Setup added to it, which Teardown clears.
         private DepthTextureMode originalDepthMode;
         private DepthTextureMode addedDepthModes;
 
@@ -209,6 +226,7 @@ namespace ReDefinition.Upscaler
             return cameras.RenderedProjection(camera, out projection);
         }
 
+        // Counts a scene load; the add-on calls it on each one Unity reports (sceneLoads).
         internal static void NoteSceneLoad()
         {
             sceneLoads++;
@@ -230,6 +248,8 @@ namespace ReDefinition.Upscaler
             get { return Ready && !Bypass && !RebuildWanted && (Backend == UpscalerBackend.Fsr3 || nativeShown); }
         }
 
+        // Whether frame generation is on and gets this rig's frames: the HUD-less capture attached and the
+        // frame not shown as rendered.
         internal bool FrameGenerationReceives
         {
             get { return FrameGeneration && hudLessBuffer != null && !PresentsRendered; }
@@ -263,11 +283,14 @@ namespace ReDefinition.Upscaler
                    && (rig.addedDepthModes & DepthTextureMode.MotionVectors) != 0;
         }
 
+        // This frame's jitter in render pixels, as the upscaler is told of it; zero while none runs.
         internal Vector2 CurrentJitter
         {
             get { return dispatch.JitterOffset; }
         }
 
+        // Builds the rig on the scene camera target: render size, textures, the redirected stack, the presenter,
+        // the upscaler and the overrides. False with the reason in Status; the caller then destroys the rig, which tears it down.
         public bool Setup(Camera target, Fsr3UpscalerShaders shaders)
         {
             cam = target;
@@ -432,6 +455,8 @@ namespace ReDefinition.Upscaler
         // add-on or its camera's OnDisable took it down.
         internal bool TornDown { get; private set; }
 
+        // Undoes everything Setup did and releases what it made, in an order no camera of the stack renders
+        // into a released texture.
         public void Teardown()
         {
             // Once: Detach, OnDisable and OnDestroy each call it.
@@ -502,6 +527,7 @@ namespace ReDefinition.Upscaler
             quality.Reassert();
         }
 
+        // KSP's events the rig follows: the floating origin's shift, vessels loaded and the editors' ship changed.
         private void Awake()
         {
             GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
@@ -572,16 +598,19 @@ namespace ReDefinition.Upscaler
         private int biasSeenLoads = -1;
         private float biasSceneTime = float.MaxValue;
 
+        // A vessel loaded in flight: its parts get the mipmap bias in the next frame.
         private void OnVesselLoaded(Vessel vessel)
         {
             if (vessel != null) NoteBiasParts(vessel.parts);
         }
 
+        // The ship in the editors changed: its parts get the mipmap bias in the next frame.
         private void OnEditorShipModified(ShipConstruct ship)
         {
             if (ship != null) NoteBiasParts(ship.parts);
         }
 
+        // Queues parts for ExtendMipmapBias, once the bias is applied at all.
         private void NoteBiasParts(List<Part> parts)
         {
             if (!biasApplied || parts == null) return;
@@ -589,6 +618,8 @@ namespace ReDefinition.Upscaler
             biasPartsFrame = Time.frameCount;
         }
 
+        // Each frame: the queued parts, the whole scene a few seconds after a load that kept the rig, and
+        // Parallax's scatter every two seconds get the bias already applied.
         private void ExtendMipmapBias()
         {
             if (!biasApplied) return;
@@ -629,6 +660,7 @@ namespace ReDefinition.Upscaler
                 Debug.Log(Log.Tag + " Mipmap bias applied to " + added + " more textures, " + mipmapBias.TextureCount + " in all.");
         }
 
+        // Parallax's scatter materials, gathered anew at each look, and when the next look is due.
         private readonly List<Material> biasMaterials = new List<Material>();
         private float biasScatterTime;
 
@@ -748,6 +780,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // FSR 3's dispatch description from the rig's textures, masks and camera; the proxy's upscalers and the
+        // frame packet read their sizes, scale, planes and frame time from it too.
         private void SetupDispatch()
         {
             dispatch.Color = new ResourceView(textures.LowRes);
@@ -799,7 +833,6 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        // Every texture whose native pointer went to the proxy at setup (UpscalerTextures).
         // Back in focus, after alt-tab or a full-screen switch: the textures' native
         // handles are asked for once more.
         private void OnApplicationFocus(bool focus)
@@ -807,6 +840,8 @@ namespace ReDefinition.Upscaler
             if (focus) textures.WantNativeCheck();
         }
 
+        // Whether every texture whose native pointer went to the proxy at setup still exists (UpscalerTextures),
+        // the RCAS input after DLSS and XeSS included; false asks for a rebuild.
         private bool TexturesCreated()
         {
             return textures.Created(PassThrough, nativeSharpener != null ? nativeSharpener.Input : null);
@@ -989,6 +1024,7 @@ namespace ReDefinition.Upscaler
             FrameGenerationBridge.SubmitFrame(dispatchBuffer, ref packet);
         }
 
+        // The camera's object deactivated or the rig switched off: everything goes back as with Detach.
         private void OnDisable()
         {
             Teardown();

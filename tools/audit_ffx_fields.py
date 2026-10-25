@@ -54,10 +54,12 @@ ASSIGNED_AS = {
 
 
 def read(path):
+    """The file's text, undecodable bytes replaced."""
     return io.open(path, encoding="utf-8", errors="replace").read()
 
 
 def fields_of(text, struct):
+    """The field names of the structure in the header, in order, without its header member; exits if it is missing."""
     match = re.search(r"^struct\s+" + struct + r"\s*$", text, re.M)
     if match is None:
         raise SystemExit("structure not found in the header: " + struct)
@@ -75,6 +77,7 @@ def fields_of(text, struct):
 
 
 def without_comments(text):
+    """The C++ text with its block and line comments removed, so a field named in a comment does not count."""
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     return re.sub(r"//[^\n]*", "", text)
 
@@ -88,6 +91,7 @@ def assigned(impl, prefix, name):
 
 
 def main():
+    """Print every field of each descriptor as set, left unset with its reason, or missing; 1 if any is missing."""
     header = read(HEADER)
     impl = without_comments("\n".join(read(path) for path in IMPL))
 

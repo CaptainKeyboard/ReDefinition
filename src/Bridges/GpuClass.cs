@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ReDefinition.Bridges
 {
     // The classes of graphics card the profiles' values differ by: what the card
-    // can run, not a model. A profile line "K @ Rtx20 Rtx30, L" gives K to the
+    // can run, not a model. A profile line "K (Rtx20 Rtx30), L" gives K to the
     // first two and L to the rest (ProfileValue).
     internal enum GpuClass
     {
@@ -28,12 +28,14 @@ namespace ReDefinition.Bridges
         RadeonOlder,
         // Intel Arc and the other Intel adapters.
         Intel,
-        // Anything else.
+        // Anything else: an adapter of another vendor, or an AMD one that is no Radeon.
         Other,
     }
 
+    // The GpuClass of the card KSP renders on, and what the profiles and settings ask of one.
     internal static class GpuClasses
     {
+        // The PCI vendor ids of NVIDIA, AMD and Intel.
         private const int Nvidia = 0x10DE;
         private const int Amd = 0x1002;
         private const int IntelVendor = 0x8086;
@@ -43,6 +45,7 @@ namespace ReDefinition.Bridges
         private const uint Ampere = 0x170;
         private const uint Blackwell = 0x1B0;
 
+        // The class once it is certain; Unknown until then, so that Current asks again.
         private static GpuClass current = GpuClass.Unknown;
 
         // The card KSP renders on. Asked once the proxy has answered (NVAPI's architecture),
@@ -99,6 +102,8 @@ namespace ReDefinition.Bridges
             return vendor == 0 ? GpuClass.Unknown : GpuClass.Other;
         }
 
+        // An NVIDIA card's class: by NVAPI's architecture where it answered, else by the RTX and model number in
+        // its name; Unknown for a name it cannot place.
         private static GpuClass OfNvidia(string name, uint architecture, uint implementation)
         {
             if (architecture != 0)
@@ -131,6 +136,7 @@ namespace ReDefinition.Bridges
             return GpuClass.Unknown;
         }
 
+        // A Radeon's class by the first digit of its RX model number; RadeonOlder for a Radeon without one.
         private static GpuClass OfAmd(string name)
         {
             string upper = name.ToUpperInvariant();

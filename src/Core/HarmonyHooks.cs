@@ -12,6 +12,8 @@ namespace ReDefinition.Core
     // First 800, Normal 400, Last 0; -1 for Harmony's own).
     internal struct HarmonyHook
     {
+        // The method patched, then the names of the prefix, postfix, finalizer and transpiler on the installing class,
+        // and the two priorities (-1: Harmony's own).
         public readonly MethodBase Target;
         public readonly string Prefix;
         public readonly string Postfix;
@@ -20,11 +22,13 @@ namespace ReDefinition.Core
         public readonly int PostfixPriority;
         public readonly string Transpiler;
 
+        // A hook whose order among other patches does not matter: both priorities Harmony's own, no transpiler.
         public HarmonyHook(MethodBase target, string prefix, string postfix, string finalizer)
             : this(target, prefix, postfix, finalizer, -1, -1, null)
         {
         }
 
+        // A hook with its priorities given, and optionally a transpiler.
         public HarmonyHook(MethodBase target, string prefix, string postfix, string finalizer, int prefixPriority,
                            int postfixPriority, string transpiler = null)
         {
@@ -67,6 +71,8 @@ namespace ReDefinition.Core
             }
         }
 
+        // The installing class's private static method of that name as a Harmony patch, with the priority set where one
+        // is given; null where the hook has none of that kind, and an exception where the method is missing.
         [MethodImpl(MethodImplOptions.NoInlining)]
         private static HarmonyLib.HarmonyMethod Method(Type owner, string name, int priority)
         {

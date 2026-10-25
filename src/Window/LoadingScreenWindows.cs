@@ -15,11 +15,14 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class LoadingScreenWindows : MonoBehaviour
     {
+        // Every instance method, public or not: what the two OnGUI lookups ask for.
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
+        // KSP's loading screen, once found, and the frame it was last looked for in.
         private static LoadingBufferMask mask;
         private static int lookedAt = -1;
 
+        // Kept across scenes; installs the prefix on each of the two mods that is installed.
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
@@ -27,6 +30,7 @@ namespace ReDefinition.Window
             Skip("MuMech.MechJebCore", "MechJeb's menu");
         }
 
+        // Installs the prefix on the type's OnGUI where the mod is installed; a failure is a warning.
         private static void Skip(string type, string what)
         {
             System.Type found = TypeLookup.Find(type);

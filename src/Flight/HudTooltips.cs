@@ -44,12 +44,14 @@ namespace ReDefinition.Flight
         private bool modeSet, alarmSet, speedSet, done;
         private float giveUpAt, alarmNext, alarmEvery = 0.5f;
 
+        // The half minute to look for the flight's buttons starts with the scene.
         protected override void Awake()
         {
             base.Awake();
             giveUpAt = Time.unscaledTime + LookFor;
         }
 
+        // The staging stack's tooltips, then the flight's three buttons, each until it is found or the half minute is over.
         protected override void Pass()
         {
             base.Pass();
@@ -108,21 +110,26 @@ namespace ReDefinition.Flight
         }
     }
 
+    // The editors' tooltips, with the staging's reset button, which asks before it resets.
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class HudTooltipsEditor : HudTooltips
     {
+        // KSP's StageManager.Reset, not public: what the reset button does once the player agrees; the button whose click
+        // asks now.
         private static readonly MethodInfo ResetMethod =
             typeof(StageManager).GetMethod("Reset", BindingFlags.Instance | BindingFlags.NonPublic, null, Type.EmptyTypes, null);
         private Button asking;
         // The reset asks first in this scene (OwnSettings.StagingResetAsks).
         private bool asks;
 
+        // Reads whether the reset asks first in this scene.
         protected override void Awake()
         {
             base.Awake();
             asks = FlightUiSwitch.On(s => s.StagingResetAsks);
         }
 
+        // The staging stack's tooltips, the reset button's, and its click made to ask first.
         protected override void Pass()
         {
             base.Pass();
@@ -139,6 +146,7 @@ namespace ReDefinition.Flight
             Debug.Log(Log.Tag + " The staging's reset button asks before it resets.");
         }
 
+        // Asks before the staging is reset as KSP's reset button would.
         private static void Ask(StageManager manager)
         {
             ConfirmDialog.Show("ReDefinitionResetStaging", "Reset Staging", "Put every part back into the stage KSP gives it?", 320f,
@@ -149,18 +157,22 @@ namespace ReDefinition.Flight
         }
     }
 
+    // The tooltips both scenes share: the staging stack's and the delta-v tools' button, checked twice a second.
     public abstract class HudTooltips : MonoBehaviour
     {
+        // When the next pass runs; whether one failed, which ends the passes for the scene.
         private float next;
         private bool failed;
         // The tooltips in this scene (OwnSettings.HudTooltips).
         protected bool Tips { get; private set; }
 
+        // Reads whether the tooltips are on in this scene.
         protected virtual void Awake()
         {
             Tips = FlightUiSwitch.On(s => s.HudTooltips);
         }
 
+        // A pass twice a second; one that fails is logged and ends the passes.
         private void Update()
         {
             if (failed || Time.unscaledTime < next) return;
@@ -176,6 +188,8 @@ namespace ReDefinition.Flight
             }
         }
 
+        // The staging stack's tooltips: the total delta-v's button, each stage's plus, minus and delta-v bar, and the delta-v
+        // tools' button.
         protected virtual void Pass()
         {
             if (!Tips) return;
@@ -196,6 +210,7 @@ namespace ReDefinition.Flight
             if (app != null && app.appLauncherButton != null) Tip(app.appLauncherButton.gameObject, "Delta-V Tools");
         }
 
+        // The tooltip on the stage's part that `field` reaches, where the stage has it.
         private static void Tip<T>(HarmonyLib.AccessTools.FieldRef<StageGroup, T> field, StageGroup group, string text) where T : Component
         {
             T part = field != null ? field(group) : null;

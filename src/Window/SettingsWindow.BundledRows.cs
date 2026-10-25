@@ -11,23 +11,26 @@ namespace ReDefinition.Window
     // setting, and a choice row's list, which a value from outside it joins.
     internal static partial class SettingsWindow
     {
-        // A choice row's list, which a value from outside the list joins at its
-        // front: one a mod's own window set while this one is open, or one a
-        // profile hands back.
+        // A choice row's list, which a value from outside the list joins -- in its
+        // place among numbers, else at the front (PlaceAmong): one a mod's own window
+        // set while this one is open, or one a profile hands back.
         private sealed class ChoiceRow
         {
+            // The values the row offers, and their labels where the values are not shown as they are.
             public string[] Choices;
             public string[] Labels;
             // The setting's own list, before a requirement limited it: where a
             // value joining the front finds its label.
             public string[] AllChoices;
             public string[] AllLabels;
+            // The row's slider, once it is built.
             public DialogGUISlider Control;
         }
 
+        // The choice rows of the open window, by their setting's key.
         private static readonly Dictionary<string, ChoiceRow> choiceRows = new Dictionary<string, ChoiceRow>();
 
-        // A value a choice row does not list goes in front of its list, as one
+        // A value a choice row does not list joins its list (PlaceAmong), as one
         // found as the window opened does.
         private static void OfferChoice(string key, string value)
         {
@@ -53,11 +56,13 @@ namespace ReDefinition.Window
             return at;
         }
 
+        // A number in the invariant culture.
         private static bool TryNumber(string text, out double number)
         {
             return double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out number);
         }
 
+        // The list with the value inserted at that index.
         private static string[] InsertAt(string[] list, int at, string value)
         {
             string[] all = new string[list.Length + 1];
@@ -67,6 +72,8 @@ namespace ReDefinition.Window
             return all;
         }
 
+        // A bundled setting's row: its name, its control by the setting's kind, its value as shown and its mod; null for
+        // a setting with nothing to draw.
         private static DialogGUIBase BundledRow(BundledSetting setting)
         {
             // A setting checked by its type only has no control to draw: no row,
@@ -177,6 +184,7 @@ namespace ReDefinition.Window
                 new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
         }
 
+        // Whether the mod's dialog can be opened now; false where asking throws.
         private static bool SafeApplicable(BundledSetting setting)
         {
             try
@@ -232,6 +240,7 @@ namespace ReDefinition.Window
             EscapeGuard.Own(shown);
         }
 
+        // The setting's choices from the running mod; null where reading them throws (logged).
         private static string[] SafeChoices(BundledSetting setting)
         {
             try
@@ -246,6 +255,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Whether the row's pending value is True.
         private static bool PendingBool(string key)
         {
             string text;
@@ -253,6 +263,7 @@ namespace ReDefinition.Window
             return model.TryGetPending(key, out text) && bool.TryParse(text, out value) && value;
         }
 
+        // The row's pending value as a number; the fallback where there is none.
         private static float PendingFloat(string key, float fallback)
         {
             string text;
@@ -280,6 +291,7 @@ namespace ReDefinition.Window
             return Mathf.Clamp(stepped, setting.Min, setting.Max);
         }
 
+        // The slider position of the row's pending value among the choices; 0 where it is none of them.
         private static float ChoiceIndex(string key, string[] choices)
         {
             string text;
@@ -289,6 +301,7 @@ namespace ReDefinition.Window
             return 0f;
         }
 
+        // The row's pending value as the row shows it; "--" where there is none.
         private static string Display(BundledSetting setting, string[] choices, string[] labels)
         {
             string text;
@@ -324,6 +337,7 @@ namespace ReDefinition.Window
                 : value.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
+        // A slider's value as the model keeps it: whole, or to two decimals.
         private static string Format(float value, bool wholeNumbers)
         {
             return wholeNumbers

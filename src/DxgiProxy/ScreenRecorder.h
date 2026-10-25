@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+// Declared only: the recorder takes them as pointers.
 struct ID3D11DeviceContext;
 struct ID3D11Texture2D;
 

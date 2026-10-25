@@ -36,6 +36,7 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class MainMenuEntry : MonoBehaviour
     {
+        // The Harmony id of the lock postfixes, and the entry's text.
         private const string HarmonyId = "ReDefinition.MainMenuEntry";
         private const string Label = "ReDefinition";
 
@@ -43,9 +44,11 @@ namespace ReDefinition.Window
         // column's entries differ by a thousandth.
         private const float ColumnTolerance = 0.05f;
 
+        // Whether the postfixes are installed (once per run), and the entry made in the current main menu.
         private static bool patched;
         private static TextProButton3D entry;
 
+        // A frame after the menu has started: the postfixes installed and the entry added.
         private IEnumerator Start()
         {
             // MainMenu.Start wires its entries and hides those of expansions that
@@ -63,6 +66,8 @@ namespace ReDefinition.Window
             }
         }
 
+        // Adds the entry under Settings and fits the column to its old height; false where it is left as KSP built it --
+        // or where KSP's Settings opens ReDefinition's window in its place.
         private static bool Add()
         {
             MainMenu menu = FindObjectOfType<MainMenu>();
@@ -142,6 +147,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Adds the copy to the texts MainMenuEnvLogic fades with the camera, where Settings is among them.
         private static void FadeWithTheOthers(MainMenu menu, TextMeshPro settings, TextMeshPro text)
         {
             MainMenuEnvLogic scene = menu.envLogic;
@@ -178,6 +184,7 @@ namespace ReDefinition.Window
             box.center = new Vector3((left + right) / 2f, center.y, center.z);
         }
 
+        // Opens ReDefinition's settings window, where it is not open.
         private static void Open()
         {
             try
@@ -190,6 +197,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Installs the postfixes on MainMenu's lockEverything and unlockEverything, once.
         private static void Patch()
         {
             if (patched) return;
@@ -202,6 +210,7 @@ namespace ReDefinition.Window
             });
         }
 
+        // MainMenu's method of that name without parameters; an exception where it is missing.
         private static MethodInfo Original(string method)
         {
             MethodInfo original = typeof(MainMenu).GetMethod(method,
@@ -225,6 +234,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The same for unlockEverything.
         private static void UnlockPostfix()
         {
             try

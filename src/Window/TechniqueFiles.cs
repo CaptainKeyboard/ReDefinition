@@ -6,12 +6,13 @@ using UnityEngine;
 
 namespace ReDefinition.Window
 {
-    // What choosing a technique whose files are missing does: it opens, one after the other, the download of
-    // NVIDIA's files, the download of Intel's, the steps for the RTX 30 package and for AMD's DLL -- and
+    // What choosing a technique whose files are missing does: it opens, one after the other, the steps for the
+    // RTX 30 package, the download of NVIDIA's files, the download of Intel's, the steps for AMD's DLL -- and
     // chooses the technique only once they are in place. A dialog the player cancels leaves the choice
     // as it was.
     internal static class TechniqueFiles
     {
+        // The release page of AMD's FidelityFX SDK, where its signed DLL is.
         private const string AmdReleasesUrl = "https://github.com/GPUOpen-LibrariesAndSDKs/FidelityFX-SDK/releases";
 
         // Null where nothing is missing.
@@ -38,6 +39,8 @@ namespace ReDefinition.Window
             };
         }
 
+        // Opens the next step that is still missing -- the package, NVIDIA's files, Intel's files, AMD's DLL -- each one's
+        // answer leading to the next; the continuation once nothing is left.
         private static void Next(TechniqueAvailability.Needs needs, Action done)
         {
             // The package first: once it is in place, NVIDIA's files for DLSS-G are among the missing
@@ -75,6 +78,7 @@ namespace ReDefinition.Window
             if (done != null) done();
         }
 
+        // Says where AMD's DLL comes from and where it goes, with a link to the release page.
         private static void ShowAmdDll()
         {
             string message =

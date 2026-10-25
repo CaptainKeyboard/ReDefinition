@@ -101,6 +101,7 @@ namespace ReDefinition.Window
             return reset;
         }
 
+        // Asks before the reset, saying what it resets: KSP's settings, every bundled mod's, ReDefinition's own, then High.
         private static void ConfirmReset()
         {
             List<string> names = new List<string>();
@@ -223,6 +224,7 @@ namespace ReDefinition.Window
         // defaults (ReDefinition-Profiles.cfg).
         private const string DefaultProfile = "high";
 
+        // Fills the rows with the profile's values, ReDefinition's own included; only filled in, Accept sets them.
         private static void ChooseProfile(GraphicsProfile profile)
         {
             // Built from values that have changed since, the lists would hand back
@@ -309,6 +311,7 @@ namespace ReDefinition.Window
             return same;
         }
 
+        // The row's value as the window holds it now; null where it holds none.
         private static string PendingValue(BundledSetting setting)
         {
             string value;

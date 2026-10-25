@@ -19,6 +19,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(110.7, ReadoutMath.TransferAngle(700e3, 12000e3), 0.1);
         }
 
+        // From a high orbit down to a low one the transfer angle comes out above 180 degrees.
         [TestMethod]
         public void LowerTargetTrails()
         {
@@ -27,6 +28,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(angle > 180.0 && angle < 360.0, angle.ToString());
         }
 
+        // The time until the phase angle reaches the transfer angle, from the two orbits' angular speeds; a full
+        // turn more once just past, and none when the angle does not close.
         [TestMethod]
         public void TimeToPhaseCloses()
         {
@@ -37,6 +40,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(double.IsNaN(ReadoutMath.TimeToPhase(10.0, 20.0, 0.1, 0.1)));
         }
 
+        // The burn needed now: a vessel at its burn height lights at once and stops in the height it has; with
+        // thrust weaker than gravity there is no burn height.
         [TestMethod]
         public void SuicideBurnStopsInTime()
         {
@@ -78,6 +83,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(countdown < 0.0, countdown.ToString());
         }
 
+        // How the readouts write distances, speeds, angles, countdowns and durations: units chosen by size, a
+        // speed that rounds to nothing without a minus sign, T - before an event and T + after it.
         [TestMethod]
         public void Writing()
         {
@@ -100,6 +107,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class ReadoutCatalogTests
     {
+        // Every readout of the catalogue has its own key, a title, a group of ReadoutCatalog.Groups and a value.
         [TestMethod]
         public void KeysOnceTitledGrouped()
         {

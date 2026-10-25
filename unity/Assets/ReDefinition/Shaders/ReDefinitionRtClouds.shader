@@ -22,6 +22,7 @@ Shader "Hidden/ReDefinition/RtClouds"
     SubShader
     {
         ZTest Always Cull Off ZWrite Off
+        // The one pass: EVE's maps blitted into the packed map, a texel per pixel.
         Pass
         {
             CGPROGRAM
@@ -29,6 +30,8 @@ Shader "Hidden/ReDefinition/RtClouds"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // EVE's layer's maps and alpha-mask switches, copied from its material (RtEveClouds), and the cloud
+            // shadow's height in the layer.
             sampler2D CloudCoverage;
             sampler2D CloudType;
             sampler2D DensityCurve;
@@ -36,6 +39,7 @@ Shader "Hidden/ReDefinition/RtClouds"
             float4 alphaMask1, alphaMask2;
             float _ReDefinitionCloudHeight;
 
+            // One texel of the packed map: the coverage in r, the density curve for the texel's cloud type in g.
             float4 frag(v2f_img i) : SV_Target
             {
                 float4 c = tex2Dlod(CloudCoverage, float4(i.uv, 0.0, 0.0));

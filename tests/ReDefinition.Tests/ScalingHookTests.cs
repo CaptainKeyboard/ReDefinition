@@ -12,6 +12,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class ScalingHookTests
     {
+        // Each of ScalingHooks.Targets() is found, its postfix exists, and every postfix parameter binds: a
+        // `___` name to a field of the target's type, any other (but `__` specials) to a target parameter.
         [TestMethod]
         public void EveryScalingHookFindsItsMethod()
         {
@@ -46,6 +48,8 @@ namespace ReDefinition.Tests
             AssertFields(RnDNodeHooks.Target(), typeof(RnDNodeHooks), "SetupPrefix", "SetupPostfix");
         }
 
+        // Asserts the target was found and that each named hook of `owner` exists with every `___` parameter
+        // naming a field of the target's declaring type.
         private static void AssertFields(MethodBase target, System.Type owner, params string[] hooks)
         {
             Assert.IsNotNull(target, owner.Name);

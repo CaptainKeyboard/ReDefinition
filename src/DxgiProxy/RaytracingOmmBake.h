@@ -25,6 +25,8 @@ namespace redefinition
         // D3D12_RAYTRACING_OPACITY_MICROMAP_STATE.
         enum State : uint8_t
         {
+            // A ray passes, or stops; unknown, left to the shader, with the state a 2-state
+            // reading takes it as.
             kTransparent = 0,
             kOpaque = 1,
             kUnknownTransparent = 2,
@@ -35,6 +37,7 @@ namespace redefinition
         // channel.
         constexpr uint32_t kTextureSize = 64;
 
+        // The micro-triangles of an OMM subdivided `level` times: 4^level.
         constexpr uint32_t MicroTriangleCount(uint32_t level)
         {
             return 1u << (2u * level);
@@ -47,9 +50,12 @@ namespace redefinition
         // barycentrics in a ray query. The corners keep the order the curve enters them.
         struct Corners
         {
+            // The three corners' u, then their v, in that order.
             int32_t u[3];
             int32_t v[3];
         };
+        // The corners from a table made once per level, levels past 8 taken as 8; `index` must
+        // lie below the level's MicroTriangleCount.
         const Corners& MicroTriangle(uint32_t level, uint32_t index);
 
         // The index of the micro-triangle that holds the barycentrics (u, v) of a hit, for
@@ -59,6 +65,7 @@ namespace redefinition
         // One triangle's texture coordinates: u, v of its three vertices.
         struct TriangleUv
         {
+            // Per vertex, in the triangle's order, its u and v.
             float uv[3][2];
         };
 
@@ -68,12 +75,16 @@ namespace redefinition
         // lowest bits of the first byte.
         struct Entry
         {
+            // An OMM: where it starts in the packed data, its level, and its format
+            // (kFormat4State), as nvomm::Desc takes them.
             uint32_t byteOffset;
             uint16_t level;
             uint16_t format;
         };
+        // The result itself, as the comment above says, with the counts the log reports.
         struct Baked
         {
+            // The packed OMMs, their entries, and per triangle its OMM's index or special index.
             std::vector<uint8_t> data;
             std::vector<Entry> entries;
             std::vector<int32_t> triangleIndex;
@@ -87,6 +98,7 @@ namespace redefinition
             uint64_t microTriangles[4] = {};
         };
 
+        // The 4-state format's value, as NVAPI numbers it (nvomm::kFormat4State).
         constexpr uint16_t kFormat4State = 2;
 
         // The bytes an OMM of `level` takes, in two bits a micro-triangle, at least one.
@@ -101,6 +113,7 @@ namespace redefinition
         // it may make in all, past which the levels are lowered.
         struct Settings
         {
+            // The two the comment above names, in its order.
             uint32_t maxLevel = 6;
             uint64_t maxMicroTriangles = 1u << 22;
         };

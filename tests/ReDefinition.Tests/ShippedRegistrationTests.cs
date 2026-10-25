@@ -12,6 +12,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class ShippedRegistrationTests
     {
+        // Every registration file shipped reads without a single problem: one would show in the player's log.
         [TestMethod]
         public void EveryShippedRegistrationReadsWithoutAProblem()
         {
@@ -42,6 +43,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("True", window.Default);
         }
 
+        // When the audited settings take effect, as the audit found in the mods' code: Waterfall's queues live,
+        // its distortion queue in the next scene, the flare saturation and Scatterer's two after a restart.
         [TestMethod]
         public void WhenTheAuditedSettingsTakeEffect()
         {
@@ -98,6 +101,7 @@ namespace ReDefinition.Tests
                 new string[] { null, null }, new[] { "mod", "mod" }).Count);
         }
 
+        // The shipped registration of that file name in GameData/ReDefinition/Mods, which must read.
         private static ModRegistration Mod(string file)
         {
             List<string> problems = new List<string>();
@@ -107,12 +111,14 @@ namespace ReDefinition.Tests
             return mod;
         }
 
+        // Reads a registration file as the game does, its problems added to `problems`.
         private static ModRegistration Read(string file, List<string> problems)
         {
             ConfigNode node = ConfigNode.Parse(File.ReadAllText(file)).GetNode(ModRegistration.NodeName);
             return ModRegistration.FromConfigNode(node, problems);
         }
 
+        // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition.
         private static string Repository()
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());

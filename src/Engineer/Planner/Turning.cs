@@ -22,6 +22,7 @@ namespace ReDefinition.Engineer
     // t m^2 gives radians per second squared.
     internal static class Turning
     {
+        // A quarter turn, in radians: the turn the time is given for.
         internal const double Angle = Math.PI / 2.0;
 
         // `members`: the parts that fly, by index; their masses as stage `stage`
@@ -86,6 +87,7 @@ namespace ReDefinition.Engineer
             return Math.Max(Time(pitchTorque, pitchInertia), Time(yawTorque, yawInertia));
         }
 
+        // From rest to rest through Angle at the torque's acceleration; infinity without torque, 0 without inertia.
         private static double Time(double torque, double inertia)
         {
             if (inertia <= 0.0) return 0.0;
@@ -118,6 +120,7 @@ namespace ReDefinition.Engineer
     // kN, in the vessel's frame; the axes it fires for.
     internal struct Nozzle
     {
+        // Where it sits and the force at full thrust, in the vessel's frame; whether it fires for pitch, and for yaw.
         public Vector3 At;
         public Vector3 Force;
         public bool Pitch;

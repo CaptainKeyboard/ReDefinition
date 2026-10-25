@@ -11,9 +11,11 @@ namespace ReDefinition.Window
     // left them for the run.
     internal static partial class SettingsWindow
     {
+        // The folds open now, and those built once already, by tab and title: kept for the run.
         private static readonly HashSet<string> openFolds = new HashSet<string>(StringComparer.Ordinal);
         private static readonly HashSet<string> knownFolds = new HashSet<string>(StringComparer.Ordinal);
 
+        // Whether the tab's groups fold: the long ones.
         private static bool Folding(SettingCategory category)
         {
             return category == SettingCategory.Gameplay || category == SettingCategory.Axes
@@ -24,6 +26,7 @@ namespace ReDefinition.Window
         // method group would be a new delegate each time.
         private static readonly Predicate<DialogGUIBase> RowMatchesCall = RowMatches;
 
+        // Whether the fold is open.
         private static bool FoldOpen(string fold)
         {
             return openFolds.Contains(fold);

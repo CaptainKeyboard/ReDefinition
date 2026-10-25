@@ -42,13 +42,15 @@ Shader "Hidden/ReDefinition/MotionAudit"
             sampler2D _AuditDepth;
             RWStructuredBuffer<uint> _AuditStats : register(u1);
 
+            // What the vertex function hands the fragment function.
             struct v2f
             {
-                float4 pos : SV_POSITION;
-                float4 now : TEXCOORD0;
-                float4 before : TEXCOORD1;
+                float4 pos : SV_POSITION; // the position rasterised as the scene camera drew it
+                float4 now : TEXCOORD0; // this frame's position without jitter
+                float4 before : TEXCOORD1; // the previous position through the previous model and view-projection
             };
 
+            // The vertex rasterised as the scene camera drew it, and its position this frame and the frame before.
             v2f vert (float4 vertex : POSITION)
             {
                 float4 local = float4(vertex.xyz, 1.0);
@@ -60,6 +62,8 @@ Shader "Hidden/ReDefinition/MotionAudit"
                 return o;
             }
 
+            // Where the renderer is the visible surface, the captured motion vector's error against the expected
+            // one, counted into the part's four slots of _AuditStats; writes no colour.
             fixed4 frag (v2f i) : SV_Target
             {
                 float2 uv = i.pos.xy * _AuditTexel.xy;
@@ -100,6 +104,7 @@ Shader "Hidden/ReDefinition/MotionAudit"
             #include "UnityCG.cginc"
             #include "../Include/ReDefinition.cginc"
 
+            // The same matrices, texel size and captured depth as pass 0.
             float4x4 _AuditRasterViewProjection;
             float4x4 _AuditViewProjection;
             float4x4 _AuditPreviousViewProjection;
@@ -107,13 +112,15 @@ Shader "Hidden/ReDefinition/MotionAudit"
             float4 _AuditTexel;
             sampler2D _AuditDepth;
 
+            // What the vertex function hands the fragment function, as in pass 0.
             struct v2f
             {
-                float4 pos : SV_POSITION;
-                float4 now : TEXCOORD0;
-                float4 before : TEXCOORD1;
+                float4 pos : SV_POSITION; // the position rasterised as the scene camera drew it
+                float4 now : TEXCOORD0; // this frame's position without jitter
+                float4 before : TEXCOORD1; // the previous position through the previous model and view-projection
             };
 
+            // As pass 0's: the rasterised position, and this frame's and the previous frame's without jitter.
             v2f vert (float4 vertex : POSITION)
             {
                 float4 local = float4(vertex.xyz, 1.0);
@@ -125,6 +132,7 @@ Shader "Hidden/ReDefinition/MotionAudit"
                 return o;
             }
 
+            // The motion vector Unity would write, where the renderer is the visible surface.
             float4 frag (v2f i) : SV_Target
             {
                 float2 uv = i.pos.xy * _AuditTexel.xy;
@@ -157,13 +165,16 @@ Shader "Hidden/ReDefinition/MotionAudit"
             #pragma target 3.5
             #include "UnityCG.cginc"
 
+            // As in pass 0: the scene camera's jittered view-projection for a render texture.
             float4x4 _AuditRasterViewProjection;
 
+            // What the vertex function hands the fragment function.
             struct v2f
             {
-                float4 pos : SV_POSITION;
+                float4 pos : SV_POSITION; // the clip position, its z the depth written
             };
 
+            // The vertex rasterised as the scene camera drew it.
             v2f vert (float4 vertex : POSITION)
             {
                 v2f o;
@@ -171,6 +182,7 @@ Shader "Hidden/ReDefinition/MotionAudit"
                 return o;
             }
 
+            // The renderer's depth, for the Max blend to keep where it is nearer.
             float4 frag (v2f i) : SV_Target
             {
                 return float4(i.pos.z, 0.0, 0.0, 0.0);

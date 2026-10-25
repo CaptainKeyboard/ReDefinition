@@ -13,6 +13,7 @@ namespace redefinition
 {
     namespace
     {
+        // The value rounded up to a multiple of the granularity.
         UINT64 RoundUp(UINT64 value, UINT64 granularity)
         {
             return (value + granularity - 1) / granularity * granularity;

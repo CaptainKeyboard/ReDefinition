@@ -57,6 +57,9 @@ namespace ReDefinition.Upscaler
     // is.
     internal sealed class VesselShadowLayer
     {
+        // The light map's side in texels; the shader's passes (the vessel into the light map, the weight, full shadow
+        // and lit ground for the local means, the composition); the local scenery's layer; and how often the light
+        // is looked for again and the counts are logged, in seconds.
         private const int LightMapSize = 1024;
         private const int CasterPass = 0;
         private const int WeightPass = 1;
@@ -80,6 +83,8 @@ namespace ReDefinition.Upscaler
         // The Debug switch; on at every start.
         internal static bool Enabled = true;
 
+        // The shader's inputs: the light map's matrices and the light, the casters' previous matrices, the rig's
+        // depth and motion, Unity's mask, the frame's matrices, sizes and parameters, and the composition's textures.
         private static readonly int LightRasterId = Shader.PropertyToID("_VesselShadowLightRaster");
         private static readonly int LightViewProjectionId = Shader.PropertyToID("_VesselShadowLightViewProjection");
         private static readonly int LightId = Shader.PropertyToID("_VesselShadowLight");
@@ -101,10 +106,13 @@ namespace ReDefinition.Upscaler
         private static readonly int MipsId = Shader.PropertyToID("_VesselShadowMips");
         private static readonly int ColourId = Shader.PropertyToID("_VesselShadowColour");
 
+        // Which of the casters CastersBounds took this frame, by index.
         private readonly List<bool> casting = new List<bool>();
 
+        // A renderer of the active vessel that is drawn into the light map.
         private struct Caster
         {
+            // The renderer, drawn with the light map's pass.
             internal Renderer Renderer;
             // The submeshes with an opaque material: a transparent one (Waterfall's
             // plumes, Firefly, translucent parts) casts no shadow of its own on the
@@ -112,12 +120,17 @@ namespace ReDefinition.Upscaler
             internal int[] Submeshes;
         }
 
+        // The active vessel's casters; a scratch list of opaque submeshes; each caster's matrix of the frame before;
+        // and the vessel and part count the casters were chosen for, to choose them again when either changes.
         private readonly List<Caster> casters = new List<Caster>();
         private readonly List<int> opaque = new List<int>();
         private readonly Dictionary<Renderer, Matrix4x4> previousModel = new Dictionary<Renderer, Matrix4x4>();
         private Vessel castersOf;
         private int castersPartCount;
 
+        // The shader's material, or why it could not be made; the light map, Unity's mask copied for the light, the
+        // weight; the textures the last Compose recorded, the half-size shadowed and lit images with their mips; the
+        // command buffer on the light that copies its mask; the light; and when it is looked for next.
         private Material material;
         private string state;
         private RenderTexture lightMap;
@@ -158,14 +171,18 @@ namespace ReDefinition.Upscaler
         // layer written beside it, to follow each step away from the game.
         private static string dumpFolder;
 
+        // From the screen recording: dump the next frame's inputs and results into a new folder.
         internal static void DumpNextFrame()
         {
             dumpFolder = Path.Combine(CaptureFolder.Root,
                                       System.DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)
                                       + "-shadow");
         }
+        // Where the current report window began, in unscaled seconds; below 0 before the first frame.
         private float windowStart = -1f;
 
+        // When the rig is taken down or leaves flight: the mask buffer off the light, the textures, the material and
+        // the casters let go.
         internal void Disable()
         {
             DetachLight();
@@ -340,6 +357,7 @@ namespace ReDefinition.Upscaler
                    && shadowed.width == Mathf.Max(1, hudLess.width / 2) && shadowed.height == Mathf.Max(1, hudLess.height / 2);
         }
 
+        // A frame without a weight: the weight cleared, so the composition takes nothing out.
         private void Clear(CommandBuffer capture)
         {
             if (weight == null || capture == null) return;
@@ -347,12 +365,15 @@ namespace ReDefinition.Upscaler
             capture.ClearRenderTarget(false, true, Color.clear);
         }
 
+        // Every caster's matrix of this frame, kept for the next one's motion.
         private void KeepModels()
         {
             foreach (Caster c in casters)
                 if (c.Renderer != null) previousModel[c.Renderer] = c.Renderer.localToWorldMatrix;
         }
 
+        // The bounds of the casters that cast a shadow this frame, around the vessel at anchor, marked in casting; false
+        // where none does.
         private bool CastersBounds(Vector3 anchor, out Bounds bounds)
         {
             bounds = default(Bounds);
@@ -377,6 +398,7 @@ namespace ReDefinition.Upscaler
         }
 
 
+        // The vessel's renderers with a mesh and at least one opaque submesh, chosen anew for another vessel or part count.
         private void ChooseCasters(Vessel vessel)
         {
             castersOf = vessel;
@@ -449,6 +471,7 @@ namespace ReDefinition.Upscaler
             Debug.Log(Log.Tag + " Vessel shadow for frame generation: the shadows of '" + light.name + "'.");
         }
 
+        // Takes the mask buffer off the light and lets go of both.
         private void DetachLight()
         {
             if (maskBuffer != null)
@@ -460,6 +483,8 @@ namespace ReDefinition.Upscaler
             light = null;
         }
 
+        // The material and the render-size textures, made where missing or lost; false where any is not there, and for
+        // good where the shader is missing.
         private bool Prepare(Vector2Int renderSize)
         {
             if (state != null) return false;
@@ -515,6 +540,7 @@ namespace ReDefinition.Upscaler
                    && EnsureMipped(ref lit, width, height, "ReDefinition_VesselShadowLit");
         }
 
+        // A mipped half-float texture at the size, made anew where missing, lost or of another size; false where it fails.
         private static bool EnsureMipped(ref RenderTexture texture, int width, int height, string name)
         {
             if (texture != null && texture.width == width && texture.height == height && texture.IsCreated()) return true;
@@ -541,6 +567,7 @@ namespace ReDefinition.Upscaler
             File.WriteAllText(Path.Combine(folder, "state.txt"), "not drawn: " + reason + "\n" + Settings());
         }
 
+        // The frame, the light, Unity's shadow settings and this layer's state as text, for the dump.
         private string Settings()
         {
             StringBuilder sb = new StringBuilder();
@@ -570,6 +597,8 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
+        // This frame's inputs and results into the dump folder: the state and matrices as text, the textures as raw
+        // bytes read back from the GPU.
         private void Dump(CommandBuffer capture, RenderTexture depth, RenderTexture motionVectors, Bounds bounds, float radius,
                           Matrix4x4 lightRaster, Matrix4x4 lightSample, Vector4 lightVector)
         {
@@ -598,6 +627,7 @@ namespace ReDefinition.Upscaler
             Debug.Log(Log.Tag + " Vessel shadow for frame generation: this frame's inputs and results into " + folder + ".");
         }
 
+        // A texture's raw bytes read back from the GPU into the file, once the readback is done.
         private static void Save(CommandBuffer capture, RenderTexture texture, string path)
         {
             capture.RequestAsyncReadback(texture, request =>
@@ -607,16 +637,19 @@ namespace ReDefinition.Upscaler
             });
         }
 
+        // A float as text that reads back to the same value, independent of the culture.
         private static string F(float value)
         {
             return value.ToString("R", CultureInfo.InvariantCulture);
         }
 
+        // A vector as three floats, separated by spaces.
         private static string V(Vector3 v)
         {
             return F(v.x) + " " + F(v.y) + " " + F(v.z);
         }
 
+        // A matrix as a name and its sixteen floats, row by row.
         private static void M(StringBuilder sb, string name, Matrix4x4 m)
         {
             sb.Append(name);
@@ -626,6 +659,8 @@ namespace ReDefinition.Upscaler
             sb.Append('\n');
         }
 
+        // Once a report window, with the debug mode on: the mask and the weight scaled down to the sample grid and read
+        // back, for Summarise.
         private void RequestSample(CommandBuffer capture)
         {
             if (maskSample == null)
@@ -685,6 +720,8 @@ namespace ReDefinition.Upscaler
                 samples, inShadow, maskMin, taken, weighted, weighted > 0 ? weightSum / weighted : 0.0, litGround);
         }
 
+        // Every ReportSeconds: frames drawn and left out, the light and the casters into the log, and the sample line
+        // with the debug mode on; a new sample is asked for after it.
         private void Report()
         {
             float elapsed = Time.unscaledTime - windowStart;
@@ -707,9 +744,11 @@ namespace ReDefinition.Upscaler
     // shadow was never found. Such renderers are effects and are not drawn into the map.
     internal static class CasterBounds
     {
+        // No renderer side longer, and no centre farther from the vessel, in metres.
         internal const float MaxExtentMetres = 250f;
         internal const float MaxDistanceMetres = 500f;
 
+        // Whether the bounds are finite and within the limits around the anchor, the vessel's position.
         internal static bool Plausible(Bounds bounds, Vector3 anchor)
         {
             Vector3 c = bounds.center, e = bounds.extents;

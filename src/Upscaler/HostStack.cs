@@ -38,14 +38,17 @@ namespace ReDefinition.Upscaler
     // Scatterer.
     internal static partial class HostStack
     {
+        // One row of the report the diagnostics window shows: a mod's filter and its state.
         public struct Line
         {
+            // What is reported on, and its state as text.
             public string Label;
             public string Value;
             public bool Ok;        // is this state suitable for FSR?
             public bool Present;   // false: mod not installed at all
         }
 
+        // Scatterer's TAA and SMAA components, by full type name.
         private const string ScattererTaaTypeName = "Scatterer.TemporalAntiAliasing";
         private const string ScattererSmaaTypeName = "Scatterer.SubpixelMorphologicalAntialiasing";
 
@@ -79,18 +82,22 @@ namespace ReDefinition.Upscaler
         private static readonly int PreviousFrameTransformId =
             Shader.PropertyToID("TAA_PreviousFrameTransform");
 
+        // Public and non-public, instance and static: what the reflection lookups here search.
         private const BindingFlags Any = TypeLookup.Any;
 
         // The state found is remembered, so a restore puts back that state rather
         // than defaults.
         private sealed class TaaBackup
         {
+            // The component and whether it was enabled when found.
             public Component Component;
             public bool Enabled;
         }
 
+        // A TUFX profile's antialiasing modes before Apply set them to None.
         private sealed class TufxBackup
         {
+            // The modes of the profile's primary camera and of its other cameras, as TUFX names them.
             public object Primary;
             public object Secondary;
 
@@ -99,6 +106,7 @@ namespace ReDefinition.Upscaler
             public object Applied;
         }
 
+        // Every Scatterer TAA component switched off here, with its state as found.
         private static readonly List<TaaBackup> taaBackups = new List<TaaBackup>();
 
         // Keyed by profile object rather than by name: TUFX keeps its profiles
@@ -115,13 +123,18 @@ namespace ReDefinition.Upscaler
         // Components switched off here, so they can be switched back on.
         private static readonly List<Behaviour> disabledComponents = new List<Behaviour>();
 
+        // The motion vector shader's mode and custom shader before RestoreBuiltinMotionVectorShader set Unity's own; null
+        // while nothing is saved.
         private static BuiltinShaderMode? savedShaderMode;
         private static Shader savedCustomShader;
 
+        // When Reassert next runs, in unscaled time.
         private static float nextReassert;
 
+        // Whether Apply has configured the other mods' filters and Restore has not handed them back yet.
         public static bool Applied { get; private set; }
 
+        // The report of the last Apply or Restore, for the diagnostics window.
         public static string LastMessage { get; private set; }
 
         // ------------------------------------------------------------------
@@ -135,12 +148,15 @@ namespace ReDefinition.Upscaler
         private const float RefreshInterval = 0.5f;
         private const float ReassertInterval = 1.0f;
 
+        // The rows of the last Build, when the next one is due and whether there was one at all.
         private static readonly List<Line> cachedLines = new List<Line>();
         private static float nextRefresh;
         private static bool everBuilt;
 
+        // The cached report rows, as Refresh last built them.
         public static List<Line> Lines { get { return cachedLines; } }
 
+        // Rebuilds the report rows, at most every RefreshInterval unless forced.
         public static void Refresh(bool force)
         {
             if (!force && everBuilt && Time.unscaledTime < nextRefresh) return;
@@ -158,6 +174,8 @@ namespace ReDefinition.Upscaler
             return FlightGlobals.fetch != null ? FlightGlobals.ActiveVessel : null;
         }
 
+        // Reads the state of TUFX, Scatterer's TAA and SMAA, Deferred's SMAA, Kerbal Frame Generator, the active vessel's
+        // motion vector modes and the motion vector shader into report rows.
         private static void Build(List<Line> lines)
         {
             Type profileType;
@@ -268,6 +286,7 @@ namespace ReDefinition.Upscaler
             lines.Add(MotionVectorLine(taa.Count > 0));
         }
 
+        // The row for one of a TUFX profile's antialiasing modes: suitable only when it is None.
         private static Line AaLine(object profile, Type profileType, string field, string label)
         {
             object mode;
@@ -316,6 +335,8 @@ namespace ReDefinition.Upscaler
         // Setting the state
         // ------------------------------------------------------------------
 
+        // Switches off every filter of another mod that runs in front of the upscaler, and what Scatterer's TAA leaves
+        // behind; remembers what it found for Restore. Returns the report.
         public static string Apply()
         {
             StringBuilder report = new StringBuilder();
@@ -375,6 +396,7 @@ namespace ReDefinition.Upscaler
             return LastMessage;
         }
 
+        // Runs one mod's part of Apply or Restore; an exception costs that part only and is noted in the report.
         private static void Step(StringBuilder report, string what, Action body)
         {
             try
@@ -387,6 +409,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Hands back everything Apply changed, where it still holds what was set here. Returns the report.
         public static string Restore()
         {
             StringBuilder report = new StringBuilder();
@@ -403,6 +426,8 @@ namespace ReDefinition.Upscaler
             return LastMessage;
         }
 
+        // Switches the Scatterer TAA components back on that were on when found, and puts back its floating origin
+        // switch and motion vector shader.
         private static void RestoreScattererTaa(StringBuilder report)
         {
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
@@ -424,6 +449,7 @@ namespace ReDefinition.Upscaler
             report.Append(restored).Append(" Scatterer TAA restored. ");
         }
 
+        // Puts back each TUFX profile's antialiasing modes where they still hold None, then its layers' and cameras'.
         private static void RestoreTufxProfiles(StringBuilder report)
         {
             // Every profile changed here, not just the active one: across a scene
@@ -467,6 +493,7 @@ namespace ReDefinition.Upscaler
             tufxBackups.Clear();
         }
 
+        // Switches the components in disabledComponents back on.
         private static void ReEnableComponents(StringBuilder report)
         {
             // Same rule for the components switched off here: only what is still
@@ -483,6 +510,7 @@ namespace ReDefinition.Upscaler
             disabledComponents.Clear();
         }
 
+        // Hands every SMAA switched off here back to its owner (smaaStates).
         private static void HandBackSmaa(StringBuilder report)
         {
             // Each SMAA back as it was found. One that was running is switched
@@ -548,6 +576,8 @@ namespace ReDefinition.Upscaler
         private static GameScenes searchedScene = GameScenes.LOADING;
         private static float sceneSeenAt;
 
+        // The components of `type` on the cameras: the whole scene searched in the first ten seconds, then the enabled
+        // cameras asked.
         internal static List<Component> OnCameras(Type type)
         {
             var found = new List<Component>();
@@ -612,6 +642,7 @@ namespace ReDefinition.Upscaler
         // Reflection plumbing
         // ------------------------------------------------------------------
 
+        // Reads a field or readable property by name; false when the type has neither.
         private static bool TryGet(object target, Type type, string name, out object value)
         {
             FieldInfo field = type.GetField(name, Any);
@@ -622,6 +653,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // Writes a field or writable property by name; false when the type has neither.
         private static bool TrySet(object target, Type type, string name, object value)
         {
             FieldInfo field = type.GetField(name, Any);
@@ -641,6 +673,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // Writes a static field by name, only with a value of the field's type.
         private static bool TrySetStatic(Type type, string name, object value)
         {
             FieldInfo field = type.GetField(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
@@ -649,11 +682,13 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // A report row that is fine as it is.
         private static Line Info(string label, string value)
         {
             return new Line { Label = label, Value = value, Ok = true, Present = true };
         }
 
+        // A report row for a mod that is not installed.
         private static Line Missing(string label)
         {
             return new Line { Label = label, Value = "not installed", Ok = true, Present = false };

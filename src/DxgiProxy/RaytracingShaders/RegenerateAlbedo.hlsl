@@ -4,8 +4,10 @@
 
 #include "RtCommon.hlsli"
 
+// The guide written, 0 under the sky.
 RWTexture2D<float4> diffuseAlbedoOut : register(u0, space3);
 
+// Per pixel the surface's albedo (SurfaceAt), its square root.
 [numthreads(8, 8, 1)]
 void RegenerationAlbedo(uint3 id : SV_DispatchThreadID)
 {

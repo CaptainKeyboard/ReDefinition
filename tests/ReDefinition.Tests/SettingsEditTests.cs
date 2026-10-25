@@ -10,16 +10,19 @@ namespace ReDefinition.Tests
     [TestClass]
     public class SettingsEditTests
     {
+        // A bundled setting with the key as its title too.
         private static BundledSetting Setting(string key)
         {
             return new BundledSetting { Key = key, Title = key };
         }
 
+        // A row's key with the value it was read with.
         private static KeyValuePair<string, string> Row(string key, string value)
         {
             return new KeyValuePair<string, string>(key, value);
         }
 
+        // A window opened with bundling on, no profile, and the rows given.
         private static SettingsEdit Opened(params KeyValuePair<string, string>[] rows)
         {
             SettingsEdit edit = new SettingsEdit();
@@ -27,6 +30,7 @@ namespace ReDefinition.Tests
             return edit;
         }
 
+        // The value waiting for Apply in a row, or null where it has none.
         private static string Pending(SettingsEdit edit, string key)
         {
             string value;
@@ -41,6 +45,8 @@ namespace ReDefinition.Tests
                 new Dictionary<string, HashSet<BundledSetting>> { { name, new HashSet<BundledSetting>(released) } });
         }
 
+        // Opening takes each row whose value could be read; one nobody could read cannot be edited, and nothing
+        // waits for Apply yet.
         [TestMethod]
         public void OpeningTakesTheValuesThatCanBeRead()
         {
@@ -51,6 +57,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(edit.RowsPending());
         }
 
+        // A changed row waits for Apply only while it differs from what it was opened with.
         [TestMethod]
         public void AChangeWaitsForApplyUntilTheRowHoldsItsValueAgain()
         {
@@ -62,6 +69,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(edit.Unapplied(false, true, ""));
         }
 
+        // A row the chosen profile filled is the profile's while it holds the profile's value, and again once
+        // changed back to it.
         [TestMethod]
         public void ARowIsTheProfilesWhileItHoldsTheProfilesValue()
         {
@@ -81,6 +90,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(edit.FilledBy(ocean.Key, "True", out from), "back at the profile's value it is the profile's again");
         }
 
+        // A row a profile hands back stops being handed back once edited by hand, even when edited back to the
+        // same value.
         [TestMethod]
         public void AHandEditEndsAHandBackForGood()
         {
@@ -98,6 +109,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(edit.FilledBy(flares.Key, "True", out from));
         }
 
+        // After the reset a profile fills its own rows, and the reset's defaults stay in the others, as the
+        // status line says.
         [TestMethod]
         public void AProfileChosenAfterTheResetLeavesItsOtherRowsToTheReset()
         {
@@ -117,6 +130,8 @@ namespace ReDefinition.Tests
                 edit.Status("", true, false, "High", values => 0));
         }
 
+        // Choosing another profile after the reset gives a row the earlier profile filled the reset's default,
+        // not that profile's value.
         [TestMethod]
         public void ARowAnEarlierProfileFilledGoesBackToTheResetsDefault()
         {
@@ -138,6 +153,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("True", Pending(edit, ocean.Key));
         }
 
+        // A sync takes the mod's new value only for a row nobody changed here: the player's change and the
+        // profile's row stay, and a value already taken is no news.
         [TestMethod]
         public void ASyncTakesTheModsValueOnlyForARowNotChangedHere()
         {
@@ -219,6 +236,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("True", steps[0].Value);
         }
 
+        // Apply's steps follow where each row's value came from: the player's change is set, a handed back row
+        // released, a profile's value set where the mod holding it is not enough, and an unchanged row left out.
         [TestMethod]
         public void ApplyTakesEachRowAsItsValueCameIntoIt()
         {
@@ -299,6 +318,8 @@ namespace ReDefinition.Tests
                 edit.Status("", true, false, "High", values => values.Count));
         }
 
+        // The status line names no profile with High to start with, a chosen profile, Custom with the number of
+        // settings changed from it, a profile no longer installed, and adds "Accept sets it" while a change waits.
         [TestMethod]
         public void TheStatusLineSaysWhatTheRowsHold()
         {
@@ -321,6 +342,8 @@ namespace ReDefinition.Tests
                 edit.Status("high", true, false, null, v => 0));
         }
 
+        // A toolbar button's hide choice is the window's until Apply, as a row's value is: Apply and Cancel see
+        // it, going back to the opened choice clears it, and a mod without a button is not held.
         [TestMethod]
         public void AToolbarChoiceWaitsForApplyAsARowDoes()
         {

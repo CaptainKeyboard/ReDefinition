@@ -31,6 +31,7 @@ from scipy import ndimage
 
 
 def read(prefix, name, dtype, channels, crop):
+    """One station of a capture (<prefix>-<name>.bin) as a crop x crop array, or None where it was not written."""
     path = prefix + '-' + name + '.bin'
     if not os.path.exists(path):
         return None
@@ -39,6 +40,7 @@ def read(prefix, name, dtype, channels, crop):
 
 
 def grey(prefix, name, crop):
+    """The station as grey (RGB mean): the screen from 8 bits to 0..1, the others from half floats."""
     if name == 'screen':
         # The finished frame, 8 bits, encoded as the screen shows it.
         a = read(prefix, name, np.uint8, 4, crop)
@@ -84,6 +86,7 @@ def bands(diff, vessel, sky):
 
 
 def main():
+    """Print, per variant and capture, the bands of the difference with and without the vessel at the station."""
     if len(sys.argv) < 2:
         sys.exit(__doc__)
     folder = sys.argv[1]

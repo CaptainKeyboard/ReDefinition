@@ -171,6 +171,8 @@ namespace ReDefinition.Settings
             return true;
         }
 
+        // A member path a KEY block names for its key or a modifier, which must hold a KeyCode or its name; null,
+        // the binding left out as a missing member, where this build cannot give it.
         private MemberPath BindingMember(SettingRegistration entry, string text, string what, string where,
                                          List<string> problems)
         {
@@ -199,6 +201,7 @@ namespace ReDefinition.Settings
             return path;
         }
 
+        // The member's key as text; None for a modifier member the binding does not have.
         private static string BindingText(MemberPath path)
         {
             if (path == null) return KeyCombination.NoneText;
@@ -206,6 +209,7 @@ namespace ReDefinition.Settings
             return value != null ? value.ToString() : null;
         }
 
+        // The key into the member, as a KeyCode or as its name, whichever the member holds.
         private static void SetBinding(MemberPath path, string text)
         {
             if (path.ValueType == typeof(UnityEngine.KeyCode))

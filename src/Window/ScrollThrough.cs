@@ -19,6 +19,7 @@ namespace ReDefinition.Window
     // with the field.
     internal static class ScrollThrough
     {
+        // Adds the Scroll entry to every EventTrigger of the window and a ScrollForwarder to every text field.
         internal static void Apply(GameObject window)
         {
             try

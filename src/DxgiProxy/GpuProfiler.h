@@ -36,22 +36,28 @@ namespace redefinition
     // The raytracing's markers of an extra frame (kRtFrameExtra, the ocean's), apart.
     inline constexpr int kProfRtExtraOffset = 8;
 
+    // The timestamp queries of the last few frames on Unity's device, and the last complete frame's result.
     class GpuProfiler
     {
     public:
+        // The one instance, never destroyed.
         static GpuProfiler& Get();
 
+        // Unity's device and immediate context from the swapchain proxy; the queries are made again for them.
         void Attach(const void* owner, ID3D11Device* device, ID3D11DeviceContext* context);
+        // Lets go of the device and its queries where owner is the one attached; otherwise nothing.
         void Detach(const void* owner);
 
+        // Switched on or off by the mod; logged where it changes.
         void SetEnabled(bool enabled);
+        // Whether the mod has it on; markers and frames are only taken while it is.
         bool Enabled() const { return enabled.load(); }
 
         // On Unity's render thread, from the render event (eventId in the profiler's range).
         void OnMarker(int id);
 
         // On the thread that presents, before the proxy's own work on Unity's context:
-        // the frame's last marker (id 0), its disjoint query ended, the next begun.
+        // the frame's last marker (id 1), its disjoint query ended, the next begun with id 0.
         void OnPresent();
 
         // The label a marker's annotation carries, set by the mod from any thread.
@@ -63,13 +69,18 @@ namespace redefinition
         int Read(int* ids, float* ms, int capacity, int* frameNumber);
 
     private:
+        // Only Get makes it.
         GpuProfiler() = default;
 
+        // Frames in flight before one is dropped unanswered, and the markers a frame holds at most.
         static constexpr int kFrames = 6;
         static constexpr int kMarkersPerFrame = 2048;
 
+        // One frame's queries: the disjoint query around it, a timestamp per marker with the marker's id, how
+        // many are used, whether it waits to be read, and whether markers were dropped.
         struct Frame
         {
+            // In the order of the comment above.
             Microsoft::WRL::ComPtr<ID3D11Query> disjoint;
             std::vector<Microsoft::WRL::ComPtr<ID3D11Query>> stamps;
             std::vector<int> ids;
@@ -78,11 +89,16 @@ namespace redefinition
             bool overflowed = false;
         };
 
+        // Every frame's queries made on the device once; a failure is logged and stands until the next Attach.
         bool EnsureQueries();
         void Collect();
+        // The next frame's disjoint query begun, with its first timestamp (id 0); one still unanswered is dropped.
         void BeginFrame();
 
+        // Whether the mod has it on.
         std::atomic<bool> enabled{ false };
+        // Under this mutex: the owner, Unity's device, context and annotation interface, the frames, whether their
+        // queries were made or failed, the frame being recorded (-1 none), and the frames read so far.
         std::mutex mutex;
         const void* owner = nullptr;
         Microsoft::WRL::ComPtr<ID3D11Device> device;
@@ -94,9 +110,12 @@ namespace redefinition
         int current = -1;
         int frameCounter = 0;
 
+        // The marker labels by id, set from any thread.
         std::mutex labelMutex;
         std::vector<std::wstring> labels;
 
+        // The last complete frame for Read: ids, milliseconds after its start, its number; and the overflow lines
+        // logged, at most three.
         std::mutex resultMutex;
         std::vector<int> resultIds;
         std::vector<float> resultMs;

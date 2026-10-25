@@ -13,6 +13,7 @@ namespace ReDefinition.Scaling
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ScalingAddon : MonoBehaviour
     {
+        // Kept over scene changes; installs each part on its own.
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
@@ -22,6 +23,7 @@ namespace ReDefinition.Scaling
             Install("other-scalers", "Other mods' scaling of the same things could not be turned off", OtherScalers.Install);
         }
 
+        // Runs one installer; a failure is logged as a warning of the kind `key`, and the others still install.
         private static void Install(string key, string what, Action install)
         {
             try
@@ -39,10 +41,12 @@ namespace ReDefinition.Scaling
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class FlightScaling : MonoBehaviour
     {
+        // The lines and gizmos scaled, and whether the log has noted the scaling.
         private readonly CommNetLines commNet = new CommNetLines();
         private readonly ManeuverGizmos gizmos = new ManeuverGizmos();
         private bool noted;
 
+        // Every frame: the labels, lines and gizmo at the UI scale; the log notes it once.
         private void LateUpdate()
         {
             float scale = UiScaling.World;
@@ -77,11 +81,14 @@ namespace ReDefinition.Scaling
         }
     }
 
+    // In the tracking station: CommNet's lines.
     [KSPAddon(KSPAddon.Startup.TrackingStation, false)]
     public class TrackingStationScaling : MonoBehaviour
     {
+        // CommNet's lines, scaled in this scene.
         private readonly CommNetLines commNet = new CommNetLines();
 
+        // Every frame: CommNet's lines at the UI scale.
         private void LateUpdate()
         {
             commNet.At(UiScaling.World);
@@ -93,10 +100,12 @@ namespace ReDefinition.Scaling
     // decompiled). Those widths are set from KSP's own times the scale.
     internal sealed class CommNetLines
     {
+        // The CommNetUI the widths were read from, and its own widths before scaling.
         private CommNetUI ui;
         private float width2D;
         private float width3D;
 
+        // Every frame: KSP's widths times the scale, read again from each new CommNetUI.
         internal void At(float scale)
         {
             CommNetUI current = CommNetUI.Instance;
@@ -134,6 +143,7 @@ namespace ReDefinition.Scaling
             return maneuver != null && sizes.TryGetValue(maneuver, out own) ? own * UiScaling.World : 0f;
         }
 
+        // Every frame: each open gizmo of the active vessel's nodes at its own size times the scale; destroyed ones dropped.
         internal void At(float scale)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;

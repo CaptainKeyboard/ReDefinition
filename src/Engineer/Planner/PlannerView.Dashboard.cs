@@ -33,6 +33,8 @@ namespace ReDefinition.Engineer
             return snapshot;
         }
 
+        // The rows as the page takes them: the craft, the sections, the settings, the stops with their steps, and once the
+        // plan is worked out the summary, the route's bar, the fuel plan and the thrust part.
         private Dictionary<string, object> MakeSnapshot()
         {
             var shot = new Dictionary<string, object>
@@ -121,6 +123,7 @@ namespace ReDefinition.Engineer
             return step;
         }
 
+        // One piece of a bar for the page: its share of the scale and its colour.
         private static Dictionary<string, object> Share(double share, UnityEngine.Color colour)
         {
             return new Dictionary<string, object> { { "share", Math.Round(share, 4) }, { "color", PlannerColors.Hex(colour) } };
@@ -283,11 +286,13 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // The argument at `at`, rounded to a whole number; -1 where there is none.
         private static int Int(string[] args, int at)
         {
             return (int)Math.Round(Number(args, at));
         }
 
+        // The argument at `at` as a number; -1 where there is none or it is no number.
         private static double Number(string[] args, int at)
         {
             double value;

@@ -13,6 +13,8 @@ uint _First;
 float4 _Eye;
 RWTexture2D<float4> _Out;
 
+// One transform per thread: its three rows into the output texture, the camera taken off the position; zeros
+// past the buffer's count.
 [numthreads(64, 1, 1)]
 void Gather(uint3 id : SV_DispatchThreadID)
 {

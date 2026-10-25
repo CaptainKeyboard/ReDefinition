@@ -43,16 +43,24 @@ namespace ReDefinition.Upscaler
     // Both masks are off by default.
     internal sealed class UpscalerMasks
     {
+        // Where the reactive mask comes from, as the settings choose it.
         internal enum ReactiveSource
         {
+            // No reactive mask at all.
             Off,
+            // Drawn here from the transparent renderers in view.
             Renderers,
+            // FSR's own generator, fed the opaque-only and post-alpha copies.
             Automatic,
         }
 
+        // The highest value the reactive mask is clamped to, AMD's recommended 0.9.
         internal const float ReactiveMaximum = 0.9f;
+        // The first render queue counted as transparent: Unity's Transparent queue starts above 2500.
         private const int TransparentQueueFrom = 2501;
+        // Seconds between two looks for effects' renderers (Scan).
         private const float ScanInterval = 1f;
+        // Seconds between two looks through every renderer of the scene.
         private const float FullScanInterval = 10f;
 
         // Transparent queues that are not something blended over the scene: what
@@ -71,8 +79,10 @@ namespace ReDefinition.Upscaler
             "Waterfall/", "ReDefinition",
         };
 
+        // The shader property ids the masks read from source materials and set on the mask shader.
         private static class Ids
         {
+            // The source materials' texture, tints and blend, then the mask shader's own inputs.
             internal static readonly int MainTex = Shader.PropertyToID("_MainTex");
             internal static readonly int TintColor = Shader.PropertyToID("_TintColor");
             internal static readonly int Color = Shader.PropertyToID("_Color");
@@ -90,36 +100,47 @@ namespace ReDefinition.Upscaler
             internal static readonly int CloudTexture = Shader.PropertyToID("scattererReconstructedCloud");
         }
 
+        // What a material is to the reactive mask (KindOf).
         [Flags]
         private enum Kind : byte
         {
+            // Opaque, or a transparent queue that is not blended over the scene.
             None = 0,
+            // Blended over the scene: drawn into the reactive mask.
             Reactive = 1,
+            // Blends additively, so the mask takes what it adds rather than its alpha.
             Additive = 2,
         }
 
+        // A material's kind with the queue, shader and blend it was worked out from, to notice when they change.
         private struct MaterialKind
         {
+            // The kind, then what it was worked out from: render queue, shader instance id, _DstBlend (-1 if none).
             public Kind Kind;
             public int Queue;
             public int ShaderId;
             public float DstBlend;
         }
 
+        // A renderer with a reactive material, found by a scan, and how to draw it into the mask.
         private struct Candidate
         {
+            // The renderer, its particle system if it has one, whether its colour is in the vertices, its submesh count.
             public Renderer Renderer;
             public ParticleSystem Particles;
             public bool VertexColours;
             public int Submeshes;
         }
 
+        // A mask-shader material standing in for one source material (CopyFor).
         private sealed class MaskCopy
         {
+            // The copy, and the frame it was last filled from its source in (-1: never).
             public Material Material;
             public int PreparedFrame = -1;
         }
 
+        // The renderers checked for the reactive mask in every frame: the scene's from the last full scan, then the effects'.
         private readonly List<Candidate> candidates = new List<Candidate>();
         // The candidates of the last look through every renderer (Scan), effects aside.
         private readonly List<Candidate> sceneCandidates = new List<Candidate>();
@@ -147,19 +168,28 @@ namespace ReDefinition.Upscaler
         private CommandBuffer opaqueBuffer;
         private Camera opaqueCamera;
 
+        // The transparency-and-composition mask, null while it is not asked for.
         internal RenderTexture TransparencyTexture { get { return transparency; } }
+        // The reactive mask drawn from the renderers, null while that source is not chosen.
         internal RenderTexture ReactiveTexture { get { return reactive; } }
 
         // The masks' native textures for the proxy's upscaler, taken once per texture:
         // GetNativeTexturePtr flushes the render thread.
         private IntPtr transparencyHandle;
         private IntPtr reactiveHandle;
+        // The transparency mask's native texture, zero while the mask is not there.
         internal IntPtr TransparencyHandle { get { return transparency != null ? transparencyHandle : IntPtr.Zero; } }
+        // The reactive mask's native texture, zero while the mask is not there.
         internal IntPtr ReactiveHandle { get { return reactive != null ? reactiveHandle : IntPtr.Zero; } }
+        // The image before the transparent queue, for FSR's own generator; null while no copy is recorded.
         internal RenderTexture OpaqueOnly { get { return opaqueBuffer != null ? opaqueOnly : null; } }
+        // The image right after the transparent queue, for FSR's own generator; null while no copy is recorded.
         internal RenderTexture PostAlpha { get { return maskBuffer != null ? postAlpha : null; } }
+        // How many transparent renderers the last scan found, for the diagnostics.
         internal int Candidates { get { return candidates.Count; } }
+        // How many renderer draws went into the reactive mask this frame, for the diagnostics.
         internal int Drawn { get; private set; }
+        // Why the masks cannot be drawn (the mask shader missing or outdated), or null.
         internal string Problem { get; private set; }
 
         // Records what is asked for on the scene camera: the masks, and the two
@@ -203,6 +233,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Takes the command buffers off their cameras and releases the textures, materials and caches.
         internal void Dispose()
         {
             DetachMaskBuffer();
@@ -222,6 +253,7 @@ namespace ReDefinition.Upscaler
             fullscreen = null;
         }
 
+        // The transparency mask in one fullscreen pass (pass 0) from EVE's cloud history and Scatterer's ocean.
         private void RecordTransparency()
         {
             CheckMods();
@@ -236,6 +268,8 @@ namespace ReDefinition.Upscaler
             maskBuffer.Blit(Texture2D.blackTexture, transparency, fullscreen, 0);
         }
 
+        // The reactive mask from the renderers: the scene's depth copied for occlusion, every visible candidate's
+        // reactive submeshes drawn with its mask copy (pass 1), then clamped to ReactiveMaximum (pass 2).
         private void RecordReactive(Camera camera, RenderTargetIdentifier depthSource, RenderTexture sceneDepth)
         {
             maskBuffer.Blit(depthSource, sceneDepth);
@@ -296,6 +330,8 @@ namespace ReDefinition.Upscaler
             opaqueCamera = camera;
         }
 
+        // Makes the fullscreen mask material from the shader bundle; false, with Problem set and warned once, if it
+        // cannot.
         private bool EnsureMaterial()
         {
             if (fullscreen != null) return true;
@@ -324,6 +360,7 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // Looks once whether EVE's clouds and Scatterer's ocean are there for the transparency mask to read.
         private void CheckMods()
         {
             if (modsChecked) return;
@@ -463,6 +500,7 @@ namespace ReDefinition.Upscaler
             return kind;
         }
 
+        // Whether a shader's name contains one of the NotReactive parts.
         private static bool Excluded(string shader)
         {
             foreach (string part in NotReactive)
@@ -503,6 +541,7 @@ namespace ReDefinition.Upscaler
             return target;
         }
 
+        // Puts the masks' command buffer on the camera at AfterForwardAlpha, moving it off another camera first.
         private void AttachMaskBuffer(Camera camera)
         {
             if (maskBuffer != null && maskCamera == camera) return;
@@ -512,6 +551,7 @@ namespace ReDefinition.Upscaler
             maskCamera = camera;
         }
 
+        // Takes the masks' command buffer off its camera and releases it.
         private void DetachMaskBuffer()
         {
             if (maskBuffer == null) return;
@@ -521,6 +561,7 @@ namespace ReDefinition.Upscaler
             maskCamera = null;
         }
 
+        // Takes the opaque-only copy's command buffer off its camera and releases it.
         private void DetachOpaqueCopy()
         {
             if (opaqueBuffer == null) return;

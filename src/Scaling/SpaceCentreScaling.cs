@@ -30,6 +30,7 @@ namespace ReDefinition.Scaling
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class SpaceCentreScaling : MonoBehaviour
     {
+        // The zoom the tree opens at, and the furthest it zooms in (KSP: 1 for both).
         private const float ZoomOpen = 1.5f;
         private const float ZoomMax = 2.5f;
         // A node's share of the tree against KSP's at a UI scale and zoom of 1.
@@ -57,6 +58,7 @@ namespace ReDefinition.Scaling
             if (tiles != null) ScaleTiles(tiles.transform);
         }
 
+        // Opens a new R&D screen's tree at ZoomOpen and lets it zoom in to ZoomMax; the log notes it once.
         private void OpenTree(RDController controller)
         {
             UIGridArea grid = controller.gridArea;
@@ -118,8 +120,10 @@ namespace ReDefinition.Scaling
     // The tree nodes' scale for RDNode.Setup (SpaceCentreScaling).
     internal static class RnDNodeHooks
     {
+        // The id the hook is installed under.
         private const string HarmonyId = "ReDefinition.UiScaling.RnD";
 
+        // RDNode.Setup, the overload without parameters; also for the tests.
         internal static MethodBase Target()
         {
             return typeof(RDNode).GetMethod("Setup", BindingFlags.Instance | BindingFlags.Public, null, Type.EmptyTypes, null);
@@ -128,6 +132,7 @@ namespace ReDefinition.Scaling
         // Whether the hook is in: without it 4kSP's R&D scaling stays (OtherScalers).
         internal static bool Installed;
 
+        // Patches RDNode.Setup; from ScalingAddon.
         internal static void Install()
         {
             HarmonyHooks.Install(HarmonyId, typeof(RnDNodeHooks),
@@ -146,6 +151,7 @@ namespace ReDefinition.Scaling
             __instance.scale *= root.lossyScale.x * SpaceCentreScaling.NodeShare;
         }
 
+        // Gives the node back the scale its tech tree set, after Setup sized it.
         private static void SetupPostfix(RDNode __instance, float __state)
         {
             __instance.scale = __state;

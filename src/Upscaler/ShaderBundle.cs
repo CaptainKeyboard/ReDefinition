@@ -15,6 +15,7 @@ namespace ReDefinition.Upscaler
     // AssetBundle".
     internal static class ShaderBundle
     {
+        // The bundle's file name in GameData/ReDefinition/Shaders.
         public const string BundleName = "redefinition.shaders";
 
         // Order does not matter, but the names have to match the file names in
@@ -33,11 +34,14 @@ namespace ReDefinition.Upscaler
         private const string TcrAutoGen = "ffx_fsr3upscaler_tcr_autogen_pass";
         private const string DebugView = "ffx_fsr3upscaler_debug_view_pass";
 
+        // The loaded bundle, and the upscaler's compute shaders in it by object name (filled by the first Load).
         private static AssetBundle bundle;
         private static Dictionary<string, ComputeShader> byName;
 
+        // Why the last Load returned null, for the caller to show; null after a Load that succeeded.
         public static string LastError { get; private set; }
 
+        // The bundle's full path under KSP's GameData.
         public static string BundlePath
         {
             get
@@ -232,8 +236,10 @@ namespace ReDefinition.Upscaler
             return found;
         }
 
+        // LoadCompute's answers by name, null where the bundle lacks the shader.
         private static readonly Dictionary<string, ComputeShader> namedComputes = new Dictionary<string, ComputeShader>();
 
+        // Forgets every shader looked up and unloads the bundle with all its assets.
         public static void Unload()
         {
             namedComputes.Clear();
@@ -246,6 +252,7 @@ namespace ReDefinition.Upscaler
             bundle = null;
         }
 
+        // The upscaler's compute shader `name`, or null with the name added to `missing` (where that is given).
         private static ComputeShader Get(string name, List<string> missing)
         {
             ComputeShader shader;
@@ -257,6 +264,7 @@ namespace ReDefinition.Upscaler
             return shader;
         }
 
+        // The names of the upscaler's compute shaders in the bundle, sorted, for the log.
         private static string[] Keys()
         {
             string[] keys = new string[byName.Count];

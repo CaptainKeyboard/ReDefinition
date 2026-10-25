@@ -28,19 +28,25 @@ namespace ReDefinition.Upscaler
     // between AA only and Ultra Quality, 85.8 to 82.4 without the raytracing.
     internal class KspMipmapBias
     {
+        // The textures that carry the bias, the instance IDs of the textures and materials already looked at,
+        // the layers the redirected cameras render, and the bias added to every texture in `touched`.
         private readonly List<Texture> touched = new List<Texture>();
         private readonly HashSet<int> seenTextures = new HashSet<int>();
         private readonly HashSet<int> seenMaterials = new HashSet<int>();
         private int cullingMask;
         private float applied;
 
+        // How many textures carry the bias now.
         public int TextureCount { get { return touched.Count; } }
 
+        // The redirected cameras' culling masks combined: a renderer on another layer keeps its textures as
+        // they are.
         public void SetVisibleLayers(int mask)
         {
             cullingMask = mask;
         }
 
+        // Collects the textures of every visible renderer in the scene anew and adds `biasOffset` to each.
         public void ApplyMipmapBias(float biasOffset)
         {
             if (float.IsNaN(biasOffset) || float.IsInfinity(biasOffset)) return;
@@ -71,12 +77,14 @@ namespace ReDefinition.Upscaler
             return BiasAddedSince(before);
         }
 
+        // Gives the textures added to `touched` from index `before` on the bias applied; how many those are.
         private int BiasAddedSince(int before)
         {
             for (int i = before; i < touched.Count; i++) touched[i].mipMapBias += applied;
             return touched.Count - before;
         }
 
+        // Takes the bias off every texture that got it and forgets them.
         public void UndoMipmapBias()
         {
             if (Mathf.Approximately(applied, 0f))
@@ -98,6 +106,7 @@ namespace ReDefinition.Upscaler
             Forget();
         }
 
+        // Empties the texture list and the sets of what was looked at, without touching any texture's bias.
         private void Forget()
         {
             touched.Clear();
@@ -105,6 +114,7 @@ namespace ReDefinition.Upscaler
             seenTextures.Clear();
         }
 
+        // Starts the list over from every renderer in the scene.
         private void Collect()
         {
             Forget();
@@ -112,6 +122,7 @@ namespace ReDefinition.Upscaler
                 Add(renderer);
         }
 
+        // Adds the textures of an enabled, active renderer's materials where a redirected camera sees its layer.
         private void Add(Renderer renderer)
         {
             if (renderer == null || !renderer.enabled) return;
@@ -125,6 +136,7 @@ namespace ReDefinition.Upscaler
                 Add(material);
         }
 
+        // Adds the material's mipmapped textures not yet in the list; a material is looked at once.
         private void Add(Material material)
         {
             if (material == null) return;

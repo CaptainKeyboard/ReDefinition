@@ -30,21 +30,30 @@ namespace ReDefinition.Upscaler
     // 22:03).
     internal static class StageDump
     {
+        // How many consecutive frames are dumped.
         private const int Frames = 4;
+        // How far the camera must turn from one frame to the next, in degrees, for the dump to begin.
         private const float TurnDegrees = 1f;
+        // Frames waited for a turn before the dump begins without one.
         private const int WaitFrames = 600;
 
+        // A copy waiting to be read back, and the file it goes into.
         private sealed class Copy
         {
+            // The .bin file's path, then the GPU copy, released once read back.
             internal string Path;
             internal RenderTexture Texture;
         }
 
+        // The dump's folder while it is armed or taking frames; null otherwise.
         private static string folder;
+        // Frames taken so far, and frames waited for the turn.
         private static int taken;
         private static int waited;
+        // The camera's direction in the frame before, once there is one.
         private static bool haveForward;
         private static Vector3 lastForward;
+        // meta.txt as it is being written, one line per frame taken.
         private static readonly StringBuilder meta = new StringBuilder();
 
         // Per frame to take and stage, the texture its copy goes into; made while waiting.
@@ -71,6 +80,7 @@ namespace ReDefinition.Upscaler
         private static CommandBuffer cloudsCopy;
         private static Camera cloudsCamera;
 
+        // This frame's copy of EVE's clouds, or null while no copy is recorded.
         private static RenderTexture Clouds()
         {
             return cloudsCopy != null ? cloudsNow : null;
@@ -97,6 +107,7 @@ namespace ReDefinition.Upscaler
             cloudsCamera = cam;
         }
 
+        // Takes the clouds' copy buffer off its camera and releases it.
         private static void DetachClouds()
         {
             if (cloudsCopy == null) return;
@@ -106,12 +117,14 @@ namespace ReDefinition.Upscaler
             cloudsCamera = null;
         }
 
+        // The clouds' copy buffer and its texture, both gone.
         private static void DropClouds()
         {
             DetachClouds();
             RenderTextures.Release(ref cloudsNow);
         }
 
+        // Starts a dump as a screen recording with dumps starts: a new folder, waiting for the camera to turn.
         internal static void Arm()
         {
             ReleasePrepared();
@@ -180,6 +193,7 @@ namespace ReDefinition.Upscaler
             DropClouds();
         }
 
+        // While waiting: the copy textures for every frame to take and every stage there is now.
         private static void Prepare(RenderTexture input, RenderTexture output, RtCamera raytraced)
         {
             for (int n = 0; n < Frames; n++)
@@ -196,12 +210,15 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Whether a prepared copy is created and has the source's size and format.
         private static bool Fits(RenderTexture copy, RenderTexture source)
         {
             return copy != null && copy.IsCreated() && copy.width == source.width && copy.height == source.height
                    && copy.format == source.format;
         }
 
+        // One stage's copy texture for frame n, made anew where the source's size or format changed, and the read-back
+        // buffer grown to hold it.
         private static void Prepare(int n, string name, RenderTexture source)
         {
             if (source == null || !source.IsCreated()) return;
@@ -222,6 +239,7 @@ namespace ReDefinition.Upscaler
             if (buffer == null || buffer.Length < bytes) buffer = new byte[bytes];
         }
 
+        // Copies one stage of frame n on the GPU into its prepared texture, notes it in meta.txt and queues it to be read.
         private static void Take(int n, string name, RenderTexture source)
         {
             if (source == null || !source.IsCreated()) return;
@@ -284,6 +302,7 @@ namespace ReDefinition.Upscaler
             });
         }
 
+        // Writes the first length bytes into a file, on the writing thread; a failure only leaves the file missing.
         private static void TryWrite(string path, byte[] bytes, int length)
         {
             try
@@ -297,6 +316,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // A matrix's sixteen values into meta.txt, row by row, round-trip exact.
         private static void Append(Matrix4x4 m)
         {
             for (int r = 0; r < 4; r++)
@@ -304,6 +324,7 @@ namespace ReDefinition.Upscaler
                     meta.Append(' ').Append(m[r, c].ToString("R", CultureInfo.InvariantCulture));
         }
 
+        // Releases the copy textures that were prepared and not taken.
         private static void ReleasePrepared()
         {
             foreach (Dictionary<string, RenderTexture> frame in prepared)

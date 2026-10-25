@@ -34,6 +34,7 @@ namespace ReDefinition.Raytracing
         private static readonly int TimeFadeDensityId = Shader.PropertyToID("cloudTimeFadeDensity");
         private static readonly int MapViewFadeId = Shader.PropertyToID("mapViewFade");
 
+        // The value of -redefinitionProbeCloudValue as the rays take it: 10 plus the mode, 1 without it.
         private static float ProbeArgument()
         {
             string[] args = Environment.GetCommandLineArgs();
@@ -42,6 +43,8 @@ namespace ReDefinition.Raytracing
             return at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out mode) ? 10f + mode : 1f;
         }
 
+        // Whether reading EVE threw (the clouds are then left out) and whether its members were looked up; EVE's cloud
+        // objects list and the properties read from its cloud objects, volumes and 2D layers.
         private bool failed, resolved;
         private FieldInfo objectList;
         private PropertyInfo bodyName, layer2D, volume, volumeEnabled, rotation, fadeCoverage, fadeDensity, scaledFade, volumeMaterial,
@@ -89,6 +92,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // EVE's members looked up once; false without EVE, with another build of it, or where one is missing.
         private bool Resolve()
         {
             if (resolved) return objectList != null;
@@ -147,6 +151,8 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
+        // Fill's work: the first of the body's cloud objects with an enabled volume and a 2D layer out of scaled space,
+        // packed and turned into the packet's constants; false and a logged reason where none is.
         private bool FillFrom(float[] clouds, CelestialBody body, Vector3 camera)
         {
             if (!Resolve()) return false;
@@ -249,6 +255,8 @@ namespace ReDefinition.Raytracing
             return false;
         }
 
+        // What the last "no clouds" line said, for which body and with how many cloud objects, and whether one was
+        // logged: the line comes again only when one of them changes.
         private string whyLogged, whyBody;
         private int whyCount;
         private bool whyAny;
@@ -328,10 +336,13 @@ namespace ReDefinition.Raytracing
         // The layer's coverage fade, density fade and its other fades together, as the rays take them.
         internal Vector3 MapFades { get; private set; }
 
+        // The frame Fill last filled a layer in.
         private int filledFrame = -10;
 
         // The frame the layer was last filled in, for the log.
         internal int FilledFrame { get { return filledFrame; } }
+        // The last layer filled, its shadow's radius and its body's centre, for the probe's checks; EVE's
+        // SampleCoverage, looked up on first use.
         private object lastLayer;
         private float lastRadius;
         private Vector3 lastCentre;
@@ -467,6 +478,7 @@ namespace ReDefinition.Raytracing
             return IntPtr.Zero;
         }
 
+        // Frees the packed map and its material; the next Fill packs anew.
         internal void Release()
         {
             if (packed != null)

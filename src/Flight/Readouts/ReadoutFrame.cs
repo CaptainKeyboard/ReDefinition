@@ -11,12 +11,14 @@ namespace ReDefinition.Flight.Readouts
     // Orbit.getRelativePositionAtUT gives them); the world's is its xzy.
     internal sealed class ReadoutFrame
     {
+        // The active vessel, its orbit, the body it goes round, its target (null for none), and the universal time now.
         internal readonly Vessel Vessel;
         internal readonly Orbit Orbit;
         internal readonly CelestialBody Body;
         internal readonly ITargetable Target;
         internal readonly double Now;
 
+        // Takes the vessel as it is now; null for no vessel, which leaves the frame not Ready.
         internal ReadoutFrame(Vessel vessel)
         {
             Vessel = vessel;
@@ -26,11 +28,13 @@ namespace ReDefinition.Flight.Readouts
             Now = Planetarium.GetUniversalTime();
         }
 
+        // Whether there is a vessel with an orbit and a body to read.
         internal bool Ready
         {
             get { return Vessel != null && Orbit != null && Body != null; }
         }
 
+        // Whether the vessel's orbit is closed.
         internal bool Elliptic
         {
             get { return Orbit != null && Orbit.eccentricity < 1.0; }
@@ -50,6 +54,7 @@ namespace ReDefinition.Flight.Readouts
 
         // ---------------------------------------------------------- engines
 
+        // NaN until worked out for the refresh.
         private double maxThrust = double.NaN;
 
         // What the engines lit now give at full throttle where the vessel is, in kN:
@@ -75,6 +80,7 @@ namespace ReDefinition.Flight.Readouts
             }
         }
 
+        // NaN until worked out for the refresh.
         private double engineThrust = double.NaN;
 
         // What the engines give now, in kN.
@@ -96,9 +102,12 @@ namespace ReDefinition.Flight.Readouts
 
         // ----------------------------------------------------------- surface
 
+        // The time to impact and whether it was worked out for the refresh.
         private double impact = double.NaN;
         private bool impactDone;
 
+        // Seconds until the vessel's path meets the ground, while it falls (Impact.Seconds); NaN while it climbs or does
+        // not meet it.
         internal double ImpactSeconds
         {
             get
@@ -112,6 +121,7 @@ namespace ReDefinition.Flight.Readouts
             }
         }
 
+        // Whether the last moment to brake was worked out for the refresh, and its figures.
         private bool suicideDone;
         private double suicideDistance = double.NaN, suicideSeconds = double.NaN, suicideDeltaV = double.NaN;
 
@@ -135,6 +145,7 @@ namespace ReDefinition.Flight.Readouts
             deltaV = suicideDeltaV;
         }
 
+        // The slope under the vessel and whether it was looked for in the refresh.
         private double slope = double.NaN;
         private bool slopeDone;
 
@@ -177,6 +188,7 @@ namespace ReDefinition.Flight.Readouts
 
         // ------------------------------------------------------------- heat
 
+        // Whether the hottest part was looked for in the refresh, its share of its limit, and its name.
         private bool hottestDone;
         private double hottest;
         private string hottestName;
@@ -194,6 +206,7 @@ namespace ReDefinition.Flight.Readouts
             return hottest;
         }
 
+        // The part nearest its temperature limit, by the higher share of its inside's and its skin's.
         private double FindHottest(out string name)
         {
             double worst = 0.0;
@@ -211,11 +224,12 @@ namespace ReDefinition.Flight.Readouts
 
         // ------------------------------------------------------------- nodes
 
+        // Both ways along the line where the planes cross, made once.
+        private static readonly double[] Signs = { 1.0, -1.0 };
+
         // How long until the vessel crosses the plane with normal `normal` (zup)
         // going to its normal's side (ascending) or away from it; NaN where the
         // orbit does not cross it in a turn.
-        private static readonly double[] Signs = { 1.0, -1.0 };
-
         internal double TimeToNode(Orbit orbit, Vector3d normal, bool ascending)
         {
             if (orbit == null || orbit.eccentricity >= 1.0) return double.NaN;
@@ -236,11 +250,13 @@ namespace ReDefinition.Flight.Readouts
 
         // ------------------------------------------------------------ target
 
+        // The target's orbit; null without a target, or one with no orbit.
         internal Orbit TargetOrbit
         {
             get { return Target != null ? Target.GetOrbit() : null; }
         }
 
+        // Where the target stands in the world; zero without a target.
         internal Vector3d TargetPosition
         {
             get { return Target != null && Target.GetTransform() != null ? (Vector3d)Target.GetTransform().position : Vector3d.zero; }
@@ -252,6 +268,7 @@ namespace ReDefinition.Flight.Readouts
             get { return Target != null ? Vessel.obt_velocity - Target.GetObtVelocity() : Vector3d.zero; }
         }
 
+        // Whether the closest approach was worked out for the refresh, and how near and how soon it comes.
         private bool approachDone;
         private double approachDistance = double.NaN, approachSeconds = double.NaN;
 
@@ -299,6 +316,7 @@ namespace ReDefinition.Flight.Readouts
             seconds = approachSeconds;
         }
 
+        // How far apart the vessel and the target are `after` seconds from now, their bodies' own paths included.
         private double Gap(Orbit target, double after)
         {
             return (Orbit.getTruePositionAtUT(Now + after) - target.getTruePositionAtUT(Now + after)).magnitude;
@@ -328,6 +346,7 @@ namespace ReDefinition.Flight.Readouts
             return ReadoutMath.Wrap(angle * 180.0 / Math.PI);
         }
 
+        // The normal of the orbit's plane at that time, unnormalised (zup).
         internal static Vector3d Normal(Orbit orbit, double at)
         {
             return Vector3d.Cross(orbit.getRelativePositionAtUT(at), orbit.getOrbitalVelocityAtUT(at));
@@ -350,6 +369,10 @@ namespace ReDefinition.Flight.Readouts
 
         // ------------------------------------------------------------ docking
 
+        // The RCS's delta-v once worked out, kept for the refresh.
+        private bool rcsDone;
+        private double rcsDeltaV;
+
         // What the RCS propellant on board gives the vessel, in m/s: its RCS
         // thrusters' combined Isp in vacuum (thrust over the sum of thrust over
         // Isp, ModuleRCS: thrusterPower at thrustPercentage, atmosphereCurve at 0),
@@ -360,9 +383,6 @@ namespace ReDefinition.Flight.Readouts
         // mix each kind of thruster burns it in (StageTable.UsablePropellant): a
         // Vernor's liquid fuel and oxidizer from the tanks it reaches, as far as
         // they go together.
-        private bool rcsDone;
-        private double rcsDeltaV;
-
         internal double RcsDeltaV
         {
             get
@@ -376,6 +396,7 @@ namespace ReDefinition.Flight.Readouts
             }
         }
 
+        // The RCS's delta-v as RcsDeltaV says; NaN without RCS.
         private double FindRcsDeltaV()
         {
             double thrust = 0.0, overIsp = 0.0;
@@ -449,6 +470,7 @@ namespace ReDefinition.Flight.Readouts
             get { return Target as ModuleDockingNode; }
         }
 
+        // Whether the own port was looked for in the refresh, and the one found.
         private bool ownPortDone;
         private ModuleDockingNode ownPort;
 

@@ -3,7 +3,9 @@
 // same source to DXBC itself.
 Texture2D<float4> input : register(t0);
 RWTexture2D<float4> output : register(u0);
+// The value the harness adds to every texel.
 cbuffer Constants : register(b0) { float4 add; };
 
+// Each texel of the input doubled, plus add, into the output: a result the harness can check exactly.
 [numthreads(8, 8, 1)]
 void main(uint3 id : SV_DispatchThreadID) { output[id.xy] = input[id.xy] * 2.0 + add; }

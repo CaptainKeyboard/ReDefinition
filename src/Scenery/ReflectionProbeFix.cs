@@ -23,8 +23,10 @@ namespace ReDefinition.Scenery
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class ReflectionProbeFix : MonoBehaviour
     {
+        // FlightReflectionProbe's private turnOff, which its Update acts on first.
         private static FieldInfo turnOff;
 
+        // Installs the postfix once as the game starts, then removes itself.
         private void Awake()
         {
             turnOff = typeof(FlightReflectionProbe).GetField("turnOff", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -40,6 +42,7 @@ namespace ReDefinition.Scenery
             Destroy(this);
         }
 
+        // Enable(true) clears turnOff, which KSP leaves set from an Enable(false) before it.
         private static void EnablePostfix(FlightReflectionProbe __instance, bool enable)
         {
             if (enable) turnOff.SetValue(__instance, false);

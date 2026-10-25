@@ -22,6 +22,7 @@ namespace redefinition
 {
     namespace
     {
+        // A packet's matrix, rows first, as Streamline's float4x4, copied as it is.
         sl::float4x4 Matrix(const float* rows)
         {
             sl::float4x4 m;
@@ -29,11 +30,12 @@ namespace redefinition
             return m;
         }
 
+        // How a frame reaches DLSS Ray Reconstruction (ChooseRoute).
         enum class Route
         {
-            None,
-            Streamline,
-            Ngx,
+            None,         // not at all: the reason goes to the status
+            Streamline,   // Streamline's sl.dlss_d
+            Ngx,          // NGX directly (DlssRayReconstruction.h)
         };
 
         // Streamline's sl.dlss_d where Streamline has the device, which it has where its

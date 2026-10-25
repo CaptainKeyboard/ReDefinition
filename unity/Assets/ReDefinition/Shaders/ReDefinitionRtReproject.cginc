@@ -24,6 +24,7 @@
 #ifndef REDEFINITION_RT_REPROJECT
 #define REDEFINITION_RT_REPROJECT
 
+// 1 around the raytraced camera's rendering (RtCamera's flag buffers), 0 for every other camera.
 float _ReDefinitionRtOn;
 float4x4 _ReDefinitionRtPrevViewProj;   // the previous frame's camera-relative world to clip
 float4 _ReDefinitionRtOffsetNear;       // xyz: this world to the previous camera-relative one, near the vessel
@@ -34,6 +35,8 @@ float4 _ReDefinitionRtTexel;            // 1 / width, 1 / height, width, height 
 // The relative view depth error above which a texel is another surface.
 static const float kMaxDepthError = 0.05;
 
+// The point carried over by one of the two offsets: the best-matching of the four texels around its place in
+// the frame before, its relative depth error, and whether it counts as seen there.
 inline bool RtCandidate(float3 worldPos, float3 offset, out float2 uv, out float error)
 {
     float4 clip = mul(_ReDefinitionRtPrevViewProj, float4(worldPos + offset, 1.0));

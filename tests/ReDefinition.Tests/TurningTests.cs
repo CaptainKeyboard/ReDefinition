@@ -13,11 +13,14 @@ namespace ReDefinition.Tests
     [TestClass]
     public class TurningTests
     {
+        // A one-tonne part, all of it dry mass, at `y` along the roll axis, with the wheel torque given.
         private static PartFacts Part(float y, Vector3 wheel = default(Vector3))
         {
             return new PartFacts { Mass = 1.0, DryMass = 1.0, Position = new Vector3(0f, y, 0f), WheelTorque = wheel };
         }
 
+        // The case worked out above: a wheel with 1 kN m about pitch and yaw turns the two point masses
+        // 90 degrees in 2 sqrt(pi) s.
         [TestMethod]
         public void ReactionWheelTurnsTwoPointMasses()
         {
@@ -25,6 +28,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(2.0 * Math.Sqrt(Math.PI), Turning.Seconds(parts, new[] { 0, 1 }, -1, -1), 1e-6);
         }
 
+        // A wheel stronger about pitch than about yaw: the slower axis gives the time.
         [TestMethod]
         public void SlowerAxisDecides()
         {
@@ -32,6 +36,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(2.0 * Math.Sqrt(Math.PI), Turning.Seconds(parts, new[] { 0, 1 }, -1, -1), 1e-6);
         }
 
+        // Without a wheel, RCS or gimbal the vessel cannot turn: the time is infinite.
         [TestMethod]
         public void NothingToTurnWithIsInfinite()
         {

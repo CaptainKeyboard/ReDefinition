@@ -20,6 +20,9 @@ namespace ReDefinition
     // returns to what the player chose in TUFX or Scatterer in the meantime.
     internal class OwnSettings
     {
+        // The upscaler: whether it runs, its quality mode and sharpening, and what it sets around it -- auto exposure, the
+        // mipmap and LOD bias, MSAA off, anisotropic filtering, the jitter, skinned motion vectors, TUFX after the upscale,
+        // the transparency and reactive masks; then whether frame generation is on.
         public bool Enabled;
         public Fsr3Upscaler.QualityMode Quality = Fsr3Upscaler.QualityMode.NativeAA;
         public float Sharpness = 1.0f;
@@ -176,8 +179,10 @@ namespace ReDefinition
         // Better Time Warp's button in the time panel (Flight/TimeWarpBar).
         public bool TimeWarpPanelButton = true;
 
+        // The settings file's node, which holds every key.
         private const string RootName = "ReDefinition";
 
+        // The settings file, GameData/ReDefinition/PluginData/settings.cfg.
         public static string Path
         {
             get { return PluginData.Path("settings.cfg"); }
@@ -188,45 +193,58 @@ namespace ReDefinition
         // object (CopyLive, ChangeLive) rather than keeping it in a field of its own.
         private abstract class Field
         {
+            // The key in the file, and whether the add-on reads it live from its settings object.
             public string Key;
             public bool Live;
+            // The value as the file writes it.
             public abstract string Text(OwnSettings settings);
             // From the file's text; a text that is no such value leaves the default.
             public abstract void Read(OwnSettings settings, string text);
+            // Copies the value from one settings object to another.
             public abstract void Copy(OwnSettings to, OwnSettings from);
+            // Whether two settings objects hold the same value (ChangeLive).
             public abstract bool Same(OwnSettings a, OwnSettings b);
         }
 
+        // A TryParse of a text into T, as bool.TryParse has it.
         private delegate bool Parser<T>(string text, out T value);
 
+        // A field of one type: how it is read from and written to a settings object, written as text, and parsed.
         private sealed class Field<T> : Field
         {
+            // The getter and setter on a settings object, the text the file writes, and the parse that reads it back.
             public Func<OwnSettings, T> Get;
             public Action<OwnSettings, T> Set;
             public Func<T, string> Format;
             public Parser<T> Parse;
 
+            // The value of this object formatted as the file writes it.
             public override string Text(OwnSettings settings) { return Format(Get(settings)); }
 
+            // Sets the parsed value; a text the parse refuses leaves the value as it is.
             public override void Read(OwnSettings settings, string text)
             {
                 T value;
                 if (Parse(text, out value)) Set(settings, value);
             }
 
+            // Sets the value of `to` to that of `from`.
             public override void Copy(OwnSettings to, OwnSettings from) { Set(to, Get(from)); }
 
+            // Whether the two objects hold the same value, by the type's default equality.
             public override bool Same(OwnSettings a, OwnSettings b)
             {
                 return EqualityComparer<T>.Default.Equals(Get(a), Get(b));
             }
         }
 
+        // A True/False setting.
         private static Field<bool> Bool(string key, Func<OwnSettings, bool> get, Action<OwnSettings, bool> set, bool live = false)
         {
             return new Field<bool> { Key = key, Get = get, Set = set, Live = live, Format = v => v.ToString(), Parse = bool.TryParse };
         }
 
+        // A number, written in the given format in the invariant culture; NaN and the infinities never read back.
         private static Field<float> Float(string key, string format, Func<OwnSettings, float> get, Action<OwnSettings, float> set,
                                           bool live = false)
         {
@@ -262,6 +280,7 @@ namespace ReDefinition
             catch { return false; }
         }
 
+        // An enum by its value's name; a number or a name the enum lacks never reads back.
         private static Field<T> Enum<T>(string key, Func<OwnSettings, T> get, Action<OwnSettings, T> set, bool live = false)
             where T : struct
         {
@@ -286,6 +305,7 @@ namespace ReDefinition
             };
         }
 
+        // Every setting with its key in the file, in the order the file writes them.
         private static readonly Field[] Fields =
         {
             Bool("enabled", x => x.Enabled, (x, v) => x.Enabled = v),
@@ -419,6 +439,7 @@ namespace ReDefinition
             },
         };
 
+        // The settings from the file; defaults where the file or its node is missing, and per key where one is.
         public static OwnSettings Load()
         {
             OwnSettings settings = new OwnSettings();
@@ -433,6 +454,7 @@ namespace ReDefinition
             return settings;
         }
 
+        // Writes every setting to the file, making the folder where it is missing.
         public void Save()
         {
             ConfigNode node = new ConfigNode(RootName);
@@ -500,6 +522,7 @@ namespace ReDefinition
             return false;
         }
 
+        // A setting's text as the file holds it, by its key; null for a key there is none of.
         public string ValueOf(string key)
         {
             foreach (Field field in Fields)

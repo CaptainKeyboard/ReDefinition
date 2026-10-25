@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class OwnSettingsTests
     {
+        // A value of the same type that differs from the given one, for each type OwnSettings' fields have.
         private static object Other(object value)
         {
             if (value is bool b) return !b;
@@ -44,6 +45,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(settings.ValueOf("noSuchKey"));
         }
 
+        // Changing any one public field changes the snapshot: a field missing from the table would be neither
+        // saved nor seen as changed.
         [TestMethod]
         public void EveryFieldCountsInTheSnapshot()
         {
@@ -56,6 +59,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // ChangeLive copies onto the live settings only what a view changed, keeping a live value the view did
+        // not touch; CopyLive takes the values read live and leaves the add-on's own, such as Enabled.
         [TestMethod]
         public void ChangeLiveTakesOnlyWhatChanged()
         {

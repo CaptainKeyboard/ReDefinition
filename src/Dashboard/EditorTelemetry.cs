@@ -25,11 +25,13 @@ namespace ReDefinition.Dashboard
         private int choicesAsked;
         private object choices;
 
+        // Whether the VAB or the SPH is open and its editor has started.
         private static bool InEditor
         {
             get { return HighLogic.LoadedSceneIsEditor && EditorLogic.fetch != null; }
         }
 
+        // e.ship: the vessel as built (ReadShip), written as JSON at most every ShipEvery; null outside the editors.
         internal object Ship()
         {
             if (!InEditor) return null;
@@ -46,6 +48,7 @@ namespace ReDefinition.Dashboard
         private object planShot;
         private Json.Raw plan;
 
+        // e.plan: the planner's latest snapshot; null where the editor has no planner.
         internal object Plan()
         {
             PlannerView planner = Planner();
@@ -59,11 +62,13 @@ namespace ReDefinition.Dashboard
             return plan;
         }
 
+        // e.choiceList: the list last asked for with e.choices (AskChoices), in the editors only.
         internal object Choices()
         {
             return InEditor ? choices : null;
         }
 
+        // The Engineer's planner in the open editor, null where there is none.
         private static PlannerView Planner()
         {
             if (!InEditor || EditorEngineer.Instance == null) return null;
@@ -110,6 +115,7 @@ namespace ReDefinition.Dashboard
                 LogLine("the planner's list " + args[0] + " has changed; nothing picked");
         }
 
+        // The argument at that place as a whole number, -1 where it is missing or no number.
         private static int Int(string[] args, int at)
         {
             int value;
@@ -118,6 +124,8 @@ namespace ReDefinition.Dashboard
 
         // ------------------------------------------------------------ Engineer
 
+        // The vessel in the editor: facility and name, parts, mass and cost (dry and fuel), size, the
+        // buildings' limits, the delta-v app's situation, the stages, resources, seats and the crew aboard.
         private static Dictionary<string, object> ReadShip()
         {
             EditorLogic editor = EditorLogic.fetch;
@@ -249,6 +257,7 @@ namespace ReDefinition.Dashboard
             return list;
         }
 
+        // A line in KSP.log under the dashboard's tag.
         private static void LogLine(string message)
         {
             Debug.Log(Log.Tag + " Dashboard: " + message);

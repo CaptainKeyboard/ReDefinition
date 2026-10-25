@@ -25,6 +25,8 @@ namespace ReDefinition.Bridges
     // Everything here is free of Unity, for the tests (AmperePackageTests).
     internal static class AmperePackage
     {
+        // The project's page and its latest release; the release zip's name as the player saves it; the package's
+        // folder, proxy DLL and ini next to KSP_x64.exe.
         public const string ProjectUrl = "https://github.com/sdli1995/dlssg_for_sm86";
         public const string ReleasesUrl = "https://github.com/sdli1995/dlssg_for_sm86/releases/latest";
         public const string ZipPattern = "dlssg-release-*-x64.zip";
@@ -32,6 +34,9 @@ namespace ReDefinition.Bridges
         public const string Proxy = "version.dll";
         public const string Ini = "dlssg_sm86.ini";
 
+        // Paths within the zip and KSP's folder alike: NVIDIA's runtime the package rebuilt, its backend and
+        // kernels folders, the super-resolution folder with the two files that have to be in it, and its logs,
+        // which are not taken.
         private const string Runtime = FolderName + "/runtime/nvngx_dlssg.dll";
         private const string Backend = FolderName + "/backend/";
         private const string Kernels = FolderName + "/kernels/";
@@ -46,7 +51,9 @@ namespace ReDefinition.Bridges
         // alone.
         public enum Part
         {
+            // The package without the super-resolution files.
             Package,
+            // The super-resolution files alone.
             SuperResolution,
         }
 
@@ -54,6 +61,8 @@ namespace ReDefinition.Bridges
         // relative to KSP's folder with '/' between folders.
         public sealed class Item
         {
+            // Its path in the zip with '/' between folders, and where it goes (TargetOf); then its central
+            // directory entry's flags, method (0 stored, 8 deflated), CRC-32, sizes and local header's offset.
             public string Name;
             public string Target;
             public int Flags;
@@ -312,6 +321,7 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // Deletes the file where it is there; false where that failed.
         private static bool Delete(string file)
         {
             try
@@ -325,8 +335,10 @@ namespace ReDefinition.Bridges
             }
         }
 
+        // The CRC-32 table of the zip's polynomial, 0xEDB88320, made once.
         private static readonly uint[] CrcTable = MakeCrcTable();
 
+        // Each byte's CRC-32 remainder, for CrcTable.
         private static uint[] MakeCrcTable()
         {
             uint[] table = new uint[256];
@@ -339,6 +351,7 @@ namespace ReDefinition.Bridges
             return table;
         }
 
+        // The CRC-32 carried on over length bytes of data; the caller starts at 0xFFFFFFFF and inverts the result.
         private static uint Crc32(uint crc, byte[] data, int length)
         {
             for (int i = 0; i < length; i++) crc = CrcTable[(crc ^ data[i]) & 0xFF] ^ (crc >> 8);

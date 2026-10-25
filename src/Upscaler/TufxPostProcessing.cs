@@ -67,6 +67,8 @@ namespace ReDefinition.Upscaler
     // All of it through reflection: TUFX stays optional.
     internal sealed class TufxPostProcessing
     {
+        // TUFX's loader, looked for by name; the namespace of PostProcessing v2 as TUFX carries it; the Harmony id of
+        // the two hooks; and the binding flags of the members read.
         private const string LoaderTypeName = "TUFX.TexturesUnlimitedFXLoader";
         private const string PostProcessing = "UnityEngine.Rendering.PostProcessing.";
         private const string HarmonyId = "ReDefinition.TufxPostProcessing";
@@ -82,13 +84,17 @@ namespace ReDefinition.Upscaler
             "Bloom", "Vignette", "Grain", "ColorGrading",
         };
 
+        // The value written into TUFX's bool fields, boxed once.
         private static readonly object True = true;
 
+        // Whether Resolve has run; why the split cannot run at all, or null; and why it stopped after an exception,
+        // with the status it shows -- cleared by Dispose, so that the next rig tries again.
         private static bool resolved;
         private static string unavailable;
         private static string broken;
         private static string brokenStatus;
 
+        // PostProcessing v2's types and members, looked up once by Resolve.
         private static Type layerType;
         private static Type contextType;
         private static Type depthOfFieldType;
@@ -142,6 +148,8 @@ namespace ReDefinition.Upscaler
         private static Func<object, MaterialPropertyBlock> sheetPropertiesOf;
         private static object antialiasingNone;
 
+        // The registered effects drawn after and before FSR, the number of them they were sorted from, and the
+        // dither texture of alpha 0.5 the redirected layers draw with.
         private static Type[] afterTypes = new Type[0];
         private static Type[] beforeTypes = new Type[0];
         private static int classified = -1;
@@ -157,6 +165,10 @@ namespace ReDefinition.Upscaler
         private static int splitFrame = -1;
         private static bool splitOnSceneCamera;
 
+        // ReDefinition's layer: the inactive object and camera that carry it, the layer, its render context and
+        // command buffer, the display-size texture it draws into and the motion vectors scaled to it; the profile's
+        // layer and the volume mask last copied from it; an argument array for reflection calls; and the status,
+        // why the split is off or null while it runs.
         private GameObject host;
         private Camera ownCamera;
         private Component layer;
@@ -172,6 +184,7 @@ namespace ReDefinition.Upscaler
         // Kept apart, so that nothing outside the game touches Shader.
         private static class Ids
         {
+            // The globals depth of field and motion blur read, and the dithering properties of the uber sheet.
             internal static readonly int CameraDepthTexture = Shader.PropertyToID("_CameraDepthTexture");
             internal static readonly int CameraMotionVectorsTexture = Shader.PropertyToID("_CameraMotionVectorsTexture");
             internal static readonly int ZBufferParams = Shader.PropertyToID("_ZBufferParams");
@@ -325,6 +338,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // The split for the diagnostics: why it is off, or on which camera the profile was split and which effects
+        // are drawn after FSR and which before it.
         internal string Describe()
         {
             if (status != null) return status;
@@ -363,6 +378,8 @@ namespace ReDefinition.Upscaler
             DestroyHost();
         }
 
+        // ReDefinition's layer on its own camera, made once TUFX has loaded its resources, and its output texture at
+        // the display size; false where either is missing, with the split stopped.
         private bool Build(Vector2Int size)
         {
             if (layer == null)
@@ -416,6 +433,8 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
+        // Whether any effect of the half after FSR is on in ReDefinition's layer this frame; depth of field and motion
+        // blur only count where the profile was split on the scene camera.
         private bool AnyAfterEffectOn()
         {
             foreach (Type type in afterTypes)
@@ -426,6 +445,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // Whether an effect is enabled and supported in ReDefinition's layer, as its blend left it.
         private bool IsOn(Type type)
         {
             if (type == null) return false;
@@ -434,6 +454,7 @@ namespace ReDefinition.Upscaler
             return enabledAndSupported(settingsOf(bundle), context);
         }
 
+        // The motion vectors at the display size for motion blur; false where there are none or the texture fails.
         private bool EnsureMotion(RenderTexture motion)
         {
             if (motion == null || output == null) return false;
@@ -452,6 +473,7 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
+        // Lets go of the output and the display-size motion vectors.
         private void ReleaseTextures()
         {
             if (ownCamera != null) ownCamera.targetTexture = null;
@@ -459,6 +481,7 @@ namespace ReDefinition.Upscaler
             RenderTextures.Release(ref motionAtDisplaySize);
         }
 
+        // Destroys ReDefinition's layer with its object and camera; the next Build makes them anew.
         private void DestroyHost()
         {
             if (host != null) UnityEngine.Object.Destroy(host);
@@ -485,6 +508,8 @@ namespace ReDefinition.Upscaler
             return new Vector4(1f - y, y, (1f - y) / far, y / far);
         }
 
+        // Finds TUFX and every type and member of PostProcessing v2 the split reads, compiles the calls made every
+        // frame and installs the hooks, once; false with the reason in unavailable where any of it is missing.
         private static bool Resolve()
         {
             if (resolved) return unavailable == null;
@@ -687,11 +712,13 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Switches the given effects off in a layer for this frame.
         private static void SwitchOff(Component on, Type[] types)
         {
             foreach (Type type in types) SwitchOff(on, type);
         }
 
+        // Switches an effect off in a layer for this frame, where the layer has it; the next blend brings it back.
         private static void SwitchOff(Component on, Type type)
         {
             object bundle = Bundle(on, type);
@@ -713,6 +740,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Stops the split after an exception: the layers draw everything again until Dispose.
         private static void Break(Exception e)
         {
             broken = CompatibilityLog.Reason(e);
@@ -722,6 +750,7 @@ namespace ReDefinition.Upscaler
             CompatibilityLog.Warn("tufx-post", "TUFX's effects went back before FSR until the upscaler is set up again: " + broken + ".");
         }
 
+        // A one-texel texture of alpha 0.5, made once, which PostProcessing v2's dithering turns into no noise.
         private static Texture NeutralDither()
         {
             if (neutralDither != null) return neutralDither;
@@ -737,6 +766,7 @@ namespace ReDefinition.Upscaler
             return neutralDither;
         }
 
+        // The effects' type names, comma-separated, or "none".
         private static string Names(Type[] types)
         {
             if (types.Length == 0) return "none";
@@ -749,11 +779,13 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
+        // A type of PostProcessing v2 in TUFX's assembly; throws where it is missing.
         private static Type TypeIn(Assembly assembly, string name)
         {
             return assembly.GetType(PostProcessing + name, true);
         }
 
+        // An instance field, public or not; throws where it is missing.
         private static FieldInfo FieldOf(Type type, string name)
         {
             FieldInfo field = type.GetField(name, Members);
@@ -761,6 +793,7 @@ namespace ReDefinition.Upscaler
             return field;
         }
 
+        // A property with the given binding flags; throws where it is missing.
         private static PropertyInfo PropertyOf(Type type, string name, BindingFlags flags)
         {
             PropertyInfo property = type.GetProperty(name, flags);
@@ -780,6 +813,7 @@ namespace ReDefinition.Upscaler
                 Expression.Call(Expression.Convert(target, property.DeclaringType), setter, value), target, value).Compile();
         }
 
+        // An instance method, public or not, of the given parameter types; throws where it is missing.
         private static MethodInfo MethodOf(Type type, string name, params Type[] parameters)
         {
             MethodInfo method = type.GetMethod(name, Members, null, parameters, null);

@@ -15,8 +15,10 @@ namespace ReDefinition.MotionVectorCheck
     // and both means. One line, "far", to the result file.
     public partial class MotionVectorProbe
     {
+        // The layer only the far camera and its ground are on, so neither camera sees the other's scene.
         private const int FarLayer = 30;
 
+        // The far case: sets up the far camera and ground, makes the move and writes the "far" line.
         private IEnumerator FarCase()
         {
             Camera far = new GameObject("far camera").AddComponent<Camera>();

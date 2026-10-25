@@ -25,6 +25,8 @@ float _Reach;                           // the model's horizontal reach that mus
 // How far under the lawn the terrain may lie and still show through it, its blades over the lawn.
 static const float kTerrainShows = 0.3;
 
+// One clump per thread: kept as Parallax made it, raised onto the lawn, or dropped where the space centre's
+// ground covers it without room for it.
 [numthreads(64, 1, 1)]
 void Lift(uint3 id : SV_DispatchThreadID)
 {

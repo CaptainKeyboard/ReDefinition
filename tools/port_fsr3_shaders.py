@@ -98,11 +98,13 @@ CBUFFER_OPEN = re.compile(r"^cbuffer\s+(\w+)\s*:\s*FFX_\w*DECLARE_CB\(")
 
 
 def read(path):
+    """The file's text, UTF-8."""
     with io.open(path, encoding="utf-8") as handle:
         return handle.read()
 
 
 def write(path, text):
+    """Write the text as UTF-8 with LF line ends, creating the folder where it is missing."""
     directory = os.path.dirname(path)
     if directory and not os.path.isdir(directory):
         os.makedirs(directory)
@@ -371,6 +373,8 @@ def remove_ported(dst_root):
 
 
 def main():
+    """Replace the ported shaders under unity/Assets/ReDefinition/Shaders with fresh ones from FSR3Unity's package:
+    the headers and HLSL rewritten, the compute shaders baked per HDR and sharpening variant."""
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
 

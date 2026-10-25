@@ -8,6 +8,7 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     internal sealed class ProbeSwitchReset : MonoBehaviour
     {
+        // Turns them all off, and the clouds' probe overrides back to unset, as each scene's addons wake.
         private void Awake()
         {
             RtCamera.ResetProbeSwitches();

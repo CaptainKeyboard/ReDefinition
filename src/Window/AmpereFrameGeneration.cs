@@ -18,12 +18,14 @@ namespace ReDefinition.Window
     // from KSP's next start on.
     internal static class AmpereFrameGeneration
     {
+        // Whether an install from the zip is under way: a second one is not started meanwhile.
         public static bool Running { get; private set; }
 
         // Installed this session: until KSP is restarted, frame generation does not run
         // from it.
         public static bool InstalledNow { get; private set; }
 
+        // The install's progress or outcome; null before one.
         private static string status;
 
         // What the settings row says: the install's progress or outcome, null before one.
@@ -47,6 +49,7 @@ namespace ReDefinition.Window
         private static bool installed;
         private static float installedLookedAt = float.NegativeInfinity;
 
+        // Whether the package's files are next to KSP_x64.exe.
         public static bool Installed()
         {
             if (Time.realtimeSinceStartup - installedLookedAt < 1f) return installed;
@@ -67,6 +70,7 @@ namespace ReDefinition.Window
         private static bool superResolutionInstalled;
         private static float superResolutionLookedAt = float.NegativeInfinity;
 
+        // Whether the package's super-resolution files are in place.
         public static bool SuperResolutionInstalled()
         {
             if (Time.realtimeSinceStartup - superResolutionLookedAt < 1f) return superResolutionInstalled;
@@ -90,6 +94,7 @@ namespace ReDefinition.Window
         private static readonly Dictionary<AmpereOptions.Option, float> optionsLookedAt =
             new Dictionary<AmpereOptions.Option, float>();
 
+        // Whether the window wrote one of the package's ini choices this session.
         public static bool OptionsChanged { get; private set; }
 
         // The index of the option's value in its choices; its default's where the file holds none
@@ -113,6 +118,7 @@ namespace ReDefinition.Window
             return AmpereOptions.IndexOf(option, optionValues[option]);
         }
 
+        // The label of the option's value as the file holds it.
         public static string OptionLabel(AmpereOptions.Option option)
         {
             return option.Labels[OptionIndex(option)];
@@ -157,6 +163,7 @@ namespace ReDefinition.Window
         private static string zip;
         private static float zipLookedFor = float.NegativeInfinity;
 
+        // The release zip's path in KSP's folder; null where there is none.
         public static string Zip()
         {
             if (Time.realtimeSinceStartup - zipLookedFor < 1f) return zip;
@@ -176,6 +183,7 @@ namespace ReDefinition.Window
         private static string zipShownFor = "";
         private static string zipText;
 
+        // The zip's line for the row and the dialog: its name where it is found, else what to put there.
         public static string ZipText()
         {
             string found = Zip();
@@ -189,11 +197,11 @@ namespace ReDefinition.Window
             return zipText;
         }
 
-        // The steps, as the player follows them: the release page, the zip into KSP's
-        // folder, the install, a restart.
         // What waits for the package: called once it is installed, dropped where the player closes the dialog.
         private static Action onInstalled;
 
+        // The steps, as the player follows them: the release page, the zip into KSP's
+        // folder, the install, a restart.
         public static void Show(Action installed = null)
         {
             onInstalled = installed;
@@ -245,6 +253,7 @@ namespace ReDefinition.Window
         private static string shownStatus;
         private static string shownStatusText = "";
 
+        // The install's status, grey; empty before one.
         public static string StatusText()
         {
             if (status != shownStatus)
@@ -255,6 +264,7 @@ namespace ReDefinition.Window
             return shownStatusText;
         }
 
+        // Installs the package from the zip.
         public static void Start()
         {
             Start(AmperePackage.Part.Package);
@@ -266,6 +276,7 @@ namespace ReDefinition.Window
             Start(AmperePackage.Part.SuperResolution);
         }
 
+        // Starts the install of a part as a coroutine on the add-on, where the zip is there and none runs.
         private static void Start(AmperePackage.Part part)
         {
             string found = Zip();

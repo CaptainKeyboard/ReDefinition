@@ -11,6 +11,8 @@ namespace ReDefinition.Upscaler
     // step, and every frame moves it on, a frame without a step of its own included.
     internal sealed class StepInterpolator
     {
+        // Where the latest step left the body and where the one before it did, Unity's fixedTime at the last
+        // call (-1 before the first), and whether a history is held.
         private Vector3 current;
         private Vector3 previousStep;
         private float lastFixedTime = -1f;
@@ -72,6 +74,7 @@ namespace ReDefinition.Upscaler
             get { return current; }
         }
 
+        // Whether it holds a history: false before the first Advance and after Reset.
         internal bool Known
         {
             get { return known; }

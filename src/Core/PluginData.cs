@@ -4,6 +4,7 @@ namespace ReDefinition.Core
     // settings.cfg (OwnSettings) and bundled.cfg (BundledSettings).
     internal static class PluginData
     {
+        // The full path of a file in that folder, from KSP's root folder.
         internal static string Path(string fileName)
         {
             return System.IO.Path.Combine(KSPUtil.ApplicationRootPath,

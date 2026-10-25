@@ -6,6 +6,7 @@ namespace ReDefinition.Settings
     // frameGenerationTechnique), so a change applies after a restart of KSP.
     internal static class FrameGenerationTechniqueSetting
     {
+        // The row's values as the settings file holds them, Off besides the techniques.
         public const string Off = "Off";
         public const string Auto = "Auto";
         public const string Dlss = "Dlss";
@@ -18,6 +19,7 @@ namespace ReDefinition.Settings
         // The row's buttons, in the order they stand.
         public static readonly string[] All = { Off, Auto, Dlss, Fsr, Xess };
 
+        // Whether the text is one of the techniques the settings file may hold.
         public static bool Valid(string text)
         {
             return System.Array.IndexOf(Techniques, text) >= 0;

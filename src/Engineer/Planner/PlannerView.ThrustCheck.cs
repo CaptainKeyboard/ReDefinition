@@ -17,6 +17,7 @@ namespace ReDefinition.Engineer
         // Per step, what the route says of how it turns and docks; null where nothing.
         private List<string>[] turnAlerts = new List<string>[0];
 
+        // Adds a line under the step on the route about how it turns or docks.
         private void Alert(int step, string text)
         {
             if (turnAlerts[step] == null) turnAlerts[step] = new List<string>();
@@ -122,11 +123,13 @@ namespace ReDefinition.Engineer
                 entry.Notes.Add("<color=" + Dim + ">" + Capital(who) + " turns 90° in " + EngineerFormat.Time(entry.Turn) + " " + how + "</color>");
         }
 
+        // Whether what flies the step takes longer than its limit to turn by 90 degrees.
         private static bool TurnSlow(ThrustStep entry)
         {
             return entry != null && !double.IsNaN(entry.Turn) && entry.Turn > entry.TurnLimit;
         }
 
+        // The text with its first letter capital.
         private static string Capital(string text)
         {
             return string.IsNullOrEmpty(text) ? "" : char.ToUpperInvariant(text[0]) + text.Substring(1);
@@ -187,6 +190,7 @@ namespace ReDefinition.Engineer
         // propellant on it and the delta-v that gives (SectionRcs).
         private sealed class RcsInfo
         {
+            // In tonnes, kN, seconds, tonnes and m/s.
             public double Mass, Thrust, Isp, Propellant, DeltaV;
 
             // Thrust against weight at standard gravity, as KSP states a TWR in the
@@ -196,6 +200,7 @@ namespace ReDefinition.Engineer
                 get { return Mass > 0.0 ? Thrust / (Mass * StageTable.StandardGravity) : 0.0; }
             }
 
+            // With the RCS propellant spent.
             public double EndTwr
             {
                 get { return Mass > Propellant ? Thrust / ((Mass - Propellant) * StageTable.StandardGravity) : 0.0; }
@@ -208,13 +213,16 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Per step, what flies it has of RCS; null where it has none.
         private RcsInfo[] rcsOf = new RcsInfo[0];
 
+        // The step's RCS; null where it has none or there is no such step.
         private RcsInfo RcsAt(int step)
         {
             return step >= 0 && step < rcsOf.Length ? rcsOf[step] : null;
         }
 
+        // A cell of the RCS row, dim; empty where the step has no RCS.
         private string RcsCell(ThrustStep entry, System.Func<RcsInfo, string> text)
         {
             RcsInfo info = entry != null ? RcsAt(entry.Step) : null;
@@ -240,6 +248,8 @@ namespace ReDefinition.Engineer
             return members;
         }
 
+        // Where the step's engines burn electric charge (ion engines): what they burn over the step against what the vessel
+        // holds, a note in orange where it holds less.
         private void ElectricNote(ThrustStep entry)
         {
             double charge = 0.0, rate = 0.0;
@@ -268,11 +278,13 @@ namespace ReDefinition.Engineer
                 entry.Notes.Add("<color=" + Dim + ">" + text + "</color>");
         }
 
+        // Whether the step lifts off from a surface.
         private bool Launches(RouteStep step)
         {
             return step.From.Kind == StopKind.Surface;
         }
 
+        // Whether the step lands on its engines, not on parachutes in thick air.
         private bool LandsOnEngines(RouteStep step)
         {
             return step.To.Kind == StopKind.Surface && !Chutes(step.To);

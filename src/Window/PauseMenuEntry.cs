@@ -25,6 +25,7 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class PauseMenuEntry : MonoBehaviour
     {
+        // The Harmony id of the postfix on both menus' draw.
         private const string HarmonyId = "ReDefinition.PauseMenuEntry";
 
         // KSP's own pause menu buttons are this wide and high (PauseMenu.draw).
@@ -35,6 +36,7 @@ namespace ReDefinition.Window
         // (KSCPauseMenu.draw) and in flight's (PauseMenu.draw).
         private static readonly string[] SettingsLabels = { "#autoLOC_417154", "#autoLOC_360624" };
 
+        // Installs the postfix once at startup, then goes; a failure is logged and leaves the menus as KSP builds them.
         private void Awake()
         {
             try
@@ -50,6 +52,7 @@ namespace ReDefinition.Window
             Destroy(gameObject);
         }
 
+        // Installs the postfix on PauseMenu's and KSCPauseMenu's draw, both or neither.
         private static void Patch()
         {
             MethodInfo postfix = typeof(PauseMenuEntry).GetMethod(nameof(DrawPostfix),
@@ -64,6 +67,7 @@ namespace ReDefinition.Window
             });
         }
 
+        // The menu class's draw method; an exception where it is missing.
         private static MethodInfo Draw(Type menu)
         {
             MethodInfo original = menu.GetMethod("draw",
@@ -141,6 +145,7 @@ namespace ReDefinition.Window
             return addon != null && addon.ReplaceKspSettings;
         }
 
+        // Makes KSP's own Settings button, wherever it stands, open ReDefinition's window instead.
         private static void TakeOverSettings(DialogGUIBase[] entries, string[] settings)
         {
             foreach (DialogGUIBase entry in entries)
@@ -160,6 +165,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Whether the entry is KSP's Settings button, by its label in the game's language.
         private static bool IsSettings(DialogGUIBase entry, string[] settings)
         {
             DialogGUIButton button = entry as DialogGUIButton;
@@ -186,6 +192,7 @@ namespace ReDefinition.Window
             return false;
         }
 
+        // The entries with one inserted at that index.
         private static DialogGUIBase[] Inserted(DialogGUIBase[] entries, int at, DialogGUIBase entry)
         {
             DialogGUIBase[] withEntry = new DialogGUIBase[entries.Length + 1];
@@ -195,6 +202,7 @@ namespace ReDefinition.Window
             return withEntry;
         }
 
+        // The index of the menu's last space, before the version line; the end where it has none.
         private static int BeforeLastSpace(DialogGUIBase[] entries)
         {
             for (int i = entries.Length - 1; i >= 0; i--)

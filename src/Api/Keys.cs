@@ -75,6 +75,7 @@ namespace ReDefinition.Api
         private static readonly Dictionary<string, string> texts = new Dictionary<string, string>();
         private static readonly Dictionary<string, KeyCombination> parsed = new Dictionary<string, KeyCombination>();
 
+        // The key combination bound to a setting, parsed once per binding text; None when no binding is set.
         private static KeyCombination Combination(string key)
         {
             string text = Binding(key);

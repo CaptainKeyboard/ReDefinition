@@ -27,12 +27,15 @@ namespace ReDefinition.Engineer
         // A step as the thrust section shows it, worked out with the budget.
         private sealed class ThrustStep
         {
+            // The step's index in `steps`.
             public int Step;
             // Lifts off or sets down on the engines: its TWR decides.
             public bool Twr;
             // The body its TWR is against: the one it lifts off from or sets down on,
             // else the one of its first burn in orbit.
             public int Body;
+            // The stages' burns on the step, as the budget gives them and as the burn check takes them, and the step's burns
+            // in a circular orbit.
             public readonly List<StageBudget.StageUse> Uses = new List<StageBudget.StageUse>();
             public readonly List<BurnStage> Stages = new List<BurnStage>();
             public List<Burn> Burns = new List<Burn>();
@@ -41,6 +44,7 @@ namespace ReDefinition.Engineer
             // Lines under its burns, coloured: the RCS of what docks, thrust off the
             // centre of mass at launch.
             public readonly List<string> Notes = new List<string>();
+            // Whether one of the notes warns, for the summary.
             public bool Warns;
             // The seconds what flies it takes to turn by 90 degrees (Turning), NaN
             // where unknown; more than TurnLimit is slow.
@@ -55,12 +59,14 @@ namespace ReDefinition.Engineer
         private const double TurnLimitOrbit = 30.0;
         private const float TurnColumn = 56f;
 
+        // The steps that burn, in the route's order, one row each.
         private readonly List<ThrustStep> thrustSteps = new List<ThrustStep>();
         // Per step, its entry; null where it burns nothing.
         private ThrustStep[] thrustOf = new ThrustStep[0];
         private readonly HashSet<int> thrustOpen = new HashSet<int>();
         private bool thrustShown;
 
+        // The Thrust part's rows: the columns' names, a line where nothing burns, and each step's rows.
         private IEnumerable<DialogGUIBase> ThrustRows()
         {
             List<DialogGUIBase> heads = new List<DialogGUIBase>
@@ -96,6 +102,7 @@ namespace ReDefinition.Engineer
             return entry != null && (everyRow || thrustOpen.Contains(FuelKey(entry.Step))) ? entry : null;
         }
 
+        // Opens the row's stages and burns, or folds them.
         private void ToggleThrust(int row)
         {
             ThrustStep entry = ThrustAt(row);
@@ -105,6 +112,7 @@ namespace ReDefinition.Engineer
             textVersion++;
         }
 
+        // A step's line and, while it is open, its stages, its RCS, its burns in orbit, its notes and its body.
         private IEnumerable<DialogGUIBase> ThrustStepRows(int row)
         {
             DialogGUIButton open = new DialogGUIButton(() => OpenThrust(row) != null ? "<b><color=" + Good + ">-</color></b>" : "+",
@@ -197,6 +205,7 @@ namespace ReDefinition.Engineer
             get { return width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd; }
         }
 
+        // Whether the turn's column fits on a step's line.
         private bool TurnFits
         {
             get { return ThrustRoom >= TurnColumn + 4f; }
@@ -220,6 +229,7 @@ namespace ReDefinition.Engineer
             return Launches(steps[entry.Step]) ? entry.Uses[0] : entry.Uses[entry.Uses.Count - 1];
         }
 
+        // What the step needs: a TWR, "Runway", or burns under MaxShare of their orbit.
         private string ThrustNeedsText(ThrustStep entry)
         {
             if (entry == null) return "";
@@ -250,6 +260,7 @@ namespace ReDefinition.Engineer
         // delta-v.
         private static readonly double MaxShare = ShareAt(BurnCheck.MaxLoss);
 
+        // The share of an orbit a burn may take before it loses `loss` of its delta-v, found by halving.
         private static double ShareAt(double loss)
         {
             double low = 0.0, high = 1.0;
@@ -262,17 +273,20 @@ namespace ReDefinition.Engineer
             return low;
         }
 
+        // A share as whole per cent: "13%".
         private static string Percent(double share)
         {
             return (share * 100.0).ToString("0", CultureInfo.InvariantCulture) + "%";
         }
 
+        // Red for a burn too short of thrust or too long, orange for one over WarnLoss, else green.
         private static string BurnColour(Burn burn)
         {
             if (burn.Short || burn.Loss > BurnCheck.MaxLoss) return Problem;
             return burn.Loss > BurnCheck.WarnLoss ? Warning : Good;
         }
 
+        // The coloured name of the step's stage in that row.
         private string ThrustStageName(ThrustStep entry, int stage)
         {
             return entry != null && stage < entry.Uses.Count ? ColouredStage(entry.Uses[stage].Stage) : "";
@@ -304,12 +318,14 @@ namespace ReDefinition.Engineer
             return exhaust > 0.0 ? "<color=" + Dim + ">" + EngineerFormat.Isp(exhaust / StageTable.StandardGravity) + "</color>" : "";
         }
 
+        // The stage's thrust in vacuum, in whole kN.
         private string StageThrustText(ThrustStep entry, int stage)
         {
             if (entry == null || stage >= entry.Stages.Count) return "";
             return "<color=" + Dim + ">" + entry.Stages[stage].Thrust.ToString("0", CultureInfo.InvariantCulture) + " kN</color>";
         }
 
+        // How long the stage burns for its part of the step.
         private string StageBurnText(ThrustStep entry, int stage)
         {
             if (entry == null || stage >= entry.Stages.Count) return "";
@@ -323,6 +339,7 @@ namespace ReDefinition.Engineer
             return "<color=" + Dim + ">" + entry.Burns[index].Line.Name + "</color>";
         }
 
+        // The burn's time ("+" where the stages fall short), its share of the orbit, the orbit's period, and the delta-v lost.
         private string BurnText(ThrustStep entry, int index)
         {
             if (entry == null || index >= entry.Burns.Count) return "";

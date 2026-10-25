@@ -12,12 +12,14 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class ModWindowsAddon : MonoBehaviour
     {
+        // Seconds between two looks at the toolbar for buttons a mod added later.
         private const float TickInterval = 2f;
         // How often the open settings window looks for changes made in another.
         private const float SyncInterval = 0.25f;
         private float nextSync;
         private float nextTick;
 
+        // Kept across scenes: the close buttons' hooks installed, and the scene and launcher events followed.
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
@@ -35,6 +37,7 @@ namespace ReDefinition.Window
             GameEvents.onGUIApplicationLauncherReady.Add(OnLauncherReady);
         }
 
+        // Stops following the scene and launcher events.
         private void OnDestroy()
         {
             GameEvents.onLevelWasLoaded.Remove(OnLevelLoaded);
@@ -42,11 +45,13 @@ namespace ReDefinition.Window
             GameEvents.onGUIApplicationLauncherReady.Remove(OnLauncherReady);
         }
 
+        // A new scene: the mods' windows of the last one are forgotten.
         private void OnLevelLoaded(GameScenes scene)
         {
             ModWindowClose.Forget();
         }
 
+        // A scene's GUI is ready: the settings window's waiting changes of the last scene drop, and the toolbar is looked at.
         private void OnLevelReady(GameScenes scene)
         {
             SettingsWindow.SceneChanged();
@@ -54,6 +59,7 @@ namespace ReDefinition.Window
             KeepOurButtonFirst();
         }
 
+        // The launcher is ready: the toolbar is looked at.
         private void OnLauncherReady()
         {
             ToolbarTakeover.Refresh();
@@ -69,6 +75,8 @@ namespace ReDefinition.Window
             if (addon != null) addon.KeepToolbarButtonFirst();
         }
 
+        // Four times a second the open settings window follows changes made elsewhere; the openings are reported; and the
+        // toolbar is looked at on its tick.
         private void Update()
         {
             if (SettingsWindow.Visible && Time.unscaledTime >= nextSync)

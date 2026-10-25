@@ -8,25 +8,31 @@ namespace ReDefinition.Tests
     // instance that is there only once the mod made it.
     internal sealed class DialogFake
     {
+        // The instance the mod makes once it is ready, a setting beside the dialog, and how often the content was
+        // asked for.
         internal static DialogFake Instance;
         internal static bool Shown;
         internal static int Opened;
 
+        // A static method's content, counting how often it is asked for; the null item is left out.
         internal static DialogGUIBase[] Content()
         {
             Opened++;
             return new DialogGUIBase[] { new DialogGUISpace(4f), null, new DialogGUISpace(8f) };
         }
 
+        // An instance's content: a single item.
         internal DialogGUIBase One()
         {
             return new DialogGUISpace(2f);
         }
 
+        // A method that gives nothing, which no dialog can be filled from.
         internal static void Nothing()
         {
         }
 
+        // A method with a parameter, which no dialog can be filled from.
         internal static DialogGUIBase WithParameter(int id)
         {
             return null;
@@ -38,21 +44,26 @@ namespace ReDefinition.Tests
     [TestClass]
     public class DialogRegistrationTests
     {
+        // DialogFake's registration up to its blocks: one setting in the Devices tab.
         private const string Mod = "MOD_SETTINGS\n{\n name = dialogfake\n detect = ReDefinition.Tests.DialogFake\n"
                                    + " SETTING\n {\n  name = Shown\n  member = ReDefinition.Tests.DialogFake.Shown\n"
                                    + "  default = False\n  row = Devices\n }\n";
 
+        // The registered mod of DialogFake with the given blocks, its problems added to `problems`.
         private static RegisteredMod Build(string blocks, List<string> problems)
         {
             ConfigNode node = ConfigNode.Parse(Mod + blocks + "}").GetNode(ModRegistration.NodeName);
             return new RegisteredMod(ModRegistration.FromConfigNode(node, problems), problems);
         }
 
+        // A DIALOG block with the given lines.
         private static string Dialog(string body)
         {
             return " DIALOG\n {\n" + body + " }\n";
         }
 
+        // A DIALOG block makes a row of its tab that is no setting: not bundled, with its title, button, heading
+        // and width, its content asked for each time it opens, the null items left out.
         [TestMethod]
         public void ADialogIsARowOfItsTabButNoSetting()
         {
@@ -87,6 +98,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, WindowLayout.In(SettingCategory.Display, new List<IBundledMod> { mod }).Count);
         }
 
+        // A dialog lets ReDefinition take the mod's toolbar button over though the mod has no window; a button
+        // without either is reported and stays.
         [TestMethod]
         public void ADialogLetsTheToolbarButtonGoWithoutAWindow()
         {
@@ -103,6 +116,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(without.Exists(p => p.Contains("a toolbar button without a window or a dialog")));
         }
 
+        // An order puts the dialog among the mod's settings in its tab, and a dialog without button, heading or
+        // width takes the defaults: Open ..., its name, the default width.
         [TestMethod]
         public void AnOrderPutsTheDialogAmongTheSettings()
         {
@@ -116,6 +131,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(DialogRegistration.DefaultWidth, rows[0].DialogWidth);
         }
 
+        // A dialog whose content is an instance's method can be opened only once the mod made the instance.
         [TestMethod]
         public void AnInstancesDialogWaitsForTheInstance()
         {
@@ -138,6 +154,8 @@ namespace ReDefinition.Tests
             }
         }
 
+        // Content that is no method, takes a parameter, is missing or is a field leaves the dialog out, reported
+        // and named among the dropped members; an optional one is left out without a word.
         [TestMethod]
         public void ADialogItsBuildCannotOpenIsLeftOut()
         {
@@ -164,6 +182,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, optional.DroppedMembers.Count);
         }
 
+        // A dialog without content, without a row, with an unknown row or named like a setting of the mod is left
+        // out and reported; a width out of range falls back to the default, and an unknown key is reported.
         [TestMethod]
         public void ADialogNeedsItsContentARowAndANameOfItsOwn()
         {

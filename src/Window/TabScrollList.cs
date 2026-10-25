@@ -21,6 +21,7 @@ namespace ReDefinition.Window
     // pass after).
     internal sealed class TabScrollList : DialogGUIScrollList
     {
+        // For how many frames a new tab is put back to the top, and how many of them are left.
         private const int TopFrames = 3;
         private int toTop;
 
@@ -29,11 +30,13 @@ namespace ReDefinition.Window
         internal static float? ProbePosition;
         private int probeFrames = 12;
 
+        // A vertical scroll list of that size over the pages' layout.
         public TabScrollList(Vector2 size, DialogGUILayoutBase layout)
             : base(size, false, true, layout)
         {
         }
 
+        // Makes the list as KSP does, then hangs its content from the top with a fitter that keeps it at the page's height.
         public override GameObject Create(ref Stack<Transform> layouts, UISkinDef skin)
         {
             GameObject created = base.Create(ref layouts, skin);
@@ -60,6 +63,7 @@ namespace ReDefinition.Window
             toTop = TopFrames;
         }
 
+        // Holds the probe's position for its first frames, else puts a new tab back to the top while its frames last.
         public override void Update()
         {
             base.Update();

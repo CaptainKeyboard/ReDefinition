@@ -40,18 +40,28 @@ namespace ReDefinition.Upscaler
     // its frame goes to the log once a minute (CameraSurvey.WriteMotionSources).
     internal sealed class MotionVectorAudit
     {
+        // Sampled in every fifth frame.
         private const int FrameSpacing = 5;
+        // Seconds between two log lines.
         private const float ReportSeconds = 10f;
+        // How many of the vessel's parts are sampled: the root and the farthest from the centre of mass.
         private const int VesselPoints = 3;
+        // Metres a part's renderer bounds are grown by on every side before a pixel's position is tested against them.
         private const float BoundsMargin = 0.3f;
 
+        // The four ground points, in viewport coordinates low in the picture.
         private static readonly Vector2[] GroundViewport =
         {
             new Vector2(0.5f, 0.1f), new Vector2(0.3f, 0.18f), new Vector2(0.7f, 0.18f), new Vector2(0.5f, 0.28f),
         };
 
+        // One pixel read back: where and when it was taken, what it should show, and what came back.
         private sealed class Sample
         {
+            // A part's pixel or a ground pixel and its name for the log; the pixel's viewport position; this frame's
+            // and the previous frame's view-projection; Motion, which takes a world position now to where it was a
+            // frame before; the part's bounds, or the vessel's centre and radius a ground pixel must lie outside; the
+            // texture size; then the depth and motion vector read back (NaN until they came) and whether a read failed.
             internal bool Vessel;
             internal string Name;
             internal Vector2 Viewport;
@@ -95,13 +105,18 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Samples whose read-backs are both back, oldest first, to be taken again.
         private readonly Queue<Sample> idleSamples = new Queue<Sample>();
+        // Frames a released sample waits before it is used again, so a late second callback finds it unchanged.
         private const int ReuseAfterFrames = 8;
         // A part's renderers, read into this list rather than a new array each time.
         private static readonly List<Renderer> partRenderers = new List<Renderer>();
 
+        // The vessel's or the ground's results over one report window.
         private sealed class Tally
         {
+            // Samples counted and those not on the vessel or ground; the error's sum and maximum and the expected
+            // motion's sum, in pixels; the worst sample as text for the log.
             internal int Count;
             internal int Rejected;
             internal double ErrorSum;
@@ -109,6 +124,7 @@ namespace ReDefinition.Upscaler
             internal double MotionSum;
             internal string Worst;
 
+            // Empties the tally for the next window.
             internal void Clear()
             {
                 Count = 0;
@@ -120,21 +136,32 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // The ground's mean error, in pixels, above which the motion sources are logged.
         private const float SourcesFromError = 10f;
+        // Seconds between two logs of the motion sources.
         private const float SourcesInterval = 60f;
 
+        // The vessel's results in this window.
         private readonly Tally vessel = new Tally();
+        // The most Unity's previous camera was off in this window, in pixels, and over how many frames.
         private float unityPreviousOff;
         private int unityPreviousFrames;
+        // When the motion sources may be logged again.
         private float nextSources;
+        // The scene camera of the last frame, whose motion sources are logged.
         private Camera reportCamera;
+        // The ground's results in this window.
         private readonly Tally ground = new Tally();
+        // The sampled parts, their transforms in the frame before, and the vessel they were chosen on.
         private readonly List<Part> parts = new List<Part>();
         private readonly Dictionary<Part, Matrix4x4> previousPart = new Dictionary<Part, Matrix4x4>();
         private Vessel partsOf;
+        // The frame before's view-projection and frame number, to tell a continuous frame.
         private Matrix4x4 previousViewProjection;
         private int previousFrame = -10;
+        // Frames left out in this window for an origin shift, a reset or a gap.
         private int skippedFrames;
+        // When this report window began (-1: not yet).
         private float windowStart = -1f;
 
         // In the scene camera's OnPreCull, after the motion vector hooks: the readbacks
@@ -223,6 +250,7 @@ namespace ReDefinition.Upscaler
             if (Time.unscaledTime - windowStart >= ReportSeconds) Report();
         }
 
+        // The parts to sample on a newly active vessel: its root, then the farthest from its centre of mass.
         private void ChooseParts(Vessel active)
         {
             partsOf = active;
@@ -237,6 +265,7 @@ namespace ReDefinition.Upscaler
             for (int i = 0; i < others.Count && parts.Count < VesselPoints; i++) parts.Add(others[i]);
         }
 
+        // The world bounds of a part's enabled renderers, particles aside, grown by BoundsMargin; false if it has none.
         private static bool PartBounds(Part part, out Bounds bounds)
         {
             bounds = default(Bounds);
@@ -253,6 +282,7 @@ namespace ReDefinition.Upscaler
             return any;
         }
 
+        // Snaps the sample to its pixel and asks the capture for that pixel's depth and motion vector.
         private void Issue(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth, Sample sample)
         {
             int x = Mathf.Clamp(Mathf.FloorToInt(sample.Viewport.x * sample.Size.x), 0, sample.Size.x - 1);
@@ -264,6 +294,7 @@ namespace ReDefinition.Upscaler
             capture.RequestAsyncReadback(motionVectors, 0, x, 1, y, 1, 0, 1, sample.MotionRead);
         }
 
+        // The oldest idle sample once it has waited ReuseAfterFrames, cleared; otherwise a new one.
         private Sample TakeSample()
         {
             if (idleSamples.Count == 0 || Time.frameCount - idleSamples.Peek().ReleasedFrame < ReuseAfterFrames)
@@ -273,6 +304,7 @@ namespace ReDefinition.Upscaler
             return sample;
         }
 
+        // A sample with its two read-back callbacks, made once: each stores its value, then Finish and Release.
         private Sample NewSample()
         {
             Sample sample = new Sample();
@@ -302,6 +334,7 @@ namespace ReDefinition.Upscaler
             return sample;
         }
 
+        // Counts one read-back as back; after the second the sample goes to the idle queue.
         private void Release(Sample sample)
         {
             if (--sample.Pending != 0) return;
@@ -309,6 +342,9 @@ namespace ReDefinition.Upscaler
             idleSamples.Enqueue(sample);
         }
 
+        // Once both values are in: the pixel's world position from its depth, the motion it should show, and the
+        // difference to what was read into the vessel's or the ground's tally -- or a rejection where the position
+        // lies at the far plane, off the part or on the vessel.
         private void Finish(Sample sample)
         {
             if (sample.Failed || float.IsNaN(sample.Depth) || float.IsNaN(sample.Read.x)) return;
@@ -353,12 +389,14 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Where a world position lies on the screen through a view-projection, in viewport coordinates (0 to 1).
         private static Vector2 Viewport(Matrix4x4 viewProjection, Vector3 position)
         {
             Vector4 clip = viewProjection * new Vector4(position.x, position.y, position.z, 1f);
             return new Vector2(clip.x / clip.w * 0.5f + 0.5f, clip.y / clip.w * 0.5f + 0.5f);
         }
 
+        // Logs the window's results, the motion sources too when the ground is far off, and starts a new window.
         private void Report()
         {
             float elapsed = Time.unscaledTime - windowStart;
@@ -393,6 +431,7 @@ namespace ReDefinition.Upscaler
             skippedFrames = 0;
         }
 
+        // One tally's part of the log line: count, mean and largest error, mean motion, worst sample, rejections.
         private static void Append(StringBuilder sb, Tally tally)
         {
             sb.Append(tally.Count).Append(" sample(s)");
@@ -406,6 +445,7 @@ namespace ReDefinition.Upscaler
             sb.Append(", ").Append(tally.Rejected).Append(" not on it");
         }
 
+        // A vector as "(x, y)" with two decimals, for the log.
         private static string Show(Vector2 value)
         {
             return "(" + value.x.ToString("0.00", CultureInfo.InvariantCulture) + ", "

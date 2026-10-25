@@ -22,8 +22,10 @@ namespace ReDefinition.Probe
     // off, ctrl+shift+End to the next view (Debugging - SL ImGUI).
     internal static class VendorProbe
     {
+        // The command-line switch that starts these checks in the scene probe.
         internal const string Argument = "-redefinitionProbeVendor";
 
+        // Windows virtual-key codes of the keys the checks press.
         private const ushort Control = 0x11;
         private const ushort Shift = 0x10;
         private const ushort Alt = 0x12;
@@ -39,6 +41,7 @@ namespace ReDefinition.Probe
         private const int StreamlineViews = 4;
         private const int RecordedFrames = 40;
 
+        // Whether KSP was started with the switch.
         internal static bool Requested
         {
             get
@@ -70,6 +73,7 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The run itself: a plain recording, then each DLSS-FG mode, each DLSS overlay layer and each Streamline view.
         private static IEnumerator Checks(Func<string, IEnumerator> move)
         {
             yield return Record("plain", move);
@@ -101,6 +105,7 @@ namespace ReDefinition.Probe
             yield return Press(Control, Shift, Insert);
         }
 
+        // One state recorded under its name: the desktop recording runs while the camera moves, then waits until it is saved.
         private static IEnumerator Record(string name, Func<string, IEnumerator> move)
         {
             // Settle a moment on the new state, then record during the move.
@@ -150,6 +155,7 @@ namespace ReDefinition.Probe
             for (int i = 0; i < 2; i++) yield return null;
         }
 
+        // Whether the window in front belongs to this process.
         private static bool KspInFront()
         {
             IntPtr window = GetForegroundWindow();
@@ -159,6 +165,7 @@ namespace ReDefinition.Probe
             return process == (uint)System.Diagnostics.Process.GetCurrentProcess().Id;
         }
 
+        // One keyboard INPUT for SendInput: the virtual key down, or up with KEYEVENTF_KEYUP.
         private static Input Key(ushort key, bool up)
         {
             return new Input
@@ -168,9 +175,11 @@ namespace ReDefinition.Probe
             };
         }
 
+        // KEYBDINPUT, laid out as Windows declares it.
         [StructLayout(LayoutKind.Sequential)]
         private struct KeyboardInput
         {
+            // The virtual key, the unused scan code, the KEYEVENTF flags, the time stamp (0: the system sets it) and extra data.
             public ushort VirtualKey;
             public ushort Scan;
             public uint Flags;
@@ -182,19 +191,24 @@ namespace ReDefinition.Probe
         [StructLayout(LayoutKind.Explicit, Size = 40)]
         private struct Input
         {
+            // INPUT_KEYBOARD (1), and the keyboard member at the union's offset on 64-bit Windows.
             [FieldOffset(0)] public uint Type;
             [FieldOffset(8)] public KeyboardInput Keyboard;
         }
 
+        // Puts key events into Windows' input queue, as if the player typed them.
         [DllImport("user32.dll", SetLastError = true)]
         private static extern uint SendInput(uint count, Input[] inputs, int size);
 
+        // The window that currently receives keyboard input.
         [DllImport("user32.dll")]
         private static extern IntPtr GetForegroundWindow();
 
+        // The process that owns a window, to tell whether the window in front is KSP's.
         [DllImport("user32.dll")]
         private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
 
+        // Brings a window to the front, so that the sent keys reach it.
         [DllImport("user32.dll")]
         private static extern bool SetForegroundWindow(IntPtr window);
     }

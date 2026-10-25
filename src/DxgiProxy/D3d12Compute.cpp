@@ -22,6 +22,7 @@ namespace redefinition
         // Constant buffers are sized in multiples of 256 bytes.
         constexpr UINT64 kConstantBufferSize = 256;
 
+        // The highest feature level the device supports, from 12_2 down to 11_0; 0 where it cannot say.
         int HighestFeatureLevel(ID3D12Device* device)
         {
             const D3D_FEATURE_LEVEL levels[] = {
@@ -57,8 +58,10 @@ namespace redefinition
 
     namespace
     {
+        // The two functions of d3dcompiler_47.dll the proxy calls.
         struct Compiler
         {
+            // D3DCompile and D3DCompileFromFile, null where the DLL could not be loaded.
             pD3DCompile compile = nullptr;
             HRESULT(WINAPI* compileFromFile)(LPCWSTR, const D3D_SHADER_MACRO*, ID3DInclude*, LPCSTR, LPCSTR, UINT,
                                              UINT, ID3DBlob**, ID3DBlob**) = nullptr;
@@ -82,6 +85,7 @@ namespace redefinition
             return compiler;
         }
 
+        // The blob's text into buffer, cut to fit; empty without one.
         void CopyText(ID3DBlob* blob, char* buffer, int size)
         {
             if (buffer == nullptr || size <= 0)

@@ -37,6 +37,7 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class KspSettingsSection : MonoBehaviour
     {
+        // The Harmony id of the three postfixes on VideoSettings.
         private const string HarmonyId = "ReDefinition.SettingsSection";
 
         // KSP's graphics rows (VideoSettings.DrawMiniSettings): a 150 wide
@@ -46,6 +47,8 @@ namespace ReDefinition.Window
 
         // A tooltip's last line while the row waits for a graphics profile.
         private const string Locked = "Needs a graphics profile chosen.";
+
+        // The control's width, for sliders the gap to the value and the value's width, and a row's height.
         private const float ControlWidth = 150f;
         private const float ValueGap = 30f;
         private const float ValueWidth = 80f;
@@ -61,6 +64,7 @@ namespace ReDefinition.Window
         // Also the settings window's (SettingsWindow), which edits the same way.
         internal sealed class Edit
         {
+            // The settings as the dialog opened, and the copy the controls edit.
             public OwnSettings Before;
             public OwnSettings After;
 
@@ -70,9 +74,11 @@ namespace ReDefinition.Window
             public Func<bool> ProfileChosen = () => BundledSettings.ProfileChosen;
         }
 
+        // Each graphics section's own copies, dropped with the section.
         private static readonly ConditionalWeakTable<VideoSettings, Edit> Edits =
             new ConditionalWeakTable<VideoSettings, Edit>();
 
+        // Adds the section to KSP's dialog once at startup, then goes; a failure is logged and leaves KSP's dialog as it is.
         private void Awake()
         {
             try
@@ -124,6 +130,7 @@ namespace ReDefinition.Window
         // ApplySettings it would even skip KSP saving its settings -- so each
         // one catches everything.
 
+        // GetSettings: the section's copies taken from the add-on's settings now.
         private static void GetSettingsPostfix(VideoSettings __instance)
         {
             try
@@ -141,6 +148,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // DrawMiniSettings: ReDefinition's rows appended after KSP's graphics rows.
         private static void DrawMiniSettingsPostfix(VideoSettings __instance, ref DialogGUIBase[] __result)
         {
             try
@@ -160,6 +168,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // ApplySettings: the copy committed through the add-on, and the copies taken afresh from what came of it.
         private static void ApplySettingsPostfix(VideoSettings __instance)
         {
             try
@@ -202,6 +211,7 @@ namespace ReDefinition.Window
             // (the settings window: a mark at the name, "Default: X" in the tooltip).
             public Func<ModuleSetting, OwnSettings, string> Default;
 
+            // The widths of the name, the control, the gap before the value and the value.
             public float Name;
             public float Control;
             public float ValueGap;
@@ -211,6 +221,7 @@ namespace ReDefinition.Window
             public float SourceWidth;
         }
 
+        // KSP's own graphics rows' widths.
         private static readonly Layout DialogLayout = new Layout
         {
             Name = NameWidth,
@@ -399,12 +410,14 @@ namespace ReDefinition.Window
             return control;
         }
 
+        // Whether a switch's edited value is True.
         private static bool IsOn(Edit edit, ModuleSetting setting)
         {
             bool on;
             return bool.TryParse(setting.Read(edit.After), out on) && on;
         }
 
+        // A slider's edited value; its minimum where the value is no number.
         private static float Number(Edit edit, ModuleSetting setting)
         {
             float value;
@@ -421,6 +434,7 @@ namespace ReDefinition.Window
             return SettingValues.Text(snapped);
         }
 
+        // The slider position of the edited value among the choices; 0 where it is none of them.
         private static float ChoiceIndex(Edit edit, ModuleSetting setting)
         {
             string now = setting.Read(edit.After);
@@ -429,6 +443,7 @@ namespace ReDefinition.Window
             return 0f;
         }
 
+        // The value column's text: LabelWith, Label or the value itself.
         private static string Shown(Edit edit, ModuleSetting setting)
         {
             string now = setting.Read(edit.After);
@@ -440,6 +455,7 @@ namespace ReDefinition.Window
         private static string enabledText;
         private static string disabledText;
 
+        // KSP's own words for a switch that is on or off, in the game's language.
         internal static string StateText(bool on)
         {
             if (enabledText == null)
@@ -450,6 +466,7 @@ namespace ReDefinition.Window
             return on ? enabledText : disabledText;
         }
 
+        // One row: the name, the control, and the value and source columns where the layout has them.
         private static DialogGUIHorizontalLayout Row(Layout layout, string name, DialogGUIBase control,
                                                      Func<string> value = null, Func<string> markedName = null)
         {
@@ -477,6 +494,7 @@ namespace ReDefinition.Window
                 new DialogGUISpace(layout.ValueGap), new DialogGUILabel(value, layout.Value));
         }
 
+        // An empty value column.
         private static string NoValue()
         {
             return "";

@@ -6,23 +6,33 @@ namespace ReDefinition.Upscaler
     // The rig's part for the preview of what the upscaler receives, in the diagnostics window.
     public partial class UpscalerRig
     {
+        // The size of the tinted previews, whatever the render size; the source is read back scaled to it.
         public const int PreviewWidth = 320;
         public const int PreviewHeight = 180;
 
+        // The tinted preview and its pixels, the time it is next read back, and the scale it was tinted by.
         private Texture2D preview;
         private Color[] previewPixels;
         private float nextPreview;
         private float previewGain = 1f;
 
+        // The scale of the last tinted preview: the 99th percentile of motion in pixels, the nearest depth, or 1.
         public float PreviewGain { get { return previewGain; } }
 
+        // What the diagnostics window's preview shows.
         public enum PreviewMode
         {
+            // The motion vectors, tinted by direction and scaled to their 99th percentile.
             MotionVectors,
+            // The depth copy, scaled to the nearest depth in it.
             Depth,
+            // The rendered image as the upscaler receives it.
             LowRes,
+            // The upscaler's output.
             Upscaled,
+            // The transparency and composition mask (UpscalerMasks).
             TransparencyMask,
+            // The reactive mask: the renderers' or FSR's automatic one.
             ReactiveMask,
         }
 

@@ -31,6 +31,8 @@ namespace ReDefinition.Upscaler
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class UnityMotionRepair : MonoBehaviour
     {
+        // The cloud motion shader's repair pass; the frames between two readbacks of the copy; the seconds between two
+        // reports of unwritten pixels.
         private const int RepairPass = 3;
         private const int CheckEvery = 30;
         private const float ReportSeconds = 10f;
@@ -52,6 +54,8 @@ namespace ReDefinition.Upscaler
         // holds it exactly. The shader tests for below -50.
         private static readonly Color Missing = new Color(-100f, -100f, 0f, 0f);
 
+        // The shader globals: the scene's and the sky's clip-to-previous-clip matrices, the view range with PreciseFrom
+        // and whether the matrices hold, and the repair pass's copies of motion and depth with their texel size.
         private static readonly int SceneClipToPrevClipId = Shader.PropertyToID("_ReDefinitionSceneClipToPrevClip");
         private static readonly int SkyClipToPrevClipId = Shader.PropertyToID("_ReDefinitionSkyClipToPrevClip");
         private static readonly int SceneRangeId = Shader.PropertyToID("_ReDefinitionSceneRange");
@@ -62,6 +66,7 @@ namespace ReDefinition.Upscaler
         // The Debug switch; on at every start.
         internal static bool Enabled = true;
 
+        // The camera the repair and mark buffers are on.
         private Camera attached;
         // Set once the shader cannot be had: not tried again in this scene.
         private bool unavailable;
@@ -77,6 +82,8 @@ namespace ReDefinition.Upscaler
         private Vector2Int size;
         private int preparedFrame = -1;
 
+        // The camera's projection, position and turn against the main body, and turn in the world, of the frame before,
+        // with the body and frame they belong to, for UpdateMatrices.
         private Matrix4x4 previousProjection;
         private Vector3d previousPosition;
         private Quaternion previousRotation;
@@ -85,15 +92,20 @@ namespace ReDefinition.Upscaler
         private int previousFrame = -1;
         private bool havePrevious;
 
+        // Readbacks in the current report window, and those of them with unwritten pixels.
         private int checkedFrames, missingFrames;
+        // The sum of each readback's share of unwritten pixels in the window.
         private double missingShare;
+        // When the current report window began, in unscaled time; negative before the first.
         private float windowStart = -1f;
 
+        // Hooks every camera's pre-cull, where the flight camera is found.
         private void Start()
         {
             Camera.onPreCull += OnAnyPreCull;
         }
 
+        // Takes the buffers off the camera and clears the scene range, so pass 2 does no far-ground replacement.
         private void OnDestroy()
         {
             Camera.onPreCull -= OnAnyPreCull;
@@ -103,6 +115,8 @@ namespace ReDefinition.Upscaler
             material = null;
         }
 
+        // For the flight camera, once per frame: the matrices updated, the buffers attached, kept, retired or taken off,
+        // and this frame's repair recorded.
         private void OnAnyPreCull(Camera cam)
         {
             Camera main = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
@@ -160,6 +174,7 @@ namespace ReDefinition.Upscaler
                    || ((cam.depthTextureMode & DepthTextureMode.MotionVectors) != 0 && !UpscalerRig.AskedForMotionVectors(cam));
         }
 
+        // Makes the material once and attaches the repair at BeforeImageEffectsOpaque and the mark at AfterEverything.
         private void Attach(Camera cam)
         {
             Detach();
@@ -197,6 +212,7 @@ namespace ReDefinition.Upscaler
             retireAfter = Time.frameCount + 1;
         }
 
+        // Takes both buffers off the camera, releases them and the copies.
         private void Detach()
         {
             if (attached != null)
@@ -287,6 +303,7 @@ namespace ReDefinition.Upscaler
         // Made once: the method group passed as is would be a new delegate at every check.
         private System.Action<AsyncGPUReadbackRequest> missingRead;
 
+        // Counts the pixels of the read-back row that still hold the mark.
         private void MissingRead(AsyncGPUReadbackRequest request)
         {
             if (request.hasError) return;
@@ -299,6 +316,7 @@ namespace ReDefinition.Upscaler
             missingShare += pixels > 0 ? (double)missing / pixels : 0.0;
         }
 
+        // Logs the share of unwritten pixels every ReportSeconds, where there were any, and starts a new window.
         private void ReportMissing()
         {
             if (windowStart < 0f) windowStart = Time.unscaledTime;
@@ -316,6 +334,7 @@ namespace ReDefinition.Upscaler
         }
 
         // Each change once.
+        // Logs the repair's state: on the flight camera, or why it is left out.
         private void SetState(string now)
         {
             if (now == state) return;

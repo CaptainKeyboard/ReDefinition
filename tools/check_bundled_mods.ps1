@@ -140,10 +140,12 @@ catch {
     Expect "the registrations could be read and built" $false
 }
 
+# The registration read from the shipped files under this id (case-sensitive), or null.
 function Registration-Of($id) {
     foreach ($r in $registrations) { if ($r.Name -ceq $id) { return $r } }
     return $null
 }
+# The setting of that name in the registration of that id, or null where either is missing.
 function Setting-Of($id, $name) {
     $r = Registration-Of $id
     if ($null -eq $r) { return $null }
@@ -296,11 +298,14 @@ try {
     # What High may set beyond the defaults (docs/player/graphics-profiles.md).
     $highDeviations = @('ksp.TEXTURE_QUALITY', 'ksp.terrainDetail', 'ksp.TERRAIN_SHADER_QUALITY', 'ksp.REFLECTION_PROBE_REFRESH_MODE')
     $unchecked = New-Object 'System.Collections.Generic.SortedSet[string]'
+    # The kind of a registered setting (Quality, Taste ...) as a string, or null where it is not registered.
     function Kind-Of($id, $key) {
         $entry = Setting-Of $id $key
         if ($null -eq $entry) { return $null }
         return "$($entry.Kind)"
     }
+    # Why a profile may not set the mod's key to the value: no such setting, not a quality setting, or what
+    # ProfileApplier.Refusal says; null where it may, or where the mod is neither installed nor has settings.
     function Refusal($m, $key, $value) {
         if (-not $m.IsInstalled -and @($m.Settings).Count -eq 0) { [void]$unchecked.Add($m.Id); return $null }
         $setting = $null
@@ -545,6 +550,8 @@ try {
         foreach ($n in $loadNode.Invoke($null, [object[]]@($file)).GetNodes('MOD_SETTINGS')) { $exampleNodes.Add($n) }
     }
 
+    # Reads and builds the MOD_SETTINGS nodes from $label, expects at least $atLeast without a problem, and for each
+    # installed mod among them that it finds every member and has a default the game takes for every setting.
     function Check-Registrations($label, $nodes, $atLeast) {
         $nodes = $nodes.PSObject.BaseObject
         $extraProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
@@ -587,6 +594,7 @@ catch {
 # does not have.
 try {
     $parseNode = $configNodeType.GetMethod('Parse', [Type[]]@([string]))
+    # Reads and builds the registrations in the config text; their problems land in $script:caseProblems.
     function Build-Registered($text) {
         $nodes = (New-Object 'System.Collections.Generic.List[object]').PSObject.BaseObject
         foreach ($n in $parseNode.Invoke($null, [object[]]@($text)).GetNodes('MOD_SETTINGS')) { $nodes.Add($n) }
@@ -594,7 +602,9 @@ try {
         $regs = $readRegistrations.Invoke($null, [object[]]@($nodes, $script:caseProblems))
         return @($buildRegistered.Invoke($null, [object[]]@($regs, $script:caseProblems)))
     }
+    # The text of a test registration of Waterfall's settings under the name, holding the SETTING bodies given.
     function Case-Mod($name, $body) { return "MOD_SETTINGS`n{`n name = $name`n detect = Waterfall.Settings`n$body}`n" }
+    # The text of a SETTING on Waterfall.Settings' member of the name, with further lines in $more.
     function Case-Setting($name, $more) { return " SETTING`n {`n  name = $name`n  member = Waterfall.Settings.$name`n$more`n }`n" }
     $waterfallHere = [AppDomain]::CurrentDomain.GetAssemblies() | ForEach-Object { $_.GetType('Waterfall.Settings', $false) } | Where-Object { $_ } | Select-Object -First 1
     if (-not $waterfallHere) {

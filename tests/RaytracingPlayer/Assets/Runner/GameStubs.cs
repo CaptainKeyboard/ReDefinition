@@ -7,11 +7,13 @@ namespace ReDefinition.Probe
     // put in.
     internal static class GpuProfiler
     {
+        // Never on, so RtCamera adds no markers.
         internal static bool On
         {
             get { return false; }
         }
 
+        // Puts no marker in: there is no profiler to read it.
         internal static void Mark(CommandBuffer buffer, string label)
         {
         }
@@ -24,6 +26,7 @@ namespace ReDefinition.Bridges
     // NativeUpscalerLink names first: the test player loads the proxy by its own path.
     internal static class ProxyLoad
     {
+        // No refusal to name: the test player loads the proxy itself.
         internal static string Refused
         {
             get { return null; }

@@ -19,6 +19,7 @@ namespace redefinition
 {
     namespace
     {
+        // The proxy's own DLL, whose resources hold the shaders.
         HMODULE OwnModule()
         {
             HMODULE module = nullptr;

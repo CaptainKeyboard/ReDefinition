@@ -12,8 +12,10 @@ namespace ReDefinition.Tests
     [TestClass]
     public class AmperePackageTests
     {
+        // The folder the test's zips and game folders stand in.
         private string folder;
 
+        // A fresh folder of the test's own in the temporary folder.
         [TestInitialize]
         public void MakeFolder()
         {
@@ -21,17 +23,21 @@ namespace ReDefinition.Tests
             Directory.CreateDirectory(folder);
         }
 
+        // Deletes the test's folder and everything in it.
         [TestCleanup]
         public void RemoveFolder()
         {
             Directory.Delete(folder, true);
         }
 
+        // A zip of that name with the entries given, compressed as usual.
         private string MakeZip(string name, params string[] entries)
         {
             return MakeZip(name, CompressionLevel.Optimal, entries);
         }
 
+        // A zip of that name in the test's folder holding each entry as the text "content of <entry>", compressed
+        // as given.
         private string MakeZip(string name, CompressionLevel level, params string[] entries)
         {
             string path = Path.Combine(folder, name);
@@ -46,6 +52,7 @@ namespace ReDefinition.Tests
             return path;
         }
 
+        // The files of the project's release zip, as it lays them out.
         private static readonly string[] Release =
         {
             "version.dll", "dlssg_sm86.ini", "README.md", "LICENSE.md", "THIRD_PARTY_NOTICES.txt", "alternatives/dxgi.dll",
@@ -53,6 +60,8 @@ namespace ReDefinition.Tests
             "dlssg_sm86/xefg/xefg_kernels.dll", "dlssg_sm86/sr/nvngx_dlss.dll", "dlssg_sm86/sr/sr_kernels.dll", "docs/INSTALL.md",
         };
 
+        // From the release the package takes the proxy version.dll, its ini, the files of its folder and the
+        // licences moved into it; not the readme, the docs, the alternative dxgi.dll nor super resolution.
         [TestMethod]
         public void TheProxyItsIniAndFolderAreTakenWithoutSuperResolution()
         {
@@ -69,6 +78,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // The super resolution part takes only its two files, installed on their own and not as the package.
         [TestMethod]
         public void TheSuperResolutionFilesAreTakenOnTheirOwn()
         {
@@ -92,6 +102,8 @@ namespace ReDefinition.Tests
                 File.ReadAllText(Path.Combine(game, "dlssg_sm86", "sr", "sr_kernels.dll")));
         }
 
+        // A zip without the super resolution kernels is refused for that part, naming the file, and nothing is
+        // placed.
         [TestMethod]
         public void AZipWithoutTheSuperResolutionKernelsIsRefusedForThem()
         {
@@ -105,6 +117,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, Directory.GetFileSystemEntries(game).Length);
         }
 
+        // The install places the package's eight files as the zip holds them, the licences in the package's
+        // folder, and leaves neither the super resolution files, the readme nor a file of its own behind.
         [TestMethod]
         public void TheInstallPlacesEveryFileAsTheZipHoldsIt()
         {
@@ -122,6 +136,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, Directory.GetFiles(game, "*.redefinition-install", SearchOption.AllDirectories).Length);
         }
 
+        // A file the install replaces is kept next to it as .old.
         [TestMethod]
         public void AFileAlreadyThereIsKeptAsOld()
         {
@@ -136,6 +151,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("content of version.dll", File.ReadAllText(Path.Combine(game, "version.dll")));
         }
 
+        // A zip without the frame generation runtime is refused naming it, and nothing is placed.
         [TestMethod]
         public void AZipWithoutTheRuntimeIsRefusedAndNothingIsPlaced()
         {
@@ -149,6 +165,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, Directory.GetFileSystemEntries(game).Length);
         }
 
+        // A file whose checksum no longer matches its content is refused, and no file is placed.
         [TestMethod]
         public void ADamagedFileIsRefusedAndNothingIsPlaced()
         {
@@ -168,6 +185,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, Directory.GetFiles(game, "*", SearchOption.AllDirectories).Length);
         }
 
+        // Of the release zips in a folder the newest is found, and a zip of another name is not taken.
         [TestMethod]
         public void TheNewestReleaseZipIsFound()
         {
@@ -179,6 +197,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(newer, AmperePackage.FindZip(folder));
         }
 
+        // Where the needle first stands in the haystack, or -1.
         private static int IndexOf(byte[] haystack, byte[] needle)
         {
             for (int i = 0; i + needle.Length <= haystack.Length; i++)

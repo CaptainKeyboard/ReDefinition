@@ -14,12 +14,15 @@ namespace ReDefinition.Settings
     // setting stays as it is.
     internal static class ProfileValue
     {
+        // One alternative: its value and the classes of card it is for.
         internal sealed class Alternative
         {
+            // The value the setting takes on such a card.
             public string Value;
-            // Empty: every card.
+            // The classes of card it is for; empty: every card.
             public List<GpuClass> Classes = new List<GpuClass>();
 
+            // Whether the alternative is for the card: listed, or for every card.
             public bool Takes(GpuClass gpu)
             {
                 return Classes.Count == 0 || Classes.Contains(gpu);

@@ -10,6 +10,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class PlannerTests
     {
+        // The bodies' indices in Stock().
         private const int Sun = 0, Kerbin = 1, Mun = 2, Minmus = 3, Duna = 4, Eve = 5, Laythe = 6, Tylo = 7, StockJool = 8;
 
         // The stock bodies, as KSP 1.12.5 defines them.
@@ -66,22 +67,26 @@ namespace ReDefinition.Tests
             };
         }
 
+        // A stop in orbit of the body at that altitude in metres.
         internal static RouteStop Orbit(int body, double altitude)
         {
             return new RouteStop { Body = body, Kind = StopKind.Orbit, Altitude = altitude };
         }
 
+        // A stop on the body's surface, landed on parachutes or aerobraking where `atmosphere` says so.
         internal static RouteStop Surface(int body, bool atmosphere = false)
         {
             return new RouteStop { Body = body, Kind = StopKind.Surface, UseAtmosphere = atmosphere };
         }
 
+        // Asserts the value lies within the tolerance of what was expected, naming both where it does not.
         private static void Near(double expected, double actual, double tolerance, string what)
         {
             Assert.IsTrue(System.Math.Abs(actual - expected) <= tolerance,
                 what + ": expected about " + expected + ", was " + actual.ToString("0"));
         }
 
+        // The launches to low orbit from six bodies match the stock delta-v map within 4 %.
         [TestMethod]
         public void LaunchesMatchTheStockMapWithinAFewPerCent()
         {
@@ -94,6 +99,7 @@ namespace ReDefinition.Tests
             Near(2270, RoutePlanner.Launch(bodies[Tylo]), 2270 * 0.04, "Tylo");
         }
 
+        // From Kerbin's 80 km orbit to the Mun's 14 km one the transfer is about 856 m/s and the capture 310.
         [TestMethod]
         public void KerbinOrbitToMunOrbitIsAboutEightSixtyAndThreeTen()
         {
@@ -103,6 +109,7 @@ namespace ReDefinition.Tests
             Near(310, leg.Lines.Single(line => line.Name == "Capture into orbit").DeltaV, 5, "capture");
         }
 
+        // From Kerbin's orbit to Duna's the ejection and the capture match the stock figures of 1072 and 616 m/s.
         [TestMethod]
         public void KerbinOrbitToDunaOrbitLeavesAndCapturesAcrossTheSun()
         {
@@ -112,6 +119,7 @@ namespace ReDefinition.Tests
             Near(616, leg.Lines.Single(line => line.Name == "Capture into orbit").DeltaV, 10, "capture");
         }
 
+        // Aerobraking at Duna leaves only a small burn to circularise.
         [TestMethod]
         public void AerobrakingLeavesOnlyTheCircularisation()
         {
@@ -122,6 +130,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(leg.Lines.Single(line => line.Name.StartsWith("Aerobraking")).DeltaV < 50);
         }
 
+        // From a moon home the burn leaves the moon and the capture is at the planet: the Mun's 856 and 310 the
+        // other way round.
         [TestMethod]
         public void FromAMoonHomeTheBurnLeavesTheMoonAndTheCaptureIsAtThePlanet()
         {
@@ -131,6 +141,8 @@ namespace ReDefinition.Tests
             Near(856, leg.Lines.Single(line => line.Name == "Capture into orbit").DeltaV, 5, "capture at Kerbin");
         }
 
+        // Leaving the Mun for Duna takes more than leaving the Mun alone and less than going down to Kerbin's
+        // orbit first.
         [TestMethod]
         public void FromTheMunToDunaTheBurnLeavesBothTheMunAndKerbin()
         {
@@ -145,6 +157,8 @@ namespace ReDefinition.Tests
                 + fromMun.ToString("0"));
         }
 
+        // From Kerbin's surface to the Mun's a leg is the launch, the transfer, the capture and the landing, near
+        // the stock map's sum.
         [TestMethod]
         public void SurfaceToSurfaceHasALaunchAndALanding()
         {
@@ -155,6 +169,7 @@ namespace ReDefinition.Tests
             Near(3400 + 856 + 310 + 580, leg.DeltaV, 250, "Kerbin to the Mun's surface");
         }
 
+        // A landing on parachutes needs no burn on Kerbin and a powered end on Duna's thin air.
         [TestMethod]
         public void ParachutesOnKerbinNeedNothingAndOnDunaAPoweredEnd()
         {
@@ -164,6 +179,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(duna > 100 && duna < 400, duna.ToString("0"));
         }
 
+        // A plane change is added to a leg between bodies of different inclination only when the route asks for
+        // one, and costs more.
         [TestMethod]
         public void APlaneChangeIsAddedOnlyWhenWanted()
         {
@@ -175,6 +192,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(tilted.Lines.Any(line => line.Name == "Plane change"));
         }
 
+        // A route of four stops is three legs, one between each two.
         [TestMethod]
         public void ARouteOfFourStopsHasThreeLegs()
         {
@@ -183,12 +201,11 @@ namespace ReDefinition.Tests
             Assert.AreEqual(3, RoutePlanner.Legs(Stock(), stops, false).Count);
         }
 
-        // A stage from KSP's figures: number, start mass, end mass (tonnes), and
-        // delta-v; the exhaust velocity is 3000 m/s throughout.
         // Who flies a step on the stage-number model: the whole vessel, the lander (group
         // 1) alone, the rest without it, or the capsule (group 2) alone.
         internal enum LegMode
         {
+            // In order: the whole vessel, the lander alone, the rest leaving the lander for good, the capsule alone.
             Whole,
             Lander,
             WithoutLander,
@@ -248,18 +265,23 @@ namespace ReDefinition.Tests
             return StageBudget.Allocate(stages, steps, margin, plans, split);
         }
 
+        // A stage from KSP's figures: number, start mass and end mass (tonnes); its
+        // delta-v follows from the exhaust velocity of 3000 m/s used throughout.
         private static BudgetStage Stage(int number, double start, double end)
         {
             return new BudgetStage { Number = number, StartMass = start, EndMass = end, DeltaV = Exhaust * System.Math.Log(start / end) };
         }
 
+        // The exhaust velocity of every stage made by Stage, in metres per second.
         private const double Exhaust = 3000.0;
 
+        // The delta-v a stage gives on a leg.
         private static double Used(StageBudget.Result result, int leg, int stage)
         {
             return result.Uses.Where(u => u.Leg == leg && u.Stage == stage).Sum(u => u.DeltaV);
         }
 
+        // Two stages burnt through give the delta-v KSP shows for them together.
         [TestMethod]
         public void BurningAStackThroughGivesKspsDeltaV()
         {
@@ -270,6 +292,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(stages.Sum(stage => stage.DeltaV), Used(result, 0, 1) + Used(result, 0, 0), 1e-6);
         }
 
+        // A stage that outlasts a leg carries on into the next, and splitting a burn over legs leaves the total as
+        // KSP counts it.
         [TestMethod]
         public void AStageCarriesOnIntoTheNextLegWithTheSameDeltaVInAll()
         {
@@ -282,6 +306,7 @@ namespace ReDefinition.Tests
                 "splitting a burn over legs changes nothing about the total");
         }
 
+        // The margin is added to every leg's need, and what the stages lack of it is the shortfall.
         [TestMethod]
         public void TheMarginIsAddedToEveryLeg()
         {
@@ -307,6 +332,8 @@ namespace ReDefinition.Tests
             return plans;
         }
 
+        // A stage saved on a step does not burn there, nor do the stages after it: the step comes up short, and
+        // the next step burns the saved stage.
         [TestMethod]
         public void ASavedStageStopsTheStepAndTheStagesAfterIt()
         {
@@ -320,6 +347,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(600.0, Used(result, 2, 1), 1e-6, "the next step burns it");
         }
 
+        // A stage dropped after a step goes with what it still holds, and the next step pushes only what is left.
         [TestMethod]
         public void ADroppedStageGoesWithWhatItHolds()
         {
@@ -335,6 +363,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(8.0, result.Uses.Single(u => u.Leg == 1).Mass, 1e-9, "the next step pushes only what is left");
         }
 
+        // Dropping a stage drops the ones KSP fires before it as well.
         [TestMethod]
         public void DroppingAStageDropsTheOnesKspFiresBeforeIt()
         {
@@ -346,6 +375,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(300.0, Used(result, 1, 0), 1e-6);
         }
 
+        // The last stage cannot be dropped: there is nothing to fly on.
         [TestMethod]
         public void TheLastStageCannotBeDropped()
         {
@@ -357,6 +387,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(result.Dropped.ContainsKey(0));
         }
 
+        // A step lists the stages that still hold fuel as it starts, with what each gives in it and what it has
+        // left after.
         [TestMethod]
         public void AStepListsTheStagesThatStillHoldFuel()
         {
@@ -369,6 +401,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, result.Stages[0][0].LeftAfter, 1e-9);
         }
 
+        // Dropping the rest's stage after a step leaves the lander, which pushes only itself, to fly on alone.
         [TestMethod]
         public void DroppingTheRestLeavesTheLanderToFlyAlone()
         {
@@ -386,6 +419,8 @@ namespace ReDefinition.Tests
             return new List<BudgetStage> { Stage(1, 16, 10), Stage(0, 4, 2) };
         }
 
+        // The lander flies its steps alone on its own stage, pushing only itself, while the rest waits, and the
+        // mothership carries it on afterwards.
         [TestMethod]
         public void TheLanderFliesAloneAndTheRestWaits()
         {
@@ -399,6 +434,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(500.0, Used(result, 3, 1), 1e-6, "and is carried on by the mothership");
         }
 
+        // The lander comes back lighter by what it burnt alone, so the mothership pushes less on the way on.
         [TestMethod]
         public void AnEmptierLanderMakesTheMothershipGoFurther()
         {
@@ -412,6 +448,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(before - motherBurnt - landerBurnt, after, 1e-6);
         }
 
+        // With the rest flying on without the lander, the lander stays behind with its stages, and the rest is
+        // lighter by its four tonnes.
         [TestMethod]
         public void WithoutTheLanderTheRestFliesLighterAndTheLanderStaysBehind()
         {
@@ -425,6 +463,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(before - burnt - 4.0, result.Uses.First(u => u.Leg == 1).Mass, 1e-6);
         }
 
+        // What is left is the delta-v each stage still gives where the route ends: none of a stage burnt out, the
+        // rest of one burning, all of one untouched.
         [TestMethod]
         public void WhatIsLeftIsWhatTheStagesStillGiveFromWhereTheRouteEnds()
         {
@@ -436,6 +476,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(stages[2].DeltaV, result.Left[0], 1e-6, "untouched");
         }
 
+        // With a lander that never flies alone the stages burn through as KSP counts them, every stage's delta-v used.
         [TestMethod]
         public void WithALanderThatNeverFliesAloneTheStagesGiveKspsDeltaV()
         {
@@ -445,6 +486,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(Mothership().Sum(stage => stage.DeltaV), result.Uses.Sum(u => u.DeltaV), 1e-6);
         }
 
+        // A stage of the rest saved on a step holds back the lander's stages behind it too, as KSP fires them in
+        // order; the step after the saving burns it.
         [TestMethod]
         public void ASavedStageOfTheRestHoldsBackTheLanderToo()
         {
@@ -519,6 +562,7 @@ namespace ReDefinition.Tests
             return parts;
         }
 
+        // A crewed vessel's capsule is its pod with the parachute, the decoupler under it going with the stage below.
         [TestMethod]
         public void ACrewedVesselsCapsuleIsItsPod()
         {
@@ -532,6 +576,7 @@ namespace ReDefinition.Tests
             StringAssert.StartsWith(capsule.Name, "Mk1 Command Pod, 2 parts");
         }
 
+        // A pod without parachutes is still the capsule, marked as lacking them.
         [TestMethod]
         public void APodWithoutParachutesIsStillTheCapsule()
         {
@@ -543,6 +588,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(capsule.Parachute, "the planner says it lacks parachutes");
         }
 
+        // The lander is what its docking port separates, without the transfer stage dropped before it; the capsule
+        // is the lightest crewed part and belongs to the rest.
         [TestMethod]
         public void TheLanderIsWhatItsDockingPortSeparatesWithoutTheStagesDroppedBeforeIt()
         {
@@ -559,6 +606,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(-1, VesselShape.Parent(new List<PartGroupChoice> { lander, capsule }, 1), "the capsule belongs to the rest");
         }
 
+        // With legs on the Kerbal X's upper stage, the pod and the upper stage together can be the lander, the
+        // capsule part of it.
         [TestMethod]
         public void TheKerbalXsUpperStageWithItsLegsCanBeTheLander()
         {
@@ -574,6 +623,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, VesselShape.Parent(new List<PartGroupChoice> { lander, capsule }, 1), "the capsule is part of the lander");
         }
 
+        // An uncrewed vessel's one satellite, the probe core and its antenna, is found by itself.
         [TestMethod]
         public void AnUncrewedVesselsOneSatelliteIsFoundByItself()
         {
@@ -586,6 +636,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEquivalent(new[] { 0, 1 }, satellite.Members.ToArray(), "the probe core and its antenna");
         }
 
+        // Two probe cores, two satellites: the planner leaves the choice to the player.
         [TestMethod]
         public void TwoSatellitesAreLeftToThePlayer()
         {
@@ -597,6 +648,7 @@ namespace ReDefinition.Tests
             Assert.IsNull(VesselShape.AutoSatellite(parts, VesselShape.Candidates(parts)));
         }
 
+        // A lander that flies on alone climbs to the next destination's orbit, not to the orbit the rest waits in.
         [TestMethod]
         public void ALanderThatFliesOnAloneClimbsToTheDestinationNotToTheRest()
         {
@@ -607,6 +659,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(500000.0, steps[3].To.Altitude, "up to the 500 km orbit");
         }
 
+        // A Kerbal X lander that flies on alone lands, climbs and goes home without docking, the capsule landing
+        // on its parachutes; one that docks comes back to the rest.
         [TestMethod]
         public void ALanderThatFliesOnAloneGoesHomeByItself()
         {
@@ -638,6 +692,7 @@ namespace ReDefinition.Tests
             return parts;
         }
 
+        // The lander leaves out the launch clamps, known as such or not, and what is no longer joined to it.
         [TestMethod]
         public void ALanderLeavesOutTheLaunchClampsAndWhatIsNoLongerJoinedToIt()
         {
@@ -651,6 +706,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // A docking port on the nose with nothing beyond it cuts nothing off; the decoupler separates the lander.
         [TestMethod]
         public void ADockingPortWithNothingBeyondItCutsNothingOff()
         {
@@ -664,6 +720,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(groups.Any(group => group.Legs && group.Command && !group.DockingPort), "the decoupler separates the lander");
         }
 
+        // Two docking ports joined in the editor give the lander once, cut at the lower port.
         [TestMethod]
         public void TwoDockingPortsJoinedInTheEditorGiveTheLanderOnce()
         {
@@ -673,6 +730,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(groups.Any(group => group.Members.SetEquals(new[] { 5, 6, 7, 8, 9, 10, 11, 12 })), "not the upper port's");
         }
 
+        // A lander's radial drop tanks, decoupled a stage before its legs, stay with it; the transfer stage does not.
         [TestMethod]
         public void ALandersDropTanksStayWithIt()
         {
@@ -695,6 +753,7 @@ namespace ReDefinition.Tests
             return step;
         }
 
+        // A split with the groups' masses and stage number i owned by owners[i], its fuel and its drop that group's.
         private static VesselSplit Groups(double[] mass, params int[] owners)
         {
             VesselSplit split = new VesselSplit(mass.Length);
@@ -708,6 +767,8 @@ namespace ReDefinition.Tests
             return split;
         }
 
+        // The Apollo lander flies between the rest's stages: the whole vessel burns the service module, the
+        // lander its own descent and ascent alone, then the rest takes the service module up again for home.
         [TestMethod]
         public void AnApolloLanderFliesBetweenTheRestsStages()
         {
@@ -738,6 +799,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(result.Dropped.ContainsKey(3), "the service module left with what it holds");
         }
 
+        // Each step says what the stages that flew it have left after it.
         [TestMethod]
         public void EachStepSaysWhatWhatFlewItHasLeft()
         {
@@ -750,6 +812,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(total - 1500.0, result.LeftAfter[1], 1e-6);
         }
 
+        // A refill comes from the stage the player names first rather than from the one KSP would fire first.
         [TestMethod]
         public void ARefillComesFromTheStageThePlayerNamesFirst()
         {
@@ -778,6 +841,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(named.Left[2] < inOrder.Left[2], "and S2 gives it");
         }
 
+        // A satellite that flies its own step and stays keeps the delta-v it has left.
         [TestMethod]
         public void ASatelliteFlyingItselfKeepsWhatItHoldsAsItStays()
         {
@@ -795,6 +859,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(left, result.Stages[1].Single(stage => stage.Stage == 0).LeftAfter, 1e-6);
         }
 
+        // Two landers flying alone each burn their own stage and push only themselves.
         [TestMethod]
         public void TwoLandersEachBurnTheirOwnStages()
         {
@@ -814,6 +879,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, result.Uses.Single(u => u.Leg == 2).Stage);
         }
 
+        // A satellite deployed after a step stays with what it weighs, and the next step pushes that much less.
         [TestMethod]
         public void ADeployedSatelliteNoLongerWeighsOnWhatFliesOn()
         {
@@ -830,6 +896,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(kept.Uses.Single(u => u.Leg == 1).Mass - 1.0, deployed.Uses.Single(u => u.Leg == 1).Mass, 1e-9);
         }
 
+        // A plane change to Minmus, Kerbin's own tilted moon, is its tilt at the transfer's far end: a few m/s.
         [TestMethod]
         public void APlaneChangeToAPlanetsOwnMoonIsTheMoonsTilt()
         {
@@ -839,6 +906,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(leg.Lines.Any(line => line.Name == "Plane change" && line.DeltaV > 1 && line.DeltaV < 50));
         }
 
+        // Aerobraking from a 500 km orbit down to 80 km is a deorbit burn where it starts and a circularisation
+        // where it ends, cheaper than burning down.
         [TestMethod]
         public void AerobrakingDownToALowerOrbitCostsLessThanBurning()
         {
@@ -853,6 +922,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(braked.DeltaV < burnt.DeltaV, braked.DeltaV.ToString("0") + " < " + burnt.DeltaV.ToString("0"));
         }
 
+        // A refill after the lander docks fills it back to what it held at the start, from the rest's tanks.
         [TestMethod]
         public void RefuellingFillsTheLanderFromTheRestAfterItDocks()
         {
@@ -873,6 +943,7 @@ namespace ReDefinition.Tests
         // Five missions, each set up as the player sets it in the planner: the
         // destinations, and the steps whose vehicle the player clicks (Choose).
 
+        // The stop with the flyer the player clicked for one of its step roles.
         private static RouteStop Choose(RouteStop stop, StepRole role, Flyer flyer)
         {
             stop.By[(int)role] = flyer.Code;
@@ -908,6 +979,8 @@ namespace ReDefinition.Tests
             return flyer.Section == 1 ? "L" : flyer.Section == 2 ? "C" : "X" + flyer.Section;
         }
 
+        // The steps written short, one word each: the goal's number, the role's initial, the flyer's letter, and
+        // < where the step separates, > where it docks.
         private static string Shape(IEnumerable<RouteStep> steps)
         {
             return string.Join(" ", steps.Select(step => step.Goal + step.Role.ToString().Substring(0, 1) + ":"
@@ -915,6 +988,7 @@ namespace ReDefinition.Tests
                                                          + (step.Separates ? "<" : "") + (step.Docks ? ">" : "")));
         }
 
+        // The bodies' indices in JoolSystem().
         private const int JKerbin = 1, Jool = 2, JLaythe = 3, Vall = 4, JTylo = 5;
 
         // The Jool system, as KSP 1.12.5 defines it.
@@ -948,6 +1022,8 @@ namespace ReDefinition.Tests
             };
         }
 
+        // One vessel without a lander flies to Minmus and home, straight into Kerbin's air and down on its
+        // parachutes.
         [TestMethod]
         public void OneVesselToMinmusAndHomeOnItsParachutes()
         {
@@ -961,6 +1037,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A satellite stays in its orbit while the capsule, marked as the lander, comes home alone.
         [TestMethod]
         public void ASatelliteStaysInItsOrbitAndTheCapsuleComesHome()
         {
@@ -976,6 +1053,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // The Duna lander flies home by itself where clicked, leaving the transfer stage in orbit; without the
+        // click it docks and the whole vessel flies home.
         [TestMethod]
         public void TheDunaLanderFliesHomeByItselfAndLeavesTheTransferStage()
         {
@@ -997,6 +1076,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1L:S 1T:S 2L:L< 3L:L> 3T:S 3L:S", Shape(Route(Stock(), goals, true, false)));
         }
 
+        // From a Mun base a lander hops on Minmus, docks again and the whole vessel comes back.
         [TestMethod]
         public void FromAMunBaseALanderHopsOnMinmusAndComesBack()
         {
@@ -1013,6 +1093,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // Around Jool the lander lands on Laythe and Vall, docks and is refilled after Laythe, and lands at home
+        // with the capsule.
         [TestMethod]
         public void AroundJoolTheLanderLandsTwiceIsRefilledAndTheCapsuleLandsAtHome()
         {
@@ -1042,6 +1124,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A lander left behind cannot fly a later step: the step is reported and not flown.
         [TestMethod]
         public void ALanderThatWasLeftBehindCannotFlyOn()
         {
@@ -1058,6 +1141,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, steps[1].Leg.DeltaV, "never flown");
         }
 
+        // A step clicked to the whole vessel is reported where the lander is not with the rest.
         [TestMethod]
         public void TheWholeVesselCannotGoOnWhereTheLanderIsNotWithTheRest()
         {
@@ -1070,6 +1154,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("The lander is not with the rest of the vessel in Kerbin orbit", steps[1].Problem);
         }
 
+        // A landing on parachutes from an orbit is a deorbit burn into the air: about 450 m/s from the synchronous
+        // orbit, 40 from a low one.
         [TestMethod]
         public void ALandingOnParachutesFromAnOrbitGoesDownIntoTheAir()
         {
@@ -1081,6 +1167,7 @@ namespace ReDefinition.Tests
             Near(40, low.DeltaV, 25, "from a low orbit");
         }
 
+        // The rest the lander left behind has the delta-v of its own mass and fuel left.
         [TestMethod]
         public void TheRestLeftBehindByTheLanderHasItsOwnMassLeft()
         {
@@ -1093,6 +1180,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(Exhaust * System.Math.Log(mass / (mass - fuel)), result.Left[1], 1e-6);
         }
 
+        // The Jool tour with every orbit between the landings listed as a destination gives the same steps.
         [TestMethod]
         public void TheJoolTourWithEveryOrbitAsADestinationGivesTheSameSteps()
         {
@@ -1115,6 +1203,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // With a capsule marked and nothing clicked, the capsule leaves the vessel in Kerbin's air and lands on
+        // its parachutes.
         [TestMethod]
         public void TheCapsuleLandsAtHomeOnItsParachutesByItself()
         {
@@ -1128,6 +1218,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(StopKind.Entry, steps[5].From.Kind, "it leaves the vessel in Kerbin's air");
         }
 
+        // Once the capsule has left, a later step clicked to the whole vessel is reported.
         [TestMethod]
         public void NothingButTheCapsuleFliesOnceItHasLeft()
         {
@@ -1138,6 +1229,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("The capsule has left the vessel", steps[1].Problem);
         }
 
+        // The capsule leaving everything else leaves the other stages with what they hold, landing on its
+        // parachutes with no burn.
         [TestMethod]
         public void TheCapsuleLeavesEverythingElseWithWhatItHolds()
         {
@@ -1153,6 +1246,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, result.TotalShort, 1e-9, "the capsule lands on its parachutes");
         }
 
+        // From a high orbit the whole vessel brings the capsule down rather than the capsule deorbiting on its own.
         [TestMethod]
         public void FromAnOrbitTheVesselBringsTheCapsuleDownRatherThanTheCapsuleItself()
         {
@@ -1162,6 +1256,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1L:S 2L:S", Shape(Route(Stock(), goals, false, false, true)));
         }
 
+        // The capsule burns its own stage pushing only itself, the rest left with what it holds.
         [TestMethod]
         public void TheCapsuleBurnsItsOwnStagesPushingOnlyItself()
         {
@@ -1176,6 +1271,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(result.Dropped.ContainsKey(1), "the rest left with what it holds");
         }
 
+        // The stages of the rest dropped before the lander are gone for the rest when it flies on without the
+        // lander.
         [TestMethod]
         public void FromThePartsTheTransferStageDroppedBeforeTheLanderIsGoneForTheRest()
         {
@@ -1192,6 +1289,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(4.0, result.Uses.Single(u => u.Leg == 2).Mass, 1e-6, "the service module without the transfer stage");
         }
 
+        // A split transfer is two steps, the burn that leaves and the one that arrives, with the same delta-v as
+        // the transfer in one.
         [TestMethod]
         public void ASplitTransferIsTheBurnThatLeavesAndTheOneThatArrives()
         {
@@ -1210,6 +1309,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A satellite marked as the capsule flies the arrival of a split transfer alone, leaving the upper stage
+        // on the way up.
         [TestMethod]
         public void TheSatelliteCircularisesByItselfAfterTheUpperStage()
         {
@@ -1226,6 +1327,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A way straight into a planet's air cannot be split into two burns; one between orbits can.
         [TestMethod]
         public void AWayStraightIntoTheAirCannotBeSplit()
         {
@@ -1233,6 +1335,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(RouteSteps.Splits(Stock(), Orbit(Kerbin, 80000), Orbit(Mun, 14000)));
         }
 
+        // Apollo: the lander docks after the Mun, the rest leaves it for home, and the capsule leaves the rest in
+        // Kerbin's air.
         [TestMethod]
         public void TheApolloCapsuleComesHomeFromTheRestAfterTheLanderIsLeft()
         {
@@ -1252,6 +1356,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // The Jool tour with a capsule in the mothership: the lander used twice, refilled after Laythe, left
+        // before home, and the capsule landing at home by itself.
         [TestMethod]
         public void AroundJoolTheLanderIsUsedTwiceAndLeftBeforeTheCapsuleComesHome()
         {
@@ -1275,6 +1381,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A satellite is carried to its destination, deployed there and not carried on with the rest.
         [TestMethod]
         public void ASatelliteStaysAtItsDestinationAndTheRestFliesOnWithoutIt()
         {
@@ -1294,6 +1401,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A satellite set to stay where only the lander goes, while the rest carrying it waits in orbit, is
+        // reported as not reaching its destination.
         [TestMethod]
         public void ASatelliteLeftWithTheRestIsNotCarriedToItsDestination()
         {
@@ -1311,6 +1420,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("The satellite does not reach Mun surface", steps.Last().Problem);
         }
 
+        // A satellite that flies its own last step, the arrival of a split transfer, stays there and is not
+        // carried home.
         [TestMethod]
         public void ASatelliteFlyingItsOwnLastStepStaysThere()
         {
@@ -1330,6 +1441,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // A lander carried by a satellite leaves it where the satellite stays and lands from there.
         [TestMethod]
         public void ALanderInsideASatelliteLeavesItWhereTheSatelliteStays()
         {
@@ -1349,6 +1461,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null), string.Join("; ", steps.Select(step => step.Problem).ToArray()));
         }
 
+        // Two landers each land where the player picks them, the first waiting with the rest while the second flies.
         [TestMethod]
         public void TwoLandersLandWhereEachIsPicked()
         {
@@ -1372,6 +1485,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // After a lander's climb it docks where the whole vessel flies on, climbing to the rest; where it flies on
+        // itself it climbs to its own low orbit.
         [TestMethod]
         public void TheStepAfterALandersClimbSaysWhetherItDocks()
         {
@@ -1392,6 +1507,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(docks.All(step => step.Problem == null) && alone.All(step => step.Problem == null));
         }
 
+        // Two landers sent down one after the other both climb back to the rest and dock, and both are carried home.
         [TestMethod]
         public void TwoLandersOneAfterTheOtherBothDockAsTheVesselFliesOn()
         {
@@ -1416,6 +1532,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.All(step => step.Problem == null));
         }
 
+        // With a lander marked and nothing clicked, the Mun landing short of the end is the lander's, which docks
+        // again before the whole vessel comes home.
         [TestMethod]
         public void ALandingShortOfTheEndIsTheLandersByItself()
         {
@@ -1426,6 +1544,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1L:S 1T:S 1L:L< 2L:L> 2T:S 2L:S", Shape(Route(Stock(), goals, true, false)));
         }
 
+        // The planner finds the lander by itself: Apollo's under its port, able to dock, and the Kerbal X's upper
+        // stage with legs, which cannot.
         [TestMethod]
         public void TheLanderIsFoundByItself()
         {
@@ -1447,6 +1567,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(VesselShape.CanDock(kerbalX, lander), "no docking port: it flies on alone");
         }
 
+        // No lander without landing legs, nor on a radial booster that lands itself, nor with the launch stage's
+        // engine.
         [TestMethod]
         public void NoLanderWithoutLegsOrOnABooster()
         {
@@ -1472,6 +1594,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(lander == null || !lander.Members.Contains(7), "not with the launch stage's engine");
         }
 
+        // A probe lander under a relay is found as the lander, the relay's core staying as the satellite.
         [TestMethod]
         public void AProbeLanderUnderARelayIsTheLanderNotTheRelay()
         {
@@ -1504,6 +1627,8 @@ namespace ReDefinition.Tests
             return parts;
         }
 
+        // The burns of a way to the Mun know the orbit they burn in: the leaving burn at low Kerbin orbit, the
+        // capture at low Mun orbit.
         [TestMethod]
         public void TheBurnsOfAWayToTheMunKnowTheOrbitTheyBurnIn()
         {
@@ -1517,6 +1642,8 @@ namespace ReDefinition.Tests
             Near(214000, capture.Radius, 1, "low Mun orbit");
         }
 
+        // A burn takes as long as its propellant flows at the stage's thrust; a plane change on the way is no burn
+        // in orbit, and a burn the propellant does not last for is short.
         [TestMethod]
         public void ABurnTakesAsLongAsItsPropellantFlows()
         {
@@ -1538,6 +1665,8 @@ namespace ReDefinition.Tests
             Near(150, stage.Seconds, 0.05, "the stage's own burn time");
         }
 
+        // A long burn loses what points away from the burn's direction over its arc: nothing for none, 1 - 2/pi
+        // over half an orbit, all past a whole one; up to a tenth of an orbit stays under the warning.
         [TestMethod]
         public void ALongBurnLosesWhatPointsAwayOverItsArc()
         {
@@ -1547,6 +1676,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(new Burn { Seconds = 90, Period = 1800 }.Loss < BurnCheck.WarnLoss, "a twentieth of the orbit loses little");
             Assert.IsTrue(new Burn { Seconds = 180, Period = 1800 }.Loss < BurnCheck.WarnLoss, "a tenth still under the warning");
         }
+        // A lander set to dock with the rest but without a docking port is reported.
         [TestMethod]
         public void ALanderWithoutADockingPortCannotDock()
         {
@@ -1577,6 +1707,8 @@ namespace ReDefinition.Tests
             };
         }
 
+        // The Learstar's pad as parts: the core engine lit at S4, a booster fired at S3, and a launch clamp
+        // released at S3.
         private static List<PartFacts> PadParts()
         {
             PartFacts core = Part(-1, 1, 5.0, "Core engine", engine: true);
@@ -1589,6 +1721,8 @@ namespace ReDefinition.Tests
             return new List<PartFacts> { core, booster, clamp };
         }
 
+        // The engines lit on the pad burn together with the boosters whose stage releases the clamps: one lift-off
+        // row at both thrusts until the boosters are empty, then the core alone, labelled by the stages they join.
         [TestMethod]
         public void EnginesLitOnThePadBurnWithTheBoostersThatReleaseTheClamps()
         {
@@ -1611,6 +1745,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(rows[0].ThrustVacuum / (rows[0].StartMass * 9.81) > 1.5, "the vessel lifts off");
         }
 
+        // A stage on the pad between the core's and the boosters' that burns nothing drops out of the rows.
         [TestMethod]
         public void AStageOnThePadThatBurnsNothingDropsNothing()
         {
@@ -1625,6 +1760,8 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { 5, 3, 2, 0 }, result.Select(row => row.Number).ToArray());
         }
 
+        // Where something is dropped between the core's stage and the clamps' release it is no lift-off, and the
+        // stages stay as KSP gives them.
         [TestMethod]
         public void ClampsStagedAfterADropLeaveTheStagesAlone()
         {
@@ -1636,6 +1773,8 @@ namespace ReDefinition.Tests
             Assert.AreSame(rows, ClampedLaunch.Parallel(rows, PadParts(), new Dictionary<int, string>(), 9.81));
         }
 
+        // Without clamps a core too weak to lift off alone burns with the next stage, as the player would fire it
+        // at once.
         [TestMethod]
         public void WithoutClampsACoreTooWeakToLiftOffBurnsWithTheNextStage()
         {
@@ -1647,6 +1786,7 @@ namespace ReDefinition.Tests
             Near(4920, rows[0].ThrustVacuum, 0.1, "lifts off with both");
         }
 
+        // Without clamps a core strong enough to lift off alone burns alone: the stages stay as KSP gives them.
         [TestMethod]
         public void WithoutClampsACoreThatLiftsOffBurnsAlone()
         {

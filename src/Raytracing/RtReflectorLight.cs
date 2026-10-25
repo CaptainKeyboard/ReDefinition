@@ -20,6 +20,7 @@ namespace ReDefinition.Raytracing
     // sun. The player's percentage scales the result.
     internal static class RtReflectorLight
     {
+        // The factor on the square root of the share, and the brightness the result eases towards (see above).
         private const double Boost = 10.0;
         private const double Ceiling = 0.3;
 

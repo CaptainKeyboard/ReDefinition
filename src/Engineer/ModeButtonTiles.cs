@@ -15,6 +15,7 @@ namespace ReDefinition.Engineer
     // through a render texture first.
     internal static class ModeButtonTiles
     {
+        // Where the glyph's textures lie, without the part's name (Fill).
         private const string GlyphPath = "ReDefinition/Icons/EngineerGlyph_";
 
         // The glyph's height as a share of the face's, as KSP's and ZTheme's
@@ -177,6 +178,7 @@ namespace ReDefinition.Engineer
             return glyph;
         }
 
+        // A pixel of the button's face: nearly opaque, and bluer or greener than red by more than 28, as the teal face is.
         private static bool Face(Color32 pixel)
         {
             return pixel.a > 230 && (pixel.b - pixel.r > 28 || pixel.g - pixel.r > 28);

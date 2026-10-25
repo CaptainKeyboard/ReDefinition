@@ -38,8 +38,11 @@ namespace ReDefinition.Window
         internal const int Map = 8;
         internal const int Everywhere = Flight | Eva | Editor | Map;
 
+        // One of KSP's bindings: its two keys read and written through the KeyBinding GameSettings holds.
         internal sealed class Binding
         {
+            // Its field name (or AXIS_CUSTOM[i].plus/minusKeyBinding), its readable title, the group it stands under, the
+            // situations it counts in (Flight, Eva ...), and its switchState mask in flight (-1 for all modes).
             public string Name;
             public string Title;
             public string Group;
@@ -49,6 +52,7 @@ namespace ReDefinition.Window
             // entry of a custom axis.
             public Func<object> Get;
 
+            // The key, primary or secondary, as text; None where none is bound.
             public string Read(bool secondary)
             {
                 KeyCode code = Code(Get(), secondary);
@@ -80,6 +84,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // The bindings once read, and the reflected fields of a KeyBinding and of its KeyCodeExtended.
         private static List<Binding> bindings;
         private static FieldInfo primary;
         private static FieldInfo secondary;
@@ -93,11 +98,13 @@ namespace ReDefinition.Window
         // counts everywhere.
         private sealed class KeyGroup
         {
+            // The group's name, the situations it counts in, and the field name prefixes that belong to it.
             public string Name;
             public int Situations;
             public string[] Prefixes;
         }
 
+        // KSP's groups, in the order the Keys tab shows them.
         private static readonly KeyGroup[] Groups =
         {
             // Flying a vessel -- also in map view, where it is still flown.
@@ -125,6 +132,7 @@ namespace ReDefinition.Window
             },
         };
 
+        // Every binding of KSP's, read once and sorted by group and title; none where KeyBinding is not the shape known.
         internal static IList<Binding> All()
         {
             if (bindings != null) return bindings;
@@ -209,6 +217,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Adds one of a custom axis's keys, titled by KSP's text where it has one.
         private static void AddCustomKey(string name, int localization, Func<object> get, FieldInfo modes)
         {
             object value = get();
@@ -265,6 +274,7 @@ namespace ReDefinition.Window
             return text.Length == 0 ? name : char.ToUpperInvariant(text[0]) + text.Substring(1);
         }
 
+        // The group a field name belongs to; General where it matches none.
         internal static string GroupOf(string name)
         {
             KeyGroup group = GroupFor(name);
@@ -289,12 +299,14 @@ namespace ReDefinition.Window
             return names;
         }
 
+        // The situations a field name's binding counts in; everywhere where it matches no group.
         internal static int SituationsOf(string name)
         {
             KeyGroup group = GroupFor(name);
             return group != null ? group.Situations : Everywhere;
         }
 
+        // The first group with a prefix the name starts with, case aside; null for none.
         private static KeyGroup GroupFor(string name)
         {
             foreach (KeyGroup group in Groups)
@@ -305,6 +317,7 @@ namespace ReDefinition.Window
             return null;
         }
 
+        // A group's place in the order; after all of them for General and any other.
         private static int GroupOrder(string group)
         {
             for (int i = 0; i < Groups.Length; i++)
@@ -312,6 +325,7 @@ namespace ReDefinition.Window
             return Groups.Length;
         }
 
+        // The KeyCode of a binding's primary or secondary key; None where there is none.
         private static KeyCode Code(object binding, bool second)
         {
             if (binding == null) return KeyCode.None;
@@ -320,6 +334,7 @@ namespace ReDefinition.Window
             return (KeyCode)codeField.GetValue(extended);
         }
 
+        // Sets a binding's primary or secondary key, making its KeyCodeExtended where it has none.
         private static void SetCode(object binding, bool second, KeyCode code)
         {
             FieldInfo which = second ? secondary : primary;
@@ -333,6 +348,7 @@ namespace ReDefinition.Window
         private static readonly Dictionary<string, Dictionary<string, string[]>> defaults =
             new Dictionary<string, Dictionary<string, string[]>>(StringComparer.OrdinalIgnoreCase);
 
+        // The layout detected first, which the rows keep asking for.
         private static string detected;
 
         // The layout KSP's own reset binds the keys to (GameSettings.ResetSettings,
@@ -403,6 +419,7 @@ namespace ReDefinition.Window
             return shippedKeys;
         }
 
+        // A KeyCode as the rows show it; None where none is bound.
         private static string Text(KeyCode code)
         {
             return code == KeyCode.None ? KeyCombination.NoneText : code.ToString();

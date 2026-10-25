@@ -9,6 +9,7 @@ namespace ReDefinition.Flight.Panel
     // The situations the flight panel has a profile for, and switches to by itself.
     internal enum PanelSituation
     {
+        // The situations FlightProfiles.Classify tells apart, each with its built-in profile.
         Ascent,
         Orbit,
         Rendezvous,
@@ -23,6 +24,7 @@ namespace ReDefinition.Flight.Panel
     // tab of its own; for one situation, which the panel switches to by itself.
     internal sealed class FlightProfile
     {
+        // Its name on the tab; its situation; the readouts' keys, in the order shown.
         internal string Name;
         internal PanelSituation Situation;
         internal readonly List<string> Keys = new List<string>();
@@ -41,8 +43,10 @@ namespace ReDefinition.Flight.Panel
     // situation's profile missing from the file comes back as shipped.
     internal static class FlightProfiles
     {
+        // The file's node that holds the profiles.
         private const string RootName = "FLIGHT_PANEL";
 
+        // The six built-in profiles, as shipped.
         internal static List<FlightProfile> Defaults()
         {
             return new List<FlightProfile>
@@ -59,6 +63,7 @@ namespace ReDefinition.Flight.Panel
             };
         }
 
+        // A profile of those readouts.
         private static FlightProfile Make(string name, PanelSituation situation, params string[] keys)
         {
             FlightProfile profile = new FlightProfile { Name = name, Situation = situation };
@@ -66,8 +71,10 @@ namespace ReDefinition.Flight.Panel
             return profile;
         }
 
+        // The profiles, loaded on first use.
         private static List<FlightProfile> current;
 
+        // The profiles as the panel shows them, loaded from the file on first use.
         internal static List<FlightProfile> Current
         {
             get
@@ -77,11 +84,14 @@ namespace ReDefinition.Flight.Panel
             }
         }
 
+        // Where the profiles are kept.
         internal static string Path
         {
             get { return PluginData.Path("flightpanel.cfg"); }
         }
 
+        // The profiles from the file, keys the catalogue does not have dropped, and each situation's missing profile back
+        // as shipped.
         private static List<FlightProfile> Load()
         {
             List<FlightProfile> profiles = new List<FlightProfile>();
@@ -111,6 +121,7 @@ namespace ReDefinition.Flight.Panel
             return profiles;
         }
 
+        // Writes the profiles to the file.
         internal static void Save()
         {
             ConfigNode node = new ConfigNode(RootName);
@@ -129,6 +140,7 @@ namespace ReDefinition.Flight.Panel
             Debug.Log(Log.Tag + " Flight panel profiles saved: " + Current.Count + ".");
         }
 
+        // The situation by its name, any case; false where the text names none.
         private static bool TryParse(string text, out PanelSituation situation)
         {
             situation = PanelSituation.Orbit;
@@ -147,15 +159,18 @@ namespace ReDefinition.Flight.Panel
         // What the situation is worked out from.
         internal struct Facts
         {
+            // On the ground, landed, splashed or waiting on the launch site.
             internal bool Grounded;
             // In orbit or escaping (Vessel.Situations ORBITING, ESCAPING).
             internal bool Orbital;
             // In the air (Vessel.Situations FLYING).
             internal bool Flying;
+            // Wings enough to fly on (Wings); a target set.
             internal bool Winged;
             internal bool Target;
             // How far the target's docking port is, in metres; NaN without one.
             internal double Port;
+            // The vertical speed in m/s, up positive; the height over the ground in metres.
             internal double VerticalSpeed;
             internal double OverGround;
         }
@@ -190,6 +205,7 @@ namespace ReDefinition.Flight.Panel
             return facts.Target ? PanelSituation.Rendezvous : PanelSituation.Orbit;
         }
 
+        // The facts of the vessel now.
         internal static Facts Read(Vessel vessel)
         {
             ModuleDockingNode port = vessel.targetObject as ModuleDockingNode;
@@ -217,6 +233,7 @@ namespace ReDefinition.Flight.Panel
         private static float lastSince;
         private static int readFrame = -1;
 
+        // The vessel's situation once held for Hold seconds; read once per frame.
         internal static PanelSituation Held(Vessel vessel)
         {
             if (vessel == null) return PanelSituation.Orbit;
@@ -240,11 +257,7 @@ namespace ReDefinition.Flight.Panel
             return held;
         }
 
-        // Wings enough to fly on: the lift of its lifting surfaces that are no
-        // control surfaces, pods or heat shields (ModuleLiftingSurface.
-        // deflectionLiftCoeff: a basic fin 0.2, a wing panel 1 and more), at least 2
-        // and at least 0.1 per tonne, so that a rocket's fins and a Mk2 fuselage do
-        // not make it a plane.
+        // The vessel Winged last looked at, when, and what it found.
         private static readonly HeldVessel wingedFor = new HeldVessel();
         private static float wingedAt = -10f;
         private static bool winged;
@@ -259,6 +272,11 @@ namespace ReDefinition.Flight.Panel
             return winged;
         }
 
+        // Wings enough to fly on: the lift of its lifting surfaces that are no
+        // control surfaces, pods or heat shields (ModuleLiftingSurface.
+        // deflectionLiftCoeff: a basic fin 0.2, a wing panel 1 and more), at least 2
+        // and at least 0.1 per tonne, so that a rocket's fins and a Mk2 fuselage do
+        // not make it a plane.
         private static bool Wings(Vessel vessel)
         {
             double lift = 0.0;

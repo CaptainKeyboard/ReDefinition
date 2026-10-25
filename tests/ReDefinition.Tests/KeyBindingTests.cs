@@ -11,6 +11,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class KeyBindingTests
     {
+        // Reads a MOD_SETTINGS text into a registration, giving back its problems.
         private static ModRegistration Read(string text, out List<string> problems)
         {
             problems = new List<string>();
@@ -18,6 +19,7 @@ namespace ReDefinition.Tests
             return ModRegistration.FromConfigNode(node, problems);
         }
 
+        // A KEY block makes a binding that stands in the Keys tab, which no profile sets, with its default.
         [TestMethod]
         public void AKeyBlockIsABindingInTheKeysTab()
         {
@@ -34,6 +36,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, problems.Count, string.Join("; ", problems.ToArray()));
         }
 
+        // A binding's group names its section, Mods where none is named; a section named like one of KSP's groups
+        // counts in that group's situations, any other everywhere.
         [TestMethod]
         public void ABindingNamesItsSection()
         {
@@ -51,6 +55,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(KspKeyBindings.Everywhere, KspKeyBindings.SituationsOfGroup("My mod's tools"));
         }
 
+        // A binding whose default is no key binding is left out and reported.
         [TestMethod]
         public void ABindingWhoseDefaultIsNoKeyIsLeftOut()
         {
@@ -62,6 +67,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(problem => problem.Contains("is no key binding")));
         }
 
+        // A binding may have no member of its own: ReDefinition keeps it, and the mod asks ReDefinition.Api whether it is pressed.
         [TestMethod]
         public void ABindingNeedsNoMemberOfItsOwn()
         {
@@ -74,6 +80,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, problems.Count, string.Join("; ", problems.ToArray()));
         }
 
+        // A binding's modifier members are read with their rule; a second without a first and an unknown rule are
+        // reported, the binding kept.
         [TestMethod]
         public void ModifierMembersAreReadWithTheirRule()
         {
@@ -96,6 +104,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(problem => problem.Contains("modifiers 'sometimes'")));
         }
 
+        // The keys a setting has and a binding has not -- min, max, choices, kind -- are reported as unknown.
         [TestMethod]
         public void WhatASettingHasAndABindingHasNotIsReported()
         {
@@ -108,8 +117,11 @@ namespace ReDefinition.Tests
             Assert.IsTrue(problems.Exists(problem => problem.Contains("unknown key 'kind'")));
         }
 
+        // A binding that counts in every situation.
         private const int All = KspKeyBindings.Everywhere;
 
+        // The rows of `texts` that share a combination, by keys a, b, c ..., with their situations, KSP's
+        // switchState modes (-1: any) and KSP's defaults (null: not KSP's).
         private static List<string> Sharing(string[] texts, int[] situations, int[] modes, string[] shipped)
         {
             List<string> keys = new List<string>();
@@ -117,6 +129,7 @@ namespace ReDefinition.Tests
             return Conflicts.Sharing(keys, texts, situations, modes, shipped);
         }
 
+        // Two rows on the same combination in the same situation are both marked; a row on another key is not.
         [TestMethod]
         public void RowsThatShareACombinationAreFound()
         {
@@ -125,6 +138,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEquivalent(new[] { "a", "b" }, shared);
         }
 
+        // A key alone and the same key with a modifier are different combinations and do not share.
         [TestMethod]
         public void AModifierSeparatesTwoRows()
         {
@@ -132,6 +146,8 @@ namespace ReDefinition.Tests
                 new string[] { null, null }).Count);
         }
 
+        // One key for EVA and for flying a vessel is no conflict; in the same situation, or against a binding
+        // that counts everywhere, it is.
         [TestMethod]
         public void TheSameKeyOnEvaAndInFlightIsNoConflict()
         {
@@ -146,6 +162,8 @@ namespace ReDefinition.Tests
                 new[] { -1, -1 }, new string[] { null, null }).Count);
         }
 
+        // Two flight bindings for modes of KSP's switchState that never count together do not share a key; in
+        // the same mode they do.
         [TestMethod]
         public void FlightModesThatNeverCountTogetherDoNotShare()
         {
@@ -157,6 +175,8 @@ namespace ReDefinition.Tests
                 new string[] { null, null }).Count);
         }
 
+        // Two of KSP's rows it ships on the same key are not marked while both stand at their default, and are
+        // once one is moved onto the other's key.
         [TestMethod]
         public void KeysKspShipsTogetherAreNotMarkedWhileAtTheirDefault()
         {
@@ -169,6 +189,7 @@ namespace ReDefinition.Tests
                 new[] { "W", "S" }).Count);
         }
 
+        // KSP binds a modifier as a key of its own, which a combination does not: two KSP rows on LeftShift share.
         [TestMethod]
         public void KspBindsModifiersAsKeys()
         {
@@ -180,6 +201,8 @@ namespace ReDefinition.Tests
                 new string[] { null, null }).Count);
         }
 
+        // Against one of KSP's own bindings only the key counts, since KSP fires it whatever modifiers are held;
+        // between other bindings the modifiers tell them apart.
         [TestMethod]
         public void AgainstKspsOwnOnlyTheKeyCounts()
         {
@@ -192,6 +215,7 @@ namespace ReDefinition.Tests
                 new[] { -1, -1 }, new string[] { null, null }).Count);
         }
 
+        // Rows without a key share nothing, though their texts are the same.
         [TestMethod]
         public void AnUnboundRowSharesWithNobody()
         {
@@ -199,6 +223,7 @@ namespace ReDefinition.Tests
                 new string[] { null, null }).Count);
         }
 
+        // Fitted to a mod that keeps fewer modifiers, a combination keeps the first ones, and one that fits stays.
         [TestMethod]
         public void AModWithOneModifierKeepsTheFirst()
         {
@@ -209,6 +234,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("LeftControl+LeftAlt+F10", combination.WithAtMost(2).ToString());
         }
 
+        // KSP's field names in their several spellings read as words in sentence case, each in its group, and
+        // a binding counts in the situations of its group.
         [TestMethod]
         public void KspsFieldNamesAreReadableAndGrouped()
         {

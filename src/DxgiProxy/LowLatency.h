@@ -72,6 +72,7 @@ namespace redefinition
         // lowers the latency without XeSS-FG generating.
         struct XellSetup
         {
+            // In the order of the comment above.
             xell_context_handle_t context = nullptr;
             bool frameGeneration = false;
             bool lowLatency = false;
@@ -83,6 +84,8 @@ namespace redefinition
         // context stays the proxy's, which destroys it after Detach.
         void Attach(const void* owner, ID3D11Device* gameDevice, ID3D12Device* device, ID3D12CommandQueue* queue,
                     const LUID& adapter, bool streamlineReflex, const XellSetup& xell);
+        // Lets go of the devices, XeLL's context and Anti-Lag 2's, where owner is the one attached; XeLL's
+        // Sleep on the main thread is waited for first.
         void Detach(const void* owner);
 
         // From the present path under XeSS frame generation's swapchain, after each
@@ -98,13 +101,18 @@ namespace redefinition
         // Before Streamline's Reflex sleep and everything else of the frame's start: the
         // brake's sleep, so that Reflex sleeps, and sends its markers, after it.
         void BrakeBeforeFrame();
+        // On the game's main thread where its simulation ends: SIMULATION_END and the measure's stamp.
         void EndGameSimulation(uint32_t frameIndex);
         // On Unity's render thread before the frame's first Direct3D call.
         void OnGameFrameRendered(uint32_t frameIndex);
         // On the presenting thread, around the swapchain's Present: the game's frame
         // rendered last, 0 for none.
         uint32_t TakeGameFrame();
+        // Before it: Anti-Lag 2's end of rendering and its data in the swapchain's private data, then
+        // RENDERSUBMIT_END and PRESENT_START.
         void BeforePresent(uint32_t frameIndex, IDXGISwapChain* swapChain);
+        // After it: PRESENT_END, the measure's fence signalled on the queue for the meter thread, and the
+        // report when it is due.
         void AfterPresent(uint32_t frameIndex);
 
         // The modes as the ini asks, again after it changed.
@@ -126,6 +134,7 @@ namespace redefinition
         int Measure(double* median, double* percentile90) const;
 
     private:
+        // Only Get makes it.
         LowLatency() = default;
 
         // A game frame's times on the CPU, in performance counter ticks: its start on the
@@ -133,6 +142,7 @@ namespace redefinition
         // Present's start and end.
         struct Stamps
         {
+            // In the order of the comment above.
             int64_t start = 0;
             int64_t simulationEnd = 0;
             int64_t rendered = 0;
@@ -140,30 +150,41 @@ namespace redefinition
             int64_t presentEnd = 0;
         };
 
+        // A Present the meter thread waits for on the GPU.
         struct Pending
         {
+            // The measure's fence value after it, the frame's start, and its stamps for the stages.
             uint64_t fenceValue;
             int64_t start;
             Stamps stamps;
         };
 
         bool TrackingLocked() const;
+        // Whether XeLL's context is attached, which then takes the markers instead of Reflex.
         bool XellLocked() const;
         // Whether XeLL lowers the latency now: its low latency mode on, and on a GPU
         // other than Intel's XeSS-FG generating.
         bool XellReducingLocked() const;
+        // Whether Reflex through NVAPI runs on the attached device.
         bool ReflexLocked() const;
+        // Whether Anti-Lag 2 is on, on the device the ini asked for and it was initialised on.
         bool AntiLagLocked() const;
+        // One latency marker (NV_LATENCY_MARKER_TYPE) for the frame: XeLL's where it is attached -- only for an
+        // id its sleep was called for -- otherwise Reflex's; the first failure logged.
         void MarkerLocked(uint32_t frameIndex, int marker);
         void ReportLocked();
+        // The id the frame's markers take: Streamline's index moved by the offset where the frame came with one.
         uint32_t IdLocked(uint32_t frameIndex) const;
         void Brake();
         // The hand-over between XeLL and the brake as XeSS-FG generates or is held
         // off on a GPU other than Intel's, in the log at most every kHandOverLogMs.
         void NoteHandOverLocked(bool xellReduces);
+        // What Describe reports: the kind and its text, logged where it changes and log is set.
         void SetText(int kind, const std::string& text, bool log = true);
+        // The measure's thread: waits for each pending Present's fence and takes the frame's latency and stages.
         void MeterThread();
 
+        // Guards the state below, except what antiLagMutex, xellMutex and textLock guard.
         mutable std::mutex mutex;
         // Anti-Lag 2's contexts, under a lock of their own: their Update sleeps, which
         // must not hold the others up; Attach and Detach take it inside `mutex`.
@@ -217,8 +238,8 @@ namespace redefinition
         // Each frame's start, by id, for the measure.
         Stamps stamps[256] = {};
         // The measure's stages of the frames it took, in milliseconds, since the last
-        // report: the simulation, from its end to the render thread's first call, the
-        // render thread to the Present, the Present, the Present's end to the GPU's.
+        // report: the simulation, from its end to the Present's start, the Present, the
+        // Present's end to the GPU's, and the render thread's first call to the Present.
         static constexpr int kLatencyStages = 5;
         std::vector<double> cpuStages[kLatencyStages];
 

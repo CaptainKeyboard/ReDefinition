@@ -21,7 +21,7 @@ namespace ReDefinition.Upscaler
         private bool hudLessCopyLogged;
 
         // Cameras that draw onto the backbuffer after the presenter and are still
-        // scene, not UI. They are not redirected (UpscalerRig.SceneCameras), and
+        // scene, not UI. They are not redirected (UpscalerCameras.SceneCameras), and
         // frame generation's HUD-less snapshot is taken after them: effects they
         // draw are scene and are interpolated; if they draw nothing, a copy after
         // them changes nothing.
@@ -116,6 +116,8 @@ namespace ReDefinition.Upscaler
             return carriers;
         }
 
+        // The one look a few seconds after attaching: the capture moved to the carriers there are now, or the
+        // same ones logged again, and the camera survey written.
         private void RecheckHudLessCapture()
         {
             hudLessRecheckTime = float.MaxValue;
@@ -137,6 +139,7 @@ namespace ReDefinition.Upscaler
             CameraSurvey.Write();
         }
 
+        // Takes the HUD-less buffer off its carriers and frees it: frame generation off, or the rig torn down.
         private void DetachHudLessCapture()
         {
             if (hudLessBuffer != null)
@@ -194,6 +197,7 @@ namespace ReDefinition.Upscaler
             Debug.Log(sb.ToString());
         }
 
+        // The carriers of the HUD-less copy with their depths, for "Write diagnostics to log".
         private string DescribeHudLessCarriers()
         {
             if (hudLessCameras.Count == 0) return "not attached";
@@ -208,6 +212,7 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
+        // Whether host carries a component of that type name, for types of mods that may not be installed.
         private static bool HasComponentNamed(Component host, string typeName)
         {
             foreach (Component component in host.GetComponents<Component>())

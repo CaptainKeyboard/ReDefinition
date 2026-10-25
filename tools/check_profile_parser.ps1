@@ -15,6 +15,7 @@ $ksp = [Reflection.Assembly]::LoadFrom([IO.Path]::Combine($managed, 'Assembly-CS
 # loads an assembly from bytes in memory as Trojan:Win32/ClickFix.IIN!MTB.
 $mod = [Reflection.Assembly]::LoadFrom([IO.Path]::Combine($repo, 'build\ReDefinition.dll'))
 
+# Whether exactly one entry of the list matches the wildcard pattern: a problem reported once.
 function Has($list, $pattern) { return @($list | Where-Object { $_ -like $pattern }).Count -eq 1 }
 
 try {
@@ -22,6 +23,7 @@ try {
     $from = $mod.GetType('ReDefinition.Settings.GraphicsProfile').GetMethod('FromConfigNode')
     $callArgs = New-Object 'object[]' 2
 
+    # GraphicsProfile.FromConfigNode on the GRAPHICS_PROFILE in the text; the node and the problems stay in $callArgs.
     function Read-Profile($text) {
         $script:callArgs[0] = $parse.Invoke($null, [object[]]@($text)).GetNode('GRAPHICS_PROFILE')
         $script:callArgs[1] = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
@@ -53,6 +55,7 @@ try {
     # Mod registrations (docs/modders/registering-a-mod.md): what may be left out, and
     # each kind of mistake the reader has to survive.
     $fromMod = $mod.GetType('ReDefinition.Settings.ModRegistration').GetMethod('FromConfigNode')
+    # ModRegistration.FromConfigNode on the MOD_SETTINGS in the text; the node and the problems stay in $callArgs.
     function Read-Mod($text) {
         $script:callArgs[0] = $parse.Invoke($null, [object[]]@($text)).GetNode('MOD_SETTINGS')
         $script:callArgs[1] = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject

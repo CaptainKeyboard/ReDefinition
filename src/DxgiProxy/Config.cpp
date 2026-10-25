@@ -14,20 +14,24 @@ namespace redefinition
 {
     namespace
     {
+        // The settings, the ini's write time they were read at, and when the file was last looked at (once a
+        // second at most).
         ProxyConfig g_config;
         FILETIME g_lastWrite = {};
         ULONGLONG g_lastCheckTicks = 0;
 
         // Held while g_config is written, and while the folders are copied out
-        // for Unity's render thread (DlssDirectory, AmdUpscalerDirectory). The
+        // for Unity's render thread (DlssDirectory, AmdUpscalerDirectory, XessDirectory). The
         // present path, which writes it, reads it without.
         std::mutex g_writeLock;
 
+        // ReDefinitionProxy.ini next to the executable.
         std::wstring IniPath()
         {
             return ExecutableDirectory() + L"\\ReDefinitionProxy.ini";
         }
 
+        // A [Proxy] key as 0 or not 0; fallback where the file or the key is missing.
         bool ReadFlag(const wchar_t* key, const std::wstring& file, bool fallback)
         {
             // A missing file gives the default everywhere: without an ini the proxy
@@ -50,6 +54,7 @@ namespace redefinition
             return end == buffer ? fallback : value;
         }
 
+        // The whole file into text, under 16 MB; false where it cannot be read.
         bool ReadFileText(const std::wstring& file, std::string& text)
         {
             HANDLE handle = CreateFileW(file.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING,
@@ -68,6 +73,7 @@ namespace redefinition
             return ok;
         }
 
+        // The whole of text into the file, replacing it; false on any failure.
         bool WriteFileText(const std::wstring& file, const std::string& text)
         {
             HANDLE handle = CreateFileW(file.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
@@ -325,6 +331,7 @@ namespace redefinition
             RaiseDefaults(file, defaults, written ? added : std::vector<std::string>(), false);
         }
 
+        // The file's last write time into out; false where it cannot be read.
         bool WriteTimeOf(const std::wstring& file, FILETIME& out)
         {
             WIN32_FILE_ATTRIBUTE_DATA data = {};
@@ -335,6 +342,7 @@ namespace redefinition
             return true;
         }
 
+        // The ini's word for a frameGenerationTechnique value.
         const char* TechniqueName(int technique)
         {
             return technique == kFgTechniqueFsr ? "fsr"
@@ -534,6 +542,7 @@ namespace redefinition
                  + " xessFgDirectory=" + (c.xessFgDirectory[0] == L'\0' ? "(none)" : "(set)");
         }
 
+        // Every setting from the file into target, the defaults for what it lacks.
         void ReadInto(ProxyConfig& target, const std::wstring& file)
         {
             target.enabled = ReadFlag(L"enabled", file, true);
@@ -671,11 +680,13 @@ namespace redefinition
         }
     }
 
+    // The settings as last read; the present path re-reads them, others read without a lock.
     const ProxyConfig& Config()
     {
         return g_config;
     }
 
+    // Reads the ini at load, adding the settings it lacks with their defaults, and logs what it holds.
     void LoadConfig()
     {
         const std::wstring file = IniPath();
@@ -696,12 +707,14 @@ namespace redefinition
         return std::wstring(g_config.dlssDirectory);
     }
 
+    // amdUpscalerDirectory, copied under the lock the settings are written under.
     std::wstring AmdUpscalerDirectory()
     {
         std::lock_guard<std::mutex> lock(g_writeLock);
         return std::wstring(g_config.amdUpscalerDirectory);
     }
 
+    // xessDirectory, copied under the lock the settings are written under.
     std::wstring XessDirectory()
     {
         std::lock_guard<std::mutex> lock(g_writeLock);
@@ -733,6 +746,7 @@ namespace redefinition
         return asked;
     }
 
+    // The ini's word for an xessFgUiMode value; auto for one out of range.
     const char* XessUiModeName(int mode)
     {
         // xefg_swapchain_ui_mode_t, XEFG_SWAPCHAIN_UI_MODE_ without its prefix.
@@ -741,11 +755,13 @@ namespace redefinition
         return mode >= 0 && mode < kXessUiModeCount ? names[mode] : names[kXessUiModeAuto];
     }
 
+    // The ini's word for a dlssgMode value: on or dynamic.
     const char* DlssgModeName(int mode)
     {
         return mode == kDlssgModeDynamic ? "dynamic" : "on";
     }
 
+    // The ini's word for a dlssgUiAlpha value: binary or minimal.
     const char* DlssgUiAlphaName(int alpha)
     {
         return alpha == kDlssgUiAlphaMinimal ? "minimal" : "binary";
@@ -757,11 +773,13 @@ namespace redefinition
         return ReadRrPath(IniPath());
     }
 
+    // The ini's word for a xessFgBadConstants value: skip, fix or pass.
     const char* XessBadConstantsName(int mode)
     {
         return mode == kXessBadFix ? "fix" : mode == kXessBadPass ? "pass" : "skip";
     }
 
+    // The ini's word for an rrPath value: auto, streamline or ngx.
     const char* RrPathName(int path)
     {
         return path == kRrPathStreamline ? "streamline" : path == kRrPathNgx ? "ngx" : "auto";

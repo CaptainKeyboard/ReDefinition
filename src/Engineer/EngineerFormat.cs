@@ -8,8 +8,10 @@ namespace ReDefinition.Engineer
     // tonnes, seconds. Free of Unity, tested.
     internal static class EngineerFormat
     {
+        // Every number is written in it, whatever the player's system culture.
         private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
+        // Metres per second, whole, with thousands separators.
         internal static string Speed(double metresPerSecond)
         {
             return Clean(metresPerSecond).ToString("#,0", Invariant) + " m/s";
@@ -31,11 +33,13 @@ namespace ReDefinition.Engineer
             return value.ToString(value >= 100.0 ? "#,0.0" : "#,0.00", Invariant) + " t";
         }
 
+        // Two places after the point, as for a thrust-to-weight ratio.
         internal static string Ratio(double value)
         {
             return Clean(value).ToString("0.00", Invariant);
         }
 
+        // Whole seconds, as KSP gives specific impulse.
         internal static string Isp(double seconds)
         {
             return Clean(seconds).ToString("0", Invariant) + " s";

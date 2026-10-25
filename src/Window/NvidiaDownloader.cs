@@ -25,12 +25,15 @@ namespace ReDefinition.Window
     // after a restart.
     internal static class NvidiaDownloader
     {
+        // Whether a download, its check or its placing is under way: a second one is not started meanwhile.
         public static bool Running { get; private set; }
 
         // Placed this session: until KSP is restarted, DLSS frame generation does not
         // run from them.
         public static bool Installed { get; private set; }
 
+        // The outcome for the row; whether bytes are coming in; the bytes received (from the download's thread) and those
+        // expected; and the progress text with the tenth of a megabyte it was made for.
         private static string status;
         private static volatile bool downloading;
         private static long received;
@@ -57,6 +60,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // KSP's folder, beside KSP_x64.exe.
         public static string GameFolder
         {
             get { return Path.GetFullPath(KSPUtil.ApplicationRootPath); }
@@ -141,6 +145,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // A byte count in megabytes, to one decimal.
         public static string Megabytes(long bytes)
         {
             return (bytes / (1024.0 * 1024.0)).ToString("0.0", CultureInfo.InvariantCulture);
@@ -239,6 +244,7 @@ namespace ReDefinition.Window
         // What waits for the files: called when they are in place, dropped where the player cancels.
         private static Action onInstalled;
 
+        // Starts the download as a coroutine on the add-on, unless one runs already.
         private static void Start(List<NvidiaFiles.Entry> entries)
         {
             if (Running || ReDefinitionAddon.Instance == null) return;
@@ -271,6 +277,8 @@ namespace ReDefinition.Window
             }
         }
 
+        // Fetches every file's range from the archive, then inflates, checks and places them on a thread; any failure
+        // ends it through Finish with nothing changed.
         private static IEnumerator Run(List<NvidiaFiles.Entry> entries)
         {
             Installed = false;
@@ -418,6 +426,8 @@ namespace ReDefinition.Window
             if (dlssFetched && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.NvidiaFilesPlaced();
         }
 
+        // Ends the download: the range files deleted, the outcome logged, put on the screen and kept for the row, and the
+        // continuation called where the files are in place.
         private static void Finish(string outcome, List<string> rangeFiles)
         {
             foreach (string file in rangeFiles)
@@ -446,6 +456,7 @@ namespace ReDefinition.Window
         // is stopped at once. IntelDownloader fetches the same way.
         internal sealed class RangeHandler : DownloadHandlerScript
         {
+            // The bytes asked for, what each piece is reported to, and the temporary file, closed once the request is done.
             private readonly long expected;
             private readonly Action<int> onData;
             private FileStream file;
@@ -458,10 +469,14 @@ namespace ReDefinition.Window
                 file = File.Create(path);
             }
 
+            // The bytes written so far.
             public long Length { get; private set; }
+            // Whether the server sent more than asked for.
             public bool Overflow { get; private set; }
+            // Why writing the file failed; null where it did not.
             public string WriteError { get; private set; }
 
+            // Closes the temporary file, once.
             public void Close()
             {
                 if (file == null) return;
@@ -469,6 +484,7 @@ namespace ReDefinition.Window
                 file = null;
             }
 
+            // Writes a piece; false stops the request where it would go past the range or the write fails.
             protected override bool ReceiveData(byte[] data, int dataLength)
             {
                 if (data == null || dataLength <= 0) return true;

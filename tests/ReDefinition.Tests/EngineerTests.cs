@@ -8,6 +8,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class EngineerTests
     {
+        // Speeds are whole metres per second with thousands separated by commas; NaN is written as 0.
         [TestMethod]
         public void SpeedsAreWholeMetresPerSecondWithThousands()
         {
@@ -15,6 +16,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("0 m/s", EngineerFormat.Speed(double.NaN));
         }
 
+        // Masses are tonnes with four figures, kilograms below one tonne.
         [TestMethod]
         public void MassesAreTonnesAndKilogramsBelowOne()
         {
@@ -23,6 +25,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("950 kg", EngineerFormat.Mass(0.95));
         }
 
+        // Forces are kilonewtons with four figures, meganewtons from a thousand kilonewtons on.
         [TestMethod]
         public void ForcesAreKilonewtonsAndMeganewtonsFromAThousand()
         {
@@ -31,6 +34,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("4.00 MN", EngineerFormat.Force(4000));
         }
 
+        // Times are tenths of seconds below a minute, then minutes and seconds, then hours, minutes and seconds;
+        // an infinite time is written as none.
         [TestMethod]
         public void TimesAreSecondsThenMinutesThenHours()
         {
@@ -40,6 +45,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("0.0s", EngineerFormat.Time(double.PositiveInfinity));
         }
 
+        // Delta-v is Isp times KSP's standard gravity of 9.80665 m/s^2 times the log of the mass ratio, and none
+        // where the mass does not fall.
         [TestMethod]
         public void RocketDeltaVIsTsiolkovskyWithKspsStandardGravity()
         {

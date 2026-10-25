@@ -12,8 +12,10 @@ namespace ReDefinition.Engineer
     // that the button's own states and a UI theme stay as they are.
     internal static class PlannerIcons
     {
+        // Where the symbols lie, without the symbol's name.
         private const string Path = "ReDefinition/Icons/Planner_";
 
+        // The symbol of that name; null where it is not loaded.
         internal static Sprite Get(string name)
         {
             return Shared.IconSprites.Load(Path + name);
@@ -25,6 +27,7 @@ namespace ReDefinition.Engineer
     // parts on the vessel, and from each other.
     internal static class PlannerColors
     {
+        // The stages' colours, by their place in firing order, repeated past the eighth.
         private static readonly Color[] Stages =
         {
             new Color(0.36f, 0.61f, 1f), new Color(0.94f, 0.69f, 0.29f), new Color(0.69f, 0.49f, 1f),
@@ -32,25 +35,26 @@ namespace ReDefinition.Engineer
             new Color(0.54f, 0.63f, 0.72f), new Color(0.95f, 0.85f, 0.40f),
         };
 
+        // What no stage covers; the timeline and dividers; what is left over.
         internal static readonly Color Short = new Color(0.90f, 0.28f, 0.30f);
         internal static readonly Color Line = new Color(0.55f, 0.55f, 0.58f);
         internal static readonly Color Spare = new Color(0.40f, 0.40f, 0.43f);
         // Behind a step: a little lighter than the panel, whatever theme it has.
         internal static readonly Color StepBackground = new Color(1f, 1f, 1f, 0.07f);
 
+        // The colour of the stage at that place in firing order.
         internal static Color Stage(int order)
         {
             return Stages[((order % Stages.Length) + Stages.Length) % Stages.Length];
         }
 
+        // The colour as rich text takes it: "#5c9cff".
         internal static string Hex(Color color)
         {
             return "#" + ColorUtility.ToHtmlStringRGB(color);
         }
     }
 
-    // What has to happen once the dialog elements are created: symbols laid on
-    // buttons, bars reached for their images.
     // A background behind an element's rows, from `left` to `right`, once it is
     // created: an image under its children that takes no part in the layout. Of a
     // fixed width, since the scroll list stretches its rows under its bar.
@@ -89,8 +93,10 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // The image Tint.Behind made, once the element is created.
     internal sealed class TintImage
     {
+        // Null until the element is created.
         public Image Image;
 
         // Its shape, set only when it changes.
@@ -106,10 +112,12 @@ namespace ReDefinition.Engineer
     // panel rounds its lists: 9-sliced, tinted by the image's colour.
     internal static class Rounded
     {
+        // The texture's size and the corners' radius, in pixels; each of the four shapes, made once.
         private const int Size = 16;
         private const int Radius = 5;
         private static readonly Sprite[] made = new Sprite[4];
 
+        // The shape with its top corners, its bottom corners, both or neither rounded.
         internal static Sprite Get(bool top, bool bottom)
         {
             int key = (top ? 1 : 0) | (bottom ? 2 : 0);
@@ -117,6 +125,7 @@ namespace ReDefinition.Engineer
             return made[key];
         }
 
+        // Draws the shape into a texture of its own, its edges smoothed, sliced one pixel inside the corners.
         private static Sprite Make(bool top, bool bottom)
         {
             Texture2D texture = new Texture2D(Size, Size, TextureFormat.RGBA32, false)
@@ -146,15 +155,20 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // What has to happen once the dialog elements are created: symbols laid on buttons, bars reached for their images.
+    // Run once; an action that fails is logged and the others still run.
     internal sealed class AfterCreate
     {
+        // The actions, in the order they were added.
         private readonly List<Action> actions = new List<Action>();
 
+        // Adds an action for once the elements are created.
         internal void Add(Action action)
         {
             actions.Add(action);
         }
 
+        // Runs every action, once.
         internal void Run()
         {
             foreach (Action action in actions)
@@ -172,6 +186,8 @@ namespace ReDefinition.Engineer
         }
     }
 
+    // The planner's own dialog elements: buttons with symbols, rows that answer a click, scroll lists as KSP's panels
+    // show them, symbols and blocks in a row.
     internal static class PlannerWidgets
     {
         // A button of KSP's skin with a symbol on it.
@@ -254,6 +270,7 @@ namespace ReDefinition.Engineer
             return new DialogGUIImage(new Vector2(w, h), Vector2.zero, color, Texture2D.whiteTexture);
         }
 
+        // Lays the symbol over the item, centred, a little smaller than it, not taking the pointer.
         private static void AddIcon(GameObject item, string icon, float size, Color tint)
         {
             Sprite sprite = PlannerIcons.Get(icon);
@@ -275,13 +292,15 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // Elements whose width is set after they are created: the fuel plan's
-    // columns, as wide as the panel's room over the legs there are.
+    // Elements whose width is set after they are created: the room after each
+    // step's bar, so that the figures beside the bars stand in one column.
     internal sealed class Sizer
     {
+        // The elements it sizes, and the width set last; -1 until set.
         private readonly List<DialogGUIBase> elements = new List<DialogGUIBase>();
         private float width = -1f;
 
+        // The width set before the elements were created is applied once they are.
         internal Sizer(AfterCreate after)
         {
             after.Add(() =>
@@ -292,12 +311,14 @@ namespace ReDefinition.Engineer
             });
         }
 
+        // Adds an element to size, and hands it back.
         internal T Add<T>(T element) where T : DialogGUIBase
         {
             elements.Add(element);
             return element;
         }
 
+        // Sets every element's width, where it changed by half a unit or more.
         internal void Set(float wanted)
         {
             if (Mathf.Abs(wanted - width) < 0.5f) return;
@@ -322,6 +343,7 @@ namespace ReDefinition.Engineer
     // ones hidden.
     internal sealed class SegmentBar
     {
+        // Each piece's image, width and colour; their images and layout elements once created; the bar's height.
         private readonly DialogGUIImage[] pieces;
         private readonly float[] widths;
         private readonly Color[] colors;
@@ -329,8 +351,10 @@ namespace ReDefinition.Engineer
         private readonly LayoutElement[] layouts;
         private readonly float height;
 
+        // The row of pieces, to put into the dialog.
         internal readonly DialogGUIHorizontalLayout Layout;
 
+        // `count` pieces, each `height` high.
         internal SegmentBar(int count, float height, AfterCreate after)
         {
             this.height = height;
@@ -349,6 +373,7 @@ namespace ReDefinition.Engineer
             after.Add(Reach);
         }
 
+        // Once created: reaches every piece's image and layout element, and sets them.
         private void Reach()
         {
             for (int i = 0; i < pieces.Length; i++)
@@ -374,6 +399,7 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // One piece's colour and width, a unit at least, on its image and layout.
         private void Apply(int i)
         {
             if (images[i] != null) images[i].color = colors[i];
@@ -392,6 +418,7 @@ namespace ReDefinition.Engineer
     // One entry of a Dropdown.
     internal sealed class Choice
     {
+        // The entry's text, its tooltip, whether it is the current choice, and what picking it does.
         public string Label;
         public string Tooltip;
         public bool Current;
@@ -408,6 +435,7 @@ namespace ReDefinition.Engineer
     // on a click anywhere else, so that the click does not reach the editor.
     internal static class Dropdown
     {
+        // An entry's height, in units.
         private const float RowHeight = 24f;
         // Kept free between the list and the screen's edges.
         private const float Margin = 8f;
@@ -418,11 +446,14 @@ namespace ReDefinition.Engineer
         // The entry the pointer is on, told when the list closes.
         private static Choice hovered;
 
+        // Whether a list is folded out.
         internal static bool Open
         {
             get { return list != null; }
         }
 
+        // Folds the list out under `anchor`, in place of one open: `by` is its owner, for Close(object); `width` the
+        // entries' width. Nothing where there are no choices.
         internal static void Show(object by, DialogGUIBase anchor, List<Choice> choices, float width)
         {
             Close();
@@ -548,6 +579,7 @@ namespace ReDefinition.Engineer
             trigger.triggers.Add(exit);
         }
 
+        // Closes the list, telling the entry the pointer is on that it left.
         internal static void Close()
         {
             if (hovered != null && hovered.Hover != null)

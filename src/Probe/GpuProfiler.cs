@@ -30,24 +30,32 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class GpuProfiler : MonoBehaviour
     {
+        // The switch; the proxy the markers go to; the name of the profiler's marker buffers; seconds between two
+        // reports; the most markers read back of one frame.
         internal const string Argument = "-redefinitionGpuProfile";
         private const string Proxy = "dxgi.dll";
         private const string OwnBufferName = "ReDefinition GPU profiler";
         private const float Period = 10f;
         private const int Capacity = 2048;
 
+        // The proxy's render-thread callback that ends a timestamp query at the marker id it is issued with.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr KspProfGetMarkerFunc();
 
+        // Turns the proxy's timestamp queries on (1) or off (0).
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern void KspProfSetEnabled(int enabled);
 
+        // Names a marker id for the proxy's annotation markers, which RenderDoc shows.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
         private static extern void KspProfSetLabel(int id, string label);
 
+        // The last complete frame: its marker ids in the GPU's order, each with the milliseconds from the Present
+        // before to it, and the frame's number; returns how many markers it holds.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspProfRead([Out] int[] ids, [Out] float[] ms, int capacity, out int frameNumber);
 
+        // The camera events, the light events and the drawing messages that get markers.
         private static readonly CameraEvent[] CameraEvents = (CameraEvent[])Enum.GetValues(typeof(CameraEvent));
         private static readonly LightEvent[] LightEvents =
         {
@@ -65,6 +73,9 @@ namespace ReDefinition.Probe
             "parallax", "scatterer", "atmosphere", "eve", "deferred", "tufx", "waterfall", "firefly",
         };
 
+        // The proxy's marker callback (zero while the profiler is off), the ids of the labels and the labels by id,
+        // the one-marker command buffer for each id, the before and after ids of each patched script method, and
+        // the Harmony instance that patches them.
         private static IntPtr markerFunc = IntPtr.Zero;
         private static readonly Dictionary<string, int> ids = new Dictionary<string, int>();
         private static readonly List<string> labels = new List<string> { "frame start", "until Present" };
@@ -72,12 +83,17 @@ namespace ReDefinition.Probe
         private static readonly Dictionary<MethodBase, int[]> scriptMarkers = new Dictionary<MethodBase, int[]>();
         private static HarmonyLib.Harmony harmony;
 
+        // One segment's GPU time over a report period.
         private sealed class Segment
         {
+            // Its milliseconds summed over the period and in its costliest frame; the frames it appeared in.
             public double Sum, Most;
             public int Frames;
         }
 
+        // The period's segments by marker id; the buffers a frame is read into; the last frame read, the frames
+        // of the period and the spikes logged in it; the frame's usual time; the segments of a spike frame; the
+        // period's frame time summed and at most; when the next scan for cameras is due and the period started.
         private readonly Dictionary<int, Segment> segments = new Dictionary<int, Segment>();
         private readonly int[] readIds = new int[Capacity];
         private readonly float[] readMs = new float[Capacity];
@@ -87,6 +103,7 @@ namespace ReDefinition.Probe
         private double frameSum, frameMost;
         private float nextScan, started;
 
+        // Only with the switch and the proxy: the markers on, the culling hook, the scripts patched.
         private void Awake()
         {
             if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0)
@@ -127,8 +144,10 @@ namespace ReDefinition.Probe
             if (camera != null) GL.IssuePluginEvent(markerFunc, Id("until " + camera.name + " culls"));
         }
 
+        // The shadow quality while a reflection probe camera draws without shadows; null between.
         private static ShadowQuality? heldShadows;
 
+        // Before a reflection probe camera culls: shadows off, the quality kept.
         private static void ProbeShadowsOff(Camera camera)
         {
             if (camera == null || camera.cameraType != CameraType.Reflection || heldShadows.HasValue) return;
@@ -136,6 +155,7 @@ namespace ReDefinition.Probe
             QualitySettings.shadows = ShadowQuality.Disable;
         }
 
+        // After the reflection probe camera drew: the kept shadow quality back.
         private static void ProbeShadowsBack(Camera camera)
         {
             if (camera == null || camera.cameraType != CameraType.Reflection || !heldShadows.HasValue) return;
@@ -143,6 +163,7 @@ namespace ReDefinition.Probe
             heldShadows = null;
         }
 
+        // The culling hook off and the proxy's queries stopped.
         private void OnDestroy()
         {
             Camera.onPreCull -= MarkCulling;
@@ -171,6 +192,7 @@ namespace ReDefinition.Probe
             if (markerFunc != IntPtr.Zero) buffer.IssuePluginEvent(markerFunc, Id(label));
         }
 
+        // The same marker issued straight into the render stream, from code that draws without a command buffer.
         internal static void MarkNow(string label)
         {
             if (markerFunc != IntPtr.Zero) GL.IssuePluginEvent(markerFunc, Id(label));
@@ -181,6 +203,7 @@ namespace ReDefinition.Probe
         internal static double LastFrameMs;
         internal static int FramesRead;
 
+        // The marker id of a label: a new one, handed to the proxy with its label, the first time it is asked for.
         internal static int Id(string label)
         {
             int id;
@@ -192,6 +215,7 @@ namespace ReDefinition.Probe
             return id;
         }
 
+        // A command buffer that only issues the marker id, built once per id.
         private static CommandBuffer Marker(int id)
         {
             CommandBuffer buffer;
@@ -279,6 +303,7 @@ namespace ReDefinition.Probe
             return count + PatchCameraHandlers();
         }
 
+        // The handlers on Camera.onPreRender and onPostRender not marked yet; how many were patched.
         private static int PatchCameraHandlers()
         {
             int count = 0;
@@ -290,6 +315,8 @@ namespace ReDefinition.Probe
             return count;
         }
 
+        // A method patched with a marker before it ("until" its name) and after it (its name); false where it is
+        // abstract, generic, marked already or Harmony refuses it.
         private static bool Patch(MethodBase method)
         {
             if (method == null || method.IsAbstract || method.ContainsGenericParameters || scriptMarkers.ContainsKey(method)) return false;
@@ -308,12 +335,14 @@ namespace ReDefinition.Probe
             }
         }
 
+        // Harmony prefix of a patched method: its "until" marker.
         private static void Before(MethodBase __originalMethod)
         {
             int[] marker;
             if (scriptMarkers.TryGetValue(__originalMethod, out marker)) GL.IssuePluginEvent(markerFunc, marker[0]);
         }
 
+        // Harmony postfix of a patched method: the marker that ends its own segment.
         private static void After(MethodBase __originalMethod)
         {
             int[] marker;
@@ -326,6 +355,8 @@ namespace ReDefinition.Probe
         // markers on the cameras and lights at all.
         private static readonly bool CameraMarkers = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionGpuProfileNoCameras") < 0;
 
+        // Once a second: markers on the cameras and lights that came since (unless switched off), and the camera
+        // event handlers added since patched.
         private void Scan()
         {
             if (!CameraMarkers)
@@ -345,6 +376,8 @@ namespace ReDefinition.Probe
             if (handlers > 0) Debug.Log(Log.Tag + " GPU profiler: " + handlers + " more camera event handlers marked.");
         }
 
+        // Each frame: the scan when due, the proxy's last complete frame read into the segments (a spike logged
+        // with its costliest segments), and the report every Period seconds.
         private void LateUpdate()
         {
             if (Time.realtimeSinceStartup >= nextScan)
@@ -429,17 +462,20 @@ namespace ReDefinition.Probe
             "proxy raytracing, ocean: results copied back",
         };
 
+        // The label of a marker id, the proxy's own included; "marker n" for an id not known.
         private static string LabelOf(int id)
         {
             if (id >= NativeBase && id < NativeBase + NativeLabels.Length) return NativeLabels[id - NativeBase];
             return id >= 0 && id < labels.Count ? labels[id] : "marker " + id;
         }
 
+        // Milliseconds for the log, three decimals.
         private static string Ms(double value)
         {
             return value.ToString("0.000", CultureInfo.InvariantCulture);
         }
 
+        // The period into the log: the mean frame time, each camera's or light's share and the costliest segments.
         private void Report()
         {
             double frame = frameSum / frames;

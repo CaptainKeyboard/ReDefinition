@@ -24,6 +24,8 @@ namespace ReDefinition.Scenery
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class FireflyIdle : MonoBehaviour
     {
+        // The entry strength at which idle effects are drawn again, and below which drawn ones go idle: apart, so that
+        // a strength around one threshold does not switch them every frame.
         private const float WakeAt = 1f;
         private const float SleepBelow = 0.5f;
         // Taken as the first vessel is looked at, not as the type is first touched:
@@ -31,6 +33,7 @@ namespace ReDefinition.Scenery
         // game.
         private int entryStrength = -1;
 
+        // Firefly's AtmoFxModule and the members of it and of its AtmoFxVessel this reads and calls.
         private Type moduleType;
         private FieldInfo fxVesselField, isLoadedField, bufferField, cameraField, materialField;
         // The fields read for every module each frame, through compiled getters: a
@@ -45,6 +48,8 @@ namespace ReDefinition.Scenery
         private readonly HashSet<object> idle = new HashSet<object>();
         private readonly List<object> gone = new List<object>();
 
+        // Looks up Firefly's module and vessel members; anything missing, or Firefly changed (ForeignAssumptions),
+        // leaves this switched off.
         private void Start()
         {
             GameEvents.onGameSceneLoadRequested.Add(OnLeaving);
@@ -73,6 +78,7 @@ namespace ReDefinition.Scenery
                 enabled = false;
         }
 
+        // Wakes the idle vessels where the flight goes on without this add-on.
         private void OnDestroy()
         {
             // Not when the flight or the game ends: its vessels and Firefly's effects go with
@@ -85,13 +91,16 @@ namespace ReDefinition.Scenery
             Application.quitting -= OnQuitting;
         }
 
+        // Application.quitting: the game ends, so OnDestroy wakes nothing.
         private void OnQuitting()
         {
             leaving = true;
         }
 
+        // Whether the flight or the game is ending, set by OnLeaving and OnQuitting; OnDestroy then wakes nothing.
         private bool leaving;
 
+        // A scene change is requested: the flight ends, so OnDestroy wakes nothing.
         private void OnLeaving(GameScenes scene)
         {
             leaving = true;
@@ -113,6 +122,8 @@ namespace ReDefinition.Scenery
             get { return TypeLookup.Find("Firefly.AtmoFxModule") != null; }
         }
 
+        // Every frame: each loaded vessel's effects emptied below SleepBelow and woken again at WakeAt; any failure
+        // wakes them all and stops this for the flight.
         private void LateUpdate()
         {
             if (!SwitchedOn)
@@ -197,6 +208,7 @@ namespace ReDefinition.Scenery
             }
         }
 
+        // Has Firefly fill the module's command buffer again (PopulateCommandBuffer) and switches its airstream camera on.
         private void Wake(object module)
         {
             try

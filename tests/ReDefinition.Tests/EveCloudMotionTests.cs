@@ -22,6 +22,7 @@ namespace ReDefinition.Tests
             return m;
         }
 
+        // A view-space point's normalized device coordinates under the projection (after the divide by w).
         private static Vector2 Ndc(Matrix4x4 projection, Vector3 viewPosition)
         {
             Vector4 clip = projection * new Vector4(viewPosition.x, viewPosition.y, viewPosition.z, 1f);

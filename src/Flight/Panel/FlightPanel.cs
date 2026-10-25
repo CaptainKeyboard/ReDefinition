@@ -37,30 +37,38 @@ namespace ReDefinition.Flight.Panel
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class FlightPanelHooks : MonoBehaviour
     {
+        // Installs the prefix and the postfix on the panel's Start, once per game.
         private void Awake()
         {
             FlightPanel.Hook();
         }
     }
 
+    // The flight panel in a flight scene, as the comment above describes: its tabs, its widening and its switching.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class FlightPanel : MonoBehaviour
     {
 
+        // Whether the hooks are installed; the scene's flight panel, for the hooks.
         private static bool hooked;
         private static FlightPanel current;
 
+        // KSP's apoapsis block from the orbit tab, kept switched off as the template of a readout's block.
         internal static GameObject BlockTemplate;
 
+        // The position KSP's transitions animate from, kept privately (UIPanelTransition.panelPosition).
         private static readonly FieldInfo KeptPosition =
             typeof(UIPanelTransition).GetField("panelPosition", BindingFlags.Instance | BindingFlags.NonPublic);
 
+        // The maneuver panel's left pane, right pane and whole; the mode buttons' transition; how much wider the panel
+        // stands now.
         private RectTransform leftPane;
         private RectTransform rightPane;
         private RectTransform root;
         private UIPanelTransition selector;
         private float applied;
 
+        // The hooks find this scene's panel.
         private void Awake()
         {
             current = this;
@@ -79,6 +87,7 @@ namespace ReDefinition.Flight.Panel
                 }));
         }
 
+        // The profile editor closes with the scene.
         private void OnDestroy()
         {
             if (current == this) current = null;
@@ -101,6 +110,8 @@ namespace ReDefinition.Flight.Panel
             }
         }
 
+        // Puts a tab per profile in place of KSP's orbit, advanced orbit and intercept tabs, and keeps the apoapsis block as
+        // the readouts' template.
         private static void Replace(ManeuverNodeEditorManager manager)
         {
             List<ManeuverNodeEditorTab> tabs = manager.maneuverNodeEditorTabs;
@@ -128,6 +139,7 @@ namespace ReDefinition.Flight.Panel
             Debug.Log(Log.Tag + " Flight panel: " + profiles.Count + " profiles in place of KSP's orbit tabs.");
         }
 
+        // Holds the template and the tabs' prefabs, switched off, under the manager.
         private static GameObject holder;
         // The profiles stand in this panel in place of KSP's orbit tabs.
         private static bool replaced;
@@ -151,6 +163,7 @@ namespace ReDefinition.Flight.Panel
             return tab;
         }
 
+        // KSP's list of the left pane's tab buttons, not public.
         private static readonly FieldInfo LeftButtons =
             typeof(ManeuverNodeEditorManager).GetField("leftTabButtons", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -176,6 +189,8 @@ namespace ReDefinition.Flight.Panel
             }
         }
 
+        // The pencil after the tab buttons: a copy of KSP's tab button prefab with a Button that opens the profile editor
+        // on the tab shown.
         private static void Pencil(ManeuverNodeEditorManager manager)
         {
             List<ManeuverNodeEditorTabButton> buttons = LeftButtons != null ? LeftButtons.GetValue(manager) as List<ManeuverNodeEditorTabButton> : null;
@@ -243,6 +258,8 @@ namespace ReDefinition.Flight.Panel
             return each;
         }
 
+        // KSP's members, not public: the parents of the left tabs and of their buttons, the tab button prefab, and a tab's
+        // Setup.
         private static readonly FieldInfo LeftTabsParent =
             typeof(ManeuverNodeEditorManager).GetField("leftTabsParent", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo LeftButtonsParent =
@@ -367,6 +384,7 @@ namespace ReDefinition.Flight.Panel
             if (off == null) off = orbit.tabIconOff;
         }
 
+        // One of the panel's own icons, by name; null where it is not loaded.
         internal static Sprite Icon(string name)
         {
             return Shared.IconSprites.Load("ReDefinition/Icons/FlightPanel_" + name);
@@ -386,6 +404,8 @@ namespace ReDefinition.Flight.Panel
             panel.Grow(tab, width);
         }
 
+        // The left pane, the whole panel, and the right pane's and the mode buttons' states moved by what the tab needs
+        // beyond two columns.
         private void Grow(ProfileTab tab, float width)
         {
             if (!Find(tab)) return;
@@ -427,8 +447,10 @@ namespace ReDefinition.Flight.Panel
                 KeptPosition.SetValue(transition, (Vector2)KeptPosition.GetValue(transition) + by);
         }
 
+        // The right pane's own transition; null where it has none.
         private UIPanelTransition rightTransition;
 
+        // Finds the panes, the panel and the mode buttons' transition once; false where the panes are not found.
         private bool Find(ProfileTab tab)
         {
             if (leftPane != null && rightPane != null && root != null) return true;
@@ -448,10 +470,13 @@ namespace ReDefinition.Flight.Panel
 
         // ----------------------------------------------------------- switching
 
+        // How often, in seconds, the situation is looked at; when next; the situation the panel last switched for.
         private const float Interval = 0.5f;
         private float next;
         private PanelSituation? chosen;
 
+        // Every frame the profile editor ticks; every Interval, while the setting says so, the panel opens the held
+        // situation's profile once that situation changes.
         private void Update()
         {
             FlightPanelEditor.Tick();

@@ -50,14 +50,17 @@ namespace ReDefinition.Flight
     {
     }
 
+    // The same columns in flight.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class StageInfoColumnsFlight : StageInfoColumns
     {
     }
 
+    // Once, as the game starts: the delta-v tools' hooks installed, and KSP's delta-v line taken out once it exists.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class StageDetailsSetup : MonoBehaviour
     {
+        // Kept across scenes; installs the delta-v tools' Harmony hooks.
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
@@ -72,14 +75,17 @@ namespace ReDefinition.Flight
         }
     }
 
+    // The stage details in columns, as the comment above has them, in the editors and in flight.
     public abstract class StageInfoColumns : MonoBehaviour
     {
+        // More lines than this go into two columns; the name of KSP's delta-v line.
         private const int MostInOneColumn = 4;
         private const string DeltaVLine = "DELTAV";
         // The add and delete buttons beside a stage (StageManager.plusMinusButtonWidth).
         private const float Buttons = 25f;
         // KSP's icons column (StageGroup's StageIcons, LayoutElement width 50).
         internal const float IconsColumn = 50f;
+        // The stack root as last seen, and KSP's own width of it.
         private RectTransform stack;
         private float stackWidth = -1f;
 
@@ -94,6 +100,7 @@ namespace ReDefinition.Flight
             return true;
         }
 
+        // The name of KSP's TWR line.
         private const string TwrLine = "TWR";
         // The line given both TWRs: TakeOutDeltaV runs every frame, the line keeps them.
         private static DeltaVAppValues.InfoLine twrWidened;
@@ -122,10 +129,13 @@ namespace ReDefinition.Flight
                 Debug.Log(Log.Tag + " Stage details: the TWR line gives the TWR at the stage's start and at its end.");
             }
         }
+        // StageManager's members that are not public.
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
+        // KSP's StageManager.UpdateHoverArea, called every frame; null where KSP has none.
         private static readonly Action<StageManager> HoverArea = HoverAreaCall();
 
+        // A delegate to StageManager.UpdateHoverArea; null where it has none or it cannot be made.
         private static Action<StageManager> HoverAreaCall()
         {
             MethodInfo method = typeof(StageManager).GetMethod("UpdateHoverArea", Private);
@@ -142,11 +152,13 @@ namespace ReDefinition.Flight
         // A vertical layout's settings, to be put back.
         private abstract class LayoutSnapshot
         {
+            // The layout's padding, spacing and alignment, and whether it controls and stretches its children's sizes.
             public readonly RectOffset Padding;
             public readonly float Spacing;
             public readonly TextAnchor Alignment;
             public readonly bool ControlWidth, ControlHeight, ExpandWidth, ExpandHeight;
 
+            // Copied from the layout as it stands.
             protected LayoutSnapshot(VerticalLayoutGroup list)
             {
                 Padding = new RectOffset(list.padding.left, list.padding.right, list.padding.top, list.padding.bottom);
@@ -158,11 +170,13 @@ namespace ReDefinition.Flight
                 ExpandHeight = list.childForceExpandHeight;
             }
 
+            // A copy of the padding, for a layout that takes it.
             public RectOffset CopyPadding()
             {
                 return new RectOffset(Padding.left, Padding.right, Padding.top, Padding.bottom);
             }
 
+            // A vertical layout with these settings, added to `host`.
             public void Restore(GameObject host)
             {
                 VerticalLayoutGroup list = host.AddComponent<VerticalLayoutGroup>();
@@ -179,25 +193,31 @@ namespace ReDefinition.Flight
         // The panel's own vertical layout, to be put back.
         private sealed class Column : LayoutSnapshot
         {
+            // One line's height as KSP laid it out: the grid's cell height.
             public float LineHeight;
 
+            // The panel's layout as it stands.
             public Column(VerticalLayoutGroup list) : base(list)
             {
             }
         }
 
+        // Per info panel in two columns, its own layout.
         private readonly Dictionary<GameObject, Column> columns = new Dictionary<GameObject, Column>();
 
         // An icon list's own vertical layout and widths, to be put back.
         private sealed class IconColumn : LayoutSnapshot
         {
+            // The list's and its column's preferred widths, -1 where it has no layout element.
             public float ListWidth, ColumnWidth;
 
+            // The icon list's layout as it stands.
             public IconColumn(VerticalLayoutGroup list) : base(list)
             {
             }
         }
 
+        // Per icon list in two columns, its own layout and widths.
         private readonly Dictionary<GameObject, IconColumn> iconColumns = new Dictionary<GameObject, IconColumn>();
         // The size of an icon as KSP laid it out last, for a stage without icons.
         private static Vector2 lastCell;
@@ -208,12 +228,15 @@ namespace ReDefinition.Flight
             get { return lastCell.x > 0f ? Mathf.Max(IconsColumn, twoColumnPadding + 2f * lastCell.x) : IconsColumn; }
         }
 
+        // The icon list's padding across, from the last list put in two columns; whether the log had the grid; whether
+        // something failed, which leaves the details as they are.
         private static float twoColumnPadding = 10f;
         private bool noted;
         private bool failed;
         // The details in two columns in this scene (OwnSettings.StageDetailColumns).
         private bool columnsOn = true;
 
+        // Leaves the details in one column where KSP's stages lack a field used here; else reads the player's setting.
         private void Start()
         {
             if (StageGroupFields.Infos == null || StageGroupFields.PanelWidth == null || StageGroupFields.PanelShown == null
@@ -238,6 +261,7 @@ namespace ReDefinition.Flight
             if (Arranged != null) Arranged();
         }
 
+        // Every stage's details and icons for the frame, the stack's width and its hover area; a failure leaves them as they are.
         private void Arrange()
         {
             if (failed) return;
@@ -261,6 +285,8 @@ namespace ReDefinition.Flight
             }
         }
 
+        // One stage: its icons blended with its slide, and its details in one column or two, the panel KSP slides taking the
+        // new width.
         private void Arrange(StageGroup group, float column)
         {
             LayoutElement panel = StageGroupFields.Panel(group);
@@ -291,6 +317,8 @@ namespace ReDefinition.Flight
             else List(host, lines, column);
         }
 
+        // The panel's lines in a grid of two columns filled top to bottom, the cells as wide as the panel is now; its own
+        // layout kept to be put back.
         private void Grid(GameObject host, List<StageGroupInfoItem> lines, float width, int count, LayoutElement panel)
         {
             GridLayoutGroup grid = host.GetComponent<GridLayoutGroup>();
@@ -331,6 +359,7 @@ namespace ReDefinition.Flight
             Size(lines, cell.x);
         }
 
+        // The panel's own layout back, its lines sized for one column.
         private void List(GameObject host, List<StageGroupInfoItem> lines, float width)
         {
             GridLayoutGroup grid = host.GetComponent<GridLayoutGroup>();
@@ -346,6 +375,7 @@ namespace ReDefinition.Flight
         private float nextPrune;
         private readonly List<GameObject> dead = new List<GameObject>();
 
+        // Once a second, the layouts kept for destroyed stages are let go of.
         private void Prune()
         {
             if (Time.unscaledTime < nextPrune) return;
@@ -354,6 +384,7 @@ namespace ReDefinition.Flight
             RemoveDead(iconColumns);
         }
 
+        // Removes the entries whose object is destroyed.
         private void RemoveDead<T>(Dictionary<GameObject, T> kept)
         {
             dead.Clear();
@@ -400,6 +431,7 @@ namespace ReDefinition.Flight
             return column != null && column.preferredWidth > 0f ? column.preferredWidth : IconsColumn;
         }
 
+        // The stage's icons column: the layout element two levels above its icon list; null where it has none.
         private static LayoutElement ColumnOf(StageGroup group)
         {
             Transform list = group != null ? group.IconsUIList : null;

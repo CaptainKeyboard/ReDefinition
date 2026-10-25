@@ -36,6 +36,7 @@ namespace ReDefinition.Settings.Behaviours
     // change here.
     internal sealed class KspBehaviour : ModBehaviour
     {
+        // What follows a change of one of KSP's settings, at the end of the frame (FollowUp).
         private enum Follow
         {
             // Nothing to do now: read where it is used, at the next scene or start.
@@ -49,17 +50,20 @@ namespace ReDefinition.Settings.Behaviours
             Engine,
         }
 
+        // The settings Unity's quality settings are set again for, then the event.
         private static readonly string[] QualityFollow =
         {
             "QUALITY_PRESET", "TEXTURE_QUALITY", "LIGHT_QUALITY", "SYNC_VBL", "FRAMERATE_LIMIT", "SHADOWS_QUALITY",
             "ANTI_ALIASING",
         };
 
+        // The settings read where they are used: nothing follows a change of them.
         private static readonly string[] NoFollow =
         {
             "terrainDetail", "TERRAIN_SHADER_QUALITY", "PLANET_SCATTER", "PLANET_SCATTER_FACTOR", "SURFACE_FX",
         };
 
+        // The settings GameSettings.ApplySettings hands the engine, set again, then the event.
         private static readonly string[] EngineFollow =
         {
             "PHYSICS_FRAME_DT_LIMIT", "SIMULATE_IN_BACKGROUND", "UI_SCALE", "MASTER_VOLUME", "HIGHLIGHT_FX",
@@ -112,11 +116,14 @@ namespace ReDefinition.Settings.Behaviours
         // Whether Unity's V-Sync count is held apart from SYNC_VBL now.
         private static bool vSyncHeld;
 
+        // Whether Deferred is loaded, and whether it caps the reflection refresh and resolution; the terrain
+        // shader level Kopernicus holds, or -1.
         private bool deferred;
         private bool capRefresh;
         private bool capResolution;
         private int kopernicusLevel = -1;
 
+        // What other mods hold of KSP's settings, asked once: Deferred's caps, Kopernicus' shader level.
         public override bool Attach(RegisteredMod mod)
         {
             deferred = TypeLookup.Find("Deferred.Deferred") != null;
@@ -174,6 +181,8 @@ namespace ReDefinition.Settings.Behaviours
             });
         }
 
+        // The settings a member path cannot give as their rows show them, and those another mod holds or that
+        // need Making History, left out.
         public override bool Reach(RegisteredMod mod, SettingRegistration setting, out Func<string> read,
                                    out Action<string> write, out Type type)
         {
@@ -249,6 +258,7 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // Whether the Making History expansion is installed; false where that cannot be asked.
         private static bool MakingHistoryInstalled()
         {
             try
@@ -261,11 +271,13 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
+        // A bit of the temperature gauges' mode as a switch's text.
         private static string Bit(int bit)
         {
             return (GameSettings.TEMPERATURE_GAUGES_MODE & bit) != 0 ? "True" : "False";
         }
 
+        // A bit of the temperature gauges' mode set from a switch's text.
         private static void SetBit(int bit, string text)
         {
             bool on;
@@ -275,11 +287,13 @@ namespace ReDefinition.Settings.Behaviours
                 : GameSettings.TEMPERATURE_GAUGES_MODE & ~bit;
         }
 
+        // A resolution as its row writes it: "1920 x 1080".
         internal static string ResolutionText(int width, int height)
         {
             return width.ToString(CultureInfo.InvariantCulture) + " x " + height.ToString(CultureInfo.InvariantCulture);
         }
 
+        // A resolution as ResolutionText writes it, x or X between; false for anything else.
         internal static bool ParseResolution(string text, out int width, out int height)
         {
             width = 0;
@@ -318,6 +332,9 @@ namespace ReDefinition.Settings.Behaviours
             return list.ToArray();
         }
 
+        // The V-Sync checks: while DLSS frame generation runs, every refresh at most, or V-Sync off where its
+        // build cannot present with it; while XeLL holds the Present, every refresh at most. Null for another
+        // check or a value that is no number.
         public override bool? Check(RegisteredMod mod, string check, string value)
         {
             if (check != DlssEveryRefreshCheck && check != DlssVsyncCheck && check != XellEveryRefreshCheck) return null;
@@ -335,11 +352,13 @@ namespace ReDefinition.Settings.Behaviours
             return interval == 0 || vsync == null || vsync();
         }
 
+        // The three V-Sync checks above.
         public override bool Provides(string check)
         {
             return check == DlssEveryRefreshCheck || check == DlssVsyncCheck || check == XellEveryRefreshCheck;
         }
 
+        // All three: Unity's V-Sync count is held while they apply, SYNC_VBL left as the player set it.
         public override bool HeldAtRunTime(string check)
         {
             return check == DlssEveryRefreshCheck || check == DlssVsyncCheck || check == XellEveryRefreshCheck;
@@ -363,6 +382,8 @@ namespace ReDefinition.Settings.Behaviours
             QualitySettings.vSyncCount = interval;
         }
 
+        // Choices only the running game knows -- terrain presets, resolutions --, what Deferred's caps leave of
+        // the reflection probe's, and the follow-up of each setting after a write.
         public override void Finish(RegisteredMod mod, BundledSetting setting, SettingRegistration registration)
         {
             switch (registration.Name)
@@ -583,8 +604,10 @@ namespace ReDefinition.Settings.Behaviours
             return DeferredLoaded() ? Math.Max(GameSettings.LIGHT_QUALITY, 64) : GameSettings.LIGHT_QUALITY;
         }
 
+        // Whether Deferred is loaded: -1 not asked yet, 0 no, 1 yes.
         private static int deferredLoaded = -1;
 
+        // Whether Deferred's type is loaded, asked once.
         private static bool DeferredLoaded()
         {
             if (deferredLoaded < 0) deferredLoaded = TypeLookup.Find("Deferred.Deferred") != null ? 1 : 0;
@@ -601,6 +624,8 @@ namespace ReDefinition.Settings.Behaviours
         // Deferred's light count follows PixelLightCount.
         internal struct HeldQuality
         {
+            // Whether Scatterer holds the shadow distance, the distance held, and its originalShadowDistance
+            // field; whether it sets the shadow projection, and the projection held.
             public bool Distance;
             public float ShadowDistance;
             public FieldInfo Original;
@@ -608,6 +633,7 @@ namespace ReDefinition.Settings.Behaviours
             public ShadowProjection ShadowProjection;
         }
 
+        // What other mods hold over Unity's quality level now, taken before a new level is set.
         internal static HeldQuality OthersHold()
         {
             HeldQuality held = new HeldQuality
@@ -637,9 +663,6 @@ namespace ReDefinition.Settings.Behaviours
             return held;
         }
 
-        // After a new quality level -- the settings window's, or KSP's reset
-        // through GameSettings.ApplySettings, which sets the level and the light
-        // count as KSP's own screen does.
         // Whether Scatterer's SetShadows sets the shadow projection with its settings as
         // they are now.
         private static bool SetsProjection(Type scatterer, object running)
@@ -653,12 +676,16 @@ namespace ReDefinition.Settings.Behaviours
                    || Flag(settings, "shadowsOnOcean") || Flag(settings, "oceanLightRays");
         }
 
+        // The settings object's bool field of that name; false where it has none.
         private static bool Flag(object settings, string name)
         {
             FieldInfo field = settings.GetType().GetField(name, TypeLookup.Any);
             return field != null && field.FieldType == typeof(bool) && (bool)field.GetValue(settings);
         }
 
+        // After a new quality level -- the settings window's, or KSP's reset
+        // through GameSettings.ApplySettings, which sets the level and the light
+        // count as KSP's own screen does: what OthersHold took set again.
         internal static void PutBack(HeldQuality held)
         {
             // The new level's distance is what Scatterer puts back when its terrain
@@ -685,6 +712,7 @@ namespace ReDefinition.Settings.Behaviours
             return -1;
         }
 
+        // The presets' names in KSP's order, for the terrain detail row; empty before they are loaded.
         internal static string[] Names()
         {
             List<string> names = new List<string>();

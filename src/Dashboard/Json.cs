@@ -12,6 +12,7 @@ namespace ReDefinition.Dashboard
     /// </summary>
     internal static class Json
     {
+        // An object as JSON text, its values written as WriteValue does.
         public static string Encode(IDictionary<string, object> values)
         {
             var sb = new StringBuilder(256);
@@ -32,10 +33,13 @@ namespace ReDefinition.Dashboard
         /// <summary>JSON already written, put in as it is.</summary>
         public sealed class Raw
         {
+            // The JSON text itself.
             public readonly string Text;
+            // Wraps JSON text written before, for instance a value cached between updates.
             public Raw(string text) { Text = text; }
         }
 
+        // One value as JSON text; the dashboard's server compares these to send only what changed.
         public static string Value(object v)
         {
             var sb = new StringBuilder(24);
@@ -43,6 +47,8 @@ namespace ReDefinition.Dashboard
             return sb.ToString();
         }
 
+        // Writes null, Raw, bools, strings, numbers, objects and any enumerable as an array; anything else as its
+        // ToString in quotes.
         private static void WriteValue(StringBuilder sb, object v)
         {
             switch (v)
@@ -78,6 +84,7 @@ namespace ReDefinition.Dashboard
             else sb.Append(d.ToString("G10", CultureInfo.InvariantCulture)); // drops the noise of a rounded double (38123.400000000001)
         }
 
+        // A string in quotes, with quotes, backslashes and control characters escaped.
         private static void WriteString(StringBuilder sb, string s)
         {
             sb.Append('"');
@@ -123,6 +130,8 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // A string, a number (as double), an array of values, or true, false and null, which come back as
+        // those words in strings.
         private static object ReadValue(string t, ref int i)
         {
             SkipWs(t, ref i);
@@ -155,6 +164,7 @@ namespace ReDefinition.Dashboard
             return double.Parse(t.Substring(start, i - start), CultureInfo.InvariantCulture);
         }
 
+        // A quoted string at i with its escapes resolved; i ends past the closing quote.
         private static string ReadString(string t, ref int i)
         {
             Expect(t, ref i, '"');
@@ -177,8 +187,11 @@ namespace ReDefinition.Dashboard
             }
         }
 
+        // The character at i, or a zero character past the end.
         private static char Peek(string t, int i) { return i < t.Length ? t[i] : '\0'; }
+        // Moves i past any white space.
         private static void SkipWs(string t, ref int i) { while (i < t.Length && char.IsWhiteSpace(t[i])) i++; }
+        // Steps past c at i, or throws where another character stands there.
         private static void Expect(string t, ref int i, char c)
         {
             if (Peek(t, i) != c) throw new FormatException("expected " + c);

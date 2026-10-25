@@ -29,6 +29,8 @@ import flip_evaluator as flip
 
 
 def load_folder(folder):
+    """The recording's PNG frames as RGB arrays (0..1), repeats dropped, and per frame its name and game frame
+    from frames.txt (-1 where it has none)."""
     names = sorted(n for n in os.listdir(folder) if n.endswith('.png'))
     frames = {}
     table = os.path.join(folder, 'frames.txt')
@@ -53,11 +55,13 @@ def load_folder(folder):
 
 
 def small(a):
+    """The image averaged over 8x8 blocks, for the cheap first match against the reference."""
     h, w = a.shape[0] // 8 * 8, a.shape[1] // 8 * 8
     return a[:h, :w].reshape(h // 8, 8, w // 8, 8, 3).mean(axis=(1, 3))
 
 
 def main():
+    """Match every generated frame to its reference pose, write flip.txt and the worst error maps, print both groups."""
     p = argparse.ArgumentParser()
     p.add_argument('reference')
     p.add_argument('generated')

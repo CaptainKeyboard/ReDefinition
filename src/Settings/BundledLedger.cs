@@ -12,6 +12,7 @@ namespace ReDefinition.Settings
         // A value from before ReDefinition, and whether it is to be put back.
         internal sealed class Backup
         {
+            // The value as text, and whether it is marked to be put back.
             public string Value;
             public bool Restore;
             // The scene load in which it was last tried -- written, or refused, or
@@ -40,11 +41,13 @@ namespace ReDefinition.Settings
         // bundled.cfg differs from what is kept here.
         public bool Dirty { get; set; }
 
+        // Whether a value is kept for the setting of that key.
         public bool Contains(string key)
         {
             return stored.ContainsKey(key);
         }
 
+        // The value kept for the setting of that key, where there is one.
         public bool TryStored(string key, out string value)
         {
             return stored.TryGetValue(key, out value);
@@ -56,12 +59,14 @@ namespace ReDefinition.Settings
             return new List<KeyValuePair<string, string>>(stored);
         }
 
+        // The value kept for the setting from now on.
         public void Keep(string key, string value)
         {
             stored[key] = value;
             Changed();
         }
 
+        // No value kept for the setting any more; false where there was none.
         public bool Forget(string key)
         {
             if (!stored.Remove(key)) return false;
@@ -69,6 +74,7 @@ namespace ReDefinition.Settings
             return true;
         }
 
+        // No value kept for any setting any more.
         public void ForgetAll()
         {
             if (stored.Count == 0) return;
@@ -93,6 +99,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // The value from before ReDefinition kept for the setting in that save, where there is one.
         public bool TryBackup(string context, string key, out Backup backup)
         {
             Dictionary<string, Backup> values;
@@ -100,6 +107,7 @@ namespace ReDefinition.Settings
             return backups.TryGetValue(context, out values) && values.TryGetValue(key, out backup);
         }
 
+        // The value from before ReDefinition for the setting in that save, unmarked.
         public void SetBackup(string context, string key, string value)
         {
             Dictionary<string, Backup> values;
@@ -108,6 +116,7 @@ namespace ReDefinition.Settings
             Changed();
         }
 
+        // The setting's value from before ReDefinition in that save no longer kept.
         public void RemoveBackup(string context, string key)
         {
             Dictionary<string, Backup> values;
@@ -142,6 +151,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // Whether any value from before, in any save, is marked to be put back (true) or is not (false).
         public bool AnyBackup(bool marked)
         {
             foreach (Dictionary<string, Backup> values in backups.Values)
@@ -152,6 +162,7 @@ namespace ReDefinition.Settings
             return false;
         }
 
+        // Whether any value from before is marked to be put back, counted again only after a change.
         public bool AnyMarked()
         {
             if (markedVersion != version)
@@ -189,6 +200,7 @@ namespace ReDefinition.Settings
             return new List<string>(backups.Keys);
         }
 
+        // The values from before kept for that save, by key; null where there are none.
         public Dictionary<string, Backup> BackupsIn(string context)
         {
             Dictionary<string, Backup> values;
@@ -201,6 +213,7 @@ namespace ReDefinition.Settings
             unsaved.Add(mod);
         }
 
+        // An action done once the mod has saved (TakeAfterSave).
         public void AfterSave(IBundledMod mod, Action action)
         {
             List<Action> actions;
@@ -208,11 +221,13 @@ namespace ReDefinition.Settings
             actions.Add(action);
         }
 
+        // The mods with changes not saved yet, as a copy.
         public List<IBundledMod> UnsavedMods()
         {
             return new List<IBundledMod>(unsaved);
         }
 
+        // The mod's changes are being saved: no longer unsaved.
         public void Saved(IBundledMod mod)
         {
             unsaved.Remove(mod);
@@ -234,6 +249,7 @@ namespace ReDefinition.Settings
             return actions;
         }
 
+        // What is kept changed: bundled.cfg differs, and what is counted per version is counted again.
         private void Changed()
         {
             Dirty = true;

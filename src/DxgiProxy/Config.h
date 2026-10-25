@@ -12,6 +12,7 @@
 
 namespace redefinition
 {
+    // Every setting of the ini's [Proxy] section, with its default.
     struct ProxyConfig
     {
         // false makes every export a pure pass-through to the system dxgi.dll,
@@ -561,7 +562,7 @@ namespace redefinition
     const ProxyConfig& Config();
     void LoadConfig();
 
-    // The two folders for threads other than the present path, which re-reads
+    // The upscalers' folders, for threads other than the present path, which re-reads
     // the ini: copied under the lock the settings are written under.
     std::wstring DlssDirectory();
     std::wstring AmdUpscalerDirectory();

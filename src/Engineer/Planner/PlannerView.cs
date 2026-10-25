@@ -12,15 +12,19 @@ namespace ReDefinition.Engineer
     // PlannerView.Sections.cs, the rows in PlannerView.Rows.cs.
     internal sealed partial class PlannerView
     {
+        // Seconds after the last change the plan is saved, so that a run of clicks writes the file once; and the step the
+        // altitude buttons take, in metres.
         private const float SaveDelay = 1.5f;
         private const double AltitudeStep = 10000.0;
 
+        // The planner add-on, whose readout of the vessel the plan is worked out from.
         private readonly EditorEngineer owner;
         // The rows' width, and the parts' boxes around them, a margin wider on each side.
         private readonly float width;
         private readonly float outer;
         private readonly AfterCreate after = new AfterCreate();
 
+        // The system's bodies, read once; the vessel's plan; and the vessel's name the plan is kept under.
         private PlannerBodies bodies;
         private PlannerState state;
         private string vessel;
@@ -55,6 +59,7 @@ namespace ReDefinition.Engineer
         private List<StageRow> plannedStages = new List<StageRow>();
         private int plannedAir = -1;
 
+        // `width`: the room the panel gives the rows' boxes.
         internal PlannerView(EditorEngineer owner, float width)
         {
             this.owner = owner;
@@ -70,6 +75,7 @@ namespace ReDefinition.Engineer
             after.Run();
         }
 
+        // The planner goes with the editor: the plan saved where it waits for it, KSP's events let go.
         internal void Dispose()
         {
             Flush();
@@ -83,6 +89,7 @@ namespace ReDefinition.Engineer
             if (type != KSP.UI.Screens.CraftBrowserDialog.LoadType.Merge) reload = true;
         }
 
+        // KSP started a new vessel: its plan is loaded, and the planner adds the sections it finds by itself again.
         private void OnEditorRestart()
         {
             reload = true;
@@ -91,6 +98,8 @@ namespace ReDefinition.Engineer
 
         // ---------------------------------------------------------------- update
 
+        // Every frame the planner is open, or the dashboard asks for it: loads the vessel's plan where the vessel is another,
+        // saves it once SaveDelay has passed, and works it out again where something it rests on changed.
         internal void Tick()
         {
             // In this frame and the next: the button a click releases may answer after the
@@ -139,6 +148,7 @@ namespace ReDefinition.Engineer
             Evaluate();
         }
 
+        // The editor's keys held while an altitude is typed, by this name; and whether they are held now.
         private const string TypingLock = "ReDefinitionPlannerTyping";
         private bool typingLocked;
 
@@ -166,6 +176,7 @@ namespace ReDefinition.Engineer
         // The altitude fields' inputs, looked up once they exist.
         private TMPro.TMP_InputField[] inputs;
 
+        // Whether one of the altitude fields has the keyboard.
         private bool Typing()
         {
             if (inputs == null || inputs.Length != altitudeFields.Count)
@@ -204,12 +215,15 @@ namespace ReDefinition.Engineer
         private int textVersion;
         private bool inputLastTick;
 
+        // One row's text and the text version it was made for.
         private sealed class CachedText
         {
+            // -1 until it is first made.
             public int Version = -1;
             public string Text;
         }
 
+        // The text `make` gives, made again only where textVersion has moved on.
         private Func<string> Text(Func<string> make)
         {
             CachedText cached = new CachedText();
@@ -224,6 +238,8 @@ namespace ReDefinition.Engineer
             };
         }
 
+        // Works the plan out: the stages the planner budgets with, the vessel's sections, the steps, which stage pays for
+        // which step, the thrust checks, each step's warnings, the bars and the marks on the vessel.
         private void Evaluate()
         {
             textVersion++;
@@ -298,27 +314,32 @@ namespace ReDefinition.Engineer
             return bodies.Bodies[state.Stops[0].Body].Id;
         }
 
+        // Whether the bodies are read and the plan loaded.
         private bool Ready()
         {
             return state != null && bodies != null;
         }
 
+        // Whether the plan is worked out for the steps there are now.
         private bool Worked()
         {
             return Ready() && budget != null && budget.Needed.Length == steps.Count;
         }
 
+        // The index in `steps` of the leg's step in that role; -1 where it has none or the plan is not worked out.
         private int Slot(int leg, StepRole role)
         {
             return Worked() && leg >= 0 && leg < MaxStops ? slots[leg, (int)role] : -1;
         }
 
+        // The vessel's name in the editor; "Untitled" where it has none yet.
         private static string VesselName()
         {
             ShipConstruct ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
             return ship != null && !string.IsNullOrEmpty(ship.shipName) ? ship.shipName : "Untitled";
         }
 
+        // The plan changed: the texts are made again, the plan is saved after SaveDelay and worked out again.
         private void Changed()
         {
             textVersion++;
@@ -328,6 +349,7 @@ namespace ReDefinition.Engineer
 
         // ----------------------------------------------------------------- stops
 
+        // Whether the route has a stop at `index`.
         private bool Shown(int index)
         {
             return Ready() && index < state.Stops.Count;
@@ -345,16 +367,19 @@ namespace ReDefinition.Engineer
             return picked;
         }
 
+        // Whether the stop at `index` has a body picked.
         private bool HasBody(int index)
         {
             return Shown(index) && state.Stops[index].Body >= 0 && state.Stops[index].Body < bodies.Bodies.Count;
         }
 
+        // The stop's letter in the route: A for the first.
         private static string Letter(int index)
         {
             return ((char)('A' + index)).ToString();
         }
 
+        // The stop's body's name, or "Destination" as a problem where none is picked.
         private string BodyName(int index)
         {
             if (!Shown(index)) return "";
@@ -362,21 +387,25 @@ namespace ReDefinition.Engineer
             return body >= 0 && body < bodies.Bodies.Count ? bodies.Bodies[body].Name : "<color=" + Problem + ">Destination</color>";
         }
 
+        // The stop's kind; an orbit where there is no such stop.
         private StopKind Kind(int index)
         {
             return Shown(index) ? state.Stops[index].Kind : StopKind.Orbit;
         }
 
+        // Whether the stop's body has air.
         private bool HasAtmosphere(int index)
         {
             return HasBody(index) && bodies.Bodies[state.Stops[index].Body].HasAtmosphere;
         }
 
+        // Whether arriving at the stop uses its body's air.
         private bool UsesAtmosphere(int index)
         {
             return Shown(index) && state.Stops[index].UseAtmosphere && HasAtmosphere(index);
         }
 
+        // The stop's altitude in whole kilometres, as the field shows it.
         private string AltitudeKm(int index)
         {
             return Shown(index) ? (state.Stops[index].Altitude / 1000.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture) : "";
@@ -399,6 +428,7 @@ namespace ReDefinition.Engineer
         // The body buttons of the stops, for the list to fold out under.
         private readonly DialogGUIBase[] bodyButtons = new DialogGUIBase[MaxStops];
 
+        // Folds the list of bodies out under the stop's body button.
         private void PickBody(int index)
         {
             if (!Shown(index)) return;
@@ -424,6 +454,7 @@ namespace ReDefinition.Engineer
             return choices;
         }
 
+        // The stop goes to `body`, at its low orbit; without air, the way down does not use it.
         private void SetBody(int index, int body)
         {
             if (!Shown(index) || body < 0 || body >= bodies.Bodies.Count) return;
@@ -435,6 +466,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // The stop becomes a surface or an orbit; an orbit with no altitude takes the body's low orbit.
         private void SetKind(int index, StopKind kind)
         {
             if (!Shown(index) || state.Stops[index].Kind == kind) return;
@@ -445,6 +477,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // One AltitudeStep up (1) or down (-1), kept between the low orbit and the edge of the sphere of influence.
         private void StepAltitude(int index, int direction)
         {
             if (!HasBody(index)) return;
@@ -466,6 +499,7 @@ namespace ReDefinition.Engineer
             if (CapsuleCarries(part => part.Parachute)) stop.UseAtmosphere = true;
         }
 
+        // Arriving at the stop uses its body's air, or no longer does.
         private void ToggleAtmosphere(int index)
         {
             if (!Shown(index) || !HasAtmosphere(index)) return;
@@ -486,6 +520,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // Takes the stop out of the route, keeping two at least.
         private void RemoveStop(int index)
         {
             if (!Shown(index) || state.Stops.Count <= 2) return;
@@ -543,18 +578,21 @@ namespace ReDefinition.Engineer
             return step >= 0 && step < steps.Count ? state.Stops[steps[step].Goal].Stages[(int)steps[step].Role] : null;
         }
 
+        // Whether the player saved the stage on the step.
         private bool Saved(int step, int number)
         {
             StagePlan plan = PlanOf(step);
             return plan != null && plan.Save.Contains(number);
         }
 
+        // Whether the player drops the stage after the step.
         private bool DropsAfter(int step, int number)
         {
             StagePlan plan = PlanOf(step);
             return plan != null && plan.DropAfter.Contains(number);
         }
 
+        // Saves the stage on the step, or no longer does.
         private void ToggleSaved(int step, int number)
         {
             StagePlan plan = PlanOf(step);
@@ -563,6 +601,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // Drops the stage after the step, or no longer does.
         private void ToggleDropAfter(int step, int number)
         {
             StagePlan plan = PlanOf(step);
@@ -596,6 +635,7 @@ namespace ReDefinition.Engineer
             Dropdown.Show(this, button, TankerChoices(leg, role), 150f);
         }
 
+        // The list a refill's first source is picked from: the rest in KSP's order, then each of the rest's stages with fuel.
         private List<Choice> TankerChoices(int leg, StepRole role)
         {
             if (!Shown(leg + 1)) return new List<Choice>();
@@ -620,6 +660,7 @@ namespace ReDefinition.Engineer
             return choices;
         }
 
+        // The refill on the leg's step in that role comes first from `stage`, -1 for the rest in KSP's order.
         private void SetTanker(int leg, StepRole role, int stage)
         {
             if (!Shown(leg + 1) || state.Stops[leg + 1].RefuelFrom[(int)role] == stage) return;
@@ -729,6 +770,7 @@ namespace ReDefinition.Engineer
             return Shown(leg + 1) && state.Stops[leg + 1].Refuel[(int)role];
         }
 
+        // The section docking at the end of the step is refilled from the rest, or no longer is.
         private void ToggleRefuel(int leg, StepRole role)
         {
             if (!Shown(leg + 1)) return;
@@ -737,11 +779,13 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // Whether the way across to the stop is two steps, the burn that leaves and the one that arrives.
         private bool SplitsBurns(int index)
         {
             return Shown(index) && state.Stops[index].SplitBurns;
         }
 
+        // Splits the way across to the stop into two steps, or joins them.
         private void SetSplitBurns(int index, bool split)
         {
             if (!Shown(index) || state.Stops[index].SplitBurns == split) return;
@@ -749,11 +793,13 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // Whether the way down to the stop goes into an orbit first rather than straight into the air.
         private bool OrbitFirst(int index)
         {
             return Shown(index) && state.Stops[index].OrbitFirst;
         }
 
+        // Has the way down to the stop go into an orbit first, or straight into the air.
         private void SetOrbitFirst(int index, bool orbit)
         {
             if (!Shown(index) || state.Stops[index].OrbitFirst == orbit) return;
@@ -761,6 +807,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // The margin, from the slider's per cent.
         private void SetMargin(float percent)
         {
             double margin = Math.Round(percent) / 100.0;
@@ -769,6 +816,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // Plane changes count on the way across, or no longer do.
         private void SetPlaneChanges(bool on)
         {
             if (!Ready() || on == state.PlaneChanges) return;
@@ -776,6 +824,7 @@ namespace ReDefinition.Engineer
             Changed();
         }
 
+        // What the route's steps need, with the margin, in m/s.
         private double TotalNeeded()
         {
             double needed = 0.0;
@@ -783,6 +832,7 @@ namespace ReDefinition.Engineer
             return needed;
         }
 
+        // What all stages with delta-v have in vacuum, in m/s.
         private double TotalHas()
         {
             double has = 0.0;

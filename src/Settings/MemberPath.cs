@@ -19,13 +19,18 @@ namespace ReDefinition.Settings
     // struct must take it back.
     internal sealed class MemberPath
     {
+        // What the first member may be: static, of any visibility, inherited ones included.
         private const BindingFlags Statics =
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+        // What every member after the first is: an instance member, of any visibility.
         private const BindingFlags Instances = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
 
+        // One member of the path, resolved: a field, a property, an indexer with its key, or a method.
         private sealed class Segment
         {
+            // How problems name it; for an indexer "name[key]".
             public string Name;
+            // Exactly one of these is set, and Key with Indexer.
             public FieldInfo Field;
             public PropertyInfo Property;
             public PropertyInfo Indexer;
@@ -34,12 +39,16 @@ namespace ReDefinition.Settings
             public Type ValueType;
         }
 
+        // The path as the registration wrote it, and the type it starts from.
         public readonly string Text;
         public readonly Type Root;
+        // The members after the type; whether the path starts at the scene's object of the type, and that
+        // object, found once and again where it was destroyed.
         private readonly List<Segment> segments = new List<Segment>();
         private bool fromScene;
         private UnityEngine.Object found;
 
+        // Made by Resolve only, which fills the segments.
         private MemberPath(string text, Type root)
         {
             Text = text;
@@ -52,6 +61,7 @@ namespace ReDefinition.Settings
             get { return segments[segments.Count - 1].ValueType; }
         }
 
+        // Whether the path ends in a method, to be called rather than read.
         public bool IsMethod
         {
             get { return segments[segments.Count - 1].Method != null; }
@@ -77,6 +87,7 @@ namespace ReDefinition.Settings
             return Resolve(text, folder, true, out problem);
         }
 
+        // The longest leading part that names a type of the mod's folder, and the rest as its members.
         private static MemberPath Resolve(string text, ModFolder folder, bool readOnly, out string problem)
         {
             problem = null;
@@ -152,6 +163,8 @@ namespace ReDefinition.Settings
             return parts.ToArray();
         }
 
+        // The members after the type's parts, into the segments; null where every one resolves and the end can
+        // be written (or `readOnly`), else the reason.
         private string Resolve(string[] parts, int start, bool readOnly)
         {
             Type current = Root;
@@ -206,6 +219,7 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // Why the member cannot be written -- read-only, no setter --, or null where it can.
         private static string Unwritable(Segment segment)
         {
             if (segment.Field != null && (segment.Field.IsInitOnly || segment.Field.IsLiteral)) return "is read-only";
@@ -214,6 +228,8 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // The type's field, property without index or, at the end, method without parameters of that name; null
+        // where it has none.
         private static Segment Member(Type type, string name, bool first, bool mayBeMethod)
         {
             BindingFlags flags = first ? Statics | Instances : Instances;
@@ -235,6 +251,7 @@ namespace ReDefinition.Settings
             return method != null ? new Segment { Name = name, Method = method } : null;
         }
 
+        // The type's indexer with one string key; null where it has none.
         private static PropertyInfo Indexer(Type type)
         {
             foreach (PropertyInfo property in type.GetProperties(Instances))
@@ -245,6 +262,7 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // Whether the member is static, as the first one of a path that does not start in the scene must be.
         private static bool IsStatic(Segment segment)
         {
             if (segment.Field != null) return segment.Field.IsStatic;
@@ -276,6 +294,8 @@ namespace ReDefinition.Settings
             return holder;
         }
 
+        // The value written at the end, and every struct on the way written back into what holds it. Throws where
+        // something on the way is not there.
         public void Set(object value)
         {
             object[] holders = Holders();
@@ -338,6 +358,7 @@ namespace ReDefinition.Settings
             return null;
         }
 
+        // The scene's object the path starts from, found where none is held; null for a static path.
         private object RootObject()
         {
             if (!fromScene) return null;
@@ -345,6 +366,7 @@ namespace ReDefinition.Settings
             return found;
         }
 
+        // The member's value in the holder; throws for a method.
         private static object Read(Segment segment, object holder)
         {
             if (segment.Field != null) return segment.Field.GetValue(holder);
@@ -353,6 +375,7 @@ namespace ReDefinition.Settings
             throw new InvalidOperationException(segment.Name + " is a method, not a value.");
         }
 
+        // The member set in the holder; throws for a method.
         private static void Write(Segment segment, object holder, object value)
         {
             if (segment.Field != null) segment.Field.SetValue(holder, value);
@@ -371,14 +394,18 @@ namespace ReDefinition.Settings
     // them once per name, not across every assembly for every path.
     internal sealed class ModFolder
     {
+        // The folder's assemblies in the order they were loaded, and the types looked up by name.
         private readonly List<Assembly> assemblies;
         private readonly Dictionary<string, Type> types = new Dictionary<string, Type>();
 
+        // Made by Of only.
         private ModFolder(List<Assembly> assemblies)
         {
             this.assemblies = assemblies;
         }
 
+        // The assemblies loaded from the assembly's folder under GameData, in the order they were loaded; the
+        // assembly alone where it lies in no mod's folder.
         public static ModFolder Of(Assembly assembly)
         {
             List<Assembly> found = new List<Assembly>();
@@ -398,6 +425,7 @@ namespace ReDefinition.Settings
             return new ModFolder(found);
         }
 
+        // Whether the assembly is one of the folder's.
         public bool Contains(Assembly assembly)
         {
             return assemblies.Contains(assembly);
@@ -446,6 +474,7 @@ namespace ReDefinition.Settings
             return string.Join(Path.DirectorySeparatorChar.ToString(), parts, 0, gameData + 2) + Path.DirectorySeparatorChar;
         }
 
+        // The assembly's location; null for one loaded from memory, or one that cannot say.
         private static string Location(Assembly assembly)
         {
             try

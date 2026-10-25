@@ -55,6 +55,8 @@ namespace redefinition
     // triangle.
     struct RtMeshDesc
     {
+        // sizeof and kRtMeshMagic, checked against the mod's layout; the managed side's id for
+        // the mesh; the counts, then the arrays the comment above names, copied at once (SetMesh).
         uint32_t size;
         uint32_t magic;
         int32_t mesh;
@@ -74,6 +76,8 @@ namespace redefinition
     // (-1: none).
     struct RtMaterialDesc
     {
+        // sizeof and kRtMaterialMagic, checked against the mod's layout; the managed side's id
+        // for the material.
         uint32_t size;
         uint32_t magic;
         int32_t material;
@@ -108,6 +112,7 @@ namespace redefinition
     // flags (kRtInstance*).
     struct RtInstance
     {
+        // The transform, the mesh's and the material's ids as handed over, the mask and flags.
         float transform[12];
         int32_t mesh;
         int32_t material;
@@ -120,6 +125,8 @@ namespace redefinition
     constexpr uint32_t kRtInstanceTerrain = RT_INSTANCE_TERRAIN;
     // Set by the service for an instance whose material is cut out.
     constexpr uint32_t kRtInstanceCutout = RT_INSTANCE_CUTOUT;
+    // The space centre's buildings and grounds, whose materials' defaults are taken as matt
+    // (RT_INSTANCE_SCENERY, RtContract.h).
     constexpr uint32_t kRtInstanceScenery = RT_INSTANCE_SCENERY;
 
     // A run of instances the GPU made, in the frame's t7: mesh and material as the
@@ -127,6 +134,7 @@ namespace redefinition
     // ray mask and flags each of its instances takes.
     struct RtGpuInstanceGroup
     {
+        // As the comment above says, in its order; reserved pads the group to 32 bytes.
         int32_t mesh;
         int32_t material;
         uint32_t first;
@@ -177,11 +185,13 @@ namespace redefinition
     // (the reflections), whose history and filter smooth surfaces shorten.
     struct RtDenoisedSignal
     {
+        // The signal's bit (kRtSignal*), its output slot, its place, its kind (0, 1 or 2).
         uint32_t signal;
         uint32_t output;
         uint32_t index;
         uint32_t kind;
     };
+    // How many signals the denoiser filters, and each one's entry, by its place.
     constexpr uint32_t kRtDenoisedSignals = 4;
     constexpr RtDenoisedSignal kRtDenoised[kRtDenoisedSignals] = {
         { kRtSignalSunVisibility, RT_OUTPUT_SUN, 0, 0 },
@@ -227,6 +237,8 @@ namespace redefinition
     // cbuffer Frame as the shaders read it (RtCommon.hlsli), field for field.
     struct RtFrameConstants
     {
+        // The packet's fields of the same names (RtFramePacket, WriteConstantsLocked), with the
+        // size, the frame's index and its flags, to which the service adds its own (RT_FLAG_*).
         float clipToWorld[16];
         float worldToClip[16];
         float prevWorldToClip[16];
@@ -285,6 +297,8 @@ namespace redefinition
     static_assert(offsetof(RtFrameConstants, frameFlags) == RT_CB_FRAME_SIZE * 16 + 12, "cbuffer Frame: frameFlags");
     static_assert(sizeof(RtFrameConstants) == RT_CB_REGISTERS * 16, "cbuffer Frame: its size");
     static_assert(sizeof(RtFrameConstants) <= kRtConstantsSize, "cbuffer Frame outgrew its buffer");
+    // The most layers the material textures take, a texture array's limit; a material's
+    // texture is a layer below it (SetMaterial, SetMaterialTexture).
     constexpr uint32_t kRtMaxMaterialTextures = RT_MAX_MATERIAL_TEXTURES;
 
     // The number of passes whose GPU time KspRtPassTimings reports, in signal bit order;
@@ -299,6 +313,9 @@ namespace redefinition
     // Direct3D has it.
     struct RtFramePacket
     {
+        // sizeof and kRtFrameMagic, checked against the mod's layout; the frame's index, which
+        // its instances were handed over for, and its flags (kRtFrame*); the size in pixels; the
+        // signals to trace (kRtSignal*); then the camera's matrices.
         uint32_t size;
         uint32_t magic;
         uint32_t frameIndex;
@@ -376,10 +393,13 @@ namespace redefinition
         // vessel is drawn about, relative to the camera, and how far (RtCommon.hlsli,
         // MeadowShade).
         float shadowFade[12];
+        // Unity's textures as ID3D11Resource: the inputs, read as t1-t8 (by kRtInput*), and the
+        // outputs, written as u0-u7 (by RT_OUTPUT_*); null for none.
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
 
+    // What RtReconstructPacket's magic holds, checked against the mod's layout.
     constexpr uint32_t kRtReconstructMagic = RT_RECONSTRUCT_MAGIC;
 
     // Event 31: a frame for DLSS Ray Reconstruction, in place of DLSS Super Resolution.
@@ -392,6 +412,8 @@ namespace redefinition
     // kRtFrameLegacySmoothness as the raytraced frame had it, for guides from gbuffer1.
     struct RtReconstructPacket
     {
+        // sizeof and kRtReconstructMagic; the frame's index and flags; the render and the
+        // output size; the mode and preset; then the camera as the comment above says.
         uint32_t size;
         uint32_t magic;
         uint32_t frameIndex;
@@ -507,13 +529,20 @@ namespace redefinition
     static_assert(sizeof(RtInstance) == RT_INSTANCE_SIZE, "RtInstance: its size");
     static_assert(sizeof(RtGpuInstanceGroup) == RT_GPU_GROUP_SIZE, "RtGpuInstanceGroup: its size");
 
+    // The service, one for the process (Get): what the managed side hands over, the device's
+    // objects, the meshes' structures, and each frame's trace, denoising and copies back.
     class Raytracing
     {
     public:
         static Raytracing& Get();
 
+        // The swapchain proxy's devices and queue, from the swapchain that owns them: what the
+        // service held before let go of, the raytracing tier checked and the shaders loaded,
+        // and a queue of its own made where rtOwnQueue asks for it.
         void Attach(const void* owner, ID3D11Device5* device11, ID3D11DeviceContext4* context11,
                     ID3D12Device* device12, ID3D12CommandQueue* queue);
+        // The owner's swapchain going: everything made on its devices let go of; another
+        // owner's call is ignored.
         void Detach(const void* owner);
 
         // 1 ready, 0 no device yet, -1 not possible here; the text says why.
@@ -521,18 +550,25 @@ namespace redefinition
 
         // From the main thread; the data is copied before they return.
         int SetMesh(const RtMeshDesc* desc);
+        // The mesh of that id dropped from the hand-over and released by the next frame.
         void ReleaseMesh(int32_t mesh);
+        // A material handed over, replacing the one of its id; 0 where its layout or its
+        // texture layer is rejected.
         int SetMaterial(const RtMaterialDesc* desc);
+        // The material of that id forgotten by the next frame.
         void ReleaseMaterial(int32_t material);
         // A frame's instances and GPU instance groups, taken by the frame of that index
         // (RtFramePacket's frameIndex); a frame without its own takes the newest.
         int SetInstances(const RtInstance* instances, int count, uint32_t frameIndex);
+        // The GPU instance groups of a frame, as SetInstances takes its instances.
         int SetGpuGroups(const RtGpuInstanceGroup* groups, int count, uint32_t frameIndex);
         // A layer of the material textures: size by size pixels, RGBA8, rows from the top.
         int SetMaterialTexture(int layer, const uint8_t* pixels, int size);
 
         // From the render thread.
         void OnFrame(const void* data);
+        // Render event 31: an RtReconstructPacket's frame through DLSS Ray Reconstruction
+        // (RaytracingReconstruct.cpp), by Streamline or NGX as rrPath chooses.
         void OnReconstruct(const void* data);
         // Ray Reconstruction no longer used by the mod: Streamline's resources for it,
         // or NGX's feature, freed (OnReconstructRelease, render event 32).
@@ -544,16 +580,19 @@ namespace redefinition
         // Whether DLSS Ray Reconstruction runs: 1 yes, 0 no, the reason in buffer --
         // through Streamline or through NGX (rrPath, RaytracingReconstruct.cpp).
         int ReconstructionAvailable(char* buffer, int size) const;
+        // The frames Ray Reconstruction has evaluated since the proxy loaded.
         uint64_t ReconstructedFrames();
 
+        // A line for the log: a removed device's reason first, then the counts, timings and
+        // memory of the latest frames and the last problem. Returns the generation. Not under
+        // the service's mutex, which the render thread holds through its waits.
         int Status(char* buffer, int size) const;
 
         // From the main thread, before it hands anything over: the generation (Status) its
-
         // ids are of. What it hands over for another than the service's own is dropped.
-
         void HandOverFor(uint32_t managedGeneration);
 
+        // The count of devices let go of (generation), without a lock.
         uint32_t Generation() const { return generation.load(); }
 
         // What the last frame took on the GPU, in milliseconds: building, tracing.
@@ -563,10 +602,13 @@ namespace redefinition
         void PassTimings(float* out, int count) const;
 
     private:
+        // Made only by Get.
         Raytracing() = default;
 
+        // A mesh handed over and not yet built: SetMesh's copy of its data.
         struct PendingMesh
         {
+            // Three floats a vertex; its attributes; three indices a triangle; the vertices.
             std::vector<float> positions;
             std::vector<float> attributes;   // normal xyz, uv xy, the colour's four bytes: six floats a vertex
             std::vector<uint32_t> indices;
@@ -577,8 +619,10 @@ namespace redefinition
             // Frames its build failed in; at kMeshAttempts it is dropped.
             uint32_t failures = 0;
         };
+        // The frames a pending mesh's build may fail in before it is dropped.
         static constexpr uint32_t kMeshAttempts = 30;
 
+        // A mesh on the device: its geometry, its bottom-level structure and its descriptor slot.
         struct Mesh
         {
             // Its vertices, attributes and indices in buffers of their own, or in a range
@@ -625,17 +669,23 @@ namespace redefinition
             // set was last found to fit.
             uint32_t ommCheckedAt = UINT32_MAX;
         };
+        // Mesh::refine: the structure in its final form (kRefineNone), or one of the steps before.
         static constexpr uint32_t kRefineNone = 0;
         static constexpr uint32_t kRefineRebuild = 1;   // built PREFER_FAST_BUILD, to be rebuilt
         static constexpr uint32_t kRefineCompact = 2;   // built with ALLOW_COMPACTION, its size asked for
 
+        // A material as the shaders read it (MaterialData, RtCommon.hlsli), in the slot's
+        // materials buffer; made from RtMaterialDesc by SetMaterial.
         struct MaterialData
         {
+            // As RtMaterialDesc has them; texture -1 where the vertex colour takes its place.
             float albedo[4];
             float specular[3];
             float smoothness;
             float emission[3];
             int32_t texture;
+            // The vertex colour's factor, the RT_SURFACE_* flags as a float, the gloss divisor
+            // and the gloss mean (RtMaterialDesc).
             float vertexColour[4];
             // x: the diffuse share (RtMaterialDesc), 1 where none was given.
             float look[4];
@@ -643,8 +693,12 @@ namespace redefinition
             float highlight[4];
         };
 
+        // Per instance of the scene, by its InstanceID, as the shaders read it (InstanceData,
+        // RtCommon.hlsli).
         struct InstanceData
         {
+            // The mesh's descriptor slot, the material's index among the frame's (0 the grey of
+            // an unknown one), the instance's flags with kRtInstanceCutout, padding.
             uint32_t meshSlot;
             uint32_t material;
             uint32_t flags;
@@ -652,8 +706,11 @@ namespace redefinition
             float normalRows[12];   // the inverse transpose of the transform's 3x3, rows first, padded
         };
 
+        // A copy of one of Unity's textures that both devices see (SharedForLocked).
         struct Shared
         {
+            // The copy; when a frame last took it (GetTickCount64), for its eviction; the
+            // fence value of the last list that used it.
             SharedTexture texture;
             ULONGLONG lastUse = 0;
             UINT64 lastFence = 0;
@@ -662,15 +719,19 @@ namespace redefinition
         // A texture of the denoiser's own, with the state it is in.
         struct DenoiseTarget
         {
+            // The texture, the state it is in now, and the format it was made in.
             Microsoft::WRL::ComPtr<ID3D12Resource> resource;
             D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
             DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
+            // Made anew at this size and format, writable, in UNORDERED_ACCESS; false where the
+            // device would not make it.
             bool Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format);
         };
 
         // The guides DLSS Ray Reconstruction takes (RaytracingShaders/Reconstruct.hlsl).
         struct GuideTargets
         {
+            // The four guides and the size they were made at (EnsureGuidesLocked).
             DenoiseTarget albedo;
             DenoiseTarget specularAlbedo;
             DenoiseTarget normalRoughness;
@@ -685,13 +746,16 @@ namespace redefinition
         // A texture a pass reads or writes: a resource and the format to view it in.
         struct View
         {
+            // Null for an empty view; the format the view is made in.
             ID3D12Resource* resource = nullptr;
             DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
+        // The view of a denoiser's texture, an empty one for null.
         static View Of(const DenoiseTarget* target)
         {
             return target != nullptr ? View{ target->resource.Get(), target->format } : View{};
         }
+        // The view of a shared copy's Direct3D 12 side, an empty one for null.
         static View Of(const Shared* shared)
         {
             return shared != nullptr ? View{ shared->texture.d3d12.Get(), shared->texture.format } : View{};
@@ -701,6 +765,8 @@ namespace redefinition
         // takes (RaytracingRegenerate.cpp).
         struct Regeneration
         {
+            // The DLL and its functions; the context, made for a size and the AMD signals it
+            // denoises (RegenerationReadyLocked); whether loading the DLL was tried once.
             HMODULE module = nullptr;
             ffxFunctions api = {};
             ffxContext context = nullptr;
@@ -735,6 +801,8 @@ namespace redefinition
         // 485 MB at 1707x960.
         struct DenoiseTargets
         {
+            // As the comment above lists them; the size they were made at; which of each pair
+            // is this frame's (parity); fresh where the view distances and normals are new.
             DenoiseTarget noisy[kRtDenoisedSignals];
             DenoiseTarget history[kRtDenoisedSignals][2];
             DenoiseTarget moments[kRtDenoisedSignals][2];
@@ -754,6 +822,7 @@ namespace redefinition
         // Reconstruction, or the denoiser turned off.
         static constexpr uint32_t kDenoiseUnusedFrames = 120;
 
+        // The frames in flight: each slot has its command allocator and buffers (Slot).
         static constexpr UINT kSlots = 3;
 
         // The world-space hash grid of the indirect light (RaytracingCache.cpp,
@@ -762,8 +831,11 @@ namespace redefinition
         // counts (kCacheStats), copied per slot for the CPU to read; and the list of the
         // entries the frame's samples went into.
         static constexpr uint32_t kCacheStats = 8;
+        // The cache's buffers and its state between frames.
         struct RadianceCache
         {
+            // The buffers in the order the comment above names them, the readback of the
+            // counts, and the entries' count as a power of two.
             Microsoft::WRL::ComPtr<ID3D12Resource> checksums;
             Microsoft::WRL::ComPtr<ID3D12Resource> accumulation;
             Microsoft::WRL::ComPtr<ID3D12Resource> values;
@@ -790,6 +862,8 @@ namespace redefinition
             bool reported = false;
             ULONGLONG nextLog = 0;
         };
+        // The meshes' descriptor slots; a slot's frame views (t1-t8, u0-u7); the descriptors of
+        // a slot's tables after the trace; the views of one such table (TableLocked).
         static constexpr UINT kMaxMeshes = 16384;
         static constexpr UINT kFrameDescriptors = 2 * kRtMaxTextures;
         static constexpr UINT kDenoiseDescriptors = 512;
@@ -811,8 +885,13 @@ namespace redefinition
         static constexpr UINT kSlotTables = kMaterialViews + kSlots;
         static constexpr UINT kHeapDescriptors = kSlotTables + kSlots * kDenoiseDescriptors;
 
+        // One of the kSlots frames in flight: what its command list records into and reads,
+        // reused once the GPU is past it (WaitForSlotLocked).
         struct Slot
         {
+            // Its allocator; the frame's constants (cbuffer Frame), mapped; the upload buffers of
+            // the scene's instance descriptions, their InstanceData and the frame's materials,
+            // and how many instances and materials they have room for.
             Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
             Microsoft::WRL::ComPtr<ID3D12Resource> constants;
             uint8_t* constantsMapped = nullptr;
@@ -855,6 +934,8 @@ namespace redefinition
         // One frame's work between the steps of OnFrame (Raytracing.cpp).
         struct FrameWork
         {
+            // The frame's packet; its slot and the slot's number; the shared copies of its input
+            // and output textures, by slot.
             const RtFramePacket* packet = nullptr;
             UINT slotNumber = 0;
             Slot* slot = nullptr;
@@ -886,32 +967,58 @@ namespace redefinition
         bool BeginListLocked(FrameWork& frame);
         // The released meshes retired, the pending ones built; how many were built.
         uint32_t BuildMeshesLocked(Slot& slot);
+        // The material textures' array grown to the highest pending layer and the pending
+        // layers copied in; false only where the array could not be made.
         bool UploadMaterialTexturesLocked(Slot& slot);
+        // With the denoiser, its noisy textures for the passes to write in place of Unity's
+        // outputs; without it for kDenoiseUnusedFrames, its textures let go. False where they
+        // could not be made.
         bool TakeNoisyTargetsLocked(FrameWork& frame);
         // A further trace of the frame whose scene was just built (kRtFrameExtra with
         // kRtFrameSameFrame, no mesh built in between): its scene is that one. False if
         // there is none to take.
         bool ReuseSceneLocked(FrameWork& frame);
+        // The frame's views in the slot's part of the heap: t1-t8 of the shared inputs, u0-u7
+        // of the outputs or the denoiser's noisy textures in their place.
         void WriteFrameViewsLocked(FrameWork& frame);
+        // cbuffer Frame from the packet, with the flags the settings add and the radiance
+        // cache's constants.
         void WriteConstantsLocked(const FrameWork& frame);
+        // Unity's textures from COMMON into the states the passes use, each once, with the
+        // barriers back kept for FinishFrameLocked.
         void TransitionTexturesLocked(FrameWork& frame);
+        // The heap, the root signature and the frame's root parameters on the list: before the
+        // passes, and again after anything that sets its own.
         void BindFrameLocked(const FrameWork& frame);
+        // The signals' passes in kRtPassOrder, the denoisers and the radiance cache's resolve
+        // in their places, each pass's end stamped.
         void RunPassesLocked(FrameWork& frame);
+        // One pass dispatched in 8 x 8 groups after a barrier on what came before; the forward
+        // light reads the finished diffuse light and reflections as textures.
         void DispatchPassLocked(FrameWork& frame, uint32_t signal, ID3D12PipelineState* pipeline);
         // AMD FSR Ray Regeneration and ReDefinition's denoiser, in the denoiser's place
         // among the passes.
         void RunDenoisersLocked(FrameWork& frame);
+        // DLSS Ray Reconstruction's guides from this frame's surfaces (kRtFrameGuides), for the
+        // reconstruction of the same frame; not with the denoiser, nor in a further trace.
         void WriteFrameGuidesLocked(FrameWork& frame);
         // The radiance cache (RaytracingCache.cpp): made, cleared or let go as the settings
         // say, before the frame's constants; its constants and bindings; its clearing or the
         // frame's counts zeroed before the passes; its resolve after them; the counts read
         // once the slot's list is done.
         void PrepareRadianceCacheLocked(FrameWork& frame);
+        // The cache's tile, offset, parameters and sizes into cbuffer Frame, where it runs.
         void WriteRadianceCacheConstantsLocked(RtFrameConstants& constants) const;
+        // Its buffers at root parameters 12-16, where it is there.
         void BindRadianceCacheLocked();
+        // Cleared where it is new or the history broke off, otherwise the frame's counts zeroed.
         void BeginRadianceCacheLocked(FrameWork& frame);
+        // The frame's sums resolved into the values and the counts copied for the CPU; not in a
+        // further trace.
         void ResolveRadianceCacheLocked(FrameWork& frame);
+        // The counts a done slot's list copied, read for the status and the log.
         void ReadRadianceCacheStatsLocked(UINT slotNumber);
+        // Its buffers let go of, held by the given slot until its list is done (null: at once).
         void ReleaseRadianceCacheLocked(Slot* holder);
         // The pass's pipeline with the cache where this frame uses it (the diffuse light's and
         // the reflections' own), the given one otherwise.
@@ -921,8 +1028,14 @@ namespace redefinition
 
         // The device's objects (RaytracingDevice.cpp).
         bool EnsureDeviceLocked();
+        // The passes' compiled shaders from the proxy's own resources (RCDATA), once; false
+        // where one is missing.
         bool LoadShadersLocked();
+        // The root signature and a pipeline per pass and per entry of kRtDenoiseEntries, made
+        // with opacity micromaps' support where they are wanted and the driver has them.
         bool BuildPipelinesLocked();
+        // The shared copy of one of Unity's textures, made anew where its size or format
+        // changed; null with the reason in problem where it cannot be shared.
         Shared* SharedForLocked(void* unityTexture, std::string& problem);
         // The scene (RaytracingScene.cpp).
         bool TakeDescriptorSlotLocked(uint32_t& slot);
@@ -941,17 +1054,29 @@ namespace redefinition
         // rtBlasCompaction's later steps: the structures compacted whose compacted size came
         // back, those built fast rebuilt for tracing. How many structures changed.
         uint32_t CompactMeshesLocked(BuildFrame& frame, Slot& slot);
+        // The structures built fast rebuilt for tracing, with compaction, rtBlasRefineBudget
+        // triangles a frame and at least one structure; how many were rebuilt.
         uint32_t RefineMeshesLocked(BuildFrame& frame, Slot& slot);
         // Into the frame's list: a geometry buffer ready to copy into, or to be read by a
         // build.
         void ToCopyLocked(BuildFrame& frame, ID3D12Resource* buffer);
+        // The buffer noted for the barrier into NON_PIXEL_SHADER_RESOURCE that comes with the
+        // builds (FlushBuildsLocked).
         void ToReadLocked(BuildFrame& frame, ID3D12Resource* buffer);
+        // Upload memory for the frame's copies: from the slot's arena where the pools are on,
+        // else a buffer of its own held by the slot; where it lies, for the GPU and the CPU.
         bool UploadSpaceLocked(BuildFrame& frame, Slot& slot, UINT64 size, ID3D12Resource*& buffer, UINT64& offset,
                                uint8_t*& cpu, UINT64 alignment = 16);
+        // A build's scratch, 256-byte aligned, in UNORDERED_ACCESS or COMMON: from the slot's
+        // arena where the pools are on, else a buffer of its own held by the slot.
         bool ScratchLocked(BuildFrame& frame, Slot& slot, UINT64 size, D3D12_GPU_VIRTUAL_ADDRESS& address);
+        // The memory of a bottom-level structure of that size: a range of the structures' pool,
+        // or a committed buffer of its own.
         bool MakeBlasLocked(UINT64 size, bool pooled, RtStoredBuffer& blas);
         // A compacted size asked of the build queued last, into the slot's buffer of them.
         bool AskSizeLocked(BuildFrame& frame, int32_t id, uint32_t serial);
+        // A structure let go of: its buffer held by the slot, or its range freed once the queue
+        // is past the list being recorded.
         void RetireBlasLocked(RtStoredBuffer& blas, Slot& slot);
         // A mesh's buffers held by the slot, its descriptor slot free again once the
         // slot's list is done.
@@ -959,14 +1084,16 @@ namespace redefinition
         // The same with the queue idle: all free at once.
         void FreeMeshNowLocked(Mesh& mesh);
         // rtMegaGeometry (RaytracingMegaGeometry.cpp): whether the device's driver offers
-        // RTX Mega Geometry's cluster operations, asked once a device; a new mesh's clusters
-        // queued, false where its runs of 256 triangles do not each fit a cluster or the
-        // memory could not be had, nothing queued then; the frame's clusters built; a mesh's
-        // share of its batch of CLAS let go of, the batch freed past the fence value once
-        // no mesh holds it.
+        // RTX Mega Geometry's cluster operations, asked once a device.
         bool MegaGeometryReadyLocked();
+        // A new mesh's clusters queued, false where its runs of 256 triangles do not each fit
+        // a cluster or the memory could not be had, nothing queued then.
         bool QueueClustersLocked(BuildFrame& frame, Mesh& mesh, const PendingMesh& pending, Slot& slot);
+        // The frame's clusters built: their CLAS in one range, then each mesh's cluster BLAS;
+        // a mesh that gets none is built the usual way.
         void FlushClustersLocked(BuildFrame& frame, Slot& slot);
+        // A mesh's share of its batch of CLAS let go of, the batch freed past the fence value
+        // once no mesh holds it.
         void ReleaseClustersLocked(Mesh& mesh, UINT64 freeAt);
         // From WaitForSlotLocked: the GPU's time of a slot's mesh builds.
         void NoteMeshBuildTimeLocked(UINT slotNumber, double ms);
@@ -988,42 +1115,66 @@ namespace redefinition
         // and past a grace period the meshes with micromaps queued to be built plain again
         // (RefineMeshesLocked lets go of their sets), the sets nobody holds freed.
         void OmmIdleLocked();
+        // The sets nobody has held for a while nor waits for freed, their arrays past the list
+        // being recorded.
         void OmmSweepSetsLocked();
         // A set let go of by one mesh, freed past freeAt once none holds it; a mesh's share of
         // its set let go of.
         void OmmUnrefSetLocked(uint32_t setId, UINT64 freeAt);
+        // A mesh's share of its set let go of, and the mesh counted out of the status's.
         void OmmReleaseMeshLocked(Mesh& mesh, UINT64 freeAt);
+        // A mesh released: its texture coordinates and its request for a bake forgotten.
         void OmmForgetMeshLocked(int32_t id);
         // How an instance of a mesh and a material stands with the micromaps: whether its
         // flags drop FORCE_NON_OPAQUE (the micromap decides the opaque parts), and whether
         // they switch the micromaps off.
         struct OmmFlags
         {
+            // The two answers, in the order the comment above gives them.
             bool dropNonOpaque = false;
             bool disable = false;
         };
+        // For a mesh with a set: the micromaps apply where the instance is cut out by the
+        // texture layer and coverage they were baked for and are live this frame; otherwise
+        // they are switched off for the instance.
         OmmFlags OmmInstanceLocked(const Mesh& mesh, int32_t material, bool cutout);
         // A scene's cut-out instance of a mesh with no micromap yet: asked for.
         void OmmWantLocked(Mesh& mesh, int32_t material);
+        // A mesh's structure queued anew with its set's micromaps, the set's array built first
+        // where no mesh used it yet; the structure it had let go of. False where memory or the
+        // driver's sizes could not be had.
         bool OmmQueueBuildLocked(BuildFrame& frame, Mesh& mesh, uint32_t setId, Slot& slot);
+        // The frame's micromap arrays' builds recorded, then a barrier before the structures
+        // that name them.
         void FlushOmmArraysLocked(BuildFrame& frame);
 
         // Whether a material's texture cuts its surface out.
         bool IsCutoutLocked(int32_t material) const;
+        // The scene's top-level structure for a frame: its instances (or the newest scene's)
+        // with built meshes, its materials, the GPU's instances after them; how many instances.
         bool BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances, UINT& instanceCount);
         // The GPU's instances after the CPU's in the slot's scene buffers.
         bool AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances, const std::vector<RtGpuInstanceGroup>& given,
                                    const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total);
+        // A new upload buffer of that size in GENERIC_READ, in place of the one given.
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
+        // The material textures' view in the slot's place of the heap.
         void WriteMaterialViewLocked(UINT slotNumber);
+        // The material textures' array with room for that many layers, grown by doubling up to
+        // kRtMaxMaterialTextures, the layers there are copied over; the old one held by the slot.
         bool EnsureMaterialTexturesLocked(UINT layers, Slot& slot);
         // The denoiser's textures (DenoiseTargets): the noisy ones of the signals by their
         // place in kRtDenoised, then the filter's for the signals it filters; each let go
         // into the slot's held resources where it is no longer taken.
         bool EnsureDenoiseTargetsLocked(UINT width, UINT height, uint32_t noisy, Slot& slot);
+        // The filter's textures for the signals present (by their place in kRtDenoised).
         bool EnsureFilterTargetsLocked(uint32_t present, Slot& slot);
+        // One of the denoiser's textures emptied, the texture held by the slot until it is done.
         void DropDenoiseTargetLocked(DenoiseTarget& target, Slot& slot);
+        // All of the denoiser's textures dropped so.
         void DropDenoiseTargetsLocked(Slot& slot);
+        // A texture of the service's own into the state wanted, with a barrier; a UAV barrier
+        // where it is already writable, so that one dispatch's writes come before the next's.
         void UseLocked(DenoiseTarget& target, D3D12_RESOURCE_STATES wanted);
         // Views for one dispatch of the passes in space 3: eight to read, four to write.
         // Returns the table's start on the GPU; the writes follow the reads.
@@ -1032,27 +1183,43 @@ namespace redefinition
         // A table of TableLocked's layout bound: its reads at root parameter 10, its writes
         // at 11.
         void BindTablesLocked(D3D12_GPU_DESCRIPTOR_HANDLE table);
+        // ReDefinition's denoiser (RaytracingDenoise.cpp) for the packet's denoised signals: its
+        // prepare, temporal, variance and à-trous steps from their noisy textures, the last step
+        // into Unity's outputs.
         void RunDenoiserLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput);
         // AMD FSR Ray Regeneration for the diffuse light and the reflections where its DLL
         // runs on this GPU; false where ReDefinition's denoiser takes them.
         bool RegenerationReadyLocked(const RtFramePacket& packet);
+        // The guides AMD's denoiser takes written and its dispatch recorded, for the diffuse
+        // light and the reflections into Unity's outputs; false where it did not run.
         bool RunRegenerationLocked(const RtFramePacket& packet, UINT slotNumber, Shared* const* outputs, Shared* motionInput,
                                    Slot& slot);
+        // AMD's context destroyed and its guides let go of; the DLL stays loaded.
         void ReleaseRegenerationLocked();
         // The guides at this size, the ones before held by the slot until it is done.
         bool EnsureGuidesLocked(std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& held, UINT width, UINT height);
+        // A new buffer in GPU memory of that size, state and flags, in place of the one given.
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
         // Closes the list and executes it; the fence value it signals, or 0 where the list
         // could not be closed and the device's objects were let go of.
         UINT64 SubmitLocked(Slot& slot, Shared* const* inputs, Shared* const* outputs);
+        // Until the GPU is past the slot's list and any later one that read its scene; then its
+        // timestamps and the radiance cache's counts read where the list wrote them.
         void WaitForSlotLocked(Slot& slot);
+        // Until the GPU is past every list submitted.
         void WaitForAllLocked();
         void ReleaseLocked();
+        // The status's last problem, logged where it differs from the one before.
         void SetProblem(const std::string& text);
 
+        // The service's state: held by the render thread through a frame, a reconstruction or a
+        // release, and by Attach, Detach and Available.
         mutable std::mutex mutex;
 
+        // The swapchain proxy that attached the devices; whether they are attached; Unity's
+        // Direct3D 11 device and context; the proxy's Direct3D 12 device and the queue the
+        // service submits to (its own, or the swapchain's).
         const void* owner = nullptr;
         std::atomic<bool> attached{ false };
         Microsoft::WRL::ComPtr<ID3D11Device5> device11;
@@ -1117,8 +1284,11 @@ namespace redefinition
         std::unordered_map<int32_t, PendingMesh> pendingMeshes;
         std::vector<int32_t> pendingReleases;
         std::unordered_map<int32_t, MaterialData> materialData;
+        // A frame's instances and GPU instance groups, as SetInstances and SetGpuGroups hand
+        // them over.
         struct FrameScene
         {
+            // The frame they are for (kRtAnyFrame: every frame), the instances, the groups.
             uint32_t frameIndex = kRtAnyFrame;
             std::vector<RtInstance> instances;
             std::vector<RtGpuInstanceGroup> groups;
@@ -1138,6 +1308,7 @@ namespace redefinition
         // start of a frame and takes it into the pending state above (TakeHandOverLocked).
         struct HandOver
         {
+            // The material textures' layers set, by layer.
             std::unordered_map<int, std::vector<uint8_t>> textures;
             // A mesh is in one of the two, by what was asked of it last.
             std::unordered_map<int32_t, PendingMesh> meshes;
@@ -1146,22 +1317,32 @@ namespace redefinition
             std::unordered_map<int32_t, std::pair<bool, MaterialData>> materials;
             std::deque<FrameScene> scenes;
         };
+        // The lock of the hand-over and of handOverGeneration; the hand-over the main thread
+        // writes; the one the render thread swapped out and empties.
         std::mutex handOverLock;
         HandOver handOver;
         HandOver handOverTaken;
+        // At a frame's start: the hand-over swapped out under its lock and taken into the
+        // pending meshes, releases, materials, textures and frameScenes, in the order it was set.
         void TakeHandOverLocked();
 
+        // The meshes on the device, by the id they were handed over under.
         std::unordered_map<int32_t, Mesh> meshes;
         // The memory the meshes' structures are built in (RaytracingBuild.h) and what the
         // slots' lists did with it.
         struct BlasMemory
         {
+            // The pools of the structures and of the meshes' geometry (rtBlasPool); the bytes in
+            // buffers of their own outside them.
             RtBufferPool blas;
             RtBufferPool geometry;
             UINT64 committedBlas = 0;
             UINT64 committedGeometry = 0;
+            // A slot's share: what its list builds from and what it built.
             struct PerSlot
             {
+                // The arenas of its uploads and its builds' scratch (UploadSpaceLocked,
+                // ScratchLocked).
                 RtLinearArena upload;
                 RtLinearArena scratch;
                 // The compacted sizes its list asked for (rtBlasCompaction), by mesh and
@@ -1181,6 +1362,7 @@ namespace redefinition
                 uint64_t builtTriangles = 0;
                 double cpuMs = 0.0;
             };
+            // Per slot its share; the meshes built fast, waiting to be rebuilt (RefineMeshesLocked).
             PerSlot slots[kSlots];
             std::deque<int32_t> toRefine;
             // rtMegaGeometry: a frame's CLAS in one range of the structures' pool, freed once
@@ -1189,24 +1371,32 @@ namespace redefinition
             // by its count of clusters.
             struct ClasBatch
             {
+                // The CLAS' range, and how many meshes are built of them.
                 RtPoolRange range;
                 uint32_t meshes = 0;
             };
+            // The batches by number and the next number; the driver's support and its functions.
             std::unordered_map<uint32_t, ClasBatch> clasBatches;
             uint32_t nextClasBatch = 1;
             int clusterSupport = -1;
             void* getRequirements = nullptr;
             void* execute = nullptr;
+            // The result's and the scratch's size of a cluster BLAS.
             struct ClusterBlasSize
             {
+                // In bytes, as the driver gave them.
                 UINT64 result = 0;
                 UINT64 scratch = 0;
             };
+            // The cluster BLAS' sizes by their count of clusters; the next structure's serial
+            // (Mesh::blasSerial); whether the pools and arenas are set up (BuildMeshesLocked).
             std::unordered_map<uint32_t, ClusterBlasSize> clusterBlasSizes;
             uint32_t nextSerial = 1;
             bool setUp = false;
+            // All of it let go of with the device's objects (ReleaseLocked).
             void Reset();
         };
+        // The memory of the meshes' structures, and the slots' shares of it.
         BlasMemory blasMemory;
 
         // Opacity micromaps (RaytracingOmm.cpp).
@@ -1231,23 +1421,30 @@ namespace redefinition
             // A texture's coverage (the alpha of its 64 x 64 pixels) and its hash, by layer.
             struct Alpha
             {
+                // A byte a pixel, rows from the top; their hash.
                 std::vector<uint8_t> bytes;
                 uint64_t hash = 0;
             };
+            // The coverages by layer, and how often any of them changed.
             std::unordered_map<int, Alpha> alpha;
             uint32_t alphaChanges = 0;
             // The texture coordinates of the meshes a cut-out instance may use, by their id.
             struct Source
             {
+                // Per triangle its three corners' coordinates; their hash.
                 std::vector<omm::TriangleUv> triangles;
                 uint64_t uvHash = 0;
             };
+            // The meshes' coordinates by id; the meshes cut-out instances use
+            // (OmmCollectCutoutMeshesLocked).
             std::unordered_map<int32_t, Source> sources;
             std::unordered_set<int32_t> cutoutMeshes;
             // A set: a baked mesh's micromaps, shared by the meshes with the same texture
             // coordinates and texture.
             struct Set
             {
+                // Its key (coordinates, coverage and level), its micromap array, each triangle's
+                // micromap or uniform state, and the counts by level the structures name.
                 uint64_t key = 0;
                 RtStoredBuffer array;
                 std::vector<int32_t> triangleIndex;
@@ -1262,6 +1459,8 @@ namespace redefinition
                 uint32_t idleSince = 0;
                 UINT64 arrayBytes = 0;
             };
+            // The sets by id, their ids by key, the next id; the count of updates (OmmUpdateLocked,
+            // OmmIdleLocked), which the sets' and the switch-off's waits are counted in.
             std::unordered_map<uint32_t, Set> sets;
             std::unordered_map<uint64_t, uint32_t> byKey;
             uint32_t nextSet = 1;
@@ -1280,19 +1479,25 @@ namespace redefinition
             // The baker's thread: jobs in, results out.
             struct Job
             {
+                // The set's key, the mesh's coordinates and the texture's coverage to bake, the
+                // bake's settings, and the epoch it was asked in.
                 uint64_t key = 0;
                 std::vector<omm::TriangleUv> triangles;
                 std::vector<uint8_t> alpha;
                 omm::Settings settings;
                 uint32_t epoch = 0;
             };
+            // A bake done, for the render thread to make a set of.
             struct Result
             {
+                // The job's key, the micromaps baked, the job's epoch, and the bake's time.
                 uint64_t key = 0;
                 omm::Baked baked;
                 uint32_t epoch = 0;
                 double ms = 0.0;
             };
+            // Under jobLock, the jobs and the results, the thread woken by jobSignal; whether the
+            // thread runs; the epoch, counted up by Reset, which drops what was asked before.
             std::mutex jobLock;
             std::condition_variable jobSignal;
             std::deque<Job> jobs;
@@ -1307,8 +1512,11 @@ namespace redefinition
             uint32_t ommEntries = 0;
             uint32_t uniformTriangles = 0;
             uint32_t builtTriangles = 0;
+            // All of it let go of with the device's objects (ReleaseLocked); bakes in flight
+            // dropped by the new epoch.
             void Reset();
         };
+        // The opacity micromaps' state on this device.
         OmmMemory omm;
         // The status's numbers: meshes with micromaps, the arrays' bytes and the triangles in
         // them, under statusLock.
@@ -1330,11 +1538,16 @@ namespace redefinition
         // once it sees the new generation -- built, they would never be released. Read
         // and changed under handOverLock, as generation is changed.
         uint32_t handOverGeneration = UINT32_MAX;
+        // Whether what the main thread hands over now is for the service's generation, under
+        // handOverLock.
         bool HandOverCurrentLocked() const
         {
             return handOverGeneration == UINT32_MAX || handOverGeneration == generation.load();
         }
 
+        // The lock of the status's numbers below, which the main thread reads without the
+        // mutex; the last problem (SetProblem); the frames traced, not the further traces; the
+        // frames Ray Reconstruction evaluated.
         mutable std::mutex statusLock;
         std::string lastProblem;
         uint64_t frames = 0;

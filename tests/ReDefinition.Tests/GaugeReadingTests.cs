@@ -11,6 +11,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class GaugeReadingTests
     {
+        // An engine with what its tanks hold, what they held as built, and the flow it burns, in tonnes and
+        // tonnes a second.
         private static EngineFuel Engine(string name, double left, double full, double flow)
         {
             return new EngineFuel { Name = name, Left = left, Full = full, Flow = flow };
@@ -85,6 +87,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1.0s", reading.Text);
         }
 
+        // No stage gauge without engines or without a burn time left.
         [TestMethod]
         public void NoStageWithoutABurnTimeOrEngines()
         {
@@ -143,6 +146,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(GaugeReadings.Attack(10.0, 30.0).Fill, GaugeReadings.Attack(-10.0, 20.0).Fill, 1e-12);
         }
 
+        // Closing on a target, the tick stands at the safe speed, a hundredth of the distance per second but at
+        // least 0.2 m/s: caution above it, warning beyond one and a half times it, an empty arc moving away.
         [TestMethod]
         public void ClosingAgainstTheSafeSpeed()
         {
@@ -157,6 +162,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.2, GaugeReadings.SafeClosing(5.0), 1e-12);
         }
 
+        // Before a burn the arc counts down the time to it, caution in the last ten seconds; during it, the
+        // delta-v left as a share of what the burn started with, caution in the last tenth.
         [TestMethod]
         public void TheBurnCountsDownThenRunsOut()
         {
@@ -170,6 +177,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, GaugeReadings.Burning(40.0, 800.0).Level);
         }
 
+        // The angle of attack fills the arc from 0 to 40 degrees either way: caution from four fifths of the
+        // stall angle, warning beyond it, the warning band starting at the stall.
         [TestMethod]
         public void TheAngleOfAttackAgainstTheStall()
         {

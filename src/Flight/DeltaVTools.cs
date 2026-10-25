@@ -44,17 +44,22 @@ namespace ReDefinition.Flight
     {
     }
 
+    // The same in flight, where the button opens and closes the stages' details only.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class DeltaVToolsFlight : DeltaVTools
     {
     }
 
+    // The tools as the comment above has them, in the editors and in flight.
     public abstract class DeltaVTools : MonoBehaviour
     {
+        // KSP's members the tools reach that are not public.
         private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
         // The app frame's own height beyond its list (DeltaVApp: 27).
         private const float FrameExtra = 27f;
 
+        // KSP's own: the tools' frame and situation prefabs, the launcher's pinned button and its click, and an info line's
+        // setter that does not save settings.cfg.
         private static readonly FieldInfo FramePrefabField = typeof(DeltaVApp).GetField("appFramePrefab", Private);
         private static readonly FieldInfo SituationPrefabField = typeof(DeltaVApp).GetField("situationPrefab", Private);
         private static readonly FieldInfo PinnedField = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
@@ -64,13 +69,17 @@ namespace ReDefinition.Flight
         // The situation panel of the scene's tools, for the typing postfix.
         private static DeltaVAppSituation typedIn;
 
+        // The stages seen so far, for the one added while the tools are open; whether the tools are open.
         private readonly HashSet<StageGroup> seen = new HashSet<StageGroup>();
         private bool open;
         // Closed, while the details still slide out.
         private bool closing;
+        // Set where something failed: the tools stay as they are for the scene.
         private bool failed;
         // A craft was loaded or started anew: every stage opens again a frame later.
         private int reopenAt = -1;
+        // The box in the stack's bottom group and its layout; KSP's app frame in it and its situation panel; the frame's
+        // height, once measured.
         private RectTransform box;
         private LayoutElement boxLayout;
         private RectTransform frame;
@@ -95,6 +104,7 @@ namespace ReDefinition.Flight
         // KSP's own window and buttons otherwise.
         private static bool active = true;
 
+        // Prefix on DeltaVApp.DisplayApp: KSP's window is skipped while the tools stand in the staging stack.
         private static bool SkipWindow()
         {
             return !active;
@@ -131,11 +141,13 @@ namespace ReDefinition.Flight
             }
         }
 
+        // Postfix on DeltaVApp.TextFieldHasFocus: the tools' altitude field counts as typed in, so that the editor's keys wait.
         private static void AlsoTyped(ref bool __result)
         {
             if (!__result && typedIn != null && typedIn.isActiveAndEnabled) __result = typedIn.AltitudeHasFocus();
         }
 
+        // Off where the player switched the tools off; else listens for a craft started anew and for the stages' arrangement.
         private void Start()
         {
             active = FlightUiSwitch.On(s => s.DeltaVTools);
@@ -148,6 +160,7 @@ namespace ReDefinition.Flight
             StageInfoColumns.Arranged += Follow;
         }
 
+        // Lets go of the events and destroys the box.
         private void OnDestroy()
         {
             GameEvents.onEditorStarted.Remove(EditorStarted);
@@ -156,11 +169,13 @@ namespace ReDefinition.Flight
             if (box != null) Destroy(box.gameObject);
         }
 
+        // KSP closed every stage for a craft loaded or started anew: they open again a frame later.
         private void EditorStarted()
         {
             if (open) reopenAt = Time.frameCount + 1;
         }
 
+        // Every frame: every value shown, the stages' details opened or closed with the button, and a stage added opened too.
         private void Update()
         {
             if (failed) return;
@@ -208,6 +223,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // Turns the tools off for the scene and says why in the log.
         private void Fail(Exception e)
         {
             failed = true;
@@ -256,6 +272,8 @@ namespace ReDefinition.Flight
 
         // ------------------------------------------------------------ window
 
+        // The box as wide as the widest open stage and as tall as its share of the slide; shown only as the tools open,
+        // stand open or close.
         private void Window(DeltaVApp app, StageManager manager)
         {
             if (box == null && !Build(app, manager)) return;
@@ -366,6 +384,7 @@ namespace ReDefinition.Flight
             }
         }
 
+        // Switches off the panel's child at `path`, where it has one.
         private static void Hide(Transform panel, string path)
         {
             Transform found = panel.Find(path);

@@ -46,6 +46,7 @@ namespace redefinition
             return end == std::string::npos ? text : text.substr(end + 3);
         }
 
+        // How often the last line repeated, logged and reset; g_repeatLock held.
         void LogRepeatsLocked()
         {
             if (g_repeats > 0)
@@ -59,11 +60,13 @@ namespace redefinition
             return frameGeneration ? "DLSS frame generation: " : "DLSS Ray Reconstruction: ";
         }
 
+        // The tail of a line that says Streamline did not run: what runs instead.
         const char* InsteadFor(bool frameGeneration)
         {
             return frameGeneration ? " -- FSR frame generation instead" : " -- no DLSS Ray Reconstruction";
         }
 
+        // A Streamline result for the log: its enumerator's name, with the cause in words for the common ones.
         std::string ResultText(sl::Result result)
         {
             switch (result)

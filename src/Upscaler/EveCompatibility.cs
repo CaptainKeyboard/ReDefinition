@@ -43,10 +43,13 @@ namespace ReDefinition.Upscaler
     // verified.
     internal static class EveCompatibility
     {
+        // EVE's types, by full name: the volumetric clouds renderer, the screen-space shadows renderer and its manager.
         private const string CloudsRendererTypeName = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
         private const string ShadowsRendererTypeName = "Atmosphere.ScreenSpaceShadowsRenderer";
         private const string ShadowsManagerTypeName = "Atmosphere.ScreenSpaceShadowsManager";
 
+        // Whether Resolve has run, and EVE's members it found: ReinitAll, a shadow renderer's size and
+        // SetRenderingResolution, the manager's instance, its camera-to-renderer table and UpdateRenderers.
         private static bool resolved;
         private static MethodInfo reinitAll;
         private static FieldInfo shadowsWidth;
@@ -56,6 +59,7 @@ namespace ReDefinition.Upscaler
         private static FieldInfo shadowsRenderers;
         private static MethodInfo shadowsManagerUpdate;
 
+        // Whether EVE is installed with at least one of the two parts this class can resize.
         public static bool Present
         {
             get
@@ -65,6 +69,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Whether every member the shadow resize needs was found.
         private static bool ShadowsUsable
         {
             get
@@ -83,6 +88,7 @@ namespace ReDefinition.Upscaler
             ResizeShadows(reason);
         }
 
+        // Drops every volumetric clouds renderer through EVE's ReinitAll; EVE makes new ones by the current camera size.
         private static void RebuildClouds(string reason)
         {
             if (reinitAll == null) return;
@@ -99,6 +105,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Sizes every screen-space shadow renderer whose size is not its camera's any more anew, then has the manager
+        // rebuild the command buffers.
         private static void ResizeShadows(string reason)
         {
             if (!ShadowsUsable) return;
@@ -151,6 +159,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Looks EVE's types and members up by reflection, once; warns when EVE is installed but some are missing.
         private static void Resolve()
         {
             if (resolved) return;

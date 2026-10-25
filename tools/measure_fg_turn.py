@@ -20,10 +20,12 @@ from PIL import Image
 
 
 def grey(image):
+    """An 8-bit image as grey (RGB mean), as floats."""
     return image[..., :3].astype(np.float32).mean(axis=2)
 
 
 def reference(turn, name, w, h):
+    """A turn frame as the dump encodes it (rows flipped, gamma 2.2, 8 bits), grey, averaged down to half size."""
     raw = np.fromfile(os.path.join(turn, name + '_colour.bin'), dtype=np.float16).reshape(h, w, 4).astype(np.float32)
     encoded = (np.clip(raw[::-1, :, :3], 0.0, 1.0) ** (1.0 / 2.2) * 255.0 + 0.5).astype(np.uint8).astype(np.float32)
     g = encoded.mean(axis=2)
@@ -31,6 +33,7 @@ def reference(turn, name, w, h):
 
 
 def errors(a, b):
+    """The mean absolute difference over the whole frame and over its outer tenth on the left and right."""
     d = np.abs(a - b)
     h, w = d.shape
     edge = np.zeros_like(d, dtype=bool)
@@ -39,6 +42,8 @@ def errors(a, b):
 
 
 def main():
+    """Print, per generated frame between two consecutive real ones, its error and the newer frame's against the
+    reference halfway, and the newer frame's against its own pose as a check."""
     if len(sys.argv) < 4:
         sys.exit(__doc__)
     recording, turn, first = sys.argv[1], sys.argv[2], int(sys.argv[3])

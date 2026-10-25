@@ -25,6 +25,8 @@ namespace ReDefinition
     // (ReDefinitionAddon).
     internal static class OurModules
     {
+        // The upscaler: on or off, the technique and its mode, the render height, the DLSS model, the sharpness, and
+        // whether the upscaler is the only antialiasing.
         public static readonly IGraphicsModule Upscaler = new GraphicsModule("upscaler", "Upscaler",
             new ModuleSetting
             {
@@ -182,6 +184,7 @@ namespace ReDefinition
                 Write = (settings, value) => settings.OneAntialiasing = bool.Parse(value),
             });
 
+        // Frame generation: the switch a profile sets, and the player's technique and multiplier rows.
         public static readonly IGraphicsModule FrameGeneration = new GraphicsModule("frameGeneration", "Frame generation",
             new ModuleSetting
             {
@@ -512,6 +515,7 @@ namespace ReDefinition
         private static float raytracingAskedAt = float.MinValue;
         private static bool raytracingOffered;
 
+        // The cached answer, asked of the proxy again once a second has passed.
         private static bool RaytracingOffered()
         {
             float now;
@@ -530,6 +534,7 @@ namespace ReDefinition
             return raytracingOffered;
         }
 
+        // The light colour row's value as its row names it.
         private static string LightColourLabel(string value)
         {
             ReDefinition.Raytracing.RaytracingLightColour colour;
@@ -542,6 +547,7 @@ namespace ReDefinition
             }
         }
 
+        // A fraction's value as a whole percentage, e.g. "50 %".
         private static string PercentLabel(string value)
         {
             return float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %";
@@ -554,12 +560,14 @@ namespace ReDefinition
                    || settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full;
         }
 
+        // The raytracing mode a value names; Off where it names none.
         private static ReDefinition.Raytracing.RaytracingMode RaytracingModeOf(string value)
         {
             ReDefinition.Raytracing.RaytracingMode mode;
             return System.Enum.TryParse(value, out mode) ? mode : ReDefinition.Raytracing.RaytracingMode.Off;
         }
 
+        // The raytracing row's names for its modes.
         private static string RaytracingLabel(string value)
         {
             switch (RaytracingModeOf(value))
@@ -880,6 +888,7 @@ namespace ReDefinition
                 Write = (settings, value) => settings.ScaleModWindows = bool.Parse(value),
             });
 
+        // The heading the scaling rows stand under in their tab.
         private const string ScalingSection = "Scaling";
 
         // The main menu's scene (Menu/MenuFireworks).
@@ -982,8 +991,10 @@ namespace ReDefinition
                 Write = (settings, value) => settings.DashboardNetwork = bool.Parse(value),
             });
 
+        // The heading the dashboard's rows stand under in the Devices tab.
         private const string DashboardSection = "Dashboard";
 
+        // Every module, in the order their rows stand where Order ties; profiles find them here by name.
         public static readonly IList<IGraphicsModule> All =
             new List<IGraphicsModule>
                 {
@@ -1010,6 +1021,7 @@ namespace ReDefinition
                 }
                 .AsReadOnly();
 
+        // The dialog rows that stand in that tab.
         public static List<ModuleDialog> DialogRows(SettingCategory tab)
         {
             List<ModuleDialog> rows = new List<ModuleDialog>();
@@ -1018,6 +1030,7 @@ namespace ReDefinition
             return rows;
         }
 
+        // A module by its name in a profile's MODULE node; null where there is none.
         public static IGraphicsModule Find(string name)
         {
             foreach (IGraphicsModule module in All)
@@ -1025,7 +1038,7 @@ namespace ReDefinition
             return null;
         }
 
-        // Every module's settings in the order their rows stand, in that tab; those
+        // Every module's settings under General in the order their rows stand; those
         // not present (ModuleSetting.Present) left out.
         public static List<ModuleSetting> Rows()
         {
@@ -1038,6 +1051,8 @@ namespace ReDefinition
             return Rows(tab).FindAll(setting => setting.Detail == detail);
         }
 
+        // Every module's settings in that tab, the present ones only, sorted by Order; equal orders keep the modules'
+        // order.
         public static List<ModuleSetting> Rows(SettingCategory tab)
         {
             List<ModuleSetting> rows = new List<ModuleSetting>();
@@ -1067,11 +1082,13 @@ namespace ReDefinition
             return names;
         }
 
+        // A DLSS model by its name, case aside.
         private static DlssModel DlssModelOf(string name)
         {
             return (DlssModel)System.Enum.Parse(typeof(DlssModel), name, true);
         }
 
+        // An upscaler technique by its name, case aside.
         private static UpscalerBackend Backend(string name)
         {
             return (UpscalerBackend)System.Enum.Parse(typeof(UpscalerBackend), name, true);
@@ -1094,7 +1111,6 @@ namespace ReDefinition
                 : FrameGenerationTechniqueSetting.Label(value);
         }
 
-        // Auto with the technique that lowers the latency in brackets; Off as it is.
         // Off, and the technique the proxy's swapchain was made for, take effect at once; another one when KSP
         // starts again (the window asks then whether to restart).
         private static ApplyWindow FrameGenerationTakesEffect(string after)
@@ -1105,6 +1121,7 @@ namespace ReDefinition
             return FrameGenerationBridge.Limits().Technique == kind ? ApplyWindow.Live : ApplyWindow.Restart;
         }
 
+        // Auto with the technique that lowers the latency in brackets (ReflexFrames); any other value as it is.
         private static string LowLatencyLabel(string value)
         {
             if (value != LowLatencySetting.Auto) return value;
@@ -1112,6 +1129,7 @@ namespace ReDefinition
             return name == null ? value : "Auto (" + name + ")";
         }
 
+        // The technique's name; for AMD's and Intel's the version their DLL runs, e.g. "FSR 4.1.1", once it is known.
         internal static string TechniqueLabel(UpscalerBackend backend)
         {
             string running = backend == UpscalerBackend.Amd ? AmdUpscalerBridge.RunningName()
@@ -1120,6 +1138,7 @@ namespace ReDefinition
             return running ?? UpscalerBackends.Name(backend);
         }
 
+        // An upscaler mode by its name, case aside.
         private static Fsr3Upscaler.QualityMode Mode(string name)
         {
             return (Fsr3Upscaler.QualityMode)System.Enum.Parse(typeof(Fsr3Upscaler.QualityMode), name, true);

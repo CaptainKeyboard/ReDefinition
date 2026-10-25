@@ -21,6 +21,8 @@ namespace ReDefinition.Raytracing
     // same, so that the light they bring matches what those shaders add.
     internal struct RtMaterial
     {
+        // The diffuse colour after what the specular takes of it, the specular colour, the smoothness the rays
+        // reflect with, and the light the surface gives off.
         public Color Albedo;
         public Color Specular;
         public float Smoothness;
@@ -28,6 +30,7 @@ namespace ReDefinition.Raytracing
         // The alpha below which the material's texture cuts the surface out, 0 for none.
         public float Cutoff;
 
+        // The material as a ray takes it; white, a dielectric's specular, smoothness 0.2 where it says nothing.
         internal static RtMaterial Of(Material material)
         {
             var result = new RtMaterial
@@ -89,6 +92,7 @@ namespace ReDefinition.Raytracing
             return result;
         }
 
+        // The main texture of Unity's and KSP's shaders.
         private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
         // Parallax's terrain shaders (Parallax.shader, KSCTerrain.shader, Parallax
         // Continued) have no _Color or _MainTex but a texture per altitude band, of which
@@ -99,6 +103,8 @@ namespace ReDefinition.Raytracing
         private static readonly int MidTexId = Shader.PropertyToID("_MainTexMid");
         private static readonly int HighTexId = Shader.PropertyToID("_MainTexHigh");
 
+        // Where a shader keeps its main texture, as MainTexture tells them apart: none, _MainTex, _MainTexLow
+        // alone, or all three bands.
         private enum TextureKind { None, Main, LowOnly, Bands }
 
         // Per shader, where its main texture is: HasProperty is a native call each.
@@ -136,6 +142,8 @@ namespace ReDefinition.Raytracing
             return material.GetTexture(LowTexId);
         }
 
+        // Unity's metallic setup: the specular from the dielectric's towards the albedo, the albedo times what the
+        // specular leaves (1 - reflectivity).
         private static void Metallic(ref RtMaterial result, float metallic)
         {
             float dielectric = QualitySettings.activeColorSpace == ColorSpace.Linear ? 0.04f : 0.220916301f;

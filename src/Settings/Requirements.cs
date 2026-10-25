@@ -21,6 +21,7 @@ namespace ReDefinition.Settings
     // require the same setting: a value passes only what all of them allow.
     internal static class Requirements
     {
+        // One REQUIRES of a registration, on the setting of Key.
         internal sealed class Rule
         {
             // "<mod>: <setting>": for the log, and the message once per run.
@@ -33,6 +34,7 @@ namespace ReDefinition.Settings
             public RequirementRegistration Registration;
         }
 
+        // No rules, while the mods are not built yet: nothing is kept of that.
         private static readonly Dictionary<string, List<Rule>> None = new Dictionary<string, List<Rule>>();
 
         // The rules held at run time, by key, beside `active`; and the value each
@@ -125,6 +127,7 @@ namespace ReDefinition.Settings
             return Locks(RulesFor(setting)) || Locks(HeldFor(setting));
         }
 
+        // Whether any of the rules locks its setting's row.
         private static bool Locks(List<Rule> rules)
         {
             if (rules == null) return false;
@@ -329,6 +332,7 @@ namespace ReDefinition.Settings
             }
         }
 
+        // The rules in force by key, worked out once the mods are built, and those held at run time beside them.
         private static Dictionary<string, List<Rule>> Active()
         {
             if (active != null) return active;
@@ -362,6 +366,7 @@ namespace ReDefinition.Settings
             return owner != null && owner.MainBehaviour != null && owner.MainBehaviour.HeldAtRunTime(rule.Registration.Value);
         }
 
+        // The rules in force on the setting, not those held at run time; null where there are none.
         private static List<Rule> RulesFor(BundledSetting setting)
         {
             if (setting == null) return null;
@@ -369,6 +374,7 @@ namespace ReDefinition.Settings
             return Active().TryGetValue(setting.Key, out rules) ? rules : null;
         }
 
+        // The rules held at run time on the setting; null where there are none.
         private static List<Rule> HeldFor(BundledSetting setting)
         {
             if (setting == null) return null;
@@ -377,6 +383,7 @@ namespace ReDefinition.Settings
             return held != null && held.TryGetValue(setting.Key, out rules) ? rules : null;
         }
 
+        // Whether the value passes every one of the rules.
         private static bool PassesAll(List<Rule> rules, BundledSetting setting, string value)
         {
             foreach (Rule rule in rules)
@@ -417,11 +424,13 @@ namespace ReDefinition.Settings
                                                                   + " answer to for " + owner.ModName + " -- not enforced.");
         }
 
+        // The rule's reason on screen, once per run.
         private static void Say(Rule rule)
         {
             if (told.Add(rule.Id)) ScreenMessages.PostScreenMessage("ReDefinition: " + rule.Reason, 8f);
         }
 
+        // The rules' reasons, one after the other.
         private static string Reasons(List<Rule> rules)
         {
             List<string> reasons = new List<string>();
@@ -429,6 +438,7 @@ namespace ReDefinition.Settings
             return string.Join(" ", reasons.ToArray());
         }
 
+        // Where the value stands among the choices, as SettingValues compares them; -1 where it is not among them.
         private static int IndexOf(string[] choices, string value)
         {
             for (int i = 0; i < choices.Length; i++)
@@ -436,6 +446,7 @@ namespace ReDefinition.Settings
             return -1;
         }
 
+        // The value as a number, read invariantly.
         private static bool Number(string value, out double number)
         {
             return double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number);

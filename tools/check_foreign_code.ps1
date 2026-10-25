@@ -34,6 +34,7 @@ $mod = [Reflection.Assembly]::LoadFrom([IO.Path]::Combine($repo, 'build\ReDefini
 $catalogue = $mod.GetType('ReDefinition.Core.ForeignAssumptions', $true)
 $all = $catalogue.GetField('All', [Reflection.BindingFlags]'Static, Public, NonPublic').GetValue($null)
 $flags = [Reflection.BindingFlags]'Instance, Public, NonPublic'
+# The value of a property, or else of a field, of that name on the object, public or not.
 function Get($object, $name) {
     $property = $object.GetType().GetProperty($name, $flags)
     if ($null -ne $property) { return $property.GetValue($object, $null) }

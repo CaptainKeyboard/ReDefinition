@@ -39,13 +39,16 @@ namespace ReDefinition.Window
     // disable (SpriteState, decompiled), which hid the symbol on hover.
     internal static class WindowPause
     {
+        // The symbol's texture size, the button's size, both in pixels.
         private const int IconSize = 24;
         private const float ButtonSize = 26f;
         // From the right edge of the title row.
         private const float TitleInset = 8f;
 
+        // The symbol's colour, a light grey.
         private static readonly Color Glyph = new Color(0.898f, 0.898f, 0.910f, 1f);
 
+        // The two symbols, drawn on first use.
         private static Texture2D pauseSymbol;
         private static Texture2D playSymbol;
 
@@ -58,6 +61,7 @@ namespace ReDefinition.Window
         private static bool holding;
         private static bool byTimeScale;
 
+        // Whether the player's setting asks for the pause while the window is open.
         internal static bool Wanted
         {
             get
@@ -121,6 +125,7 @@ namespace ReDefinition.Window
             FlightDriver.SetPause(PauseMenuStands);
         }
 
+        // Whether KSP's own pause menu is open.
         private static bool PauseMenuStands
         {
             get
@@ -136,6 +141,7 @@ namespace ReDefinition.Window
             }
         }
 
+        // Holds game time: KSP's pause in flight, Unity's time scale at 0 elsewhere.
         private static void Hold()
         {
             if (holding) return;
@@ -145,6 +151,7 @@ namespace ReDefinition.Window
             else FlightDriver.SetPause(true);
         }
 
+        // The pause button for the window's content, with the symbol for what a click does.
         internal static DialogGUIBase Button()
         {
             symbol = new DialogGUIImage(new Vector2(IconSize, IconSize), Vector2.zero, Color.white, Symbol());
@@ -222,6 +229,7 @@ namespace ReDefinition.Window
             return Wanted && Possible ? Play() : Pause();
         }
 
+        // Flips the player's setting, holds or releases at once, and shows the new symbol.
         private static void Toggle()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -244,12 +252,13 @@ namespace ReDefinition.Window
             if (shown != null) shown.texture = Symbol();
         }
 
+        // The two bars, drawn once.
         private static Texture2D Pause()
         {
             if (pauseSymbol != null) return pauseSymbol;
 
             Texture2D texture = Blank();
-            // Two bars, a third of the width each, with a third between them.
+            // Two bars, four pixels wide each, with four between them.
             for (int y = 4; y < IconSize - 4; y++)
                 for (int x = 0; x < IconSize; x++)
                 {
@@ -261,6 +270,7 @@ namespace ReDefinition.Window
             return pauseSymbol;
         }
 
+        // The triangle, drawn once.
         private static Texture2D Play()
         {
             if (playSymbol != null) return playSymbol;
@@ -278,6 +288,7 @@ namespace ReDefinition.Window
             return playSymbol;
         }
 
+        // A transparent texture of the symbol's size.
         private static Texture2D Blank()
         {
             Texture2D texture = new Texture2D(IconSize, IconSize, TextureFormat.ARGB32, false);
@@ -288,6 +299,7 @@ namespace ReDefinition.Window
             return texture;
         }
 
+        // Names the texture and has it filtered bilinearly.
         private static Texture2D Finished(Texture2D texture, string name)
         {
             texture.name = name;

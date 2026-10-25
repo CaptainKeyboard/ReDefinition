@@ -13,6 +13,7 @@ namespace ReDefinition.Window
     // sets ReDefinition's own tabs apart.
     internal static partial class SettingsWindow
     {
+        // How far a child tab is indented, and the colour of the mark for a change waiting for Apply.
         private const float TabIndent = 16f;
         private const string MarkColor = "#8fc8ff";
         // U+2022, which the dialogs' font holds.
@@ -67,11 +68,13 @@ namespace ReDefinition.Window
         // The category the rows being built belong to.
         private static SettingCategory building;
 
+        // Whether something is typed into the search field.
         private static bool Searching
         {
             get { return keySearch.Length > 0; }
         }
 
+        // Notes the row's search text, for the row and for the page being built; the row itself is returned.
         private static DialogGUIBase Searchable(DialogGUIBase row, string text)
         {
             if (row == null) return null;
@@ -86,15 +89,18 @@ namespace ReDefinition.Window
             return row;
         }
 
+        // Whether the row's search text matches what is typed.
         private static bool RowMatches(DialogGUIBase row)
         {
             string text;
             return searchTexts.TryGetValue(row, out text) && MatchesSearch(text, null);
         }
 
+        // The search the page matches were last worked out for, and the pages that matched it.
         private static string pageMatchesFor;
         private static readonly HashSet<SettingCategory> pagesMatching = new HashSet<SettingCategory>();
 
+        // Whether any row of the page matches the search, worked out once per search.
         private static bool PageMatches(SettingCategory category)
         {
             if (pageMatchesFor != keySearch)
@@ -185,12 +191,15 @@ namespace ReDefinition.Window
         // for the label's text in every frame it shows.
         private sealed class MarkedText
         {
+            // Whether the text was made changed, differing from the profile, and at all; and the text made.
             public bool Changed, Differs, Made;
             public string Text;
         }
 
+        // The marked names made so far, by the row's name.
         private static readonly Dictionary<string, MarkedText> markedNames = new Dictionary<string, MarkedText>();
 
+        // The name with the change mark and the profile mark where they apply, made anew only when one of them changes.
         internal static string MarkedName(string title, bool changed, bool differs)
         {
             MarkedText kept;
@@ -213,6 +222,7 @@ namespace ReDefinition.Window
         // own before the name, and its tooltip ends in "Default: X".
         private const string ProfileMarkColor = "#e0b040";
 
+        // The name with the profile's mark before it where the row differs from the profile.
         internal static string ProfileMarked(string title, bool differs)
         {
             return differs ? "<color=" + ProfileMarkColor + ">" + Mark + "</color> " + title : title;
@@ -245,6 +255,8 @@ namespace ReDefinition.Window
         private static readonly Dictionary<string, string> bundledDefaults = new Dictionary<string, string>();
         private static readonly Dictionary<ModuleSetting, string> ownDefaults = new Dictionary<ModuleSetting, string>();
 
+        // Reads the profile's values into the two tables where it is not the one read last; false where there is no such
+        // profile or none is chosen.
         private static bool DefaultsFor(string profileName)
         {
             if (string.IsNullOrEmpty(profileName)) return false;
@@ -273,6 +285,8 @@ namespace ReDefinition.Window
             return profileValue;
         }
 
+        // The profile's value of one of ReDefinition's own rows as the row shows it, where the row holds another one;
+        // null otherwise.
         private static string OwnDefault(ModuleSetting setting, OwnSettings settings)
         {
             string profileValue;
@@ -289,6 +303,7 @@ namespace ReDefinition.Window
                 ? KspSettingsSection.StateText(on) : profileValue;
         }
 
+        // The name with the change mark before it while a change waits.
         private static string Marked(string title, bool changed)
         {
             return changed ? "<color=" + MarkColor + ">" + Mark + "</color> " + title : title;
@@ -298,6 +313,7 @@ namespace ReDefinition.Window
         private static readonly Dictionary<SettingCategory, List<string>> keysIn =
             new Dictionary<SettingCategory, List<string>>();
 
+        // Notes a bundled row's key under the tab it stands in.
         private static void NoteKey(SettingCategory category, string key)
         {
             List<string> keys;
@@ -309,6 +325,8 @@ namespace ReDefinition.Window
             keys.Add(key);
         }
 
+        // When the pending tabs were last worked out, and those that were: asked by every tab every frame, worked out
+        // four times a second.
         private static float pendingAt = -10f;
         private static readonly HashSet<SettingCategory> pendingIn = new HashSet<SettingCategory>();
 
@@ -350,6 +368,7 @@ namespace ReDefinition.Window
             return pendingIn.Contains(category);
         }
 
+        // Whether an axis row holds another binding than KSP's axis has now.
         private static bool AxesDiffer()
         {
             foreach (KspAxes.Axis axis in KspAxes.All())

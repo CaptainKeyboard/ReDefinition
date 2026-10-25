@@ -17,10 +17,12 @@ Properties {
 
 CGINCLUDE
 
+// The sun's cascaded shadow map and its texel size, declared before UnityShadowLibrary.cginc so that its PCF
+// filters, which read both, are compiled.
 UNITY_DECLARE_SHADOWMAP(_ShadowMapTexture);
 float4 _ShadowMapTexture_TexelSize;
-#define SHADOWMAPSAMPLER_AND_TEXELSIZE_DEFINED
-sampler2D _ODSWorldTexture;
+#define SHADOWMAPSAMPLER_AND_TEXELSIZE_DEFINED // UnityShadowLibrary.cginc compiles its PCF filters only with it
+sampler2D _ODSWorldTexture; // the world positions of a stereo cubemap render
 
 #include "UnityCG.cginc"
 #include "UnityShadowLibrary.cginc"
@@ -41,21 +43,24 @@ sampler2D _ODSWorldTexture;
 #define UNITY_CASCADE_BLEND_DISTANCE 0.1
 
 
+// The full-screen quad's vertex as Unity draws it for the shadow collection, with each corner's ray.
 struct appdata {
+    // The quad's position and uv as Unity draws it.
     float4 vertex : POSITION;
     float2 texcoord : TEXCOORD0;
 #ifdef UNITY_STEREO_INSTANCING_ENABLED
-    float3 ray0 : TEXCOORD1;
-    float3 ray1 : TEXCOORD2;
+    float3 ray0 : TEXCOORD1; // the left eye's view-space ray
+    float3 ray1 : TEXCOORD2; // the right eye's view-space ray
 #else
-    float3 ray : TEXCOORD1;
+    float3 ray : TEXCOORD1; // the view-space ray to the far plane
 #endif
     UNITY_VERTEX_INPUT_INSTANCE_ID
 };
 
+// What the vertex function hands the fragment functions.
 struct v2f {
 
-    float4 pos : SV_POSITION;
+    float4 pos : SV_POSITION; // the quad's clip position
 
     // xy uv / zw screenpos
     float4 uv : TEXCOORD0;
@@ -68,6 +73,8 @@ struct v2f {
     UNITY_VERTEX_OUTPUT_STEREO
 };
 
+// The full-screen quad: its uv and screen position, its view-space ray, and the orthographic near and far
+// positions for the fragment function.
 v2f vert (appdata v)
 {
     v2f o;
@@ -113,6 +120,7 @@ v2f vert (appdata v)
 // ------------------------------------------------------------------
 //  Helpers
 // ------------------------------------------------------------------
+// The camera's depth, from which each pixel's position is rebuilt.
 UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
 // sizes of cascade projections, relative to first one
 float4 unity_ShadowCascadeScales;
@@ -121,14 +129,18 @@ float4 unity_ShadowCascadeScales;
 // Keywords based defines
 //
 #if defined (SHADOWS_SPLIT_SPHERES)
+    // The cascade a world position falls in, chosen by the split spheres.
     #define GET_CASCADE_WEIGHTS(wpos, z)    getCascadeWeights_splitSpheres(wpos)
 #else
+    // The cascade a world position falls in, chosen by its view depth z.
     #define GET_CASCADE_WEIGHTS(wpos, z)    getCascadeWeights( wpos, z )
 #endif
 
 #if defined (SHADOWS_SINGLE_CASCADE)
+    // A single cascade: the shadow map coordinates of a world position.
     #define GET_SHADOW_COORDINATES(wpos,cascadeWeights) getShadowCoord_SingleCascade(wpos)
 #else
+    // The shadow map coordinates of a world position in the cascade the weights pick.
     #define GET_SHADOW_COORDINATES(wpos,cascadeWeights) getShadowCoord(wpos,cascadeWeights)
 #endif
 
@@ -230,6 +242,7 @@ inline float3 computeCameraSpacePosFromDepthAndVSInfo(v2f i)
     return camPos.xyz;
 }
 
+// The camera-space position of the pixel, defined in each pass for its subshader's way of finding it.
 inline float3 computeCameraSpacePosFromDepth(v2f i);
 
 // ReDefinition: the raytraced sun visibility. _ReDefinitionRtOn is set around the
@@ -239,8 +252,11 @@ inline float3 computeCameraSpacePosFromDepth(v2f i);
 // before, found again from this frame's world by RtUv.
 #include "ReDefinitionRtReproject.cginc"
 
+// 1 around the sun's own shadow mask, 0 for every other directional light's.
 float _ReDefinitionRtSunMask;
 
+// The raytraced sun visibility at a point, where the raytraced camera draws the sun's mask and the raytraced
+// frame saw the point; false where the shadow maps are to be read.
 inline bool RtShadow(float3 worldPos, out fixed visibility)
 {
     visibility = 1;
@@ -255,7 +271,7 @@ inline bool RtShadow(float3 worldPos, out fixed visibility)
 }
 
 /**
- *  Hard shadow
+ *  Hard shadow: one tap of the shadow map, or the raytraced sun visibility
  */
 fixed4 frag_hard (v2f i) : SV_Target
 {
@@ -369,6 +385,7 @@ ENDCG
 
 SubShader {
     Tags{ "ShadowmapFilter" = "HardShadow" }
+    // Hard shadows, the position from the view-space ray.
     Pass {
         ZWrite Off ZTest Always Cull Off
 
@@ -377,6 +394,7 @@ SubShader {
         #pragma fragment frag_hard
         #pragma multi_compile_shadowcollector
 
+        // The camera-space position from the view-space ray the vertex function interpolates.
         inline float3 computeCameraSpacePosFromDepth(v2f i)
         {
             return computeCameraSpacePosFromDepthAndVSInfo(i);
@@ -392,6 +410,7 @@ SubShader {
 
 SubShader {
     Tags{ "ShadowmapFilter" = "HardShadow_FORCE_INV_PROJECTION_IN_PS" }
+    // Hard shadows, the position from the inverse projection.
     Pass{
         ZWrite Off ZTest Always Cull Off
 
@@ -400,6 +419,7 @@ SubShader {
         #pragma fragment frag_hard
         #pragma multi_compile_shadowcollector
 
+        // The camera-space position from the inverse projection, per pixel.
         inline float3 computeCameraSpacePosFromDepth(v2f i)
         {
             return computeCameraSpacePosFromDepthAndInvProjMat(i);
@@ -414,6 +434,7 @@ SubShader {
 
 Subshader {
     Tags {"ShadowmapFilter" = "PCF_SOFT"}
+    // Soft PCF shadows, the position from the view-space ray.
     Pass {
         ZWrite Off ZTest Always Cull Off
 
@@ -423,6 +444,7 @@ Subshader {
         #pragma multi_compile_shadowcollector
         #pragma target 3.0
 
+        // The camera-space position from the view-space ray the vertex function interpolates.
         inline float3 computeCameraSpacePosFromDepth(v2f i)
         {
             return computeCameraSpacePosFromDepthAndVSInfo(i);
@@ -438,6 +460,7 @@ Subshader {
 
 Subshader{
     Tags{ "ShadowmapFilter" = "PCF_SOFT_FORCE_INV_PROJECTION_IN_PS" }
+    // Soft PCF shadows, the position from the inverse projection.
     Pass{
         ZWrite Off ZTest Always Cull Off
 
@@ -447,6 +470,7 @@ Subshader{
         #pragma multi_compile_shadowcollector
         #pragma target 3.0
 
+        // The camera-space position from the inverse projection, per pixel.
         inline float3 computeCameraSpacePosFromDepth(v2f i)
         {
             return computeCameraSpacePosFromDepthAndInvProjMat(i);

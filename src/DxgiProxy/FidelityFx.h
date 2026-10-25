@@ -24,6 +24,7 @@ namespace redefinition
     class FidelityFx
     {
     public:
+        // The one instance, made on first use.
         static FidelityFx& Get();
 
         // Loads the runtime the first time it is asked, on any thread. Never
@@ -34,9 +35,12 @@ namespace redefinition
         const ffxFunctions& Api() const { return api; }
 
     private:
+        // Only Get makes it.
         FidelityFx() = default;
+        // Loads amd_fidelityfx_framegeneration_dx12.dll from beside the executable and fills the table; logs why not.
         void Load();
 
+        // The DLL once loaded, its function table, whether every export was found, and the once-flag of Load.
         HMODULE module = nullptr;
         ffxFunctions api = {};
         bool ready = false;

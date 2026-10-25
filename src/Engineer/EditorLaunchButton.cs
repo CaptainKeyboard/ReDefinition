@@ -18,6 +18,9 @@ namespace ReDefinition.Engineer
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class EditorLaunchButton : MonoBehaviour
     {
+        // The button in the world; the pad or the runway it stands over, the launch site's name KSP takes, and the space
+        // centre button it looks like; its place on top of what the pad or runway draws, in their own space, and how far it
+        // is brought towards the camera; and whether that place was measured from something drawn.
         private WorldButton marker;
         private Transform place;
         private string site;
@@ -26,6 +29,7 @@ namespace ReDefinition.Engineer
         private float reach;
         private bool measured;
 
+        // Waits for the editor and KSP's interface, then looks for the pad or the runway in the scenery for up to 15 seconds.
         private IEnumerator Start()
         {
             float until = Time.unscaledTime + 15f;
@@ -52,6 +56,7 @@ namespace ReDefinition.Engineer
                       + (vab ? "VAB" : "SPH") + " (" + place.name + ").");
         }
 
+        // The transform of that name somewhere under the scenery of that name.
         private static Transform Find(string scenery, string name)
         {
             foreach (Transform found in FindObjectsOfType<Transform>())
@@ -63,12 +68,14 @@ namespace ReDefinition.Engineer
             return null;
         }
 
+        // The button goes with the editor.
         private void OnDestroy()
         {
             if (marker != null) marker.Destroy();
             marker = null;
         }
 
+        // Shows the button over the pad or the runway while KSP's own launch button can be pressed, and hides it otherwise.
         private void LateUpdate()
         {
             if (marker == null || place == null) return;
@@ -104,6 +111,7 @@ namespace ReDefinition.Engineer
             return pad != null ? new Vector3(place.position.x, top, place.position.z) : new Vector3(middle.x, top, middle.z);
         }
 
+        // Launches as KSP's launch button does, from the site the button stands over.
         private void Launch()
         {
             EditorLogic editor = EditorLogic.fetch;

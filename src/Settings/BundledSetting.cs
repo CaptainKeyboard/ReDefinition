@@ -45,10 +45,14 @@ namespace ReDefinition.Settings
         Interface,
     }
 
+    // The control the window draws a setting's row with.
     internal enum SettingControl
     {
+        // An on/off switch, for a bool.
         Toggle,
+        // A slider over Min to Max.
         Slider,
+        // Buttons stepping through Choices.
         Choice,
         // A key binding, held as the text of a KeyCombination.
         Binding,
@@ -80,8 +84,11 @@ namespace ReDefinition.Settings
     // them. Which setting is which its registration says (`kind`).
     internal enum SettingKind
     {
+        // What makes the image better and costs frame time: what a profile sets.
         Quality,
+        // The look an author or a visual pack chose: never set by a profile.
         Taste,
+        // Anything else -- interface, debug, physics, antialiasing: set by the reset only.
         Other,
     }
 
@@ -114,6 +121,7 @@ namespace ReDefinition.Settings
         // (TUFX's profiles); null takes Choices.
         public Func<string[]> ChoicesSource;
 
+        // The values to choose from now: ChoicesSource's where there is one, else Choices.
         public string[] CurrentChoices()
         {
             return ChoicesSource != null ? ChoicesSource() : Choices;
@@ -140,6 +148,7 @@ namespace ReDefinition.Settings
         // Value: the member's type, which a value must parse into.
         public Type ValueType;
 
+        // When a change takes effect, as the row's tooltip and the log say.
         public ApplyWindow Window = ApplyWindow.Unspecified;
 
         // The mod's value now, and a change to it. Read returns null while the
@@ -217,6 +226,7 @@ namespace ReDefinition.Settings
         // first. Null where OwnWindow is.
         Type OwnWindowType { get; }
 
+        // Its settings, as the window shows them in its order.
         IList<BundledSetting> Settings { get; }
 
         // Which of its defaults apply (docs/reference/mod-defaults.md): the build installed
@@ -232,6 +242,7 @@ namespace ReDefinition.Settings
         // How a value set here lasts, and the mod's own save routine for it --
         // called once after a batch of changes, not per setting.
         SettingsSaving Saving { get; }
+        // The mod's own save routine, called once after a batch of changes.
         void Save();
 
         // Once, as the mod is built in the game: hooks that let a change made

@@ -33,6 +33,7 @@ namespace redefinition
     // Event 20: a compute pass from shader bytecode, DXIL or DXBC.
     struct D3d12CreatePacket
     {
+        // Size and magic, the handle the mod chose, the bytecode and its size, and a name for the log.
         uint32_t size;
         uint32_t magic;
         int32_t pass;
@@ -41,12 +42,14 @@ namespace redefinition
         char name[64];
     };
 
+    // Dispatch flag: the copies back into Unity's textures wait for the pass's next dispatch, not this frame.
     constexpr uint32_t kD3d12DispatchNextFrame = 1u << 0;
 
     // Event 22: one dispatch of a pass. read and write hold Unity's textures
     // (ID3D11Resource), readCount and writeCount of them; constants the bytes of b0.
     struct D3d12DispatchPacket
     {
+        // Size, magic, the pass handle, kD3d12Dispatch... flags, the thread groups, the counts, then the arrays.
         uint32_t size;
         uint32_t magic;
         int32_t pass;
@@ -65,6 +68,7 @@ namespace redefinition
     // Event 21: a pass destroyed; event 23: a texture's shared copy released.
     struct D3d12HandlePacket
     {
+        // Size, magic, the pass handle (event 21) or 0, padding, and the Unity texture (event 23) or null.
         uint32_t size;
         uint32_t magic;
         int32_t pass;
@@ -107,12 +111,17 @@ namespace redefinition
     public:
         static D3d12Compute& Get();
 
+        // The swapchain proxy hands over its devices; what was made on earlier ones is released, the passes kept.
         void Attach(const void* owner, ID3D11Device5* device11, ID3D11DeviceContext4* context11,
                     ID3D12Device* device12, ID3D12CommandQueue* queue);
+        // Releases everything and the devices, where owner is the one attached; otherwise nothing.
         void Detach(const void* owner);
 
+        // What the device offers, asked once at Attach.
         struct Capabilities
         {
+            // D3D_FEATURE_LEVEL and D3D_SHADER_MODEL as numbers, and the tiers of raytracing, mesh shaders and
+            // variable rate shading; 0 where not asked or not supported.
             int featureLevel = 0;
             int shaderModel = 0;
             int raytracingTier = 0;
@@ -123,9 +132,13 @@ namespace redefinition
         // False while no swapchain proxy presents through Direct3D 12.
         bool Available(Capabilities& out) const;
 
+        // Event 20: a pass made, or made again, from the packet's bytecode, built where a device is attached.
         void OnCreatePass(const void* data);
+        // Event 21: a pass and its status gone; copies back it left are dropped.
         void OnDestroyPass(const void* data);
+        // Event 22: one dispatch of a pass, its textures copied across and back.
         void OnDispatch(const void* data);
+        // Event 23: the shared copy of a texture the mod lets go released.
         void OnReleaseTexture(const void* data);
 
         // 1 built, 0 not yet, -1 failed or unknown; the text says what.
@@ -135,10 +148,14 @@ namespace redefinition
         int Status(char* buffer, int size) const;
 
     private:
+        // Only Get makes it.
         D3d12Compute() = default;
 
+        // One pass by handle; pendingFence and pendingCopies are the copies back a kD3d12DispatchNextFrame
+        // dispatch left for the pass's next.
         struct Pass
         {
+            // The name it was made with, its bytecode, and its pipeline on the current device.
             std::string name;
             std::vector<uint8_t> bytecode;
             Microsoft::WRL::ComPtr<ID3D12PipelineState> pipeline;
@@ -149,8 +166,10 @@ namespace redefinition
                 pendingCopies;
         };
 
+        // The shared copy of one of Unity's textures, by its ID3D11Resource.
         struct Shared
         {
+            // The copy both devices see, and when it was last used, for eviction.
             SharedTexture texture;
             ULONGLONG lastUse = 0;
             // The done fence's value after the last list that used the copy: Direct3D 11
@@ -158,9 +177,12 @@ namespace redefinition
             UINT64 lastFence = 0;
         };
 
+        // The slots, so that a dispatch rarely waits for the GPU.
         static constexpr UINT kSlots = 4;
+        // One list in flight per slot, used in turn.
         struct Slot
         {
+            // Its allocator, descriptor heap, mapped constant buffer, and the done value of its last list.
             Microsoft::WRL::ComPtr<ID3D12CommandAllocator> allocator;
             Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> heap;
             Microsoft::WRL::ComPtr<ID3D12Resource> constants;
@@ -170,20 +192,33 @@ namespace redefinition
             std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> held;
         };
 
+        // The two shared fences, the slots' allocators, heaps and constant buffers, and the list, made once per
+        // device.
         bool EnsureQueueLocked();
         bool EnsureRootSignatureLocked();
+        // The pass's compute pipeline on the current device and root signature; a failure goes into its status.
         bool BuildLocked(Pass& pass);
+        // The shared copy of a Unity texture, made or made again for its size and format; null with problem set
+        // for a texture that is not one plain 2D level or whose format has no typed UAV store (or load, to read).
         Shared* SharedForLocked(void* unityTexture, bool write, std::string& problem);
+        // The copies back a kD3d12DispatchNextFrame dispatch left: D3D11 waits for its list, then copies them.
         void CompletePendingLocked(Pass& pass);
+        // Blocks until the slot's last list has finished, before its allocator is reset.
         void WaitForSlotLocked(Slot& slot);
+        // Blocks until the queue has finished every list handed to it.
         void WaitForAllLocked();
+        // Shared copies unused for 10 s released, looked at once a second.
         void EvictLocked();
         void ReleaseLocked();
+        // A pass's state and text for PassStatus; a failure is logged where it changes.
         void SetPassStatus(int pass, int state, const std::string& text);
+        // The problem Status names last, logged where it changes.
         void SetProblem(const std::string& text);
 
+        // Held by the render events and by Attach and Detach.
         mutable std::mutex mutex;
 
+        // The swapchain proxy attached, whether all four of its objects were given, and the objects.
         const void* owner = nullptr;
         std::atomic<bool> attached{ false };
         Microsoft::WRL::ComPtr<ID3D11Device5> device11;
@@ -191,6 +226,7 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12Device> device12;
         Microsoft::WRL::ComPtr<ID3D12CommandQueue> queue;
 
+        // t0-t7, u0-u7, b0 and the two samplers, shared by every pass; made with the first pass built.
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
         // A fence per direction, so each carries values of one command stream only and
         // they rise in the order they complete: Direct3D 11 signals the copies into the
@@ -211,13 +247,17 @@ namespace redefinition
         std::unordered_map<void*, Shared> textures;
         ULONGLONG nextEviction = 0;
 
+        // Under its own lock, read from the main thread: the capabilities and the statuses below.
         mutable std::mutex statusLock;
         Capabilities capabilities;
+        // What PassStatus reports for one pass.
         struct PassState
         {
+            // 1 built, 0 not yet, -1 failed; and the text PassStatus reports.
             int state = 0;
             std::string text;
         };
+        // Each pass's state by handle, the last problem not tied to a pass, and the dispatches run, for Status.
         std::map<int, PassState> passStates;
         std::string lastProblem;
         uint64_t dispatched = 0;

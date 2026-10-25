@@ -7,6 +7,7 @@ namespace ReDefinition.Upscaler
     // and released.
     internal static class RenderTextures
     {
+        // Releases and destroys `texture` and clears the reference; nothing where it is null.
         internal static void Release(ref RenderTexture texture)
         {
             if (texture == null) return;

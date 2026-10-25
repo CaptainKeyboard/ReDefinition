@@ -10,15 +10,20 @@ namespace ReDefinition.Raytracing
     // What the raytracing of a camera does, as the settings choose it.
     internal struct RtSettings
     {
+        // The passes: the sun's raytraced shadow, the occlusion (set with Diffuse, read nowhere on its own), the
+        // diffuse light and the reflections; the denoiser, where Ray Reconstruction does not denoise instead.
         public bool Shadows;
         public bool Occlusion;
         public bool Diffuse;
         public bool Reflections;
         public bool Denoise;
+        // The diffuse light's bounces, the occlusion's reach in metres, and the luminance a single sample is clamped
+        // to (RtCommon.hlsli, BOUNCES, AO_DISTANCE, SAMPLE_CLAMP; 0 for no clamp).
         public int Bounces;
         public float OcclusionDistance;
         public float Clamp;
 
+        // Everything on, two bounces, the occlusion to 2 m, samples clamped at 20.
         internal static RtSettings Full()
         {
             return new RtSettings
@@ -41,6 +46,7 @@ namespace ReDefinition.Raytracing
     // the frame was rendered with.
     internal sealed class RtCamera : MonoBehaviour
     {
+        // The camera's raytracing scene, filled each frame from its sources, and the passes it runs.
         internal readonly RtScene Scene = new RtScene();
         internal RtSettings Settings = RtSettings.Full();
 
@@ -91,6 +97,7 @@ namespace ReDefinition.Raytracing
             origin = east = north = Vector3.zero;
             return false;
         };
+        // The type of Sea: a delegate, as a Func cannot have out parameters.
         internal delegate bool SeaFrameSource(out Vector3 origin, out Vector3 east, out Vector3 north);
         // For the light probe's check that the waves stay on the water: the water's trace
         // gives its normals, the waves' time held, and the sea's frame left out (the plane
@@ -169,10 +176,13 @@ namespace ReDefinition.Raytracing
         // The last frame that made the guides: Unity's frame count, the packet's index,
         // its camera-relative clip-to-world.
         internal int GuidesFrame { get; private set; } = -1;
+        // The packet index of the frame that made the guides, which Ray Reconstruction's packet names.
         internal uint GuidesIndex { get; private set; }
+        // That frame's camera-relative clip-to-world as its packet had it, for Ray Reconstruction's packet.
         internal readonly float[] GuidesClipToWorld = new float[16];
         // The raytraced camera, while one is on.
         internal static RtCamera Current { get; private set; }
+        // The Unity camera this traces for, the component's own.
         internal Camera Camera { get { return cam; } }
         // Whether this frame is a cut: the camera jumped, the history is not its.
         internal Func<bool> Cut = () => false;
@@ -190,10 +200,18 @@ namespace ReDefinition.Raytracing
         private CameraEvent traceEvent;
         private bool traceAttached;
 
+        // Why the raytracing does not run on this camera (the proxy not ready, the shaders missing); null where it runs.
         internal string Problem { get; private set; }
+        // The passes the last packet asked for, as RtNative's Signal constants.
         internal uint LastSignals { get; private set; }
+        // Each pass's GPU time in milliseconds as the proxy last measured it, filled by Status (sun, occlusion,
+        // diffuse, reflections, ..., denoiser at 6).
         internal float[] PassTimings = new float[8];
 
+        // The camera; the capture material with ReDefinitionRtCapture.shader's passes; the screen-space shadows and
+        // deferred reflections put in Unity's place (RtLighting); the trace's command buffer, the G-buffer's copy
+        // after it is filled, the forward light; the sun mask's flag on and off around the sun's screen-space mask,
+        // and the light they are on.
         private Camera cam;
         private Material capture;
         private Shader shadows;
@@ -219,7 +237,7 @@ namespace ReDefinition.Raytracing
             && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade"),
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float shadeProbe)
             ? shadeProbe : 0f;
-        private static readonly float MeadowFrom =Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom") != null
+        private static readonly float MeadowFrom = Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom") != null
             && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom"),
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float from)
             ? from : 0f;
@@ -274,6 +292,7 @@ namespace ReDefinition.Raytracing
         // used again, with its callback, so that a frame's request allocates nothing.
         private sealed class CountRead
         {
+            // The buffers counted in their order, how many of them, and the callback that reads the counts (CountsRead).
             public ComputeBuffer[] Buffers = new ComputeBuffer[64];
             public int Count;
             public Action<AsyncGPUReadbackRequest> Done;
@@ -297,6 +316,8 @@ namespace ReDefinition.Raytracing
         private int generation = -1;
         private int statusFrame;
 
+        // The lighting shaders' flags: on around this camera's rendering, the sun's mask taking the raytraced
+        // visibility, and which raytraced light to use (x diffuse, y reflections, z the night light kept).
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
         private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
@@ -309,11 +330,13 @@ namespace ReDefinition.Raytracing
         internal Func<float> AmbientColour = () => 0f;
         private static readonly float probeAmbientTint = ProbeAmbientTint();
 
+        // The light colour in effect: the probe's where given, otherwise the player's, 0 to 3.
         private float AmbientTintLimit
         {
             get { return probeAmbientTint >= 0f ? probeAmbientTint : Mathf.Clamp(AmbientColour(), 0f, 3f); }
         }
 
+        // -redefinitionProbeRtAmbientTint's value, clamped to 0 to 3; -1 where it is not given.
         private static float ProbeAmbientTint()
         {
             string[] args = System.Environment.GetCommandLineArgs();
@@ -322,6 +345,8 @@ namespace ReDefinition.Raytracing
             return at >= 0 && at + 1 < args.Length && float.TryParse(args[at + 1], System.Globalization.NumberStyles.Float,
                        System.Globalization.CultureInfo.InvariantCulture, out share) ? Mathf.Clamp(share, 0f, 3f) : -1f;
         }
+        // The ocean's traced reflections for the deferred reflections, Scatterer's ocean's input of screen-space
+        // reflections, and KSP's sea as a sphere (centre and radius; radius 0 where the sea is not KSP's).
         private static readonly int RtOcean = Shader.PropertyToID("_ReDefinitionRtOcean");
         private static readonly int SsrOutput = Shader.PropertyToID("ssrOutput");
         private static readonly int WaterSphereId = Shader.PropertyToID("_ReDefinitionWaterSphere");
@@ -371,6 +396,7 @@ namespace ReDefinition.Raytracing
         private static readonly int GatherCapacity = Shader.PropertyToID("_Capacity");
         private static readonly int GatherFirst = Shader.PropertyToID("_First");
 
+        // The camera and the frame packets; the packet ring, shared by every raytraced camera, made once.
         private void Awake()
         {
             cam = GetComponent<Camera>();
@@ -381,6 +407,8 @@ namespace ReDefinition.Raytracing
                 ring = new PacketRing(System.Runtime.InteropServices.Marshal.SizeOf(typeof(RtNative.FramePacket)), 16);
         }
 
+        // Makes the materials, command buffers and flags and attaches them to the camera; where the proxy is not ready
+        // or the shaders are missing, says why (Problem) and turns itself off again.
         private void OnEnable()
         {
             string why;
@@ -458,6 +486,8 @@ namespace ReDefinition.Raytracing
             Current = this;
         }
 
+        // Takes everything off the camera, sets Unity's lighting shaders, the sun's shadow and the reflections back,
+        // and has the proxy let go of what it held for this camera.
         private void OnDisable()
         {
             if (lateTrace != null) Destroy(lateTrace);
@@ -532,6 +562,9 @@ namespace ReDefinition.Raytracing
             command = gbufferCopy = flagOn = flagOff = null;
         }
 
+        // Before the camera culls: the lighting shaders and the sun's mask in place, the scene's instances of this frame
+        // handed over, the forward light and the G-buffer's copy set up, and the previous frame's results carried to
+        // this frame's world for the lighting.
         private void OnPreCull()
         {
             KeepLateTrace();
@@ -653,6 +686,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // Unity's reflections back for the cameras after this one.
         private void OnPostRender()
         {
             HoldReflections(false);
@@ -668,6 +702,7 @@ namespace ReDefinition.Raytracing
         private float probesFound = float.NegativeInfinity;
         private float heldReflectionIntensity = -1f;
 
+        // Holds or gives back Unity's reflections as described above; a call that changes nothing does nothing.
         private void HoldReflections(bool hold)
         {
             if (hold == (heldReflectionIntensity >= 0f)) return;
@@ -696,6 +731,8 @@ namespace ReDefinition.Raytracing
             heldReflectionIntensity = -1f;
         }
 
+        // The projection the frame renders with, after BeforeTrace jittered it, and the trace in the frame where it is
+        // wanted; otherwise the trace taken off the camera.
         private void OnPreRender()
         {
             renderedProjection = cam.projectionMatrix;
@@ -711,6 +748,7 @@ namespace ReDefinition.Raytracing
             else DetachTrace();
         }
 
+        // Takes the trace in the frame, and the ocean's, off the camera.
         private void DetachTrace()
         {
             TraceOcean(false, false);
@@ -924,6 +962,7 @@ namespace ReDefinition.Raytracing
             cam.AddCommandBuffer(OceanDiscsEvent, oceanDiscs);
         }
 
+        // The ocean's targets at the frame's size, made anew where the size changed or Unity lost them.
         private void EnsureOceanTargets()
         {
             if (oceanDepth != null && oceanDepth.width == width && oceanDepth.height == height && oceanDepth.IsCreated()
@@ -941,6 +980,7 @@ namespace ReDefinition.Raytracing
             oceanTracedHandle = oceanTraced.GetNativeTexturePtr();
         }
 
+        // Releases the ocean's targets and forgets their native textures.
         private void ReleaseOceanTargets()
         {
             foreach (RenderTexture texture in new[] { oceanDepth, oceanSurface1, oceanSurface2, oceanTraced, oceanReflections })
@@ -992,6 +1032,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The masked light's own shadow strength, set back by UnmaskSun; -1 for none held.
         private float maskedStrength = -1f;
 
         // While the rays make the sun's shadows, the shadow maps are used only where the
@@ -1008,6 +1049,7 @@ namespace ReDefinition.Raytracing
         private const int RaytracedCascades = 2;
         private int heldCascades = -1;
 
+        // Holds the shadow cascades at RaytracedCascades while the rays make the sun's shadows, and sets them back after.
         private void KeepCascades(bool raytraced)
         {
             if (raytraced)
@@ -1067,6 +1109,7 @@ namespace ReDefinition.Raytracing
             fadeScale = new Vector4(data.z, data.w, 0f, 0f);
         }
 
+        // Takes the mask's flags off the sun's light and gives it back its shadow strength and cascades.
         private void UnmaskSun()
         {
             KeepCascades(false);
@@ -1087,6 +1130,7 @@ namespace ReDefinition.Raytracing
         // lighting, the game's, does not need.
         private RtLateTrace lateTrace;
 
+        // Adds RtLateTrace where the trace goes after the frame, and removes it where it goes in the frame.
         private void KeepLateTrace()
         {
             bool wanted = !TraceBeforeLighting && capture != null;
@@ -1103,6 +1147,8 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The trace after the frame (RtLateTrace): copies the frame's depth, motion and sky, sends the packet, and keeps
+        // this frame's view for the next one's lighting; the frame passes through unchanged.
         internal void RenderLate(RenderTexture source, RenderTexture destination)
         {
             if (capture == null || source == null || TraceBeforeLighting)
@@ -1220,6 +1266,7 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
+        // A read-back with its own callback, made once and used again.
         private CountRead NewCountRead()
         {
             var read = new CountRead();
@@ -1227,6 +1274,7 @@ namespace ReDefinition.Raytracing
             return read;
         }
 
+        // How many places each GPU buffer took, handed to the scene for the next reservations; the read-back then idle.
         private void CountsRead(CountRead read, AsyncGPUReadbackRequest request)
         {
             countReads.Remove(read);
@@ -1252,6 +1300,9 @@ namespace ReDefinition.Raytracing
             return GL.GetGPUProjectionMatrix(renderedProjection, true) * view;
         }
 
+        // The frame packet for this frame: the view and the previous one, the inputs, the sun, sky, lights, clouds, sea
+        // and settings, and which passes to run; `deferred` where the G-buffer was copied, the others where motion
+        // vectors and the sky's cube were.
         private void FillPacket(bool deferred, bool withMotion, bool withEnvironment)
         {
             Matrix4x4 worldToClip = WorldToClipRelative();
@@ -1492,6 +1543,7 @@ namespace ReDefinition.Raytracing
             return deferred && TraceBeforeLighting && LegacySmoothness() && Settings.Shadows && !SurfacesAsDeferred;
         }
 
+        // A translation by x, y, z, in single precision.
         private static Matrix4x4 Translation(double x, double y, double z)
         {
             Matrix4x4 m = Matrix4x4.identity;
@@ -1509,6 +1561,8 @@ namespace ReDefinition.Raytracing
                     target[row * 4 + column] = m[row, column];
         }
 
+        // The frame's targets at the given size, with their native textures; made anew, and the history dropped, where
+        // the size changed or Unity let one go.
         private void EnsureTargets(int newWidth, int newHeight)
         {
             // Made again where Unity let a texture go, as its native handle goes with it.
@@ -1612,6 +1666,7 @@ namespace ReDefinition.Raytracing
             return written.ToString().TrimEnd();
         }
 
+        // A linear, bilinear, clamped target of the frame's size, created.
         private RenderTexture Target(RenderTextureFormat format)
         {
             var texture = new RenderTexture(width, height, 0, format, RenderTextureReadWrite.Linear)
@@ -1624,6 +1679,7 @@ namespace ReDefinition.Raytracing
             return texture;
         }
 
+        // Releases the GPU instances' texture and the counts' buffer.
         private void ReleaseGpuInstances()
         {
             if (gpuInstances != null)
@@ -1637,6 +1693,7 @@ namespace ReDefinition.Raytracing
             gpuCounts = null;
         }
 
+        // Releases the frame's targets and forgets their native textures.
         private void ReleaseTargets()
         {
             foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
@@ -1655,28 +1712,42 @@ namespace ReDefinition.Raytracing
 
         // The textures of the last frame, for the test player's and the diagnostics' look.
         internal RenderTexture DepthTexture { get { return depth; } }
+        // The sun's raytraced visibility, its w the view depth.
         internal RenderTexture SunTexture { get { return sun; } }
+        // The raytraced diffuse light, denoised where the denoiser runs.
         internal RenderTexture DiffuseTexture { get { return diffuse; } }
+        // The raytraced reflections, the specular light.
         internal RenderTexture SpecularTexture { get { return specular; } }
+        // The G-buffer's copy of the normals (GBuffer2).
         internal RenderTexture NormalTexture { get { return gbuffer2; } }
+        // The G-buffer's copy of the specular colour and smoothness (GBuffer1).
         internal RenderTexture SpecularSmoothnessTexture { get { return gbuffer1; } }
         // The surfaces as their materials mean them, and how each was found (SurfaceIntent).
         internal RenderTexture SurfaceTexture { get { return surface; } }
+        // How each surface was found, beside SurfaceTexture (RT_SURFACE_*, RT_REGION_*).
         internal RenderTexture SurfaceModeTexture { get { return surfaceMode; } }
+        // The sky's cube map unwrapped into 256 by 128 texels, as the proxy reads it.
         internal RenderTexture EnvironmentTexture { get { return environment; } }
+        // The raytraced light the forward light adds to the frame.
         internal RenderTexture ForwardTexture { get { return forward; } }
+        // Without a G-buffer: the ratio the forward light relights the frame's colour by.
         internal RenderTexture ForwardRatioTexture { get { return forwardRatio; } }
         // The light whose shadows the raytraced sun visibility replaces.
         internal Light SunLightNow { get { return maskedLight; } }
+        // The ocean's raytraced reflections as Scatterer's ocean reads them (ssrOutput).
         internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }
         // Whether KSP's own sea took the raytraced reflections, with the sun's disc, in the
         // last frame (TraceOcean).
         internal static bool StockSeaTraced { get; private set; }
         // The sun's colour the last frame's trace took (SunColor as the frame drew it).
         internal Color TracedSunColour { get; private set; }
+        // The ocean's raytraced reflections as the trace wrote them.
         internal RenderTexture OceanTracedTexture { get { return oceanTraced; } }
+        // Scatterer's ocean's depth, copied from its G-buffer.
         internal RenderTexture OceanDepthTexture { get { return oceanDepth; } }
+        // The ocean's normals in the shape of Unity's G-buffer 2 (fragOceanSurface2).
         internal RenderTexture OceanSurfaceTexture { get { return oceanSurface2; } }
+        // The ocean's specular colour and smoothness in the shape of Unity's G-buffer 1 (fragOceanSurface1).
         internal RenderTexture OceanRoughnessTexture { get { return oceanSurface1; } }
 
         // The service's line and each pass's time, for the diagnostics.
@@ -1692,8 +1763,10 @@ namespace ReDefinition.Raytracing
     // RtCamera's trace after the frame (RtCamera.RenderLate), on the same camera.
     internal sealed class RtLateTrace : MonoBehaviour
     {
+        // The camera's RtCamera, which traces.
         internal RtCamera Owner;
 
+        // Hands the frame to the owner's RenderLate; without an owner it passes through.
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             if (Owner != null) Owner.RenderLate(source, destination);

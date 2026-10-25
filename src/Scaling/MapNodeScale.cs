@@ -18,15 +18,19 @@ namespace ReDefinition.Scaling
     {
     }
 
+    // The same in the tracking station.
     [KSPAddon(KSPAddon.Startup.TrackingStation, false)]
     public class MapNodeScaleTrackingStation : MapNodeScale
     {
     }
 
+    // The scaling itself; KSPAddon starts a class in one scene, hence one subclass per scene.
     public abstract class MapNodeScale : MonoBehaviour
     {
+        // Whether the log has noted the scaling.
         private bool noted;
 
+        // Every frame: each node's scale set to the UI scale where it differs; noted once, when the first nodes exist.
         private void LateUpdate()
         {
             List<MapNode> nodes = MapNode.AllMapNodes;

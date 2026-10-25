@@ -11,6 +11,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class DlssPacketLayoutTests
     {
+        // DlssPacket's size and the offsets of fields spread over it match DlssPacket in Dlss.h.
         [TestMethod]
         public void ThePacketIsLaidOutAsTheProxyReadsIt()
         {
@@ -22,6 +23,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(80, Marshal.OffsetOf(packet, "MotionVectorScaleY").ToInt32());
         }
 
+        // The private SizeQuery's size and field offsets match DlssSizeQuery in Dlss.h.
         [TestMethod]
         public void TheSizeQueryIsLaidOutAsTheProxyReadsIt()
         {

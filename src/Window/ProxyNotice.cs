@@ -11,6 +11,7 @@ namespace ReDefinition.Window
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     public class ProxyNotice : MonoBehaviour
     {
+        // Two seconds after the main menu opens: the notice where Windows refused the proxy.
         private IEnumerator Start()
         {
             // After the menu has settled, beside BundleNotice's question.

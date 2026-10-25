@@ -48,11 +48,15 @@ namespace ReDefinition.Upscaler
     // writes to bilinear, as Scatterer made it.
     internal static class ScattererCompatibility
     {
+        // Scatterer's godrays renderer by full type name, and the Harmony id of the sizing hook on its Init.
         private const string GodraysTypeName = "Scatterer.RaymarchedGodraysRenderer";
         private const string HarmonyId = "ReDefinition.ScattererGodrays";
         // Its own id: a failure takes back only this hook, not the one above.
         private const string HarmonyHistoryId = "ReDefinition.ScattererGodrayHistory";
 
+        // Whether Resolve has run, and the renderer's type and members it found: the screen and render sizes, the
+        // occlusion material and downscaled depth Init makes, ResizeRenderTextures, Init, OnPreCull, the godray textures,
+        // which of each pair is written this frame, and the camera; historyWarned: WarnHistory has warned once.
         private static bool resolved;
         private static Type godraysType;
         private static FieldInfo screenWidth;
@@ -69,6 +73,7 @@ namespace ReDefinition.Upscaler
         private static FieldInfo targetCamera;
         private static bool historyWarned;
 
+        // Whether Scatterer's godrays are installed with every member the sizing needs.
         public static bool Present
         {
             get
@@ -183,6 +188,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Warns once that the godray history could not be set to point filtering.
         private static void WarnHistory(Exception e)
         {
             if (historyWarned) return;
@@ -191,6 +197,8 @@ namespace ReDefinition.Upscaler
                                   + " point filtering (" + CompatibilityLog.Reason(e) + ").");
         }
 
+        // Compiles the per-frame reads AfterPreCull uses -- the textures' indexers, the camera, the flip flag, the sky
+        // node and whether it is in scaled space; leaves pickTexture null where they cannot be made.
         private static void CompileHistoryReads()
         {
             try
@@ -230,6 +238,7 @@ namespace ReDefinition.Upscaler
         private static readonly object[] FlipTrue = { true };
         private static readonly object[] FlipFalse = { false };
 
+        // The half of a Scatterer FlipFlop that `flip` picks, through its bool indexer.
         private static object Pick(object flipFlop, bool flip)
         {
             if (flipFlop == null) return null;
@@ -243,6 +252,7 @@ namespace ReDefinition.Upscaler
             return item != null ? item.GetValue(flipFlop, flip ? FlipTrue : FlipFalse) : null;
         }
 
+        // Sets a texture's filter mode where it differs.
         private static void Filter(RenderTexture texture, FilterMode mode)
         {
             if (texture != null && texture.filterMode != mode) texture.filterMode = mode;
@@ -272,6 +282,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Sizes every godrays renderer in the scene for its camera, after the rig changed the render size.
         public static void AfterRenderSizeChange(string reason)
         {
             if (!Present || !ForeignAssumptions.ScattererGodrays.Holds) return;
@@ -333,6 +344,7 @@ namespace ReDefinition.Upscaler
         // sizes are the ones set here, in the same ratio. Zero where Init has not run.
         private static readonly Dictionary<int, Vector2Int> divisors = new Dictionary<int, Vector2Int>();
 
+        // The renderer's fraction of its screen (see divisors), read and kept on first ask.
         private static Vector2Int Divisor(Component renderer)
         {
             Vector2Int divisor;
@@ -345,6 +357,7 @@ namespace ReDefinition.Upscaler
             return divisor;
         }
 
+        // Looks Scatterer's godrays type and members up by reflection, once; warns when some are missing.
         private static void Resolve()
         {
             if (resolved) return;

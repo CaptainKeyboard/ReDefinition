@@ -9,6 +9,7 @@ namespace ReDefinition.Tests
     // directly, one shown as a percentage.
     internal static class TabsFake
     {
+        // The members the registrations below set: a volume from 0 to 1 and a switch.
         internal static float Volume = 0.5f;
         internal static bool Labels = true;
     }
@@ -19,12 +20,15 @@ namespace ReDefinition.Tests
     [TestClass]
     public class KspSettingsTests
     {
+        // The registered mod a MOD_SETTINGS text makes, its problems added to `problems`.
         private static RegisteredMod Build(string text, List<string> problems)
         {
             ConfigNode node = ConfigNode.Parse(text).GetNode(ModRegistration.NodeName);
             return new RegisteredMod(ModRegistration.FromConfigNode(node, problems), problems);
         }
 
+        // A registration of TabsFake setting the mod directly: the volume in the Audio tab as a percentage and
+        // not bundled, the labels in the Gameplay tab.
         private const string Registration =
             "MOD_SETTINGS\n{\n name = tabsfake\n detect = ReDefinition.Tests.TabsFake\n direct = True\n"
             + " SETTING\n {\n  name = Volume\n  member = ReDefinition.Tests.TabsFake.Volume\n  row = Audio\n"
@@ -32,6 +36,8 @@ namespace ReDefinition.Tests
             + " SETTING\n {\n  name = Labels\n  member = ReDefinition.Tests.TabsFake.Labels\n  row = Gameplay\n"
             + "  default = True\n }\n}";
 
+        // The registration's new keys arrive: direct on the mod, and on the settings their section, percent,
+        // bundled (on by default) and the tab each stands in.
         [TestMethod]
         public void TheNewKeysReachTheSettingAndTheMod()
         {
@@ -53,6 +59,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(SettingCategory.Gameplay, mod.Registration.Setting("Labels").Row);
         }
 
+        // Each of the tabs beyond graphics is a row a setting can stand in; an unknown row is reported and the
+        // setting has none.
         [TestMethod]
         public void EveryNewTabIsARowAndAnUnknownOneIsNot()
         {
@@ -74,6 +82,7 @@ namespace ReDefinition.Tests
             Assert.IsNull(other.Registration.Setting("Labels").Row);
         }
 
+        // A slider's step reaches the setting; a step of 0, a negative or no number is reported and dropped.
         [TestMethod]
         public void AStepReachesTheSliderAndABadOneIsReported()
         {
@@ -91,6 +100,7 @@ namespace ReDefinition.Tests
             }
         }
 
+        // A percentage is shown on a slider only, so one without a min and max is reported.
         [TestMethod]
         public void APercentageWithoutARangeIsReported()
         {
@@ -102,6 +112,8 @@ namespace ReDefinition.Tests
             StringAssert.Contains(problems[0], "percent");
         }
 
+        // Tooltip lines are kept to the length of the upscaler tooltip's first line: one that long stays, a
+        // longer one is broken at a space so no line is longer, and the line breaks already there are kept.
         [TestMethod]
         public void ATooltipLineLongerThanTheUpscalersFirstIsBrokenAtASpace()
         {
@@ -116,6 +128,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(longer.Replace("antialiasing, and", "antialiasing,\nand") + "\nShort.", wrapped);
         }
 
+        // A resolution is written as KSP's settings screen shows it, "3440 x 1440", and read with or without
+        // the spaces; text that is no resolution, or a side of 0, is not read.
         [TestMethod]
         public void AResolutionIsWrittenAndReadAsKspShowsIt()
         {

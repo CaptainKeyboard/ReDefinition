@@ -25,8 +25,10 @@ namespace ReDefinition.Settings
     // its audio, gameplay, system and input settings in tabs of their own.
     internal static class WindowLayout
     {
+        // A row with what sorts it: the registration's order, then its place among every mod's settings.
         private struct Row
         {
+            // The setting or dialog, its order (int.MaxValue for none), and its place.
             public BundledSetting Setting;
             public int Order;
             public int Position;
@@ -91,6 +93,7 @@ namespace ReDefinition.Settings
             return list;
         }
 
+        // Whether the mod of that id is among the installed ones.
         private static bool Contains(IList<IBundledMod> installed, string id)
         {
             foreach (IBundledMod mod in installed)
@@ -98,6 +101,7 @@ namespace ReDefinition.Settings
             return false;
         }
 
+        // The mod's setting of that name; null where it has none.
         private static BundledSetting Of(IBundledMod mod, string name)
         {
             string key = mod.Id + "." + name;

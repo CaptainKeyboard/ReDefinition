@@ -38,6 +38,7 @@ Shader "Hidden/ReDefinition/Masks"
             float _ReDefinitionOcean;
             float4 _ReDefinitionMaskTexel;
 
+            // The clouds' faded opacity at the pixel, or 1 where Scatterer's ocean is drawn: the larger, each where on.
             fixed4 frag (v2f_img i) : SV_Target
             {
                 float2 uv = i.pos.xy * _ReDefinitionMaskTexel.xy;
@@ -72,6 +73,8 @@ Shader "Hidden/ReDefinition/Masks"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // Copied from the transparent renderer's material (UpscalerMasks): its texture and placement, its tint
+            // (a particle shader's doubled), 1 to take its vertex colours, 1 for additive blending.
             sampler2D _MainTex;
             float4 _MainTex_ST;
             fixed4 _ReDefinitionTint;
@@ -82,20 +85,26 @@ Shader "Hidden/ReDefinition/Masks"
             sampler2D _ReDefinitionSceneDepth;
             float4 _ReDefinitionMaskTexel;
 
+            // The mesh's vertex as DrawRenderer gives it.
             struct appdata
             {
+                // The renderer's position, texture coordinate and vertex colour.
                 float4 vertex : POSITION;
                 float2 uv : TEXCOORD0;
                 fixed4 color : COLOR;
             };
 
+            // What the vertex function hands the fragment function.
             struct v2f
             {
+                // The clip position, the texture coordinate, and the vertex colour the tint is multiplied by.
                 float4 pos : SV_POSITION;
                 float2 uv : TEXCOORD0;
                 fixed4 color : COLOR;
             };
 
+            // Projects the vertex, places the texture as the renderer's material does, and takes its vertex colour
+            // or white.
             v2f vert (appdata v)
             {
                 v2f o;
@@ -105,6 +114,8 @@ Shader "Hidden/ReDefinition/Masks"
                 return o;
             }
 
+            // The renderer's reactive value where it lies in front of the scene: its alpha, or for additive
+            // blending its brightest channel times the alpha.
             fixed4 frag (v2f i) : SV_Target
             {
                 // Both textures are the camera's size and addressed by pixel, so
@@ -142,8 +153,10 @@ Shader "Hidden/ReDefinition/Masks"
             #pragma fragment frag
             #include "UnityCG.cginc"
 
+            // The highest reactive value AMD's guidance allows (ReactiveMaximum in UpscalerMasks).
             float _ReDefinitionMax;
 
+            // The ceiling everywhere; the Min blend keeps the smaller of it and the mask.
             fixed4 frag (v2f_img i) : SV_Target
             {
                 return _ReDefinitionMax.xxxx;

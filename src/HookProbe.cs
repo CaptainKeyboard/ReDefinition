@@ -23,6 +23,7 @@ namespace ReDefinition
     // as well.
     internal static class HookProbe
     {
+        // Whether the handlers are registered.
         private static bool on;
 
         // Twice per scene: the first call, and one about two seconds later. The
@@ -31,6 +32,8 @@ namespace ReDefinition
         // is.
         private const int SettledAfter = 120;
 
+        // Per hook: the scene it last wrote its first line in (-1 for none yet), and the frame of that first line, 0
+        // once the settled line is written too.
         private static int motionVectorsSaid = -1;
         private static int afterUpscalingSaid = -1;
         private static int overlaySaid = -1;
@@ -38,11 +41,13 @@ namespace ReDefinition
         private static int afterUpscalingFirst;
         private static int overlayFirst;
 
+        // Whether the probe is on, for the diagnostics window's switch.
         internal static bool On
         {
             get { return on; }
         }
 
+        // Registers the three handlers, with every hook's lines due again, or takes them back out.
         internal static void Set(bool wanted)
         {
             if (wanted == on) return;
@@ -80,11 +85,13 @@ namespace ReDefinition
                    + (Frame.HistoryReset ? ", history reset (" + Frame.HistoryResetReason + ")" : "");
         }
 
+        // A size as width x height.
         private static string Size(Vector2Int size)
         {
             return size.x + "x" + size.y;
         }
 
+        // A texture's size and format; "none" where there is none.
         private static string Of(RenderTexture texture)
         {
             return texture == null ? "none" : texture.width + "x" + texture.height + " " + texture.format;
@@ -109,11 +116,13 @@ namespace ReDefinition
             return true;
         }
 
+        // The frame number every probe line begins with.
         private static string At()
         {
             return "frame " + Time.frameCount + ": ";
         }
 
+        // The motion-vector hook's handler: logs the camera, the command buffer, the two textures and the frame's state.
         private static void MotionVectors(CommandBuffer buffer, RenderTexture motionVectors, RenderTexture depth,
                                           Camera scene)
         {
@@ -128,6 +137,7 @@ namespace ReDefinition
             Debug.Log(sb.ToString());
         }
 
+        // The after-upscaling hook's handler: logs the camera, the upscaled image and the frame's state.
         private static void AfterUpscaling(CommandBuffer buffer, RenderTexture image, Camera scene)
         {
             if (!Say(ref afterUpscalingSaid, ref afterUpscalingFirst)) return;
@@ -136,6 +146,7 @@ namespace ReDefinition
                       + ", image " + Of(image) + " -- " + Frames());
         }
 
+        // The overlay hook's handler: logs the camera and the frame's state.
         private static void Overlay(CommandBuffer buffer, Camera scene)
         {
             if (!Say(ref overlaySaid, ref overlayFirst)) return;

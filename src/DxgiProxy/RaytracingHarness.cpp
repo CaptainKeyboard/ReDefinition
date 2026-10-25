@@ -36,12 +36,15 @@ using namespace redefinition;
 
 namespace
 {
+    // The frame's size in pixels, and the render event a frame goes through (event 30).
     constexpr UINT kWidth = 1280;
     constexpr UINT kHeight = 720;
     constexpr int kFrameEvent = RT_FRAME_EVENT;
 
+    // The checks failed so far; main returns 1 where any did.
     int failures = 0;
 
+    // A check's line, PASS or FAIL, with what it checks and what it found; a failure counted.
     void Check(bool passed, const char* what, const std::string& detail)
     {
         printf("%s  %s -- %s\n", passed ? "PASS" : "FAIL", what, detail.c_str());
@@ -49,12 +52,14 @@ namespace
             ++failures;
     }
 
+    // A failure that ends the run, with its HRESULT; 1, for main to return.
     int Fatal(const char* what, HRESULT hr)
     {
         printf("FAIL  %s (0x%08lX)\n", what, static_cast<unsigned long>(hr));
         return 1;
     }
 
+    // The path of a file of that name in the harness executable's folder.
     std::wstring NextToExecutable(const wchar_t* name)
     {
         wchar_t path[MAX_PATH] = {};
@@ -65,26 +70,36 @@ namespace
 
     // ------------------------------------------------------------------ maths
 
+    // A point or direction in double precision, as the CPU's references take it.
     struct Vec3
     {
+        // Its components, in Unity's axes (y up).
         double x = 0, y = 0, z = 0;
     };
     Vec3 operator+(Vec3 a, Vec3 b) { return { a.x + b.x, a.y + b.y, a.z + b.z }; }
     Vec3 operator-(Vec3 a, Vec3 b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
     Vec3 operator*(Vec3 a, double s) { return { a.x * s, a.y * s, a.z * s }; }
+    // The dot product of the two.
     double Dot(Vec3 a, Vec3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+    // The cross product a x b.
     Vec3 Cross(Vec3 a, Vec3 b) { return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x }; }
+    // The vector's euclidean length.
     double Length(Vec3 a) { return std::sqrt(Dot(a, a)); }
+    // The vector scaled to length 1; not for a zero vector.
     Vec3 Normalize(Vec3 a) { return a * (1.0 / Length(a)); }
 
     // Rows first, for column vectors.
     struct Mat4
     {
+        // The sixteen elements, row by row.
         double m[16] = {};
+        // The element in row r and column c, to write.
         double& at(int r, int c) { return m[r * 4 + c]; }
+        // The element in row r and column c, to read.
         double at(int r, int c) const { return m[r * 4 + c]; }
     };
 
+    // The product a * b: b applies first to a column vector.
     Mat4 Multiply(const Mat4& a, const Mat4& b)
     {
         Mat4 r;
@@ -99,6 +114,7 @@ namespace
         return r;
     }
 
+    // The inverse of an invertible matrix.
     Mat4 Inverse(const Mat4& a)
     {
         // Gauss-Jordan with partial pivoting.
@@ -160,6 +176,7 @@ namespace
         return p;
     }
 
+    // The matrix as the packets take it: sixteen floats, rows first.
     void ToFloats(const Mat4& a, float* out)
     {
         for (int i = 0; i < 16; ++i)
@@ -168,8 +185,11 @@ namespace
 
     // ------------------------------------------------------------------ scene
 
+    // A test mesh: the id it is handed to the proxy under, its data as RtMeshDesc takes it,
+    // and its buffers for the rasterised G-buffer (UploadMeshForRaster).
     struct Mesh
     {
+        // The id; three floats a vertex for the positions and for the normals.
         int id = 0;
         std::vector<float> positions;
         std::vector<float> normals;
@@ -180,8 +200,11 @@ namespace
         ComPtr<ID3D11Buffer> indexBuffer;
     };
 
+    // An instance of a test mesh: drawn into the G-buffer with its albedo, smoothness and
+    // specular, and handed to the proxy camera-relative (SendInstances).
     struct Instance
     {
+        // The ids of its mesh and its material.
         int mesh = 0;
         int material = 0;
         Vec3 position;        // in the world, in double precision
@@ -197,6 +220,7 @@ namespace
         double matrix[12] = {};
     };
 
+    // A quad of the corners a to d in order, as two triangles with the normal n at each corner.
     void AddQuad(Mesh& mesh, Vec3 a, Vec3 b, Vec3 c, Vec3 d, Vec3 n)
     {
         const uint32_t base = static_cast<uint32_t>(mesh.positions.size() / 3);
@@ -343,8 +367,12 @@ namespace
         return at == bytes.size();
     }
 
+    // The test camera, as Unity's would be: where it is and looks, its projection, and the
+    // matrices the packets take (Update).
     struct Camera
     {
+        // In the world; the vertical field of view in radians, the near and far planes; the
+        // camera-relative world to clip space, and back.
         Vec3 position;
         Vec3 target;
         double fov = 60.0 * 3.14159265358979 / 180.0;
@@ -353,6 +381,7 @@ namespace
         Mat4 worldToClip;   // camera-relative
         Mat4 clipToWorld;
 
+        // The matrices from the position, target and projection, at the frame's aspect.
         void Update()
         {
             const Mat4 view = LookRotation(target - position, { 0, 1, 0 });
@@ -382,6 +411,8 @@ namespace
 
     // ------------------------------------------------------------------ G-buffer
 
+    // The G-buffer's shaders, HLSL compiled at run time: depth as clip-space z, the albedo,
+    // the specular grey and smoothness, the world normal as n * 0.5 + 0.5, as Unity lays them out.
     const char kGBufferShader[] = R"(
 cbuffer Draw : register(b0)
 {
@@ -420,14 +451,18 @@ PsOut PsMain(VsOut input)
 }
 )";
 
+    // cbuffer Draw of kGBufferShader, per instance.
     struct DrawConstants
     {
+        // The camera's matrix, the instance's camera-relative transform, its albedo, and its
+        // smoothness and specular grey in x and y.
         float worldToClip[16];
         float model[12];
         float albedo[4];
         float surface[4];
     };
 
+    // The rasterised G-buffer's textures, as the frame's inputs, and what draws them.
     struct GBuffer
     {
         ComPtr<ID3D11Texture2D> depth;       // R32_FLOAT, the clip-space z
@@ -445,6 +480,7 @@ PsOut PsMain(VsOut input)
         ComPtr<ID3D11RasterizerState> rasterizer;
     };
 
+    // A texture of the frame's size in that format, bound as asked.
     HRESULT CreateTarget(ID3D11Device* device, DXGI_FORMAT format, UINT bind, ComPtr<ID3D11Texture2D>& out)
     {
         D3D11_TEXTURE2D_DESC desc = {};
@@ -459,6 +495,8 @@ PsOut PsMain(VsOut input)
         return device->CreateTexture2D(&desc, nullptr, &out);
     }
 
+    // The G-buffer's textures and views, its shaders compiled, and its states: reversed depth
+    // (GREATER), no culling.
     HRESULT CreateGBuffer(ID3D11Device* device, GBuffer& g)
     {
         HRESULT hr = CreateTarget(device, DXGI_FORMAT_R32_FLOAT, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE, g.depth);
@@ -517,6 +555,7 @@ PsOut PsMain(VsOut input)
         return hr;
     }
 
+    // The mesh's vertex buffer (position and normal interleaved) and index buffer for drawing.
     HRESULT UploadMeshForRaster(ID3D11Device* device, Mesh& mesh)
     {
         std::vector<float> interleaved;
@@ -543,6 +582,7 @@ PsOut PsMain(VsOut input)
         return hr;
     }
 
+    // The G-buffer cleared (depth 0, the normal up) and every instance drawn into it.
     void RenderGBuffer(ID3D11DeviceContext* context, GBuffer& g, const Camera& camera, std::map<int, Mesh>& meshes,
                        const std::vector<Instance>& instances)
     {
@@ -594,6 +634,8 @@ PsOut PsMain(VsOut input)
 
     // ------------------------------------------------------------------ readback
 
+    // A texture's texels through a staging copy, rows packed, texelSize bytes each; false where
+    // the copy could not be made or mapped.
     template <typename T>
     bool ReadTexture(ID3D11Device* device, ID3D11DeviceContext* context, ID3D11Texture2D* texture, UINT texelSize,
                      std::vector<T>& out)
@@ -654,23 +696,41 @@ PsOut PsMain(VsOut input)
 
     // ------------------------------------------------------------------ the proxy
 
+    // The proxy DLL loaded as Unity loads it, and the exports the harness calls.
     struct Proxy
     {
+        // The loaded dxgi.dll.
         HMODULE module = nullptr;
+        // KspRtAvailable: 1 ready, 0 no device yet, -1 not possible, the reason in the text.
         int (*available)(char*, int) = nullptr;
+        // KspRtStructSizes: the mesh's, the material's and the instance's sizes as the proxy has
+        // them; the frame packet's returned.
         unsigned int (*structSizes)(unsigned int*, unsigned int*, unsigned int*) = nullptr;
+        // Raytracing::SetMesh.
         int (*setMesh)(const RtMeshDesc*) = nullptr;
+        // Raytracing::ReleaseMesh.
         void (*releaseMesh)(int) = nullptr;
+        // Raytracing::SetMaterial.
         int (*setMaterial)(const RtMaterialDesc*) = nullptr;
+        // Raytracing::SetMaterialTexture.
         int (*setMaterialTexture)(int, const uint8_t*, int) = nullptr;
+        // Raytracing::SetInstances.
         int (*setInstances)(const RtInstance*, int, unsigned int) = nullptr;
+        // Raytracing::SetGpuGroups.
         int (*setGpuGroups)(const RtGpuInstanceGroup*, int, unsigned int) = nullptr;
+        // Raytracing::PassTimings.
         void (*passTimings)(float*, int) = nullptr;
+        // Raytracing::ReconstructionAvailable.
         int (*reconstructionAvailable)(char*, int) = nullptr;
+        // Raytracing::Status.
         int (*status)(char*, int) = nullptr;
+        // Raytracing::Timings: the last frame's build and trace on the GPU.
         void (*timings)(float*, float*) = nullptr;
+        // The render event callback (KspFgGetRenderEventFunc) Unity calls, with the event's id
+        // and its data.
         void (*event)(int, void*) = nullptr;
 
+        // An export by name into the function pointer; false where the DLL has none.
         template <typename T>
         bool Load(T& function, const char* name)
         {
@@ -678,6 +738,7 @@ PsOut PsMain(VsOut input)
             return function != nullptr;
         }
 
+        // The service's status line (Raytracing::Status).
         std::string Status()
         {
             char text[1024] = {};
@@ -694,6 +755,7 @@ PsOut PsMain(VsOut input)
         }
     };
 
+    // The mesh handed to the proxy (KspRtSetMesh); its answer, 1 where it took it.
     int SendMesh(Proxy& proxy, const Mesh& mesh)
     {
         RtMeshDesc desc = {};
@@ -710,6 +772,8 @@ PsOut PsMain(VsOut input)
         return proxy.setMesh(&desc);
     }
 
+    // The instances handed over relative to the camera, every ray mask bit set, for every
+    // frame (kRtAnyFrame).
     void SendInstances(Proxy& proxy, const std::vector<Instance>& instances, const Vec3& camera)
     {
         std::vector<RtInstance> list(instances.size());
@@ -724,8 +788,11 @@ PsOut PsMain(VsOut input)
         proxy.setInstances(list.data(), static_cast<int>(list.size()), kRtAnyFrame);
     }
 
+    // The frame's output textures, by the slot each signal writes.
     struct Outputs
     {
+        // The sun's visibility, the diffuse light, the reflections, the occlusion, the forward
+        // light, the surface's intent and its mode, the camera rays' check.
         ComPtr<ID3D11Texture2D> visibility;   // u0, R16G16B16A16_FLOAT
         ComPtr<ID3D11Texture2D> diffuse;      // u1
         ComPtr<ID3D11Texture2D> specular;     // u2
@@ -736,6 +803,7 @@ PsOut PsMain(VsOut input)
         ComPtr<ID3D11Texture2D> primary;      // u7, R32G32B32A32_FLOAT
     };
 
+    // The output textures at the frame's size: half floats, the camera rays' check in full floats.
     HRESULT CreateOutputs(ID3D11Device* device, Outputs& outputs)
     {
         HRESULT hr = S_OK;
@@ -754,6 +822,7 @@ PsOut PsMain(VsOut input)
     // What a frame traces besides the camera, with the defaults of the shadow checks.
     struct Lighting
     {
+        // The sun's radiance and the sky's (RtFramePacket sunColor, skyColor), linear rgb.
         float sunColor[3] = { 1.0f, 1.0f, 1.0f };
         float sky[3] = { 1.0f, 1.0f, 1.0f };
         // Unity's ambient light a forward frame has already: facing up, sideways, down.
@@ -802,6 +871,9 @@ PsOut PsMain(VsOut input)
         Vec3 cameraDelta;
     };
 
+    // A frame through the render event as the mod sends it: the camera, the sun, the lighting's
+    // fields into the packet, the G-buffer as the inputs and the outputs; the service copies
+    // the results back before the call returns.
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
                    uint32_t frameIndex, uint32_t signals, const Lighting& lighting = Lighting())
     {
@@ -939,14 +1011,17 @@ PsOut PsMain(VsOut input)
         return expected;
     }
 
+    // A frame read back for the checks (ReadFrame).
     struct Frame
     {
+        // The depth and the packed G-buffer normals, a value a pixel.
         std::vector<float> depth;
         std::vector<uint32_t> normals;
         std::vector<uint16_t> visibility;   // four halves a texel
         std::vector<float> primary;         // four floats a texel
     };
 
+    // The depth, the normals, the sun's visibility and the camera rays' check read back.
     bool ReadFrame(ID3D11Device* device, ID3D11DeviceContext* context, GBuffer& g, Outputs& outputs, Frame& frame)
     {
         return ReadTexture(device, context, g.depth.Get(), 4, frame.depth)
@@ -982,6 +1057,8 @@ PsOut PsMain(VsOut input)
         Check(compared > 100000 && wrong * 1000 <= compared, what, detail);
     }
 
+    // The camera rays' hit distance (u7 x) against the depth's (u7 y): passes where 99.5 % of
+    // the surface pixels agree within 0.1 %.
     void CheckPrimary(const char* what, const Frame& frame)
     {
         size_t compared = 0, close = 0, missed = 0;
@@ -1009,6 +1086,8 @@ PsOut PsMain(VsOut input)
         Check(compared > 100000 && close * 1000 >= compared * 995, what, detail);
     }
 
+    // The sun's visibility as an image next to the executable: surfaces grey by how lit they
+    // are, bluer the more their normal faces up; the sky dark blue.
     void SaveVisibility(const wchar_t* name, const Frame& frame)
     {
         std::vector<float> rgb(static_cast<size_t>(kWidth) * kHeight * 3);
@@ -1024,6 +1103,8 @@ PsOut PsMain(VsOut input)
         WriteBmp(NextToExecutable(name), kWidth, kHeight, rgb);
     }
 
+    // A material without texture handed to the proxy (KspRtSetMaterial), its specular a grey;
+    // 1 where it took it.
     int SendMaterial(Proxy& proxy, int id, const float albedo[3], const float emission[3], float smoothness,
                      float vertexColour = 0.0f, float specular = 0.04f, uint32_t flags = RT_SURFACE_KEEP,
                      float glossDivisor = 0.0f, float glossMean = 0.0f)
@@ -1066,6 +1147,7 @@ PsOut PsMain(VsOut input)
         return true;
     }
 
+    // Whether no half float is infinite or NaN (all exponent bits set).
     bool Finite(const std::vector<uint16_t>& halves)
     {
         for (uint16_t h : halves)
@@ -1107,6 +1189,7 @@ PsOut PsMain(VsOut input)
         return x >= 2 && y >= 2 && x < static_cast<int>(kWidth) - 2 && y < static_cast<int>(kHeight) - 2;
     }
 
+    // One channel's mean over the 5x5 pixels about (x, y) of an rgb image.
     double MeanAround(const std::vector<double>& image, int x, int y, int channel)
     {
         double sum = 0.0;
@@ -1151,6 +1234,7 @@ PsOut PsMain(VsOut input)
         return referenceSum > 0.0 ? differences / referenceSum : 1.0;
     }
 
+    // An rgb image, times scale, as a BMP next to the executable.
     void SaveColour(const wchar_t* name, const std::vector<double>& image, double scale)
     {
         std::vector<float> rgb(image.size());
@@ -1631,6 +1715,9 @@ static void Progress(const char* step)
     printf("      at: %s\n", step);
 }
 
+// Loads the proxy, makes its devices through a swapchain as Unity would, and runs the checks
+// (or only the opacity micromaps' with --omm, --omm-table, --omm-scene, --omm-none); 0 where
+// every check passed.
 int main(int argc, char** argv)
 {
     // Unbuffered: piped, a crash would take the buffered lines with it.

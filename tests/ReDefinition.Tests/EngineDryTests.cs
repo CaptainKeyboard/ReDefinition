@@ -70,6 +70,7 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new object[] { 0.0 }, marks["LiquidFuel"]);
         }
 
+        // A tank part of one tonne holding two resources.
         private static SimPart Tank(int parent, int decouple, string a, double amountA, string b, double amountB)
         {
             SimPart part = new SimPart { Parent = parent, DecoupleStage = decouple, Fixed = 1.0 };
@@ -78,11 +79,13 @@ namespace ReDefinition.Tests
             return part;
         }
 
+        // An engine part of one tonne lit in stage 2.
         private static SimPart Engine(int parent, int decouple, SimEngine rocket)
         {
             return new SimPart { Parent = parent, DecoupleStage = decouple, ActivatesAt = 2, Fixed = 1.0, Rocket = rocket };
         }
 
+        // A solid booster lit in stage 2, holding the given solid fuel, which only it burns.
         private static SimPart Booster(int parent, int decouple, double solid)
         {
             SimPart part = Engine(parent, decouple, Rocket(100.0, 200.0, true, "SolidFuel", 1.0, SimFlow.Own, null, 0.0, SimFlow.Own));
@@ -90,6 +93,7 @@ namespace ReDefinition.Tests
             return part;
         }
 
+        // An engine mode of the given thrust and Isp burning one or two propellants in their ratios and flows.
         private static SimEngine Rocket(double thrust, double isp, bool solid, string a, double ratioA, SimFlow flowA, string b, double ratioB, SimFlow flowB)
         {
             SimEngine engine = new SimEngine { Thrust = thrust, Isp = isp, Solid = solid };
@@ -98,6 +102,7 @@ namespace ReDefinition.Tests
             return engine;
         }
 
+        // What the parts hold of each resource, launch clamps left out.
         private static Dictionary<string, double> Totals(List<SimPart> sim)
         {
             Dictionary<string, double> total = new Dictionary<string, double>();

@@ -12,6 +12,7 @@ namespace ReDefinition.Tests
     [TestClass]
     public class DiagnosticsWindowTests
     {
+        // Parsing a float rejects NaN and the infinities as well as text that is no number.
         [TestMethod]
         public void AFloatThatIsNotANumberIsNotRead()
         {
@@ -24,6 +25,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(OwnSettings.ParseFloat("far", out value));
         }
 
+        // A window position of NaN or infinity in the settings file leaves the default, which would otherwise
+        // put the window where it cannot be seen.
         [TestMethod]
         public void AWindowPositionOfNaNLeavesTheDefault()
         {
@@ -38,6 +41,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual(120f, settings.DiagnosticsX);
         }
 
+        // A page is read by its name or its number only where the page exists: no undefined numbers, flag
+        // combinations, unknown names or empty text.
         [TestMethod]
         public void AnEnumValueThePageDoesNotHaveIsNotRead()
         {
@@ -54,6 +59,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(OwnSettings.ParseEnum(null, out page));
         }
 
+        // An undefined page in the settings file leaves the page as it was; the default is the Overview.
         [TestMethod]
         public void AnUndefinedPageLeavesTheDefaultPage()
         {
@@ -63,6 +69,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(DebugCategory.Overview, new OwnSettings().DiagnosticsPage);
         }
 
+        // Escape, Return and the keypad's Enter end the typing in the search field; other keys do not.
         [TestMethod]
         public void EscapeAndReturnEndTheTyping()
         {
@@ -73,6 +80,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(DiagnosticsContent.EndsTyping(KeyCode.Backspace));
         }
 
+        // A page's entry adds the number of its options that pass the filter when there are any, and stays one
+        // object while that number changes; without a filter or matches it is the title alone.
         [TestMethod]
         public void ThePageEntryNamesTheCountOnlyWhileItChanges()
         {
@@ -85,6 +94,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Overview", content.PageEntry(DebugCategory.Overview, -1).text);
         }
 
+        // The changed chip shows its count and stays one object, its text rewritten when the count changes.
         [TestMethod]
         public void TheChangedChipCountsAndStaysTheSameObject()
         {
@@ -95,6 +105,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Changed (5)", chip.text);
         }
 
+        // A row's label is one object kept from frame to frame whose text follows the option's dynamic label;
+        // the chip's tooltip is the reason it is greyed out where there is one, else the option's tooltip.
         [TestMethod]
         public void ARowKeepsItsContentAndFollowsItsLabel()
         {
@@ -115,6 +127,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Tip", content.Chip(option, null).tooltip);
         }
 
+        // While the search field has the keyboard the mods' keys read as neither pressed, held nor released,
+        // so typing a letter does not also work a mod's key.
         [TestMethod]
         public void ModsKeysAreSilentWhileTheSearchFieldHasTheKeyboard()
         {

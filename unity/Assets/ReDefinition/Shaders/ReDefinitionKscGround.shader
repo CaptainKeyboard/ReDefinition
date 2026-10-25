@@ -55,6 +55,8 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
     CGINCLUDE
     #include "UnityCG.cginc"
 
+    // The material's properties above: KSP's tarmac, mask and tarmac normal as Deferred takes them, and
+    // Parallax's meadow textures and values, which KscGround copies from its terrain material.
     sampler2D _TarmacTexture;
     float4 _TarmacTexture_ST;
     sampler2D _BlendMaskTexture;
@@ -80,8 +82,10 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
     // x, z of the colour map's corner in the root's plane, one over its width and depth in metres.
     float4 _ReDefinitionKscColourGrid;
 
+    // The ground mesh's vertex.
     struct appdata
     {
+        // The position, normal and tangent; the tarmac's and the blend mask's texture coordinates.
         float4 vertex : POSITION;
         float3 normal : NORMAL;
         float4 tangent : TANGENT;
@@ -89,9 +93,10 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
         float2 uv1 : TEXCOORD1;
     };
 
+    // What vertGround hands the fragment functions.
     struct v2f
     {
-        float4 pos : SV_POSITION;
+        float4 pos : SV_POSITION; // the vertex's clip position
         float4 uv : TEXCOORD0;            // xy the tarmac's, zw the mask's
         float3 worldPos : TEXCOORD1;
         float3 worldNormal : TEXCOORD2;
@@ -99,6 +104,8 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
         float4 worldTangent : TEXCOORD5;
     };
 
+    // The tarmac's and the mask's texture coordinates, the world position, normal and tangent, and where the
+    // vertex lies on KscGround's colour map.
     v2f vertGround(appdata v)
     {
         v2f o;
@@ -134,21 +141,25 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
         return k == 0 ? p.yz : k == 1 ? p.zx : p.xy;
     }
 
+    // The plane's first axis in the world, along OnPlane's x.
     float3 PlaneAxisU(int k)
     {
         return k == 0 ? float3(0, 1, 0) : k == 1 ? float3(0, 0, 1) : float3(1, 0, 0);
     }
 
+    // The plane's second axis in the world, along OnPlane's y.
     float3 PlaneAxisV(int k)
     {
         return k == 0 ? float3(0, 0, 1) : k == 1 ? float3(1, 0, 0) : float3(0, 1, 0);
     }
 
+    // The two scales a texture is laid on at, chosen by the distance.
     struct Levels
     {
-        float scale0, scale1, t;
+        float scale0, scale1, t; // the texture's scales at the finer and the coarser level, and the mix
     };
 
+    // The two scales at a distance from the camera, and the fraction that mixes them.
     Levels LevelsAt(float distance)
     {
         Levels l;
@@ -169,6 +180,7 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
         return lerp(a, b, l.t);
     }
 
+    // The surface's normal bent by the meadow's normal map on one plane, at both levels mixed.
     float3 NormalOnLevels(float3 p, float3 dx, float3 dy, int k, Levels l, float3 n)
     {
         float2 uv = OnPlane(p, k), gx = OnPlane(dx, k), gy = OnPlane(dy, k);
@@ -178,8 +190,10 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
         return normalize(n + bend.x * PlaneAxisU(k) + bend.y * PlaneAxisV(k));
     }
 
+    // The surface a pixel of the ground has, as the G-buffer and the forward pass take it.
     struct Ground
     {
+        // The diffuse and specular colour, the smoothness, the occlusion and the world normal.
         float3 diffuse;
         float3 specular;
         float smoothness;
@@ -201,6 +215,7 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
         return normalize(t * m.x + b * m.y + n * m.z);
     }
 
+    // The tarmac and the lawn at a pixel, mixed by the blend mask's red: 1 the tarmac, 0 the lawn.
     Ground GroundAt(v2f i)
     {
         float3 n = normalize(i.worldNormal);
@@ -264,6 +279,7 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
             #pragma multi_compile _ UNITY_HDR_ON
             #include "UnityGBuffer.cginc"
 
+            // The ground into the G-buffer's four targets; the fourth without emission.
             void fragDeferred(v2f i, out half4 gbuffer0 : SV_Target0, out half4 gbuffer1 : SV_Target1,
                               out half4 gbuffer2 : SV_Target2, out half4 gbuffer3 : SV_Target3)
             {
@@ -299,8 +315,10 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
             #include "Lighting.cginc"
             #include "AutoLight.cginc"
 
+            // v2f with the sun's shadow coordinates, which the forward pass needs.
             struct v2fForward
             {
+                // As in v2f, for GroundAt.
                 float4 pos : SV_POSITION;
                 float4 uv : TEXCOORD0;
                 float3 worldPos : TEXCOORD1;
@@ -310,6 +328,7 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
                 SHADOW_COORDS(4)
             };
 
+            // vertGround's output copied over, with the sun's shadow coordinates.
             v2fForward vertForward(appdata v)
             {
                 v2f g = vertGround(v);
@@ -324,6 +343,7 @@ Shader "ReDefinition/Scenery/Diffuse Ground KSC"
                 return o;
             }
 
+            // The ground's colours lit by the sun with its shadow and by the ambient light, without a shine.
             half4 fragForward(v2fForward i) : SV_Target
             {
                 v2f g0;

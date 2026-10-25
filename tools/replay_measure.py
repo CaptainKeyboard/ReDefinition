@@ -14,6 +14,8 @@ from PIL import Image
 
 
 def dump_frames(dump):
+    """The dump's frames as grey at half size, as the replay shows them: the presented frame where dumped, else the
+    HUD-less colour."""
     frames = []
     w = h = 0
     for line in open(os.path.join(dump, "frames.txt"), encoding="utf-8"):
@@ -32,10 +34,13 @@ def dump_frames(dump):
 
 
 def detail(g):
+    """The mean absolute Laplacian of a grey image: how much fine detail it holds."""
     return np.abs(4 * g[1:-1, 1:-1] - g[:-2, 1:-1] - g[2:, 1:-1] - g[1:-1, :-2] - g[1:-1, 2:]).mean()
 
 
 def main():
+    """Find the replay window in the recording, crop and name each frame real-<n> or generated into client/, delete
+    the originals and print the runway's detail, the shadow edges and the large-scale deviation."""
     folder, dump = sys.argv[1], sys.argv[2]
     refs = dump_frames(dump)
     h, w = refs[0].shape
@@ -96,6 +101,7 @@ def large_scale(items):
 
 
 def blur(a, s):
+    """The image blurred by a separable Gaussian of standard deviation s pixels, edges extended."""
     r = 3 * s
     k = np.exp(-0.5 * (np.arange(-r, r + 1) / s) ** 2)
     k /= k.sum()

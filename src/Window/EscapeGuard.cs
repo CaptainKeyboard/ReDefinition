@@ -21,6 +21,7 @@ namespace ReDefinition.Window
     // and KeyCapture keeps its lock, which holds PAUSE.
     internal static class EscapeGuard
     {
+        // Whether an Escape taken here is still down, and the frame it came up in.
         private static bool held;
         private static int releasedFrame = -10;
         // The last frame a text field of these dialogs was being typed into. The
@@ -65,6 +66,7 @@ namespace ReDefinition.Window
             if (typing) typingFrame = Time.frameCount;
         }
 
+        // Whether the selected object is a focused text field inside one of these dialogs; those gone are forgotten.
         private static bool TypingHere()
         {
             EventSystem events = EventSystem.current;

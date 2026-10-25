@@ -19,6 +19,7 @@ namespace ReDefinition.Raytracing
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class MoonGlow : MonoBehaviour
     {
+        // Drawn before the transparent pass; the shader's inputs; the blockers' array handed to it each frame.
         private const CameraEvent Event = CameraEvent.BeforeForwardAlpha;
         private static readonly int MoonId = Shader.PropertyToID("_ReDefinitionMoon");
         private static readonly int ColourId = Shader.PropertyToID("_ReDefinitionMoonColour");
@@ -32,6 +33,7 @@ namespace ReDefinition.Raytracing
         // For the light probe: no glow, to compare.
         internal static bool HeldOff;
 
+        // The glow's material, the quad it draws over the screen, the command buffer, and the camera it is on.
         private Material material;
         private Mesh screen;
         private CommandBuffer command;
@@ -42,6 +44,7 @@ namespace ReDefinition.Raytracing
         private MaterialPropertyBlock properties;
         private readonly List<CelestialBody> moons = new List<CelestialBody>();
 
+        // Loads the shader and makes the full-screen quad and the command buffer; without the shader the add-on stays off.
         private void Start()
         {
             properties = new MaterialPropertyBlock();
@@ -61,6 +64,7 @@ namespace ReDefinition.Raytracing
             command = new CommandBuffer { name = "ReDefinition moon glow" };
         }
 
+        // Takes the command buffer off and frees what Start made.
         private void OnDestroy()
         {
             Detach();
@@ -69,6 +73,7 @@ namespace ReDefinition.Raytracing
             if (screen != null) Destroy(screen);
         }
 
+        // The command buffer off the camera it is on, and the depth texture taken back where this asked for it.
         private void Detach()
         {
             if (attached != null)
@@ -80,6 +85,8 @@ namespace ReDefinition.Raytracing
             depthAdded = false;
         }
 
+        // Every frame: the command buffer moved to the flight camera if it changed, then filled anew with a quad per moon
+        // of the system in or near the frame; empty in the map view, while held off or with the glow switched off.
         private void LateUpdate()
         {
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
@@ -149,6 +156,7 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // A body's centre relative to the eye and its radius in w, for the shader's blockers.
         private static Vector4 Blocker(CelestialBody body, Vector3d eye)
         {
             Vector3d centre = body.position - eye;

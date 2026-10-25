@@ -84,16 +84,20 @@ RUNS_END = "<!-- benchmark-runs:end -->"
 # ----------------------------------------------------------------------------- the matrix
 
 def load_matrix(path):
+    """The scenario matrix, read from its JSON file."""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
 def _vendor_ok(entry, vendor):
+    """Whether a matrix entry runs on this vendor's GPU: one without "vendors", or a vendor not known, always does."""
     allowed = entry.get("vendors")
     return not allowed or vendor is None or vendor in allowed
 
 
 def scenario_label(s):
+    """The row's name in the tables: variant, scene, upscaler, raytracing (with RR, cache, micromaps or
+    tweak), frame generation (with its step) and latency model, joined by middle dots."""
     rt = "RT " + s["raytracing"]
     if s.get("ray_reconstruction") is not None:
         rt += ", RR " + ("on" if s["ray_reconstruction"] else "off")
@@ -377,10 +381,13 @@ def _allowed(fg, rendering):
 
 
 def _as_list(value):
+    """The value as a list: a list stays, anything else becomes a list of one."""
     return value if isinstance(value, list) else [value]
 
 
 def _split_value(rendering, dimension):
+    """The rendering's value of one "separate_starts" dimension, as a part of a start's id; renderings
+    with different values go into different starts."""
     if dimension == "technique":
         return rendering["tech"]["id"]
     if dimension == "raytracing":
@@ -392,6 +399,7 @@ def _split_value(rendering, dimension):
 
 
 def _fill(value, resources):
+    """The value as text with each {name} replaced by that resource's path; an unknown name stays as written."""
     return re.sub(r"\{(\w+)\}", lambda m: resources.get(m.group(1), m.group(0)), str(value))
 
 
@@ -407,6 +415,10 @@ def _mod_values(rendering):
 
 
 def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
+    """One KSP start of a frame generation kind: the settings.cfg and proxy values it loads with, and
+    its phases, every rendering with frame generation off (where the kind has those) and on, at each
+    step, with each latency model, repeated as phase_repeats says. plain_off names the "FG off" rows
+    plainly; else they say which kind's files were loaded."""
     start_id = "-".join(list(group) + [fg["id"]])
     settings = dict(matrix.get("mod_settings", {}))
     settings.update(_mod_values(renderings[0]))
@@ -561,10 +573,12 @@ def command_length(start):
 
 
 def start_seconds(start):
+    """The seconds a start is expected to take: the launch and quit, the flight's wait and each phase's set."""
     return START_OVERHEAD_SECONDS + PROBE_FLIGHT_SECONDS + PROBE_SET_SECONDS * len(start["phases"])
 
 
 def estimate_seconds(starts, with_profile=True):
+    """The seconds the starts are expected to take, with the profile's own start before them where asked."""
     return (PROFILE_START_SECONDS if with_profile else 0.0) + sum(start_seconds(s) for s in starts)
 
 
@@ -651,6 +665,7 @@ _UPSCALER = re.compile(r"Upscaler running on '([^']*)': (\d+)x(\d+) -> (\d+)x(\d
 
 
 def _seconds(h, m, s, ms):
+    """A log line's time of day, from its hour, minute, second and millisecond strings, in seconds."""
     return int(h) * 3600 + int(m) * 60 + int(s) + int(ms) / 1000.0
 
 
@@ -706,6 +721,9 @@ def _with_parts(values):
 
 
 def parse_proxy_log(text):
+    """What ReDefinitionProxy.log says, each entry with its time: the Config lines at load and on
+    reload, the frame time reports, the latency, NVIDIA's latency, the brake, the stages, the
+    raytracing's mesh builds, and the lines of the backbuffer, the upscalers and frame generation."""
     p = {"configs": [], "reports": [], "latency": [], "pcl": [], "brake": [], "stages": [], "rt_builds": [], "lines": {},
          "first_time": None}
     notes = []
@@ -798,6 +816,9 @@ def _unfocused_at(proxy, t):
 
 
 def parse_ksp_log(text):
+    """What KSP.log says of the mod, each entry with its time: the GPU, the upscaler set up, the
+    probe's key sets and shots, the profile, Ray Reconstruction, the raytracing mode and the frame
+    generation multiplier. Only the mod's lines move the clock (_timed_lines)."""
     k = {"gpu": None, "upscaler": [], "sets": [], "shots": [], "profile": [], "probe": [], "rr": [], "raytracing": [],
          "multiplier": [], "first_time": None}
     for raw in text.splitlines()[:40]:
@@ -855,6 +876,9 @@ def _in_window(entries, start, end, report_seconds):
 
 
 def aggregate(reports, latency, pcl, brake, stages=()):
+    """One phase's numbers from the proxy's reports in its window: the fps over all frames (frames by
+    busy time), the frames shown, the percentiles and the latency medians; a part without reports is
+    left out of the result."""
     out = {"reports": len(reports)}
     if reports:
         frames = sum(r["frames"] for r in reports)
@@ -892,6 +916,7 @@ def aggregate(reports, latency, pcl, brake, stages=()):
 
 
 def _last_before(entries, t):
+    """The last entry at or before time t (the entries in time order), or None."""
     best = None
     for e in entries:
         if e["time"] <= t:
@@ -1081,6 +1106,7 @@ def _step_check(scenario, ratio):
 
 
 def _same_number(a, b):
+    """Whether two values are the same number ("1" and "1.000000"), or, where either is not a number, the same text."""
     try:
         return abs(float(a) - float(b)) < 1e-6
     except ValueError:
@@ -1117,6 +1143,7 @@ class _Win32:
     """The few user32 calls that bring a process's window forward. Windows only."""
 
     def __init__(self):
+        """Loads user32 and kernel32 and declares the argument and return types of the calls used."""
         import ctypes
         from ctypes import wintypes
         self.ctypes = ctypes
@@ -1154,15 +1181,19 @@ class _Win32:
         return found[0] if found else None
 
     def foreground(self):
+        """The window in front now."""
         return self.user32.GetForegroundWindow()
 
     def minimised(self, hwnd):
+        """Whether the window is minimised to the taskbar."""
         return bool(self.user32.IsIconic(hwnd))
 
     def restore(self, hwnd):
+        """Shows a minimised window again at its size and place."""
         self.user32.ShowWindow(hwnd, 9)   # SW_RESTORE
 
     def set_foreground(self, hwnd):
+        """Asks Windows to put the window in front; True where it is in front afterwards."""
         self.user32.SetForegroundWindow(hwnd)
         return self.user32.GetForegroundWindow() == hwnd
 
@@ -1196,6 +1227,7 @@ class Foreground:
     it leaves the window alone for FOREGROUND_RETRY_SECONDS."""
 
     def __init__(self, pid, win=None, clock=time.monotonic):
+        """For the process pid; win and clock stand in for _Win32 and time.monotonic in the tests."""
         self.pid = pid
         self.win = win
         self.clock = clock
@@ -1235,13 +1267,20 @@ def bring_to_front(pid):
 
 
 class Install:
+    """The KSP install a run uses: its settings files' snapshot and restore, the launch, and the
+    DLSS-G package put next to KSP_x64.exe and taken away again."""
+
     def __init__(self, ksp):
+        """For the KSP folder ksp."""
         self.ksp = ksp
 
     def path(self, *parts):
+        """A path inside the KSP folder."""
         return os.path.join(self.ksp, *parts)
 
     def settings_files(self):
+        """The settings files of the install (SNAP_EXT), relative to its folder: those in the folder
+        itself, and every one under GameData and PluginData."""
         for name in os.listdir(self.ksp):
             p = os.path.join(self.ksp, name)
             if os.path.isfile(p) and name.lower().endswith(SNAP_EXT):
@@ -1253,6 +1292,8 @@ class Install:
                         yield os.path.relpath(os.path.join(root, n), self.ksp)
 
     def snap(self, out):
+        """Copies every settings file into out/files and writes out/snap.json with the snapshot's time;
+        returns the number of files copied."""
         count = 0
         for rel in self.settings_files():
             dst = os.path.join(out, "files", rel)
@@ -1281,6 +1322,8 @@ class Install:
         return count
 
     def restore(self, out):
+        """Puts the snapshot in out back: changed files copied over, settings files made since removed,
+        other files written since only named. Returns the lines that say what was done."""
         with open(os.path.join(out, "snap.json")) as f:
             since = json.load(f)["time"]
         kept = os.path.join(out, "files")
@@ -1314,6 +1357,7 @@ class Install:
         return report
 
     def running(self):
+        """Whether a KSP_x64.exe is running, as tasklist sees it; False where tasklist cannot be run."""
         try:
             out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq KSP_x64.exe"], capture_output=True, text=True).stdout
         except OSError:
@@ -1357,9 +1401,12 @@ class Install:
             done.set()
 
     def package_in_place(self):
+        """The DLSS-G package's files and folder that lie next to KSP_x64.exe now."""
         return [n for n in PACKAGE_FILES + (PACKAGE_DIR,) if os.path.exists(self.path(n))]
 
     def put_package(self, package, max_generated_frames, ini_values=None):
+        """Copies the DLSS-G package from its folder next to KSP_x64.exe, its ini with MaxGeneratedFrames
+        and the start's own sections, keys and values set."""
         # A copy an earlier start left half done goes first.
         self.remove_package()
         shutil.copy2(os.path.join(package, "version.dll"), self.path("version.dll"))
@@ -1377,6 +1424,7 @@ class Install:
             shutil.copytree(os.path.join(package, PACKAGE_DIR, sub), self.path(PACKAGE_DIR, sub))
 
     def remove_package(self):
+        """Deletes the DLSS-G package's files and folder from next to KSP_x64.exe, those that are there."""
         for n in PACKAGE_FILES:
             if os.path.exists(self.path(n)):
                 os.remove(self.path(n))
@@ -1384,6 +1432,8 @@ class Install:
             shutil.rmtree(self.path(PACKAGE_DIR))
 
     def build_identity(self):
+        """The proxy's dxgi.dll and the mod's ReDefinition.dll in the install: the start of each one's
+        SHA-256 and its modification time, by path."""
         out = {}
         for rel in ("dxgi.dll", os.path.join("GameData", "ReDefinition", "Plugins", "ReDefinition.dll")):
             p = self.path(rel)
@@ -1396,6 +1446,7 @@ class Install:
         return out
 
     def latest_capture_run(self):
+        """The newest "-run" folder under ReDefinitionCaptures (where the probe's shots go), or None."""
         root = self.path("ReDefinitionCaptures")
         if not os.path.isdir(root):
             return None
@@ -1440,6 +1491,7 @@ def nvidia_driver_from_windows(version):
 
 
 def vendor_of(machine):
+    """The vendor of the machine record's first adapter that names one ("NVIDIA", "AMD", "Intel"), or None."""
     for a in machine.get("adapters", []):
         name = (a.get("name") or "").upper()
         for vendor in ("NVIDIA", "AMD", "INTEL"):
@@ -1449,6 +1501,7 @@ def vendor_of(machine):
 
 
 def git_record():
+    """The repository's commit, short commit, branch, and whether tracked files have local changes."""
     def git(*args):
         try:
             return subprocess.run(["git"] + list(args), cwd=REPO, capture_output=True, text=True).stdout.strip()
@@ -1461,6 +1514,8 @@ def git_record():
 # ----------------------------------------------------------------------------- the run
 
 def run(args):
+    """The run command: checks the install and the starts, snapshots the settings, applies the profile,
+    runs each start, restores the settings (also after a failure), then writes the record and the page."""
     matrix = load_matrix(args.matrix)
     install = Install(args.ksp)
     if not os.path.exists(install.path("KSP_x64.exe")):
@@ -1578,11 +1633,15 @@ def matrix_label(path):
 
 
 def _save_plan(raw, plan):
+    """Writes the run's plan to plan.json in its raw folder, which build_record reads."""
     with open(os.path.join(raw, "plan.json"), "w", encoding="utf-8") as f:
         json.dump(plan, f, indent=1)
 
 
 def run_start(install, start, raw, settings_template, ini_template, package):
+    """One start: writes its settings.cfg and proxy ini (the first phase's keys at load), puts the
+    DLSS-G package in place where it needs it, launches KSP with the probe, then copies the logs and
+    shots this start wrote into the raw folder and puts the settings template back."""
     settings = set_cfg_values(settings_template, start["mod_settings"])
     first = start["phases"][0]["keys"] if start["phases"] else {}
     ini_values = dict(start["proxy_load"])
@@ -1632,6 +1691,8 @@ def run_start(install, start, raw, settings_template, ini_template, package):
 
 
 def resources_of(args):
+    """The resources the matrix's entries may require, by name, each only where its files are there: the
+    DLSS-G package, the AMD, XeSS and XeSS-FG DLL folders (the given one, else the KSP folder) and Parallax."""
     out = {}
     if args.dlssg_package and os.path.exists(os.path.join(args.dlssg_package, "version.dll")):
         out["dlssg_package"] = os.path.abspath(args.dlssg_package)
@@ -1690,6 +1751,8 @@ def parse_ini_sections(text):
 
 
 def build_record(raw):
+    """The run's record from its raw folder: plan.json and each start's logs, settings, package ini and
+    outcome, parsed into its phases (phases_of_start); a start without logs says it did not run."""
     with open(os.path.join(raw, "plan.json"), encoding="utf-8") as f:
         plan = json.load(f)
     settle = plan.get("settle_seconds", 3)
@@ -1797,12 +1860,14 @@ def _reference_key(s):
 
 
 def _pct(a, b):
+    """How many percent a lies above b (negative below), or None where either is missing or b is 0."""
     if a is None or b in (None, 0):
         return None
     return 100.0 * (a - b) / b
 
 
 def _fmt(v, digits=1, signed=False, unit=""):
+    """A table cell's number with the digits given, a sign where asked and the unit after; a dash for None."""
     if v is None:
         return "–"
     text = ("{:+." + str(digits) + "f}" if signed else "{:." + str(digits) + "f}").format(v)
@@ -1810,6 +1875,9 @@ def _fmt(v, digits=1, signed=False, unit=""):
 
 
 def summary_table(record, previous=None, group=MAIN_GROUP):
+    """The group's comparison table in Markdown: each row's fps and latency, against the group's
+    baseline, the same rendering with frame generation off and no latency model, and the previous
+    record; the columns the group's "show" names (ratio, rt_builds) in addition."""
     rows = rows_of(record, group)
     by_key = {r["key"]: r for r in rows}
     prev = {r["key"]: r for r in rows_of(previous, group)} if previous else {}
@@ -1855,6 +1923,8 @@ def summary_table(record, previous=None, group=MAIN_GROUP):
 
 
 def _machine_line(record):
+    """The run's machine in one line: the GPU of the record's vendor (else the first), its driver, the
+    CPU, memory, Windows, the screen and render size of the first upscaler that ran, and the refresh rate."""
     m = record.get("machine") or {}
     gpu = next((a for a in m.get("adapters", []) if record.get("vendor") and record["vendor"].upper() in (a.get("name") or "").upper()),
                (m.get("adapters") or [{}])[0])
@@ -1896,6 +1966,9 @@ def _settling(record):
 
 
 def run_section(record, json_name):
+    """A run's section of benchmarks.md: its date, commit, build, machine, profile, groups and matrix,
+    and, folded, what ran in each phase, the proxy's load configuration, the package ini, the scene
+    arguments and the raytracing's load spikes."""
     git = record.get("git") or {}
     # A table rather than prose: its rows may be as long as the values are.
     lines = ["### Run {}".format(record["stamp"]), "", "| What | Value |", "|---|---|"]
@@ -1977,6 +2050,7 @@ def run_section(record, json_name):
 
 
 def load_records(folder=RESULTS):
+    """Every run's record in the folder as (file name, record), by file name, so oldest first."""
     if not os.path.isdir(folder):
         return []
     records = []
@@ -1988,6 +2062,7 @@ def load_records(folder=RESULTS):
 
 
 def _wrapped(text, width=88):
+    """The text broken into lines of at most width characters; empty for no text."""
     return "\n".join(textwrap.wrap(text, width)) if text else ""
 
 
@@ -2027,6 +2102,7 @@ def tables_of(records):
 
 
 def group_ids_of(record):
+    """The ids of the groups of the record's matrix, the main matrix first."""
     return [g["id"] for g in group_list(record.get("matrix") or {})]
 
 
@@ -2040,12 +2116,14 @@ def render_doc(records, doc_text):
 
 
 def _replace_between(text, start, end, body):
+    """The text with what lies between the two markers replaced by body; the markers stay."""
     a = text.index(start) + len(start)
     b = text.index(end)
     return text[:a] + body + text[b:]
 
 
 def write_results(record, no_doc=False):
+    """Writes the record to docs/development/benchmarks/<stamp>.json and, unless no_doc, benchmarks.md again."""
     os.makedirs(RESULTS, exist_ok=True)
     name = record["stamp"] + ".json"
     with open(os.path.join(RESULTS, name), "w", encoding="utf-8") as f:
@@ -2056,6 +2134,7 @@ def write_results(record, no_doc=False):
 
 
 def render(_args):
+    """The render command: benchmarks.md written again from every record in the results folder."""
     with open(DOC, encoding="utf-8") as f:
         text = f.read()
     text = render_doc(load_records(), text)
@@ -2065,6 +2144,8 @@ def render(_args):
 
 
 def plan_command(args):
+    """The plan command: prints each start with its settings, proxy values and phases, what is skipped,
+    and per group the starts, phases and minutes, without running anything."""
     matrix = load_matrix(args.matrix)
     resources = resources_of(args)
     vendor = args.vendor or vendor_of(machine_record())
@@ -2099,11 +2180,13 @@ def plan_command(args):
 
 
 def parse_command(args):
+    """The parse command: a run's raw folder read again into its record, written with the page."""
     record = build_record(os.path.abspath(args.raw_folder))
     write_results(record, args.no_doc)
 
 
 def main(argv=None):
+    """The command line: run, plan, parse and render, with the options they share."""
     ap = argparse.ArgumentParser(
         description=__doc__.split("\n\n")[0],
         epilog="Do not use the machine while a run is going: the game's window is kept in front (DLSS-G generates no\n"

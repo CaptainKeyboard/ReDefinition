@@ -22,6 +22,7 @@ namespace ReDefinition.Window
     // which is where the proxy runs.
     internal static class GameRestart
     {
+        // Whether KSP can be started again from here: on Windows only.
         internal static bool Available
         {
             get { return Application.platform == RuntimePlatform.WindowsPlayer; }
@@ -59,12 +60,14 @@ namespace ReDefinition.Window
             Application.Quit();
         }
 
+        // The scenes in which a game is loaded.
         private static bool Loaded(GameScenes scene)
         {
             return scene == GameScenes.FLIGHT || scene == GameScenes.EDITOR || scene == GameScenes.SPACECENTER
                    || scene == GameScenes.TRACKSTATION;
         }
 
+        // Saves the loaded game, the editor's vessel first, where KSP allows it; false with the reason where it cannot.
         private static bool Save(out string blocked)
         {
             blocked = null;
@@ -95,6 +98,7 @@ namespace ReDefinition.Window
             return true;
         }
 
+        // Starts a hidden PowerShell that waits for this process to end and then starts KSP again with its arguments.
         private static void StartAfterExit()
         {
             Process self = Process.GetCurrentProcess();

@@ -15,6 +15,7 @@ namespace ReDefinition.Settings
             get { return dialogs; }
         }
 
+        // The dialog of that name; null where this build offers none.
         internal BundledSetting Dialog(string name)
         {
             string key = Id + "." + name;
@@ -68,12 +69,14 @@ namespace ReDefinition.Settings
             dialogs.Add(dialog);
         }
 
+        // Whether a content method's return type is a DialogGUIBase or a sequence of them.
         private static bool IsContent(Type type)
         {
             return type != null && (typeof(DialogGUIBase).IsAssignableFrom(type)
                                     || typeof(IEnumerable<DialogGUIBase>).IsAssignableFrom(type));
         }
 
+        // The content method's result as an array, nulls left out; null for anything else.
         private static DialogGUIBase[] Content(object result)
         {
             DialogGUIBase single = result as DialogGUIBase;

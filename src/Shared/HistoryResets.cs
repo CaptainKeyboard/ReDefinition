@@ -10,6 +10,7 @@ namespace ReDefinition.Shared
     // there without a second reset of the upscaler.
     internal sealed class HistoryResets
     {
+        // A mod's request not yet taken, and the reason found at a frame's end that the next Begin hands to the mods.
         private string requested;
         private string carried;
 
@@ -39,6 +40,7 @@ namespace ReDefinition.Shared
             return reason;
         }
 
+        // Hands over the pending request, or null, and clears it.
         private string Take()
         {
             string reason = requested;
