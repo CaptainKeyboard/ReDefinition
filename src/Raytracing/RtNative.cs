@@ -197,8 +197,8 @@ namespace ReDefinition.Raytracing
             // PrevWorldToClip for what the bodies carry (Raytracing.h, prevWorldToClipFar).
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] PrevWorldToClipFar;
             // How Unity fades the sun's shadow out in forward rendering (Raytracing.h,
-            // RtFramePacket.shadowFade; RtCamera.ShadowFadeRead).
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public float[] ShadowFade;
+            // RtFramePacket.shadowFade; RtCamera.ShadowFadeRead), and the meadow's shade (RtCamera.FillPacket).
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] ShadowFade;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -343,7 +343,7 @@ namespace ReDefinition.Raytracing
                 Sea = new float[12],
                 Clouds = new float[24],
                 PrevWorldToClipFar = new float[16],
-                ShadowFade = new float[8],
+                ShadowFade = new float[12],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

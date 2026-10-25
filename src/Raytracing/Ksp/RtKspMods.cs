@@ -35,7 +35,7 @@ namespace ReDefinition.Raytracing
         // once reading them failed.
         private static bool parallaxFailed;
         private static bool grassRangeFailed;
-        private static float grassRange;
+        private static float grassRange, grassRangeAboutVessel;
         private static float grassRangeAt = float.MinValue;
 
         // Whether Scatterer is installed: its atmosphere colours the sun's light.
@@ -271,14 +271,26 @@ namespace ReDefinition.Raytracing
             return buffers;
         }
 
+        // Where Parallax draws its scatters about the vessel from (RuntimeOperations.vectorCraftPos): the
+        // active vessel's position, without one the camera's.
+        internal static Vector3 ParallaxVessel(Vector3 camera)
+        {
+            Vessel vessel = FlightGlobals.fetch != null ? FlightGlobals.ActiveVessel : null;
+            return vessel != null ? vessel.transform.position : camera;
+        }
+
         // How far Parallax draws its grass, in metres: the longest range of the active scatters named
-        // grass; 0 where none is (or another version of Parallax). Asked once a second.
-        internal static float ParallaxGrassRange()
+        // grass that it culls about the camera, and in `aboutVessel` of those it culls about the active
+        // vessel (Scenery.ParallaxScatterFields.AboutVessel: Kerbin's main grass, 320 m of the vessel in
+        // Parallax_StockScatterTextures, its tall grass 400 m of the camera); 0 where none is (or another
+        // version of Parallax). Asked once a second.
+        internal static float ParallaxGrassRange(out float aboutVessel)
         {
             float now = Time.realtimeSinceStartup;
+            aboutVessel = grassRangeAboutVessel;
             if (now - grassRangeAt < 1f) return grassRange;
             grassRangeAt = now;
-            grassRange = 0f;
+            grassRange = grassRangeAboutVessel = aboutVessel = 0f;
             if (parallaxFailed || grassRangeFailed || !Scenery.ParallaxScatterFields.Available) return 0f;
             try
             {
@@ -288,14 +300,19 @@ namespace ReDefinition.Raytracing
                 {
                     string name = Scenery.ParallaxScatterFields.ScatterName(renderer);
                     if (name == null || name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                    grassRange = Mathf.Max(grassRange, Scenery.ParallaxScatterFields.Range(renderer));
+                    float range = Scenery.ParallaxScatterFields.Range(renderer);
+                    if (Scenery.ParallaxScatterFields.AboutVessel(renderer))
+                        grassRangeAboutVessel = Mathf.Max(grassRangeAboutVessel, range);
+                    else
+                        grassRange = Mathf.Max(grassRange, range);
                 }
             }
             catch (Exception)
             {
                 grassRangeFailed = true;
-                grassRange = 0f;
+                grassRange = grassRangeAboutVessel = 0f;
             }
+            aboutVessel = grassRangeAboutVessel;
             return grassRange;
         }
 

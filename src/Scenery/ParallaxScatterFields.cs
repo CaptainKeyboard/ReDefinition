@@ -10,8 +10,9 @@ namespace ReDefinition.Scenery
     // Parallax Continued's scatters as ReDefinition reads them, for the space centre's
     // grass (KscGrass) and the rays (Raytracing.RtKspMods.ParallaxScatter):
     // ScatterManager.Instance.activeScatterRenderers, and each ScatterRenderer's
-    // planetName, scatter (its scatterName and distributionParams.range), meshLOD0-2,
-    // instancedMaterialLOD0-2 and outputLOD0-2 (Parallax Continued 1.0.0, Scatter
+    // planetName, scatter (its scatterName, distributionParams.range and
+    // useCraftPosition), meshLOD0-2, instancedMaterialLOD0-2 and outputLOD0-2 (Parallax
+    // Continued 1.0.0, Scatter
     // System/ScatterManager.cs, ScatterRenderer.cs, Scatter.cs; public). Read through
     // compiled getters: a FieldInfo's GetValue costs a reflection call per field, nine
     // per renderer a frame. Only where they are as checked
@@ -33,6 +34,7 @@ namespace ReDefinition.Scenery
         private static Func<object, object> scatterOf;
         private static Func<object, string> scatterName;
         private static Func<object, float> range;
+        private static Func<object, bool> craftCentred;
         private static readonly Func<object, Mesh>[] meshes = new Func<object, Mesh>[3];
         private static readonly Func<object, Material>[] materials = new Func<object, Material>[3];
         private static readonly Func<object, ComputeBuffer>[] outputs = new Func<object, ComputeBuffer>[3];
@@ -63,6 +65,7 @@ namespace ReDefinition.Scenery
                 FieldInfo scatter = rendererType.GetField("scatter", Members);
                 Func<object, object> scatterGetter = CompiledGetter.Of<object>(scatter);
                 Func<object, string> name = CompiledGetter.Of<string>(scatterType.GetField("scatterName", Members));
+                Func<object, bool> aboutCraft = CompiledGetter.Of<bool>(scatterType.GetField("useCraftPosition", Members));
                 // distributionParams is a struct: its range read in place, without boxing it.
                 FieldInfo distribution = scatterType.GetField("distributionParams", Members);
                 FieldInfo distance = distribution.FieldType.GetField("range", Members);
@@ -77,13 +80,14 @@ namespace ReDefinition.Scenery
                     if (meshes[lod] == null || materials[lod] == null || outputs[lod] == null)
                         throw new MissingFieldException("Parallax.ScatterRenderer", "LOD" + lod);
                 }
-                if (renderers == null || planet == null || scatterGetter == null || name == null)
-                    throw new MissingFieldException("Parallax.ScatterRenderer", "planetName, scatter or scatterName");
+                if (renderers == null || planet == null || scatterGetter == null || name == null || aboutCraft == null)
+                    throw new MissingFieldException("Parallax.ScatterRenderer", "planetName, scatter, scatterName or useCraftPosition");
                 active = renderers;
                 planetName = planet;
                 scatterOf = scatterGetter;
                 scatterName = name;
                 range = rangeGetter;
+                craftCentred = aboutCraft;
                 // Last: Available asks it.
                 manager = CompiledGetter.Of<object>(managerType.GetField("Instance", BindingFlags.Public | BindingFlags.Static));
             }
@@ -120,6 +124,15 @@ namespace ReDefinition.Scenery
         {
             object scatter = Available && renderer != null ? scatterOf(renderer) : null;
             return scatter != null ? range(scatter) : 0f;
+        }
+
+        // Whether the renderer's scatter is drawn within its range of the active vessel rather than of the
+        // camera (useCraftPositionForDistanceCulling; Parallax's RuntimeOperations.vectorCraftPos, the
+        // camera's position where there is no vessel).
+        internal static bool AboutVessel(object renderer)
+        {
+            object scatter = Available && renderer != null ? scatterOf(renderer) : null;
+            return scatter != null && craftCentred(scatter);
         }
 
         internal static Mesh Mesh(object renderer, int lod)

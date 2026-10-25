@@ -340,8 +340,9 @@ namespace ReDefinition.Core
 
         // Parallax's scatters in the raytraced scene and on the space centre's lawns
         // (Scenery.ParallaxScatterFields, KscGrass): the active renderers, each one's
-        // planet, scatter name and range, its three levels' meshes, materials and output
-        // buffers, which the lift and the rays read as 64-byte clumps, and _InstanceData,
+        // planet, scatter name, range and whether it is culled about the vessel, its three
+        // levels' meshes, materials and output buffers, which the lift and the rays read as
+        // 64-byte clumps, and _InstanceData,
         // the buffer Parallax's materials draw them from (ScatterRenderer, Scatter,
         // DistributionParams, TransformData; Parallax Continued 1.0.0, decompiled).
         private const string ScatterRenderer = "Parallax.ScatterRenderer";
@@ -355,6 +356,7 @@ namespace ReDefinition.Core
                 .Field("Parallax.Scatter", "scatterName", StringType)
                 .Field("Parallax.Scatter", "distributionParams", "Parallax.DistributionParams")
                 .Field("Parallax.DistributionParams", "range", Float)
+                .Field("Parallax.Scatter", "useCraftPosition", Bool)
                 .Field(ScatterRenderer, "meshLOD0", Mesh).Field(ScatterRenderer, "meshLOD1", Mesh).Field(ScatterRenderer, "meshLOD2", Mesh)
                 .Field(ScatterRenderer, "instancedMaterialLOD0", Material).Field(ScatterRenderer, "instancedMaterialLOD1", Material)
                 .Field(ScatterRenderer, "instancedMaterialLOD2", Material)

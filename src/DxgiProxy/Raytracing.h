@@ -247,7 +247,7 @@ namespace redefinition
         float sea[12];
         float clouds[24];
         float prevWorldToClipFar[16];
-        float shadowFade[8];
+        float shadowFade[12];
         // The radiance cache's (RaytracingCache.cpp): the anchor's tile and the frame, the
         // anchor within its tile and the cells' angle, its parameters, its sizes.
         int32_t cacheTile[4];
@@ -371,8 +371,11 @@ namespace redefinition
         // light's estimate of what Unity shaded with: the fade's centre relative to the
         // camera and its type (unity_ShadowFadeCenterAndType: 1 for the distance from the
         // centre, 0 for the view depth), then its scale and bias (_LightShadowData.zw).
-        // All 0 for none.
-        float shadowFade[8];
+        // All 0 for none. After them how far Parallax draws its grass about the camera and
+        // the light a meadow keeps from its ground; then the point its grass about the
+        // vessel is drawn about, relative to the camera, and how far (RtCommon.hlsli,
+        // MeadowShade).
+        float shadowFade[12];
         void* inputs[kRtMaxTextures];
         void* outputs[kRtMaxTextures];
     };
