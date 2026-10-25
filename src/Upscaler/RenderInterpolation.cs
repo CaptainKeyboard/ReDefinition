@@ -29,8 +29,17 @@ namespace ReDefinition.Upscaler
     // The camera is never moved by itself. Following the vessel, KSP hangs its pivot
     // on the vessel (FlightCamera: pivot.SetParent(target)), so it moves along with the
     // parts; a camera that does not hang on the vessel -- one standing free, CameraTools'
-    // -- does not follow it and stays where it is. Other vessels are left as KSP draws
-    // them.
+    // -- does not follow it and stays where it is.
+    //
+    // The loaded vessels near the active one -- what it dropped: boosters, fairings, a
+    // stage, which KSP makes vessels of their own as they part -- are drawn between their
+    // steps as well, each on its own way (VesselMotionVectors.NearVessels). Left on their
+    // steps while the active vessel and the camera were not, they jumped against both by
+    // up to a step's travel, back and forth from frame to frame: a dropped booster at
+    // 350 m/s by up to 7 m, in the rendered frames already and doubled by frame
+    // generation (the staging probe, Kerbal X with DLSS frame generation, 2026-10-25). A
+    // vessel that has just parted goes on from the steps of the one it was part of, so
+    // the frame of the split moves it as the frame before did.
     //
     // The vessel's way is taken against its main body, so that it holds where Krakensbane
     // moves the world instead of the vessel (in flight above a few metres a second, where
@@ -52,19 +61,33 @@ namespace ReDefinition.Upscaler
         {
             internal Transform Transform;
             internal Vector3 LocalPosition;
+            internal Vector3 Offset;
+        }
+
+        // One vessel's way between its steps, against a reference that follows it.
+        private sealed class Track
+        {
+            internal Vessel Vessel;
+            internal readonly StepInterpolator Interpolator = new StepInterpolator();
+            internal Vector3d Reference;
+            internal Vector3 Offset;
+            internal int Frame;
         }
 
         private readonly List<Moved> moved = new List<Moved>();
         private readonly HashSet<Transform> partTransforms = new HashSet<Transform>();
-        private readonly StepInterpolator interpolator = new StepInterpolator();
-        private Vessel tracked;
-        private Vector3d reference;
+        private readonly Dictionary<Vessel, Track> tracks = new Dictionary<Vessel, Track>();
+        // Which track each part was drawn with the frame before, for a vessel that has just parted.
+        private readonly Dictionary<Part, Track> trackOfPart = new Dictionary<Part, Track>();
+        private readonly List<Vessel> near = new List<Vessel>();
+        private readonly List<Vessel> gone = new List<Vessel>();
+        // The active vessel's track, this frame's; null while nothing is drawn between the steps.
+        private Track active;
         // The reference follows the vessel once it is this far from it.
         private const float RebaseMetres = 1000f;
         private int appliedFrame = -1;
-        private Vector3 offset;
-        private bool offsetValid;
 
+        private int othersMax;
         private int framesShifted;
         private int framesWithoutStep;
         private int framesSeen;
@@ -74,7 +97,7 @@ namespace ReDefinition.Upscaler
 
         private static RenderInterpolation instance;
         private Camera shiftCamera;
-        private bool cameraMoved;
+        private Vector3 cameraShift;
 
         private void Start()
         {
@@ -96,50 +119,86 @@ namespace ReDefinition.Upscaler
             if (instance == this) instance = null;
         }
 
-        // After physics, before LateUpdate: where the last step left the vessel, and
+        // After physics, before LateUpdate: where the last step left each vessel, and
         // where the one before it did.
         private void Update()
         {
-            offsetValid = false;
+            active = null;
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (!Enabled || !UpscalerRig.Feeding || vessel == null || vessel.packed || vessel.rootPart == null
                 || vessel.mainBody == null || CameraManager.Instance == null
                 || CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
             {
-                interpolator.Reset();
+                tracks.Clear();
+                trackOfPart.Clear();
                 return;
             }
 
-            // Relative to the body: Krakensbane, above a few metres a second, keeps the
-            // vessel near the origin and moves the world instead, the body with it, and a
-            // floating origin shift moves both; the vessel's way against the world is the
-            // same either way. In doubles, against a reference that follows the vessel, so
-            // that what the interpolator holds stays small.
-            Vector3d relative = (Vector3d)vessel.rootPart.transform.position - vessel.mainBody.position;
-            float jump = Mathf.Max(JumpMetres, (float)vessel.obt_speed * Time.fixedDeltaTime * 4f);
-            if (vessel != tracked || !interpolator.Known)
+            VesselMotionVectors.NearVessels(vessel, near);
+            int others = 0;
+            foreach (Vessel v in near)
             {
-                tracked = vessel;
-                reference = relative;
-                interpolator.Reset();
+                if (v.rootPart == null || v.mainBody == null) continue;
+                Track track = Follow(v);
+                if (v == vessel) active = track;
+                else others++;
             }
-            Vector3 position = (Vector3)(relative - reference);
-            if ((position - interpolator.Current).magnitude > jump)
+            gone.Clear();
+            foreach (KeyValuePair<Vessel, Track> pair in tracks)
+                if (pair.Value.Frame != Time.frameCount) gone.Add(pair.Key);
+            foreach (Vessel v in gone) tracks.Remove(v);
+            trackOfPart.Clear();
+            foreach (Track track in tracks.Values)
+                foreach (Part part in track.Vessel.parts)
+                    if (part != null) trackOfPart[part] = track;
+
+            if (others > othersMax) othersMax = others;
+            framesSeen++;
+            if (active != null && active.Interpolator.Steps == 0) framesWithoutStep++;
+        }
+
+        // The vessel's offset for this frame. Relative to the body: Krakensbane, above a
+        // few metres a second, keeps the vessel near the origin and moves the world
+        // instead, the body with it, and a floating origin shift moves both; the vessel's
+        // way against the world is the same either way. In doubles, against a reference
+        // that follows the vessel, so that what the interpolator holds stays small.
+        private Track Follow(Vessel vessel)
+        {
+            Vector3d relative = (Vector3d)vessel.rootPart.transform.position - vessel.mainBody.position;
+            Track track;
+            if (!tracks.TryGetValue(vessel, out track))
             {
-                reference = relative;
+                track = new Track { Vessel = vessel, Reference = relative };
+                tracks[vessel] = track;
+                Track before;
+                if (trackOfPart.TryGetValue(vessel.rootPart, out before) && before.Vessel != null && before.Vessel.rootPart != null
+                    && before.Vessel.mainBody == vessel.mainBody && before.Interpolator.Known)
+                {
+                    // Parted from `before` since the frame before: its steps, held against where its root
+                    // part stands from this one's now, which the steps moved the two together to.
+                    track.Interpolator.CopyFrom(before.Interpolator);
+                    Vector3d beforeRelative = (Vector3d)before.Vessel.rootPart.transform.position - vessel.mainBody.position;
+                    track.Reference = before.Reference + (relative - beforeRelative);
+                }
+            }
+            track.Frame = Time.frameCount;
+            float jump = Mathf.Max(JumpMetres, (float)vessel.obt_speed * Time.fixedDeltaTime * 4f);
+            if (!track.Interpolator.Known) track.Reference = relative;
+            Vector3 position = (Vector3)(relative - track.Reference);
+            if ((position - track.Interpolator.Current).magnitude > jump)
+            {
+                track.Reference = relative;
                 position = Vector3.zero;
-                interpolator.Reset();
+                track.Interpolator.Reset();
             }
             else if (position.sqrMagnitude > RebaseMetres * RebaseMetres)
             {
-                interpolator.Rebase(position);
-                reference += (Vector3d)position;
+                track.Interpolator.Rebase(position);
+                track.Reference += (Vector3d)position;
                 position = Vector3.zero;
             }
-            offset = interpolator.Advance(position, Time.time, Time.fixedTime, Time.fixedDeltaTime);
-            framesSeen++;
-            if (interpolator.Steps == 0) framesWithoutStep++;
-            offsetValid = true;
+            track.Offset = track.Interpolator.Advance(position, Time.time, Time.fixedTime, Time.fixedDeltaTime);
+            return track;
         }
 
         // After every other LateUpdate (the execution order above). With the parts put
@@ -159,7 +218,7 @@ namespace ReDefinition.Upscaler
         {
             if (appliedFrame == Time.frameCount) return;
             appliedFrame = Time.frameCount;
-            if (!offsetValid || tracked == null) return;
+            if (active == null) return;
             try
             {
                 Apply();
@@ -174,15 +233,19 @@ namespace ReDefinition.Upscaler
 
         private void Apply()
         {
-            partTransforms.Clear();
-            foreach (Part part in tracked.parts)
-                if (part != null) partTransforms.Add(part.transform);
+            foreach (Track track in tracks.Values)
+            {
+                if (track.Frame != Time.frameCount || track.Vessel == null) continue;
+                partTransforms.Clear();
+                foreach (Part part in track.Vessel.parts)
+                    if (part != null) partTransforms.Add(part.transform);
 
-            foreach (Transform t in partTransforms)
-                if (!UnderAnother(t)) Move(t);
+                foreach (Transform t in partTransforms)
+                    if (!UnderAnother(t)) Move(t, track.Offset);
+            }
 
             framesShifted++;
-            float length = offset.magnitude;
+            float length = active.Offset.magnitude;
             offsetSum += length;
             if (length > offsetMax) offsetMax = length;
             if (windowStart < 0f) windowStart = Time.unscaledTime;
@@ -198,14 +261,14 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
-        private void Move(Transform t)
+        private void Move(Transform t, Vector3 offset)
         {
-            moved.Add(new Moved { Transform = t, LocalPosition = t.localPosition });
+            moved.Add(new Moved { Transform = t, LocalPosition = t.localPosition, Offset = offset });
             t.position += offset;
         }
 
-        // How far the interpolation moved a camera this frame: the offset where the camera
-        // hangs below a moved part, as KSP's flight camera does, nothing otherwise.
+        // How far the interpolation moved a camera this frame: the offset of the moved part
+        // the camera hangs below, as KSP's flight camera does, nothing otherwise.
         internal static Vector3 CameraShift(Camera camera)
         {
             RenderInterpolation current = instance;
@@ -214,15 +277,15 @@ namespace ReDefinition.Upscaler
             if (current.shiftCamera != camera)
             {
                 current.shiftCamera = camera;
-                current.cameraMoved = false;
+                current.cameraShift = Vector3.zero;
                 foreach (Moved m in current.moved)
                     if (m.Transform != null && camera.transform.IsChildOf(m.Transform))
                     {
-                        current.cameraMoved = true;
+                        current.cameraShift = m.Offset;
                         break;
                     }
             }
-            return current.cameraMoved ? current.offset : Vector3.zero;
+            return current.cameraShift;
         }
 
         // The exact local positions back, in reverse order, before the next physics step.
@@ -243,8 +306,9 @@ namespace ReDefinition.Upscaler
                           + " s: " + framesShifted + " frame(s) drawn between the physics steps, "
                           + framesWithoutStep + " of " + framesSeen + " without a step of their own; offset mean "
                           + (offsetSum / framesShifted).ToString("0.000", CultureInfo.InvariantCulture) + " m, max "
-                          + offsetMax.ToString("0.000", CultureInfo.InvariantCulture) + " m.");
-            framesShifted = framesWithoutStep = framesSeen = 0;
+                          + offsetMax.ToString("0.000", CultureInfo.InvariantCulture) + " m; up to " + othersMax
+                          + " vessel(s) near it with it.");
+            framesShifted = framesWithoutStep = framesSeen = othersMax = 0;
             offsetSum = 0;
             offsetMax = 0f;
         }

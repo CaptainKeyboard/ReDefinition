@@ -66,6 +66,27 @@ namespace ReDefinition.Tests
             Assert.AreEqual(a.x, b.x, 1e-3f);
         }
 
+        // A stage dropped between two frames: on the vessel's steps it is drawn where the
+        // vessel is, a fresh history would draw it ahead by the part of a step not yet
+        // drawn, half the step's 2 m here.
+        [TestMethod]
+        public void ADroppedStageGoesOnFromTheVesselsSteps()
+        {
+            StepInterpolator vessel = new StepInterpolator();
+            vessel.Advance(Vector3.zero, 0.02f, 0.02f, FixedDelta);
+            vessel.Advance(new Vector3(2f, 0f, 0f), 0.05f, 0.04f, FixedDelta);
+            StepInterpolator stage = new StepInterpolator(), fresh = new StepInterpolator();
+            stage.CopyFrom(vessel);
+            Vector3 now = new Vector3(4f, 0f, 0f);
+            Vector3 a = vessel.Advance(now, 0.07f, 0.06f, FixedDelta);
+            Vector3 b = stage.Advance(now, 0.07f, 0.06f, FixedDelta);
+            Vector3 c = fresh.Advance(now, 0.07f, 0.06f, FixedDelta);
+            Assert.AreEqual(a.x, b.x, 1e-5f);
+            Assert.AreEqual(1, stage.Steps);
+            Assert.AreEqual(0f, c.x, 1e-5f);
+            Assert.AreEqual(-1f, a.x, 1e-4f);
+        }
+
         [TestMethod]
         public void TwoStepsInOneFrameAreSpreadOverTheFrame()
         {
