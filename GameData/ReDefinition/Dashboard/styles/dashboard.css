@@ -13,7 +13,7 @@ button { font:inherit; color:inherit; padding:0; }
 /* Every arrangement but the standard row: the panels are placed by widget.js. */
 #app.placed { display:block; position:relative; }
 /* Browser only: the arrangement and full-screen buttons in the navball panel's right column. */
-.pb.tool { width:70px; height:70px; flex:none; font-size:13px; letter-spacing:.04em; margin-bottom:6px; }
+.pb.tool { width:70px; height:70px; flex:none; font-size:13px; letter-spacing:.04em; }
 #fsBtn { font-size:30px; }
 /* Arranging: a tap chooses a panel, a second swaps it with the chosen one. */
 #app.arranging .panel::after { content:""; position:absolute; inset:0; z-index:50; border-radius:10px; background:rgba(255,178,62,.06); outline:3px dashed rgba(255,178,62,.5); outline-offset:-3px; }
@@ -70,7 +70,8 @@ button { font:inherit; color:inherit; padding:0; }
 /* Each side is one column as wide as its roll button, flush with the panel's edge: everything on a
    side is centred on its roll button, and both roll buttons keep the same distance to their edge. */
 .side.left { grid-column:1; width:84px; justify-self:start; position:relative; }
-.side.right { grid-column:3; width:84px; justify-self:end; align-items:center; padding-top:44px; }
+/* LAYOUT and full screen 8px apart, as the buttons beside the right roll button are. */
+.side.right { grid-column:3; width:84px; justify-self:end; align-items:center; padding-top:44px; gap:8px; }
 #ballpanel .hdr #smode { width:84px; text-align:center; padding:2px 0; margin-left:auto; }
 /* The attitude readout centred over the ball; white while it shows the navball target. */
 #ballpanel .hdr #hdg { position:absolute; left:50%; transform:translateX(-50%); width:400px; text-align:center; white-space:pre; }
@@ -89,13 +90,19 @@ button { font:inherit; color:inherit; padding:0; }
 #ballpanel #rollL, #ballpanel #rollR { position:absolute; bottom:16px; z-index:2; }
 #ballpanel #rollL { left:calc(50% - 250px); }
 #ballpanel #rollR { left:calc(50% + 166px); }
-/* Beside the right roll button: snaps the target's roll to a multiple of 45 degrees. */
-#ballpanel #snapBtn { position:absolute; right:16px; bottom:23px; width:70px; height:70px; font-size:20px; z-index:2; }
-#ballpanel #snapBtn .lens { flex-direction:column; gap:2px; line-height:1; }
-#ballpanel #snapBtn b { font-size:15px; font-weight:800; letter-spacing:.04em; }
-#ballpanel #snapBtn i { font-style:normal; font-size:14px; font-weight:800; color:var(--amber); }
-/* Above it: turns the target's roll to 0. */
-#ballpanel #levelBtn { position:absolute; right:16px; bottom:101px; width:70px; height:70px; font-size:20px; z-index:2; }
+/* Beside the right roll button, from the bottom up: where the ball is seen from (the vessel or the
+   target), the roll held against the horizon while dragging, the snap of the
+   target's roll to a multiple of 45 degrees, and its roll turned to 0. They are centred in the
+   right column, under LAYOUT and full screen: its 84px less their 70px, halved, in from its edge. */
+#ballpanel .pb.snap { position:absolute; right:23px; width:70px; height:70px; font-size:20px; z-index:2; }
+#ballpanel #viewBtn { bottom:23px; }
+#ballpanel #lockBtn { bottom:101px; }
+#ballpanel #snapBtn { bottom:179px; }
+#ballpanel #levelBtn { bottom:257px; }
+#ballpanel .pb.snap .lens { flex-direction:column; gap:2px; line-height:1; }
+#ballpanel .pb.snap b { font-size:15px; font-weight:800; letter-spacing:.04em; }
+#ballpanel .pb.snap i { font-style:normal; font-size:14px; font-weight:800; color:var(--amber); }
+#ballpanel .pb.snap.lit i { color:inherit; }
 .playbox { height:70px; display:flex; align-items:flex-start; justify-content:center; }
 .pb.play { width:70px; height:70px; flex:none; font-size:26px; }
 .pb.play.paused .lens { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; box-shadow:0 0 14px rgba(255,180,60,.75); }

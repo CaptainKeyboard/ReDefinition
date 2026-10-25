@@ -417,9 +417,13 @@
 	// and only after new data, writing only what changed.
 	function renderBall() {
 		const d = data, has = d["v.name"] !== undefined && d["v.name"] !== null;
-		const att = has ? Navball.draw($("ball"), { nose: d["n.nose"], right: d["n.right"], top: d["n.top"], prograde: d["n.prograde"], normal: d["n.normal"], radial: d["n.radial"], maneuver: d["n.maneuver"], target: d["n.steerTarget"], targetTop: d["n.steerTargetTop"] }) : Navball.draw($("ball"), null);
-		// With a navball target the readout shows the target's attitude, in white.
 		const T = d["n.steerTarget"], U = d["n.steerTargetTop"], hasTarget = has && Array.isArray(T) && Array.isArray(U);
+		// VIEW TGT with a target: the ball is seen from the target, and the vessel is a marker on it.
+		const view = hasTarget && steerPrefs.targetView && Array.isArray(d["n.nose"]) && Array.isArray(d["n.top"])
+			? { nose: T, right: cross(U, T), top: U, craft: { nose: d["n.nose"], top: d["n.top"] } }
+			: { nose: d["n.nose"], right: d["n.right"], top: d["n.top"] };
+		const att = has ? Navball.draw($("ball"), Object.assign(view, { prograde: d["n.prograde"], normal: d["n.normal"], radial: d["n.radial"], maneuver: d["n.maneuver"], target: T, targetTop: U })) : Navball.draw($("ball"), null);
+		// With a navball target the readout shows the target's attitude, in white.
 		const deg = 180 / Math.PI;
 		const show = hasTarget
 			? { heading: (Math.atan2(T[1], T[0]) * deg + 360) % 360, pitch: Math.asin(Math.max(-1, Math.min(1, T[2]))) * deg, roll: Math.atan2(cross(U, T)[2], U[2]) * deg }
@@ -597,6 +601,14 @@
 	addBrowserButtons();
 	arrangeTaps();
 	fitScreen();
+	// Two switches beside the ball, kept per browser. ROLL LOCK holds the target's roll against the
+	// horizon while dragging (a drag over the zenith then turns the target round). VIEW TGT shows the
+	// ball from the target, with the vessel as a marker on it: drags and taps then move the target as
+	// the ball shows it, and a straight drag adds no roll while the vessel still lags behind.
+	const STEER_KEY = "kspdashboard.steer";
+	const steerPrefs = { rollLock: false, targetView: false };
+	try { Object.assign(steerPrefs, JSON.parse(localStorage.getItem(STEER_KEY)) || {}); } catch (e) { /* no storage: the default */ }
+	const saveSteerPrefs = () => { try { localStorage.setItem(STEER_KEY, JSON.stringify(steerPrefs)); } catch (e) { /* kept for this visit only */ } };
 	setupSteering();
 	setupAltitude();
 	// One drawing loop at the display's pace: whatever arrived since the last frame is drawn once.
@@ -625,9 +637,25 @@
 	// before, the middle (and the top) turned back by both; in north/east/up through the attitude at
 	// the start. Returns the target's nose and top, six numbers. Turning the picture counter-clockwise
 	// is what rolling right looks like on the navball. The top turns with the ball, so the target
-	// goes over the zenith without turning round.
+	// goes over the zenith without turning round; with ROLL LOCK the roll is held instead.
+	// The roll as the readout shows it (against the horizon), and the top that gives a roll at a nose.
+	// Straight up or down the roll has no meaning, and the turned top is kept as it is.
+	const rollOf = (T, U) => Math.atan2(cross(U, T)[2], U[2]);
+	function topForRoll(T, roll, fallback) {
+		if (Math.abs(T[2]) > 0.995) return fallback;
+		const k = T[2], z0 = [-k * T[0], -k * T[1], 1 - k * T[2]], l = Math.hypot(z0[0], z0[1], z0[2]);
+		const z = z0.map((x) => x / l), r0 = cross(z, T), a = -roll;
+		return z.map((x, i) => x * Math.cos(a) + r0[i] * Math.sin(a));
+	}
 	function dragTarget(d) {
-		return turnTarget(d, d.phi || 0);
+		const turned = turnTarget(d, d.phi || 0);
+		if (!steerPrefs.rollLock) return turned;
+		const T = turned.slice(0, 3), U = turned.slice(3);
+		const B = d.base, baseRoll = Math.abs(B.nose[2]) > 0.995 ? rollOf(T, U) : rollOf(B.nose, B.top);
+		// A twist adds what it turned the target by; a drag alone adds nothing.
+		let delta = 0;
+		if (d.phi) { const s0 = turnTarget(d, 0); delta = rollOf(T, U) - rollOf(s0.slice(0, 3), s0.slice(3)); }
+		return T.concat(topForRoll(T, baseRoll + delta, U));
 	}
 	function turnTarget(d, phi) {
 		const v0 = d.v0, v1 = onBall(d.x, d.y);
@@ -641,17 +669,19 @@
 			return [w[0] * Math.cos(phi) + w[1] * Math.sin(phi), -w[0] * Math.sin(phi) + w[1] * Math.cos(phi), w[2]];
 		};
 		// The turn is applied to the target the mod holds (or to the present attitude), so dragging
-		// again moves an existing target on from where it is.
-		const a = d.att, world = (w) => [0, 1, 2].map((i) => w[0] * a.right[i] + w[1] * a.top[i] + w[2] * a.nose[i]);
+		// again moves an existing target on from where it is. It turns about the axes the ball is seen
+		// from (d.axes): the vessel's, or with VIEW TGT the target's own.
+		const a = d.axes, world = (w) => [0, 1, 2].map((i) => w[0] * a.right[i] + w[1] * a.top[i] + w[2] * a.nose[i]);
 		const screen = (v) => [dot3(v, a.right), dot3(v, a.top), dot3(v, a.nose)];
 		return world(back(screen(d.base.nose))).concat(world(back(screen(d.base.top))));
 	}
 
 	// A short tap on the ball: the direction under the finger becomes the target. The target (or the
-	// vessel's attitude) is turned the shortest way onto it, so its roll carries over.
+	// vessel's attitude) is turned the shortest way onto it, so its roll carries over; with ROLL LOCK
+	// its roll against the horizon does.
 	const TAP_MS = 300, TAP_PX = 10;
 	function tapTarget(d) {
-		const a = d.att, w = onBall(d.x0, d.y0);
+		const a = d.axes, w = onBall(d.x0, d.y0);
 		const to = [0, 1, 2].map((i) => w[0] * a.right[i] + w[1] * a.top[i] + w[2] * a.nose[i]);
 		const from = d.base.nose;
 		let k = cross(from, to);
@@ -662,7 +692,7 @@
 			const kc = cross(k, top), kt = dot3(k, top);
 			top = top.map((x, i) => x * c + kc[i] * s + k[i] * kt * (1 - c)); // Rodrigues, by the angle
 		}
-		return to.concat(top);
+		return to.concat(steerPrefs.rollLock ? topForRoll(to, rollOf(d.base.nose, d.base.top), top) : top);
 	}
 
 	// Sets the target's roll (as the readout shows it) to what `to` makes of it: snapped to the nearest
@@ -702,6 +732,7 @@
 			const att = { nose: data["n.nose"].slice(), right: data["n.right"].slice(), top: data["n.top"].slice() };
 			const has = Array.isArray(data["n.steerTarget"]) && Array.isArray(data["n.steerTargetTop"]);
 			att.base = has ? { nose: data["n.steerTarget"].slice(), top: data["n.steerTargetTop"].slice() } : { nose: att.nose, top: att.top };
+			att.axes = has && steerPrefs.targetView ? { nose: att.base.nose, top: att.base.top, right: cross(att.base.top, att.base.nose) } : att;
 			return att;
 		};
 		wrap.addEventListener("pointerdown", (e) => {
@@ -709,11 +740,13 @@
 			wrap.setPointerCapture(e.pointerId);
 			fingers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 			if (fingers.size === 1 && !steer.pairDone) {
-				steer.drag = { id: e.pointerId, v0: onBall(e.clientX, e.clientY), att: present(), x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() }; steer.drag.base = steer.drag.att.base;
+				steer.drag = { id: e.pointerId, v0: onBall(e.clientX, e.clientY), att: present(), x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, t0: performance.now() };
+				steer.drag.base = steer.drag.att.base; steer.drag.axes = steer.drag.att.axes;
 				showDot(e);
 			} else if (fingers.size === 2) {
 				const m = pair();
-				steer.drag = { id: null, v0: onBall(m.x, m.y), att: present(), x: m.x, y: m.y, a0: m.angle, phi: 0 }; steer.drag.base = steer.drag.att.base;
+				steer.drag = { id: null, v0: onBall(m.x, m.y), att: present(), x: m.x, y: m.y, a0: m.angle, phi: 0 };
+				steer.drag.base = steer.drag.att.base; steer.drag.axes = steer.drag.att.axes;
 				showDot({ clientX: m.x, clientY: m.y });
 			}
 		});
@@ -745,6 +778,14 @@
 		wrap.addEventListener("pointerup", end); wrap.addEventListener("pointercancel", end);
 		$("snapBtn").addEventListener("click", snapRoll);
 		$("levelBtn").addEventListener("click", levelRoll);
+		const showPrefs = () => {
+			$("lockBtn").classList.toggle("lit", steerPrefs.rollLock);
+			$("viewBtn").classList.toggle("lit", steerPrefs.targetView);
+			$("viewName").textContent = steerPrefs.targetView ? "TGT" : "CRAFT";
+		};
+		$("lockBtn").addEventListener("click", () => { steerPrefs.rollLock = !steerPrefs.rollLock; saveSteerPrefs(); showPrefs(); });
+		$("viewBtn").addEventListener("click", () => { steerPrefs.targetView = !steerPrefs.targetView; saveSteerPrefs(); showPrefs(); dirty = true; });
+		showPrefs();
 		for (const key of ["rollL", "rollR"]) {
 			const b = $(key);
 			b.addEventListener("pointerdown", (e) => { b.setPointerCapture(e.pointerId); steer[key] = true; b.classList.add("on"); });

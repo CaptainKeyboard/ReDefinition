@@ -307,12 +307,27 @@ void main() {
 		ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2 - 3, 0, 2 * Math.PI);
 		ctx.lineWidth = 8; ctx.strokeStyle = "#1c2630"; ctx.stroke();
 
-		// The vessel's own marker: wings and a diamond.
-		const c = S / 2, wing = S * 0.012;
+		// The vessel's own marker: wings and a diamond, in the middle. With the ball seen from somewhere
+		// else (att.craft, the vessel's nose and top), half as wide where the vessel's nose points,
+		// turned as its top is there; not drawn while the nose is on the far side.
+		let x = S / 2, y = S / 2, turn = 0, span = 1;
+		const craft = att.craft;
+		if (craft) {
+			if (!valid(craft.nose) || !valid(craft.top)) return;
+			const p = project(att, S, craft.nose);
+			if (!p) return;
+			const q = project(att, S, [0, 1, 2].map((i) => craft.nose[i] + 0.05 * craft.top[i]));
+			x = p.x; y = p.y; span = 0.5;
+			if (q) turn = Math.atan2(q.x - p.x, p.y - q.y);
+		}
+		const wing = S * 0.012;
+		ctx.save();
+		ctx.translate(x, y); ctx.rotate(turn);
 		ctx.fillStyle = "#ff9d1a";
-		ctx.fillRect(c - S * 0.30, c - wing / 2, S * 0.19, wing);
-		ctx.fillRect(c + S * 0.11, c - wing / 2, S * 0.19, wing);
-		ctx.beginPath(); ctx.moveTo(c, c - S * 0.022); ctx.lineTo(c + S * 0.022, c); ctx.lineTo(c, c + S * 0.022); ctx.lineTo(c - S * 0.022, c); ctx.closePath(); ctx.fill();
+		ctx.fillRect(-S * 0.30 * span, -wing / 2, S * 0.19 * span, wing);
+		ctx.fillRect(S * 0.11 * span, -wing / 2, S * 0.19 * span, wing);
+		ctx.beginPath(); ctx.moveTo(0, -S * 0.022); ctx.lineTo(S * 0.022, 0); ctx.lineTo(0, S * 0.022); ctx.lineTo(-S * 0.022, 0); ctx.closePath(); ctx.fill();
+		ctx.restore();
 	}
 
 	// The target: a ring on the ball with a notch pointing where the vessel's top will be there. Drawn
@@ -480,7 +495,8 @@ void main() {
 
 		// Nothing to do while nothing changed.
 		const key = !ok ? "none" : S + "|" + ["nose", "right", "top", "prograde", "normal", "radial", "maneuver", "target", "targetTop"]
-			.map((k) => (valid(att[k]) ? att[k].map((x) => x.toFixed(4)).join(",") : "-")).join("|");
+			.map((k) => (valid(att[k]) ? att[k].map((x) => x.toFixed(4)).join(",") : "-")).join("|")
+			+ (att.craft ? "|" + [att.craft.nose, att.craft.top].map((v) => (valid(v) ? v.map((x) => x.toFixed(4)).join(",") : "-")).join("|") : "");
 		if (key === st.key) return ok ? readouts(att) : null;
 		st.key = key;
 
