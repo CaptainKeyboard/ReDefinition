@@ -30,7 +30,12 @@ namespace redefinition
                                              void** handle);
         using EvaluateFeatureFn = uint32_t (*)(ID3D11DeviceContext* context, const void* handle,
                                                const NgxParameters* parameters, void* progress);
-        using ShutdownFn = uint32_t (*)(ID3D11Device* device);
+        // NVSDK_NGX_D3D11_Shutdown, not Shutdown1, as for Ray Reconstruction (DlssRayReconstruction.cpp): with
+        // no nvngx_dlss.dll beside the game, Shutdown1 on the device ended the process with an access
+        // violation right after the capability map said DLSS was not available (driver 617.14, an RTX 4090;
+        // an RTX A4500 the same, RaytracingHarness with the file moved away, 2026-10-25); Shutdown returns.
+        // It shuts NGX down on every Direct3D 11 device, and this is the only one that starts it there.
+        using ShutdownFn = uint32_t (*)();
 
         struct NgxD3d11
         {
@@ -257,7 +262,7 @@ namespace redefinition
                 GetProcAddress(core, "NVSDK_NGX_D3D11_EvaluateFeature"));
             g_ngx.releaseFeature = reinterpret_cast<NgxReleaseFeatureFn>(
                 GetProcAddress(core, "NVSDK_NGX_D3D11_ReleaseFeature"));
-            g_ngx.shutdown = reinterpret_cast<ShutdownFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_Shutdown1"));
+            g_ngx.shutdown = reinterpret_cast<ShutdownFn>(GetProcAddress(core, "NVSDK_NGX_D3D11_Shutdown"));
         }
 
         // On every start, not only when the core is loaded: a core without them
@@ -317,7 +322,7 @@ namespace redefinition
             result = g_ngx.getParameters(&map);
         if (NgxFailed(result) || map == nullptr)
         {
-            g_ngx.shutdown(textureDevice);
+            g_ngx.shutdown();
             SetStatus(-1, "NGX gave no parameter map (" + Hex(result) + ")");
             return false;
         }
@@ -643,7 +648,7 @@ namespace redefinition
         parameters = nullptr;
         parametersOwned = false;
         if (device != nullptr)
-            g_ngx.shutdown(device.Get());
+            g_ngx.shutdown();
         device.Reset();
     }
 }
