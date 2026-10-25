@@ -74,10 +74,13 @@ cbuffer Frame : register(b0)
     row_major float4x4 prevWorldToClipFar : RT_AT(RT_CB_PREV_WORLD_TO_CLIP_FAR);
     // How Unity fades the sun's shadow out towards its shadow distance (Raytracing.h,
     // RtFramePacket.shadowFade): the fade's centre relative to the camera and its type,
-    // its scale and bias; in z how far Parallax draws its grass, in w the light a meadow keeps
-    // from its ground (MeadowShade).
+    // its scale and bias; in z how far Parallax draws its grass about the camera, in w the light a
+    // meadow keeps from its ground (MeadowShade).
     float4 shadowFadeCentre : RT_AT(RT_CB_SHADOW_FADE);
     float4 shadowFadeScale : RT_AT(RT_CB_SHADOW_FADE1);
+    // The point Parallax draws its grass about the vessel from, relative to the camera, and in w how far
+    // (MeadowShade).
+    float4 meadowVessel : RT_AT(RT_CB_SHADOW_FADE2);
     // The radiance cache (RadianceCache.hlsli; Raytracing.h, RtFrameConstants): its
     // anchor's tile and the frame it counts, the anchor within the tile and the cells'
     // angle; the least cell, the most samples, the samples it takes to be read, the chance a
@@ -311,10 +314,15 @@ float3 SampleCone(float3 axis, float halfAngle, float2 u)
 
 // Where a ray from a surface starts: off the surface along its normal, by more the
 // further the point is from the camera, as depth and position lose precision there.
+// 5 cm a kilometre: at 50 cm a kilometre the rays started over Parallax's grass from some
+// hundreds of metres on (75 cm at 1.5 km), and its shadow faded out with the camera's
+// distance -- the terrain under it saw 0.94 of the sun at 1.5 km and 0.99 at 4 km, 0.68
+// at 200 m; 0.72 and 0.70 at 5 cm, and the shadows of the space centre's buildings and the
+// sun on its tarmac the same within 0.03 (the launch pad at 200 m to 4 km, 2026-10-25).
 float3 RayOrigin(float3 position, float3 normal)
 {
     float distance = length(position);
-    return position + normal * (0.01f + distance * 0.0005f);
+    return position + normal * (0.01f + distance * 0.00005f);
 }
 
 // Whether the main body, which is not in the scene the rays see, stands in the way: its
@@ -1253,19 +1261,25 @@ static const float kMostSmoothness = 0.95f;
 
 // The light a meadow's own blades keep from the ground they stand on, for the terrain where Parallax
 // no longer draws them: 1 nearer than its grass's range, the meadow's shade (shadowFadeScale.w) from
-// the range on, faded in over its last fifth as the grass fades out, and so to the horizon; only on
-// green ground, which on Kerbin is its meadow band (Parallax's lowest texture) and not its rock, sand
-// or snow. 1 where Parallax draws no grass. The grass casts this shade itself where it is drawn (its
-// blades in the rays, letting part of the sun through: rtFoliageTransmission), so the ground beyond
-// looks the same; as a distant meadow's darker colour, it takes the sky's light as the sun's.
-// `lawn`: the space centre's lawn, where it shines as the terrain (SurfaceIntent), told from its tarmac and
-// concrete by its drawn colour (LawnShare). It is lifted to the terrain's albedo (kLawnLift; drawn albedo
-// 0.30 against the terrain's 0.39 beside it, 2026-10-25): darker than the terrain's as drawn, it is as
-// bright only with the rough shine Deferred gives it, which it does not keep under the rays
-// (RT_SURFACE_GROUND). It takes no meadow's shade: the grass lifted onto it is in the rays at any distance
-// (sun visibility 0.63 at 150 m, 0.84 at 1.5 km), and shades it there itself. The lift holds wherever
+// the range on, faded in over its last fifth as the grass fades out, and so to the horizon. Parallax
+// draws its grass within its range of the camera or of the vessel, as each scatter says (Kerbin's main
+// grass about the vessel: meadowVessel), and the shade lies past both; on green ground, which on Kerbin
+// is its meadow band (Parallax's lowest texture) and not its rock, sand or snow. 1 where Parallax draws
+// no grass. The grass casts this shade itself where it is drawn (its blades in the rays, letting part
+// of the sun through: rtFoliageTransmission), so the ground beyond looks the same; as a distant
+// meadow's darker colour, it takes the sky's light as the sun's.
+// `lawn`: the space centre's lawn, where it shines as the terrain (SurfaceIntent), told from its tarmac
+// and concrete by its drawn colour (LawnShare). It is lifted to the terrain's look (kLawnLift): darker
+// than the terrain's as drawn (albedo 0.30 against the terrain's 0.39 beside it), it is as bright only
+// with the rough shine Deferred gives it, which it does not keep under the rays (RT_SURFACE_GROUND).
+// 1.36 with the terrain's occlusion (LawnOcclusion): its picture 1.01 of the terrain's at the same
+// distance from the vessel by day and 1.03 in the evening, its outer edge at the launch pad 1.09 and
+// 1.06 (medians of eleven views from 150 m to 4 km, 2026-10-25). Where Parallax draws its grass, lifted
+// onto the lawn (Scenery/KscGrass.cs), the grass in the rays shades it itself; past it, the lawn takes
+// the meadow's shade as the terrain beside it, as the space centre's lawns away from the launch pad,
+// which stood brighter than the terrain round them without it (2026-10-25). The lift holds wherever
 // Parallax's grass is drawn or not.
-static const float kLawnLift = 1.28f;
+static const float kLawnLift = 1.36f;
 
 // The share of a pixel of the space centre's ground that is its lawn, by its drawn colour: its tarmac
 // and concrete are grey (a saturation under 0.10 at the launch pad, 2026-10-19), its lawn a saturated
@@ -1277,11 +1291,25 @@ float LawnShare(float3 drawn)
     return smoothstep(0.15f, 0.30f, saturation) * step(drawn.r, drawn.g);
 }
 
-float MeadowShade(uint2 pixel, float distance, bool lawn = false)
+// The space centre's lawn's occlusion as the terrain's beside it: the G-buffer holds 0.85 for Parallax's
+// terrain and 0.99 for the lawn (the launch pad and the space centre's lawns from 150 m to 4 km,
+// 2026-10-25), which the raytraced diffuse light is multiplied by (ReDefinitionDeferredReflections.shader).
+// With the albedo lifted alike (kLawnLift), the lawn took 10 to 37 % more light than the terrain under the
+// same sun, and its outer edge at the launch pad, with less grass about it than its middle, stood out
+// brighter.
+static const float kLawnOcclusion = 0.86f;
+
+float LawnOcclusion(float3 drawn)
+{
+    return lerp(1.0f, kLawnOcclusion, LawnShare(drawn));
+}
+
+float MeadowShade(uint2 pixel, float3 position, bool lawn = false)
 {
     if (!HAS_GBUFFER)
         return 1.0f;
     float range = shadowFadeScale.z;
+    float vesselRange = meadowVessel.w;
     float shade = shadowFadeScale.w;
     // A range below 0, for the probe to see where the shade can reach (-redefinitionProbeMeadowFrom): -1 every
     // pixel, -2 every green one, whatever the rays met there.
@@ -1291,14 +1319,23 @@ float MeadowShade(uint2 pixel, float distance, bool lawn = false)
     else if (range < 0.0f)
         return shade;
     float3 drawn = gbuffer0[pixel].rgb;
-    // The lawn: as bright as the terrain (kLawnLift), in no meadow's shade.
+    bool none = (range <= 0.0f && vesselRange <= 0.0f) || shade <= 0.0f || shade >= 1.0f;
+    // Past both of the grass's ranges: the one about the camera, and the one about the vessel.
+    float beyond = 1.0f;
+    if (range > 0.0f)
+        beyond = smoothstep(range * 0.8f, range, length(position));
+    if (vesselRange > 0.0f)
+        beyond = min(beyond, smoothstep(vesselRange * 0.8f, vesselRange, distance(position, meadowVessel.xyz)));
+    // The lawn: as bright as the terrain (kLawnLift), and past the grass in the meadow's shade as the terrain.
     if (lawn && !everyGreen)
-        return lerp(1.0f, kLawnLift, LawnShare(drawn));
-    if (range <= 0.0f || shade <= 0.0f || shade >= 1.0f)
+    {
+        float share = LawnShare(drawn);
+        return lerp(1.0f, kLawnLift, share) * (none ? 1.0f : lerp(1.0f, shade, beyond * share));
+    }
+    if (none)
         return 1.0f;
     float most = max(drawn.r, max(drawn.g, drawn.b));
     float saturation = (most - min(drawn.r, min(drawn.g, drawn.b))) / max(most, 1e-3f);
-    float beyond = smoothstep(range * 0.8f, range, distance);
     // Green: the green channel the brightest, by a margin over red, and saturated.
     float green = smoothstep(0.0f, 0.04f, drawn.g - max(drawn.r, drawn.b)) * smoothstep(0.12f, 0.25f, saturation);
     return lerp(1.0f, shade, green * beyond);

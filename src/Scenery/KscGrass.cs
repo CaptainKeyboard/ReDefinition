@@ -328,9 +328,10 @@ namespace ReDefinition.Scenery
             }
             root = ksc.transform;
             var lawns = new List<Lawn>();
+            var banks = new List<Lawn>();
             mainThread += watch.ElapsedMilliseconds;
             // Over as many frames as it takes, a few milliseconds each (CollectLawns).
-            IEnumerator collect = CollectLawns(ksc, root.worldToLocalMatrix, lawns);
+            IEnumerator collect = CollectLawns(ksc, root.worldToLocalMatrix, lawns, banks);
             while (true)
             {
                 long step = watch.ElapsedMilliseconds;
@@ -360,7 +361,7 @@ namespace ReDefinition.Scenery
             var map = new LawnMap();
             try
             {
-                var raster = System.Threading.Tasks.Task.Run(() => map.Rasterise(lawns));
+                var raster = System.Threading.Tasks.Task.Run(() => map.Rasterise(lawns, banks));
                 mapTask = raster;
                 while (!raster.IsCompleted) yield return null;
                 if (raster.Exception != null) throw raster.Exception.InnerException;
@@ -413,7 +414,13 @@ namespace ReDefinition.Scenery
             }
             mainThread += watch.ElapsedMilliseconds - started;
             ready = true;
-            Debug.Log(Log.Tag + " Space centre grass: Parallax's " + string.Join(", ", kinds.ConvertAll(k => k.Name).ToArray())
+            if (Array.IndexOf(Environment.GetCommandLineArgs(), MapArgument) >= 0)
+            {
+                probeMap = map;
+                WriteMap(map, null, "lawns-" + (++mapsWritten), "");
+            }
+            Debug.Log(Log.Tag + " Space centre grass: Parallax's "
+                      + string.Join(", ", kinds.ConvertAll(k => k.Name + " (reach " + k.Reach.ToString("0.0", CultureInfo.InvariantCulture) + " m)").ToArray())
                       + " lifted onto " + (map.Lawn.Count - map.Covered) + " m2 of lawn (" + map.Covered + " m2 under a collider left out, map "
                       + map.Width + " x " + map.Depth + " m); " + watch.ElapsedMilliseconds + " ms, " + mainThread
                       + " ms of them on the main thread.");
@@ -451,15 +458,20 @@ namespace ReDefinition.Scenery
             public float X0, Z0, Y0;
             public int Width, Depth;
             private float[] height;
-            private bool[] lawnAt;
+            public bool[] LawnAt;
             // The texels the space centre's ground covers, lawn or not.
-            private bool[] groundAt;
+            public bool[] GroundAt;
+            // The texels of its banks and skirts, which face no way up (CollectLawns), and the
+            // lawn texels a collider stands over: for the map's picture (WriteMap).
+            public bool[] BankAt;
+            public bool[] CoveredAt;
+            public float[] RoomAt;
             // The lawn texels, in the order of their rays.
             public readonly List<int> Lawn = new List<int>();
             public int Covered;
             public ushort[] Texels;
 
-            public void Rasterise(List<Lawn> lawns)
+            public void Rasterise(List<Lawn> lawns, List<Lawn> banks)
             {
                 float x0 = float.MaxValue, z0 = float.MaxValue, x1 = float.MinValue, z1 = float.MinValue, y0 = float.MaxValue;
                 foreach (Lawn lawn in lawns)
@@ -477,35 +489,45 @@ namespace ReDefinition.Scenery
                 int width = Width = (int)Math.Ceiling((x1 - x0) / Texel) + 1;
                 int depth = Depth = (int)Math.Ceiling((z1 - z0) / Texel) + 1;
                 height = new float[width * depth];
-                lawnAt = new bool[width * depth];
-                groundAt = new bool[width * depth];
+                LawnAt = new bool[width * depth];
+                GroundAt = new bool[width * depth];
+                BankAt = new bool[width * depth];
+                CoveredAt = new bool[width * depth];
                 foreach (Lawn lawn in lawns)
-                {
-                    var a = new Vector2(lawn.A.x, lawn.A.z);
-                    Vector2 ab = new Vector2(lawn.B.x, lawn.B.z) - a, ac = new Vector2(lawn.C.x, lawn.C.z) - a;
-                    float det = ab.x * ac.y - ab.y * ac.x;
-                    if (Math.Abs(det) < 1e-6f) continue;
-                    int ax = (int)Math.Floor((Math.Min(lawn.A.x, Math.Min(lawn.B.x, lawn.C.x)) - x0) / Texel);
-                    int bx = (int)Math.Floor((Math.Max(lawn.A.x, Math.Max(lawn.B.x, lawn.C.x)) - x0) / Texel);
-                    int az = (int)Math.Floor((Math.Min(lawn.A.z, Math.Min(lawn.B.z, lawn.C.z)) - z0) / Texel);
-                    int bz = (int)Math.Floor((Math.Max(lawn.A.z, Math.Max(lawn.B.z, lawn.C.z)) - z0) / Texel);
-                    for (int x = Math.Max(ax, 0); x <= bx && x < width; x++)
-                        for (int z = Math.Max(az, 0); z <= bz && z < depth; z++)
-                        {
-                            Vector2 q = new Vector2(x0 + (x + 0.5f) * Texel, z0 + (z + 0.5f) * Texel) - a;
-                            float u = (q.x * ac.y - q.y * ac.x) / det, w = (ab.x * q.y - ab.y * q.x) / det;
-                            if (u < 0f || w < 0f || u + w > 1f) continue;
-                            groundAt[z * width + x] = true;
-                            if (lawn.Mask != null && lawn.Tarmac(lawn.UvA + u * (lawn.UvB - lawn.UvA) + w * (lawn.UvC - lawn.UvA)) >= MostTarmac)
-                                continue;
-                            int i = z * width + x;
-                            float y = lawn.A.y + u * (lawn.B.y - lawn.A.y) + w * (lawn.C.y - lawn.A.y);
-                            if (!lawnAt[i] || y > height[i]) height[i] = y;
-                            lawnAt[i] = true;
-                        }
-                }
-                for (int i = 0; i < lawnAt.Length; i++)
-                    if (lawnAt[i]) Lawn.Add(i);
+                    Cover(lawn, (i, u, w) =>
+                    {
+                        GroundAt[i] = true;
+                        if (lawn.Mask != null && lawn.Tarmac(lawn.UvA + u * (lawn.UvB - lawn.UvA) + w * (lawn.UvC - lawn.UvA)) >= MostTarmac)
+                            return;
+                        float y = lawn.A.y + u * (lawn.B.y - lawn.A.y) + w * (lawn.C.y - lawn.A.y);
+                        if (!LawnAt[i] || y > height[i]) height[i] = y;
+                        LawnAt[i] = true;
+                    });
+                foreach (Lawn bank in banks)
+                    Cover(bank, (i, u, w) => BankAt[i] = true);
+                for (int i = 0; i < LawnAt.Length; i++)
+                    if (LawnAt[i]) Lawn.Add(i);
+            }
+
+            // Each texel of the map whose centre a triangle covers, with its barycentric u and w there.
+            private void Cover(Lawn lawn, Action<int, float, float> at)
+            {
+                var a = new Vector2(lawn.A.x, lawn.A.z);
+                Vector2 ab = new Vector2(lawn.B.x, lawn.B.z) - a, ac = new Vector2(lawn.C.x, lawn.C.z) - a;
+                float det = ab.x * ac.y - ab.y * ac.x;
+                if (Math.Abs(det) < 1e-6f) return;
+                int ax = (int)Math.Floor((Math.Min(lawn.A.x, Math.Min(lawn.B.x, lawn.C.x)) - X0) / Texel);
+                int bx = (int)Math.Floor((Math.Max(lawn.A.x, Math.Max(lawn.B.x, lawn.C.x)) - X0) / Texel);
+                int az = (int)Math.Floor((Math.Min(lawn.A.z, Math.Min(lawn.B.z, lawn.C.z)) - Z0) / Texel);
+                int bz = (int)Math.Floor((Math.Max(lawn.A.z, Math.Max(lawn.B.z, lawn.C.z)) - Z0) / Texel);
+                for (int x = Math.Max(ax, 0); x <= bx && x < Width; x++)
+                    for (int z = Math.Max(az, 0); z <= bz && z < Depth; z++)
+                    {
+                        Vector2 q = new Vector2(X0 + (x + 0.5f) * Texel, Z0 + (z + 0.5f) * Texel) - a;
+                        float u = (q.x * ac.y - q.y * ac.x) / det, w = (ab.x * q.y - ab.y * q.x) / det;
+                        if (u < 0f || w < 0f || u + w > 1f) continue;
+                        at(z * Width + x, u, w);
+                    }
             }
 
             // A ray down onto each lawn texel from RayHeight over it.
@@ -529,17 +551,18 @@ namespace ReDefinition.Scenery
                     float distance = hits[n].distance;
                     if (distance > 0f && distance < RayHeight - Overhead)
                     {
-                        lawnAt[Lawn[n]] = false;
+                        LawnAt[Lawn[n]] = false;
+                        CoveredAt[Lawn[n]] = true;
                         Covered++;
                     }
                 }
-                float[] room = Room(lawnAt, Width, Depth);
+                float[] room = RoomAt = Room(LawnAt, Width, Depth);
                 Texels = new ushort[Width * Depth * 2];
-                for (int i = 0; i < lawnAt.Length; i++)
+                for (int i = 0; i < LawnAt.Length; i++)
                 {
-                    Texels[i * 2] = Half(lawnAt[i] ? height[i] - Y0 : 0f);
+                    Texels[i * 2] = Half(LawnAt[i] ? height[i] - Y0 : 0f);
                     // A lawn texel without room counts as ground, not as no ground.
-                    Texels[i * 2 + 1] = Half(lawnAt[i] && room[i] > 0f ? room[i] : groundAt[i] ? -1f : 0f);
+                    Texels[i * 2 + 1] = Half(LawnAt[i] && room[i] > 0f ? room[i] : GroundAt[i] ? -1f : 0f);
                 }
             }
 
@@ -599,7 +622,7 @@ namespace ReDefinition.Scenery
 
         // Stepped by MapLawns, a frame's share at a time: in one frame it took up to 42 ms of
         // the main thread, the second map in flight a visible stall (the perf monitor).
-        private static IEnumerator CollectLawns(PQSCity ksc, Matrix4x4 rootToLocal, List<Lawn> lawns)
+        private static IEnumerator CollectLawns(PQSCity ksc, Matrix4x4 rootToLocal, List<Lawn> lawns, List<Lawn> banks)
         {
             var materials = new List<Material>();
             var slice = System.Diagnostics.Stopwatch.StartNew();
@@ -655,7 +678,11 @@ namespace ReDefinition.Scenery
                         Vector3 cross = Vector3.Cross(lawn.B - lawn.A, lawn.C - lawn.A);
                         if (cross.magnitude <= 2e-4f) continue;
                         // Lawns face up; the banks and skirts of the ground meshes do not.
-                        if (Mathf.Abs(cross.normalized.y) < 0.85f) continue;
+                        if (Mathf.Abs(cross.normalized.y) < 0.85f)
+                        {
+                            banks.Add(lawn);
+                            continue;
+                        }
                         if (mask != null)
                         {
                             lawn.UvA = Scaled(uv2[a], maskScale);
@@ -666,6 +693,139 @@ namespace ReDefinition.Scenery
                     }
                 }
             }
+        }
+
+        // -redefinitionProbeLawnMap: each map made as a picture (binary PPM) in the run's capture folder, a
+        // pixel a texel, the root's x to the right and its z up: lawn green (darker where its room keeps a
+        // clump of 1 m off), a collider over it red, the ground's banks and skirts yellow, its tarmac grey,
+        // no ground of the space centre black; the active vessel a white square. Every 600 frames drawn
+        // after, Parallax's clumps of this frame over it too (DumpClumps): its main grass (KerbinGrass)
+        // white as Parallax placed it, before the lift, and every kind's clumps lifted onto the lawns orange;
+        // in the log the room the main grass's clumps ask (their reach times their scale), a tenth, the
+        // half and nine tenths of them asking less.
+        private const string MapArgument = "-redefinitionProbeLawnMap";
+        private int mapsWritten;
+        private LawnMap probeMap;
+
+        // Parallax's clumps of this frame read back, per kind and level of detail, and drawn over the map.
+        private void DumpClumps(Camera camera)
+        {
+            LawnMap map = probeMap;
+            Matrix4x4 worldToRoot = root.worldToLocalMatrix;
+            var main = new List<Vector3>();
+            var lifted = new List<Vector3>();
+            var request = AsyncGPUReadback.Request(counts);
+            var sources = new List<KeyValuePair<int, AsyncGPUReadbackRequest>>();
+            // The lifted ones with their count, the indirect arguments' second.
+            var lifts = new List<KeyValuePair<AsyncGPUReadbackRequest, AsyncGPUReadbackRequest>>();
+            for (int k = 0; k < kinds.Count; k++)
+                for (int lod = 0; lod < 3; lod++)
+                {
+                    ComputeBuffer source = ParallaxScatterFields.Output(kinds[k].Renderer, lod);
+                    if (source != null && source.IsValid())
+                        sources.Add(new KeyValuePair<int, AsyncGPUReadbackRequest>(k * 3 + lod, AsyncGPUReadback.Request(source)));
+                    if (kinds[k].Lifted[lod] != null && kinds[k].Lifted[lod].IsValid() && kinds[k].Arguments[lod] != null)
+                        lifts.Add(new KeyValuePair<AsyncGPUReadbackRequest, AsyncGPUReadbackRequest>(
+                            AsyncGPUReadback.Request(kinds[k].Arguments[lod]), AsyncGPUReadback.Request(kinds[k].Lifted[lod])));
+                }
+            Vessel active = FlightGlobals.fetch != null ? FlightGlobals.ActiveVessel : null;
+            Vector3 vessel = active != null ? active.transform.position : camera.transform.position;
+            string note = "camera " + (camera.transform.position - vessel).magnitude.ToString("0", CultureInfo.InvariantCulture) + " m from the vessel";
+            int name = ++mapsWritten;
+            StartCoroutine(Plot());
+
+            IEnumerator Plot()
+            {
+                while (!request.done || sources.Exists(s => !s.Value.done) || lifts.Exists(l => !l.Key.done || !l.Value.done))
+                    yield return null;
+                if (request.hasError) yield break;
+                var placed = request.GetData<uint>();
+                var line = new System.Text.StringBuilder();
+                foreach (KeyValuePair<int, AsyncGPUReadbackRequest> s in sources)
+                {
+                    if (s.Value.hasError || s.Key >= placed.Length) continue;
+                    var data = s.Value.GetData<Matrix4x4>();
+                    int n = (int)Math.Min(placed[s.Key], (uint)data.Length);
+                    if (kinds[s.Key / 3].Name == "KerbinGrass")
+                    {
+                        var reaches = new List<float>();
+                        for (int i = 0; i < n; i++)
+                        {
+                            main.Add(worldToRoot.MultiplyPoint3x4(data[i].GetColumn(3)));
+                            Vector4 x = data[i].GetColumn(0), z = data[i].GetColumn(2);
+                            reaches.Add(kinds[s.Key / 3].Reach * Mathf.Max(new Vector3(x.x, x.y, x.z).magnitude, new Vector3(z.x, z.y, z.z).magnitude));
+                        }
+                        reaches.Sort();
+                        if (reaches.Count > 0)
+                            line.Append(" (room it asks: ").Append(reaches[reaches.Count / 10].ToString("0.0", CultureInfo.InvariantCulture)).Append(" / ")
+                                .Append(reaches[reaches.Count / 2].ToString("0.0", CultureInfo.InvariantCulture)).Append(" / ")
+                                .Append(reaches[reaches.Count * 9 / 10].ToString("0.0", CultureInfo.InvariantCulture)).Append(" m)");
+                    }
+                    line.Append(' ').Append(kinds[s.Key / 3].Name).Append(" LOD").Append(s.Key % 3).Append(' ').Append(n).Append(';');
+                }
+                int liftedCount = 0;
+                foreach (var l in lifts)
+                {
+                    if (l.Key.hasError || l.Value.hasError) continue;
+                    var data = l.Value.GetData<Matrix4x4>();
+                    int n = (int)Math.Min(l.Key.GetData<uint>()[1], (uint)data.Length);
+                    for (int i = 0; i < n; i++)
+                        lifted.Add(worldToRoot.MultiplyPoint3x4(data[i].GetColumn(3)));
+                    liftedCount += n;
+                }
+                WriteMap(map, main, lifted, "lawns-" + name + "-clumps", note + "; " + liftedCount + " lifted; clumps:" + line);
+            }
+        }
+
+        private void WriteMap(LawnMap map, List<Vector3> main, string file, string note)
+        {
+            WriteMap(map, main, null, file, note);
+        }
+
+        private void WriteMap(LawnMap map, List<Vector3> main, List<Vector3> others, string file, string note)
+        {
+            int width = map.Width, depth = map.Depth;
+            byte[] header = System.Text.Encoding.ASCII.GetBytes("P6\n" + width + " " + depth + "\n255\n");
+            var bytes = new byte[header.Length + width * depth * 3];
+            Array.Copy(header, bytes, header.Length);
+            Vessel active = FlightGlobals.fetch != null ? FlightGlobals.ActiveVessel : null;
+            Vector3 vessel = active != null ? root.InverseTransformPoint(active.transform.position)
+                                      : new Vector3(float.NaN, 0f, float.NaN);
+            int vx = (int)Math.Floor((vessel.x - map.X0) / Texel), vz = (int)Math.Floor((vessel.z - map.Z0) / Texel);
+            for (int row = 0; row < depth; row++)
+                for (int x = 0; x < width; x++)
+                {
+                    // The picture's top row the map's last.
+                    int z = depth - 1 - row, i = z * width + x;
+                    Color32 c = Math.Abs(x - vx) <= 3 && Math.Abs(z - vz) <= 3 ? new Color32(255, 255, 255, 255)
+                              : map.LawnAt[i] ? (map.RoomAt[i] >= 1f ? new Color32(60, 200, 60, 255) : new Color32(30, 100, 30, 255))
+                              : map.CoveredAt[i] ? new Color32(220, 50, 40, 255)
+                              : map.BankAt[i] ? new Color32(230, 210, 40, 255)
+                              : map.GroundAt[i] ? new Color32(120, 120, 120, 255)
+                              : new Color32(0, 0, 0, 255);
+                    int at = header.Length + (row * width + x) * 3;
+                    bytes[at] = c.r;
+                    bytes[at + 1] = c.g;
+                    bytes[at + 2] = c.b;
+                }
+            foreach (var (points, colour) in new[] { (main, new Color32(255, 255, 255, 255)), (others, new Color32(255, 140, 0, 255)) })
+            {
+                if (points == null) continue;
+                foreach (Vector3 p in points)
+                {
+                    int x = (int)Math.Floor((p.x - map.X0) / Texel), z = (int)Math.Floor((p.z - map.Z0) / Texel);
+                    if (x < 0 || z < 0 || x >= width || z >= depth) continue;
+                    int at = header.Length + ((depth - 1 - z) * width + x) * 3;
+                    bytes[at] = colour.r;
+                    bytes[at + 1] = colour.g;
+                    bytes[at + 2] = colour.b;
+                }
+            }
+            string path = System.IO.Path.Combine(CaptureFolder.Run, file + ".ppm");
+            System.IO.File.WriteAllBytes(path, bytes);
+            Debug.Log(Log.Tag + " Space centre grass: the lawns' map as " + path + ", texel 0 at "
+                      + map.X0.ToString("0.0", CultureInfo.InvariantCulture) + ", " + map.Z0.ToString("0.0", CultureInfo.InvariantCulture)
+                      + " m of the space centre's root, the vessel at texel " + vx + ", " + vz + (note.Length > 0 ? "; " + note : "") + ".");
         }
 
         private void Retire(ComputeBuffer buffer)
@@ -778,6 +938,7 @@ namespace ReDefinition.Scenery
                     Debug.Log(text.ToString());
                 });
             }
+            if (probeMap != null && drawnFrames % 600 == 450 && SystemInfo.supportsAsyncGPUReadback) DumpClumps(camera);
             if (drawnFrames == 300 && SystemInfo.supportsAsyncGPUReadback)
                 foreach (Kind kind in kinds)
                 {

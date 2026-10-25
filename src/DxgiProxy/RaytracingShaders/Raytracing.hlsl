@@ -39,9 +39,12 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         // fades out at its shadow distance.
         // -3 (the probe): every pixel the rays take as ground, green or not.
         float meadow = shadowFadeScale.z < -2.5f ? (terrain ? shadowFadeScale.w : 1.0f)
-                       : terrain || shadowFadeScale.z < 0.0f ? MeadowShade(id.xy, length(position), lawn) : 1.0f;
-        // In z what the camera's ray met (RT_REGION_*), for the probe's surface images.
-        output6[id.xy] = float4(float(mode) / 8.0f, meadow, float(region) / 8.0f, 1.0f);
+                       : terrain || shadowFadeScale.z < 0.0f ? MeadowShade(id.xy, position, lawn) : 1.0f;
+        // In z what the camera's ray met (RT_REGION_*), for the probe's surface images; in w the space centre's
+        // lawn's occlusion as the terrain's (LawnOcclusion), which the G-buffer's occlusion is multiplied by, 1
+        // elsewhere (more than a half: a surface found).
+        float occlusion = lawn && shadowFadeScale.z > -1.5f ? LawnOcclusion(gbuffer0[id.xy].rgb) : 1.0f;
+        output6[id.xy] = float4(float(mode) / 8.0f, meadow, float(region) / 8.0f, occlusion);
     }
     float3 towardsSun = normalize(sunDirection.xyz);
     float visible = 0.0f;

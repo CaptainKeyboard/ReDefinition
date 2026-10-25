@@ -208,11 +208,13 @@ namespace ReDefinition.Raytracing
         // (ReDefinitionRtCapture.shader, fragShadowFade), read back a frame or two later,
         // and kept in the camera's own frame, where Unity's fade does not move with it.
         private const int ShadowFadePass = 15;
-        // The light a meadow's blades keep from its ground, measured from the space centre at 60 degrees and
-        // 800 m on the RTX A4500 (2026-10-22): its lawn with Parallax's grass in the rays 0.80 of the terrain
-        // beyond the grass, with the blades letting through half the sun (rtFoliageTransmission 0.5); without the
-        // grass in the rays 1.04. Into the ground's albedo, for the sun and the sky alike.
-        private const float MeadowShade = 0.77f;
+        // The light a meadow's blades keep from its ground, measured at the launch pad on the RTX A4500 with the
+        // blades letting through half the sun (rtFoliageTransmission 0.5): the terrain past Parallax's grass
+        // about the vessel as bright as the terrain in it, 0.99 of it by day and 0.94 in the evening (medians of
+        // eleven views from 150 m to 4 km, single views 0.81 to 1.10; 2026-10-25; 0.77 before, when the rays saw
+        // the grass's shadow only near the camera, RtCommon.hlsli, RayOrigin). Into the ground's albedo, for the
+        // sun and the sky alike.
+        private const float MeadowShade = 0.82f;
         private static readonly float MeadowShadeProbe = Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade") != null
             && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade"),
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float shadeProbe)
@@ -771,7 +773,7 @@ namespace ReDefinition.Raytracing
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
                 // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn lifted
                 // to the terrain's albedo, into their albedo.
-                if (packet.ShadowFade[6] != 0f || RtMaterialIntent.LawnAsTerrain)
+                if (packet.ShadowFade[6] != 0f || packet.ShadowFade[11] != 0f || RtMaterialIntent.LawnAsTerrain)
                 {
                     command.SetRenderTarget(BuiltinRenderTextureType.GBuffer0);
                     command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, MeadowPass);
@@ -1327,11 +1329,22 @@ namespace ReDefinition.Raytracing
             packet.ShadowFade[5] = fades ? fadeScale.y : 0f;
             // The meadow's shade on the ground past Parallax's grass (RtCommon.hlsli, MeadowShade): how far
             // the grass is drawn, and how much light a meadow's own blades keep from it.
-            float grassRange = RtKspMods.ParallaxGrassRange();
+            float grassRange = RtKspMods.ParallaxGrassRange(out float vesselGrassRange);
+            // Where Parallax draws grass about the vessel, that is the meadow, and the grass about the camera
+            // not: Kerbin's tall grass, 400 m about the camera, stands too sparse to shade the ground (the sun's
+            // visibility 0.98 on the terrain it stands on past the main grass, 2026-10-25), which kept the
+            // terrain near the camera brighter than further off, and the more the nearer the camera came.
+            if (vesselGrassRange > 0f) grassRange = 0f;
             // -redefinitionProbeMeadowFrom <metres>: the meadow's shade from there on instead of the grass's range.
-            packet.ShadowFade[6] = grassRange > 0f && MeadowFrom != 0f ? MeadowFrom : grassRange;
+            packet.ShadowFade[6] = (grassRange > 0f || vesselGrassRange > 0f) && MeadowFrom != 0f ? MeadowFrom : grassRange;
             // -redefinitionProbeMeadowShade <0..1>: another shade, to see where it lies.
             packet.ShadowFade[7] = MeadowShadeProbe > 0f ? MeadowShadeProbe : MeadowShade;
+            // The grass Parallax draws about the vessel: the vessel relative to the camera, and how far.
+            Vector3 vessel = vesselGrassRange > 0f ? RtKspMods.ParallaxVessel(transform.position) - transform.position : Vector3.zero;
+            packet.ShadowFade[8] = vessel.x;
+            packet.ShadowFade[9] = vessel.y;
+            packet.ShadowFade[10] = vessel.z;
+            packet.ShadowFade[11] = MeadowFrom != 0f ? 0f : vesselGrassRange;
             Color sky = SkyColor();
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;

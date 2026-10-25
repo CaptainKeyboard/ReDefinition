@@ -147,7 +147,7 @@
 #define RT_MATERIAL_DESC_SIZE 96
 #define RT_INSTANCE_SIZE 64
 #define RT_GPU_GROUP_SIZE 32
-#define RT_FRAME_PACKET_SIZE 1040
+#define RT_FRAME_PACKET_SIZE 1056
 #define RT_RECONSTRUCT_PACKET_SIZE 640
 
 // RtFramePacket's fields, by their offset in bytes.
@@ -182,8 +182,8 @@
 #define RT_FRAME_PACKET_CLOUDS 720
 #define RT_FRAME_PACKET_PREV_WORLD_TO_CLIP_FAR 816
 #define RT_FRAME_PACKET_SHADOW_FADE 880
-#define RT_FRAME_PACKET_INPUTS 912
-#define RT_FRAME_PACKET_OUTPUTS 976
+#define RT_FRAME_PACKET_INPUTS 928
+#define RT_FRAME_PACKET_OUTPUTS 992
 
 // RtReconstructPacket's fields, by their offset in bytes.
 #define RT_RECONSTRUCT_PACKET_SIZE_FIELD 0
@@ -260,13 +260,14 @@
 #define RT_CB_PREV_WORLD_TO_CLIP_FAR 40
 #define RT_CB_SHADOW_FADE 44
 #define RT_CB_SHADOW_FADE1 45
+#define RT_CB_SHADOW_FADE2 46
 // The radiance cache's (RadianceCache.hlsli), the proxy's own: its anchor's tile and the
 // frame it counts, the anchor within the tile and the cells' angle, its parameters, its
 // sizes.
-#define RT_CB_CACHE_TILE 46
-#define RT_CB_CACHE_OFFSET 47
-#define RT_CB_CACHE_PARAMS 48
-#define RT_CB_CACHE_SIZES 49
-#define RT_CB_REGISTERS 50
+#define RT_CB_CACHE_TILE 47
+#define RT_CB_CACHE_OFFSET 48
+#define RT_CB_CACHE_PARAMS 49
+#define RT_CB_CACHE_SIZES 50
+#define RT_CB_REGISTERS 51
 
 #endif
