@@ -6,9 +6,13 @@
 		<title>'KSP Dashboard'</title>
 		<link rel="icon" type="image/svg+xml" href="resources/icon.svg" />
 		<link rel="stylesheet" href="styles/dashboard.css" />
+		<link rel="stylesheet" href="styles/pages.css" />
+		<link rel="stylesheet" href="styles/menu.css" />
+		<link rel="stylesheet" href="styles/ksc.css" />
+		<link rel="stylesheet" href="styles/editor.css" />
 		<meta name="x-icue-property" content="panelLayout" data-label="'Panel layout'" data-type="combobox" data-default="'default'" data-values="[{'key':'default','value':'Default'},{'key':'defaultMirrored','value':'Default (Mirrored)'},{'key':'handheld','value':'Handheld'},{'key':'handheldMirrored','value':'Handheld (Mirrored)'}]" />
 	</head>
-	<body>
+	<body data-page="flight">
 		<div id="app">
 			<section id="ctl" class="panel">
 				<div class="toggles" id="toggles"></div>
@@ -47,7 +51,10 @@
 				<div class="side right"></div>
 				<button id="rollL" class="roundpb">&#x21BA;</button>
 				<button id="rollR" class="roundpb">&#x21BB;</button>
-				<button id="snapBtn" class="pb snap"><span class="lens">45&#xB0;</span></button>
+				<button id="levelBtn" class="pb snap"><span class="lens">0&#xB0;</span></button>
+				<button id="snapBtn" class="pb snap"><span class="lens"><b>SNAP</b><i>45&#xB0;</i></span></button>
+				<button id="lockBtn" class="pb snap"><span class="lens"><b>ROLL</b><i>LOCK</i></span></button>
+				<button id="viewBtn" class="pb snap"><span class="lens"><b>VIEW</b><i id="viewName">CRAFT</i></span></button>
 				<div id="dragdot"></div>
 			</section>
 
@@ -99,7 +106,94 @@
 			</section>
 
 </div>
+
+		<!-- The menu page: KSP loading at its start, the main menu with the saves (menu.js). -->
+		<div id="menu" class="scene">
+			<header class="sbar panel">
+				<div class="plate title">Kerbal Space Program</div>
+				<div class="lcd" id="mscene">-</div>
+				<span class="dim push" id="mversions"></span>
+				<span class="link" id="mlink">connecting...</span>
+				<button class="shold leave" id="mquit"><b>QUIT</b><span class="hint">HOLD</span><i class="prog"></i></button>
+			</header>
+			<section id="mload" class="panel">
+				<div class="plate">Loading KSP</div>
+				<div class="mloadbar"><div id="mloadbar"></div></div>
+				<div class="mloadrow"><div class="lcd" id="mloadstep">-</div><div class="lcd" id="mloadpct">-</div><div class="lcd" id="mloadtime"></div></div>
+			</section>
+			<div id="mmain">
+				<section id="mcontinue" class="panel"></section>
+				<section id="msaves" class="panel">
+					<div class="plate title">Saves <span id="msavecount"></span><span id="mhint"></span></div>
+					<div id="mlist"></div>
+				</section>
+			</div>
+		</div>
+
+		<!-- The Space Center page: the program, the buildings, the vessels, the alarms and contracts (ksc.js). -->
+		<div id="ksc" class="scene">
+			<header class="sbar panel">
+				<div class="plate title">Kerbal Space Center</div>
+				<div class="lcd" id="kdate">-</div>
+				<span class="dim push" id="khint"></span>
+				<span class="link" id="klink">connecting...</span>
+				<button class="pb kquick" id="kquick"><span class="lens">QUICK<br />SAVE</span></button>
+				<button class="shold leave" id="kmenu"><b>MAIN MENU</b><span class="hint">HOLD</span><i class="prog"></i></button>
+			</header>
+			<div id="kmain">
+				<section id="kprogram" class="panel">
+					<div class="plate title">Program <span id="kmode"></span></div>
+					<div class="kstats" id="kstats"></div>
+					<div class="plate sm">Time Warp</div>
+					<div class="kwarp">
+						<button class="pb" id="kw1"><span class="lens">1&#xD7;</span></button>
+						<button class="pb" id="kwdn"><span class="lens">&#x25C0;&#x25C0;</span></button>
+						<button class="pb" id="kwup"><span class="lens">&#x25B6;&#x25B6;</span></button>
+						<div class="lcd" id="kwarp">-</div>
+					</div>
+					<div class="plate sm">Crew</div>
+					<div class="kstats" id="kcrew"></div>
+				</section>
+				<section id="kbuildings" class="panel">
+					<div class="plate title">Buildings</div>
+					<div id="kbgrid"></div>
+				</section>
+				<section id="kvessels" class="panel">
+					<div class="plate title">Vessels <span class="kcount" id="kvcount"></span></div>
+					<div class="klist" id="kvlist"></div>
+				</section>
+				<section id="kevents" class="panel">
+					<div class="plate title">Alarms <span class="kcount" id="kacount"></span></div>
+					<div class="klist" id="kalarms"></div>
+					<div class="plate title">Contracts <span class="kcount" id="kccount"></span></div>
+					<div class="klist" id="kcontracts"></div>
+				</section>
+			</div>
+		</div>
+		<!-- The VAB and SPH page: the Engineer and the planner, in two tabs (editor.js). -->
+		<div id="editor" class="scene">
+			<header class="sbar panel">
+				<div class="plate title" id="efacility">Vehicle Assembly Building</div>
+				<div class="lcd" id="ename">-</div>
+				<div class="etabs push" id="etabs"><button data-tab="engineer">ENGINEER</button><button data-tab="planner">PLANNER</button></div>
+				<span class="link" id="elink">connecting...</span>
+			</header>
+			<div id="eengineer">
+				<section class="panel" id="ecraft"><div class="plate title">Craft</div><div class="estats" id="ecraftstats"></div></section>
+				<section class="panel" id="estages"><div class="plate title">Stages <span class="dim" id="esituation"></span></div><div class="escroll" id="estagetable"></div></section>
+				<section class="panel" id="eside">
+					<div class="plate title">Resources</div><div id="eresources"></div>
+					<div class="plate title">Crew</div><div class="estats" id="ecrew"></div>
+				</section>
+			</div>
+			<div id="eplanner"></div>
+			<div id="epicker" hidden><div class="panel epickerbox"><div class="eprow"><b>Choose</b><button class="pb epbtn" id="epickerclose"><span class="lens">&#xD7;</span></button></div><div id="epickerlist"></div></div></div>
+		</div>
 		<script src="scripts/navball.js"></script>
+		<script src="scripts/pages.js"></script>
+		<script src="scripts/menu.js"></script>
+		<script src="scripts/ksc.js"></script>
+		<script src="scripts/editor.js"></script>
 		<script src="scripts/widget.js"></script>
 	</body>
 </html>

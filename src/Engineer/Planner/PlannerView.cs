@@ -402,8 +402,14 @@ namespace ReDefinition.Engineer
         private void PickBody(int index)
         {
             if (!Shown(index)) return;
-            // As a list under the body's button, each moon under its planet.
+            Dropdown.Show(this, bodyButtons[index], BodyChoices(index), 150f);
+        }
+
+        // The bodies, each moon under its planet.
+        private List<Choice> BodyChoices(int index)
+        {
             List<Choice> choices = new List<Choice>();
+            if (!Shown(index)) return choices;
             foreach (int body in bodies.Order)
             {
                 int picked = body;
@@ -415,7 +421,7 @@ namespace ReDefinition.Engineer
                     Pick = () => SetBody(index, picked),
                 });
             }
-            Dropdown.Show(this, bodyButtons[index], choices, 150f);
+            return choices;
         }
 
         private void SetBody(int index, int body)
@@ -587,6 +593,12 @@ namespace ReDefinition.Engineer
         private void PickTanker(int leg, StepRole role, DialogGUIBase button)
         {
             if (!Shown(leg + 1)) return;
+            Dropdown.Show(this, button, TankerChoices(leg, role), 150f);
+        }
+
+        private List<Choice> TankerChoices(int leg, StepRole role)
+        {
+            if (!Shown(leg + 1)) return new List<Choice>();
             int[] from = state.Stops[leg + 1].RefuelFrom;
             List<Choice> choices = new List<Choice>
             {
@@ -605,7 +617,7 @@ namespace ReDefinition.Engineer
                     Current = from[(int)role] == number, Pick = () => SetTanker(leg, role, number),
                 });
             }
-            Dropdown.Show(this, button, choices, 150f);
+            return choices;
         }
 
         private void SetTanker(int leg, StepRole role, int stage)

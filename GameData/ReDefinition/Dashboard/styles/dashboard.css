@@ -13,7 +13,7 @@ button { font:inherit; color:inherit; padding:0; }
 /* Every arrangement but the standard row: the panels are placed by widget.js. */
 #app.placed { display:block; position:relative; }
 /* Browser only: the arrangement and full-screen buttons in the navball panel's right column. */
-.pb.tool { width:70px; height:70px; flex:none; font-size:13px; letter-spacing:.04em; margin-bottom:6px; }
+.pb.tool { width:70px; height:70px; flex:none; font-size:13px; letter-spacing:.04em; }
 #fsBtn { font-size:30px; }
 /* Arranging: a tap chooses a panel, a second swaps it with the chosen one. */
 #app.arranging .panel::after { content:""; position:absolute; inset:0; z-index:50; border-radius:10px; background:rgba(255,178,62,.06); outline:3px dashed rgba(255,178,62,.5); outline-offset:-3px; }
@@ -53,6 +53,9 @@ button { font:inherit; color:inherit; padding:0; }
 .tape .bar { flex:1; width:100%; border-radius:4px; background:#0c0e10; border:2px solid #050607; position:relative; overflow:hidden; box-shadow:inset 0 0 8px #000; }
 .tape .fill { position:absolute; left:3px; right:3px; bottom:3px; border-radius:2px; background:linear-gradient(90deg, #c98a1c, #ffd27a, #c98a1c); box-shadow:0 0 8px rgba(255,190,80,.5); }
 .tape .ticks { position:absolute; inset:0; background:repeating-linear-gradient(0deg, transparent 0 calc(10% - 1px), rgba(255,255,255,.25) calc(10% - 1px) 10%); }
+/* An engine lit that burns it is empty: orange. Where engines burning it run dry: a line across. */
+.tape.empty .fill { background:linear-gradient(90deg, #b8420a, #ff8a3d, #b8420a); box-shadow:0 0 10px rgba(255,110,30,.75); }
+.tape .mark { position:absolute; left:0; right:0; height:2px; margin-bottom:-1px; background:#f4f6f8; box-shadow:0 0 0 1px #050607; }
 .tape .v { font-family:Consolas, monospace; font-size:18px; font-weight:700; color:var(--amber); }
 
 /* CENTRE: navball with the target altitude left and clear right */
@@ -67,7 +70,8 @@ button { font:inherit; color:inherit; padding:0; }
 /* Each side is one column as wide as its roll button, flush with the panel's edge: everything on a
    side is centred on its roll button, and both roll buttons keep the same distance to their edge. */
 .side.left { grid-column:1; width:84px; justify-self:start; position:relative; }
-.side.right { grid-column:3; width:84px; justify-self:end; align-items:center; padding-top:44px; }
+/* LAYOUT and full screen 8px apart, as the buttons beside the right roll button are. */
+.side.right { grid-column:3; width:84px; justify-self:end; align-items:center; padding-top:44px; gap:8px; }
 #ballpanel .hdr #smode { width:84px; text-align:center; padding:2px 0; margin-left:auto; }
 /* The attitude readout centred over the ball; white while it shows the navball target. */
 #ballpanel .hdr #hdg { position:absolute; left:50%; transform:translateX(-50%); width:400px; text-align:center; white-space:pre; }
@@ -86,8 +90,19 @@ button { font:inherit; color:inherit; padding:0; }
 #ballpanel #rollL, #ballpanel #rollR { position:absolute; bottom:16px; z-index:2; }
 #ballpanel #rollL { left:calc(50% - 250px); }
 #ballpanel #rollR { left:calc(50% + 166px); }
-/* Beside the right roll button: snaps the target's roll to a multiple of 45 degrees. */
-#ballpanel #snapBtn { position:absolute; right:16px; bottom:23px; width:70px; height:70px; font-size:20px; z-index:2; }
+/* Beside the right roll button, from the bottom up: where the ball is seen from (the vessel or the
+   target), the roll held against the horizon while dragging, the snap of the
+   target's roll to a multiple of 45 degrees, and its roll turned to 0. They are centred in the
+   right column, under LAYOUT and full screen: its 84px less their 70px, halved, in from its edge. */
+#ballpanel .pb.snap { position:absolute; right:23px; width:70px; height:70px; font-size:20px; z-index:2; }
+#ballpanel #viewBtn { bottom:23px; }
+#ballpanel #lockBtn { bottom:101px; }
+#ballpanel #snapBtn { bottom:179px; }
+#ballpanel #levelBtn { bottom:257px; }
+#ballpanel .pb.snap .lens { flex-direction:column; gap:2px; line-height:1; }
+#ballpanel .pb.snap b { font-size:15px; font-weight:800; letter-spacing:.04em; }
+#ballpanel .pb.snap i { font-style:normal; font-size:14px; font-weight:800; color:var(--amber); }
+#ballpanel .pb.snap.lit i { color:inherit; }
 .playbox { height:70px; display:flex; align-items:flex-start; justify-content:center; }
 .pb.play { width:70px; height:70px; flex:none; font-size:26px; }
 .pb.play.paused .lens { background:radial-gradient(circle at 50% 40%, #ffe2a6, #ffb23e 55%, #c97a12); color:#3a2200; box-shadow:0 0 14px rgba(255,180,60,.75); }

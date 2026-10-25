@@ -1,0 +1,64 @@
+/* The menu page (menu.js): KSP's progress while it loads; in the main menu the last save played beside
+   the others, on a wide screen (the Xeneon Edge) side by side, on a phone one over the other. */
+
+/* KSP loading at its start: the step, a bar as its own, the share and the time so far. */
+#mload { display:none; flex:1; flex-direction:column; justify-content:center; gap:22px; padding:32px; }
+#menu.loading #mload { display:flex; }
+#menu.loading #mmain { display:none; }
+#mload .plate { font-size:18px; }
+.mloadbar { position:relative; height:52px; border-radius:6px; background:#0c0e10; border:2px solid #050607; box-shadow:inset 0 0 8px #000; overflow:hidden; }
+#mloadbar { position:absolute; left:3px; top:3px; bottom:3px; width:0; max-width:calc(100% - 6px); border-radius:3px; transition:width .3s;
+	background:linear-gradient(180deg, #ffd27a, #c98a1c); box-shadow:0 0 8px rgba(255,190,80,.5); }
+.mloadrow { display:grid; grid-template-columns:1fr auto auto; gap:10px; }
+.mloadrow .lcd { font-size:28px; height:50px; line-height:42px; }
+#mloadstep { text-align:left; text-overflow:ellipsis; }
+#mloadpct { min-width:120px; }
+#mloadtime { min-width:110px; }
+
+/* The main menu: Continue beside the other saves. */
+#mmain { flex:1; min-height:0; display:grid; grid-template-columns:minmax(420px, 1fr) 2fr; gap:10px; }
+#mcontinue, #msaves { display:flex; flex-direction:column; gap:10px; min-height:0; }
+#msaves .plate.title { display:flex; gap:10px; align-items:baseline; }
+#msavecount { color:var(--dim); }
+#mhint { margin-left:auto; color:var(--amber); text-transform:none; letter-spacing:.02em; }
+#mlist { flex:1; min-height:0; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill, minmax(380px, 1fr)); gap:10px; align-content:start; }
+
+/* A save: its name and mode, its date, what its summary holds, when it was played; LOAD at its side. */
+.msave { display:grid; grid-template-columns:minmax(0, 1fr) 96px; grid-template-areas:"head hold" "date hold" "stats hold" "foot hold"; gap:6px 12px;
+	padding:12px; border-radius:8px; background:#1d2124; box-shadow:inset 0 0 0 1px #33393f; }
+.msave.pending { box-shadow:inset 0 0 0 3px var(--amber); }
+.msave .mhead { grid-area:head; display:flex; align-items:baseline; gap:10px; min-width:0; }
+.mname { font-size:22px; font-weight:800; color:var(--label); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mmode { flex:none; font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; padding:2px 8px; border-radius:4px; background:#3a3f44; color:var(--amber); }
+.mdate { grid-area:date; font-size:18px; text-align:left; }
+.msave .mstats { grid-area:stats; display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:6px; }
+.msave .snote { grid-area:stats; }
+.mfoot { grid-area:foot; display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 10px; font-size:14px; color:var(--dim); }
+.mwarn { color:var(--amber); }
+.msave .shold { grid-area:hold; min-height:64px; }
+
+/* The last save played, larger, CONTINUE under it. */
+.msave.big { flex:1; grid-template-columns:minmax(0, 1fr); grid-template-areas:"head" "date" "stats" "foot" "hold"; grid-template-rows:auto auto 1fr auto 110px;
+	gap:12px; padding:16px; }
+.msave.big .mname { font-size:38px; }
+.msave.big .mdate { font-size:26px; }
+.msave.big .mstats { grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); align-content:start; }
+.msave.big .sstat .plate { font-size:13px; }
+.msave.big .sstat .lcd { font-size:26px; }
+.msave.big .mfoot { font-size:16px; }
+.msave.big .shold b { font-size:32px; }
+
+/* Phone upright, or a small window: one column, LOAD under each save, the page scrolls. */
+@media (max-width: 900px) {
+	#mmain { flex:none; grid-template-columns:minmax(0, 1fr); }
+	#mlist { overflow:visible; grid-template-columns:minmax(0, 1fr); }
+	.msave { grid-template-columns:minmax(0, 1fr); grid-template-areas:"head" "date" "stats" "foot" "hold"; }
+	.msave .shold { min-height:56px; }
+	.mdate { white-space:normal; }
+	.msave.big { grid-template-rows:auto; }
+	.msave.big .mname { font-size:30px; }
+	.msave.big .mdate { font-size:22px; }
+	.msave.big .shold { min-height:96px; }
+	.mloadrow { grid-template-columns:1fr 1fr; }
+	#mloadstep { grid-column:1 / -1; }
+}

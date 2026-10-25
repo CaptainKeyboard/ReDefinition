@@ -55,6 +55,17 @@ namespace ReDefinition.Upscaler
             previousStep -= delta;
         }
 
+        // Takes over another's history: a body that moved with that one until now -- a stage
+        // the vessel has just dropped -- goes on from the same steps.
+        internal void CopyFrom(StepInterpolator other)
+        {
+            current = other.current;
+            previousStep = other.previousStep;
+            lastFixedTime = other.lastFixedTime;
+            known = other.known;
+            Steps = other.Steps;
+        }
+
         // Where the last step left it, for a jump test.
         internal Vector3 Current
         {

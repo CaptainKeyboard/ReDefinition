@@ -94,6 +94,7 @@ namespace ReDefinition.Engineer
 
         private void OnDestroy()
         {
+            if (Instance == this) Instance = null;
             GameEvents.onEditorScreenChange.Remove(OnScreenChange);
             GameEvents.onLevelWasLoadedGUIReady.Remove(OnGuiReady);
             GameEvents.onEditorShipModified.Remove(OnShipModified);
@@ -108,9 +109,48 @@ namespace ReDefinition.Engineer
             DestroyTiles();
         }
 
+        // The editor's planner while a dashboard shows it (src/Dashboard/EditorTelemetry.cs):
+        // it asks at every update it sends, and the planner works out its plan with the panel
+        // closed as well, as long as it keeps asking.
+        internal static EditorEngineer Instance { get; private set; }
+        private const float AskedFor = 1f;
+        private float dashboardAsked = -1e9f;
+        private bool dashboardTried;
+
+        // The planner, made where it was not yet; null where it cannot be.
+        internal PlannerView PlannerForDashboard()
+        {
+            dashboardAsked = Time.unscaledTime;
+            if (editor == null) return null;
+            // Tried once: one that fails does not fail again at every update.
+            if (panel == null && !dashboardTried)
+            {
+                dashboardTried = true;
+                try
+                {
+                    panel = PlannerPanel.Create(this);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(Log.Tag + " The planner could not be made for the dashboard: " + e);
+                }
+            }
+            return panel != null ? panel.View : null;
+        }
+
+        private bool DashboardShows
+        {
+            get { return Time.unscaledTime - dashboardAsked < AskedFor; }
+        }
+
+        private void Awake()
+        {
+            Instance = this;
+        }
+
         private void Update()
         {
-            if (editor == null || !open) return;
+            if (editor == null || (!open && !DashboardShows)) return;
             if (changed && Time.unscaledTime >= nextRefresh)
             {
                 nextRefresh = Time.unscaledTime + RefreshInterval;
@@ -128,7 +168,11 @@ namespace ReDefinition.Engineer
 
             try
             {
-                if (panel != null) panel.Tick();
+                if (panel != null)
+                {
+                    if (open) panel.Tick();
+                    else panel.TickHidden();
+                }
             }
             catch (Exception e)
             {

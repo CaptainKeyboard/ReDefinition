@@ -315,7 +315,7 @@ namespace ReDefinition.Engineer
         // The resources engines take in from the air: IntakeAir, as KSP's simulation
         // knows it (DeltaVGlobals.PropellantsToIgnore), and whatever the vessel's
         // intakes gather (ModuleResourceIntake.resourceName), a mod's own air.
-        private static HashSet<string> AirResources(List<Part> parts)
+        internal static HashSet<string> AirResources(List<Part> parts)
         {
             HashSet<string> air = new HashSet<string> { "IntakeAir" };
             foreach (Part part in parts)
@@ -355,8 +355,8 @@ namespace ReDefinition.Engineer
         // its target from the part it is attached to. `start`: KSP's start mass; what
         // it counts beyond the parts and their resources (the crew) goes to the root
         // part.
-        private static List<SimPart> SimOf(List<Part> parts, List<PartFacts> facts, HashSet<string> air, Dictionary<string, double> density,
-                                           double start)
+        internal static List<SimPart> SimOf(List<Part> parts, List<PartFacts> facts, HashSet<string> air, Dictionary<string, double> density,
+                                            double start)
         {
             List<SimPart> sim = new List<SimPart>();
             Dictionary<Part, int> index = new Dictionary<Part, int>();

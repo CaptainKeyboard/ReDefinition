@@ -309,10 +309,16 @@ namespace ReDefinition.Engineer
         // each section alone, a lander left behind; or back to the planner's choice.
         private void PickFlyer(int leg, StepRole role, DialogGUIBase button)
         {
-            int index = Slot(leg, role);
-            if (index < 0) return;
-            RouteStep step = steps[index];
+            if (Slot(leg, role) < 0) return;
+            Dropdown.Show(this, button, FlyerChoices(leg, role), 150f);
+        }
+
+        private List<Choice> FlyerChoices(int leg, StepRole role)
+        {
             List<Choice> choices = new List<Choice>();
+            int index = Slot(leg, role);
+            if (index < 0) return choices;
+            RouteStep step = steps[index];
             AddFlyer(choices, leg, role, step, Flyer.Ship, "The whole vessel flies this step.");
             foreach (LiveSection section in valid)
             {
@@ -327,7 +333,7 @@ namespace ReDefinition.Engineer
                     Label = "Planner's choice", Tooltip = "Let the planner decide who flies this step.",
                     Pick = () => ChooseFlyer(leg, role, step.Flyer),
                 });
-            Dropdown.Show(this, button, choices, 150f);
+            return choices;
         }
 
         private static string FlyTooltip(SectionKind kind)
@@ -408,7 +414,13 @@ namespace ReDefinition.Engineer
         private void PickSectionParts(PlannedSection plan, DialogGUIBase button)
         {
             if (!Ready() || plan == null) return;
+            Dropdown.Show(this, button, PartChoices(plan), PartButtonWidth);
+        }
+
+        private List<Choice> PartChoices(PlannedSection plan)
+        {
             List<Choice> choices = new List<Choice>();
+            if (!Ready() || plan == null) return choices;
             PartGroupChoice found = Detected(plan.Kind);
             AddPart(choices, "Automatic", AutomaticTooltip(plan.Kind), plan.Group == PlannerState.Automatic,
                 () => SetSectionGroup(plan, PlannerState.Automatic), found);
@@ -429,7 +441,7 @@ namespace ReDefinition.Engineer
                         : "A section needs a command part, separated from the rest by a decoupler or docking port.",
                     Pick = () => { },
                 });
-            Dropdown.Show(this, button, choices, PartButtonWidth);
+            return choices;
         }
 
         private static string AutomaticTooltip(SectionKind kind)
@@ -473,11 +485,19 @@ namespace ReDefinition.Engineer
         private void PickNewSection(DialogGUIBase button)
         {
             if (!Ready() || state.Sections.Count >= MaxSections) return;
+            Dropdown.Show(this, button, NewSectionChoices(button), 150f);
+        }
+
+        // `button`: where the new section's parts fold out; null where they are picked
+        // elsewhere (the dashboard), from the section's own row.
+        private List<Choice> NewSectionChoices(DialogGUIBase button)
+        {
             List<Choice> choices = new List<Choice>();
+            if (!Ready() || state.Sections.Count >= MaxSections) return choices;
             AddKind(choices, SectionKind.Capsule, "Returns home on its own at the end, usually on parachutes.", button);
             AddKind(choices, SectionKind.Lander, "Lands while the rest of the vessel waits in orbit.", button);
             AddKind(choices, SectionKind.Satellite, "Is deployed at a destination.", button);
-            Dropdown.Show(this, button, choices, 150f);
+            return choices;
         }
 
         private void AddKind(List<Choice> choices, SectionKind kind, string tooltip, DialogGUIBase button)
@@ -489,7 +509,7 @@ namespace ReDefinition.Engineer
                 {
                     PlannedSection plan = state.AddSection(kind, "");
                     Changed();
-                    PickSectionParts(plan, button);
+                    if (button != null) PickSectionParts(plan, button);
                 },
             });
         }
@@ -538,8 +558,14 @@ namespace ReDefinition.Engineer
 
         private void PickDeployStop(int row, DialogGUIBase button)
         {
+            if (RowSection(row) == null) return;
+            Dropdown.Show(this, button, DeployChoices(row), PartButtonWidth);
+        }
+
+        private List<Choice> DeployChoices(int row)
+        {
             LiveSection section = RowSection(row);
-            if (section == null) return;
+            if (section == null) return new List<Choice>();
             PlannedSection plan = section.Plan;
             List<Choice> choices = new List<Choice>
             {
@@ -558,7 +584,7 @@ namespace ReDefinition.Engineer
                     Current = plan.DeployAt == i, Pick = () => SetDeployStop(plan, stop),
                 });
             }
-            Dropdown.Show(this, button, choices, PartButtonWidth);
+            return choices;
         }
 
         private void SetDeployStop(PlannedSection plan, int stop)

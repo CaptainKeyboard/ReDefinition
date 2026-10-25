@@ -306,6 +306,7 @@ namespace ReDefinition.Upscaler
         // How far from the active vessel another loaded vessel's parts are drawn too: what it dropped -- boosters,
         // fairings, a stage -- which KSP makes vessels of their own the moment they part, and which frame generation
         // and the upscalers otherwise read with the ground's motion and without their forward-drawn depth.
+        // RenderInterpolation draws the same vessels between the physics steps.
         private const float NearbyMetres = 2500f;
 
         // -redefinitionProbeActiveVesselOnly: the active vessel alone, as before, to compare.
@@ -317,14 +318,20 @@ namespace ReDefinition.Upscaler
 
         private void Near(Vessel vessel)
         {
-            near.Clear();
-            near.Add(vessel);
+            NearVessels(vessel, near);
+        }
+
+        // Into `into`: vessel and the loaded vessels within NearbyMetres of it, vessel first.
+        internal static void NearVessels(Vessel vessel, List<Vessel> into)
+        {
+            into.Clear();
+            into.Add(vessel);
             if (ActiveOnly) return;
             foreach (Vessel other in FlightGlobals.VesselsLoaded)
             {
                 if (other == null || other == vessel || other.packed || other.parts == null) continue;
                 if ((other.CoMD - vessel.CoMD).sqrMagnitude > (double)NearbyMetres * NearbyMetres) continue;
-                near.Add(other);
+                into.Add(other);
             }
         }
 

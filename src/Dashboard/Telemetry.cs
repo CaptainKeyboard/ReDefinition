@@ -20,6 +20,16 @@ namespace ReDefinition.Dashboard
         private readonly Dictionary<string, Reader> readers = new Dictionary<string, Reader>();
         private readonly Dictionary<string, Action> actions = new Dictionary<string, Action>();
 
+        // Keys and commands with no vessel, read and run in every scene: the menu page's.
+        private delegate object SceneReader(string[] args);
+        private delegate void SceneAction(string[] args);
+        private readonly Dictionary<string, SceneReader> sceneReaders = new Dictionary<string, SceneReader>();
+        private readonly Dictionary<string, SceneAction> sceneActions = new Dictionary<string, SceneAction>();
+        private readonly MenuTelemetry menu = new MenuTelemetry();
+        private readonly KscTelemetry ksc = new KscTelemetry();
+        private readonly EditorTelemetry editor = new EditorTelemetry();
+        private readonly FuelTelemetry fuel = new FuelTelemetry();
+
         // Resource totals are summed over the whole vessel once per frame and then looked up per key.
         private int resourceFrame = -1;
         private readonly Dictionary<string, double[]> resources = new Dictionary<string, double[]>();
@@ -33,6 +43,52 @@ namespace ReDefinition.Dashboard
 
         public Telemetry()
         {
+            // The game, in every scene: the scene's name (GameScenes), the versions, KSP's progress
+            // while it loads, the saves; g.load[name] (URI-encoded) and g.quit from the main menu.
+            sceneReaders["g.scene"] = a => MenuTelemetry.Scene;
+            sceneReaders["g.versions"] = a => MenuTelemetry.Versions();
+            sceneReaders["g.loading"] = a => MenuTelemetry.Loading();
+            sceneReaders["g.saves"] = a => menu.Saves();
+            sceneActions["g.load"] = a => menu.Load(a);
+            sceneActions["g.quit"] = a => MenuTelemetry.Quit();
+
+            // A game in progress, in every scene but the menus: its mode, funds, science, reputation,
+            // UT, date and calendar; time warp at the Space Center, in the Tracking Station and in
+            // flight; g.quicksave and g.mainMenu at the Space Center and in the Tracking Station.
+            sceneReaders["g.mode"] = a => GameTelemetry.Mode();
+            sceneReaders["g.funds"] = a => GameTelemetry.Funds();
+            sceneReaders["g.science"] = a => GameTelemetry.Science();
+            sceneReaders["g.reputation"] = a => GameTelemetry.Reputation();
+            sceneReaders["g.ut"] = a => GameTelemetry.Ut();
+            sceneReaders["g.date"] = a => GameTelemetry.Date();
+            sceneReaders["g.calendar"] = a => GameTelemetry.Calendar();
+            sceneReaders["t.currentRate"] = a => GameTelemetry.WarpRate();
+            sceneReaders["t.currentRateIndex"] = a => GameTelemetry.WarpRateIndex();
+            sceneActions["t.timeWarp"] = a => GameTelemetry.SetWarp(a);
+            sceneActions["g.quicksave"] = a => GameTelemetry.QuickSave();
+            sceneActions["g.mainMenu"] = a => GameTelemetry.MainMenu();
+
+            // The Space Center: its buildings, the vessels to fly, the next alarms, the active
+            // contracts and the crew; k.enter[facility], k.fly[vessel id], k.warpTo[alarm id].
+            sceneReaders["k.buildings"] = a => ksc.Buildings();
+            sceneReaders["k.vessels"] = a => ksc.Vessels();
+            sceneReaders["k.alarms"] = a => ksc.Alarms();
+            sceneReaders["k.contracts"] = a => ksc.Contracts();
+            sceneReaders["k.crew"] = a => ksc.Crew();
+            sceneActions["k.enter"] = a => KscTelemetry.Enter(a);
+            sceneActions["k.fly"] = a => KscTelemetry.Fly(a);
+            sceneActions["k.warpTo"] = a => KscTelemetry.WarpTo(a);
+
+            // The VAB and the SPH: the Engineer (e.ship), the planner's plan (e.plan) and the list
+            // one of its buttons folds out (e.choiceList, asked with e.choices[list,a,b]);
+            // e.change[name,numbers...] and e.pick[list,a,b,index,label] change the plan.
+            sceneReaders["e.ship"] = a => editor.Ship();
+            sceneReaders["e.plan"] = a => editor.Plan();
+            sceneReaders["e.choiceList"] = a => editor.Choices();
+            sceneActions["e.change"] = a => EditorTelemetry.Change(a);
+            sceneActions["e.choices"] = a => editor.AskChoices(a);
+            sceneActions["e.pick"] = a => EditorTelemetry.Pick(a);
+
             // Vessel
             readers["v.name"] = (v, a) => v.vesselName;
             readers["v.body"] = (v, a) => v.mainBody != null ? v.mainBody.bodyName : null;
@@ -118,9 +174,7 @@ namespace ReDefinition.Dashboard
                 return Local(v, (u - Vector3d.Dot(u, p) * p).normalized);
             };
 
-            // Time warp
-            readers["t.currentRate"] = (v, a) => (double)TimeWarp.CurrentRate;
-            readers["t.currentRateIndex"] = (v, a) => TimeWarp.CurrentRateIndex;
+            // Time warp: the rate and its index are the game's (GameTelemetry)
             readers["t.physics"] = (v, a) => TimeWarp.WarpMode == TimeWarp.Modes.LOW;
 
             // Views and the game
@@ -128,9 +182,13 @@ namespace ReDefinition.Dashboard
             readers["v.precisionControlValue"] = (v, a) => FlightInputHandler.fetch.precisionMode;
             readers["c.mode"] = (v, a) => FlightCamera.fetch != null ? FlightCamera.fetch.mode.ToString() : null;
 
-            // Resources: r.resource[name], r.resourceMax[name] over the whole vessel
+            // Resources: r.resource[name], r.resourceMax[name] over the whole vessel; r.engineDry[name], the
+            // totals of it at which engines burning it run dry (FuelTelemetry); r.engineEmpty[name], an engine
+            // lit that burns it is empty
             readers["r.resource"] = (v, a) => Resource(v, a, 0);
             readers["r.resourceMax"] = (v, a) => Resource(v, a, 1);
+            readers["r.engineDry"] = (v, a) => fuel.Dry(v, a);
+            readers["r.engineEmpty"] = (v, a) => fuel.Empty(v, a);
 
             // Controls: commands
             actions["f.stage"] = (v, a) => StageManager.ActivateNextStage();
@@ -175,11 +233,6 @@ namespace ReDefinition.Dashboard
             actions["v.steerCurve"] = (v, a) => FlyByWire.SetCurve(a.Length > 0 ? a[0] : "s"); // v.steerCurve[linear|s|auto]
             actions["v.steerReset"] = (v, a) => FlyByWire.Reset();
             actions["v.steerArm"] = (v, a) => FlyByWire.SetArmed(Float(a, 0) != 0); // v.steerArm[1] play, [0] pause
-            actions["t.timeWarp"] = (v, a) =>
-            {
-                float[] rates = TimeWarp.WarpMode == TimeWarp.Modes.LOW ? TimeWarp.fetch.physicsWarpRates : TimeWarp.fetch.warpRates;
-                TimeWarp.SetRate(Mathf.Clamp((int)Float(a, 0), 0, rates.Length - 1), false);
-            };
             // Switches between on-rails and physics warp, from 1x.
             actions["t.physicsToggle"] = (v, a) =>
             {
@@ -223,9 +276,11 @@ namespace ReDefinition.Dashboard
         {
             value = null;
             if (key == "p.paused") { value = PauseState(); return true; }
-            if (PauseState() != 0) return false;
             string name; string[] args;
             Split(key, out name, out args);
+            SceneReader sceneReader;
+            if (sceneReaders.TryGetValue(name, out sceneReader)) { value = sceneReader(args); return true; }
+            if (PauseState() != 0) return false;
             Reader reader;
             if (!readers.TryGetValue(name, out reader)) return false;
             value = reader(FlightGlobals.ActiveVessel, args);
@@ -248,6 +303,9 @@ namespace ReDefinition.Dashboard
             Steps["v.geeForce"] = d => 0.01;
             Steps["f.throttle"] = d => 0.001;
             Steps["o.nodeLead"] = d => 1;
+            // The game's numbers as the pages show them: whole funds and seconds, a tenth of science and reputation.
+            Steps["g.funds"] = Steps["g.ut"] = d => 1;
+            Steps["g.science"] = Steps["g.reputation"] = d => 0.1;
             // Resources show as whole percents of their maximum; four significant digits keep that.
             Steps["r.resource"] = Steps["r.resourceMax"] = d => d == 0 ? 1 : Math.Pow(10, Math.Floor(Math.Log10(Math.Abs(d))) - 3);
         }
@@ -271,12 +329,14 @@ namespace ReDefinition.Dashboard
             return Math.Round(d / s) * s;
         }
 
-        /// <summary>Runs a command on the active vessel. Must be called on the main thread.</summary>
+        /// <summary>Runs a command on the active vessel, or one of every scene. Must be called on the main thread.</summary>
         public bool TryRun(string command)
         {
-            if (PauseState() != 0) return false;
             string name; string[] args;
             Split(command, out name, out args);
+            SceneAction sceneAction;
+            if (sceneActions.TryGetValue(name, out sceneAction)) { sceneAction(args); return true; }
+            if (PauseState() != 0) return false;
             Action action;
             if (!actions.TryGetValue(name, out action)) return false;
             action(FlightGlobals.ActiveVessel, args);
@@ -287,7 +347,8 @@ namespace ReDefinition.Dashboard
         {
             string name; string[] args;
             Split(key, out name, out args);
-            return key == "p.paused" || readers.ContainsKey(name) || actions.ContainsKey(name);
+            return key == "p.paused" || readers.ContainsKey(name) || actions.ContainsKey(name) || sceneReaders.ContainsKey(name)
+                   || sceneActions.ContainsKey(name);
         }
 
         private object Resource(Vessel v, string[] args, int index)

@@ -53,7 +53,7 @@ namespace ReDefinition.Engineer
 
         private bool FuelStepShown(int step)
         {
-            return fuelShown && Worked() && step < steps.Count;
+            return (fuelShown || everyRow) && Worked() && step < steps.Count;
         }
 
         private int FuelKey(int step)
@@ -63,7 +63,7 @@ namespace ReDefinition.Engineer
 
         private bool FuelIsOpen(int step)
         {
-            return FuelStepShown(step) && fuelOpen.Contains(FuelKey(step));
+            return FuelStepShown(step) && (everyRow || fuelOpen.Contains(FuelKey(step)));
         }
 
         private void ToggleFuel(int step)

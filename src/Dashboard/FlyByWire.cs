@@ -23,14 +23,17 @@ namespace ReDefinition.Dashboard
         // KSP's pitch axis, checked in the game: positive raises the nose, like a nose-up input.
         private const float PitchSign = 1f;
 
-        // The turn to a target, per axis, in two loops (as MechJeb and KSP's SAS do it in principle):
-        // - The wanted turning speed is what the vessel can still brake from before the target:
-        //   sqrt(2 * BRAKE * alpha * error), alpha being how fast the vessel can change its turning
-        //   speed on that axis (its torque over its moment of inertia). Near the target it is
-        //   error / SETTLE instead, at most MAX_RATE.
-        // - The input brings the turning speed to the wanted one within RESPONSE seconds, at the
-        //   vessel's alpha; an integral part (over INTEGRAL seconds) grows while the vessel lags
-        //   behind, so steady drag or an off-centre thrust cannot hold it short of the target.
+        // The turn to a target, in two loops (as MechJeb and KSP's SAS do it in principle):
+        // - The nose turns along the shortest way to the target's (a great circle, about the axis
+        //   square to both), the vessel rolls about the nose by itself; the one never bends the
+        //   other's way. The wanted turning speed is what the vessel can still brake from before
+        //   the target: sqrt(2 * BRAKE * alpha * error), alpha being how fast the vessel can change
+        //   its turning speed about that axis (its torque over its moment of inertia). Near the
+        //   target it is error / SETTLE instead, at most MAX_RATE.
+        // - Per axis of the vessel, the input brings its turning speed (Vessel.angularVelocityD) to
+        //   the wanted one within RESPONSE seconds, at the vessel's alpha; an integral part (over
+        //   INTEGRAL seconds) grows while the vessel lags behind, so steady drag or an off-centre
+        //   thrust cannot hold it short of the target.
         private const double MAX_RATE = 20 * Math.PI / 180;
         private const double BRAKE = 0.5;       // share of the vessel's alpha planned for braking
         private const double SETTLE = 0.8;      // seconds
@@ -40,6 +43,8 @@ namespace ReDefinition.Dashboard
         private const float ALPHA_EVERY = 0.5f; // seconds between readings of the vessel's torque
         // How fast the roll buttons turn the target about its axis, in radians per second.
         private const double ROLL_RATE = 45 * Math.PI / 180;
+        // Further than this from the aim, the nose keeps the way round it has taken.
+        private const double KEEP_WAY_ROUND = 150 * Math.PI / 180;
         // Player input above this on pitch, yaw or roll takes the target away (below it is a
         // joystick's resting noise).
         private const float PLAYER_INPUT = 0.05f;
@@ -53,10 +58,7 @@ namespace ReDefinition.Dashboard
         private static Vector3d target, targetTop; // north, east, up: the target's nose and its top
         private static double rollDir;
         private static float rollUntil;
-        private static double lastPitchError, lastYawError, lastRollError;
-        private static double pitchRate, yawRate, rollRate;
-        private static double pitchI, yawI, rollI;
-        private static bool haveLast;
+        private static readonly Turn turn = new Turn();
         private static Vector3d alpha = new Vector3d(MIN_ALPHA, MIN_ALPHA, MIN_ALPHA); // pitch, roll, yaw
         private static float alphaAt = -1f;
 
@@ -109,7 +111,7 @@ namespace ReDefinition.Dashboard
             top = Vector3d.Exclude(t, top);
             if (top.magnitude < 1e-6) return;
             Restart();
-            if (!steering) { haveLast = false; pitchI = yawI = rollI = 0; }
+            if (!steering) turn.Clear();
             target = t;
             targetTop = top.normalized;
             steering = true;
@@ -257,7 +259,7 @@ namespace ReDefinition.Dashboard
         {
             if (on == armed) return;
             armed = on;
-            haveLast = false;
+            turn.HaveLast = false;
             if (on && steering) Restart(); // the spread turn begins from where the vessel points now
         }
 
@@ -361,53 +363,107 @@ namespace ReDefinition.Dashboard
             Vector3d t = aim.x * north + aim.y * east + aim.z * up;
             Vector3d tTop = aimTop.x * north + aimTop.y * east + aimTop.z * up;
             Transform rt = v.ReferenceTransform;
-            Vector3d nose = rt.up, right = rt.right, top = -rt.forward;
-            double pitchError = Math.Atan2(Vector3d.Dot(t, top), Vector3d.Dot(t, nose));
-            double yawError = Math.Atan2(Vector3d.Dot(t, right), Vector3d.Dot(t, nose));
-            double rollError = Math.Atan2(Vector3d.Dot(tTop, right), Vector3d.Dot(tTop, top));
-            if (haveLast)
-            {
-                pitchError = Continue(pitchError, lastPitchError);
-                yawError = Continue(yawError, lastYawError);
-                rollError = Continue(rollError, lastRollError);
-            }
-
-            // How fast each error changes, smoothed a little against the jitter of single frames.
-            if (haveLast)
-            {
-                pitchRate += 0.4 * ((pitchError - lastPitchError) / dt - pitchRate);
-                yawRate += 0.4 * ((yawError - lastYawError) / dt - yawRate);
-                rollRate += 0.4 * ((rollError - lastRollError) / dt - rollRate);
-            }
-            else pitchRate = yawRate = rollRate = 0;
-            lastPitchError = pitchError; lastYawError = yawError; lastRollError = rollError; haveLast = true;
-
             float now = Time.realtimeSinceStartup;
             if (now - alphaAt >= ALPHA_EVERY || alphaAt < 0) { alphaAt = now; alpha = Alpha(v); }
 
             // The steering replaces the pitch, yaw and roll input; SAS is told to hold where the
             // vessel points now, so it neither fights the turn nor turns back afterwards.
-            s.pitch = PitchSign * (float)Command(pitchError, pitchRate, alpha.x, ref pitchI, dt);
-            s.yaw = (float)Command(yawError, yawRate, alpha.z, ref yawI, dt);
-            s.roll = (float)Command(rollError, rollRate, alpha.y, ref rollI, dt);
+            Vector3d input = Inputs(turn, rt.up, rt.right, -rt.forward, t, tTop, alpha, dt);
+            s.pitch = PitchSign * (float)input.x;
+            s.yaw = (float)input.y;
+            s.roll = (float)input.z;
             if (v.Autopilot.Enabled && v.Autopilot.Mode == VesselAutopilot.AutopilotMode.StabilityAssist)
                 v.Autopilot.SAS.LockRotation(rt.rotation);
         }
 
-        // Input for one axis from its error (radians), the error's rate of change (radians per
-        // second) and the vessel's alpha on that axis. Positive input reduces a positive error.
-        private static double Command(double error, double errorRate, double a, ref double integral, double dt)
+        // What the turn keeps from frame to frame: the vessel's axes and its turning speed worked out
+        // from them, the axis the nose turns about, the roll error, the integral parts.
+        internal sealed class Turn
+        {
+            public bool HaveLast;
+            public Vector3d Nose, Right, Top, Spin, Axis;
+            public double Roll, PitchI, YawI, RollI;
+
+            public void Clear()
+            {
+                HaveLast = false;
+                Spin = Vector3d.zero;
+                PitchI = YawI = RollI = 0;
+            }
+        }
+
+        // The input on pitch, yaw and roll (x, y, z), each -1 to 1, that turns a vessel with these axes
+        // (nose, right, top) to the aim and its top, all in one frame; `alpha` per axis as Alpha gives
+        // it (pitch, roll, yaw). Positive pitch raises the nose towards the top, positive yaw turns it
+        // right, positive roll turns the top right. Free of Unity, tested.
+        internal static Vector3d Inputs(Turn turn, Vector3d nose, Vector3d right, Vector3d top, Vector3d aim, Vector3d aimTop, Vector3d alpha,
+                                        double dt)
+        {
+            // How the vessel turns: from how its axes moved since the last frame (for a small
+            // rotation, the sum of each axis before crossed with it after is twice the rotation),
+            // smoothed a little against the jitter of single frames. A point of it moves at
+            // spin x its position.
+            if (turn.HaveLast)
+            {
+                Vector3d moved = (Vector3d.Cross(turn.Nose, nose) + Vector3d.Cross(turn.Right, right) + Vector3d.Cross(turn.Top, top)) / (2 * dt);
+                turn.Spin += 0.4 * (moved - turn.Spin);
+            }
+            else turn.Spin = Vector3d.zero;
+            turn.Nose = nose; turn.Right = right; turn.Top = top;
+
+            // Turning about these moves the nose towards the top, the nose to the right, the top to
+            // the right.
+            Vector3d pitchAxis = Vector3d.Cross(nose, top), yawAxis = Vector3d.Cross(nose, right), rollAxis = Vector3d.Cross(top, right);
+
+            // The nose's way: about the axis square to it and the aim. Nearly straight away from the
+            // aim that axis turns with every small movement, so the way round once taken is kept.
+            Vector3d side = Vector3d.Cross(nose, aim);
+            double angle = Math.Atan2(side.magnitude, Vector3d.Dot(nose, aim));
+            Vector3d axis = side.magnitude > 1e-9 ? side / side.magnitude : Vector3d.zero;
+            if (angle > KEEP_WAY_ROUND)
+            {
+                Vector3d kept = turn.HaveLast ? Vector3d.Exclude(nose, turn.Axis) : Vector3d.zero;
+                if (kept.magnitude > 1e-6) axis = kept.normalized;
+                else if (axis.magnitude < 0.5) axis = pitchAxis;
+            }
+            turn.Axis = axis;
+            double p = Vector3d.Dot(axis, pitchAxis), y = Vector3d.Dot(axis, yawAxis);
+            double noseAlpha = Math.Max(MIN_ALPHA, p * p * alpha.x + y * y * alpha.z);
+
+            double rollError = Math.Atan2(Vector3d.Dot(aimTop, right), Vector3d.Dot(aimTop, top));
+            if (turn.HaveLast) rollError = Continue(rollError, turn.Roll);
+            turn.Roll = rollError;
+            turn.HaveLast = true;
+
+            Vector3d wanted = axis * Wanted(angle, noseAlpha) + rollAxis * Wanted(rollError, alpha.y);
+            // Rolling about a nose that turns: the roll's own axis turns with it, which takes an input
+            // square to the nose that the vessel is given ahead rather than left to fall behind.
+            Vector3d keep = Vector3d.Cross(turn.Spin, rollAxis) * Vector3d.Dot(turn.Spin, rollAxis);
+            return new Vector3d(
+                Command(Vector3d.Dot(wanted, pitchAxis), Vector3d.Dot(turn.Spin, pitchAxis), Vector3d.Dot(keep, pitchAxis), alpha.x, ref turn.PitchI, dt),
+                Command(Vector3d.Dot(wanted, yawAxis), Vector3d.Dot(turn.Spin, yawAxis), Vector3d.Dot(keep, yawAxis), alpha.z, ref turn.YawI, dt),
+                Command(Vector3d.Dot(wanted, rollAxis), Vector3d.Dot(turn.Spin, rollAxis), 0, alpha.y, ref turn.RollI, dt));
+        }
+
+        // The turning speed wanted towards the target from an error (radians) at the vessel's alpha
+        // about that axis: what it can still brake from, near the target error / SETTLE.
+        private static double Wanted(double error, double a)
         {
             double size = Math.Abs(error);
-            double wanted = Math.Min(MAX_RATE, Math.Min(Math.Sqrt(2 * BRAKE * a * size), size / SETTLE));
-            wanted *= Math.Sign(error);
-            // The turning speed towards the target is -errorRate; the input makes up the shortfall.
-            double shortfall = wanted + errorRate;
+            return Math.Sign(error) * Math.Min(MAX_RATE, Math.Min(Math.Sqrt(2 * BRAKE * a * size), size / SETTLE));
+        }
+
+        // Input for one axis from the turning speed wanted about it and the one it has (radians per
+        // second), at the vessel's alpha about it, and the change of turning speed it needs besides
+        // (radians per second squared). Positive input speeds the turn up.
+        private static double Command(double wanted, double turning, double ahead, double a, ref double integral, double dt)
+        {
+            double shortfall = wanted - turning;
             double p = shortfall / (RESPONSE * a);
             // The integral only grows while it can help, and never beyond full input.
             double next = integral + shortfall * dt / (INTEGRAL * RESPONSE * a);
             if (Math.Abs(p + next) < 1 || Math.Abs(next) < Math.Abs(integral)) integral = Clamp(next);
-            return Clamp(p + integral);
+            return Clamp(p + integral + ahead / a);
         }
 
         // How fast the vessel can change its turning speed on each axis (pitch, roll, yaw), from the
