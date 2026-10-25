@@ -1624,8 +1624,17 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
     return failures - before;
 }
 
+// The check the harness is at: with stdout unbuffered (main), the last of these before a crash
+// says where it stopped.
+static void Progress(const char* step)
+{
+    printf("      at: %s\n", step);
+}
+
 int main(int argc, char** argv)
 {
+    // Unbuffered: piped, a crash would take the buffered lines with it.
+    setvbuf(stdout, nullptr, _IONBF, 0);
     printf("ReDefinition raytracing harness\n");
     // --omm: only the opacity micromaps' checks against the driver; --omm-table also lists
     // the order the driver has.
@@ -2509,6 +2518,7 @@ int main(int argc, char** argv)
         proxy.passTimings(passes, kRtPassTimings);
         printf("      denoiser at %ux%u: %.3f ms for sun and diffuse light\n", kWidth, kHeight, passes[6]);
 
+        Progress("the glide over smooth ground");
         // The same glide over a mirror-smooth ground: the diffuse light does not move with
         // the view, and keeps its history and filter as on the rough ground.
         std::vector<Instance> smooth = scene;
@@ -2524,6 +2534,7 @@ int main(int argc, char** argv)
         Check(smoothError < 1.3 * diffuseError + 1e-4 && smoothFlicker < 1.5 * denoisedFlicker + 1e-4,
               "denoised diffuse light on a smooth surface", detail);
 
+        Progress("a signal paused and back");
         // A signal paused and back: the diffuse light off for four frames while the light
         // goes out, then on again without a reset. Its history from before the pause is
         // not this light's: the first frame back is dark, as the light is.
@@ -2543,6 +2554,7 @@ int main(int argc, char** argv)
         sprintf_s(detail, "the first frame back %.4f in the dark, before the pause %.4f", backMean, diffuseMean);
         Check(backMean < 0.01 * diffuseMean, "a denoised signal paused and back", detail);
 
+        Progress("the short history for thin shadows");
         // What the short history and no spatial steps are for (rtSunAtrousSteps 0,
         // rtSunHistory 4): the shadows of thin posts, as of the blades of grass, keep their
         // fine structure, the reference's detail (each pixel less its 9x9 mean) in the
@@ -2638,6 +2650,7 @@ int main(int argc, char** argv)
         SendInstances(proxy, scene, end.position);
         RenderGBuffer(context.Get(), g, end, meshes, scene);
 
+        Progress("the denoiser's video memory");
         // The denoiser's textures: per signal it filters 64 bytes a pixel (the noisy trace,
         // two histories in full floats, two moments, a work texture in half floats), for
         // any 40 more (the work texture, two view distances and normals). The process's
@@ -2692,6 +2705,7 @@ int main(int argc, char** argv)
               "the denoiser after raytracing stopped", detail);
     }
 
+    Progress("Super Resolution beside Ray Reconstruction");
     // ---------------------------------------------------------------- Super Resolution beside Ray Reconstruction
     // DLSS Super Resolution on this Direct3D 11 device (Dlss.cpp), started here, before the
     // proxy starts NGX on its Direct3D 12 device for Ray Reconstruction, and kept running
@@ -2720,6 +2734,7 @@ int main(int argc, char** argv)
         D3D11_SUBRESOURCE_DATA initial = { data.data(), static_cast<UINT>(width * texel), 0 };
         return device->CreateTexture2D(&textureDesc, &initial, &out);
     };
+    Progress("Super Resolution beside Ray Reconstruction: frames");
     // Frames through the render event, as the rig sends them, into a black output each
     // time; whether its centre is then the flat image the colour was.
     const auto superResolution = [&](UINT firstFrame, bool& flat)
@@ -2784,6 +2799,7 @@ int main(int argc, char** argv)
             printf("      Super Resolution beside Ray Reconstruction skipped: %s\n", srText);
     }
 
+    Progress("Ray Reconstruction");
     // ---------------------------------------------------------------- Ray Reconstruction
     // Through the route the proxy took for this swapchain (rrPath): Streamline's where
     // its swapchain presents, NGX's otherwise. Where it was Streamline's, a swapchain of
