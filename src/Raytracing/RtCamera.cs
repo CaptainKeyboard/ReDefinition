@@ -769,8 +769,9 @@ namespace ReDefinition.Raytracing
                 command.SetGlobalTexture(SurfaceModeId, surfaceMode);
                 command.SetRenderTarget(BuiltinRenderTextureType.GBuffer1);
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
-                // The terrain past Parallax's grass in a meadow's shade, into its albedo.
-                if (packet.ShadowFade[6] != 0f)
+                // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn lifted
+                // to the terrain's albedo, into their albedo.
+                if (packet.ShadowFade[6] != 0f || RtMaterialIntent.LawnAsTerrain)
                 {
                     command.SetRenderTarget(BuiltinRenderTextureType.GBuffer0);
                     command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, MeadowPass);

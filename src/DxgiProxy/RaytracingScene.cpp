@@ -376,7 +376,7 @@ namespace redefinition
                 break;
             frame.meshId = entry->first;
             // Handed over again with the same triangles (a skinned part's bake, the KSC's
-            // flags twice a second): into the buffers it has, its structure updated.
+            // flags every frame): into the buffers it has, its structure updated.
             auto existing = meshes.find(entry->first);
             if (existing != meshes.end() && existing->second.built
                 && existing->second.vertexCount == entry->second.vertexCount

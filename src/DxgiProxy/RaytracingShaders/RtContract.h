@@ -92,7 +92,7 @@
 // for the probe's surface images (tools/surface_sheet.py): the terrain at the drawn
 // surface, the space centre's ground there, a blade or other scatter there, ground behind
 // a blade the rays meet in front of the drawn surface, nothing near, something else there,
-// something else in front of it.
+// and no material at the drawn surface (something in front of it or beyond it).
 #define RT_REGION_TERRAIN 1
 #define RT_REGION_GROUND 2
 #define RT_REGION_BLADE 3

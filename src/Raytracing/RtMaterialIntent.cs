@@ -24,7 +24,7 @@ namespace ReDefinition.Raytracing
     //   and its concrete by its materials' names (Concrete).
     // * The space centre's ground (Diffuse Ground KSC and its Specular variant): Unity's
     //   specular setup with _SpecularColor as its specular colour, black on every stock
-    //   material; there its lawn keeps the G-buffer's shine, its tarmac none (Ground).
+    //   material; there its lawn shines as Parallax's terrain beside it, its tarmac not at all (Ground).
     // * Parallax's terrain: its own Blinn-Phong, _SpecularIntensity at _SpecularPower, the
     //   gloss in its colour's alpha, which its G-buffer's smoothness gives back over 0.644.
     // * Unity's physically based shaders and every other one: the G-buffer's own.
@@ -159,6 +159,17 @@ namespace ReDefinition.Raytracing
         private static bool homeTerrainRead;
         private static bool homeTerrainFound;
         private static RtMaterialIntent homeTerrain;
+
+        // The space centre's lawn shines as the terrain, and the raytracing lifts it to the terrain's albedo
+        // (RtCommon.hlsli, MeadowShade): Parallax's terrain found.
+        internal static bool LawnAsTerrain
+        {
+            get
+            {
+                RtMaterialIntent terrain;
+                return HomeTerrain(out terrain);
+            }
+        }
 
         private static bool HomeTerrain(out RtMaterialIntent terrain)
         {
