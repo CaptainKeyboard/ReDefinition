@@ -32,7 +32,8 @@ void SunVisibility(uint3 id : SV_DispatchThreadID)
         bool terrain, lawn;
         uint region;
         output5[id.xy] = SurfaceIntent(id.xy, position, normal, mode, terrain, lawn, region);
-        // In y the light the ground keeps under a meadow's blades past Parallax's grass (MeadowShade),
+        // In y the light the ground keeps under a meadow's blades past Parallax's grass, and the space centre's lawn
+        // lifted to the terrain's albedo (MeadowShade),
         // which the G-buffer's albedo is multiplied by (ReDefinitionRtCapture.shader, fragMeadow): sun and
         // sky alike, at any distance -- the sun's visibility here goes into Unity's shadows, which it
         // fades out at its shadow distance.

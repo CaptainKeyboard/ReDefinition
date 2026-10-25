@@ -80,6 +80,7 @@ namespace ReDefinition.Probe
             // -redefinitionProbeViewTarget <part of a name>: the views about the renderer so named nearest the
             // vessel (the space centre's flag) instead of the vessel.
             string targetName = SceneProbe.ArgumentAfter("-redefinitionProbeViewTarget");
+            Transform middle = null;
             if (targetName != null && FlightGlobals.ActiveVessel != null)
             {
                 Renderer nearest = null;
@@ -103,7 +104,7 @@ namespace ReDefinition.Probe
                 if (nearest != null)
                 {
                     // About its middle, not its pivot (a flag's is at the foot of its pole).
-                    var middle = new GameObject("ReDefinition probe view target").transform;
+                    middle = new GameObject("ReDefinition probe view target").transform;
                     middle.position = nearest.bounds.center;
                     middle.SetParent(nearest.transform, true);
                     FlightCamera.fetch.SetTargetTransform(middle);
@@ -181,8 +182,16 @@ namespace ReDefinition.Probe
                         yield return new WaitForEndOfFrame();
                         Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
                         string prefix = name.Substring(0, name.Length - 4);
-                        Debug.Log(Log.Tag + " Probe: views: surfaces of " + prefix + ": "
-                                  + (traced != null ? traced.WriteSurfaceImages(folder, prefix, 2, SurfaceNames) : "none, no raytraced camera") + ".");
+                        string written;
+                        try
+                        {
+                            written = traced != null ? traced.WriteSurfaceImages(folder, prefix, 2, SurfaceNames) : "none, no raytraced camera";
+                        }
+                        catch (Exception e)
+                        {
+                            written = "failed: " + e.Message;
+                        }
+                        Debug.Log(Log.Tag + " Probe: views: surfaces of " + prefix + ": " + written + ".");
                     }
                     // -redefinitionProbeViewOverlay: with the raytracing on, the surfaces' overlay too
                     // (RtCamera.SurfaceView), as <shot>-v<i>-<mode>-overlay.png.
@@ -190,14 +199,26 @@ namespace ReDefinition.Probe
                     {
                         bool shown = Raytracing.RtCamera.SurfaceView;
                         Raytracing.RtCamera.SurfaceView = true;
-                        for (int frame = 0; frame < 3; frame++) yield return null;
-                        yield return new WaitForEndOfFrame();
-                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, name.Substring(0, name.Length - 4) + "-overlay.png"));
-                        yield return null;
-                        Raytracing.RtCamera.SurfaceView = shown;
+                        try
+                        {
+                            for (int frame = 0; frame < 3; frame++) yield return null;
+                            yield return new WaitForEndOfFrame();
+                            ScreenCapture.CaptureScreenshot(Path.Combine(folder, name.Substring(0, name.Length - 4) + "-overlay.png"));
+                            yield return null;
+                        }
+                        finally
+                        {
+                            Raytracing.RtCamera.SurfaceView = shown;
+                        }
                         yield return null;
                     }
                 }
+            }
+            // The camera about the vessel again, for the probe's steps after the views.
+            if (middle != null)
+            {
+                if (FlightGlobals.ActiveVessel != null) FlightCamera.fetch.SetTargetVessel(FlightGlobals.ActiveVessel);
+                UnityEngine.Object.Destroy(middle.gameObject);
             }
         }
 

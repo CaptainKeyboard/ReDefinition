@@ -23,6 +23,7 @@ RtContract.h; the space centre's ground split by the shine it gets, its lawn fro
 Needs numpy and Pillow.
 """
 import os
+import re
 import struct
 import sys
 
@@ -105,11 +106,14 @@ def sheet(folder, prefix, out):
     spec_light = luma(np.maximum(specular[..., :3], 0.0))
     shot_png = os.path.join(folder, prefix + '.png')
     shot = linear(shot_png, size) if os.path.exists(shot_png) else np.zeros((height, width, 3), np.float32)
-    # The same view in mode Light: the finished picture without the raytraced reflections.
-    light_png = os.path.join(folder, prefix.replace('-Full', '-Light') + '.png')
-    added = luma(shot) - luma(linear(light_png, size)) if prefix.endswith('-Full') and os.path.exists(light_png) else None
-    # The same view without the raytracing (mode Off), its regions taken from this one.
-    off_png = os.path.join(folder, prefix.rsplit('-', 1)[0] + '-Off.png')
+    # The same view in another mode: <shot>-v<i>-<mode>[-ini<n>].
+    view = re.match(r'^(.*-v\d+)-([A-Za-z]+)(-ini\d+)?$', prefix)
+    other = (lambda mode: os.path.join(folder, view.group(1) + '-' + mode + (view.group(3) or '') + '.png')) if view else None
+    # Mode Light: the finished picture without the raytraced reflections.
+    light_png = other('Light') if view and view.group(2) == 'Full' else ''
+    added = luma(shot) - luma(linear(light_png, size)) if light_png and os.path.exists(light_png) else None
+    # Without the raytracing (mode Off), its regions taken from this one.
+    off_png = other('Off') if view else ''
     off = luma(linear(off_png, size)) if os.path.exists(off_png) else None
 
     lines = ['%-13s %7s %7s %7s %9s %9s %7s %7s %7s %7s %8s %8s %8s' % (
