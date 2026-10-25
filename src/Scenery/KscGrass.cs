@@ -560,9 +560,13 @@ namespace ReDefinition.Scenery
                 Texels = new ushort[Width * Depth * 2];
                 for (int i = 0; i < LawnAt.Length; i++)
                 {
-                    Texels[i * 2] = Half(LawnAt[i] ? height[i] - Y0 : 0f);
-                    // A lawn texel without room counts as ground, not as no ground.
-                    Texels[i * 2 + 1] = Half(LawnAt[i] && room[i] > 0f ? room[i] : GroundAt[i] ? -1f : 0f);
+                    // The lawn's height also where a collider stands over it or its room is too small, for the
+                    // terrain that rises to it there (ReDefinitionKscGrass.compute).
+                    bool lawn = LawnAt[i] || CoveredAt[i];
+                    Texels[i * 2] = Half(lawn ? height[i] - Y0 : 0f);
+                    // Lawn with room for a clump: the room; lawn without it, or under a collider: -2; other ground
+                    // of the space centre (tarmac): -1; none: 0.
+                    Texels[i * 2 + 1] = Half(LawnAt[i] && room[i] > 0f ? room[i] : lawn ? -2f : GroundAt[i] ? -1f : 0f);
                 }
             }
 

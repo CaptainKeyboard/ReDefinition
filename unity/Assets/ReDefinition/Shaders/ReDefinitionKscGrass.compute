@@ -4,7 +4,8 @@
 // lawn; the rest of the matrix -- rotation, scale, the terrain's colour in row 3 -- stays
 // as Parallax made it. The clumps no ground of the space centre covers are appended to
 // _Kept as Parallax made them, for the rays (RtKspMods.ParallaxScatter): the ones under it
-// stand on the terrain metres under its ground, where no ray reaches them.
+// stand on the terrain metres under its ground, where no ray reaches them; so are the ones
+// where the terrain rises to the lawn, which Parallax draws there itself.
 #pragma kernel Lift
 
 StructuredBuffer<float4x4> _Source;     // Parallax's output this frame (TransformData)
@@ -16,10 +17,13 @@ AppendStructuredBuffer<float4x4> _Kept;
 float4x4 _WorldToRoot;                  // the space centre's root, y up
 float4x4 _RootToWorld;
 Texture2D<float2> _Lawns;               // per metre: the lawn's height over _Grid.w, room in metres (0: no lawn,
-                                        // and no ground of the space centre; -1: its ground, no lawn)
+                                        // and no ground of the space centre; -1: its ground, no lawn; -2: lawn
+                                        // without room for a clump, or under a collider)
 float4 _Grid;                           // x, z of texel (0, 0)'s corner, metres per texel, base height
 uint2 _Size;
 float _Reach;                           // the model's horizontal reach that must stand on lawn, unscaled
+// How far under the lawn the terrain may lie and still show through it, its blades over the lawn.
+static const float kTerrainShows = 0.3;
 
 [numthreads(64, 1, 1)]
 void Lift(uint3 id : SV_DispatchThreadID)
@@ -31,6 +35,17 @@ void Lift(uint3 id : SV_DispatchThreadID)
     int2 at = int2(floor((local.xz - _Grid.xy) / _Grid.z));
     float2 lawn = any(at < 0) || any(at >= int2(_Size)) ? float2(0, 0) : _Lawns.Load(int3(at, 0));
     if (lawn.y == 0)
+    {
+        _Kept.Append(m);
+        return;
+    }
+    // Where the terrain the clump stands on rises to the lawn or over it -- at the lawn's outer edge,
+    // where the lawn dips under the terrain and the terrain is drawn --, the clump stays as Parallax
+    // placed it, drawn by Parallax and seen by the rays: lifted it would stand under the terrain, and
+    // that strip beside the launch pad's outer tarmac took the full sun under the rays, lighter than
+    // the grass on either side (2026-10-25).
+    bool lawnHere = lawn.y > 0 || lawn.y < -1.5;
+    if (lawnHere && local.y >= lawn.x + _Grid.w - kTerrainShows)
     {
         _Kept.Append(m);
         return;
