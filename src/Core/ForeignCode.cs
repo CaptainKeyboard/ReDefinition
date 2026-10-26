@@ -15,7 +15,7 @@ namespace ReDefinition.Core
     // it, unless the compiler names its own helpers anew (closures, lambdas),
     // which then reads as changed -- and the string literals a method loads. Free
     // of Unity, like TypeLookup: the checks run outside the game too
-    // (tools/check_foreign_code.ps1). Nothing here throws: what cannot be read
+    // (tools/checks/check_foreign_code.ps1). Nothing here throws: what cannot be read
     // counts as not there.
     internal static class ForeignCode
     {

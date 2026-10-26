@@ -7,7 +7,7 @@ namespace ReDefinition.Core
     // Another mod's type by its full name, from whatever assemblies are loaded.
     // Its own class, free of
     // Unity: HostStack's statics call into the engine, and the registered mods
-    // are built outside the game too (tools/check_bundled_mods.ps1).
+    // are built outside the game too (tools/checks/check_bundled_mods.ps1).
     internal static class TypeLookup
     {
         // Every member, public or not, static or not: what the lookups into other

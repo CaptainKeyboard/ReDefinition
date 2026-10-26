@@ -429,7 +429,7 @@
   ReDefinition's window. The main menu's panels offer the same switches. The choice is
   kept in `bundled.cfg` as `buttonsKept`, so a mod installed later follows the rule
   rather than an old file.
-- `tools/check_bundled_mods.ps1` reports a check it cannot ask, because the mod that
+- `tools/checks/check_bundled_mods.ps1` reports a check it cannot ask, because the mod that
   answers it is not installed, as a note rather than a failure. The same for
   ToolbarControl.
 

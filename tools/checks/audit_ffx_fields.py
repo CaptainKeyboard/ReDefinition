@@ -8,7 +8,7 @@ requires. Every field of the descriptors is enumerated from the vendored headers
 and matched against what FrameGeneration*.cpp assign. A field left out is listed
 below with its reason, or this fails.
 
-Usage:  python tools/audit_ffx_fields.py
+Usage:  python tools/checks/audit_ffx_fields.py
 """
 
 import io
@@ -16,7 +16,7 @@ import os
 import re
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 HEADER = os.path.join(ROOT, "src", "DxgiProxy", "extern", "FidelityFX",
                       "framegeneration", "include", "ffx_framegeneration.h")
 # Frame generation's files, all of them: a descriptor filled in one of them counts.

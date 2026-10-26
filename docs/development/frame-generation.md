@@ -131,7 +131,7 @@ the one with the smallest error.
 
 ## FSR 3.1, per frame, as the API requires **[doc]**
 
-`tools/audit_ffx_fields.py` fails on any descriptor field neither set nor listed with a
+`tools/checks/audit_ffx_fields.py` fails on any descriptor field neither set nor listed with a
 reason, since a `= {}` initialiser makes an omission invisible. What the API requires and
 the proxy does:
 

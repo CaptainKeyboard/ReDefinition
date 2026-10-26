@@ -108,7 +108,7 @@ one.
 | `CaptureFolder.cs` | `ReDefinitionCaptures` beside `KSP_x64.exe`, where the probes, tests and dumps write |
 
 `src/Diagnostics/ForeignAssumptionReport.cs` writes what came of each assumption into `KSP.log` and
-the diagnostics window's *Other mods* page; `tools/check_foreign_code.ps1` checks the
+the diagnostics window's *Other mods* page; `tools/checks/check_foreign_code.ps1` checks the
 catalogue outside the game
 ([building-and-testing.md](building-and-testing.md#run-the-check-scripts)).
 
@@ -513,9 +513,9 @@ the vendors' own checks (`VendorProbe.cs`), RenderDoc and FLIP captures
 | `GameData/ReDefinition/Profiles` | the five profiles |
 | `unity/Assets/ReDefinition` | the ported FSR 3 compute shaders and ReDefinition's own shaders, among them the masks, EVE's cloud motion, the motion audit, the vessel's shadow, the space centre's grass and the raytracing's, and `Editor/BundleBuilder.cs`; the shader include for mods and `Editor/IncludeCheck.cs` |
 | `tests/ReDefinition.Tests` | MSTest on .NET Framework 4.8: the store, the file, the edit model, the modules, registrations, frame packet layouts, Streamline's camera matrices, EVE's cloud motion, TUFX's split, NVIDIA's files, the key bindings and the *Controls* tab, the interface for mods and its wrapper |
-| `tools/check_bundled_mods.ps1`, `tools/check_profile_parser.ps1`, `tools/check_key_bindings.ps1`, `tools/check_foreign_code.ps1` | checks against the installed mods and KSP's own `ConfigNode` |
-| `tools/check_docs.ps1` | the rules the pages under `docs/` follow |
-| `tools/port_fsr3_shaders.py`, `tools/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |
+| `tools/checks/check_bundled_mods.ps1`, `tools/checks/check_profile_parser.ps1`, `tools/checks/check_key_bindings.ps1`, `tools/checks/check_foreign_code.ps1` | checks against the installed mods and KSP's own `ConfigNode` |
+| `tools/checks/check_docs.ps1` | the rules the pages under `docs/` follow |
+| `tools/port_fsr3_shaders.py`, `tools/checks/audit_ffx_fields.py`, `tools/fetch_amd_runtime.py` | the FSR shaders from FSR3Unity's, the frame generation field audit, AMD's runtime for the package |
 | `tools/export_rt_scene.py` | a scene of KSP's own meshes for the raytracing harness, written outside the repository |
 | `tools/build_rt_player.py` | builds the raytracing test player with Unity 2019.4.18f1 and runs it with forward rendering, Unity's deferred lighting and Deferred's |
 | `tests/RaytracingPlayer/` | the raytracing test player's Unity project: its build script and its runner, which builds a scene, renders it with and without raytracing and checks the images |
@@ -526,7 +526,7 @@ How to build and run all of it: [building-and-testing.md](building-and-testing.m
 ## Conventions
 
 * No other mod is a reference: every mod is reached through reflection, by names checked
-  against the installed build (`tools/check_bundled_mods.ps1`).
+  against the installed build (`tools/checks/check_bundled_mods.ps1`).
 * A setting's key, `<mod>.<setting>`, never changes. `bundled.cfg`, the profiles and
   packs' patches all name it.
 * A member a build does not have drops its setting, with the reason in the log.

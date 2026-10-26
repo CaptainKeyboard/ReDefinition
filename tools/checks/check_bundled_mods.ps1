@@ -294,7 +294,7 @@ Expect "every setting the registrations name is offered by its mod here ($($inve
 try {
     $fromNode = $mod.GetType('ReDefinition.Settings.GraphicsProfile', $true).GetMethod('FromConfigNode')
     $refusalMethod = $mod.GetType('ReDefinition.Settings.ProfileApplier', $true).GetMethod('Refusal', $sflags)
-    $moduleValues = $mod.GetType('ReDefinition.ModuleProfiles', $true).GetMethod('Values', $sflags)
+    $moduleValues = $mod.GetType('ReDefinition.Modules.ModuleProfiles', $true).GetMethod('Values', $sflags)
     # What High may set beyond the defaults (docs/player/graphics-profiles.md).
     $highDeviations = @('ksp.TEXTURE_QUALITY', 'ksp.terrainDetail', 'ksp.TERRAIN_SHADER_QUALITY', 'ksp.REFLECTION_PROBE_REFRESH_MODE')
     $unchecked = New-Object 'System.Collections.Generic.SortedSet[string]'

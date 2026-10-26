@@ -476,7 +476,7 @@ grow from the top to the bottom, `--jitter` and `--noise` change each frame's co
 ## Audit the frame generation fields
 
 ```
-python tools/audit_ffx_fields.py
+python tools/checks/audit_ffx_fields.py
 ```
 
 It enumerates every field of FSR's frame generation descriptors from the vendored headers.

@@ -12,7 +12,7 @@
 param([switch]$Strict)
 
 $ErrorActionPreference = 'Stop'
-$root = Split-Path -Parent $PSScriptRoot
+$root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $failures = 0
 $styleIssues = 0
 

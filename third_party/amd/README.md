@@ -35,4 +35,4 @@ versions the proxy is built against (`src/DxgiProxy/extern`).
 
 To move to a newer release: update the headers in `src/DxgiProxy/extern`, the tag
 in `tools/fetch_amd_runtime.py`, the pin and this table; rebuild the proxy; run
-`tools/audit_ffx_fields.py` and the proxy harness.
+`tools/checks/audit_ffx_fields.py` and the proxy harness.

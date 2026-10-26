@@ -6,7 +6,7 @@
 # Directory.Build.props, by default the Steam location), $managed and $gameData,
 # resolves KSP's assemblies, and gives Expect.
 
-$repo = Split-Path -Parent $PSScriptRoot
+$repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
 $managed = [IO.Path]::Combine($kspRoot, 'KSP_x64_Data\Managed')
 $gameData = [IO.Path]::Combine($kspRoot, 'GameData')
