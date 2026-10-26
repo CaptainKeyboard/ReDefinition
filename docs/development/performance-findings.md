@@ -193,7 +193,7 @@ twice:
 
 | Work | Done twice | Cost | Source |
 |---|---|---|---|
-| Antialiasing | no: KSP's MSAA goes to 0 while the upscaler runs, and so does the antialiasing of Scatterer, TUFX, Deferred and Kerbal Frame Generator | none | **[src]** `src/Upscaler/QualityOverrides.cs` |
+| Antialiasing | no: KSP's MSAA goes to 0 while the upscaler runs, and so does the antialiasing of Scatterer, TUFX, Deferred and Kerbal Frame Generator | none | **[src]** `src/Upscaler/Rig/QualityOverrides.cs` |
 | The sun's shadow maps | yes: Unity renders them every frame, with Scatterer's 25000 m and four cascades | 2.8 ms of the GPU | **[src]**, **[meas]** |
 | Ambient occlusion | yes: the raytracing's diffuse light shades corners already, and Deferred's and TUFX's ambient occlusion shade them again | 0.1 ms to 0.3 ms of the GPU | **[meas]** |
 | Screen-space reflections | no: Deferred's go off while the raytraced reflections run | none | **[meas]**, `KSP.log` |

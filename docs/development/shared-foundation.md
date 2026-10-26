@@ -31,7 +31,7 @@ Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]*
   ([modders/registering-a-mod.md](../modders/registering-a-mod.md)).
 * **Takes nothing away.** A mod's own implementation stays as it is. What ReDefinition
   switches off in another mod it switches off only while the upscaler runs, and
-  gives back afterwards (`src/Upscaler/HostStack.cs`).
+  gives back afterwards (`src/Upscaler/Compatibility/HostStack.cs`).
 * **Useful on its own.** Each part serves ReDefinition's own features too.
 
 ## What exists once
@@ -43,7 +43,7 @@ Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]*
 | Motion vectors | One buffer per camera; Scatterer installs its motion vector shader globally **[src]** | Geometry moved in a vertex shader has none: Scatterer's ocean (`OceanWhiteCapsModProj3.shader`), Parallax's grass **[src]** | Contributions into the motion vectors every upscaler and frame generation read |
 | Camera cuts | KSP raises no event for them | TUFX #23: flickering after a revert **[doc]** | A reset for the frame, from ReDefinition's detection and from any mod |
 | Floating origin shifts | One origin | Unity's camera motion vectors project the current world position with the previous frame's view-projection **[src]** | The shifts of the frame |
-| The image after upscaling, before the UI | One presenter | TUFX's effects run after the upscaler (`src/Upscaler/TufxPostProcessing.cs`) | A hook on the upscaled image and an overlay after it |
+| The image after upscaling, before the UI | One presenter | TUFX's effects run after the upscaler (`src/Upscaler/Compatibility/TufxPostProcessing.cs`) | A hook on the upscaled image and an overlay after it |
 | Global quality settings | One `QualitySettings` | Scatterer sets shadow projection and distance, Parallax requires terrain detail, Deferred writes reflection settings at every scene load **[src]** | Requirements in registrations (existing); the chosen profile and its changes |
 
 ## Stage 1: the frame
@@ -101,7 +101,7 @@ reaches the mods in the next, without a second reset of the upscaler
 
 Each hook takes a `System.Action` of Unity types, so a wrapper reaches it by reflection. A
 handler that throws is removed and logged once, and the others run on
-(`src/Shared/HookList.cs`). The rig calls them (`src/Upscaler/UpscalerRig.Hooks.cs`).
+(`src/Shared/HookList.cs`). The rig calls them (`src/Upscaler/Rig/UpscalerRig.Hooks.cs`).
 
 | Hook | Called | Draws |
 |---|---|---|
