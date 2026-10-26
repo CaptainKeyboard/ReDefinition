@@ -1433,7 +1433,9 @@ namespace ReDefinition.Raytracing
             // not: Kerbin's tall grass, 400 m about the camera, stands too sparse to shade the ground (the sun's
             // visibility 0.98 on the terrain it stands on past the main grass, 2026-10-25), which kept the
             // terrain near the camera brighter than further off, and the more the nearer the camera came.
-            if (vesselGrassRange > 0f) grassRange = 0f;
+            // Its blades the camera sees as such end where the farthest level of detail starts: the shade takes the
+            // ground from there, as it does past the range.
+            if (vesselGrassRange > 0f) grassRange = RtKspMods.ParallaxGrassLodStart;
             // -redefinitionProbeMeadowFrom <metres>: the meadow's shade from there on instead of the grass's range.
             packet.ShadowFade[6] = (grassRange > 0f || vesselGrassRange > 0f) && MeadowFrom != 0f ? MeadowFrom : grassRange;
             // -redefinitionProbeMeadowShade <0..1>: another shade, to see where it lies.

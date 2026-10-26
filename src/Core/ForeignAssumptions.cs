@@ -344,16 +344,16 @@ namespace ReDefinition.Core
         // Parallax's scatters in the raytraced scene and on the space centre's lawns
         // (Scenery.ParallaxScatterFields, KscGrass). It reads the active renderers and, of
         // each, the planet, the scatter name, the range and whether it is culled about the vessel.
-        // It reads the three levels' meshes, materials and output buffers, which the lift and
-        // the rays read as 64-byte clumps, and RuntimeOperations.vectorCraftPos and vectorCameraPos, the
-        // points its vessel-centred and camera-centred scatters are culled about. It reads _InstanceData too,
-        // the buffer Parallax's materials draw them from (ScatterRenderer, Scatter,
-        // DistributionParams, TransformData; Parallax Continued 1.0.0, decompiled).
+        // It reads the three levels' meshes, materials and output buffers as 64-byte clumps.
+        // It reads the points its scatters are culled about (RuntimeOperations.vectorCraftPos,
+        // vectorCameraPos) and where the farthest level starts (DistributionParams.lod2.range).
+        // It reads _InstanceData too, the buffer Parallax's materials draw from (Parallax Continued 1.0.0, decompiled).
         private const string ScatterRenderer = "Parallax.ScatterRenderer";
         public static readonly ForeignAssumption ParallaxScatters =
             new ForeignAssumption("parallax-scatters", "Parallax", "Parallax's scatters in the raytraced scene and on the lawns")
                 .Type("Parallax.ScatterManager").Type(ScatterRenderer).Type("Parallax.Scatter").Type("Parallax.DistributionParams")
-                .Type("Parallax.RuntimeOperations")
+                .Type("Parallax.RuntimeOperations").Type("Parallax.LOD")
+                .Field("Parallax.DistributionParams", "lod2", "Parallax.LOD").Field("Parallax.LOD", "range", Float)
                 .Field("Parallax.RuntimeOperations", "vectorCraftPos", Vector3Type)
                 .Field("Parallax.RuntimeOperations", "vectorCameraPos", Vector3Type)
                 .Field("Parallax.ScatterManager", "Instance", "Parallax.ScatterManager")

@@ -37,7 +37,7 @@ namespace ReDefinition.Raytracing
         // once reading them failed.
         private static bool parallaxFailed;
         private static bool grassRangeFailed;
-        private static float grassRange, grassRangeAboutVessel;
+        private static float grassRange, grassRangeAboutVessel, grassLodStart;
         private static float grassRangeAt = float.MinValue;
 
         // Whether Scatterer is installed: its atmosphere colours the sun's light.
@@ -284,7 +284,8 @@ namespace ReDefinition.Raytracing
                     Debug.Log(Core.Log.Tag + " Parallax's " + name + " in " + HighLogic.LoadedScene + ", level " + lod + ": " + blades
                               + " blades, " + nearest.ToString("F0") + " to " + farthest.ToString("F0") + " m from the camera ("
                               + string.Join("/", Array.ConvertAll(bins, b => b.ToString())) + " per 50 m), range " + range.ToString("F0")
-                              + " m about " + (Scenery.ParallaxScatterFields.AboutVessel(renderers[r]) ? "the vessel" : "the camera") + " at "
+                              + " m (farthest level from " + Scenery.ParallaxScatterFields.Lod2Start(renderers[r]).ToString("F0") + " m) about "
+                              + (Scenery.ParallaxScatterFields.AboutVessel(renderers[r]) ? "the vessel" : "the camera") + " at "
                               + about + ", the camera at " + eye + ", " + (beyond * 100 / blades) + " % past the range.");
                     return;
                 }
@@ -309,7 +310,12 @@ namespace ReDefinition.Raytracing
                     object renderer = renderers[r];
                     if (renderer == null) continue;
                     bool aboutVessel = Scenery.ParallaxScatterFields.AboutVessel(renderer);
-                    for (int lod = 0; lod < 3; lod++)
+                    string scatterName = Scenery.ParallaxScatterFields.ScatterName(renderer);
+                    // The grass's farthest level of detail is blades the picture shows as the terrain's own look: far past
+                    // a pixel each, and drawn with the terrain's colour. The rays would shade the ground with them, as
+                    // a dark patch within the range and the meadow's shade beyond it (MeadowShade takes the far ground).
+                    bool grass = scatterName != null && scatterName.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) >= 0;
+                    for (int lod = 0; lod < (grass ? 2 : 3); lod++)
                     {
                         // Where the space centre's grass is lifted, its clumps under the
                         // space centre's ground left out (Scenery.KscGrass.RaysBuffer).
@@ -358,13 +364,17 @@ namespace ReDefinition.Raytracing
         // vessel (Scenery.ParallaxScatterFields.AboutVessel). Kerbin's main grass is 320 m of the vessel in
         // Parallax_StockScatterTextures, its tall grass 400 m of the camera. Each is 0 where none is (or another
         // version of Parallax). Asked once a second.
+        // The nearest distance from the camera at which the vessel-centred grass turns to its farthest level of detail,
+        // 0 for none (set by ParallaxGrassRange).
+        internal static float ParallaxGrassLodStart { get { return grassLodStart; } }
+
         internal static float ParallaxGrassRange(out float aboutVessel)
         {
             float now = Time.realtimeSinceStartup;
             aboutVessel = grassRangeAboutVessel;
             if (now - grassRangeAt < 1f) return grassRange;
             grassRangeAt = now;
-            grassRange = grassRangeAboutVessel = aboutVessel = 0f;
+            grassRange = grassRangeAboutVessel = aboutVessel = grassLodStart = 0f;
             if (parallaxFailed || grassRangeFailed || !Scenery.ParallaxScatterFields.Available) return 0f;
             try
             {
@@ -376,7 +386,11 @@ namespace ReDefinition.Raytracing
                     if (name == null || name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) < 0) continue;
                     float range = Scenery.ParallaxScatterFields.Range(renderer);
                     if (Scenery.ParallaxScatterFields.AboutVessel(renderer))
+                    {
                         grassRangeAboutVessel = Mathf.Max(grassRangeAboutVessel, range);
+                        float start = Scenery.ParallaxScatterFields.Lod2Start(renderer);
+                        if (start > 0f) grassLodStart = grassLodStart > 0f ? Mathf.Min(grassLodStart, start) : start;
+                    }
                     else
                         grassRange = Mathf.Max(grassRange, range);
                 }

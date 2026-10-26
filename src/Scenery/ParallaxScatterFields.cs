@@ -38,6 +38,7 @@ namespace ReDefinition.Scenery
         private static Func<object, object> scatterOf;
         private static Func<object, string> scatterName;
         private static Func<object, float> range;
+        private static Func<object, float> lod2;
         private static Func<object, bool> craftCentred;
         private static Func<object, Vector3> craftPosition;
         private static Func<object, Vector3> cameraPosition;
@@ -79,6 +80,11 @@ namespace ReDefinition.Scenery
                 ParameterExpression target = Expression.Parameter(typeof(object), "target");
                 Func<object, float> rangeGetter = Expression.Lambda<Func<object, float>>(
                     Expression.Field(Expression.Field(Expression.Convert(target, scatterType), distribution), distance), target).Compile();
+                FieldInfo farthest = distribution.FieldType.GetField("lod2", Members);
+                FieldInfo farthestRange = farthest.FieldType.GetField("range", Members);
+                lod2 = Expression.Lambda<Func<object, float>>(
+                    Expression.Field(Expression.Field(Expression.Field(Expression.Convert(target, scatterType), distribution), farthest),
+                                     farthestRange), target).Compile();
                 for (int lod = 0; lod < 3; lod++)
                 {
                     meshes[lod] = CompiledGetter.Of<Mesh>(rendererType.GetField("meshLOD" + lod, Members));
@@ -138,6 +144,16 @@ namespace ReDefinition.Scenery
         {
             object scatter = Available && renderer != null ? scatterOf(renderer) : null;
             return scatter != null ? range(scatter) : 0f;
+        }
+
+        // How far from the camera the renderer's scatter turns to its farthest level of detail, in metres; 0 where it
+        // has none. Parallax keeps it as a share of the range at run time and as metres in its config.
+        internal static float Lod2Start(object renderer)
+        {
+            object scatter = Available && renderer != null ? scatterOf(renderer) : null;
+            if (scatter == null) return 0f;
+            float value = lod2(scatter), full = range(scatter);
+            return value <= 2f ? value * full : value;
         }
 
         // Whether the renderer's scatter is drawn within its range of the active vessel rather than of the

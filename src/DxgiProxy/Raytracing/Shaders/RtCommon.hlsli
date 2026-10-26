@@ -1380,11 +1380,12 @@ float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 
     float3 drawn = gbuffer0[pixel].rgb;
     bool none = (range <= 0.0f && vesselRange <= 0.0f) || shade <= 0.0f || shade >= 1.0f;
     // Past both of the grass's ranges: the one about the camera, and the one about the vessel.
+    // Where both are given, the grass about the vessel is seen as blades only within its range of the vessel and within
+    // the distance from the camera at which its farthest level of detail starts; the shade lies past either.
     float beyond = 1.0f;
-    if (range > 0.0f)
-        beyond = smoothstep(range * 0.8f, range, length(position));
-    if (vesselRange > 0.0f)
-        beyond = min(beyond, smoothstep(vesselRange * 0.8f, vesselRange, distance(position, meadowVessel.xyz)));
+    float beyondCamera = range > 0.0f ? smoothstep(range * 0.8f, range, length(position)) : 1.0f;
+    float beyondVessel = vesselRange > 0.0f ? smoothstep(vesselRange * 0.8f, vesselRange, distance(position, meadowVessel.xyz)) : 1.0f;
+    beyond = (range > 0.0f && vesselRange > 0.0f) ? max(beyondCamera, beyondVessel) : min(beyondCamera, beyondVessel);
     // The lawn: as bright as the terrain (kLawnLift), and past the grass in the meadow's shade as the terrain.
     // Where Parallax draws its grass, lifted onto the lawn (Scenery/KscGrass.cs), the grass in
     // the rays shades it itself. Past it, the lawn takes the meadow's shade as the terrain
