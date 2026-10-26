@@ -1,2 +1,10 @@
 # The comment lint's accepted findings (tools/DocLock, lint): element id, rule, fingerprint of the comment.
 # A finding stays accepted while the comment is as it was; a comment written anew has to pass.
+src/DxgiProxy/Raytracing/RaytracingMegaGeometry.h|field|redefinition::nvmg::OperationDesc::inputs	too-long	406a73a9bedf7768
+src/DxgiProxy/SwapChain/SwapChainProxy.h|class|redefinition::SwapChainProxy	long-sentence	84a6e521d93963a3
+src/DxgiProxy/Upscalers/NvidiaGpu.h|function|redefinition::NvidiaGpu(const LUID & adapter ,NvidiaGpuInfo & info)	long-sentence	78192568bc964a3f
+src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.StageBudget	long-sentence	7a6a6224f1513f11
+src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.StageSim	too-long	b55b681930d98e1a
+src/Hud/Impact.cs|constant|ReDefinition.Hud.Impact.ClearTolerance	too-long	8c3e3182e29ae144
+src/Probe/GpuProfiler.cs|class|ReDefinition.Probe.GpuProfiler	long-sentence	7f0ce5963f8dc6e1
+tools/DocLock/ScriptScanner.cs|class|DocLock.ScriptScanner	long-sentence	0786e239e887ebcf

@@ -8,7 +8,8 @@ using ReDefinition.Scaling;
 namespace ReDefinition.Tests
 {
     // The UI scaling's Harmony targets against KSP's own assembly: every method
-    // found, and every postfix parameter Harmony binds by name present on it.
+    // found, and every postfix parameter Harmony binds by name present on it; plus the window scaling's
+    // rules (ModWindowScale).
     [TestClass]
     public class ScalingHookTests
     {

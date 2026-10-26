@@ -3,7 +3,7 @@
 **For:** anyone checking what *Reset* will set, and pack authors looking
 for the value a profile starts from.
 **You need:** nothing.
-**You get:** one row per setting of each bundled mod and of KSP's graphics settings,
+**You get:** one row per setting of each bundled mod and of KSP's own settings,
 with its default, its kind and where the value was read.
 
 This is the inventory *Reset* and the profiles are built on. The values
@@ -83,8 +83,8 @@ run with the upscaler. *Reset* sets every kind.
 | `SURFACE_FX` | quality | True | |
 | `REFLECTION_PROBE_REFRESH_MODE` | quality | 0 | Deferred raises Off to Low |
 | `REFLECTION_PROBE_TEXTURE_RESOLUTION` | quality | 1 | |
-| `SYNC_VBL` | other | 1 | the monitor's |
-| `FRAMERATE_LIMIT` | other | 120 | the monitor's |
+| `SYNC_VBL` | other | 1 | the requirements can hold it to every refresh at most ([requirements.md](requirements.md)) |
+| `FRAMERATE_LIMIT` | other | 120 | KSP's own screen offers none (-1) and 60 to 180 |
 | `ANTI_ALIASING` | other | 2 | the upscaler holds MSAA off while it runs |
 | `UI_SCALE` | other | 1; 1.5 from 1440 lines, 2 from 2160 | KSP's own default is 1 on every screen; ReDefinition's follows the screen's height |
 | `AMBIENTLIGHT_BOOSTFACTOR` | taste | 0 | |
@@ -100,6 +100,75 @@ run with the upscaler. *Reset* sets every kind.
 | `ORBIT_FADE_DIRECTION_INV` | other | False | |
 | `ALWAYS_SHOW_TARGET_APPROACH_MARKERS` | other | True | ReDefinition's recommendation; KSP's own is False |
 | `COMMNET_LOWCOLOR_BRIGHTNESSFACTOR` | other | 0.5 | |
+
+## KSP (audio, gameplay and devices)
+
+These settings are never bundled: the window sets them directly, as KSP's own screen does,
+and *Reset* sets the defaults below. Every one is kind other, so no `PROFILE` block sets
+them.
+
+| Key | Tab, section | Default | Note |
+|---|---|---|---|
+| `MASTER_VOLUME` | Audio, Volume | 0.5 |  |
+| `SHIP_VOLUME` | Audio, Volume | 0.5 |  |
+| `AMBIENCE_VOLUME` | Audio, Volume | 0.5 |  |
+| `UI_VOLUME` | Audio, Volume | 0.5 |  |
+| `MUSIC_VOLUME` | Audio, Volume | 0.35 |  |
+| `VOICE_VOLUME` | Audio, Volume | 0.5 |  |
+| `SOUND_NORMALIZER_ENABLED` | Audio, Sound normalizer | True |  |
+| `SOUND_NORMALIZER_THRESHOLD` | Audio, Sound normalizer | 1 |  |
+| `SOUND_NORMALIZER_RESPONSIVENESS` | Audio, Sound normalizer | 16 |  |
+| `FLT_VESSEL_LABELS` | Gameplay, Flight | True |  |
+| `SHOW_SPACE_CENTER_CREW` | Gameplay, General | True |  |
+| `KERBIN_TIME` | Gameplay, General | True |  |
+| `SHOW_DEADLINES_AS_DATES` | Gameplay, General | False |  |
+| `temperatureGauges` | Gameplay, Flight | True |  |
+| `thermalHighlights` | Gameplay, Flight | True |  |
+| `CAMERA_DOUBLECLICK_MOUSELOOK` | Gameplay, Camera | False |  |
+| `EVA_ROTATE_ON_MOVE` | Gameplay, EVA | True |  |
+| `IVA_RETAIN_CONTROL_POINT` | Gameplay, Camera | False |  |
+| `CAMERA_FX_EXTERNAL` | Gameplay, Camera | 1 |  |
+| `CAMERA_FX_INTERNAL` | Gameplay, Camera | 1 |  |
+| `ADVANCED_TWEAKABLES` | Gameplay, Flight | True | ReDefinition's recommendation; KSP's own is False |
+| `PRELAUNCH_DEFAULT_THROTTLE` | Gameplay, Flight | 0 |  |
+| `AUTOHIDE_NAVBALL` | Gameplay, Navball | False |  |
+| `EXTENDED_BURNTIME` | Gameplay, Navball | True | ReDefinition's recommendation; KSP's own is False |
+| `KERBNET_ALIGNS_WITH_ORBIT` | Gameplay, Map view | True |  |
+| `ADVANCED_MESSAGESAPP` | Gameplay, General | True |  |
+| `NAVIGATION_GHOSTING` | Gameplay, Navball | False |  |
+| `EVA_DEFAULT_HELMET_ON` | Gameplay, EVA | True |  |
+| `EVA_DEFAULT_NECKRING_ON` | Gameplay, EVA | True |  |
+| `EVA_LADDER_CHECK_END` | Gameplay, EVA | True |  |
+| `SHOW_EXIT_TO_MENU_CONFIRMATION` | Gameplay, System | True |  |
+| `SHOW_WRONG_VESSEL_TYPE_CONFIRMATION` | Gameplay, System | True |  |
+| `SHOW_DELETE_ALARM_CONFIRMATION` | Gameplay, System | True |  |
+| `SIMULATE_IN_BACKGROUND` | Gameplay, System | True |  |
+| `dontShowLauncher` | Gameplay, System | False |  |
+| `SHOW_VERSION_WATERMARK` | Gameplay, System | False |  |
+| `SHOW_ANALYTICS_DIALOG` | Gameplay, System | True |  |
+| `MAX_VESSELS_BUDGET` | Gameplay, System | 250 |  |
+| `DECLUTTER_KSC` | Gameplay, System | True |  |
+| `PHYSICS_FRAME_DT_LIMIT` | Gameplay, System | 0.04 |  |
+| `ORBIT_DRIFT_COMPENSATION` | Gameplay, System | True |  |
+| `PHYSICS_EASE` | Gameplay, System | True |  |
+| `VERBOSE_DEBUG_LOG` | Gameplay, System | False |  |
+| `MISSION_GAP_CAMERA_VAB_CONTROLS` | Gameplay, Making History | True |  |
+| `MISSION_MINIMUM_CANVAS_ZOOM` | Gameplay, Making History | 0.2 |  |
+| `mouseWheelSensitivity` | Devices, Mouse | 1 |  |
+| `TRACKIR_ENABLED` | Devices, Track IR | False |  |
+| `trackIrFlight` | Devices, Track IR | True |  |
+| `trackIrIva` | Devices, Track IR | True |  |
+| `trackIrEva` | Devices, Track IR | True |  |
+| `trackIrMap` | Devices, Track IR | True |  |
+| `trackIrKsc` | Devices, Track IR | True |  |
+| `trackIrTrackingStation` | Devices, Track IR | True |  |
+| `trackIrEditors` | Devices, Track IR | True |  |
+| `SPACENAV_CAMERA_SENS_ROT` | Devices, 6-DOF | 30 |  |
+| `SPACENAV_CAMERA_SHARPNESS_ROT` | Devices, 6-DOF | 10 |  |
+| `SPACENAV_CAMERA_SENS_LIN` | Devices, 6-DOF | 20 |  |
+| `SPACENAV_CAMERA_SHARPNESS_LIN` | Devices, 6-DOF | 8 |  |
+| `SPACENAV_FLIGHT_SENS_ROT` | Devices, 6-DOF | 5 |  |
+| `SPACENAV_FLIGHT_SENS_LIN` | Devices, 6-DOF | 1 |  |
 
 ## Scatterer
 
@@ -254,7 +323,9 @@ one run would leave that lowering for good.
 | `profileMap` | taste | Default-Tracking | **Blackrack_TUFX** |
 | `profileInternal` | taste | Default-Internal | **Blackrack_TUFX** |
 | `profileTrackingStation` | taste | Default-Tracking | **Blackrack_TUFX** |
-| `ShowToolbarButton` | other | True | |
+
+`ShowToolbarButton` is not bundled. TUFX 1.1.1 asks it before its configuration is read, so
+a value set here never takes effect.
 
 ## Waterfall
 

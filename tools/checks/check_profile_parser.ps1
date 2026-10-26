@@ -1,6 +1,6 @@
-# Checks the graphics profile reader outside the game. It runs KSP's own
-# ConfigNode.Parse, then GraphicsProfile.FromConfigNode from the built DLL, on
-# profiles with one mistake of each kind the reader has to survive.
+# Checks the graphics profile reader and the mod registration reader outside the game. It runs KSP's own
+# ConfigNode.Parse, then GraphicsProfile.FromConfigNode and ModRegistration.FromConfigNode from
+# the built DLL, on profiles and registrations with one mistake of each kind the readers have to survive.
 #
 # Runs in Windows PowerShell 5.1 and in PowerShell 7. The KSP folder is taken
 # from the KspRoot environment variable, as in Directory.Build.props, and

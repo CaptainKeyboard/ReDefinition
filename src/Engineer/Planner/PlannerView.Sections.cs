@@ -5,7 +5,7 @@ namespace ReDefinition.Engineer
 {
     // The planner's sections (docs/player/planner.md) are parts of the vessel. The
     // player adds them as a capsule, a lander or a satellite. The planner adds by itself the
-    // capsule of a crewed vessel and the one satellite of an uncrewed one.
+    // capsule of a crewed vessel, the one satellite of an uncrewed one, and a lander it finds.
     // This part resolves them against the vessel's parts, names them, hands them to
     // the route and the budget, and holds what the rows ask of them.
     internal sealed partial class PlannerView

@@ -71,8 +71,8 @@ namespace ReDefinition.Engineer
     // do not burn in the stages. KSP gives them no thrust in vacuum and lets them
     // drain the liquid fuel they reach, which leaves the rockets sharing those tanks
     // nothing. Instead, where the route starts on a body with oxygen, the
-    // air-breathing engines lit first burn as the vessel lifts off (`AirDeltaV`, the
-    // part of the launch they fly), before any stage. Their own row, numbered
+    // air-breathing engines lit first burn as the vessel lifts off (Run's `airDeltaV`,
+    // the part of the launch they fly), before any stage. Their own row, numbered
     // one above the highest stage, takes the liquid fuel they reach at their Isp.
     // The stages then burn what is left, rocket modes only (a RAPIER's closed
     // cycle).

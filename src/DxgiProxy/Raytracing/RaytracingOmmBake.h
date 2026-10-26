@@ -69,10 +69,8 @@ namespace redefinition
             float uv[3][2];
         };
 
-        // The baker's result for a mesh: the OMMs, packed, and for each triangle either the
-        // index of its OMM among them or a special index (RaytracingOmm.h, nvomm::kIndex*).
-        // Every OMM is 4-state: two bits a micro-triangle, the first micro-triangle in the
-        // lowest bits of the first byte.
+        // One OMM among the baked data. Every OMM is 4-state: two bits a micro-triangle, the
+        // first micro-triangle in the lowest bits of the first byte.
         struct Entry
         {
             // An OMM: where it starts in the packed data, its level, and its format
@@ -81,7 +79,9 @@ namespace redefinition
             uint16_t level;
             uint16_t format;
         };
-        // The result itself, as the comment above says, with the counts the log reports.
+        // The baker's result for a mesh: the OMMs, packed, and for each triangle either the
+        // index of its OMM among them or a special index (RaytracingOmm.h, nvomm::kIndex*),
+        // with the counts the log reports.
         struct Baked
         {
             // The packed OMMs, their entries, and per triangle its OMM's index or special index.

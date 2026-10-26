@@ -56,13 +56,21 @@ editors, the main menu and the space centre.
 | find your way around the code | [development/architecture.md](development/architecture.md) |
 | build it, run the tests and the checks | [development/howto-build-and-check.md](development/howto-build-and-check.md) |
 | see the build and test details | [development/building-and-testing.md](development/building-and-testing.md) |
+| find the script in `tools` for a job | [development/tools-index.md](development/tools-index.md) |
 | build the release package | [development/packaging.md](development/packaging.md) |
+| follow the startup and what a scene change takes away | [development/flow-startup.md](development/flow-startup.md) |
 | follow a frame through the mod | [development/flow-frame.md](development/flow-frame.md) |
 | follow a frame through the proxy | [development/flow-proxy-present.md](development/flow-proxy-present.md) |
+| add a feature to the proxy | [development/howto-add-a-proxy-feature.md](development/howto-add-a-proxy-feature.md) |
+| change what the mod and the proxy tell each other | [development/flow-native-channels.md](development/flow-native-channels.md) |
 | understand what lowers the latency, and how it is measured | [src/DxgiProxy/Latency/README.md](../src/DxgiProxy/Latency/README.md) |
+| add a setting | [development/howto-add-a-setting.md](development/howto-add-a-setting.md) |
 | follow a setting through the store | [development/flow-setting.md](development/flow-setting.md) |
 | understand the interface for mods | [development/flow-mod-interface.md](development/flow-mod-interface.md) |
 | understand the raytracing | [development/flow-raytracing.md](development/flow-raytracing.md) |
+| add or change a shader | [development/flow-shaders.md](development/flow-shaders.md) |
+| change a feature on screen | [development/flow-game-ui.md](development/flow-game-ui.md) |
+| change the dashboard | [development/flow-dashboard.md](development/flow-dashboard.md) |
 | understand the planner and the engineer window | [src/Engineer/README.md](../src/Engineer/README.md) |
 | understand the scaling of what KSP leaves unscaled | [src/Scaling/README.md](../src/Scaling/README.md) |
 | measure what costs the frame, in ReDefinition, KSP or another mod | [src/Probe/README.md](../src/Probe/README.md) |
@@ -85,7 +93,7 @@ follow the reader:
 |---|---|
 | `player/` | players |
 | `modders/` | mod and visual pack authors, with the examples in `modders/examples/` |
-| `reference/` | facts about the bundled mods, with their sources |
+| `reference/` | facts about the bundled mods and the proxy's ini, with their sources |
 | `development/` | working on ReDefinition itself |
 | `project/` | what is done, and how changes are reviewed |
 

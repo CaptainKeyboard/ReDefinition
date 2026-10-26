@@ -23,10 +23,10 @@ namespace ReDefinition.Probe
 namespace ReDefinition.Proxy
 {
     // Whether Windows refused the game's dxgi.dll proxy (src/Proxy/ProxyLoad.cs), which
-    // NativeUpscalerLink names first: the test player loads the proxy by its own path.
+    // NativeUpscalerLink names first: the test player has the proxy beside its exe and checks nothing.
     internal static class ProxyLoad
     {
-        // No refusal to name: the test player loads the proxy itself.
+        // No refusal to name: the test player does not ask Windows.
         internal static string Refused
         {
             get { return null; }

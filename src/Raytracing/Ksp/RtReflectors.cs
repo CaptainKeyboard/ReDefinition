@@ -3,8 +3,7 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // The bodies the sun lights, as the raytracing's lights (docs/development/flow-raytracing.md,
-    // "Light sources"). They are the planet the camera is at, the main body or
+    // The bodies the sun lights, as the raytracing's lights. They are the planet the camera is at, the main body or
     // the planet it orbits, and that planet's moons. Farther planets are left out.
     // Each one's light at the camera follows from its albedo, its phase, its size and its distance
     // (RtReflectorLight), in the colour of its surface and of the star. The two brightest

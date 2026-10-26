@@ -4,10 +4,10 @@ using System;
 namespace ReDefinition.Settings
 {
     // The tabs of the settings window, by feature, in this order: the game, its
-    // sound, the display with the upscaler, the graphics, the controls, and last ReDefinition's own dealings
+    // sound, the graphics, the controls, and last ReDefinition's own dealings
     // with menus, mods and the toolbar.
-    // Graphics has the profiles and Detail under it, and the controls have their axes and devices
-    // under them.
+    // Graphics has the profiles, Display (with the upscaler) and Detail under it, and the controls have their
+    // axes and devices under them.
     // Shadows and reflections, planets and effects are groups of
     // Detail, not tabs of their own. Which setting shows where, and in what
     // order, its registration says (`row`, `order`; WindowLayout).

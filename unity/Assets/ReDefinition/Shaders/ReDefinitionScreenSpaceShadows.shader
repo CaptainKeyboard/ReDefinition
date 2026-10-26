@@ -1,7 +1,7 @@
 // Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license (see license.txt)
 //
-// Changed for ReDefinition (docs/development/flow-raytracing.md, "Where the raytraced light
-// enters Unity's lighting"): for the camera that is raytraced, the mask holds the
+// Changed for ReDefinition (docs/development/flow-raytracing.md, "The route from mesh to
+// pixel", step 11): for the camera that is raytraced, the mask holds the
 // raytraced sun visibility, found for each point by ReDefinitionRtReproject.cginc --
 // the game's own frame's, traced before its lighting; the frame before's, carried over,
 // where the trace follows the frame (the test players) --, in place of the cascaded

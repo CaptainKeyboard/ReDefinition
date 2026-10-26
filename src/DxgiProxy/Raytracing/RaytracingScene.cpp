@@ -1276,8 +1276,8 @@ namespace redefinition
     {
         // The mesh's structure's address in two halves, its descriptor slot, and the material's
         // index among the frame's. Then come the run in t7 (first, count) and where its
-        // instances start after the CPU's. The last is the ray mask in bits 0-7 with the flags
-        // above it.
+        // instances start among the GPU's, which follow the CPU's. The last is the ray mask
+        // in bits 0-7 with the flags above it.
         uint32_t blasLow;
         uint32_t blasHigh;
         uint32_t meshSlot;

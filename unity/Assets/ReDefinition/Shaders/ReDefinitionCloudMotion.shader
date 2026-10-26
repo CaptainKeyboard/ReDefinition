@@ -1,6 +1,7 @@
 // EVE's raymarched clouds and the distant planets in the motion vectors the
 // upscalers and frame generation read (CloudMotionVectors and ScaledSpaceMotion
-// in the plugin). Built into redefinition.shaders by BundleBuilder.
+// in the plugin), and the repair of Unity's own (UnityMotionRepair). Built into
+// redefinition.shaders by BundleBuilder.
 Shader "Hidden/ReDefinition/CloudMotion"
 {
     SubShader

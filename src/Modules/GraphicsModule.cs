@@ -56,9 +56,9 @@ namespace ReDefinition.Modules
         public Func<DialogGUIBase[]> Content;
     }
 
-    // One setting of a module: what a profile's MODULE node sets, and a row under
-    // General. Its value travels as text in the invariant culture, as a ConfigNode
-    // holds it.
+    // One setting of a module: what a profile's MODULE node sets, and a row in the
+    // settings window (Row). Its value travels as text in the invariant culture, as a
+    // ConfigNode holds it.
     internal sealed class ModuleSetting
     {
         // The key in a profile's MODULE node. Stable: profiles name it.
@@ -66,7 +66,8 @@ namespace ReDefinition.Modules
         public string Title;
         public string Tooltip = "";
 
-        // A profile sets quality only, as for the other mods.
+        // Taste where a profile must not set it (the sharpness); a profile can set any other kind
+        // that stands in General and is not Detail (ModuleProfiles.CanSet).
         public SettingKind Kind = SettingKind.Other;
 
         // Whether the row can be changed only while a graphics profile is chosen:
@@ -86,7 +87,7 @@ namespace ReDefinition.Modules
         public Func<string, string, ApplyWindow> EffectOf;
 
         // The heading the row stands under in its tab, where the tab groups
-        // ReDefinition's own rows (Gameplay: flight; Mods / Toolbar: scaling).
+        // ReDefinition's own rows (Gameplay: flight; Interface: scaling).
         public string Section;
         public SettingControl Control = SettingControl.Toggle;
 
@@ -124,7 +125,7 @@ namespace ReDefinition.Modules
         // What the row's value column shows for a value; null shows the value.
         public Func<string, string> Label;
 
-        // Where its row stands under General, among every module's rows.
+        // Where its row stands in its tab, among every module's rows.
         public int Order;
 
         // A row of Detail's own group rather than of Display's basics: the single settings of a

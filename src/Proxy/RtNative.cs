@@ -10,8 +10,8 @@ namespace ReDefinition.Proxy
     // Ray Reconstruction's resources once it is no longer used, event 33 what the
     // frames made once raytracing is no longer used.
     //
-    // Free of KSP's types, like everything in this folder but the sources that
-    // collect KSP's scene: the raytracing test player compiles it on its own.
+    // Free of KSP's types, like everything in this folder: the raytracing test player
+    // compiles it on its own.
     //
     // Its constants and the packets' layouts are the contract's
     // (src/DxgiProxy/Raytracing/Shaders/RtContract.h, RT_<NAME>), which

@@ -10,7 +10,7 @@ namespace ReDefinition.Api
     /// The key bindings ReDefinition holds, so that a mod does not have to keep one of its
     /// own. A binding is declared in the mod's registration (a <c>KEY</c> block in
     /// <c>MOD_SETTINGS</c>) and shows in the settings window's <i>Keys</i> tab, where the
-    /// player sets it. Reference: docs/modders/registering-a-mod.md, "A key binding".
+    /// player sets it. Reference: docs/modders/registering-a-mod.md, "Offer a key binding".
     /// </summary>
     public static class Keys
     {

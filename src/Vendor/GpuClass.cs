@@ -21,7 +21,7 @@ namespace ReDefinition.Vendor
         Rtx50,
         // An NVIDIA card without DLSS: GeForce GTX, or older.
         NvidiaOlder,
-        // Radeon RX 7000 (RDNA 3) and newer but the RX 9000: FSR 4 where AMD's DLL has it.
+        // Radeon RX 7000 (RDNA 3): FSR 4 where AMD's DLL has it.
         Radeon7000,
         // Radeon RX 9000 (RDNA 4): FSR 4 and FSR Ray Regeneration.
         Radeon9000,

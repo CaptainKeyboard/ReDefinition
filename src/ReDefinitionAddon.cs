@@ -14,7 +14,8 @@ using UnityEngine;
 
 namespace ReDefinition
 {
-    // User interface and lifecycle of the upscaler.
+    // The mod's main add-on: its user interface and the lifecycle of the upscaler. It also drives frame generation's
+    // capture and the raytracing (RtKsp) from its Update.
     //
     // Everything goes through the windows -- the settings
     // window the toolbar button opens (SettingsWindow), and the diagnostics

@@ -11,7 +11,7 @@ namespace ReDefinition.Vendor
     // GeForce RTX 30 and RTX 20. This class handles its release zip, which the player downloads from the
     // project's page and puts into KSP's folder, and what is taken out of it next to
     // KSP_x64.exe (AmpereFrameGeneration). Its version.dll is loaded there by KSP and by
-    // ReDefinition's dxgi.dll alike; it answers Streamline with a newer GPU and has
+    // ReDefinition's dxgi.dll alike; it answers NVAPI with a newer GPU and has
     // NVIDIA's runtime run on its own kernels.
     //
     // Taken: version.dll, dlssg_sm86.ini and the dlssg_sm86 folder without its

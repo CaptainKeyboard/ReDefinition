@@ -25,7 +25,7 @@ which is the old path. [Build and check everything](howto-build-and-check.md) li
 | `tools/checks/check_docs.ps1` | Checks the pages under `docs/`: links, paths and style. | Neither |
 | `tools/checks/audit_ffx_fields.py` | Checks that every field of the FidelityFX frame generation descriptors is set or listed with a reason. | Neither |
 | `tools/tests/test_benchmark_matrix.py` | Tests the log parser and the matrix of `benchmark_matrix.py` on log excerpts. Run `python -m unittest`. | Neither |
-| `tools/DocLock` | The comment check: documented, dirty and unlocked elements, references and lint. | Neither |
+| `tools/DocLock` | The comment check: references, lint and the wiki generator. | Neither |
 
 ## Build and package
 

@@ -9,8 +9,7 @@ modes, frame generation steps, DLSS-G presets, latency brake targets, build vari
 grass scene) each by --group NAME.
 
 The KSP install's settings files are copied before the run and put back after it, also
-when a start fails (snapshot and restore, as the probe scripts do). Python's standard
-library only.
+when a start fails (Install.snap and Install.restore). Python's standard library only.
 
 Usage: python tools/benchmark_matrix.py <command>. The command run runs the default groups (the
 main matrix). The command run --group NAME runs one named group, and run --group all runs all. The command plan
@@ -61,7 +60,7 @@ PROFILE_START_SECONDS = 60.0
 FOREGROUND_SECONDS = 2.0
 FOREGROUND_RETRY_SECONDS = 15.0
 
-# What the snapshot keeps: every settings file of the install (build/settings-snapshots/snapshot.py).
+# What the snapshot keeps: every settings file of the install, by these extensions.
 SNAP_EXT = (".cfg", ".xml", ".json", ".txt", ".ini", ".settings")
 SNAP_SKIP = ("Logs", "saves", "ReDefinitionCaptures", "Screenshots")
 
@@ -609,9 +608,8 @@ def set_cfg_values(text, values):
 
 
 def set_ini_values(text, values):
-    """ReDefinitionProxy.ini with each key set in its [Proxy] section, as xshot.sh does it:
-    the first line of a key replaced (GetPrivateProfileString reads the first), a missing
-    key appended to the section."""
+    """ReDefinitionProxy.ini with each key set in its [Proxy] section: the first line of a key
+    replaced (GetPrivateProfileString reads the first), a missing key appended to the section."""
     newline = "\r\n" if "\r\n" in text else "\n"
     lines = text.splitlines()
     pending = dict(values)

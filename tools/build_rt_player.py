@@ -1,5 +1,5 @@
 """Builds and runs the raytracing test player (docs/development/flow-raytracing.md,
-"Testing without the game").
+"The harness").
 
 It copies ReDefinition's raytracing sources and shaders into the player's Unity
 project and has Unity 2019.4.18f1 build the player in batch mode. It puts the proxy
@@ -7,9 +7,10 @@ project and has Unity 2019.4.18f1 build the player in batch mode. It puts the pr
 with Unity's own deferred lighting, with Deferred's lighting shaders from the installed
 game (skipped where Deferred is not installed), and the budget at DLSS Quality's render
 size. The player's checks come back from its log. Exits 0 when every check of every run
-passed.
+passed. With --turn or --upscale it records the camera turn instead and measures it with
+analyze_rt_turn.py or analyze_upscale_turn.py.
 
-Usage: python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build]
+Usage: python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build] [--only ocean|glow] [--turn] [--upscale]
 """
 
 import argparse

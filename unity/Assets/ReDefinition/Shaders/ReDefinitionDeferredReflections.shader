@@ -2,8 +2,8 @@
 // This adds the diffuse ambient evaluation here.
 //
 // This is Deferred's reflections shader (Deferred 1.3.5, Copyright (c) 2024-2025 Ghassen
-// Lahmar, GPL 3.0), changed for ReDefinition (docs/development/flow-raytracing.md, "Where
-// the raytraced light enters Unity's lighting"). For the camera that is raytraced,
+// Lahmar, GPL 3.0), changed for ReDefinition (docs/development/flow-raytracing.md, "The route from mesh to
+// pixel"). For the camera that is raytraced,
 // the ambient light is the raytraced diffuse light and the reflection the raytraced
 // one, in place of the reflection probe (the block marked ReDefinition in frag).
 // ReDefinitionRtReproject.cginc finds them for each point: the game's own frame's,

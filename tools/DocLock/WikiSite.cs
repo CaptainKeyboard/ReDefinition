@@ -9,15 +9,14 @@ using System.Text.RegularExpressions;
 namespace DocLock
 {
     // The wiki as a site and not a dump. It has a Home that says where to start, a sidebar and a footer.
-    // Each hand-written developer page of docs/development is a page, and each area and file has a page made
+    // The current hand-written pages of docs/development (start-here, architecture, flows, how-tos) are pages, and each area and file has a page made
     // from the comments. The indexes are the answers that the code gives by itself: entry points, hooks,
-    // assumptions about other mods, switches, ini keys, exports, types and dependencies.
+    // assumptions about other mods, switches, ini keys, registrations, exports, types and dependencies.
     internal sealed class WikiSite
     {
         // The repository's root, its files as git knows them, the elements, the lock, and the address of a file on GitHub.
         private readonly string root;
         private readonly Scan scan;
-        private readonly Lock lockFile;
         private readonly string blob;
         private readonly string tree;
         private readonly string folder;
@@ -32,12 +31,11 @@ namespace DocLock
         private readonly List<string> written = new List<string>();
 
         // Prepares the site for the folder; nothing is written before Write.
-        public WikiSite(string root, string folder, Scan scan, Lock lockFile, string blob)
+        public WikiSite(string root, string folder, Scan scan, string blob)
         {
             this.root = root;
             this.folder = folder;
             this.scan = scan;
-            this.lockFile = lockFile;
             this.blob = blob;
             tree = blob == null ? null : blob.Replace("/blob/main/", "/tree/main/");
         }
@@ -49,7 +47,7 @@ namespace DocLock
             foreach (string old in Directory.GetFiles(folder, "*.md")) File.Delete(old);
             ReadHandPages();
             WriteHandPages();
-            WriteAreaAndFilePages();
+            WriteAreaPages();
             WriteIndexes();
             WriteHome();
             WriteSidebar();
@@ -153,93 +151,36 @@ namespace DocLock
             return stop > 0 ? flat.Substring(0, stop + 1) : flat;
         }
 
-        // Whether the element is a type (or the like) that a file page lists first.
-        private static bool IsType(Element e)
-        {
-            return e.Kind == "class" || e.Kind == "struct" || e.Kind == "interface" || e.Kind == "enum" || e.Kind == "delegate"
-                   || e.Kind == "shader" || e.Kind == "script" || e.Kind == "module" || e.Kind == "config" || e.Kind == "union";
-        }
 
-        // One page per area (its files and the areas it uses) and per file (its elements with the comments).
-        private void WriteAreaAndFilePages()
+        // One page per area that has a README: the README, then the areas it uses and the areas that use it.
+        private void WriteAreaPages()
         {
             var uses = AreaEdges();
-            foreach (IGrouping<string, Element> area in scan.Elements.GroupBy(e => e.Area).OrderBy(g => g.Key, StringComparer.Ordinal))
+            foreach (string area in scan.Elements.Select(e => e.Area).Distinct().OrderBy(a => a, StringComparer.Ordinal))
             {
-                string readme = Path.Combine(root, area.Key.Replace('/', Path.DirectorySeparatorChar), "README.md");
-                // The README brings its own heading; without one the page names its area.
-                var text = new StringBuilder(File.Exists(readme) ? "" : "# " + area.Key + "\n\n");
-                if (File.Exists(readme)) text.Append(Convert(File.ReadAllText(readme), "").TrimEnd()).Append("\n\n");
-                var files = area.GroupBy(e => e.Path).OrderBy(g => g.Key, StringComparer.Ordinal).ToList();
-                int documented = area.Count(Rules.Documented);
-                text.Append(area.Count()).Append(" elements in ").Append(files.Count).Append(" files, ")
-                    .Append((100.0 * documented / Math.Max(1, area.Count())).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
-                    .Append(" % documented.\n\n");
-                if (uses.TryGetValue(area.Key, out var edges))
+                string readme = Path.Combine(root, area.Replace('/', Path.DirectorySeparatorChar), "README.md");
+                if (!File.Exists(readme)) continue;
+                var text = new StringBuilder(Convert(File.ReadAllText(readme), "").TrimEnd()).Append("\n\n");
+                if (uses.TryGetValue(area, out var edges))
                 {
-                    if (edges.uses.Count > 0) text.Append("**Uses:** ").Append(string.Join(", ", edges.uses.Select(AreaLink))).Append("\n\n");
-                    if (edges.usedBy.Count > 0) text.Append("**Used by:** ").Append(string.Join(", ", edges.usedBy.Select(AreaLink))).Append("\n\n");
+                    if (edges.uses.Count > 0) text.Append("**Uses:** ").Append(string.Join(", ", edges.uses.Where(HasPage).Select(AreaLink))).Append("\n\n");
+                    if (edges.usedBy.Count > 0) text.Append("**Used by:** ").Append(string.Join(", ", edges.usedBy.Where(HasPage).Select(AreaLink))).Append("\n\n");
                 }
-                text.Append("| File | What it is |\n|---|---|\n");
-                foreach (var file in files)
-                {
-                    Element head = file.FirstOrDefault(e => e.Kind == "script" || e.Kind == "module" || e.Kind == "shader" || e.Kind == "config")
-                                   ?? file.FirstOrDefault(e => IsType(e) && Simple(e.Name) == Stem(file.Key))
-                                   ?? file.FirstOrDefault(IsType) ?? file.First();
-                    text.Append("| [").Append(Escape(Path.GetFileName(file.Key))).Append("](").Append(Page(file.Key)).Append(") | ")
-                        .Append(Escape(First(head.Doc)).Replace("|", "\\|")).Append(" |\n");
-                    SaveFilePage(file.Key, file.ToList());
-                }
-                Save(Page(area.Key), text.ToString());
+                text.Append("[The folder on GitHub](").Append(Repo(area)).Append(")\n");
+                Save(Page(area), text.ToString());
             }
         }
 
-        // A file's name without its folders and extensions: HostStack.Tufx.cs is HostStack.
-        private static string Stem(string path)
+        // Whether an area has a page: it has a README.
+        private bool HasPage(string area)
         {
-            string name = Path.GetFileName(path);
-            int dot = name.IndexOf('.');
-            return dot > 0 ? name.Substring(0, dot) : name;
+            return File.Exists(Path.Combine(root, area.Replace('/', Path.DirectorySeparatorChar), "README.md"));
         }
 
         // A link to an area's page, by the area's name.
         private static string AreaLink(string area)
         {
             return "[" + (area == "src" ? "add-on" : area.Replace("src/", "")) + "](" + Page(area) + ")";
-        }
-
-        // One file's page: its types with their members under them, the comments in full.
-        private void SaveFilePage(string path, List<Element> elements)
-        {
-            var text = new StringBuilder("# ").Append(path).Append("\n\n");
-            if (blob != null) text.Append("[Source](").Append(blob).Append(path).Append(")\n\n");
-            var types = elements.Where(IsType).ToList();
-            var rest = elements.Where(e => !IsType(e)).ToList();
-            var placed = new HashSet<Element>();
-            foreach (Element type in types)
-            {
-                AppendElement(text, type, "## ");
-                string prefix = type.Name + ".";
-                if (type.Language == "cpp") prefix = type.Name + "::";
-                foreach (Element member in rest.Where(m => m.Name.StartsWith(prefix, StringComparison.Ordinal) && !placed.Contains(m)))
-                {
-                    placed.Add(member);
-                    AppendElement(text, member, "### ");
-                }
-            }
-            foreach (Element e in rest.Where(e => !placed.Contains(e)))
-                AppendElement(text, e, "### ");
-            Save(Page(path), text.ToString());
-        }
-
-        // An element's heading, link to its line, and comment.
-        private void AppendElement(StringBuilder text, Element e, string heading)
-        {
-            string line = blob != null ? "[line " + e.Line + "](" + blob + e.Path + "#L" + e.Line + ")" : "line " + e.Line;
-            text.Append(heading).Append(e.Kind).Append(" `").Append(e.Name.Replace("`", "")).Append(e.Signature.Length > 0 ? "(" + e.Signature + ")" : "")
-                .Append("`\n\n").Append(line).Append(lockFile.IsDirty(e) ? " -- **dirty**: the code changed since this was written" : "")
-                .Append("\n\n").Append(e.Doc.Length > 0 ? Escape(e.Doc) : e.SharesDoc ? "(with the comment of the run above)" : e.DocumentedElsewhere ? "(documented at its other declaration)" : "(undocumented)")
-                .Append("\n\n");
         }
 
         // The areas each area uses and is used by, from the usings and the qualified names of the C# sources.
@@ -281,7 +222,6 @@ namespace DocLock
             Save("Index-proxy-ini-keys", IniKeys());
             Save("Index-registrations", Registrations());
             Save("Index-proxy-exports", Exports());
-            Save("Index-types", Types());
             Save("Index-dependencies", Dependencies());
             string glossary = Path.Combine(root, "docs", "glossary.md");
             if (File.Exists(glossary)) Save("Glossary", Convert(File.ReadAllText(glossary), ""));
@@ -422,24 +362,6 @@ namespace DocLock
                 text.Append("| `").Append(e.Name).Append("` | ").Append(Escape(First(e.Doc)).Replace("|", "\\|")).Append(" | ").Append(Link(e.Path, e.Line)).Append(" |\n");
             text.Append("\nThe DXGI exports are listed in `src/DxgiProxy/ReDefinitionProxy.def`; each forwards to the system's library.\n");
             return text.ToString();
-        }
-
-        // Every class, struct, interface and enum, alphabetically, with its area and first sentence.
-        private string Types()
-        {
-            var text = new StringBuilder("# Types\n\nEvery class, struct, interface and enum of the C# sources and every class and struct of the proxy, by name.\n\n| Type | Area | What it is |\n|---|---|---|\n");
-            var types = scan.Elements.Where(e => (e.Kind == "class" || e.Kind == "struct" || e.Kind == "interface" || e.Kind == "enum") && e.Path.StartsWith("src/", StringComparison.Ordinal));
-            foreach (Element e in types.OrderBy(e => Simple(e.Name), StringComparer.OrdinalIgnoreCase).ThenBy(e => e.Path, StringComparer.Ordinal))
-                text.Append("| [`").Append(Simple(e.Name)).Append("`](").Append(Page(e.Path)).Append(") | ").Append(e.Area.Replace("src/", "")).Append(" | ")
-                    .Append(Escape(First(e.Doc)).Replace("|", "\\|")).Append(" |\n");
-            return text.ToString();
-        }
-
-        // The last part of a qualified name.
-        private static string Simple(string name)
-        {
-            int cut = Math.Max(name.LastIndexOf('.'), name.LastIndexOf(':'));
-            return cut >= 0 ? name.Substring(cut + 1) : name;
         }
 
         // The areas and what each uses.

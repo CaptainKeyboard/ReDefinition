@@ -8,7 +8,7 @@ namespace ReDefinition.Dashboard
 {
     /// <summary>
     /// The little JSON this mod needs: values out, objects and arrays among them, and flat objects of
-    /// strings, numbers and arrays of strings in. KSP's Mono has no JSON library worth depending on.
+    /// strings, numbers and arrays of those in. KSP's Mono has no JSON library worth depending on.
     /// </summary>
     internal static class Json
     {

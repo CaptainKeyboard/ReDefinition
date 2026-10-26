@@ -13,7 +13,7 @@ namespace ReDefinition.Proxy
     // Dispatches go through a ring, within a cap per frame (MaxDispatchesPerFrame). A mod may send any number of creates,
     // destroys and releases in one frame, each in memory of its
     // own, freed once the render thread is past it. docs/development/flow-mod-interface.md,
-    // "Stage 2".
+    // "Direct3D 12 compute from a mod".
     internal static class D3d12Bridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.

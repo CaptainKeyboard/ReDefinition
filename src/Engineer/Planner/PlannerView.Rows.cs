@@ -10,8 +10,8 @@ namespace ReDefinition.Engineer
     // route as a line of destinations, and between each two the steps that follow
     // from it. Each step shows a bar (its length the step's delta-v, its colours the stages that
     // pay for it, red what none covers). It also shows who flies it, the choices it offers, and in
-    // red what stands in its way. Then come the fuel for the whole route, and the fuel plan,
-    // the steps with what each needs and leaves, each opening to its stages. A chosen
+    // red what stands in its way. Under the route is the bar of the whole route. Then come the fuel plan,
+    // the steps with what each needs and leaves, each opening to its stages, and the thrust part. A chosen
     // option is lit in its text rather than by the skin's pressed state. A fixed
     // number of rows, shown as the plan needs them.
     internal sealed partial class PlannerView

@@ -7,8 +7,8 @@ namespace ReDefinition.Proxy
 {
     // ReDefinitionProxy.ini beside KSP_x64.exe, whose [Proxy] section the proxy reads: at
     // the start for some keys, within a second of the file being saved for the others
-    // (docs/reference/proxy-settings.md). The profiles' settings that have no row of their own
-    // go in through here.
+    // (docs/reference/proxy-settings.md). The low latency and frame generation technique rows write their keys
+    // through here, and the probe sets keys.
     internal static class ProxyIni
     {
         // The section the proxy reads.

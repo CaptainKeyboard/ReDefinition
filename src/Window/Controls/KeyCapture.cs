@@ -9,9 +9,10 @@ namespace ReDefinition.Window
     // Taking a key from the player: the row says it is listening, the next key
     // pressed is taken, Escape cancels (and does nothing else: EscapeGuard). It
     // stops listening where the player moves on: the row is no longer shown (its
-    // tab left, its group folded, the search), or a text field takes the keyboard. Modifiers are not taken from the keyboard --
-    // the row's switches set them -- since Windows turns AltGr into left Ctrl and
-    // right Alt at once.
+    // tab left, its group folded, the search), or a text field takes the keyboard.
+    // Except for KSP's own bindings (anyKey), modifiers are not taken from the
+    // keyboard -- the row's switches set them -- since Windows turns AltGr into
+    // left Ctrl and right Alt at once.
     //
     // While it listens, KSP's controls are locked (InputLockManager), so that the
     // keys pressed do not stage a vessel or open a scene on the way. The same

@@ -4,7 +4,7 @@ harness replay. The picture is fine grain like a runway, its left half moving ri
 camera and a flat depth. It shows frame generation's output for inputs known to be
 right.
 
-Usage: python tools/make_fg_test_dump.py <folder> <speed> [--frames 8]
+Usage: python tools/make_fg_test_dump.py <folder> <speed> [--frames 8] [--jitter <px>] [--noise <levels>] [--perspective]
 """
 
 import argparse

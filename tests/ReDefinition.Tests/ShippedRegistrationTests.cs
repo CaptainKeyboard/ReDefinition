@@ -8,7 +8,7 @@ namespace ReDefinition.Tests
 {
     // The registrations ReDefinition ships (GameData/ReDefinition/Mods), read as the
     // game reads them: no problem in any, and the values the compatibility audit
-    // checked against the mods' code.
+    // checked against the mods' code; also KSP's own ranges and the key-conflict check (Conflicts).
     [TestClass]
     public class ShippedRegistrationTests
     {

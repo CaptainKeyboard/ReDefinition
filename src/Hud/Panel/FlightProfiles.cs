@@ -21,7 +21,8 @@ namespace ReDefinition.Hud.Panel
     }
 
     // A set of readouts the flight panel shows together (ReadoutCatalog), under a
-    // tab of its own; for one situation, which the panel switches to by itself.
+    // tab of its own. One of a situation's is switched to by the panel itself; the
+    // player's own (Manual) is shown only when picked.
     internal sealed class FlightProfile
     {
         // Its name on the tab; its situation; the readouts' keys, in the order shown.

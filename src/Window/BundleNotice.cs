@@ -17,7 +17,7 @@ namespace ReDefinition.Window
     // It loads the main menu again, which then leads to the window.
     // Later leaves every mod as it is. A mod installed after that follows the
     // answer given: bundled, it is named in a short note; kept apart, nothing is
-    // said. The bundling can be changed under "Mods and toolbar" in the window.
+    // said. The bundling can be changed under "Mods / Toolbar" in the window.
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class BundleNotice : MonoBehaviour
     {

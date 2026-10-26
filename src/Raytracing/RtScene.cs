@@ -19,7 +19,8 @@ namespace ReDefinition.Raytracing
         public Material Material;
         public Matrix4x4 LocalToWorld;
         public uint Mask;
-        // RtNative.InstanceTerrain for the ground, which Parallax displaces off its mesh.
+        // RtNative.Instance* flags: InstanceTerrain for the ground, which Parallax displaces off its mesh,
+        // InstanceScenery for the space centre's buildings.
         public uint Flags;
     }
 

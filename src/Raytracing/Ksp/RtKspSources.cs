@@ -5,8 +5,8 @@ using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
 {
-    // What the rays see in KSP (docs/development/flow-raytracing.md, "What the rays see").
-    // Each source keeps its renderers and hands those in range over every frame.
+    // What the rays see in KSP: the vessels, the terrain, the space centre's scenery and Parallax's scatter, each
+    // a source that keeps its renderers and hands those in range over every frame.
 
     // Opaque, drawn, on a layer the scene camera draws, and not hung on a camera.
     internal static class RtFilter
@@ -295,7 +295,7 @@ namespace ReDefinition.Raytracing
         }
     }
 
-    // The terrain's quads near the camera: every visible leaf of the main body's quad
+    // The terrain's quads near the camera: every visible leaf of the scene body's quad
     // tree, from its root quads (PQS.quads, PQ.subNodes; decompiled). A quad's mesh is
     // built on the CPU and stays readable; it is built again when the quad is reused
     // for another place or a neighbour's subdivision swaps its triangles, which its
@@ -473,8 +473,8 @@ namespace ReDefinition.Raytracing
         }
     }
 
-    // The buildings of the home body's cities -- the space centre, the launch sites --
-    // near the camera; in the editors, their own scenery.
+    // The buildings of the scene's cities (PQSCity, PQSCity2) -- the space centre, the launch sites --
+    // near the camera; in the editors, the VAB's and SPH's halls.
     internal sealed class RtScenerySource : IRtSource
     {
         // A city's (or an editor hall's) mesh filters with their renderers, found when its

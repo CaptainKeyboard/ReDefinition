@@ -194,7 +194,7 @@ namespace ReDefinition.Settings
     }
 
     // What every graphics profile sets for one build, whatever the setting's kind:
-    // what makes the mod fit ReDefinition -- its own antialiasing off, say, since
+    // what makes the mod fit ReDefinition -- a TUFX profile without antialiasing, say, since
     // the upscaler antialiases the image.
     internal sealed class AllProfilesRegistration : ValueBlock
     {

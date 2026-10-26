@@ -4,8 +4,8 @@ namespace ReDefinition.Diagnostics
 {
     // The diagnostics window's text and button styles, all copies of KSP's own skin
     // (HighLogic.Skin) so that a UI theme reaching that skin's textures -- ZTheme through
-    // HUDReplacer -- reaches the window too. Only sizes, margins, alignment and the grey
-    // of what is switched off are the window's.
+    // HUDReplacer -- reaches the window too. Only sizes, margins, alignment, bold, the grey
+    // of what is switched off and the warning colour are the window's.
     internal sealed class DiagnosticsStyles
     {
         // The height of a segment, and of the search field beside them.

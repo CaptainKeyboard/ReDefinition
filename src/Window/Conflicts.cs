@@ -13,7 +13,8 @@ namespace ReDefinition.Window
     // Space stages, and in docking mode switches translation and rotation. Two
     // bindings KSP itself ships on the same key -- W pitches and drives a rover --
     // are KSP's choice, not the player's, and are not marked while both stand
-    // at KSP's default. A binding of ReDefinition or of a mod counts everywhere.
+    // at KSP's default. A binding of ReDefinition counts everywhere; a mod's counts where the KSP group its
+    // registration names does, and everywhere without one.
     // KSP's own bindings fire on their key whatever modifiers are held
     // (ExtendedInput.GetKeyDown asks Input.GetKeyDown of the key and nothing
     // more): RightCtrl+RightShift+U switches KSP's lights on U as well. Against one

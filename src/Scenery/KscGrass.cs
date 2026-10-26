@@ -21,7 +21,7 @@ namespace ReDefinition.Scenery
     // triangles of the space centre's ground meshes drawn with the KSC ground shaders.
     // A triangle counts where its blend mask (the red of _BlendMaskTexture, on the second
     // texture coordinates: tarmac) leaves grass and no collider of the space centre stands
-    // over it. A clump stands only where all of its model's reach lies on them. Without
+    // over it. A clump stands only where 85 % of its model's reach lies on them. Without
     // Parallax, or with one whose fields differ, nothing is drawn. OwnSettings.KscGrass
     // switches it.
     [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]

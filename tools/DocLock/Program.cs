@@ -10,15 +10,15 @@ namespace DocLock
 {
     // The developer documentation's check. The documentation of this project's code is in the code: a comment
     // directly above every element (or after it on its line, or above the run of fields it stands in). This
-    // tool finds every element and says which are undocumented. It holds in a lock (.doclock/lock.tsv) a
-    // fingerprint of each element's code and of its documentation. A change to the code that leaves
-    // its documentation as it was marks the documentation dirty, until it is fixed or confirmed.
+    // tool finds every element and says which have a comment. It checks the comments that exist: that they
+    // name only files, switches and members that exist, and that they keep to the contract for comments.
     //
     // The command report, the default, writes the coverage per area, language and kind to the console and
     // .doclock/coverage.md. The command lint-baseline accepts the findings of the comments as they stand
-    // (.doclock/lint-baseline.tsv). The command wiki <folder> writes the documentation as Markdown pages, one
-    // per file, with an index per area. Main describes update, confirm and refs, and the methods Check, List and
-    // LintReport describe check, list and lint. What is left out, and why, is in Sources.Excluded.
+    // (.doclock/lint-baseline.tsv). The command wiki <folder> writes the wiki: the developer pages, a page per area
+    // from its README, and the indexes the code answers by itself. Main describes refs, and the methods Check,
+    // List, LintReport, Sample and Heads describe check, list, lint, sample and heads. What is left out, and why,
+    // is in Sources.Excluded.
     //
     // Build and run it as:
     //
@@ -26,9 +26,7 @@ namespace DocLock
     public static class Program
     {
         // Runs one command on the repository the working folder lies in; 0 for success, 1 for a failed check, 2 for a
-        // wrong call. The command update records every documented element that is not dirty, and dirty ones stay
-        // dirty. The command confirm <part of id> confirms the dirty elements whose id contains it ("*" for all),
-        // because the documentation still holds for the changed code. The command refs prints the comments'
+        // wrong call. The command refs prints the comments'
         // references that name nothing that exists.
         public static int Main(string[] args)
         {
@@ -41,69 +39,66 @@ namespace DocLock
             string command = args.Length > 0 ? args[0] : "report";
             string argument = args.Length > 1 ? args[1] : null;
             var scan = Scan.Run(root);
-            var lockFile = Lock.Load(root);
             switch (command)
             {
                 case "report":
-                    Report.Write(root, scan, lockFile);
+                    Report.Write(root, scan);
                     return 0;
                 case "check":
-                    return Check(root, scan, lockFile);
-                case "update":
-                    Lock.Update(root, scan, lockFile);
-                    return 0;
-                case "confirm":
-                    if (argument == null) { Console.Error.WriteLine("confirm <part of an id, or *>"); return 2; }
-                    Lock.Confirm(root, scan, lockFile, argument);
-                    return 0;
+                    return Check(root, scan);
                 case "list":
-                    List(scan, lockFile, argument);
+                    List(scan, argument);
                     return 0;
                 case "refs":
                     foreach (string broken in scan.BrokenReferences) Console.WriteLine(broken);
                     Console.WriteLine(scan.BrokenReferences.Count + " broken references.");
                     return 0;
                 case "lint":
-                    LintReport(scan, lockFile, argument);
+                    LintReport(scan, argument);
                     return 0;
                 case "sample":
                     Sample(root, scan, args);
+                    return 0;
+                case "heads":
+                    Heads(scan);
                     return 0;
                 case "lint-baseline":
                     LintBaseline.Write(root, Lint.All(scan.Elements.Where(Rules.Documented)));
                     Console.WriteLine("Baseline written.");
                     return 0;
                 case "wiki":
-                    Wiki.Write(argument ?? Path.Combine(root, ".doclock", "wiki"), scan, lockFile, Sources.Browse(root));
+                    Wiki.Write(argument ?? Path.Combine(root, ".doclock", "wiki"), scan, Sources.Browse(root));
                     return 0;
                 default:
-                    Console.Error.WriteLine("Commands: report, check, update, confirm, list, refs, wiki, lint, lint-baseline, sample.");
+                    Console.Error.WriteLine("Commands: report, check, list, refs, wiki, lint, lint-baseline, sample, heads.");
                     return 2;
             }
         }
 
-        // The command check: counts, the first offenders of each kind, and exit code 1 where anything is undocumented,
-        // dirty, unlocked, stale, broken or a new lint finding.
-        private static int Check(string root, Scan scan, Lock lockFile)
+        // The command check: exit code 1 where a comment names a file, switch or member that does not exist, or where a
+        // comment is new or changed and breaks the contract. A missing comment does not fail it.
+        private static int Check(string root, Scan scan)
         {
-            List<Element> undocumented = scan.Elements.Where(e => !Rules.Documented(e)).ToList();
-            List<Element> dirty = scan.Elements.Where(e => Rules.Documented(e) && lockFile.IsDirty(e)).ToList();
-            List<Element> unlocked = scan.Elements.Where(e => Rules.Documented(e) && !lockFile.IsDirty(e) && !lockFile.Holds(e)).ToList();
-            int stale = lockFile.Ids.Count(id => !scan.ById.ContainsKey(id));
             var baseline = new LintBaseline(root);
             var fresh = Lint.All(scan.Elements.Where(Rules.Documented)).Where(f => !baseline.Knows(f.element, f.finding)).ToList();
-            Console.WriteLine(scan.Elements.Count + " elements: " + undocumented.Count + " undocumented, " + dirty.Count + " dirty, "
-                              + unlocked.Count + " not in the lock, " + stale + " gone from the code but in the lock, "
-                              + scan.BrokenReferences.Count + " broken references, " + fresh.Count + " new comment lint findings.");
-            foreach (Element e in undocumented.Take(40)) Console.WriteLine("  undocumented  " + e.Path + ":" + e.Line + "  " + e.Kind + " " + e.Name);
-            foreach (Element e in dirty.Take(40)) Console.WriteLine("  dirty         " + e.Path + ":" + e.Line + "  " + e.Kind + " " + e.Name);
-            foreach (Element e in unlocked.Take(20)) Console.WriteLine("  not locked    " + e.Path + ":" + e.Line + "  " + e.Kind + " " + e.Name);
+            int commented = scan.Elements.Count(Rules.Documented);
+            Console.WriteLine(scan.Elements.Count + " elements, " + commented + " with a comment: " + scan.BrokenReferences.Count
+                              + " broken references, " + fresh.Count + " new comment lint findings.");
             foreach (string r in scan.BrokenReferences.Take(20)) Console.WriteLine("  reference     " + r);
             foreach (var f in fresh.Take(20)) Console.WriteLine("  lint          " + f.element.Path + ":" + f.element.Line + "  " + f.element.Kind + " " + f.element.Name + "  (" + f.finding.Rule + ": " + f.finding.Detail + ")");
-            bool ok = undocumented.Count == 0 && dirty.Count == 0 && unlocked.Count == 0 && stale == 0 && scan.BrokenReferences.Count == 0 && fresh.Count == 0;
+            bool ok = scan.BrokenReferences.Count == 0 && fresh.Count == 0;
             if (!ok)
-                Console.WriteLine("Document what is undocumented; fix or confirm (doclock confirm <id>) what is dirty; then doclock update.");
+                Console.WriteLine("Correct the reference, or shorten the comment (docs/development/writing-code-comments.md).");
             return ok ? 0 : 1;
+        }
+
+        // The elements a reader meets first, for a review: every type, enum, shader, script and config file with its own
+        // comment, one per line as for the sample command.
+        private static void Heads(Scan scan)
+        {
+            string[] kinds = { "class", "struct", "interface", "enum", "union", "delegate", "shader", "script", "module", "config", "pass" };
+            foreach (Element e in scan.Elements.Where(e => e.Doc.Length > 0 && !e.SharesDoc && kinds.Contains(e.Kind)).OrderBy(e => e.Path, StringComparer.Ordinal).ThenBy(e => e.Line))
+                Console.WriteLine(e.Path + ":" + e.Line + "\t" + e.Kind + "\t" + e.Name);
         }
 
         // A random sample of documented elements for a review, one per line: file:line, kind, name. The arguments are the
@@ -133,7 +128,7 @@ namespace DocLock
 
         // The command lint [rule]: the comments the contract finds fault with, the count per rule and, given a rule, each
         // of its findings with the file and line.
-        private static void LintReport(Scan scan, Lock lockFile, string rule)
+        private static void LintReport(Scan scan, string rule)
         {
             var findings = Lint.All(scan.Elements.Where(Rules.Documented));
             if (rule == null)
@@ -147,16 +142,15 @@ namespace DocLock
                 Console.WriteLine(f.element.Path + ":" + f.element.Line + "\t" + f.element.Kind + " " + f.element.Name + "\t" + f.finding.Detail);
         }
 
-        // The command list [area|path]: the undocumented, dirty and unlocked elements, under a path prefix or in an
-        // area, one per line: file:line, state, kind, name.
-        private static void List(Scan scan, Lock lockFile, string filter)
+        // The command list [area|path]: the elements without a comment, under a path prefix or in an area, one per
+        // line: file:line, kind, name.
+        private static void List(Scan scan, string filter)
         {
             foreach (Element e in scan.Elements)
             {
                 if (filter != null && !e.Path.StartsWith(filter, StringComparison.OrdinalIgnoreCase) && e.Area != filter) continue;
-                string state = !Rules.Documented(e) ? "undocumented" : lockFile.IsDirty(e) ? "dirty" : !lockFile.Holds(e) ? "not locked" : null;
-                if (state == null) continue;
-                Console.WriteLine(e.Path + ":" + e.Line + "\t" + state + "\t" + e.Kind + "\t" + e.Name + (e.Signature.Length > 0 ? "(" + e.Signature + ")" : ""));
+                if (Rules.Documented(e)) continue;
+                Console.WriteLine(e.Path + ":" + e.Line + "\t" + e.Kind + "\t" + e.Name + (e.Signature.Length > 0 ? "(" + e.Signature + ")" : ""));
             }
         }
     }

@@ -26,6 +26,7 @@ namespace ReDefinition.Window
     // (lockEverything, unlockEverything); Harmony postfixes lock the copy with
     // them.
     //
+    // With Replace original settings on, no entry is added: KSP's own Settings opens ReDefinition's window.
     // Anything that fails leaves the menu as KSP built it.
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
     public class MainMenuEntry : MonoBehaviour

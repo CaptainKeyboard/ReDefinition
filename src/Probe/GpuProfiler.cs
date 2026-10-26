@@ -16,15 +16,15 @@ namespace ReDefinition.Probe
     // GPU markers of Unity's own reach a profiler, so a capture shows thousands of
     // unnamed draws. Here markers go into Unity's render stream, and the proxy ends a D3D11
     // timestamp query at each (src/DxgiProxy/Diagnostics/GpuProfiler.h).
-    // Every camera's events (CameraEvent) get a marker, and the command buffers other mods and KSP hang
+    // Every camera's events (CameraEvent) but a reflection probe's get a marker, and the command buffers other mods and KSP hang
     // there each lie between two markers of its own.
     // The lights' shadow and screen-space mask events get markers the same way.
     // The drawing scripts of every assembly get a marker before and after, through
     // GL.IssuePluginEvent where they run: OnPreRender, OnPostRender, OnRenderImage,
     // OnRenderObject, and the handlers on Camera.onPreRender and onPostRender.
     // A segment is the GPU time from one marker to the next, named for the work that
-    // lies between them; "Unity until X" is Unity's own rendering of that camera before
-    // event X. Every 10 s the frame's GPU time, each camera's share and the costliest
+    // lies between them; "<camera>: until the end of X" is Unity's own rendering of that camera up to
+    // event X, with the command buffers hung there. Every 10 s the frame's GPU time, each camera's share and the costliest
     // segments go into the log. The same names are annotation markers, which RenderDoc
     // shows in a capture.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]

@@ -7,8 +7,8 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.RaytracingPlayer
 {
-    // Builds the raytracing test player (docs/development/flow-raytracing.md, "Testing
-    // without the game"). It is a Windows player set up as KSP's is, Direct3D 11 with
+    // Builds the raytracing test player, which tools/build_rt_player.py then runs without
+    // the game. It is a Windows player set up as KSP's is, Direct3D 11 with
     // native graphics jobs and gamma colour space, with one scene that holds the
     // runner. The script tools/build_rt_player.py copies ReDefinition's raytracing sources and
     // shaders in first and calls this in batch mode:

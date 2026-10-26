@@ -17,10 +17,11 @@ python tools/benchmark_matrix.py run
 ```
 
 The tool reads the scenario matrix `tools/benchmark_matrix.json`. It copies the install's
-settings files and applies the graphics profile in one KSP start. Then it runs one KSP
-start per frame generation kind. After the last start it puts every settings file back and
-removes the settings files the run made, also when a start failed. It appends the run to
-`docs/development/benchmarks/` as a JSON file and writes the tables on this page again.
+settings files and applies the graphics profile in one KSP start. Then it runs the KSP
+starts of the matrix, for the main matrix one per frame generation kind. After the last
+start it puts every settings file back and removes the settings files the run made, also
+when a start failed. It appends the run to `docs/development/benchmarks/` as a JSON file
+and writes the tables on this page again.
 
 Without options the tool runs the main matrix. The other groups, listed under
 [the groups](#the-groups), run on their own:
@@ -35,9 +36,9 @@ foreground when another program's window is in front. The tool brings the game's
 the front every two seconds while it runs. Clicking into another window, or starting a
 program, takes the foreground away, and the phases in that time measure the rendered
 frames alone. A phase that asked for frame generation and shows fewer than 1.5 frames
-presented per rendered frame says in its notes that the window was not in front.
-`REDEFINITION_BENCH_NO_FOREGROUND` set to any value leaves the window where Windows puts
-it, to reproduce that.
+presented per rendered frame says so in its notes. It adds that the window was not in front
+where the proxy's log says it was not. `REDEFINITION_BENCH_NO_FOREGROUND` set to any
+non-empty value leaves the window where Windows puts it, to reproduce that.
 
 With every DLL and package in place, the main matrix has four KSP starts after the profile
 start. It holds 138 scenarios, and the first scenario after each change of the rendering
@@ -71,8 +72,9 @@ These options change what the tool uses:
 | `--no-doc` | the page is written again | write the JSON only |
 | `--vendor` | the vendor Windows names | the GPU vendor that decides which upscalers and latency models run |
 
-If a DLL or the DLSS-G package is not there, the tool skips what needs it. The run's section
-names what it skipped. The tool hands the AMD DLL's folder to the proxy as
+If a DLL or the DLSS-G package is not there, the tool skips what needs it. A DLL that is not
+in the given folder is taken from the KSP folder where it lies there. The run's section
+names what the tool skipped. The tool hands the AMD DLL's folder to the proxy as
 `amdUpscalerDirectory`, XeSS's as `xessDirectory` and XeSS frame generation's as
 `xessFgDirectory`, so the DLLs stay where they are. It copies the DLSS-G package next to
 `KSP_x64.exe` only for the start that needs it, and removes it after that start.
@@ -101,6 +103,9 @@ over it. The numbers are for the RTX A4500 at the Medium profile.
 | `latency-brake` | the latency brake's target of 4, 2 and 1 ms with no, FSR and DLSS-G frame generation | 2 | 26 | 9 |
 | `blas` | how the acceleration structure build variants change the flight's first seconds | 9 | 18 | 21 |
 | `grass` | the radiance cache, the cut-out tests, the opacity micromaps and the raytracing modes over grass | 2 | 46 | 13 |
+
+The table `cutout-oneoff` under [the comparison table](#the-comparison-table) is a one-off
+run from before the groups, with a matrix of its own. It has no group to run.
 
 The minutes are `plan`'s, with the profile start not counted. The groups that use DLSS-G need
 the package, the presets group measures the AMD DLL and XeSS only where their DLLs are in
@@ -162,12 +167,14 @@ reload and closes when the probe takes the phase's screenshot:
 
 | Phase | Settling time | Length |
 |---|---|---|
-| The first with another upscaler, raytracing mode or Ray Reconstruction | 8 s (`settle_after_rebuild_seconds`) | 24 s (`phase_repeats_after_rebuild`) |
+| The first of a rendering after another one: another upscaler, raytracing mode, Ray Reconstruction setting, the radiance cache, a cut-out test or the opacity micromaps | 8 s (`settle_after_rebuild_seconds`) | 24 s (`phase_repeats_after_rebuild`) |
 | Every other | 2 s (`settle_seconds`) | 12 s (`phase_repeats`) |
+
+A group may set its own `settle_seconds`: `frame-steps` settles 4 s.
 
 A change of the rendering builds the upscaler and the raytracing's scene again. In the
 probe's logs that took about 5 seconds, with frames of half a second in between. Every set
-holds `reportSeconds=1`, so a phase has 8 to 9 reports, and 14 to 15 after a change.
+holds `reportSeconds=1`, so a phase has 8 to 9 reports, and 13 to 15 after a change.
 
 Only what the proxy reads at load needs a start of its own: the frame generation kind
 (`frameGenerationTechnique`: `fsr`, `dlss` or `xess`). DLSS-G on RTX 20 and 30 GPUs also needs
@@ -237,6 +244,10 @@ Each list in `tools/benchmark_matrix.json` multiplies the phases:
   of the start.
 * A frame generation entry's `steps`: the multipliers it is measured at, set through the
   probe's `mod.frameGenerationMultiplier`.
+* A frame generation entry's `kind`, `only`, `latencies` and `dlssg_ini`: `kind` names the
+  technology a variant belongs to, `only` the renderings it is measured with, `latencies`
+  the latency models it runs with, and `dlssg_ini` the sections, keys and values written
+  into the DLSS-G package's ini for its start.
 * A group's `show`: `ratio` adds the columns of the frames shown per rendered frame, and
   `rt_builds` adds those of the mesh builds.
 
@@ -256,6 +267,7 @@ the group, and of the row's scene.
 
 | Column | What it is |
 |---|---|
+| Scenario | the row's name: the variant, the scene, the upscaler, the raytracing, the frame generation and the latency model, joined by middle dots |
 | fps | the frames KSP rendered a second in the window: all frames over all frame times |
 | Shown fps | the frames the monitor showed a second, from DXGI's statistics; with frame generation the generated frames count |
 | Latency median ms | from the frame's start to the GPU's end of its Present, the median of the reports' medians |

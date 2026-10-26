@@ -168,8 +168,8 @@ namespace ReDefinition.Engineer
     // deployed stays at the step's destination with what it weighs.
     //
     // After a step marked for it, a group, docked again, is refilled from the rest:
-    // each of its stages up to what it held at the start, from the rest's stages in
-    // KSP's order. Free of Unity, tested.
+    // each of its stages up to what it held at the start, from the rest's stages: the
+    // one the player names first, then KSP's order. Free of Unity, tested.
     internal static class StageBudget
     {
         // One stage's part in one step.

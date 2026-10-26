@@ -17,7 +17,8 @@ namespace ReDefinition.Window
     // DialogGUIBase[]. A Harmony postfix appends one button to that array, the way
     // the settings section appends its rows to the graphics part
     // (KspSettingsSection). Built from KSP's own dialog elements, so a UI theme
-    // covers it.
+    // covers it. With Replace original settings on, no button is added: KSP's own Settings button opens
+    // ReDefinition's window instead.
     //
     // The toolbar is hidden while such a menu stands, so without this the window
     // can only be reached by a hotkey the player has bound.

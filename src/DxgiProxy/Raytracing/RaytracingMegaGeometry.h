@@ -153,9 +153,9 @@ namespace redefinition
             // implicit destinations the batch result data is the range the results go into,
             // otherwise ignored. The scratch is at least the asked size. The results' addresses
             // are written with implicit destinations and read with explicit ones, and their sizes
-            // are written. The arguments are one structure of the operation's type each. The
-            // address of their count is 0 here: inputs.maxArgCount of them
-            // (nvapi.h, NVAPI_D3D12_RAYTRACING_MULTI_INDIRECT_CLUSTER_OPERATION_DESC).
+            // are written where an array is given (none here). The arguments are one structure of
+            // the operation's type each. The address of their count is 0 here: inputs.maxArgCount
+            // of them (nvapi.h, NVAPI_D3D12_RAYTRACING_MULTI_INDIRECT_CLUSTER_OPERATION_DESC).
             Inputs inputs;
             uint32_t addressResolutionFlags;
             D3D12_GPU_VIRTUAL_ADDRESS batchResultData;

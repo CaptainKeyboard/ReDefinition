@@ -1,5 +1,5 @@
 """Draws the mod's pictures: the toolbar icon, the planner's button, the
-planner's symbols, and the planet for a forum post.
+planner's symbols, the flight panel's tabs, the navball's docking marker, and the planet for a forum post.
 
 The toolbar icon is a bank of sliders, in the stock toolbar's own colours: the
 button's grey is #3e3d44, the glyphs are #e5e5e8, both read from a screenshot of KSP's
@@ -13,6 +13,9 @@ light with a glow while on and black while off: GameData/ReDefinition/Icons/Flig
 
 The planner's symbols are white on clear, 64x64, for KSP's buttons to show them over
 their own background: GameData/ReDefinition/Icons/Planner_*.png.
+
+The navball's docking marker is an orange ring with ticks and a centre dot, 64x64, on clear:
+GameData/ReDefinition/Icons/Navball_Docking.png.
 
 The picture for a page is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,

@@ -93,7 +93,7 @@ namespace redefinition
                              uint8_t* bytecode, int capacity, int& written, char* messages, int messagesSize);
 
     // The proxy's Direct3D 12 device and queue, offered to other mods
-    // (docs/development/flow-mod-interface.md, "Stage 2").
+    // (docs/development/flow-mod-interface.md, "Direct3D 12 compute from a mod").
     //
     // A compute pass is shader bytecode against one root signature: textures t0-t7,
     // read-write textures u0-u7, a constant buffer b0 of up to 256 bytes, samplers

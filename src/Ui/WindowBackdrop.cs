@@ -11,8 +11,8 @@ namespace ReDefinition.Ui
     // sprite is half transparent.
     //
     // Where nothing moves behind the window, the window is drawn nearly opaque.
-    // That is so where it holds the flight, or the scene
-    // is the main menu, the space centre or an editor.
+    // That is so where it holds the flight, or the scene is the main menu,
+    // the space centre, the tracking station or an editor.
     // The backdrop is the dialog's own background once more behind
     // its contents: the same sprite, type and colour, stretched over the whole
     // window. A UI theme that replaces the sprite, ZTheme, covers it as well.

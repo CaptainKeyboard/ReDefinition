@@ -39,7 +39,7 @@ namespace ReDefinition.Diagnostics
     }
 
     // One switch, choice or button of the diagnostics window, as data: the window
-    // draws it by its kind, the table (DebugOptionSet) filters, resets and pins it.
+    // draws it by its kind, the table (DebugOptionSet) filters and resets it, and DebugPins pins it.
     // Free of Unity, so that those decisions are tested outside the game.
     internal sealed class DebugOption
     {

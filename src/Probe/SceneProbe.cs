@@ -23,9 +23,9 @@ namespace ReDefinition.Probe
     // of its rendering, around the vessel, into ReDefinitionCaptures\<time>-probe.
     // Each run is made twice, with the vessel and with its renderers hidden, so that the
     // difference is what the vessel does to the sky around it, whatever the clouds.
-    // Then the same is made with each other mod's component and command buffer on the flight's
-    // cameras switched off in turn, and KSP quits. tools/analyze_probe.py measures the
-    // halo and trail around the vessel in each.
+    // With -redefinitionProbeVariants the same is made with each other mod's component and command
+    // buffer on the flight's cameras switched off in turn. Then KSP quits. tools/analyze_probe.py
+    // measures the halo and trail around the vessel in each.
     //
     // Nothing of it runs without the argument.
     internal static class SceneProbe
@@ -346,7 +346,7 @@ namespace ReDefinition.Probe
         }
     }
 
-    // At the space centre during the scene round trips: back to the vessel's flight.
+    // At the space centre: the staging probe's new launch, or during the scene round trips back to the vessel's flight.
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     internal sealed class SceneProbeReturn : MonoBehaviour
     {
@@ -386,7 +386,7 @@ namespace ReDefinition.Probe
         }
     }
 
-    // In the VAB during the scene round trips: back to the space centre.
+    // In the VAB during the scene round trips: shots of its surfaces, then back to the space centre.
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     internal sealed class SceneProbeEditor : MonoBehaviour
     {
@@ -421,7 +421,7 @@ namespace ReDefinition.Probe
     }
 
     // In the probe's flight: whichever measurement the switches ask for, by default the camera path's stages
-    // around the vessel with and without it, for each variant; then KSP quits.
+    // around the vessel with and without it, for each variant; then KSP quits; -redefinitionProbeStay leaves the flight to the player.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class SceneProbeRunner : MonoBehaviour
     {

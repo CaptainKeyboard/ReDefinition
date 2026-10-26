@@ -24,7 +24,7 @@ namespace ReDefinition.Hud
         private static double cached = double.NaN;
 
         // A search that met no ground up to the periapsis holds while the vessel
-        // keeps to that path, until the periapsis. The stretch it looked at is
+        // keeps to that path, for half the way to the periapsis. The stretch it looked at is
         // fixed in time, and so is the ground under it as the body turns. Orbits
         // under the highest ground's radius that never meet the ground (the Mun's
         // low orbits over its plains) would otherwise look at 201 heights every

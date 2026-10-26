@@ -28,9 +28,9 @@ namespace redefinition
     // swapchain, and that swapchain presents. The D3D11 swapchain is never
     // created.
     //
-    // The D3D12 swapchain is Streamline's while DLSS frame generation can run,
-    // Intel's XeSS-FG's while XeSS's can, FidelityFX's while FSR's can, and a plain
-    // one otherwise. The inputs frame
+    // The D3D12 swapchain is Streamline's while DLSS frame generation can run, or with
+    // frame generation off while DLSS Ray Reconstruction needs it, Intel's XeSS-FG's
+    // while XeSS's can, FidelityFX's while FSR's can, and a plain one otherwise. The inputs frame
     // generation reads are taken for it in Present too (FrameGeneration).
     //
     // Everything that is not GetBuffer or Present is forwarded to the real D3D12

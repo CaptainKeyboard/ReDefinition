@@ -35,8 +35,8 @@ namespace ReDefinition.Raytracing
         }
     }
 
-    // The raytracing of one camera (docs/development/flow-raytracing.md, "How the frame
-    // goes"). On the scene camera, OnPreCull hands over the scene's instances of this frame.
+    // The raytracing of one camera (docs/development/flow-raytracing.md). On the scene camera,
+    // OnPreCull hands over the scene's instances of this frame.
     // In the game (TraceBeforeLighting) the depth and G-buffer are copied in the camera's own
     // command stream before its lighting, and the raytracing starts on the proxy there.
     // This frame's lighting reads its results. The test players can trace after the

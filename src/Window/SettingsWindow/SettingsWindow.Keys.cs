@@ -14,10 +14,10 @@ namespace ReDefinition.Window
     // A row shows its key and takes a new one: clicked, it listens (KeyCapture),
     // the next key pressed is taken, Escape cancels, and the button beside it
     // clears the binding.
-    // The modifiers are switches beside it, each clicked through off, left and right.
-    // Pressed modifiers are not taken, since Windows
+    // On the rows of ReDefinition and the mods, the modifiers are switches beside it, each clicked through off,
+    // left and right. Pressed modifiers are not taken there, since Windows
     // turns AltGr into Ctrl and right Alt at once, and a row with its modifiers in
-    // switches stays as narrow as its key.
+    // switches stays as narrow as its key. KSP's own rows have no switches: a modifier is a key of its own there.
     //
     // A combination two rows share is shown in yellow on both, and nothing is
     // refused (Conflicts).

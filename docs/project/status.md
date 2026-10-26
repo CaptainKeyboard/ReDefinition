@@ -10,7 +10,7 @@ Released: 0.1.3.
 
 | Part | State |
 |---|---|
-| **Upscaler** -- FSR 3 in Unity, DLSS, AMD's upscaler DLL and XeSS in the proxy; six modes, *AA only* in every profile; the DLSS model per profile; sharpness; the transparency and reactive masks for FSR 3 and AMD's upscaler; the *Technique* row naming the FSR that AMD's DLL runs, FSR 3.1 fallback included, and XeSS's version; EVE's clouds jittered and with their own motion vectors; TUFX's effects after the upscaler; skinned motion vectors | built; DLSS and XeSS pass the harness |
+| **Upscaler** -- FSR 3 in Unity, DLSS, AMD's upscaler DLL and XeSS in the proxy; six modes and *Auto*, which fits the mode to the screen from each profile's render height; the DLSS model per profile; sharpness; the transparency and reactive masks for FSR 3 and AMD's upscaler; the *Technique* row naming the FSR that AMD's DLL runs, FSR 3.1 fallback included, and XeSS's version; EVE's clouds jittered and with their own motion vectors; TUFX's effects after the upscaler; skinned motion vectors | built; DLSS and XeSS pass the harness |
 | **Flight HUD** -- the altimeter that switches to the ground, vertical and horizontal speed beside the navball, time to impact, the round gauge, the flight panel's profiles in KSP's maneuver mode with their editor, the docking marker on the navball, Better Time Warp's button in the time panel, crew slot buttons, a switch for each | built, unit tests |
 | **Staging and the editors** -- stage details in two columns, the delta-v tools inside the staging stack, the editor's launch buttons, the buttons back to the VAB or the SPH and over the space centre's buildings, grip for landing legs | built, unit tests |
 | **Planner in the VAB and the SPH** -- a mode with a route of stops A → B → C, each leg's delta-v from the loaded bodies, the fuel plan of stages by legs with pins, a lander used more than once, the vessel's parts in the colours of their stages, one plan per vessel | built, unit tests; its first form was seen in the game and rebuilt |
@@ -27,10 +27,10 @@ Released: 0.1.3.
 | **KSP settings dialog section** | built |
 | **Profiling** -- the GPU profiler, the perf monitor for every assembly and every coroutine, the mod cost probe, RenderDoc by mod, Unity's development player, the proxy's wait report | built; run in the game, [src/Probe/README.md](../../src/Probe/README.md) |
 | **Settings window and diagnostics window** -- tabs by feature, *Advanced*, toolbar takeover, close buttons on mods' windows; the diagnostics window as pages with a live strip, search, *Changed*, *Reset debug switches* and pins | built, unit tests |
-| **Benchmarks** -- `tools/benchmark_matrix.py`, the standing comparison of upscalers, frame generation, raytracing and latency models with its results in [development/benchmarks.md](../development/benchmarks.md); `tools/hud_probe.py`, what frame generation does to the HUD | built, six runs |
+| **Benchmarks** -- `tools/benchmark_matrix.py`, the standing comparison of upscalers, frame generation, raytracing and latency models with its results in [development/benchmarks.md](../development/benchmarks.md); `tools/hud_probe.py`, what frame generation does to the HUD | built, 13 runs |
 | **Saving in the mods, values from before ReDefinition, restore** | built, unit tests |
 | **Graphics profiles** Low to Max, **Reset**, **requirements** R1-R8 | built, checked against the installed mods |
-| **Registrations** -- KSP and eight mods, the worked example (Trajectories), template, diagnostics list | built, unit tests, checked against the installed mods |
+| **Registrations** -- KSP and nine mods, the worked example (Trajectories), template, diagnostics list | built, unit tests, checked against the installed mods |
 | **Other mods' code** -- a catalogue of what ReDefinition assumes about other mods' code, with fingerprints of their methods and fallbacks; `tools/checks/check_foreign_code.ps1` after a mod's update | built, unit tests |
 | **Release package** -- zip with licences and notices, source zip, AMD runtime pinned | built |
 | **Interface for mods** -- the frame's state as properties and shader globals, history resets from ReDefinition and from mods, hooks for motion vectors, the upscaled image and overlays, the chosen profile, Direct3D 12 compute passes from HLSL or bytecode; the wrapper, the shader include, the example mod, the XML documentation | built; unit tests; the harness runs compute passes compiled by the proxy and from DXIL; the include compiles in Unity 2019.4.18f1 |
@@ -42,15 +42,15 @@ Released: 0.1.3.
 | Profiles | Whether the tiers land where they are meant to on real GPUs | frame times per tier at 1440p and 4K |
 | Profiles | What KSP's render quality levels 4 and 5 set | a log line per level at the main menu |
 | Profiles | Steps for EVE's light volume, Scatterer's light shaft steps, Parallax's fade-out | their authors' cost guidance |
-| Upscaler | Whether the masks take out ghosting; floating origin shifts and motion vectors; camera cuts that keep target and parent | [development/flow-frame.md](../development/flow-frame.md), "Open" |
-| Frame generation | The fence's and the check's cost; pacing per profile; DLSS frame generation in flight | [development/flow-proxy-present.md](../development/flow-proxy-present.md), "Open" |
+| Upscaler | Whether the masks take out ghosting; floating origin shifts and motion vectors; camera cuts that keep target and parent | a flight with engines burning over the ocean and under clouds, masks off and on; the camera and origin line in orbit and low and slow; the camera mods' own reports of a cut ([development/flow-frame.md](../development/flow-frame.md), "What can go wrong") |
+| Frame generation | The fence's and the check's cost; pacing per profile; DLSS frame generation in flight | frame times with and without the fence back and the check in the same scene; a flight with DLSS frame generation ([development/flow-proxy-present.md](../development/flow-proxy-present.md)) |
 | Frame generation | XeSS frame generation with more than one generated frame, and XeLL, on an Intel Arc | a run on an Intel Arc |
 | Low latency | Whether AMD Anti-Lag 2 lowers the latency more than the brake | a run on the AMD integrated GPU, the benchmark's `antilag2` model |
 | Raytracing | What opacity micromaps gain on Ada's hardware; they cost 10 % of the frame rate on an RTX A4500 | a play test on the RTX 4090 |
 | Downloads | The Streamline 2.14.16 download, offered to an install of 2.14.1 | the download on the RTX 4090 machine |
 | Interface for mods | The hooks and the frame's state in the game; mask contributions | [development/flow-mod-interface.md](../development/flow-mod-interface.md) |
-| Raytracing | AMD FSR Ray Regeneration on a Radeon RX 9000 | [development/flow-raytracing.md](../development/flow-raytracing.md) |
-| Performance | The improvements that cost image quality, the player's choice; the shadow maps in other scenes than the launch pad | [src/Probe/README.md](../../src/Probe/README.md), "What is left" |
+| Raytracing | AMD FSR Ray Regeneration on a Radeon RX 9000 | a run on a Radeon RX 9000 ([development/flow-raytracing.md](../development/flow-raytracing.md)) |
+| Performance | The improvements that cost image quality, the player's choice; the shadow maps in other scenes than the launch pad | the player's choice; measure the shadow maps with `-redefinitionGpuProfile` ([src/Probe/README.md](../../src/Probe/README.md)) |
 | Compatibility | Ghosting behind plumes; thin trajectory lines; Singularity in the smaller modes; Kerbal Frame Generator installed | [reference/graphics-mod-compatibility.md](../reference/graphics-mod-compatibility.md), "Open" |
 | Modders | Whether a mod's own behaviour type covers what the mods ReDefinition bundles needed | a third-party mod that brings one |
 
@@ -60,7 +60,7 @@ Released: 0.1.3.
 |---|---|
 | ReDefinition is active only while a graphics profile is chosen; *Reset* chooses High | choosing High after a reset changes nothing |
 | The other mods' antialiasing is switched off at run time while the upscaler runs, never in their settings | without the upscaler their antialiasing is the only one there is |
-| *AA only* in every profile | upscaling buys no frame rate on the development machine ([development/flow-frame.md](../development/flow-frame.md)) |
+| Each profile sets the render height that the upscaler's *Auto* mode aims for | `GameData/ReDefinition/Profiles/ReDefinition-Profiles.cfg` |
 | A profile sets quality, and a mod's taste only where that mod needs it changed to run with the upscaler; High is the mod authors' defaults; *Reset* resets everything | [player/graphics-profiles.md](../player/graphics-profiles.md) |
 | A requirement of an installed mod is enforced whatever profile is chosen | [reference/requirements.md](../reference/requirements.md) |
 | Settings are saved in each mod through its own routine, with the values from before kept for a restore | [development/flow-setting.md](../development/flow-setting.md) |

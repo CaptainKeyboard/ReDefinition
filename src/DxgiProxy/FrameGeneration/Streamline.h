@@ -18,7 +18,7 @@
 
 namespace redefinition
 {
-    // NVIDIA's DLSS Frame Generation, through Streamline -- NVIDIA's DLLs next to
+    // NVIDIA's DLSS Frame Generation and Ray Reconstruction, through Streamline -- NVIDIA's DLLs next to
     // KSP_x64.exe (or in streamlineDirectory), which the player downloads from
     // NVIDIA's release (NvidiaDownloader). Only what the headers in
     // extern/Streamline were taken from runs:

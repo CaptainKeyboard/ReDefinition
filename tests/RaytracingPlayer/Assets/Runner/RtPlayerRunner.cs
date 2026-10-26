@@ -50,10 +50,10 @@ namespace ReDefinition.RaytracingPlayer
         }
     }
 
-    // The raytracing test player's run (docs/development/flow-raytracing.md, "Testing
-    // without the game"). It builds a scene, renders it without raytracing and with
-    // it, and checks the images: a shadow the shadow maps do not reach, one they do,
-    // light that does not change. Its lines start with RTPLAYER in the player's log;
+    // The raytracing test player's run (tools/build_rt_player.py builds and starts it).
+    // It builds a scene, renders it without raytracing and with it, and checks the
+    // images: shadows the shadow maps reach and ones they do not, the light, the
+    // GPU's instances and more. Its lines start with RTPLAYER in the player's log;
     // the images go to -out. With -budget it measures instead: a scene of the size
     // KSP's flight holds near the ground, every signal on, against the GPU time budget.
     // With -turn it records a camera turn instead (RtTurnRunner). The command line:

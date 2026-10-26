@@ -1,9 +1,9 @@
 # Checks what the pages under docs/ have to hold (docs/development/writing-these-pages.md):
-# links that lead somewhere, paths that exist, no dash asides, lines that fit, and an
+# links that lead somewhere, paths that exist, no dash asides, no calques, lines that fit, and an
 # opening that says who the page is for. It also checks that the version the README and
 # the status page name is the project's.
 #
-# Without -Strict only links and paths fail the run; the style counts are reported.
+# Without -Strict only links, paths, the version and unclosed code blocks fail the run; the style counts are reported.
 # With it, every rule fails the run.
 #
 # Usage:

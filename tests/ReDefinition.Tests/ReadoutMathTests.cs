@@ -103,7 +103,7 @@ namespace ReDefinition.Tests
     }
 
     // The catalogue of flight readouts (ReadoutCatalog): every key once, every
-    // readout titled, in one of the groups, with a value.
+    // readout titled, in one of the groups, with a value; and the flight panel's shipped profiles.
     [TestClass]
     public class ReadoutCatalogTests
     {

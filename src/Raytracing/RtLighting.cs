@@ -5,8 +5,7 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Raytracing
 {
     // ReDefinition's two lighting shaders in Unity's place while raytracing is on
-    // (docs/development/flow-raytracing.md, "Where the raytraced light enters Unity's
-    // lighting"): the screen-space shadows, and, where Deferred has set its own,
+    // (docs/development/flow-raytracing.md): the screen-space shadows, and, where Deferred has set its own,
     // the deferred reflections. What was set before is kept and set again when
     // raytracing goes, or when another shader takes the place meanwhile.
     internal static class RtLighting

@@ -35,7 +35,7 @@ saved. *start* means when KSP creates its swapchain, which is at the start of th
 | `fgMinimumFps` | -1 | live | the rendered frame rate below which frame generation holds off. -1 takes the technique's own: 60 or 30 for FSR by its version, 30 for DLSS, 40 for XeSS. 0 never holds off; another number is that many frames a second |
 | `fgCameraBasis` | 1 | live | FSR only. 1 hands frame generation the camera's position and orientation, which its API requires. 0 leaves them zero, and everything with parallax smears. DLSS and XeSS frame generation always get them |
 | `fgVSync` | 0 | live | FSR only. 1 presents with V-Sync for as long as frame generation is on, whatever KSP's setting says |
-| `fgHalfRefreshLimit` | 0 | live | 1 holds the rendered frame rate just below half the refresh rate. Under XeSS frame generation it is XeLL's frame limit |
+| `fgHalfRefreshLimit` | 0 | live | FSR and XeSS only. 1 holds the rendered frame rate just below half the refresh rate while frames are generated without V-Sync. Under XeSS frame generation it is XeLL's frame limit |
 | `fgAsyncWorkloads` | 0 | live | FSR only. 1 runs the optical flow and interpolation on a compute queue, overlapping the next frame. Worth a try where frame generation costs more than it gives |
 
 ## DLSS frame generation
@@ -114,8 +114,8 @@ The raytracing's own pages: [player/raytracing.md](../player/raytracing.md) and
 | `rtOwnQueue` | 0 | start | 1 runs the raytracing and Ray Reconstruction on a Direct3D 12 queue of their own, so that their work does not wait behind frame generation's |
 
 The keys for measuring the raytracing, `rtCutoutTest`, `rtSunUnfiltered`,
-`rtSunAtrousSteps`, `rtSunHistory` and `rtFoliageTransmission`, are in
-[development/flow-raytracing.md](../development/flow-raytracing.md).
+`rtSunAtrousSteps`, `rtSunHistory` and `rtFoliageTransmission`, are described beside their
+values in the file.
 
 ## DLL folders
 

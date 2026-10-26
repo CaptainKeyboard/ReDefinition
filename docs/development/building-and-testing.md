@@ -23,18 +23,22 @@ environment variable or with `-p:KspRoot=...`.
 
 Every build deploys into the game:
 
-* `ReDefinition.dll` into `GameData/ReDefinition/Plugins`;
-* `ReDefinition.version`, generated from the project's version;
-* the repository's static `GameData` files, meaning the registrations and the profiles.
+* `ReDefinition.dll` and `ReDefinition.xml` into `GameData/ReDefinition/Plugins`. The
+  XML file is the interface's documentation for a mod's IDE;
+* `ReDefinition.version`, generated from the project's version, and the iCUE widget
+  `ksp-dashboard.icuewidget`;
+* the repository's static `GameData` files: the registrations, the profiles, the
+  patches, the icons and the dashboard's pages.
 
-What the build ships is removed from the game first (`Profiles/ReDefinition-*.cfg` and
-`Mods/*.cfg`), so a file dropped from the repository leaves the game too. `PluginData` is
-never touched.
+The build writes the DLL into `build/`, where the check scripts load it from.
+
+What the build ships is removed from the game first (`Profiles/ReDefinition-*.cfg`,
+`Mods/*.cfg` and `Patches/*.cfg`), so a file dropped from the repository leaves the game
+too. `PluginData` is never touched.
 
 The solution builds the example mod as well
 (`docs/modders/examples/ReDefinitionExample`), into `build/examples/ReDefinitionExample`
-and never into the game. The mod's build writes `ReDefinition.xml` beside the DLL and
-deploys it with the DLL. That file is the interface's documentation for a mod's IDE.
+and never into the game.
 
 `-p:DeployToGameData=false` builds without deploying. In Rider, open `ReDefinition.sln`
 and choose the .NET SDK's MSBuild, not *Auto*, which may pick Build Tools without the SDK.
@@ -45,21 +49,27 @@ and choose the .NET SDK's MSBuild, not *Auto*, which may pick Build Tools withou
 dotnet test tests/ReDefinition.Tests
 ```
 
-These run without the game, on .NET Framework 4.8. They cover the store, `bundled.cfg`,
-the settings window's edit model, ReDefinition's modules, the registrations, the frame
-packet layouts shared with the proxy, Streamline's camera matrices, EVE's cloud motion,
-TUFX's split around the upscaler, NVIDIA's file list, and the key bindings with the
-decisions the *Controls* tab makes.
+These run on .NET Framework 4.8 without the game running. They cover, among other things:
+
+* the store, `bundled.cfg` and the settings window's edit model;
+* ReDefinition's modules and the registrations;
+* the frame packet layouts shared with the proxy, and Streamline's camera matrices;
+* EVE's cloud motion, and TUFX's split around the upscaler;
+* NVIDIA's file list, and the key bindings with the decisions the *Controls* tab makes.
+
+`tests/ReDefinition.Tests/README.md` lists the rest.
 
 The tests use KSP's own `ConfigNode` from the game's `Assembly-CSharp`, copied beside
-them. Types of the test assembly take the place of mods (`RegistrationTests.cs`), and
-`Fakes.cs` has a mod and a game host for the store.
+them. Types of the test assembly take the place of mods
+(`tests/ReDefinition.Tests/RegistrationTests.cs`). `Fakes.cs` in the same folder has a mod
+and a game host for the store.
 
 ## Run the check scripts
 
-What only the installed mods can answer, the check scripts answer. The three mod checks
+What only the installed mods can answer, the check scripts answer. The four mod checks
 run in Windows PowerShell 5.1 and in PowerShell 7, and take the game's path from
-`KspRoot` as the build does. `check_docs.ps1` reads only the pages and needs neither.
+`KspRoot` as the build does. They load `build/ReDefinition.dll`, so build the mod first.
+`check_docs.ps1` reads only the pages and needs neither.
 
 ```
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_bundled_mods.ps1
@@ -69,18 +79,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_foreign_c
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_docs.ps1
 ```
 
-`check_docs.ps1` checks the pages under `docs/` rather than the game:
-[writing-these-pages.md](writing-these-pages.md) says what it wants.
+`check_docs.ps1` checks the pages under `docs/` rather than the game. With `-Strict` the
+style findings fail the run as well. [writing-these-pages.md](writing-these-pages.md)
+says what it wants.
 
 **`check_bundled_mods.ps1`** loads the installed mods' assemblies and the built DLL. It
 can only check a mod that is installed, so a run against a bare KSP checks almost
-nothing. It
-reads every registration with KSP's `ConfigNode` and builds each mod with the registry the
-game runs. It then checks:
+nothing. It reads every registration with KSP's `ConfigNode` and builds each mod with the
+registry the game runs. It then checks:
 
 * that every member a registration names exists in the installed build;
-* the settings, the rows of the four tabs, defaults and requirements it derives, which
-  it lists;
+* the settings, the rows of each settings tab, defaults and requirements it derives,
+  which it lists;
 * every default and profile value against the setting's control, through
   `ProfileApplier.Refusal`, the method the game asks;
 * that High sets only its deviations from the defaults;
@@ -94,32 +104,31 @@ It also reads and builds `docs/modders/examples` and any registration in the ins
 `GameData`.
 
 **`check_profile_parser.ps1`** feeds the profile and registration readers from the built
-DLL with nodes holding one mistake of each kind, and checks what they make of it.
+DLL with nodes holding one mistake of each kind. It checks what the readers make of each.
 
-**`check_key_bindings.ps1`** reads the key bindings from the built DLL: the texts the mods
-and KSP write, every `KEY` block of the shipped registrations with its default, and KSP's
-own bindings in `GameSettings`. It checks that they are the shape the *Controls* tab reads,
-and that every one of them has a name for its row.
+**`check_key_bindings.ps1`** reads the key bindings from the built DLL. They are the texts
+the mods and KSP write, every `KEY` block of the shipped registrations with its default,
+and KSP's own bindings in `GameSettings`. The script checks that they have the shape the
+*Controls* tab reads, and that every one has a name for its row.
 
 **`check_foreign_code.ps1`** checks the catalogue of what ReDefinition assumes about other
 mods' code (`src/Core/ForeignAssumptions.cs`) against the installed mods. Each assumption
 names types, methods, fields and string literals, and the methods it rests on with a
-fingerprint of their instructions (`src/Core/ForeignCode.cs`). It passes where all of that
-is there and the fingerprints match, or where its mod is not installed. It fails where
-something named is missing or the code changed, and prints the installed fingerprint to
-add once the new code has been read. The exit code is the number of failures. Run it after
-a bundled mod's update. In the game, an assumption marked `WhenChanged.Fallback` takes the
-way that does not rest on it where its code changed, and `ForeignAssumptionReport` writes
-what came of each into `KSP.log` at the main menu and into the diagnostics window's *Other
-mods* page, under *Their code*.
+fingerprint of their instructions (`src/Core/ForeignCode.cs`). An assumption passes where
+all of that is there and the fingerprints match, or where its mod is not installed. It
+fails where something named is missing or the code changed. It then prints the installed
+fingerprint, to add once the new code has been read. The exit code is the number of
+failures. Run the script after a bundled mod's update.
+
+In the game, an assumption marked `WhenChanged.Fallback` takes the way that does not rest
+on it where its code changed. `ForeignAssumptionReport` writes what came of each into
+`KSP.log` at the main menu. It also writes it into the diagnostics window's *Other mods*
+page, under *Their code*.
 
 Reflection from PowerShell into KSP's assemblies has two traps, and the scripts handle
 both. An `AssemblyResolve` handler must use only `[IO.File]` and `[IO.Path]` and guard
 against re-entry, or Windows PowerShell 5.1 overflows its stack. Arguments must be passed
 as an `object[]` of their base objects (`.PSObject.BaseObject`), never wrapped in `@()`.
-
-The pages under `docs/` have a check of their own:
-[writing-these-pages.md](writing-these-pages.md).
 
 ## Build the shader bundle
 
@@ -146,7 +155,7 @@ that is not there.
 ## Port the FSR shaders
 
 `tools/port_fsr3_shaders.py` makes the FSR shaders from FSR3Unity's. It bakes in the
-keywords, six of the seven, turns constant buffers into structured buffers, and adds
+keywords, six of the eight, turns constant buffers into structured buffers, and adds
 FSR 3.1.4's tuning constants.
 
 ```
@@ -182,45 +191,57 @@ computed, not taken from Unity. After a change to either, compare them with Unit
 
 It builds a small Windows player into `build\motion-vector-check` and runs it. A window
 opens for a few seconds and stays black, since the camera renders into a render texture.
-The player moves first its camera, then a sphere, and writes Unity's motion vectors over
-the sphere next to those pass 2 of the cloud motion shader computes. The exit code is 1
-when the pass misses more than 5% of the sphere's pixels or its mean differs from
-Unity's by more than 3%. The log shows both values for each case.
+The player moves first its camera, then a sphere. It writes Unity's motion vectors over the
+sphere next to those pass 2 of the cloud motion shader computes. The exit code is 1 when
+the pass misses more than 5% of the sphere's pixels. It is also 1 when the pass's mean
+differs from Unity's by more than 3%. The log shows both values for each case.
 
-Four more cases check the vessel's motion vectors and the instruments. A readback of the
-sphere's centre must find the sphere at the row the in-game checks read. The vessel
-check's shader, drawn over the moving sphere with its previous matrix, must find more
-than 98% of the sphere's pixels right, and drawn with the current matrix in its place,
-more than 90% wrong. Its pass that writes the vessel's motion vectors, drawn into empty
-ones, must leave more than 98% of the sphere's pixels right. A cube drawn only in the
-forward pass must be missing from `ResolvedDepth`, present in the camera's own depth
-buffer, and written into the depth by the vessel's depth pass within 1% of that value.
+Five more checks cover the vessel's motion vectors and the instruments:
 
-Three cases check the vessel's shadow for frame generation (`VesselShadowLayer`): a red
-block over a white ground under a light with soft shadows. In the first the block and the
-camera move together, in the second only the camera. In the third the ground is moved
-back instead, as Krakensbane does, and everything is moved by a few metres on top, as the
-floating origin does, both reported as KSP reports them. In all three the pass must find
-more than 90% of the ground in the block's shadow and take less than 2% more from lit
-ground. Where the shadow stands on the screen, the mean weight must keep it in place
-(above 0.8), and after the composition the shadowed ground must reach 93 to 107% of its
-brightness in the same frame rendered without the block's shadow, the lit ground
-unchanged. Where only the camera moves, the weight must leave the shadow to the motion
-vectors (below 0.2).
+* A readback of the sphere's centre must find the sphere at the row the in-game checks
+  read.
+* The vessel check's shader is drawn over the moving sphere with its previous matrix. It
+  must find more than 98% of the sphere's pixels right.
+* The same shader, drawn with the current matrix in its place, must find more than 90% of
+  them wrong.
+* The pass that writes the vessel's motion vectors is drawn into empty ones. It must leave
+  more than 98% of the sphere's pixels right.
+* A cube is drawn only in the forward pass. It must be missing from `ResolvedDepth` and
+  present in the camera's own depth buffer. The vessel's depth pass must write it into
+  the depth within 1% of that value.
 
-One case checks the far ground (`SceneMotion`): a camera 150 km from the origin, with
+Three cases check the vessel's shadow for frame generation (`VesselShadowLayer`). Each is a
+red block over a white ground under a light with soft shadows:
+
+* In the first, the block and the camera move together.
+* In the second, only the camera moves.
+* In the third, the ground is moved back instead, as Krakensbane does. Everything is also
+  moved by a few metres, as the floating origin does. Both are reported as KSP reports
+  them.
+
+In all three the pass must find more than 90% of the ground in the block's shadow. It must
+take less than 2% more from lit ground. Where the shadow stands on the screen, the mean
+weight must keep it in place (above 0.8). After the composition, the shadowed ground must
+reach 93 to 107% of its brightness in the same frame rendered without the block's shadow.
+The lit ground stays unchanged. Where only the camera moves, the weight must leave the
+shadow to the motion vectors (below 0.2).
+
+One case checks the far ground (`SceneMotion`). It has a camera 150 km from the origin with
 KSP's near and far plane, a sphere 150 km ahead, and a move of 10 m sideways and 6 m up.
-Pass 2 must lie within 0.01 px of the parallax worked out for each pixel, and neighbouring
+Pass 2 must lie within 0.01 px of the parallax worked out for each pixel. Neighbouring
 pixels must differ by less than 0.01 px on average. Its mean must lie within 3% of
 Unity's. The log shows how much Unity's own vectors differ from one pixel to the next.
 
 The check camera carries the plugin's motion vector repair (`UnityMotionRepair`): the
-buffer cleared at the end of every frame, and pass 3 at `BeforeImageEffectsOpaque`. In the
-camera and the object case a copy right after the clear must hold the cleared value on every
-pixel, and no pixel of the next frame's copy at the repair may still hold it: Unity has
-written every pixel anew, and the repair kept its values. One more case clears
-what Unity wrote right before the repair and moves the camera; pass 3 must then give the
-camera's move within 0.01 px on average over a sphere ahead.
+buffer cleared at the end of every frame, and pass 3 at `BeforeImageEffectsOpaque`. Two
+checks cover the camera case and the object case:
+
+* A copy right after the clear must hold the cleared value on every pixel.
+* No pixel of the next frame's copy at the repair may still hold it. Unity has written
+  every pixel anew, and the repair kept its values.
+
+One more case clears what Unity wrote right before the repair and moves the camera. Pass 3
+must then give the camera's move within 0.01 px on average over a sphere ahead.
 
 ## Build the proxy
 
@@ -236,10 +257,12 @@ cmake -S src/DxgiProxy -B build/DxgiProxy -G "Visual Studio 17 2022" -A x64
 cmake --build build/DxgiProxy --config Release
 ```
 
-The build copies `dxgi.dll` next to `KSP_x64.exe`. Use `-DKSP_DIR=...` for another game
-folder. Do not build while KSP runs, because it holds the file. `ReDefinitionProxy.ini` is
-copied only where none is there yet. The proxy writes and completes the file itself from
-the template built into it ([packaging.md](packaging.md#the-proxys-settings-file)).
+It makes `dxgi.dll`, `ProxyHarness.exe` and `RaytracingHarness.exe` in
+`build/DxgiProxy/Release`. The build copies `dxgi.dll` next to `KSP_x64.exe`. Use
+`-DKSP_DIR=...` for another game folder. Do not build while KSP runs, because it holds the
+file. `ReDefinitionProxy.ini` is copied only where none is there yet. The proxy writes and
+completes the file itself from the template built into it
+([packaging.md](packaging.md#the-proxys-settings-file)).
 
 Check the build's output and the DLL's time stamp, rather than searching the output for
 "error".
@@ -268,10 +291,11 @@ to it. Environment variables add what the player brings:
 | `REDEFINITION_AMD_UPSCALER_DIR` | `amd_fidelityfx_upscaler_dx12.dll` | AMD's upscaler |
 | `REDEFINITION_XESS_DIR` | `libxess.dll` | the XeSS upscaler |
 
-The XeSS folders can be the ones *Intel XeSS files* fills (`xessDirectory` and
-`xessFgDirectory` of an install's ini, or its game folder), and `REDEFINITION_XESS_DIR` and
-`REDEFINITION_XESS_FG_DIR` can name a copy from the same release. The benchmark runner's
-`--xess-dll-dir` and `--xess-fg-dll-dir` take them too ([benchmarks.md](benchmarks.md)).
+The XeSS folders can be the ones *Intel XeSS files* fills: `xessDirectory` and
+`xessFgDirectory` of an install's ini, or its game folder. `REDEFINITION_XESS_DIR` and
+`REDEFINITION_XESS_FG_DIR` can also name a copy from the same release. The benchmark
+runner's `--xess-dll-dir` and `--xess-fg-dll-dir` take them too
+([benchmarks.md](benchmarks.md)).
 
 One swapchain has one frame generation, so a run with `REDEFINITION_STREAMLINE_DIR`, one
 with `REDEFINITION_XESS_FG_DIR` and one with neither cover all three. Setting both names
@@ -283,10 +307,14 @@ These variables change a run without naming a folder:
 |---|---|---|
 | `REDEFINITION_DLSSG_MODE` | `on` or `dynamic` | starts DLSS frame generation in that mode (`dlssgMode`). The harness asks Dynamic for a target of 8000 frames a second, since its own thousand frames a second are far above the display's |
 | `REDEFINITION_XESS_FG_WAITABLE` | `auto`, `0` or `1` | `xessFgOwnWaitable` for the run; the waits on the frame latency waitable object are counted |
-| `REDEFINITION_HARNESS_FOCUS` | any | DLSS frame generation generates nothing while the harness window is out of the foreground. The taskbar takes the foreground for a moment and the window gets it back: 1.00 presents per frame out of it, and more in it |
-| `REDEFINITION_LATENCY_TEST` | `1` | compares what lowers the latency most on this GPU: nothing, the brake, and AMD Anti-Lag 2 on either device, measured alike under a Direct3D 11 compute load that holds the frames back ([low-latency.md](../../src/DxgiProxy/Latency/README.md)) |
+| `REDEFINITION_HARNESS_FOCUS` | anything but `0` | DLSS frame generation generates nothing while the harness window is out of the foreground. The taskbar takes the foreground for a moment and the window gets it back: 1.00 presents per frame out of it, and more in it |
+| `REDEFINITION_LATENCY_TEST` | `1` | compares what lowers the latency most on this GPU: nothing, the brake, and AMD Anti-Lag 2 on either device, measured alike under a Direct3D 11 compute load that holds the frames back ([the latency README](../../src/DxgiProxy/Latency/README.md)) |
+| `REDEFINITION_HARNESS_BRAKE_ONLY` | anything but `0` | runs only the latency brake's controller, which needs no GPU, for a machine whose GPU is busy |
+| `REDEFINITION_HARNESS_FG_OFF_FIRST` | anything but `0` | starts the frames with frame generation off and switches it on after them, as a game does that starts with the switch off |
+| `REDEFINITION_HARNESS_REPLAY` | a folder of dumped frames | plays it through frame generation in place of the normal run ([below](#replay-the-games-frames-through-frame-generation)); `tools
+eplay_fg.ps1` sets it |
 | `REDEFINITION_ADAPTER_VENDOR` | a PCI vendor id in hex: `1002` AMD, `10DE` NVIDIA, `8086` Intel | runs on the adapter of that vendor rather than the default one |
-| `REDEFINITION_HARNESS_CHECKER` | any | AMD's upscaler gets a frame time in seconds rather than milliseconds, so that its debug checker (`vendorDiagnostics=1`) reports it into the log |
+| `REDEFINITION_HARNESS_CHECKER` | anything but `0` | AMD's upscaler gets a frame time in seconds rather than milliseconds, so that its debug checker (`vendorDiagnostics=1`) reports it into the log |
 
 Run the harness after every change to the proxy. It prints a `PASS` line for each part
 that ran, or one `FAIL` line.
@@ -296,7 +324,7 @@ that ran, or one `FAIL` line.
 The raytracing harness loads the proxy the same way and needs a GPU with DirectX
 Raytracing tier 1.1. It rasterises a G-buffer in Unity's layout, hands the proxy meshes and
 instances, and checks every raytracing pass against the CPU
-([raytracing.md](flow-raytracing.md), "Testing without the game").
+([flow-raytracing.md](flow-raytracing.md), "The harness").
 
 ```
 build\DxgiProxy\Release\RaytracingHarness.exe
@@ -319,17 +347,19 @@ One argument narrows the run to the opacity micromaps:
 | `--omm-none` | the same, with the driver's capability simulated as none (`REDEFINITION_OMM_CAPS=none`) |
 
 The full run has both, and a run of its own with the capability simulated as none.
-[raytracing.md](flow-raytracing.md) lists what each phase checks.
+[tests/DxgiProxy/README.md](../../tests/DxgiProxy/README.md) says what each harness
+covers.
 
 ## Run the raytracing test player
 
 The test player is a Unity 2019.4.18f1 player built as KSP's is: Direct3D 11, native
 graphics jobs, gamma colour space. It builds a scene of a ground and two boxes, renders it
-with and without raytracing, and checks the images. It runs three times: with forward
-rendering, with Unity's deferred lighting, and with Deferred's lighting shaders from the
-installed game. The first two check that raytracing replaces Unity's ambient light
-without Deferred; the third checks Deferred's path, a floating origin jump and the night
-side.
+with and without raytracing, and checks the images. It runs four times: with forward
+rendering, with Unity's deferred lighting, with Deferred's lighting shaders from the
+installed game, and as `budget`. The first two check that raytracing replaces Unity's
+ambient light without Deferred. The third checks Deferred's path, a floating origin jump
+and the night side, and is skipped where Deferred is not installed. The fourth measures a
+scene of a flight's size at DLSS Quality's render size against the GPU time budget.
 
 ```
 python tools\build_rt_player.py
@@ -337,8 +367,9 @@ python tools\build_rt_player.py
 
 It needs Unity 2019.4.18f1 at `C:\Program Files\Unity\Editor\Unity.exe` and a built
 proxy; `--unity` and `--ksp` name other places, `--no-build` runs the last build again.
-It prints each run's `PASS` and `FAIL` lines and exits 0 when all of them passed. The
-images of each run are in `build\RaytracingPlayer\<run>`.
+`--only ocean` or `--only glow` runs one check alone, in the run with Deferred's lighting.
+The script prints each run's `PASS` and `FAIL` lines and exits 0 when all of them passed.
+The images of each run are in `build\RaytracingPlayer\<run>`.
 
 With `REDEFINITION_D3D12_DEBUG=1` set, the proxy turns on Direct3D 12's debug layer in
 either harness and the test player, and writes its messages into its log.
@@ -350,25 +381,40 @@ python tools\build_rt_player.py --turn
 ```
 
 Instead of the checks, the player records a camera turn around a rocket on its pad
-(`RtTurnRunner.cs`): settled, 20 frames at 2 degrees a frame, 10 at 12, one jump of 40, as
-after a hitch, then still. It runs through DLSS Ray Reconstruction as the upscaler sends
-it, at the render size; with ReDefinition's denoiser; with Unity's lighting alone; through
-Ray Reconstruction with the upscaler's jitter; and, where Deferred is installed, with
-jitter and Deferred's lighting shaders, and with Deferred's lighting alone; and with the
-trace before the lighting of its own frame (`-early`), as the game runs it, beside the
-trace after the frame. For Ray Reconstruction the script writes a `ReDefinitionProxy.ini`
-next to the player that names Streamline's folder (`--streamline`, by default
-`REDEFINITION_STREAMLINE_DIR` or the SDK's `bin\x64` beside the repository), so that the
-proxy sets Streamline up on the player's swapchain, and removes it afterwards. Each frame
-of the turn and each pose again after the camera stood there, as its reference, go into
-`build\RaytracingPlayer\turn-<run>`, with the poses halfway between two frames.
+(`tests/RaytracingPlayer/Assets/Runner/RtTurnRunner.cs`). The camera is settled, then turns
+20 frames at 2 degrees a frame and 10 at 12. It makes one jump of 40, as after a hitch,
+then stands still.
 
-`tools\analyze_rt_turn.py` then compares each frame with its reference: the error over
-what came into view in that frame, behind a silhouette or past the frame's edge, over what
-came into view within four frames, and over the rest. It checks Unity's motion vectors
-against the cameras' motion as well, and writes `error_<frame>.png` images. It prints
-`PASS` or `FAIL` per run against limits of about twice the values measured on 2026-10-01;
-without raytracing the turn equals its references.
+The turn runs in these variants:
+
+* through DLSS Ray Reconstruction as the upscaler sends it, at the render size;
+* with ReDefinition's denoiser;
+* with Unity's lighting alone;
+* through Ray Reconstruction with the upscaler's jitter;
+* where Deferred is installed, with jitter and Deferred's lighting shaders, and with
+  Deferred's lighting alone;
+* with the trace before the lighting of its own frame (`-early`), as the game runs it,
+  beside the trace after the frame.
+
+For Ray Reconstruction the script writes a `ReDefinitionProxy.ini` next to the player. It
+names Streamline's folder (`--streamline`, by default `REDEFINITION_STREAMLINE_DIR`, else
+`References\KspUpscaler\streamline-sdk-v2.14.16\bin\x64` beside the repository's folder),
+so that the proxy sets Streamline up on the player's swapchain. The script removes the
+file afterwards. Each frame of the turn goes into `build\RaytracingPlayer\turn-<run>`. So
+does each pose again after the camera stood there, as its reference, and the poses halfway
+between two frames.
+
+`tools\analyze_rt_turn.py` then compares each frame with its reference. It takes the error
+over three parts of the frame:
+
+* what came into view in that frame, behind a silhouette or past the frame's edge;
+* what came into view within four frames;
+* the rest.
+
+It checks Unity's motion vectors against the cameras' motion as well, and writes
+`error_<frame>.png` images. It prints `PASS` or `FAIL` per run against limits of about
+twice the values measured on 2026-10-01. Without raytracing the turn equals its
+references.
 
 ### The upscalers on the camera turn
 
@@ -377,13 +423,18 @@ python tools/build_rt_player.py --upscale
 ```
 
 The same turn without raytracing, rendered at two thirds and at half the display size
-with the upscaler's jitter and upscaled by FSR 3 (its Unity port), DLSS and AMD's
-upscaler, as the rig sends each (`RtTurnUpscale.cs`), and once natively without jitter.
-DLSS comes from the Streamline SDK's folder (`--streamline`), AMD's upscaler from
-`--amd`, FSR 3's shaders from the game's bundle. The references are each pose rendered at
-twice the display size without jitter. `tools/analyze_upscale_turn.py` prints, per run,
-the error where something came into view, the rest, the error once still and how much a
-still frame flickers.
+with the upscaler's jitter. FSR 3 (its Unity port), DLSS and AMD's upscaler upscale it, as
+the rig sends each (`tests/RaytracingPlayer/Assets/Runner/RtTurnUpscale.cs`). One more run
+is native, without jitter. DLSS comes from the Streamline SDK's folder (`--streamline`).
+AMD's upscaler comes from `--amd`, by default `References\KspUpscaler\FSR4` beside the
+repository's folder. FSR 3's shaders come from the game's bundle. The references are each
+pose rendered at twice the display size without jitter. `tools/analyze_upscale_turn.py`
+prints, per run, four values:
+
+* the error where something came into view;
+* the error over the rest;
+* the error once still;
+* how much a still frame flickers.
 
 `-jitterSign x|y|xy` and `-motionSign x|y|xy` negate what the upscaler is given, as a
 counter-check of the conventions: each measures worse than the rig's.
@@ -397,13 +448,14 @@ python tools\measure_fg_turn.py <recording>\client build\RaytracingPlayer\turn-r
 ```
 
 The first writes frames 18 to 40 of the turn as frame generation's input dump. The last
-compares each generated frame with the reference of the pose halfway, beside a copy of
-the newer frame, which is what a reset would show there.
+compares each generated frame with the reference of the pose halfway. It does the same
+for a copy of the newer frame, which is what a reset would show there.
 
 ## Render KSP's meshes in the raytracing harness
 
 With a scene of KSP's own meshes the raytracing harness also renders the launch pad and the
-SPH. The scene holds Squad's geometry, so write it outside the repository:
+SPH. The scene holds Squad's geometry, so write it outside the repository. The script needs
+UnityPy (`pip install UnityPy`):
 
 ```
 python tools\export_rt_scene.py "<KSP folder>" %TEMP%\ksc.rtscene
@@ -414,26 +466,30 @@ build\DxgiProxy\Release\RaytracingHarness.exe
 ## Replay the game's frames through frame generation
 
 *Record the screen in 5 s (120 frames)* on the diagnostics window's *Capture & log* page
-also writes eight consecutive frames of what frame
-generation receives into a folder ending in `-inputs`: the HUD-less colour, depth, motion
-vectors, the frame as presented and each frame's packet (`FrameGenerationDump.cpp`). The
-frames are taken from the first frame the camera turns by more than a degree, or after 600
-frames without. The staging textures they are copied into are made while the dump waits
-for the turn, so the frames taken cost a copy each; they are read back one texture a frame
-and written in a thread of their own: written at once, the files stalled the game for
-about 300 ms in the recording.
+also writes eight consecutive frames of what frame generation receives. They go into a
+folder ending in `-inputs`: the HUD-less colour, depth, motion vectors, the frame as
+presented and each frame's packet
+(`src/DxgiProxy/FrameGeneration/FrameGenerationDump.cpp`). The frames are taken from the
+first frame the camera turns by more than a degree, or after 600 frames without. The
+staging textures they are copied into are made while the dump waits for the turn, so each
+frame taken costs a copy. They are read back one texture a frame and written in a thread
+of their own. Written at once, the files stalled the game for about 300 ms in the
+recording [open: no recording of it is kept].
 
 From the same turn, four frames of the stages go into a folder ending in `-stages`
-(`StageDump.cs`): the image the upscaler or DLSS Ray Reconstruction takes (`input`) and
-gives (`output`), and the raytracing's signals traced in that frame, `sun` with the kept
-view depth in w, `diffuse`, `specular`, `forward` and `depth`, rows bottom-up as Unity
-reads them back. `meta.txt` gives each frame's camera, without jitter, and the jitter.
-The textures are copied on the GPU into textures made while the dump waits for the turn,
-and read back one a frame afterwards through one buffer, so the frames dumped cost a copy
-each. `frames.txt` of the recording names each recorded frame's game frame, the number
-`meta.txt` and the input dump's `packetIndex` give.
-They show at which stage a fault enters the frame: in the signals, in the lighting that
-reads them, or in the upscaler.
+(`src/Upscaler/Rig/StageDump.cs`). It holds these textures, rows bottom-up as Unity reads
+them back:
+
+* `input` and `output`: the image the upscaler or DLSS Ray Reconstruction takes and gives;
+* `sun`, with the kept view depth in w, `diffuse`, `specular`, `forward` and `depth`: the
+  raytracing's signals traced in that frame.
+
+`meta.txt` gives each frame's camera, without jitter, and the jitter. The GPU copies the
+textures into textures made while the dump waits for the turn. They are read back one a
+frame afterwards through one buffer, so each frame dumped costs a copy. `frames.txt` of
+the recording names each recorded frame's game frame, which is the number `meta.txt` and
+the input dump's `packetIndex` give. The dumps show at which stage a fault enters the
+frame: in the signals, in the lighting that reads them, or in the upscaler.
 
 The replay reads each texture at its own size, so a dump rendered below the display size
 plays too.
@@ -442,18 +498,20 @@ plays too.
 python tools\analyze_fg_inputs.py <folder>
 ```
 
-It checks the inputs against each other: the previous frame's colour fetched where each
-motion vector points, with the vectors as delivered, scaled and reversed; the vectors
-against the camera motion from depth and `clipToPrevClip`; how much of the frame has
-depth.
+It checks the inputs against each other:
+
+* the previous frame's colour fetched where each motion vector points, with the vectors
+  as delivered, scaled and reversed;
+* the vectors against the camera motion from depth and `clipToPrevClip`;
+* how much of the frame has depth.
 
 ```
 tools\replay_fg.ps1 <folder> [NAME=1 ...]
 ```
 
 It plays the folder through DLSS frame generation in the harness, at half its size, and
-records the screen. The recording is cut to the replay window at once and the rest of
-the screen deleted; it prints the detail of rendered and generated frames. The window
+records the screen. The script cuts the recording to the replay window at once and deletes
+the rest of the screen. It prints the detail of rendered and generated frames. The window
 has to stay in front, otherwise nothing is recorded. `REDEFINITION_STREAMLINE_DIR` must
 be set. Each `NAME` changes one input:
 
@@ -470,8 +528,9 @@ python tools\make_fg_test_dump.py <folder> <speed> [--perspective] [--jitter PX]
 ```
 
 It writes such a folder with known inputs: grain moving `<speed>` pixels a frame on the
-left half with exact motion vectors, still on the right. `--perspective` makes the speed
-grow from the top to the bottom, `--jitter` and `--noise` change each frame's content.
+left half with exact motion vectors, and still on the right. `--perspective` makes the
+speed grow from the top to the bottom. `--jitter` and `--noise` change each frame's
+content.
 
 ## Audit the frame generation fields
 

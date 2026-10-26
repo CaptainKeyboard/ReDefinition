@@ -9,7 +9,7 @@ namespace DocLock
     // are read token by token at the scopes where declarations stand (the file, namespaces, structs, classes,
     // cbuffers), not inside function bodies. The elements are functions and their declarations, structs, classes,
     // unions, enums and their members, cbuffers, typedefs and using aliases, variables and fields, and macros (not
-    // include guards). A function declared in one place and defined in another is documented where either is.
+    // include guards). In C and C++ a function declared in one place and defined in another is documented where either is.
     internal static class CLikeScanner
     {
         // A token's kind.

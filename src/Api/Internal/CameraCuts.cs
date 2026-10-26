@@ -11,8 +11,8 @@ namespace ReDefinition.Api.Internal
     //
     // Not on a floating origin shift: above a speed threshold KSP shifts it every
     // frame (FloatingOrigin, "continuous"), and a reset every frame is an upscaler
-    // without any history. What a shift does to Unity's motion vectors:
-    // docs/development/flow-mod-interface.md, "The floating origin".
+    // without any history. What a shift moves:
+    // docs/modders/shared-foundation.md, "Read the frame's state".
     //
     // Not detected are cuts that keep target and parent: Hullcam between two cameras
     // on one part without transforms of their own (hc_booster, RoverCam), CameraTools

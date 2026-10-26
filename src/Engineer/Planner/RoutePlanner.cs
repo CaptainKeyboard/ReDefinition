@@ -43,7 +43,7 @@ namespace ReDefinition.Engineer
 
     // Entry and Transfer are no destinations the player picks. Entry: the vessel on
     // its way down into a body's air, with no orbit, where the rest of it is left
-    // before a lander lands with parachutes. Transfer: on the way across after the
+    // before the capsule or the vessel lands with parachutes. Transfer: on the way across after the
     // burn that leaves, before the one that arrives, where the player splits a
     // transfer's burns (RouteSteps).
     internal enum StopKind
@@ -55,7 +55,7 @@ namespace ReDefinition.Engineer
         Transfer,
     }
 
-    // One point of the route: a body, on its surface or in a circular orbit.
+    // One point of the route: a body, on its surface or in a circular orbit; the planner adds Entry and Transfer points between steps.
     internal sealed class RouteStop
     {
         // A destination whose body the player has not picked yet.
@@ -153,10 +153,11 @@ namespace ReDefinition.Engineer
     internal static class RoutePlanner
     {
         // Launch and landing cost 7 % over the low orbit's speed for the turn and the
-        // gravity lost on the way up, less what the ground's rotation gives. In
-        // an atmosphere they also cost what its drag and the steeper climb take,
+        // gravity lost on the way up, less what the ground's rotation gives. A landing and a
+        // launch without air add 10 m/s. In an atmosphere a launch also costs
+        // what its drag and the steeper climb take,
         // sqrt(g * depth) grown with the air's density. Fitted to the stock
-        // system's known figures: Kerbin 3,400 m/s, Duna 1,450, Eve 8,000,
+        // system's known launch figures: Kerbin 3,400 m/s, Duna 1,450, Eve 8,000,
         // Laythe 2,900, the Mun 580, Tylo 2,270. Each is within 4 % (PlannerTests).
         private const double TurnFactor = 1.07;
         private const double VacuumAllowance = 10.0;

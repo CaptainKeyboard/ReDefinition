@@ -20,7 +20,7 @@ namespace ReDefinition.Probe
     // 0, 10, 50 and 150 %, without KSP's night light. Each shot comes with the passes' GPU time in KSP.log
     // ("Probe: light ..."), and then the settings are put back. By day it also gives the ground's albedo as
     // the G-buffer has it beside the one the rays take (RtTerrainColour).
-    // The screenshots land in ReDefinitionCaptures\<time>-light.
+    // The screenshots land in ReDefinitionCaptures\<time>-probe.
     internal static class LightProbe
     {
         // The switch for the light probe, by day and night at the launch pad.

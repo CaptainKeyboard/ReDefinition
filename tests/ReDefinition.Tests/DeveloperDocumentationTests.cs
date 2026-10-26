@@ -4,16 +4,15 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ReDefinition.Tests
 {
-    // The developer documentation, which lives in the code (tools/DocLock), checked: every element documented, none
-    // dirty, every element in the lock, and no comment naming a file, switch or member that does not exist. An
-    // element is dirty when its code changed since its documentation was written or confirmed. The tool is built
-    // and run as `check`; its output names what to fix.
+    // The comments in the code (tools/DocLock), checked: no comment names a file, switch or member that does not
+    // exist, and no new or changed comment breaks the limits of docs/development/writing-code-comments.md. The tool
+    // is built and run as `check`; its output names what to fix.
     [TestClass]
     public class DeveloperDocumentationTests
     {
         // The check passes; its output in the failure message where it does not.
         [TestMethod]
-        public void EveryElementIsDocumentedAndNoneIsDirty()
+        public void EveryCommentNamesOnlyWhatExists()
         {
             string root = Root();
             Assert.IsNotNull(root, "the repository's root, with tools/DocLock, not found above the test's folder");

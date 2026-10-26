@@ -15,7 +15,7 @@ namespace ReDefinition.Engineer
         // the time each burn in orbit takes against the orbit it is in. Each step shows
         // what it needs and what it has. Open, a step shows each stage it burns, with its TWR as it
         // starts and as it ends its part (in the air where the body has any), its thrust
-        // and how long it burns. After the stages come each burn in orbit and the body.
+        // and how long it burns. After the stages come its RCS, each burn in orbit, its notes and the body.
         private const float MassColumn = 60f;
         private const float IspColumn = 44f;
         private const float TwrColumn = 38f;
@@ -41,8 +41,8 @@ namespace ReDefinition.Engineer
             public List<Burn> Burns = new List<Burn>();
             // The burn that takes the largest share of its orbit; null where none.
             public Burn Longest;
-            // Lines under its burns, coloured: the RCS of what docks, thrust off the
-            // centre of mass at launch.
+            // Lines under its burns, coloured: how fast it turns, the RCS of what docks,
+            // the electric charge of its ion engines.
             public readonly List<string> Notes = new List<string>();
             // Whether one of the notes warns, for the summary.
             public bool Warns;

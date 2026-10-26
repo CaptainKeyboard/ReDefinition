@@ -127,7 +127,7 @@ namespace ReDefinition.Scaling
     // multiplied by the scale; one KSP shrinks to minimise it (screenSize 0) is left
     // to shrink, and one opened again is a new one. Its handles and their drag
     // distances follow its size. DMagic's Maneuver Node Evolved's writes to the same
-    // field are removed (OtherScalers), so that the size seen first is KSP's.
+    // field are redirected (OtherScalers.Store), so that the size seen first is KSP's.
     internal sealed class ManeuverGizmos
     {
         // Each gizmo's own size as it first appeared open, shared with OtherScalers.

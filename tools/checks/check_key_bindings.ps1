@@ -1,6 +1,6 @@
 # Checks the key bindings outside the game. It runs KeyCombination from the built
 # DLL on the texts the mods and KSP write, reads the shipped registrations' KEY
-# blocks, and reads KSP's own bindings from GameSettings.
+# blocks, and reads KSP's own bindings and axes from GameSettings.
 #
 # Runs in Windows PowerShell 5.1 and in PowerShell 7. The KSP folder is taken
 # from the KspRoot environment variable, as in Directory.Build.props, and

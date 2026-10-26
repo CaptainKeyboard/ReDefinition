@@ -8,7 +8,7 @@ namespace ReDefinition.Api
     /// The Direct3D 12 device and queue of ReDefinition's <c>dxgi.dll</c>, for compute passes on
     /// Unity's textures. Unity keeps rendering in Direct3D 11: a dispatch copies its textures into
     /// textures both devices share, runs the pass on the Direct3D 12 queue, and copies the write
-    /// textures back. Reference: docs/modders/shared-foundation.md, "Direct3D 12".
+    /// textures back. Reference: docs/modders/shared-foundation.md, "Run a compute pass on Direct3D 12".
     /// </summary>
     public static class D3D12
     {

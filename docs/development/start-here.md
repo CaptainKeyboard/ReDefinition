@@ -1,26 +1,51 @@
 # Start here
 
-**For:** a developer who has just opened the repository.
-**You need:** the repository, and time for two pages.
-**You get:** a map of the developer documentation, and the page for the job in front of you.
+**For:** a developer, or an AI that works on the code, who has just opened the repository.
+**You need:** the repository.
+**You get:** what ReDefinition is, where its parts live, what the code does not show you, and the
+page for your job.
 
-ReDefinition brings the graphics mods of Kerbal Space Program 1 together in one concept. It has
-one settings window and profiles for them, and it keeps their settings compatible. It adds
-upscaling with FSR, DLSS and XeSS, frame generation and raytracing. These work on the whole
-scene, other mods' effects included. A native proxy in place of `dxgi.dll` carries the work that
-needs Direct3D 12.
+## What ReDefinition is
 
-## Read these two first
+ReDefinition is a mod for Kerbal Space Program 1. For the player it is one settings window for the
+graphics mods, profiles that set them up together, and rules that keep their settings compatible.
+It adds upscaling with FSR, DLSS and XeSS, frame generation and raytracing, which work on the whole
+scene, other mods' effects included. The [README](../../README.md) shows what a player gets.
 
-1. [Architecture](architecture.md) shows the parts, the areas of the plugin and which area may
-   use which.
-2. [Startup and scenes](flow-startup.md) shows what the game starts, in which scene, and what
-   survives a scene change.
+For you, it is three programs in one process:
+
+```mermaid
+flowchart LR
+    ksp["KSP and Unity"] --> plugin["The plugin<br/>C#, src/"]
+    plugin -- "imports, render events,<br/>shared textures, ini" --> proxy["The proxy<br/>C++, dxgi.dll"]
+    proxy --> gpu["Direct3D 12:<br/>upscalers, frame generation,<br/>raytracing"]
+    plugin -- "loads" --> shaders["Shaders<br/>unity/Assets/ReDefinition"]
+```
+
+The plugin settles what to do and talks to KSP and the other mods. The proxy stands in for the
+system's `dxgi.dll` and does the work that needs Direct3D 12. The shaders run in Unity. The data
+the plugin reads, the registrations and profiles, is in `GameData/ReDefinition/`.
+
+## What the code does not show you
+
+* **Names in strings.** The compiler does not see a type or a file named in a string:
+  reflection in `tools/checks/check_bundled_mods.ps1`, lookups of other mods' types, paths in
+  tests. After you move or rename something, search for its name.
+* **Layouts shared with the proxy.** A packet, a render event id or an ini key has two sides. The
+  tests `ProxyContractTests` and `RtContractTests` hold them together. Change both sides in one commit.
+* **Other mods' code is an assumption.** `src/Core/ForeignAssumptions.cs` lists each one, and
+  `tools/checks/check_foreign_code.ps1` checks them against the installed build.
+* **The game is the full test.** The unit tests and the proxy harnesses run without it. What the
+  plugin does inside KSP shows only in `KSP.log`, where every line starts with the tag `[ReDefinition]`.
+* **Layering.** `ArchitectureTests` holds which area may use which. A new dependency that is not in
+  its table fails the tests.
 
 ## The job in front of you
 
 | You want to | Open |
 |---|---|
+| Find your way around the code | [Architecture](architecture.md) |
+| See what the game starts, and when | [Startup and scenes](flow-startup.md) |
 | Change what happens to a frame in the mod | [A frame in the mod](flow-frame.md) |
 | Change the proxy | [The proxy's present path](flow-proxy-present.md) and [add a feature to the proxy](howto-add-a-proxy-feature.md) |
 | Change raytracing | [Raytracing from scene to screen](flow-raytracing.md) |
@@ -32,29 +57,13 @@ needs Direct3D 12.
 | Understand how the plugin and the proxy exchange data | [The four channels to native code](flow-native-channels.md) |
 | Build and check everything before a commit | [Build and check everything](howto-build-and-check.md) |
 | Find a script | [The scripts in tools](tools-index.md) |
-| Write or fix a comment | [Writing code comments](writing-code-comments.md) |
+| Write a comment | [Writing code comments](writing-code-comments.md) |
 
-## The flows
-
-Each flow page follows one thing through the code, from where it starts to where it ends:
-
-* [Startup and scenes](flow-startup.md): every add-on, in the scene that starts it.
-* [A setting's path](flow-setting.md): from a registration to the other mod's own save.
-* [The features on screen](flow-game-ui.md): the HUD, the planner, the scaling and the menu.
-* [A frame in the mod](flow-frame.md): the cameras, the upscaler and the presenter.
-* [The four channels to native code](flow-native-channels.md): imports, render events, shared
-  textures and the ini file.
-* [The interface for other mods](flow-mod-interface.md): what `src/Api` forwards to.
-* [The proxy's present path](flow-proxy-present.md): from `DllMain` to the screen.
-* [Raytracing from scene to screen](flow-raytracing.md): the scene, the trace and the light
-  back.
-* [How shaders reach the game](flow-shaders.md): the bundle, and the proxy's HLSL.
-* [The dashboard](flow-dashboard.md): the server, the telemetry and the browser.
+Each folder under `src/` has a README with its start files and the rules that are true only there.
 
 ## Look things up in the wiki
 
-The wiki generates these from the code, so they are always current. Every area and every
-file also has a wiki page with all its comments.
+The wiki generates these from the code, so they are always current:
 
 | Index | It lists |
 |---|---|
@@ -65,13 +74,12 @@ file also has a wiki page with all its comments.
 | [Proxy ini keys](https://github.com/CaptainKeyboard/ReDefinition/wiki/Index-proxy-ini-keys) | The proxy's settings and their defaults |
 | [Registrations](https://github.com/CaptainKeyboard/ReDefinition/wiki/Index-registrations) | The mods that register their settings |
 | [Proxy exports](https://github.com/CaptainKeyboard/ReDefinition/wiki/Index-proxy-exports) | The functions the plugin calls in the proxy |
-| [Types](https://github.com/CaptainKeyboard/ReDefinition/wiki/Index-types) | Every class, struct, interface and enum |
 | [Dependencies](https://github.com/CaptainKeyboard/ReDefinition/wiki/Index-dependencies) | Which area uses which |
 
 ## The rules of the repository
 
-* The comments in the code are the developer documentation. Change the code, and the comment
-  with it. `doclock check` fails on a comment that fell behind.
-* Run [the checks](howto-build-and-check.md) before you commit. The unit tests include the
-  documentation check and the check of which area uses which.
-* The glossary names the things; use its words in code, comments and pages.
+* Code, comments, documentation and commit messages are in English.
+* Commits follow Conventional Commits: `fix(upscaler): ...`, in the imperative, with the
+  evidence in the body.
+* Run [the checks](howto-build-and-check.md) before you commit. The unit tests include the check
+  of the comments and of which area uses which.

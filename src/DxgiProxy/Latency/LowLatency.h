@@ -32,8 +32,8 @@ namespace redefinition
     // same on every GPU, so that what lowers the latency can be told apart where the vendors' own
     // reports are not there.
     //
-    // Streamline brings its own Reflex with DLSS frame generation (Streamline.h), and this then stays
-    // out of the way. The frame's beginning, its simulation's end and its first Direct3D call come
+    // Streamline brings its own Reflex with DLSS frame generation (Streamline.h), and this then leaves
+    // the Reflex calls to it; only the brake still runs beside it (latencyBrakeWithDlssg). The frame's beginning, its simulation's end and its first Direct3D call come
     // through the same exports and render event as Streamline's (ManagedBridge.cpp, KspReflexFrameStart;
     // ReflexFrames.cs). Its Present comes from the swapchain proxy.
     class LowLatency
@@ -71,9 +71,9 @@ namespace redefinition
         // Cross-vendor support). Reflex and Anti-Lag 2 stay off under XeSS-FG's swapchain.
         void NoteXessGenerating(bool generating) { xessGenerating.store(generating); }
 
-        // On the game's main thread where its frame begins, before its input is read. It runs the
-        // brake or Anti-Lag 2's delay, Reflex's or XeLL's Sleep, then SIMULATION_START. The index is
-        // the given one, Streamline's where it gives one, or one of its own. As NVIDIA asks, Sleep and
+        // On the game's main thread where its frame begins, before its input is read. It runs
+        // Anti-Lag 2's delay, Reflex's or XeLL's Sleep, then SIMULATION_START. The id is
+        // Streamline's index moved by an offset where it gives one, or one of its own. As NVIDIA asks, Sleep and
         // the markers go on every frame whether low latency is on or not. Intel does the same:
         // "xellSleep and xellAddMarkerData are always called". Returns the index the game's other
         // calls take, 0 where nothing is tracked.

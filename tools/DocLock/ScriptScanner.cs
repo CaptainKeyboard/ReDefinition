@@ -7,7 +7,7 @@ namespace DocLock
 {
     // The script languages' elements are read line by line. They are Python's module, classes and functions (at
     // the top level and in classes), PowerShell's script and functions, and the dashboard's JavaScript -- its file,
-    // named functions at any depth, functions held in variables, classes and their methods. Their
+    // named functions at any depth, functions held in variables, classes and their methods, and top-level values. Their
     // documentation is the comment block directly above (decorators may stand between), Python's docstring, or a
     // PowerShell script's opening comment.
     internal static class ScriptScanner

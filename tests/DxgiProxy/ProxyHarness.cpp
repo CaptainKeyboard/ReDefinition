@@ -385,7 +385,7 @@ namespace
     // harness owns the keys it sets. It sets them before the proxy loads, and puts
     // back what the file held (the template's default, which the proxy writes
     // there) on every return from main and when the watchdog ends a stuck run
-    // (RestoreIniKeys). A run that crashes leaves its value behind, and the next
+    // (RestoreAll). A run that crashes leaves its value behind, and the next
     // run takes it for what the file held.
     class IniKey
     {

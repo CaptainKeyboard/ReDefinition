@@ -6,8 +6,8 @@ using ReDefinition.Ui;
 
 namespace ReDefinition.Tests
 {
-    // A mod whose settings stand in the new tabs: one bundled as usual, one set
-    // directly, one shown as a percentage.
+    // A mod whose settings stand in the new tabs: a volume shown as a percentage and
+    // set directly, and a switch bundled as usual.
     internal static class TabsFake
     {
         // The members the registrations below set: a volume from 0 to 1 and a switch.

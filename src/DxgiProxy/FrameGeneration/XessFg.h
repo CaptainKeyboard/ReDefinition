@@ -164,8 +164,8 @@ namespace redefinition
         // The one instance, made on first use and never destroyed.
         static XessFg& Get();
 
-        // libxell.dll, then libxess_fg.dll, which then finds it loaded. False, with
-        // the reason in Why(), where one is missing or lacks a function; tried again
+        // libxell.dll, loaded first so that libxess_fg.dll finds it loaded. False, with
+        // the reason in Why(), where it is missing or lacks a function; tried again
         // at the next swapchain.
         bool LoadXell();
         // libxess_fg.dll, after LoadXell; refused below 1.2.2 unless xessFgAllowOld is set.

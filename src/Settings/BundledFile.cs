@@ -4,8 +4,9 @@ using System.IO;
 
 namespace ReDefinition.Settings
 {
-    // The switch, the mods the main-menu notice asked about, and the profile last
-    // chosen -- what bundled.cfg keeps beside the ledger.
+    // The switch, the mods the main-menu notice asked about, the profile last
+    // chosen, the toolbar buttons kept and what the profile was applied to -- what
+    // bundled.cfg keeps beside the ledger.
     internal sealed class BundledState
     {
         // Whether the other mods' settings are bundled here and their buttons

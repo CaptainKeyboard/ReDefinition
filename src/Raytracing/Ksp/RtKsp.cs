@@ -8,8 +8,7 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // How much of the lighting is raytraced (docs/development/flow-raytracing.md, "What
-    // raytracing replaces").
+    // How much of the lighting is raytraced (RtKsp.SettingsFor turns a mode into the passes).
     internal enum RaytracingMode
     {
         // KSP's and the mods' own lighting alone.

@@ -5,7 +5,7 @@ namespace ReDefinition.Settings
     // The frame generation row's technique: Off, or the technique the proxy makes its swapchain for --
     // Auto (DLSS where it runs, XeSS on an Intel GPU where its files are, FSR 3 otherwise), DLSS, FSR 3
     // or XeSS. The proxy takes it when the swapchain is made (ReDefinitionProxy.ini's
-    // frameGenerationTechnique), so a change applies after a restart of KSP.
+    // frameGenerationTechnique), so a change to another technique applies after a restart of KSP.
     internal static class FrameGenerationTechniqueSetting
     {
         // The row's values as the settings file holds them, Off besides the techniques.

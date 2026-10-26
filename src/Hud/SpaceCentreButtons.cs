@@ -17,9 +17,9 @@ namespace ReDefinition.Hud
     // click on it there opens it (SpaceCenterBuilding.OnLeftClick, which shows a
     // damaged building's menu instead). The buttons show only where the game allows it
     // (GameParameters.Flight.CanLeaveToTrackingStation and CanLeaveToSpaceCenter,
-    // SpaceCenter.CanGoInTrackingStation) and the game can be saved now
-    // (FlightGlobals.ClearToSave). They show in flight view only: not on the map, nor from
-    // inside the vessel (WorldButton.FromInside).
+    // SpaceCenter.CanGoInTrackingStation). A click where the game cannot be saved now
+    // (FlightGlobals.ClearToSave) shows KSP's reason and leaves the flight alone. They show in
+    // flight view only: not on the map, nor from inside the vessel (WorldButton.FromInside).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class SpaceCentreButtons : MonoBehaviour
     {

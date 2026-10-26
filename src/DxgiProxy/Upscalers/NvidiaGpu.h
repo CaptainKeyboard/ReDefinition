@@ -14,14 +14,9 @@ namespace redefinition
         uint32_t implementation = 0;
     };
 
-    // The NVIDIA GPU architecture of an adapter, through NVAPI (nvapi64.dll, part of NVIDIA's
-    // driver). It finds it as Streamline does itself (sl.common's commonInterface.cpp). It takes the
-    // physical GPUs and each one's LUID through its logical GPU. It returns the architecture of the
-    // one with the adapter's LUID. The answer is not Found where the adapter is not NVIDIA's, or
-    // NVAPI is not there or fails.
-    //
-    // What decides whether NVIDIA's DLLs are offered for download before they
-    // exist, and so before Streamline or NGX could be asked (NvidiaFiles.cs).
+    // What NvidiaGpu found out about an adapter: Found, or why not. It decides whether NVIDIA's
+    // DLLs are offered for download before they exist, and so before Streamline or NGX could be
+    // asked (NvidiaFiles.cs).
     enum class NvidiaGpuAnswer
     {
         // The adapter is an NVIDIA GPU, its architecture known.
@@ -35,7 +30,11 @@ namespace redefinition
         // headers. Not asked again either.
         Incomplete,
     };
-    // The adapter's architecture into info where the answer is Found.
+    // The NVIDIA GPU architecture of an adapter, through NVAPI (nvapi64.dll, part of NVIDIA's
+    // driver), found as Streamline does itself (sl.common's commonInterface.cpp): the physical
+    // GPUs, each one's LUID through its logical GPU, and the architecture of the one with the
+    // adapter's LUID, into info where the answer is Found. The answer is not Found where the
+    // adapter is not NVIDIA's, or NVAPI is not there or fails.
     NvidiaGpuAnswer NvidiaGpu(const LUID& adapter, NvidiaGpuInfo& info);
 
     // Records the adapter KSP creates its swapchain on, told by the factory hook whatever the proxy
