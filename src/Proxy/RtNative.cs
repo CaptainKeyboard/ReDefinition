@@ -48,6 +48,8 @@ namespace ReDefinition.Proxy
         internal const uint FlagLegacySmoothness = 1u << 8;
         internal const uint FlagSurfaceIntent = 1u << 9;
         internal const uint FlagCloudShadow = 1u << 10;
+        // The primary check's rays meet what the other passes' rays do, cut-out surfaces by their texture (RT_FLAG_ALPHA_CHECK).
+        internal const uint FlagAlphaCheck = 1u << 15;
 
         // The signals a frame traces (FramePacket.Signals), each into its output slot: the sun's visibility, the
         // ambient occlusion, the diffuse and the specular light, and the light to add to a forward-rendered frame.
@@ -56,6 +58,8 @@ namespace ReDefinition.Proxy
         internal const uint SignalDiffuse = 1u << 2;
         internal const uint SignalSpecular = 1u << 3;
         internal const uint SignalForwardLight = 1u << 4;
+        // The check of the scene the rays see against the depth (Raytracing.hlsl, PrimaryCheck; RtParity), into the slot OutputPrimaryCheck.
+        internal const uint SignalPrimaryCheck = 1u << 7;
 
         // The input slots of FramePacket.Inputs: the depth as Direct3D's clip-space z, the G-buffer in Unity's
         // layout, the motion vectors, and the sky as a latitude-longitude image.
@@ -90,6 +94,8 @@ namespace ReDefinition.Proxy
         // Without a G-buffer: how the diffuse light changes the frame's colour (Raytracing.hlsl,
         // ForwardLight).
         internal const int OutputForwardRatio = 7;
+        // The primary check's output: the distance met, the distance the depth gives, the instance met plus one, and 1.
+        internal const int OutputPrimaryCheck = 7;
 
         // How a material's shine is meant (RtMaterialIntent; RtContract.h, RT_SURFACE_*).
         internal const uint SurfaceKeep = 0;

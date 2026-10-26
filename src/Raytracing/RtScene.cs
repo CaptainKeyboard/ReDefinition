@@ -238,6 +238,7 @@ namespace ReDefinition.Raytracing
             items.Clear();
             foreach (IRtSource source in sources)
                 source.Collect(items);
+            Sent.Clear();
 
             if (instances.Length < items.Count) Array.Resize(ref instances, Math.Max(items.Count, instances.Length * 2));
             int count = 0;
@@ -264,6 +265,7 @@ namespace ReDefinition.Raytracing
                 instance.Mask = item.Mask != 0 ? item.Mask : 0xFFu;
                 instance.Flags = item.Flags;
                 instances[count++] = instance;
+                Sent.Add(item);
             }
             InstanceCount = count;
             RtNative.KspRtSetInstances(instances, count, frameIndex);
@@ -271,6 +273,39 @@ namespace ReDefinition.Raytracing
 
             ReadTextures();
             if (frame % ReleaseCheckFrames == 0) ReleaseUnseen();
+        }
+
+        // The items this frame handed over, in the order the rays number their instances (their ids).
+        // The parity check (RtParity) names an instance by its id, from 0: the item's mesh, material and
+        // shader, or the GPU run it belongs to.
+        internal readonly List<RtItem> Sent = new List<RtItem>();
+
+        // Whether the rays' instance of that id is the ground.
+        internal bool IsTerrain(int id)
+        {
+            return id >= 0 && id < Sent.Count && (Sent[id].Flags & RtNative.InstanceTerrain) != 0;
+        }
+
+        // What the rays' instance of that id is, for a report.
+        internal string Describe(int id)
+        {
+            if (id >= 0 && id < Sent.Count)
+            {
+                RtItem item = Sent[id];
+                return "#" + id + " " + (item.Mesh != null ? item.Mesh.name : "-") + " / " + Name(item.Material)
+                       + ((item.Flags & RtNative.InstanceTerrain) != 0 ? " (ground)" : "");
+            }
+            int gpu = id - Sent.Count;
+            for (int g = 0; g < GpuItems.Count; g++)
+                if (gpu >= GpuFirst[g] && gpu < GpuFirst[g] + GpuPlaces[g])
+                    return "#" + id + " GPU instance of " + (GpuItems[g].Mesh != null ? GpuItems[g].Mesh.name : "-") + " / " + Name(GpuItems[g].Material);
+            return "#" + id + " (unknown)";
+        }
+
+        // A material's name and its shader's.
+        private static string Name(Material material)
+        {
+            return material == null ? "-" : material.name + " [" + (material.shader != null ? material.shader.name : "-") + "]";
         }
 
         // The GPU's runs, each where it starts among them, and their groups for the proxy.

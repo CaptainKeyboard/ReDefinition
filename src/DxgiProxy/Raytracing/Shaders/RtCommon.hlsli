@@ -551,6 +551,8 @@ struct Hit
     float3 tint;
     uint material;
     uint flags;
+    // The instance met, from 0.
+    uint instance;
 };
 
 // The share of the light a cut-out surface -- a blade of grass -- lets through (rtFoliageTransmission).
@@ -573,6 +575,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.color = 1.0f;
     hit.tint = 1.0f;
     hit.material = 0u;
+    hit.instance = 0u;
 
     RayDesc ray;
     ray.Origin = origin;
@@ -625,6 +628,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
         hit.tint = float3(float(instance.tint & 0xFFu), float((instance.tint >> 8) & 0xFFu), float((instance.tint >> 16) & 0xFFu)) * (1.0f / 255.0f);
     hit.material = instance.material;
     hit.flags = instance.flags;
+    hit.instance = query.CommittedInstanceID();
     return hit;
 }
 
@@ -1492,6 +1496,14 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     }
     MaterialData material = materialData[hit.material];
     mode = uint(material.vertexColour.y + 0.5f);
+    // A surface a mod made shinier after the G-buffer pass, as EVE's wet effect does for what the rain wets, is marked
+    // in the alpha of the normals' copy, which Unity writes as 1 (RtCamera, the wet flag). It keeps the G-buffer's shine,
+    // puddles included, over the dry one its material means.
+    if (mode != RT_SURFACE_KEEP && gbuffer2[pixel].a < 0.5f)
+    {
+        mode = RT_SURFACE_KEEP;
+        return float4(g1.rgb, min(g1.a, kMostSmoothness));
+    }
     if (mode == RT_SURFACE_DRY)
         return 0.0f;
     if (mode == RT_SURFACE_FIXED)

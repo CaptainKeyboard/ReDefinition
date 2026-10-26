@@ -48,6 +48,9 @@
 // ocean's), they also write their samples into it.
 #define RT_FLAG_RADIANCE_CACHE 0x2000u
 #define RT_FLAG_RADIANCE_CACHE_UPDATE 0x4000u
+// The primary check's rays meet what the other passes' rays do: a cut-out surface counts where its
+// texture is opaque (the parity check; RtParity), where it takes the surfaces as drawn without.
+#define RT_FLAG_ALPHA_CHECK 0x8000u
 // What of the sun's light a cut-out surface -- a blade of grass, a fern -- lets through,
 // in 255ths, in these bits of the flags (the proxy's rtFoliageTransmission).
 #define RT_FLAG_FOLIAGE_SHIFT 16u

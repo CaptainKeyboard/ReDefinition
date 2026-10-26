@@ -81,6 +81,28 @@ void PrimaryCheck(uint3 id : SV_DispatchThreadID)
 
     // The camera sits at the origin; any point on the pixel's line gives the direction.
     float3 direction = normalize(ClipToWorld(ndc, 0.5f));
+    float hit = 0.0f;
+    float instance = 0.0f;
+    if ((frameFlags & RT_FLAG_ALPHA_CHECK) != 0u)
+    {
+        // As the other passes' rays meet it: a cut-out surface counts where its texture does.
+        Hit met = TraceClosest(float3(0.0f, 0.0f, 0.0f), direction, 1.0e7f);
+        // The surface's look as the rays take it in u5 (albedo, shine as its material means it) and as the
+        // G-buffer holds it in u6 (albedo in the rays' colour space, its smoothness).
+        float4 raysLook = 0.0f;
+        if (met.found)
+        {
+            hit = met.distance;
+            instance = float(met.instance + 1u);
+            MaterialData material = materialData[met.material];
+            bool matt = uint(material.vertexColour.y + 0.5f) == RT_SURFACE_GROUND;
+            raysLook = float4(Albedo(material, met.uv, met.color) * met.tint, matt ? 0.0f : material.smoothness);
+        }
+        output5[id.xy] = raysLook;
+        output6[id.xy] = HAS_GBUFFER ? float4(InputColor(gbuffer0[id.xy].rgb), gbuffer1[id.xy].a) : 0.0f;
+        output7[id.xy] = float4(hit, expected, instance, 1.0f);
+        return;
+    }
     RayDesc ray;
     ray.Origin = float3(0.0f, 0.0f, 0.0f);
     ray.Direction = direction;
@@ -89,8 +111,6 @@ void PrimaryCheck(uint3 id : SV_DispatchThreadID)
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> query;
     query.TraceRayInline(scene, RAY_FLAG_NONE, 0xFF, ray);
     query.Proceed();
-    float hit = 0.0f;
-    float instance = 0.0f;
     if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
     {
         hit = query.CommittedRayT();

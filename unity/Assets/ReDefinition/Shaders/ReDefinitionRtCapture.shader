@@ -342,6 +342,21 @@ Shader "Hidden/ReDefinition/RtCapture"
         return half4(shade, shade, shade, occlusion) * 0.5;
     }
 
+    // The mark of a surface a mod made shinier after the G-buffer pass (RtCamera, the wet flag): EVE's wet effect
+    // runs at the reflections' event and raises the smoothness of what the rain wets. The G-buffer's smoothness now
+    // and as the G-buffer pass left it give the mark, into the alpha of the G-buffer 2's copy, which Unity writes as
+    // 1: 0 for a pixel made shinier. The probe switch -redefinitionProbeWetAll marks every pixel.
+    sampler2D _ReDefinitionRtG1Now;
+    sampler2D _ReDefinitionRtG1Early;
+    float _ReDefinitionRtWetAll;
+
+    half4 fragWetFlag(v2fQuad i) : SV_Target
+    {
+        float2 uv = i.screen.xy / i.screen.w;
+        bool wet = tex2D(_ReDefinitionRtG1Now, uv).a - tex2D(_ReDefinitionRtG1Early, uv).a > 0.04 || _ReDefinitionRtWetAll > 0.5;
+        return half4(0.0, 0.0, 0.0, wet ? 0.0 : 1.0);
+    }
+
     // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
     // shine as its material means it. Dark grey is matt. Blue to green to yellow to red runs from
     // rough to smooth, brighter the stronger it reflects. Stripes mark where the G-buffer's own
@@ -514,6 +529,14 @@ Shader "Hidden/ReDefinition/RtCapture"
             CGPROGRAM
             #pragma vertex vertQuad
             #pragma fragment fragMeadow
+            ENDCG }
+        // Pass 17: the mark of a surface a mod made shinier, into the alpha of the G-buffer 2's copy (WetFlagPass).
+        Pass {
+            ZTest Always ZWrite Off Cull Off
+            ColorMask A
+            CGPROGRAM
+            #pragma vertex vertQuad
+            #pragma fragment fragWetFlag
             ENDCG }
     }
     Fallback Off

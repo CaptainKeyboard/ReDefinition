@@ -64,6 +64,19 @@ namespace ReDefinition.Raytracing
         internal Func<Color> SkyColor = () => RenderSettings.ambientSkyColor;
         // How much of its colour the sky's light loses (RtCommon.hlsli, SkyLight): 0 keeps it.
         internal Func<float> SkyNeutral = () => 0f;
+        // -redefinitionProbeParity: every five seconds the primary check runs beside the frame, and the log says
+        // where the rays' scene and the picture disagree (RtParity), with a picture of it in ReDefinitionCaptures.
+        private static readonly bool ParityProbe = CommandLine.Has("-redefinitionProbeParity");
+        private RenderTexture parity;
+        private RenderTexture parityRays;
+        private RenderTexture parityRaster;
+        private IntPtr parityHandle;
+        private IntPtr parityRaysHandle;
+        private IntPtr parityRasterHandle;
+        private float parityAt;
+        private bool parityAsked;
+        private bool parityPending;
+        private uint parityFlag;
         // -redefinitionProbeCloudShadow: the sun's visibility is the cloud layer's transmittance
         // alone, to compare with EVE's own cloud shadow (the probe's shadow mask dump).
         private static readonly bool CloudShadowCheck =
@@ -264,6 +277,8 @@ namespace ReDefinition.Raytracing
         private static PacketRing ring;
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
+        // The G-buffer 1 as the G-buffer pass left it, before a mod's later pass changes it.
+        private RenderTexture gbuffer1Early;
         private RenderTexture sun, diffuse, specular, forward, forwardRatio;
         // The surfaces as their materials mean them, and how each was found (SurfaceIntent).
         private RenderTexture surface, surfaceMode;
@@ -362,6 +377,14 @@ namespace ReDefinition.Raytracing
         private const int OceanDiscsPass = 11;
         // The surfaces written back into the G-buffer (ReDefinitionRtCapture.shader, fragSurface).
         private const int SurfacePass = 12;
+        // The mark of a surface a mod made shinier after the G-buffer pass, into the alpha of the G-buffer 2's copy (RtParity's
+        // sibling in the shader: ReDefinitionRtCapture.shader, fragWetFlag).
+        private const int WetFlagPass = 17;
+        private static readonly int G1NowId = Shader.PropertyToID("_ReDefinitionRtG1Now");
+        private static readonly int G1EarlyId = Shader.PropertyToID("_ReDefinitionRtG1Early");
+        private static readonly int WetAllId = Shader.PropertyToID("_ReDefinitionRtWetAll");
+        // -redefinitionProbeWetAll: every surface marked as made shinier, to see what the rays make of it.
+        private static readonly bool WetAll = CommandLine.Has("-redefinitionProbeWetAll");
         private const int MeadowPass = 16;
         private const int SurfaceViewPass = 13;
         // KSP's flat ambient light taken out of the light buffer where a surface's own
@@ -637,6 +660,7 @@ namespace ReDefinition.Raytracing
             // OnRenderImage found; at a new size, from the next frame on. Only for the trace
             // after the frame: the trace in the frame copies it itself (TraceThisFrame).
             gbufferCopy.Clear();
+            RecordEarlyGBuffer1();
             if (!TraceBeforeLighting && gbuffer0 != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
             {
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
@@ -760,6 +784,14 @@ namespace ReDefinition.Raytracing
             traceAttached = false;
         }
 
+        // The G-buffer 1 as the G-buffer pass leaves it, copied then, before a mod's later pass changes it
+        // (the wet flag, WetFlagPass).
+        private void RecordEarlyGBuffer1()
+        {
+            if (gbuffer1Early != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
+                gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1Early);
+        }
+
         // The trace in the camera's own command stream, between its G-buffer or depth
         // texture and its lighting, with the jitter it renders with; the lighting shaders
         // then read its results where they are, for this frame.
@@ -773,11 +805,15 @@ namespace ReDefinition.Raytracing
             {
                 DetachTrace();
                 traceEvent = wanted;
-                cam.AddCommandBuffer(traceEvent, command);
                 traceAttached = true;
             }
+            // The last at its event, each frame: the G-buffer it copies is then what the mods before it left, as
+            // EVE's wet effect at the reflections' event leaves it, and its surfaces are written back over that.
+            cam.RemoveCommandBuffer(traceEvent, command);
+            cam.AddCommandBuffer(traceEvent, command);
             gbufferCopy.Clear();
             EnsureTargets(cam.pixelWidth, cam.pixelHeight);
+            RecordEarlyGBuffer1();
 
             command.Clear();
             RenderTargetIdentifier source = BuiltinRenderTextureType.CameraTarget;
@@ -786,6 +822,12 @@ namespace ReDefinition.Raytracing
                 command.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
                 command.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1);
                 command.Blit(BuiltinRenderTextureType.GBuffer2, gbuffer2);
+                // The pixels a mod made shinier since the G-buffer pass, marked in the alpha of the normals' copy.
+                command.SetGlobalTexture(G1NowId, gbuffer1);
+                command.SetGlobalTexture(G1EarlyId, gbuffer1Early);
+                command.SetGlobalFloat(WetAllId, WetAll ? 1f : 0f);
+                command.SetRenderTarget(gbuffer2);
+                command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, WetFlagPass);
             }
             command.Blit(source, depth, capture, 0);
             Probe.GpuProfiler.Mark(command, "ReDefinition raytracing: G-buffer and depth copies");
@@ -1479,6 +1521,24 @@ namespace ReDefinition.Raytracing
             // the diffuse light, which replaces the flat ambient light.
             if (composite && (Settings.Diffuse || Settings.Reflections))
                 signals |= RtNative.SignalForwardLight | RtNative.SignalDiffuse;
+            parityFlag = 0u;
+            if (ParityProbe && deferred && parityHandle != IntPtr.Zero)
+            {
+                if (parityAsked)
+                {
+                    // The frame that traced it is done: its output is in the texture.
+                    parityAsked = false;
+                    parityPending = true;
+                    AsyncGPUReadback.Request(parity, 0, TextureFormat.RGBAFloat, ParityRead);
+                }
+                else if (!parityPending && Time.realtimeSinceStartup - parityAt > 5f)
+                {
+                    parityAt = Time.realtimeSinceStartup;
+                    parityAsked = true;
+                    signals |= RtNative.SignalPrimaryCheck;
+                    parityFlag = RtNative.FlagAlphaCheck;
+                }
+            }
             packet.Signals = signals;
             LastSignals = signals;
             packet.FrameIndex = frameIndex;
@@ -1495,7 +1555,7 @@ namespace ReDefinition.Raytracing
                            | (reconstruct ? RtNative.FlagGuides : 0u)
                            | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u)
                            | (SurfaceIntent(deferred) ? RtNative.FlagSurfaceIntent : 0u)
-                           | (CloudShadowCheck ? RtNative.FlagCloudShadow : 0u);
+                           | (CloudShadowCheck ? RtNative.FlagCloudShadow : 0u) | parityFlag;
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;
@@ -1535,6 +1595,56 @@ namespace ReDefinition.Raytracing
                 packet.Outputs[RtNative.OutputSurface] = surfaceHandle;
                 packet.Outputs[RtNative.OutputSurfaceMode] = surfaceModeHandle;
             }
+            if ((signals & RtNative.SignalPrimaryCheck) != 0)
+            {
+                // The parity frame: its own textures take the check's output, and the surfaces' slots with it.
+                packet.Outputs[RtNative.OutputPrimaryCheck] = parityHandle;
+                packet.Outputs[RtNative.OutputSurface] = parityRaysHandle;
+                packet.Outputs[RtNative.OutputSurfaceMode] = parityRasterHandle;
+            }
+        }
+
+        // A render texture's pixels as four floats each, read at once (the probe's); null where it cannot be.
+        private static float[] ReadFloats(RenderTexture texture)
+        {
+            if (texture == null || !texture.IsCreated()) return null;
+            RenderTexture before = RenderTexture.active;
+            var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
+            try
+            {
+                RenderTexture.active = texture;
+                read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
+                return read.GetRawTextureData<float>().ToArray();
+            }
+            finally
+            {
+                RenderTexture.active = before;
+                Destroy(read);
+            }
+        }
+
+        // The primary check's output read back (-redefinitionProbeParity): the log says where the rays' scene and
+        // the picture disagree, and the picture of it goes into ReDefinitionCaptures.
+        private void ParityRead(AsyncGPUReadbackRequest request)
+        {
+            parityPending = false;
+            if (request.hasError || parity == null) return;
+            int w = parity.width, h = parity.height;
+            float[] data = request.GetData<float>().ToArray();
+            RtParity.Result result = RtParity.Analyse(data, w, h, Scene.IsTerrain);
+            Debug.Log(Core.Log.Tag + " " + RtParity.Report(result, Scene.Describe, 12));
+            float[] rays = ReadFloats(parityRays), raster = ReadFloats(parityRaster);
+            if (rays != null && raster != null)
+                Debug.Log(Core.Log.Tag + " " + RtParity.LookReport(RtParity.Looks(data, rays, raster, w, h), Scene.Describe, 12));
+            string folder = System.IO.Path.Combine(Core.CaptureFolder.Root, "parity");
+            System.IO.Directory.CreateDirectory(folder);
+            var picture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+            picture.LoadRawTextureData(RtParity.Image(data, w, h, Scene.IsTerrain));
+            picture.Apply();
+            string file = System.IO.Path.Combine(folder, DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + HighLogic.LoadedScene + ".png");
+            System.IO.File.WriteAllBytes(file, picture.EncodeToPNG());
+            Destroy(picture);
+            Debug.Log(Core.Log.Tag + " Raytracing parity picture: " + file);
         }
 
         // The surfaces as their materials mean them (RtMaterialIntent; RtCommon.hlsli,
@@ -1574,6 +1684,7 @@ namespace ReDefinition.Raytracing
             depth = Target(RenderTextureFormat.RFloat);
             gbuffer0 = Target(RenderTextureFormat.ARGB32);
             gbuffer1 = Target(RenderTextureFormat.ARGB32);
+            gbuffer1Early = Target(RenderTextureFormat.ARGB32);
             gbuffer2 = Target(RenderTextureFormat.ARGB2101010);
             motion = Target(RenderTextureFormat.RGHalf);
             environment = new RenderTexture(256, 128, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear)
@@ -1590,6 +1701,12 @@ namespace ReDefinition.Raytracing
             forwardRatio = Target(RenderTextureFormat.ARGBHalf);
             surface = Target(RenderTextureFormat.ARGBHalf);
             surfaceMode = Target(RenderTextureFormat.ARGBHalf);
+            parity = ParityProbe ? Target(RenderTextureFormat.ARGBFloat) : null;
+            parityRays = ParityProbe ? Target(RenderTextureFormat.ARGBFloat) : null;
+            parityRaster = ParityProbe ? Target(RenderTextureFormat.ARGBFloat) : null;
+            parityHandle = parity != null ? parity.GetNativeTexturePtr() : IntPtr.Zero;
+            parityRaysHandle = parityRays != null ? parityRays.GetNativeTexturePtr() : IntPtr.Zero;
+            parityRasterHandle = parityRaster != null ? parityRaster.GetNativeTexturePtr() : IntPtr.Zero;
             depthHandle = depth.GetNativeTexturePtr();
             gbuffer0Handle = gbuffer0.GetNativeTexturePtr();
             gbuffer1Handle = gbuffer1.GetNativeTexturePtr();
@@ -1697,16 +1814,16 @@ namespace ReDefinition.Raytracing
         // Releases the frame's targets and forgets their native textures.
         private void ReleaseTargets()
         {
-            foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer2, motion, environment, sun, diffuse,
-                                                      specular, forward, forwardRatio, surface, surfaceMode })
+            foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer1Early, gbuffer2, motion, environment, sun, diffuse,
+                                                      specular, forward, forwardRatio, surface, surfaceMode, parity, parityRays, parityRaster })
                 if (texture != null)
                 {
                     texture.Release();
                     Destroy(texture);
                 }
-            depth = gbuffer0 = gbuffer1 = gbuffer2 = motion = environment = sun = diffuse = specular = forward = forwardRatio = null;
-            surface = surfaceMode = null;
-            surfaceHandle = surfaceModeHandle = IntPtr.Zero;
+            depth = gbuffer0 = gbuffer1 = gbuffer1Early = gbuffer2 = motion = environment = sun = diffuse = specular = forward = forwardRatio = null;
+            surface = surfaceMode = parity = parityRays = parityRaster = null;
+            surfaceHandle = surfaceModeHandle = parityHandle = parityRaysHandle = parityRasterHandle = IntPtr.Zero;
             depthHandle = gbuffer0Handle = gbuffer1Handle = gbuffer2Handle = motionHandle = environmentHandle = IntPtr.Zero;
             sunHandle = diffuseHandle = specularHandle = forwardHandle = forwardRatioHandle = IntPtr.Zero;
         }

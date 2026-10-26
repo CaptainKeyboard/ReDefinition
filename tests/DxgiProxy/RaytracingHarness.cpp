@@ -215,6 +215,8 @@ namespace
         float specular = 0.04f;
         // RtInstance's flags (kRtInstance*).
         uint32_t flags = 0;
+        // Marked as made shinier after the G-buffer pass: the alpha of the normals 0 where Unity writes 1.
+        bool wet = false;
         // A full transform in place of position and scale, rows first, mesh to world.
         bool hasMatrix = false;
         double matrix[12] = {};
@@ -446,7 +448,7 @@ PsOut PsMain(VsOut input)
     o.depth = input.position.z;
     o.gbuffer0 = float4(albedo.rgb, 1.0);
     o.gbuffer1 = float4(surface.yyy, surface.x);
-    o.gbuffer2 = float4(normalize(input.normal) * 0.5 + 0.5, 1.0);
+    o.gbuffer2 = float4(normalize(input.normal) * 0.5 + 0.5, surface.z > 0.5 ? 0.0 : 1.0);
     return o;
 }
 )";
@@ -616,6 +618,7 @@ PsOut PsMain(VsOut input)
             constants.albedo[3] = 1.0f;
             constants.surface[0] = instance.smoothness;
             constants.surface[1] = instance.specular;
+            constants.surface[2] = instance.wet ? 1.0f : 0.0f;
             D3D11_MAPPED_SUBRESOURCE mapped = {};
             if (SUCCEEDED(context->Map(g.constants.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
             {
@@ -4711,6 +4714,32 @@ int main(int argc, char** argv)
                   reflected[1][0], reflected[0][0], reflected[1][1], reflected[1][2]);
         Check(reflected[1][0] < 1e-4 && reflected[0][0] > 0.02 && reflected[1][1] > 0.02 && reflected[1][2] > 0.01,
               "surface intent: reflections read it", detail);
+
+        // A surface a mod made shinier after the G-buffer pass (EVE's wet effect) is marked in the alpha of the normals,
+        // and keeps the G-buffer's shine over the dry one its material means: the plane, dry above, keeps 0.159 at 0.45.
+        std::vector<Instance> wetDrawn = drawn;
+        wetDrawn[0].wet = true;
+        RenderGBuffer(context.Get(), g, camera, meshes, wetDrawn);
+        SendFrame(proxy, camera, g, outputs, sun, 0.0f, 15200, kRtSignalSunVisibility, lighting);
+        std::vector<uint16_t> wetSurface, wetMode;
+        ReadTexture(device.Get(), context.Get(), outputs.surface.Get(), 8, wetSurface);
+        ReadTexture(device.Get(), context.Get(), outputs.surfaceMode.Get(), 8, wetMode);
+        size_t planePixels = 0, planeWet = 0;
+        for (size_t i = 0; i < depth.size(); ++i)
+        {
+            if (!inside(i) || object[i] != 0)
+                continue;
+            ++planePixels;
+            const float specularOut = HalfToFloat(wetSurface[i * 4]), smoothnessOut = HalfToFloat(wetSurface[i * 4 + 3]);
+            const float modeOut = HalfToFloat(wetMode[i * 4]) * 8.0f;
+            if (std::fabs(specularOut - 0.159f) < 0.003f && std::fabs(smoothnessOut - 0.45f) < 0.003f
+                && std::fabs(modeOut - float(RT_SURFACE_KEEP)) < 0.01f)
+                ++planeWet;
+        }
+        char wetDetail[200];
+        sprintf_s(wetDetail, "%zu of %zu pixels of the marked plane keep the G-buffer's shine", planeWet, planePixels);
+        Check(planePixels > 2000 && planeWet * 1000 >= planePixels * 995, "surface intent: a surface made wetter keeps the G-buffer's", wetDetail);
+        RenderGBuffer(context.Get(), g, camera, meshes, scene);
         SendInstances(proxy, scene, camera.position);
     }
 
