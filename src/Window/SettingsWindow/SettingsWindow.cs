@@ -632,6 +632,15 @@ namespace ReDefinition.Window
                     NoteKey(SettingCategory.Detail, setting.Key);
                     members.Add(row);
                 }
+                // ReDefinition's own settings of the group: the lawns' grass and terrain under Planets, Firefly's idle skip
+                // under Effects. The Quality group's own rows are drawn by the tab's own rows.
+                if (edit != null && group.Key != SettingCategory.Detail)
+                {
+                    List<ModuleSetting> ownGroup = OurModules.Rows(group.Key);
+                    DialogGUIBase[] ownGroupRows = ownGroup.Count == 0 ? new DialogGUIBase[0] : KspSettingsSection.Rows(edit, OwnLayout(), group.Key);
+                    for (int i = 0; i < ownGroupRows.Length && i < ownGroup.Count; i++)
+                        members.Add(Searchable(ownGroupRows[i], ownGroup[i].Title + " " + group.Value));
+                }
                 if (members.Count == 0) continue;
                 DialogGUIBase advanced = OwnWindowRow(group.Key);
                 if (advanced != null) members.Add(Searchable(advanced, "Advanced " + group.Value));

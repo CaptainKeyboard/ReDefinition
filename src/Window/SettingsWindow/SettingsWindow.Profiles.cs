@@ -137,13 +137,12 @@ namespace ReDefinition.Window
                            + (model.Bundled ? " Their settings stay in this window." : " Their settings are bundled in this window.")
                            + "\n\n";
             }
-            bool active = BundledSettings.ProfileChosen;
-            message += "ReDefinition's own settings go back to theirs, with frame generation off. The upscaling"
-                       + " technique, the raytracing and \"Replace original settings\" stay as they are"
-                       + (active ? ", and so does whether the upscaler is on" : "") + ".\n\n"
+            message += "ReDefinition's own settings go back to their defaults, except \"Replace original settings\", the"
+                       + " window's pause, the places of the navball and of the diagnostics window, and the dashboard's key,"
+                       + " which stay as they are.\n\n"
                        + "Then the graphics profile High is chosen over the defaults, as its button chooses it: the"
-                       + " quality settings as High has them, what the mods need of KSP's settings, and the upscaler"
-                       + " at AA only" + (active ? "" : ", switched on") + ".\n\n"
+                       + " quality settings as High has them, what the mods need of KSP's settings, and ReDefinition's own"
+                       + " graphics settings (the upscaler, frame generation, raytracing and low latency) as High sets them.\n\n"
                        + "The rows are only filled in: Accept sets them, Cancel puts them back as they were."
                        + " \"Restore settings from before ReDefinition\" under Mods and toolbar brings back what the mods"
                        + " had before ReDefinition first changed them.\n\nThe key bindings go back to their defaults"
