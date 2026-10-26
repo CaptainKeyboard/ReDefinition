@@ -37,12 +37,15 @@ namespace ReDefinition.Raytracing
     // draws, as Parallax fills its scatter's (ScatterRenderer.outputLOD0-2).
     internal struct RtGpuItem
     {
-        // The append buffer of transforms, the mesh, its submesh and the material of every instance in it, and the
-        // ray mask (0 for all rays).
+        // The append buffer of transforms, the mesh, its submesh and the material of every instance in it.
         public ComputeBuffer Transforms;
+        // The world position the instances belong about in xyz and, in w, how far from it they do, in metres.
+        // Instances beyond it are left out of the rays. 0 keeps all of them.
+        public Vector4 Reach;
         public Mesh Mesh;
         public int SubMesh;
         public Material Material;
+        // The ray mask, 0 for all rays.
         public uint Mask;
     }
 

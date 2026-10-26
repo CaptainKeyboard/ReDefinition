@@ -34,6 +34,7 @@ namespace ReDefinition.Core
         private const string Int = "System.Int32";
         private const string Double = "System.Double";
         private const string Float = "System.Single";
+        private const string Vector3Type = "UnityEngine.Vector3";
         private const string StringType = "System.String";
 
         // Full names of the mods' types several entries name.
@@ -344,13 +345,17 @@ namespace ReDefinition.Core
         // (Scenery.ParallaxScatterFields, KscGrass). It reads the active renderers and, of
         // each, the planet, the scatter name, the range and whether it is culled about the vessel.
         // It reads the three levels' meshes, materials and output buffers, which the lift and
-        // the rays read as 64-byte clumps. It reads _InstanceData too,
+        // the rays read as 64-byte clumps, and RuntimeOperations.vectorCraftPos and vectorCameraPos, the
+        // points its vessel-centred and camera-centred scatters are culled about. It reads _InstanceData too,
         // the buffer Parallax's materials draw them from (ScatterRenderer, Scatter,
         // DistributionParams, TransformData; Parallax Continued 1.0.0, decompiled).
         private const string ScatterRenderer = "Parallax.ScatterRenderer";
         public static readonly ForeignAssumption ParallaxScatters =
             new ForeignAssumption("parallax-scatters", "Parallax", "Parallax's scatters in the raytraced scene and on the lawns")
                 .Type("Parallax.ScatterManager").Type(ScatterRenderer).Type("Parallax.Scatter").Type("Parallax.DistributionParams")
+                .Type("Parallax.RuntimeOperations")
+                .Field("Parallax.RuntimeOperations", "vectorCraftPos", Vector3Type)
+                .Field("Parallax.RuntimeOperations", "vectorCameraPos", Vector3Type)
                 .Field("Parallax.ScatterManager", "Instance", "Parallax.ScatterManager")
                 .Field("Parallax.ScatterManager", "activeScatterRenderers", "System.Collections.Generic.List`1")
                 .Field(ScatterRenderer, "planetName", StringType)

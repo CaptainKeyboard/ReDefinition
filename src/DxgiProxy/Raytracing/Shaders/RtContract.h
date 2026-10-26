@@ -118,6 +118,9 @@
 // r its coverage, g the density curve at the shadow's height (ReDefinitionRtClouds.shader).
 #define RT_INPUT_CLOUDS 7
 #define RT_INSTANCES_PER_ROW 256
+// Texels one GPU instance takes in RT_INPUT_INSTANCES: its transform's three rows, then its
+// colour (rgb, all zero for none).
+#define RT_INSTANCE_TEXELS 4
 
 // An instance's flags (Raytracing.h, kRtInstance*).
 #define RT_INSTANCE_TERRAIN 0x1u

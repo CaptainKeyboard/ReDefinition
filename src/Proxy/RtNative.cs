@@ -65,7 +65,7 @@ namespace ReDefinition.Proxy
         internal const int InputGBuffer2 = 3;
         internal const int InputMotion = 4;
         internal const int InputEnvironment = 5;
-        // Instances the GPU made, three texels each, InstancesPerRow to a row (Raytracing.h).
+        // Instances the GPU made, InstanceTexels texels each, InstancesPerRow to a row (Raytracing.h).
         internal const int InputInstances = 6;
         // The main body's cloud layer (RtEveClouds; RtContract.h, RT_INPUT_CLOUDS).
         internal const int InputClouds = 7;
@@ -73,6 +73,8 @@ namespace ReDefinition.Proxy
         internal const uint InstanceTerrain = 1u << 0;
         internal const uint InstanceScenery = 1u << 2;
         internal const int InstancesPerRow = 256;
+        // The texels of one GPU instance: its transform's three rows, then its colour (RtContract.h, RT_INSTANCE_TEXELS).
+        internal const int InstanceTexels = 4;
         // Instances and groups for every frame without its own.
         internal const uint AnyFrame = 0xFFFFFFFFu;
 

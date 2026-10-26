@@ -397,6 +397,7 @@ namespace ReDefinition.Raytracing
         private static readonly int GatherCountIndex = Shader.PropertyToID("_CountIndex");
         private static readonly int GatherCapacity = Shader.PropertyToID("_Capacity");
         private static readonly int GatherFirst = Shader.PropertyToID("_First");
+        private static readonly int GatherReach = Shader.PropertyToID("_Reach");
 
         // The camera and the frame packets; the packet ring, shared by every raytraced camera, made once.
         private void Awake()
@@ -1216,7 +1217,7 @@ namespace ReDefinition.Raytracing
                     gpuInstances.Release();
                     Destroy(gpuInstances);
                 }
-                gpuInstances = new RenderTexture(RtNative.InstancesPerRow * 3, Math.Max(rows, 16), 0, RenderTextureFormat.ARGBFloat,
+                gpuInstances = new RenderTexture(RtNative.InstancesPerRow * RtNative.InstanceTexels, Math.Max(rows, 16), 0, RenderTextureFormat.ARGBFloat,
                                                  RenderTextureReadWrite.Linear)
                 {
                     name = "ReDefinition raytracing GPU instances",
@@ -1255,6 +1256,7 @@ namespace ReDefinition.Raytracing
                 command.SetComputeIntParam(gather, GatherCountIndex, i);
                 command.SetComputeIntParam(gather, GatherCapacity, places);
                 command.SetComputeIntParam(gather, GatherFirst, Scene.GpuFirst[i]);
+                command.SetComputeVectorParam(gather, GatherReach, item.Reach);
                 command.DispatchCompute(gather, gatherKernel, (places + 63) / 64, 1, 1);
             }
             if (counted != null)

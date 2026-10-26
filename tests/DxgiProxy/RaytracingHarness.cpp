@@ -1372,18 +1372,18 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
 
     // The same tufts as a GPU instance group, in t7's layout.
     const UINT rows = (tufts + kRtInstancesPerRow - 1) / kRtInstancesPerRow;
-    std::vector<float> texels(static_cast<size_t>(kRtInstancesPerRow) * 3 * rows * 4, 0.0f);
+    std::vector<float> texels(static_cast<size_t>(kRtInstancesPerRow) * kRtInstanceTexels * rows * 4, 0.0f);
     for (int i = 0; i < tufts; ++i)
         for (int r = 0; r < 3; ++r)
         {
             float transform[12];
             RelativeTransform(tuftInstances[i], camera.position, transform);
-            const size_t texel = static_cast<size_t>(i / kRtInstancesPerRow) * kRtInstancesPerRow * 3
-                                 + (i % kRtInstancesPerRow) * 3 + r;
+            const size_t texel = static_cast<size_t>(i / kRtInstancesPerRow) * kRtInstancesPerRow * kRtInstanceTexels
+                                 + (i % kRtInstancesPerRow) * kRtInstanceTexels + r;
             memcpy(&texels[texel * 4], transform + r * 4, 16);
         }
     D3D11_TEXTURE2D_DESC placesDesc = {};
-    placesDesc.Width = kRtInstancesPerRow * 3;
+    placesDesc.Width = kRtInstancesPerRow * kRtInstanceTexels;
     placesDesc.Height = rows;
     placesDesc.MipLevels = 1;
     placesDesc.ArraySize = 1;
@@ -1439,10 +1439,11 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
     };
     Lighting lit;
     lit.materialTextures = true;
+    ID3D11Texture2D* gpuTexture = places.Get();
     const auto lighting = [&]()
     {
         Lighting l = lit;
-        l.gpuInstances = fromGpu ? places.Get() : nullptr;
+        l.gpuInstances = fromGpu ? gpuTexture : nullptr;
         return l;
     };
     const uint32_t traced = kRtSignalSunVisibility | kRtSignalAmbientOcclusion | kRtSignalDiffuse | kRtSignalSpecular;
@@ -1699,6 +1700,58 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
     pair("micromaps with the measuring test of the cut-out surfaces", { { L"rtFoliageTransmission", L"0" }, { L"rtCutoutTest", L"1" } }, false);
     pair("micromaps on instances from the GPU", { { L"rtFoliageTransmission", L"0" }, { L"rtCutoutTest", L"0" } }, true);
 
+    // A colour on a GPU instance, the fourth texel of its place, multiplies its material's albedo (Parallax's grass:
+    // its albedo times the terrain's colour). Tufts under the colour 0.5 light the ground as tufts of a material
+    // with half the albedo do from the CPU; without the colour they do not.
+    {
+        RtMaterialDesc half = material;
+        half.material = 92;
+        for (int c = 0; c < 3; ++c)
+            half.albedo[c] *= 0.5f;
+        std::vector<float> tintedTexels = texels;
+        for (int i = 0; i < tufts; ++i)
+        {
+            const size_t texel = static_cast<size_t>(i) * kRtInstanceTexels + 3;
+            tintedTexels[texel * 4] = tintedTexels[texel * 4 + 1] = tintedTexels[texel * 4 + 2] = 0.5f;
+        }
+        ComPtr<ID3D11Texture2D> tintedPlaces;
+        const D3D11_SUBRESOURCE_DATA tintedData = { tintedTexels.data(), placesDesc.Width * 16, 0 };
+        if (proxy.setMaterial(&half) != 1 || FAILED(device->CreateTexture2D(&placesDesc, &tintedData, &tintedPlaces)))
+        {
+            Check(false, "an instance's colour from the GPU", "the half-albedo material or the tinted places were refused");
+            return failures - before;
+        }
+        std::vector<Instance> halfField = scene;
+        for (Instance t : tuftInstances)
+        {
+            t.material = 92;
+            halfField.push_back(t);
+        }
+        setKeys({ { L"rtOpacityMicromaps", L"0" }, { L"rtFoliageTransmission", L"0" }, { L"rtCutoutTest", L"0" } });
+        fromGpu = false;
+        SendInstances(proxy, halfField, camera.position);
+        proxy.setGpuGroups(nullptr, 0, kRtAnyFrame);
+        RenderGBuffer(context, g, camera, meshes, field);
+        const Measure cpuHalf = measure();
+        fromGpu = true;
+        SendInstances(proxy, scene, camera.position);
+        proxy.setGpuGroups(&group, 1, kRtAnyFrame);
+        RenderGBuffer(context, g, camera, meshes, field);
+        gpuTexture = tintedPlaces.Get();
+        const Measure gpuTinted = measure();
+        gpuTexture = places.Get();
+        const Measure gpuPlain = measure();
+        if (cpuHalf.ok && gpuTinted.ok && gpuPlain.ok)
+        {
+            size_t n = 0, nPlain = 0;
+            const size_t withColour = compare(cpuHalf, gpuTinted, n);
+            const size_t without = compare(cpuHalf, gpuPlain, nPlain);
+            char detail[300];
+            sprintf_s(detail, "%zu of %zu pixels differ from the CPU's half-albedo tufts with the colour 0.5, %zu without it", withColour, n, without);
+            Check(n > 50000 && withColour * 1000 <= n && without > withColour * 20, "an instance's colour from the GPU", detail);
+        }
+    }
+
     setKeys({ { L"rtOpacityMicromaps", nullptr }, { L"rtFoliageTransmission", nullptr }, { L"rtCutoutTest", nullptr } });
     proxy.setGpuGroups(nullptr, 0, kRtAnyFrame);
     proxy.releaseMesh(90);
@@ -1896,7 +1949,7 @@ int main(int argc, char** argv)
             if (instance.mesh != 1)
                 ground.push_back(instance);
         const UINT rows = 2;
-        std::vector<float> texels(static_cast<size_t>(kRtInstancesPerRow) * 3 * rows * 4, 0.0f);
+        std::vector<float> texels(static_cast<size_t>(kRtInstancesPerRow) * kRtInstanceTexels * rows * 4, 0.0f);
         std::vector<RtGpuInstanceGroup> groups;
         for (size_t i = 0; i < boxes.size(); ++i)
         {
@@ -1906,8 +1959,8 @@ int main(int argc, char** argv)
             const uint32_t at = i + 1 == boxes.size() ? kRtInstancesPerRow + 7 : static_cast<uint32_t>(i);
             for (int r = 0; r < 3; ++r)
             {
-                const size_t texel = static_cast<size_t>(at / kRtInstancesPerRow) * kRtInstancesPerRow * 3
-                                     + (at % kRtInstancesPerRow) * 3 + r;
+                const size_t texel = static_cast<size_t>(at / kRtInstancesPerRow) * kRtInstancesPerRow * kRtInstanceTexels
+                                     + (at % kRtInstancesPerRow) * kRtInstanceTexels + r;
                 memcpy(&texels[texel * 4], transform + r * 4, 16);
             }
             RtGpuInstanceGroup group = {};
@@ -1927,7 +1980,7 @@ int main(int argc, char** argv)
         groups.push_back(empty);
 
         D3D11_TEXTURE2D_DESC texture = {};
-        texture.Width = kRtInstancesPerRow * 3;
+        texture.Width = kRtInstancesPerRow * kRtInstanceTexels;
         texture.Height = rows;
         texture.MipLevels = 1;
         texture.ArraySize = 1;
@@ -3303,14 +3356,14 @@ int main(int argc, char** argv)
         const Vec3 above = { 0, 1, 0 };
         // The card's transform for the GPU's instances, in t7's layout.
         D3D11_TEXTURE2D_DESC placesDesc = {};
-        placesDesc.Width = kRtInstancesPerRow * 3;
+        placesDesc.Width = kRtInstancesPerRow * kRtInstanceTexels;
         placesDesc.Height = 1;
         placesDesc.MipLevels = 1;
         placesDesc.ArraySize = 1;
         placesDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
         placesDesc.SampleDesc.Count = 1;
         placesDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-        std::vector<float> placeTexels(static_cast<size_t>(kRtInstancesPerRow) * 3 * 4, 0.0f);
+        std::vector<float> placeTexels(static_cast<size_t>(kRtInstancesPerRow) * kRtInstanceTexels * 4, 0.0f);
         Instance cardPlace;
         cardPlace.mesh = 40;
         cardPlace.position = { 0, 3, 0 };

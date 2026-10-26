@@ -1,16 +1,18 @@
 // The instances only the GPU knows -- Parallax's scatter -- gathered for the raytracing
 // (src/Raytracing/RtCamera.cs, GatherGpuInstances): one append buffer of transforms at a
 // time into the texture the proxy reads (src/DxgiProxy/Raytracing/Raytracing.h, kRtInputInstances),
-// each transform's rows 0-2 relative to the camera in three texels side by side, 256 to
-// a row. Beyond the buffer's count, zeros: no instance.
+// each transform's rows 0-2 relative to the camera and then its colour (row 3's rgb, which
+// Parallax fills with the terrain's colour or 1; zero where a buffer holds none) in four
+// texels side by side, 256 to a row. Beyond the buffer's count, and beyond _Reach, zeros: no instance.
 #pragma kernel Gather
 
-StructuredBuffer<float4x4> _Source;   // the mesh's to the world; row 3 may hold a colour
+StructuredBuffer<float4x4> _Source;   // the mesh's to the world; row 3 holds its colour
 ByteAddressBuffer _Counts;            // the append buffers' counts, copied this frame (raw: D3D11's CopyStructureCount)
 uint _CountIndex;
 uint _Capacity;
 uint _First;
 float4 _Eye;
+float4 _Reach;                        // the world position the instances belong about, and how far from it; 0 for no limit
 RWTexture2D<float4> _Out;
 
 // One transform per thread: its three rows into the output texture, the camera taken off the position; zeros
@@ -21,16 +23,26 @@ void Gather(uint3 id : SV_DispatchThreadID)
     if (id.x >= _Capacity)
         return;
     uint t = _First + id.x;
-    uint2 at = uint2((t % 256) * 3, t / 256);
+    uint2 at = uint2((t % 256) * 4, t / 256);
     if (id.x >= _Counts.Load(_CountIndex * 4))
     {
         _Out[at] = 0;
         _Out[at + uint2(1, 0)] = 0;
         _Out[at + uint2(2, 0)] = 0;
+        _Out[at + uint2(3, 0)] = 0;
         return;
     }
     float4x4 m = _Source[id.x];
+    if (_Reach.w > 0.0f && distance(float3(m[0].w, m[1].w, m[2].w), _Reach.xyz) > _Reach.w)
+    {
+        _Out[at] = 0;
+        _Out[at + uint2(1, 0)] = 0;
+        _Out[at + uint2(2, 0)] = 0;
+        _Out[at + uint2(3, 0)] = 0;
+        return;
+    }
     _Out[at] = float4(m[0].xyz, m[0].w - _Eye.x);
     _Out[at + uint2(1, 0)] = float4(m[1].xyz, m[1].w - _Eye.y);
     _Out[at + uint2(2, 0)] = float4(m[2].xyz, m[2].w - _Eye.z);
+    _Out[at + uint2(3, 0)] = float4(m[3].xyz, 0);
 }

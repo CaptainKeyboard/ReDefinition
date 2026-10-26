@@ -104,12 +104,13 @@ cbuffer Frame : register(b0)
 struct InstanceData
 {
     // The mesh's descriptor slot into meshIndices and meshAttributes, the material's index in
-    // materialData, the instance's flags (RT_INSTANCE_*), padding; then the normals' matrix,
-    // the inverse transpose of the transform's 3x3, in three padded rows.
+    // materialData, and the instance's flags (RT_INSTANCE_*).
     uint meshSlot;
     uint material;
     uint flags;
-    uint pad;
+    // The instance's colour: 0 for none, else a set top byte over blue, green and red at 8 bits each.
+    // Then come the normals' matrix, the inverse transpose of the transform's 3x3, in three padded rows.
+    uint tint;
     float4 normalRow0;
     float4 normalRow1;
     float4 normalRow2;
@@ -538,14 +539,16 @@ float SmoothnessToAlpha(float smoothness)
 struct Hit
 {
     // Whether it met anything, how far along the ray (the ray's length where not), the point,
-    // the normal, the texture coordinate, the vertex colour, the material's index, and the
-    // instance's flags.
+    // the normal, the texture coordinate, and the vertex colour.
     bool found;
     float distance;
     float3 position;
     float3 normal;
     float2 uv;
     float3 color;
+    // The instance's colour, 1 for none: a GPU instance's albedo is multiplied by it. Then the
+    // material's index and the instance's flags.
+    float3 tint;
     uint material;
     uint flags;
 };
@@ -568,6 +571,7 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.normal = float3(0.0f, 1.0f, 0.0f);
     hit.uv = 0.0f;
     hit.color = 1.0f;
+    hit.tint = 1.0f;
     hit.material = 0u;
 
     RayDesc ray;
@@ -617,6 +621,8 @@ Hit TraceClosest(float3 origin, float3 direction, float maxDistance, float terra
     hit.normal = normal;
     hit.uv = a0.uv * w + a1.uv * bary.x + a2.uv * bary.y;
     hit.color = UnpackColor(a0.color) * w + UnpackColor(a1.color) * bary.x + UnpackColor(a2.color) * bary.y;
+    if ((instance.tint >> 24) != 0u)
+        hit.tint = float3(float(instance.tint & 0xFFu), float((instance.tint >> 8) & 0xFFu), float((instance.tint >> 16) & 0xFFu)) * (1.0f / 255.0f);
     hit.material = instance.material;
     hit.flags = instance.flags;
     return hit;
@@ -1158,7 +1164,7 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
             break;
         }
         MaterialData material = materialData[hit.material];
-        float3 albedo = Albedo(material, hit.uv, hit.color);
+        float3 albedo = Albedo(material, hit.uv, hit.color) * hit.tint;
         total += weight * (SunAt(hit, albedo, random) + albedo * ReflectedLightAt(hit.position, hit.normal, random)
                            + material.emission);
         if (bounce == bounces)
@@ -1550,7 +1556,7 @@ SurfaceData SurfaceAt(uint2 pixel, float3 position)
         // The space centre's ground matt, as its intended specular colour (IntendedSpecular).
         surface.smoothness = uint(material.vertexColour.y + 0.5f) == RT_SURFACE_GROUND ? 0.0f : material.smoothness;
         surface.specular = IntendedSpecular(material);
-        surface.albedo = Albedo(material, hit.uv, hit.color);
+        surface.albedo = Albedo(material, hit.uv, hit.color) * hit.tint;
         surface.diffuseShare = material.look.x;
         surface.highlight = material.highlight;
         if (material.highlight.w > 0.0f && MATERIAL_TEXTURES && material.texture >= 0)

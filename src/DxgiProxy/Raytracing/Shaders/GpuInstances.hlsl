@@ -1,8 +1,8 @@
 // The instances the GPU made (Parallax's scatter) into the scene's instance buffers,
 // after the CPU's (RaytracingScene.cpp, AddGpuInstancesLocked): each one's descriptor for
 // the acceleration structure and the data the passes look its mesh, material and
-// normals up by. The transforms come in t7's layout (Raytracing.h, kRtInputInstances);
-// one all zero is no instance, its mask 0.
+// normals up by. The transforms come in t7's layout (Raytracing.h, kRtInputInstances),
+// each followed by the instance's colour; one all zero is no instance, its mask 0.
 
 #include "RtContract.h"
 
@@ -37,12 +37,12 @@ struct InstanceDesc
 // RtCommon.hlsli's InstanceData.
 struct InstanceData
 {
-    // The mesh's descriptor slot, the material's index, the instance's flags, padding, and the
+    // The mesh's descriptor slot, the material's index, the instance's flags, its colour, and the
     // normals' matrix in three padded rows.
     uint meshSlot;
     uint material;
     uint flags;
-    uint pad;
+    uint tint;
     float4 normalRows[3];
 };
 
@@ -65,6 +65,7 @@ cbuffer Step : register(b1)
 
 // The instances to a row of t7, and the instance flags the descriptions take.
 static const uint kPerRow = RT_INSTANCES_PER_ROW;
+static const uint kTexels = RT_INSTANCE_TEXELS;
 static const uint kCullDisable = 1u;   // D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
 static const uint kNonOpaque = 8u;     // D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE
 static const uint kDisableOmms = 32u;  // NVAPI_D3D12_RAYTRACING_INSTANCE_FLAG_DISABLE_OMMS_EX
@@ -93,10 +94,11 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
     }
     Group group = groups[g];
     uint t = group.first + (id.x - group.start);
-    uint2 at = uint2((t % kPerRow) * 3, t / kPerRow);
+    uint2 at = uint2((t % kPerRow) * kTexels, t / kPerRow);
     float4 r0 = transforms[at];
     float4 r1 = transforms[at + uint2(1, 0)];
     float4 r2 = transforms[at + uint2(2, 0)];
+    float3 colour = saturate(transforms[at + uint2(3, 0)].rgb);
     bool live = any(r0 != 0.0f) || any(r1 != 0.0f) || any(r2 != 0.0f);
     uint index = cpuCount + id.x;
 
@@ -122,7 +124,10 @@ void GpuInstances(uint3 id : SV_DispatchThreadID)
     item.meshSlot = group.meshSlot;
     item.material = group.material;
     item.flags = (group.maskFlags >> 8) & ~RT_GROUP_SERVICE_FLAGS;
-    item.pad = 0;
+    // The instance's colour as 8 bits a channel and a set top byte, as Parallax's blades take it
+    // (their albedo times it); 0 for an instance without one, whose albedo stays as it is.
+    uint3 bits = uint3(colour * 255.0f + 0.5f);
+    item.tint = any(colour > 0.0f) ? (0xFF000000u | bits.r | (bits.g << 8) | (bits.b << 16)) : 0u;
     item.normalRows[0] = float4(c0 * s, 0.0f);
     item.normalRows[1] = float4(c1 * s, 0.0f);
     item.normalRows[2] = float4(c2 * s, 0.0f);

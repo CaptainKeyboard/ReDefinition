@@ -39,6 +39,8 @@ namespace ReDefinition.Scenery
         private static Func<object, string> scatterName;
         private static Func<object, float> range;
         private static Func<object, bool> craftCentred;
+        private static Func<object, Vector3> craftPosition;
+        private static Func<object, Vector3> cameraPosition;
         private static readonly Func<object, Mesh>[] meshes = new Func<object, Mesh>[3];
         private static readonly Func<object, Material>[] materials = new Func<object, Material>[3];
         private static readonly Func<object, ComputeBuffer>[] outputs = new Func<object, ComputeBuffer>[3];
@@ -93,6 +95,12 @@ namespace ReDefinition.Scenery
                 scatterName = name;
                 range = rangeGetter;
                 craftCentred = aboutCraft;
+                craftPosition = CompiledGetter.Of<Vector3>(TypeLookup.Find("Parallax.RuntimeOperations")
+                                                               .GetField("vectorCraftPos", BindingFlags.Public | BindingFlags.Static));
+                cameraPosition = CompiledGetter.Of<Vector3>(TypeLookup.Find("Parallax.RuntimeOperations")
+                                                                .GetField("vectorCameraPos", BindingFlags.Public | BindingFlags.Static));
+                if (craftPosition == null || cameraPosition == null)
+                    throw new MissingFieldException("Parallax.RuntimeOperations", "vectorCraftPos or vectorCameraPos");
                 // Last: Available asks it.
                 manager = CompiledGetter.Of<object>(managerType.GetField("Instance", BindingFlags.Public | BindingFlags.Static));
             }
@@ -139,6 +147,20 @@ namespace ReDefinition.Scenery
         {
             object scatter = Available && renderer != null ? scatterOf(renderer) : null;
             return scatter != null && craftCentred(scatter);
+        }
+
+        // The point Parallax culls its vessel-centred scatters about, in world space: the active vessel's position,
+        // else the camera's (RuntimeOperations.vectorCraftPos). Parallax takes the camera from the flight camera, so
+        // where there is none, as at the space centre, it is the world's origin. Zero where Parallax cannot be read.
+        internal static Vector3 CraftPosition()
+        {
+            return Available ? craftPosition(null) : Vector3.zero;
+        }
+
+        // The point Parallax culls its camera-centred scatters about, in world space (RuntimeOperations.vectorCameraPos).
+        internal static Vector3 CameraPosition()
+        {
+            return Available ? cameraPosition(null) : Vector3.zero;
         }
 
         // The renderer's mesh at level of detail `lod` (0 to 2); null where there is none.

@@ -218,11 +218,12 @@ namespace redefinition
     constexpr uint32_t kRtInputMotion = RT_INPUT_MOTION;
     constexpr uint32_t kRtInputEnvironment = RT_INPUT_ENVIRONMENT;   // t6: the sky as a latitude-longitude image
     // t7: instances the GPU made (Parallax's scatter), camera-relative, as
-    // R32G32B32A32_FLOAT: each the three rows of its transform in three texels side by
-    // side, kRtInstancesPerRow to a texture row; all zero for none. The frame's
+    // R32G32B32A32_FLOAT: each the three rows of its transform and then its colour in
+    // kRtInstanceTexels texels side by side, kRtInstancesPerRow to a texture row; all zero for none. The frame's
     // RtGpuInstanceGroup list says which mesh and material each run of them is.
     constexpr uint32_t kRtInputInstances = RT_INPUT_INSTANCES;
     constexpr uint32_t kRtInstancesPerRow = RT_INSTANCES_PER_ROW;
+    constexpr uint32_t kRtInstanceTexels = RT_INSTANCE_TEXELS;
 
     // A frame's instances and groups set for every frame that has none of its own.
     constexpr uint32_t kRtAnyFrame = RT_ANY_FRAME;
@@ -698,11 +699,12 @@ namespace redefinition
         struct InstanceData
         {
             // The mesh's descriptor slot, the material's index among the frame's (0 the grey of
-            // an unknown one), the instance's flags with kRtInstanceCutout, padding.
+            // an unknown one), and the instance's flags with kRtInstanceCutout.
             uint32_t meshSlot;
             uint32_t material;
             uint32_t flags;
-            uint32_t pad;
+            // The instance's colour: 0 for none, else a set top byte over blue, green and red at 8 bits each.
+            uint32_t tint;
             float normalRows[12];   // the inverse transpose of the transform's 3x3, rows first, padded
         };
 

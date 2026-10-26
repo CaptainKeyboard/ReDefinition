@@ -246,20 +246,11 @@ namespace ReDefinition.Raytracing
             {
                 IList renderers = Scenery.ParallaxScatterFields.Renderers();
                 if (renderers == null) return 0;
-                // At the space centre Parallax fills its grass buffers (up to 82 000 places in a player's log) and
-                // draws none of it. The rays would take them as grass: a patch of blade shadows on the terrain,
-                // where the camera looks, which turns off with the raytracing (2026-10-26). The lifted clumps of
-                // the lawns (Scenery.KscGrass.CollectGpu) are the space centre's grass the rays do take.
-                bool spaceCentre = HighLogic.LoadedScene == GameScenes.SPACECENTER;
                 for (int r = 0; r < renderers.Count; r++)
                 {
                     object renderer = renderers[r];
                     if (renderer == null) continue;
-                    if (spaceCentre)
-                    {
-                        string name = Scenery.ParallaxScatterFields.ScatterName(renderer);
-                        if (name != null && name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) >= 0) continue;
-                    }
+                    bool aboutVessel = Scenery.ParallaxScatterFields.AboutVessel(renderer);
                     for (int lod = 0; lod < 3; lod++)
                     {
                         // Where the space centre's grass is lifted, its clumps under the
@@ -268,6 +259,12 @@ namespace ReDefinition.Raytracing
                                                                            Scenery.ParallaxScatterFields.Output(renderer, lod));
                         Mesh mesh = Scenery.ParallaxScatterFields.Mesh(renderer, lod);
                         if (buffer == null || !buffer.IsValid() || mesh == null) continue;
+                        // Parallax draws a scatter within its range of the point it culls it about (the vessel's or the
+                        // camera's, which it keeps itself). Instances beyond it are not drawn about the viewer, and a
+                        // ray that meets one meets grass the picture has none of: at the space centre, 800 to 1250 m
+                        // from the camera of a grass 256 m in range (2026-10-26).
+                        Vector3 about = aboutVessel ? Scenery.ParallaxScatterFields.CraftPosition() : Scenery.ParallaxScatterFields.CameraPosition();
+                        float range = Scenery.ParallaxScatterFields.Range(renderer);
                         into.Add(new RtGpuItem
                         {
                             Transforms = buffer,
@@ -275,6 +272,7 @@ namespace ReDefinition.Raytracing
                             SubMesh = 0,
                             Material = Scenery.ParallaxScatterFields.Material(renderer, lod),
                             Mask = 0xFF,
+                            Reach = range > 0f ? new Vector4(about.x, about.y, about.z, range * 1.1f + 20f) : Vector4.zero,
                         });
                         buffers++;
                     }
@@ -290,12 +288,11 @@ namespace ReDefinition.Raytracing
             return buffers;
         }
 
-        // Where Parallax draws its scatters about the vessel from (RuntimeOperations.vectorCraftPos): the
-        // active vessel's position, without one the camera's.
+        // Where Parallax draws its scatters about the vessel from: its own point (RuntimeOperations.vectorCraftPos),
+        // which at the space centre is the world's origin and not the camera. `camera` where Parallax cannot be read.
         internal static Vector3 ParallaxVessel(Vector3 camera)
         {
-            Vessel vessel = FlightGlobals.fetch != null ? FlightGlobals.ActiveVessel : null;
-            return vessel != null ? vessel.transform.position : camera;
+            return Scenery.ParallaxScatterFields.Available ? Scenery.ParallaxScatterFields.CraftPosition() : camera;
         }
 
         // How far Parallax draws its grass, in metres. The result is the longest range of the active scatters named

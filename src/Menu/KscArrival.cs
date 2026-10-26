@@ -35,6 +35,9 @@ namespace ReDefinition.Menu
         // -redefinitionKscArrivalTest: from the menu into the probe's save by itself, with
         // screenshots on the way into ReDefinitionCaptures, then quit.
         internal static readonly bool Test = CommandLine.Has("-redefinitionKscArrivalTest");
+        // -redefinitionKscArrivalStay, with the test: KSP stays at the space centre when the test ends, to watch what
+        // runs there over minutes (the log's lines every 30 seconds).
+        internal static readonly bool Stay = CommandLine.Has("-redefinitionKscArrivalStay");
         private static string testFolder;
 
         // In the test, a screenshot of that name into this run's capture folder, made at the first.
@@ -576,7 +579,7 @@ namespace ReDefinition.Menu
                 yield return new WaitForSeconds(8f);
                 KscArrival.TestShot("3-ksp-view");
                 yield return KscArrivalCheck.Run();
-                Application.Quit();
+                if (!KscArrival.Stay) Application.Quit();
                 yield break;
             }
             SpaceCenterCamera2 control = null;
@@ -688,7 +691,7 @@ namespace ReDefinition.Menu
                 yield return new WaitForSeconds(1f);
                 KscArrival.TestShot("3-ksp-view");
                 yield return KscArrivalCheck.Run();
-                Application.Quit();
+                if (!KscArrival.Stay) Application.Quit();
             }
         }
     }
