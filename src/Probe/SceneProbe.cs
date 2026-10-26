@@ -175,7 +175,7 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
-            if (SceneProbe.VesselName == null && Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.SeaArgument) >= 0)
+            if (SceneProbe.VesselName == null && CommandLine.Has(SceneProbe.SeaArgument))
             {
                 int capsule = SeaCapsule(game);
                 if (capsule < 0)
@@ -187,7 +187,7 @@ namespace ReDefinition.Probe
                 }
                 index = capsule;
             }
-            if (SceneProbe.VesselName == null && Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.GrassArgument) >= 0)
+            if (SceneProbe.VesselName == null && CommandLine.Has(SceneProbe.GrassArgument))
             {
                 int capsule = GrassCapsule(game);
                 if (capsule < 0)
@@ -299,7 +299,7 @@ namespace ReDefinition.Probe
                 home.pqsController.GetSurfaceHeight(home.GetRelSurfaceNVector(lat, lon)) - home.Radius;
             // -redefinitionProbeCoast: 2.6 km off the island airfield's east shore, the
             // island and its sea floor in view; otherwise far out at sea.
-            bool coast = Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.CoastArgument) >= 0;
+            bool coast = CommandLine.Has(SceneProbe.CoastArgument);
             var places = new List<double[]>();
             if (coast)
                 // Eastwards from the shore until the sea is deep enough: the shore lies a
@@ -903,7 +903,7 @@ namespace ReDefinition.Probe
             // ground's point by a physics ray, EVE's own prediction of the shadow there, beside
             // what the rays wrote (the sun's visibility is the clouds' transmittance then).
             Raytracing.RtEveClouds eve = Raytracing.RtEveClouds.Last;
-            if (eve != null && Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCloudShadow") >= 0 && rt.SunTexture != null)
+            if (eve != null && CommandLine.Has("-redefinitionProbeCloudShadow") && rt.SunTexture != null)
             {
                 AsyncGPUReadbackRequest sunRead = AsyncGPUReadback.Request(rt.SunTexture, 0, TextureFormat.RGBAFloat);
                 while (!sunRead.done) yield return null;
@@ -931,7 +931,7 @@ namespace ReDefinition.Probe
                             // points: in flight KSP's cameras split the view, and the near water's pixels
                             // hold no depth in the traced one).
                             float ours = sunData[Mathf.Clamp((int)(vy * sh), 0, sh - 1) * sw + Mathf.Clamp((int)(vx * sw), 0, sw - 1)].r;
-                            if (pairs < 6 || pairs % 60 == 0 || Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCloudValue") >= 0 && pairs < 40)
+                            if (pairs < 6 || pairs % 60 == 0 || CommandLine.Has("-redefinitionProbeCloudValue") && pairs < 40)
                                 Debug.Log(Log.Tag + " Probe: cloud check at " + hit.point + " (" + hit.collider.name + ", " + hit.distance.ToString("0.0") + " m, viewport " + vx.ToString("0.00")
                                           + "," + vy.ToString("0.00") + "): EVE " + predicted.ToString("0.00") + ", rays " + ours.ToString("0.000")
                                           + ", " + eve.EveRaw(hit.point, towards) + ".");
@@ -988,7 +988,7 @@ namespace ReDefinition.Probe
                 yield return null;
             }
             Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.StayArgument) >= 0)
+            if (CommandLine.Has(SceneProbe.StayArgument))
             {
                 yield return new WaitForSeconds(5f);
                 LightProbe.HideClouds();
@@ -996,7 +996,7 @@ namespace ReDefinition.Probe
                 // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
                 if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
                     ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), SceneProbe.GrassArgument) >= 0)
+                if (CommandLine.Has(SceneProbe.GrassArgument))
                 {
                     // Where the grass scene ended up: the situation, the height above the ground
                     // and the biome, to read against the grass the shot shows.
@@ -1027,7 +1027,7 @@ namespace ReDefinition.Probe
                 }
                 // -redefinitionProbeRenderDoc, under RenderDoc (tools/renderdoc_probe.ps1
                 // -Stay): one frame captured 25 s on, then KSP quits.
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeRenderDoc") >= 0)
+                if (CommandLine.Has("-redefinitionProbeRenderDoc"))
                 {
                     yield return new WaitForSeconds(25f);
                     RenderDocCapture.Capture("the flight left to run");
@@ -1038,7 +1038,7 @@ namespace ReDefinition.Probe
                 // -redefinitionProbeCpuSample: the main thread sampled for 30 s from 20 s on
                 // (src/DxgiProxy/CpuSampler.h) into the session's capture folder, cpu-samples.txt,
                 // then KSP quits; tools/cpu_samples.py reads it.
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeCpuSample") >= 0)
+                if (CommandLine.Has("-redefinitionProbeCpuSample"))
                 {
                     yield return new WaitForSeconds(20f);
                     string samplesFolder = CaptureFolder.Run;
@@ -1067,7 +1067,7 @@ namespace ReDefinition.Probe
                 EnvironmentFaces(folder, shot);
                 // -redefinitionProbeSurfaces: the raytraced camera's surfaces of the frame
                 // after, as <shot>-<name>.bin (RtCamera.WriteSurfaceImages).
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeSurfaces") >= 0)
+                if (CommandLine.Has("-redefinitionProbeSurfaces"))
                 {
                     yield return new WaitForEndOfFrame();
                     Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
@@ -1110,7 +1110,7 @@ namespace ReDefinition.Probe
                 // G-buffer and before the lights, as <shot>-afterGBuffer.bin and
                 // <shot>-beforeLighting.bin (the surfaces' format): what each surface brings
                 // into the lighting of its own.
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeLightBuffer") >= 0)
+                if (CommandLine.Has("-redefinitionProbeLightBuffer"))
                     yield return LightBuffer(folder, shot);
                 // -redefinitionProbeShotIni "key=value,key=value;key=value": then each set of the
                 // proxy's live settings in turn written into ReDefinitionProxy.ini, which the proxy
@@ -1122,7 +1122,7 @@ namespace ReDefinition.Probe
                 // -redefinitionProbeDownloads: the settings window's downloads run as the player runs
                 // them (DownloadProbe), with a shot of the question and of the window before, during
                 // and after each.
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeDownloads") >= 0)
+                if (CommandLine.Has("-redefinitionProbeDownloads"))
                     yield return DownloadProbe.Run(folder, shot);
                 // -redefinitionProbeWindow "step;...": the settings window used as the player does (WindowProbe).
                 string windowSteps = SceneProbe.ArgumentAfter("-redefinitionProbeWindow");
@@ -1232,7 +1232,7 @@ namespace ReDefinition.Probe
             LogMotionModes(FlightGlobals.ActiveVessel);
             // The finished frame without KSP's interface over it; -redefinitionProbeShowHud keeps
             // the interface, for what frame generation does to it (tools/hud_probe.py).
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeShowHud") < 0)
+            if (!CommandLine.Has("-redefinitionProbeShowHud"))
                 GameEvents.onHideUI.Fire();
             // -redefinitionProbeFpsCap <n>: n rendered frames a second at most, so that frame
             // generation's frames all fit the display's refresh rate and the desktop recording sees them.
@@ -1515,7 +1515,7 @@ namespace ReDefinition.Probe
         // Whether -redefinitionProbeFreeze stops game time for both passes of a variant.
         private static bool Freeze
         {
-            get { return Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeFreeze") >= 0; }
+            get { return CommandLine.Has("-redefinitionProbeFreeze"); }
         }
 
         // The active vessel's enabled renderers disabled; those it disabled, to enable again.
@@ -1541,7 +1541,7 @@ namespace ReDefinition.Probe
             camera.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
             int n = sweepSubdivide;
             // -redefinitionProbeSweepRight: the same path the other way round.
-            float sign = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeSweepRight") >= 0 ? -1f : 1f;
+            float sign = CommandLine.Has("-redefinitionProbeSweepRight") ? -1f : 1f;
             for (int i = 0; i < 60 * n; i++)
             {
                 hdg += sign * (i < 20 * n || i >= 40 * n ? 1.5f : -1.5f) / n * Mathf.Deg2Rad;

@@ -25,7 +25,7 @@ namespace ReDefinition.Probe
         // With the switch, the measurement eight seconds into the flight.
         private IEnumerator Start()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0) yield break;
+            if (!CommandLine.Has(Argument)) yield break;
             yield return new WaitForSeconds(8f);
             try
             {

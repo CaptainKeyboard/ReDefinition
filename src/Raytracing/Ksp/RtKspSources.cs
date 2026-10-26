@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using ReDefinition.Core;
 using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
@@ -457,11 +458,11 @@ namespace ReDefinition.Raytracing
         // -redefinitionProbeNoParallaxScatterRays: Parallax's own scatter left out of the
         // rays, the space centre's lifted grass kept, to compare (the scene probe).
         private static readonly bool ParallaxLeftOut =
-            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoParallaxScatterRays") >= 0;
+            CommandLine.Has("-redefinitionProbeNoParallaxScatterRays");
 
         // -redefinitionProbeNoKscGrassRays: the space centre's lifted grass left out of the rays too.
         private static readonly bool KscGrassLeftOut =
-            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoKscGrassRays") >= 0;
+            CommandLine.Has("-redefinitionProbeNoKscGrassRays");
 
         // Every frame in flight and at the space centre: the scatter buffers handed over, counted for the log.
         public void CollectGpu(List<RtGpuItem> into)

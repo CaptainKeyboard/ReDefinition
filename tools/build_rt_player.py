@@ -35,6 +35,7 @@ except (OSError, subprocess.CalledProcessError):
 PROXY = os.path.join(ROOT, 'build', 'DxgiProxy', 'Release', 'dxgi.dll')
 
 SOURCES = [
+    'src/Proxy/ProxyDll.cs',
     'src/Proxy/RtNative.cs',
     'src/Raytracing/RtScene.cs',
     'src/Raytracing/RtMaterial.cs',
@@ -56,6 +57,7 @@ SOURCES = [
     'src/Proxy/NativeUpscalerLink.cs',
     'src/Proxy/DlssBridge.cs',
     'src/Proxy/AmdUpscalerBridge.cs',
+    'src/Proxy/XessUpscalerBridge.cs',
     'src/Fsr3/Fsr3Constants.cs',
     'src/Fsr3/Fsr3ShaderIDs.cs',
     'src/Fsr3/Fsr3Upscaler.cs',

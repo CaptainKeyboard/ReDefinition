@@ -3,6 +3,7 @@ using System.Reflection;
 using System;
 using ReDefinition.Core;
 using ReDefinition.Upscaler;
+using ReDefinition.Window;
 using UnityEngine.LowLevel;
 using UnityEngine;
 

@@ -4,6 +4,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
+using ReDefinition.Core;
 
 namespace ReDefinition.RaytracingPlayer
 {

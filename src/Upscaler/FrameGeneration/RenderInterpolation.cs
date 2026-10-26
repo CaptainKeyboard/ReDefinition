@@ -58,7 +58,7 @@ namespace ReDefinition.Upscaler
         private const float ReportSeconds = 10f;
 
         // The Debug switch; on at every start, off with -redefinitionProbeNoInterpolation.
-        internal static bool Enabled = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoInterpolation") < 0;
+        internal static bool Enabled = !CommandLine.Has("-redefinitionProbeNoInterpolation");
 
         // A part transform moved for this frame: its local position before, to restore exactly, and the world offset.
         private struct Moved

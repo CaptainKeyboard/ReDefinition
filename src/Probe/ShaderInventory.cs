@@ -48,7 +48,7 @@ namespace ReDefinition.Probe
         // Six seconds into a scene not yet written, with the switch, its inventory into the capture folder.
         private IEnumerator Start()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0) yield break;
+            if (!CommandLine.Has(Argument)) yield break;
             GameScenes scene = HighLogic.LoadedScene;
             if (Done.Contains(scene)) yield break;
             yield return new WaitForSeconds(6f);

@@ -111,7 +111,7 @@ namespace ReDefinition.Menu
             yield return null;
             try
             {
-                test = Array.IndexOf(Environment.GetCommandLineArgs(), BurstArgument) >= 0;
+                test = CommandLine.Has(BurstArgument);
                 if (!FindScene()) yield break;
                 BuildPool();
                 nextBurst = Time.time + (test ? TestInterval : UnityEngine.Random.Range(0.5f, 1.5f));
@@ -121,7 +121,7 @@ namespace ReDefinition.Menu
             {
                 Fail("start", e);
             }
-            if (!test || Array.IndexOf(Environment.GetCommandLineArgs(), ShotArgument) < 0) yield break;
+            if (!test || !CommandLine.Has(ShotArgument)) yield break;
             yield return new WaitForSeconds(6f);
             string folder = Core.CaptureFolder.Run;
             string file = System.IO.Path.Combine(folder, "fireworks-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".png");

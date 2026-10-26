@@ -34,7 +34,7 @@ namespace ReDefinition.Menu
         internal static KscArrivalOverlay Overlay;
         // -redefinitionKscArrivalTest: from the menu into the probe's save by itself, with
         // screenshots on the way into ReDefinitionCaptures, then quit.
-        internal static readonly bool Test = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionKscArrivalTest") >= 0;
+        internal static readonly bool Test = CommandLine.Has("-redefinitionKscArrivalTest");
         private static string testFolder;
 
         // In the test, a screenshot of that name into this run's capture folder, made at the first.
@@ -174,7 +174,7 @@ namespace ReDefinition.Menu
         // In the test, the way down frame by frame: a picture each tenth of a second and
         // the planet's share of the screen, to see the whole movement.
         private static float nextFrameShot;
-        private static readonly bool NoShots = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionKscArrivalNoShots") >= 0;
+        private static readonly bool NoShots = CommandLine.Has("-redefinitionKscArrivalNoShots");
 
         // Each part's frame times, into the log at its end: how smooth the way was.
         private static int frames;

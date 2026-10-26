@@ -16,6 +16,7 @@ namespace Refactor
     //   namespace <old> <new>                 renames a namespace in every text file
     //   rename    <old> <new>                 renames an identifier: its tokens in C#, its words elsewhere
     //   text      <old> <new>                 replaces a string in every text file (paths, names)
+    //   regex     <pattern> <replacement> [path prefix]   a regular expression replaced in C# files, $1 for groups
     //   usings    <namespace> -               adds the using of that namespace to every file naming one of its types
     //
     //   dotnet <Refactor.dll> apply <manifest> [--dry-run]
@@ -77,7 +78,7 @@ namespace Refactor
                 string line = raw.TrimEnd();
                 if (line.Length == 0 || line.TrimStart().StartsWith("#")) continue;
                 string[] f = line.Split('\t');
-                bool known = f[0] == "move" || f[0] == "movedir" || f[0] == "namespace" || f[0] == "rename" || f[0] == "text" || f[0] == "usings";
+                bool known = f[0] == "move" || f[0] == "movedir" || f[0] == "namespace" || f[0] == "rename" || f[0] == "text" || f[0] == "usings" || f[0] == "regex";
                 if (!known || f.Length < 3) throw new FormatException(path + ":" + number + ": cannot read '" + line + "'");
                 result.Add(new Operation { Verb = f[0], A = f[1], B = f[2], C = f.Length > 3 ? f[3] : null });
             }
@@ -216,6 +217,9 @@ namespace Refactor
                 if (path.EndsWith(".cs", StringComparison.Ordinal))
                     foreach (var q in qualified) result = q.pattern.Replace(result, m => q.name);
                 foreach (var r in rewrites) result = r.pattern.Replace(result, m => r.replacement);
+                foreach (Operation g in operations.Where(g => g.Verb == "regex"))
+                    if (path.EndsWith(".cs", StringComparison.Ordinal) && (g.C == null || path.StartsWith(g.C, StringComparison.Ordinal)))
+                        result = Regex.Replace(result, g.A, g.B);
                 foreach (Operation w in words)
                 {
                     result = path.EndsWith(".cs", StringComparison.Ordinal)
@@ -236,7 +240,7 @@ namespace Refactor
             // The `usings` operation: every type a namespace declares counts as moved into it, so that each file
             // naming one of them without importing the namespace gets the using.
             foreach (Operation o in operations.Where(o => o.Verb == "usings"))
-                foreach (string cs in files.Where(f => f.EndsWith(".cs", StringComparison.Ordinal)))
+                foreach (string cs in files.Where(f => f.EndsWith(".cs", StringComparison.Ordinal) && (f.StartsWith("src/", StringComparison.Ordinal) || f.StartsWith("tests/ReDefinition.Tests/", StringComparison.Ordinal))))
                     foreach (MovedType t in Namespaces.Set(root, cs, null, changed).Where(t => t.NewNs == o.A))
                         types.Add(new MovedType { Name = t.Name, OldNs = "(elsewhere)", NewNs = o.A, File = t.File });
             int added = Usings.Add(root, files.Where(f => f.EndsWith(".cs", StringComparison.Ordinal)).ToList(), types, changed);

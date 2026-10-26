@@ -106,7 +106,7 @@ namespace ReDefinition.Probe
         // Only with the switch and the proxy: the markers on, the culling hook, the scripts patched.
         private void Awake()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0)
+            if (!CommandLine.Has(Argument))
             {
                 Destroy(this);
                 return;
@@ -127,7 +127,7 @@ namespace ReDefinition.Probe
             Camera.onPreCull += MarkCulling;
             // -redefinitionProbeNoProbeShadows: KSP's reflection probe drawn without shadows,
             // to measure what its shadow maps cost.
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoProbeShadows") >= 0)
+            if (CommandLine.Has("-redefinitionProbeNoProbeShadows"))
             {
                 Camera.onPreCull += ProbeShadowsOff;
                 Camera.onPostRender += ProbeShadowsBack;
@@ -353,7 +353,7 @@ namespace ReDefinition.Probe
         // it left the probe out (the raytracing's self-check: "missing the sky's probe"),
         // and the raytraced scene dark with it. -redefinitionGpuProfileNoCameras: no
         // markers on the cameras and lights at all.
-        private static readonly bool CameraMarkers = Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionGpuProfileNoCameras") < 0;
+        private static readonly bool CameraMarkers = !CommandLine.Has("-redefinitionGpuProfileNoCameras");
 
         // Once a second: markers on the cameras and lights that came since (unless switched off), and the camera
         // event handlers added since patched.

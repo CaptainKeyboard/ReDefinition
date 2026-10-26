@@ -46,7 +46,7 @@ namespace ReDefinition.Probe
         // Whether the light probe was asked for on the command line; the scene probe runs it then.
         internal static bool Requested
         {
-            get { return Array.IndexOf(Environment.GetCommandLineArgs(), Argument) >= 0; }
+            get { return CommandLine.Has(Argument); }
         }
 
         // A camera pose of the pad shots: its name in the file names and its pitch.
@@ -125,36 +125,36 @@ namespace ReDefinition.Probe
             float heading = FlightCamera.fetch.camHdg;
             try
             {
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), FireflyArgument) >= 0)
+                if (CommandLine.Has(FireflyArgument))
                 {
                     yield return FireflyShots(folder);
                     yield break;
                 }
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), CloudLightArgument) >= 0)
+                if (CommandLine.Has(CloudLightArgument))
                 {
                     yield return CloudShots(addon, folder);
                     yield break;
                 }
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), PerfArgument) >= 0)
+                if (CommandLine.Has(PerfArgument))
                 {
                     yield return PerfShots(addon, original, heading);
                     yield break;
                 }
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), PadFxArgument) >= 0)
+                if (CommandLine.Has(PadFxArgument))
                 {
                     bool night = false;
                     yield return WarpToMoonNight(result => night = result);
                     yield return PadFxShots(folder);
                     yield break;
                 }
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), RunwayArgument) >= 0)
+                if (CommandLine.Has(RunwayArgument))
                 {
                     bool night = false;
                     yield return WarpToMoonNight(result => night = result);
                     yield return RunwayShots(folder);
                     yield break;
                 }
-                if (Array.IndexOf(Environment.GetCommandLineArgs(), OceanArgument) >= 0)
+                if (CommandLine.Has(OceanArgument))
                 {
                     // Out at sea (SceneProbe, -redefinitionProbeSea): the sun, then the Mun at
                     // night, at each height (Heights), each case's camera looking towards it.
@@ -1081,7 +1081,7 @@ namespace ReDefinition.Probe
         internal static void HideClouds()
         {
             // -redefinitionProbeClouds: the clouds kept, for the raytraced clouds' checks.
-            if (cloudsHidden || Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeClouds") >= 0) return;
+            if (cloudsHidden || CommandLine.Has("-redefinitionProbeClouds")) return;
             cloudsHidden = true;
             int behaviours = 0, renderers = 0;
             foreach (MonoBehaviour b in UnityEngine.Object.FindObjectsOfType<MonoBehaviour>())

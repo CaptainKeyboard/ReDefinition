@@ -431,7 +431,7 @@ namespace ReDefinition.Scenery
             }
             mainThread += watch.ElapsedMilliseconds - started;
             ready = true;
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), MapArgument) >= 0)
+            if (CommandLine.Has(MapArgument))
             {
                 probeMap = map;
                 WriteMap(map, null, "lawns-" + (++mapsWritten), "");

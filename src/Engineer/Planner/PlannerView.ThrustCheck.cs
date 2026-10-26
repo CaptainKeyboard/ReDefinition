@@ -1,7 +1,4 @@
 using System.Collections.Generic;
-using System.Globalization;
-using ReDefinition.Window;
-using UnityEngine;
 
 namespace ReDefinition.Engineer
 {

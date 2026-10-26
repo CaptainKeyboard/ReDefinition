@@ -33,3 +33,55 @@ namespace ReDefinition.Proxy
         }
     }
 }
+
+namespace ReDefinition.Probe
+{
+    // The scene probe's command-line reader, which RtCamera asks for the meadow's probe values: the test player has no
+    // scene probe, so none of its switches is given.
+    internal static class SceneProbe
+    {
+        // The value after a switch on the command line; none, as the player is not started with the probe's switches.
+        internal static string ArgumentAfter(string name)
+        {
+            return null;
+        }
+    }
+}
+
+namespace ReDefinition.Scenery
+{
+    // The space centre's lawn material, which RtMaterialIntent and RtStockTerrain ask whether a material is
+    // (src/Scenery/KscGround.cs): the test player has no space centre, so no material is.
+    internal static class KscGround
+    {
+        // The lawn's colour as the shader draws it; unused where no material is the lawn's.
+        internal static readonly UnityEngine.Color LawnColour = new UnityEngine.Color(0.2f, 0.3f, 0.1f);
+
+        // Never: the test player's materials are not the space centre's lawn.
+        internal static bool Draws(UnityEngine.Material material)
+        {
+            return false;
+        }
+    }
+}
+
+namespace ReDefinition.Raytracing
+{
+    // Parallax's grass ranges, which RtCamera reads for the meadow's shade (src/Raytracing/Ksp/RtKspMods.cs): the
+    // test player has no Parallax, so there is no grass.
+    internal static class RtKspMods
+    {
+        // No grass range about the camera or the vessel.
+        internal static float ParallaxGrassRange(out float vesselRange)
+        {
+            vesselRange = 0f;
+            return 0f;
+        }
+
+        // No vessel grass: the camera's own position.
+        internal static UnityEngine.Vector3 ParallaxVessel(UnityEngine.Vector3 camera)
+        {
+            return camera;
+        }
+    }
+}

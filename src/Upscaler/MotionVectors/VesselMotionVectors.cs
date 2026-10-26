@@ -331,7 +331,7 @@ namespace ReDefinition.Upscaler
 
         // -redefinitionProbeActiveVesselOnly: the active vessel alone, as before, to compare.
         private static readonly bool ActiveOnly =
-            System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeActiveVesselOnly") >= 0;
+            CommandLine.Has("-redefinitionProbeActiveVesselOnly");
 
         // The active vessel and the loaded vessels near it, the active one first.
         private readonly List<Vessel> near = new List<Vessel>();

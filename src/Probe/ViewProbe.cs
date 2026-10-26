@@ -36,7 +36,7 @@ namespace ReDefinition.Probe
         // Whether KSP was started to take Parallax's shine off.
         internal static bool NoGloss
         {
-            get { return Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoGloss") >= 0; }
+            get { return CommandLine.Has("-redefinitionProbeNoGloss"); }
         }
 
         // Parallax's shine off on every material of its shaders found now; how many.
@@ -176,7 +176,7 @@ namespace ReDefinition.Probe
                     string name = shot + "-v" + i + "-" + mode + suffix + ".png";
                     // -redefinitionProbeViewTimings: the raytracing passes' GPU time and the frame time, each averaged
                     // over 6 s at the pose.
-                    if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeViewTimings") >= 0)
+                    if (CommandLine.Has("-redefinitionProbeViewTimings"))
                         yield return Timings(name);
                     ScreenCapture.CaptureScreenshot(Path.Combine(folder, name));
                     Debug.Log(Log.Tag + " Probe: views: " + name + " at pitch " + pitch + ", distance " + distance
@@ -184,7 +184,7 @@ namespace ReDefinition.Probe
                     yield return null;
                     // -redefinitionProbeSurfaces: with the raytracing on, the surfaces of the frame after at every
                     // second pixel (RtCamera.WriteSurfaceImages), for tools/surface_sheet.py.
-                    if (mode != Raytracing.RaytracingMode.Off && Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeSurfaces") >= 0)
+                    if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeSurfaces"))
                     {
                         yield return new WaitForEndOfFrame();
                         Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
@@ -202,7 +202,7 @@ namespace ReDefinition.Probe
                     }
                     // -redefinitionProbeViewOverlay: with the raytracing on, the surfaces' overlay too
                     // (RtCamera.SurfaceView), as <shot>-v<i>-<mode>-overlay.png.
-                    if (mode != Raytracing.RaytracingMode.Off && Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeViewOverlay") >= 0)
+                    if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeViewOverlay"))
                     {
                         bool shown = Raytracing.RtCamera.SurfaceView;
                         Raytracing.RtCamera.SurfaceView = true;

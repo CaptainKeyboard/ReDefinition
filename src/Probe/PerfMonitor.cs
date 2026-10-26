@@ -64,7 +64,7 @@ namespace ReDefinition.Probe
         // the other mods, of chosen classes and of Unity's samplers) patched to be timed.
         private void Awake()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0)
+            if (!CommandLine.Has(Argument))
             {
                 Destroy(this);
                 return;
@@ -75,7 +75,7 @@ namespace ReDefinition.Probe
             // -redefinitionPerfMonitorAll: every loaded mod's and KSP's MonoBehaviours too,
             // their names led by their assembly's, to see whose scripts the frame waits for.
             var assemblies = new List<Assembly> { typeof(PerfMonitor).Assembly };
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionPerfMonitorAll") >= 0)
+            if (CommandLine.Has("-redefinitionPerfMonitorAll"))
                 foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
                     string name = assembly.GetName().Name;
@@ -146,7 +146,7 @@ namespace ReDefinition.Probe
             // -redefinitionPerfMonitorUnity: Unity's own profiler samplers as well --
             // culling, rendering, the canvases, physics, the player loop's phases --
             // where this player's build lets them be read (Recorder.isValid).
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionPerfMonitorUnity") >= 0)
+            if (CommandLine.Has("-redefinitionPerfMonitorUnity"))
             {
                 var names = new List<string>();
                 UnityEngine.Profiling.Sampler.GetNames(names);

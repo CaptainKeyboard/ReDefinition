@@ -60,7 +60,7 @@ namespace ReDefinition.Probe
         // Off without the switch; with it, the check and the end-of-frame notes started.
         private void Start()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0)
+            if (!CommandLine.Has(Argument))
             {
                 Destroy(this);
                 return;

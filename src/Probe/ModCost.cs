@@ -170,7 +170,7 @@ namespace ReDefinition.Probe
         // Only with the switch: the exception counter on and the run started.
         private void Start()
         {
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), Argument) < 0) return;
+            if (!CommandLine.Has(Argument)) return;
             Application.logMessageReceived += CountExceptions;
             StartCoroutine(Run());
         }

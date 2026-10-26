@@ -74,7 +74,7 @@ namespace ReDefinition.Upscaler
         // -redefinitionProbeNoRayReconstruction, for a probe's run; the player's "Ray
         // Reconstruction" (OwnSettings.RayReconstruction) is asked beside it (SubmitReconstruction).
         internal static bool UseRayReconstruction =
-            Array.IndexOf(Environment.GetCommandLineArgs(), "-redefinitionProbeNoRayReconstruction") < 0;
+            !CommandLine.Has("-redefinitionProbeNoRayReconstruction");
 
         // DLSS's turn: Ray Reconstruction where it can take this frame, and whether the
         // proxy has shown one of its frames lately. False where DLSS Super Resolution

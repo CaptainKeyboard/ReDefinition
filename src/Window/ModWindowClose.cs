@@ -3,10 +3,9 @@ using System.Reflection;
 using System;
 using ReDefinition.Core;
 using ReDefinition.Settings;
-using ReDefinition.Window;
 using UnityEngine;
 
-namespace ReDefinition.Ui
+namespace ReDefinition.Window
 {
     // A close button on the own settings window of a mod bundled here. Such a
     // window opens and closes with the mod's toolbar button -- EVE's and

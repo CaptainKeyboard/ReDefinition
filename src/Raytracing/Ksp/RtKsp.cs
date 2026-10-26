@@ -262,7 +262,7 @@ namespace ReDefinition.Raytracing
             // 0.043, 0.093, 0.194 under a sun of 0.73, 0.57, 0.34).
             camera.SkyNeutral = () => RtKspMods.ScattererInstalled ? 0f : 1f;
             // -redefinitionProbeNoRtClouds: the clouds left out of the rays, for the probe's A/B.
-            bool noClouds = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeNoRtClouds") >= 0;
+            bool noClouds = CommandLine.Has("-redefinitionProbeNoRtClouds");
             camera.Clouds = data => !noClouds && clouds.Fill(data, RtKspMods.SceneBody(), sceneCamera.transform.position)
                 ? clouds.Texture : RtEveClouds.None(data);
             scatter = new RtParallaxScatter();

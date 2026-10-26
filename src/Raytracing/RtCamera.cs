@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using ReDefinition.Core;
 using ReDefinition.Proxy;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -66,7 +67,7 @@ namespace ReDefinition.Raytracing
         // -redefinitionProbeCloudShadow: the sun's visibility is the cloud layer's transmittance
         // alone, to compare with EVE's own cloud shadow (the probe's shadow mask dump).
         private static readonly bool CloudShadowCheck =
-            Array.IndexOf(System.Environment.GetCommandLineArgs(), "-redefinitionProbeCloudShadow") >= 0;
+            CommandLine.Has("-redefinitionProbeCloudShadow");
         // The main body's cloud layer: fills the packet's cloud constants (RtFramePacket.clouds)
         // and gives its map's native texture (RT_INPUT_CLOUDS); zero for none.
         internal Func<float[], IntPtr> Clouds = clouds =>
@@ -233,12 +234,12 @@ namespace ReDefinition.Raytracing
         // the grass's shadow only near the camera, RtCommon.hlsli, RayOrigin). Into the ground's albedo, for the
         // sun and the sky alike.
         private const float MeadowShade = 0.82f;
-        private static readonly float MeadowShadeProbe = Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade") != null
-            && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowShade"),
+        private static readonly float MeadowShadeProbe = CommandLine.After("-redefinitionProbeMeadowShade") != null
+            && float.TryParse(CommandLine.After("-redefinitionProbeMeadowShade"),
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float shadeProbe)
             ? shadeProbe : 0f;
-        private static readonly float MeadowFrom = Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom") != null
-            && float.TryParse(Probe.SceneProbe.ArgumentAfter("-redefinitionProbeMeadowFrom"),
+        private static readonly float MeadowFrom = CommandLine.After("-redefinitionProbeMeadowFrom") != null
+            && float.TryParse(CommandLine.After("-redefinitionProbeMeadowFrom"),
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float from)
             ? from : 0f;
         private CommandBuffer fadeGrab;
