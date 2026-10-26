@@ -132,7 +132,7 @@ namespace DocLock
         };
 
         // The source files scanned, by extension.
-        private static readonly string[] Extensions = { ".cs", ".cpp", ".h", ".hlsl", ".hlsli", ".shader", ".compute", ".cginc", ".py", ".ps1", ".js" };
+        private static readonly string[] Extensions = { ".cs", ".cpp", ".h", ".hlsl", ".hlsli", ".shader", ".compute", ".cginc", ".py", ".ps1", ".js", ".ini", ".cfg" };
 
         // Where a file of the repository is shown on GitHub: the origin's address with blob/main/, or null where
         // the origin is not GitHub's.
@@ -217,6 +217,8 @@ namespace DocLock
                     case ".py": ScriptScanner.Python(path, text, scan.Elements); codeText.Append(text); break;
                     case ".ps1": ScriptScanner.PowerShell(path, text, scan.Elements); codeText.Append(text); break;
                     case ".js": ScriptScanner.JavaScript(path, text, scan.Elements); break;
+                    case ".ini": ConfigScanner.Ini(path, text, scan.Elements); break;
+                    case ".cfg": ConfigScanner.Cfg(path, text, scan.Elements); break;
                 }
             }
             index.SharePartials();
