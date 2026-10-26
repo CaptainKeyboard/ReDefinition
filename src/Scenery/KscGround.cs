@@ -50,6 +50,9 @@ namespace ReDefinition.Scenery
         private Shader shader;
         private Material parallax;
         private Transform root;
+        // The sphere the space centre stands on, the home body's terrain: only its quads give the colour map. The ocean's
+        // quads, a sphere of their own, lie under the same ground with white vertex colours and would be averaged in.
+        private PQS sphere;
         private Texture2D colours;
         private Vector4 grid;
         private bool applied;
@@ -152,7 +155,11 @@ namespace ReDefinition.Scenery
         {
             if (root == null)
                 foreach (PQSCity city in FindObjectsOfType<PQSCity>())
-                    if (city.name == "KSC") root = city.transform;
+                    if (city.name == "KSC")
+                    {
+                        root = city.transform;
+                        sphere = city.sphere;
+                    }
             notReady = "the space centre not found";
             if (root == null) return false;
             if (parallax == null) parallax = ParallaxTerrain();
@@ -226,12 +233,17 @@ namespace ReDefinition.Scenery
             var count = new int[width * depth];
             int quads = 0;
             float reach = Mathf.Max(x1 - x0, z1 - z0);
-            int pqs = 0, usable = 0;
+            int pqs = 0, usable = 0, otherSpheres = 0;
             float nearest = float.MaxValue;
             foreach (PQ quad in FindObjectsOfType<PQ>())
             {
                 pqs++;
                 if (quad == null || quad.mesh == null || !quad.isVisible || quad.isSubdivided) continue;
+                if (sphere != null && quad.sphereRoot != sphere)
+                {
+                    otherSpheres++;
+                    continue;
+                }
                 usable++;
                 Vector3 at = worldToRoot.MultiplyPoint3x4(quad.transform.position);
                 nearest = Mathf.Min(nearest, new Vector2(at.x - (x0 + x1) * 0.5f, at.z - (z0 + z1) * 0.5f).magnitude);
@@ -309,7 +321,7 @@ namespace ReDefinition.Scenery
             colours.Apply(false, true);
             grid = new Vector4(x0, z0, 1f / (width * ColourTexel), 1f / (depth * ColourTexel));
             LawnColour = Raytracing.RtTerrainColour.Meadow(parallax, lawnVertexColour);
-            Debug.Log(Log.Tag + " Space centre lawns: the terrain's colours from " + quads + " quads, " + filled + " of " + count.Length + " texels hit.");
+            Debug.Log(Log.Tag + " Space centre lawns: the terrain's colours from " + quads + " quads, " + filled + " of " + count.Length + " texels hit; " + otherSpheres + " quads of other spheres left out.");
             return true;
         }
 
