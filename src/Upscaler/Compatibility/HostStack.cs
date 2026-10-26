@@ -61,7 +61,7 @@ namespace ReDefinition.Upscaler
         private const string TufxLoaderTypeName = "TUFX.TexturesUnlimitedFXLoader";
 
         // Kerbal Frame Generator (MangoTechKSP, MIT) blends each frame with the
-        // one before in OnRenderImage (InterpolationEffect.cs) -- in flight on
+        // one before in OnRenderImage (InterpolationEffect.cs). In flight it sits on
         // the camera KSP's GalaxyCameraControl belongs to, elsewhere on
         // Camera.main (KFG_UI_Controller.LateUpdate), the camera tagged
         // MainCamera, which in the editors the scene decides. On top of the
@@ -102,7 +102,7 @@ namespace ReDefinition.Upscaler
             public object Secondary;
 
             // The value written here. Restore compares against it: a profile that
-            // holds another value was changed since, and that choice stands.
+            // holds another value has been edited since, and that choice stands.
             public object Applied;
         }
 
@@ -570,7 +570,7 @@ namespace ReDefinition.Upscaler
         // The components of a type that the antialiasing passes of Scatterer and Deferred
         // put on cameras (Scatterer.cs: AddComponent on the near, far, scaled space and
         // internal cameras). The whole scene is searched in the first ten seconds of a
-        // scene, while they are being set up; after that the enabled cameras are asked:
+        // scene, while they are being set up. After that the enabled cameras are asked:
         // FindObjectsOfType walks every object, and once a second it held a frame for
         // 3 to 7 ms (measured 2026-10-06).
         private static GameScenes searchedScene = GameScenes.LOADING;

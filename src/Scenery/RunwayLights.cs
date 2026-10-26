@@ -8,16 +8,16 @@ namespace ReDefinition.Scenery
 {
     // The runway's lights dimmed. KSP draws them, pools of light around each lamp
     // included, with the runway's light meshes (Section1_lights to Section4_lights,
-    // End09_lights, End27_lights; measured 2026-10-05: without them the pools are gone):
-    // each an additive sprite (model_vab_interior_lights, Legacy Shaders/Particles/Additive)
+    // End09_lights, End27_lights; measured 2026-10-05: without them the pools are gone).
+    // Each is an additive sprite (model_vab_interior_lights, Legacy Shaders/Particles/Additive)
     // and a lamp (model_vab_exterior_details_01, KSP/Scenery/Emissive/Specular), both
     // materials the other buildings' lights share. KSP brightens them by the time of day
     // each LateUpdate, a property block per renderer with its colour for the materials it
     // animates (TimeOfDayAnimation.MaterialProperty, by the material's name). Next to the
-    // other lights of the space centre the runway's stood out far too bright (the player,
+    // other lights of the space centre the runway's stand out far too bright (the player,
     // 2026-10-05). Before each camera draws, after KSP set its block, every material of
     // the runway's light meshes gets a block of its own, which Unity uses in place of the
-    // renderer's: KSP's colour of this frame, or the material's own, scaled.
+    // renderer's. It holds KSP's colour of this frame, or the material's own, scaled.
     [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]
     public sealed class RunwayLights : MonoBehaviour
     {
@@ -31,7 +31,7 @@ namespace ReDefinition.Scenery
         // The time-of-day animations in the scene, from which a material's colour of the frame is read.
         private readonly List<TimeOfDayAnimation> animations = new List<TimeOfDayAnimation>();
         // Per light, found with it: its materials and, for each, the property its colour is
-        // in and the time-of-day animation that sets it, if one does -- looked up when the
+        // in and the time-of-day animation that sets it, if one does. They are looked up when the
         // lights are looked for, not every frame (names, arrays and delegates would be new
         // garbage each time).
         private sealed class Light
@@ -67,11 +67,11 @@ namespace ReDefinition.Scenery
             get { return lights; }
         }
 
-        // The lights looked for as the scene starts, 5 and 20 seconds into it for the models
-        // spawned after it began, and a second after the space centre's buildings changed:
+        // The lights are looked for as the scene starts, 5 and 20 seconds into it for the models
+        // spawned after it began, and a second after the space centre's buildings changed.
         // KSP switches a city's parts on and off by distance without changing its hierarchy,
         // and the inactive ones are found too. Every ten seconds only while none is found, as
-        // in a flight far from the space centre, whose city is not active then; not
+        // in a flight far from the space centre, whose city is not active then. Not
         // throughout, each look going through every renderer of every city.
         private IEnumerator Start()
         {

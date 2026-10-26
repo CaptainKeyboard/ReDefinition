@@ -7,11 +7,11 @@ namespace ReDefinition.Raytracing
     // The VAB's and SPH's halls as their materials mean their shine (RtMaterialIntent) while
     // the raytracing runs. The editors draw the halls with a camera of their own, on the
     // scenery's layer, which the raytracing's surfaces never reach (RtCamera,
-    // SurfaceIntent), so Deferred's G-buffer kept its guesses there: the hall's concrete a
+    // SurfaceIntent). So Deferred's G-buffer would keep its guesses there: the hall's concrete a
     // mirror (_SpecColor 1, _Shininess 1: smoothness 1). Here the materials are given values
-    // from which Deferred's own conversion (LegacyToStandard.cginc) writes what is meant:
-    // matt ones the specular variant of their shader with a black specular colour (spec 0,
-    // smoothness 0 in the G-buffer); KSP's legacy highlight a specular colour as bright as
+    // from which Deferred's own conversion (LegacyToStandard.cginc) writes what is meant.
+    // Matt ones get the specular variant of their shader with a black specular colour (spec 0,
+    // smoothness 0 in the G-buffer). KSP's legacy highlight gets a specular colour as bright as
     // the highlight and a shininess for its roughness, both at the gloss's mean, as
     // Deferred cannot scale the strength by the gloss. Everything is put back when the
     // raytracing stops or the scene goes.

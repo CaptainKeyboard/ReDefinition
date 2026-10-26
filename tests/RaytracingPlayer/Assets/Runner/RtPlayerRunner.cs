@@ -54,14 +54,12 @@ namespace ReDefinition.RaytracingPlayer
     // without the game"). It builds a scene, renders it without raytracing and with
     // it, and checks the images: a shadow the shadow maps do not reach, one they do,
     // light that does not change. Its lines start with RTPLAYER in the player's log;
-    // the images go to -out.
+    // the images go to -out. With -budget it measures instead: a scene of the size
+    // KSP's flight holds near the ground, every signal on, against the GPU time budget.
+    // With -turn it records a camera turn instead (RtTurnRunner). The command line:
     //
     //   RaytracingPlayer.exe -logFile player.log -out <folder> [-deferred <folder with
     //     Deferred's "deferredshaders" bundle>] [-builtinDeferred 1] [-budget 1]
-    //
-    // With -budget it measures instead: a scene of the size KSP's flight holds near the
-    // ground, every signal on, against the GPU time budget. With -turn it records a
-    // camera turn instead (RtTurnRunner).
     public sealed class RtPlayerRunner : MonoBehaviour
     {
         // The direction towards the sun, the output folder, whether the camera renders deferred and with
@@ -252,9 +250,10 @@ namespace ReDefinition.RaytracingPlayer
             box.GetComponent<Renderer>().sharedMaterial = material;
         }
 
-        // The run: without raytracing and with it, the images dumped and the shadows, the lit ground, the scene
-        // and the GPU's instances checked, then the further checks -- with Deferred the ocean, the floating
-        // origin and the night, without it the ambient light -- and the outcome; -only and -budget run one alone.
+        // The run. It renders without raytracing and with it, dumps the images, and checks the shadows, the lit
+        // ground, the scene and the GPU's instances. Then come the further checks: with Deferred the ocean, the
+        // floating origin and the night, without it the ambient light. It ends with the outcome. The options
+        // -only and -budget run one check alone.
         private IEnumerator Run()
         {
             probe.RenderProbe();
@@ -408,9 +407,9 @@ namespace ReDefinition.RaytracingPlayer
         }
 
         // Scatterer's ocean as ReDefinition hands it the raytraced reflections (RtCamera,
-        // the ocean's reflections): a stand-in for its G-buffer -- the drawn scene as calm
-        // water, its depth the camera's, its normal straight up, its variance 0 -- a dark sky and a
-        // full moon low ahead. The reflections handed on (ssrOutput) show the moon where
+        // the ocean's reflections). The scene holds a stand-in for its G-buffer, a dark sky and a
+        // full moon low ahead. The stand-in is the drawn scene as calm water, its depth the
+        // camera's, its normal straight up, its variance 0. The reflections handed on (ssrOutput) show the moon where
         // the water mirrors it, the boxes with the whole weight, and leave the sky to
         // the ocean.
         private IEnumerator OceanReflections()
@@ -593,10 +592,10 @@ namespace ReDefinition.RaytracingPlayer
         }
 
         // The moon's glow (MoonGlow.cs, ReDefinitionMoonGlow.shader) as the game draws it,
-        // before the transparent pass, at fields of view of 30 and 70 degrees and with a
-        // projection shifted off centre, as the upscaler's jitter and a render size other
-        // than the screen's leave it: the brightened disc where the camera's own
-        // projection puts a moon of that angular radius, as wide, the glow round it, the
+        // before the transparent pass. The fields of view are 30 and 70 degrees, and the
+        // projection is shifted off centre, as the upscaler's jitter and a render size other
+        // than the screen's leave it. The check expects the brightened disc where the camera's own
+        // projection puts a moon of that angular radius, as wide, the glow round it, and the
         // box in front of the sky untouched.
         private IEnumerator MoonGlowCheck()
         {
@@ -766,14 +765,13 @@ namespace ReDefinition.RaytracingPlayer
                   + " with KSP's night light alone");
         }
 
-        // A point the raytraced frame before did not see: from the sun's side the near box
-        // hides its own shadow; turned back, the first frame finds no raytraced texel of
+        // A point the raytraced frame before did not see. From the sun's side the near box
+        // hides its own shadow. Turned back, the first frame finds no raytraced texel of
         // that ground and takes Unity's shadow maps, not the box's lit top in front of it.
-        // The first frame after the camera turned from the sun's side, where the raytraced
-        // frame before did not see the near box's shadow: the sun's shadow from the shadow
-        // maps, not carried from the box's top it saw there (which left the shadow at 100 %);
-        // the indirect light from the raytraced light beside it where the fill finds it,
-        // else Unity's. Between what the shadow maps and the raytracing give, settled.
+        // The sun's shadow comes from the shadow maps, not carried from the box's top seen
+        // there (which left the shadow at 100 %). The indirect light comes from the raytraced
+        // light beside it where the fill finds it, else Unity's. The result is settled
+        // between what the shadow maps and the raytracing give.
         private IEnumerator Uncovered(Vector3 shaded, Vector3 lit, float shadowMaps, float raytraced)
         {
             Vector3 position = cam.transform.position;
@@ -974,10 +972,10 @@ namespace ReDefinition.RaytracingPlayer
 
         // The budget (docs/development/raytracing.md, "Plan"): on the RTX 4090 at 2560 by
         // 1440 with DLSS Quality, which renders 1707 by 960, everything together within
-        // 4 ms of GPU time. The scene: 400 m of rolling ground in 131 072 triangles as
+        // 4 ms of GPU time. The scene has 400 m of rolling ground in 131 072 triangles as
         // terrain quads come near the camera, 400 boxes as a vessel's parts and the
-        // buildings, 20 000 rocks from the GPU as Parallax's scatter; all four signals,
-        // two bounces, the denoiser.
+        // buildings, and 20 000 rocks from the GPU as Parallax's scatter. It runs all four
+        // signals, two bounces and the denoiser.
         private IEnumerator Budget()
         {
             const int cells = 256;

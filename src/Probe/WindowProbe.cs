@@ -14,15 +14,14 @@ using UnityEngine.UI;
 namespace ReDefinition.Probe
 {
     // -redefinitionProbeWindow "step;step;...": the settings window as the player uses it, for shots of what it
-    // shows -- the tooltips among them, which KSP shows where the pointer rests, so the pointer is moved there.
-    // Steps:
-    //   open=<tab>[@<0..1>]      the window on that tab, scrolled (1 the top, 0 the bottom)
-    //   set=<module>.<key>:<value>  a row set as a click sets it (nothing applied yet)
-    //   accept                   Accept, as its button
-    //   hover=<text>[#n]         the pointer on the n-th button (from the top) whose text is that
-    //   hoverrow=<row title>     the pointer on the control of the row of that name
-    //   click=<text>             a button of that text clicked (a dialog's)
-    //   shot=<name>              a shot, <shot>-win-<name>.png
+    // shows. The tooltips are among them, which KSP shows where the pointer rests, so the pointer is moved there.
+    // The step open=<tab>[@<0..1>] puts the window on that tab, scrolled (1 the top, 0 the bottom).
+    // The step set=<module>.<key>:<value> sets a row as a click sets it (nothing applied yet).
+    // The step accept presses Accept, as its button.
+    // The step hover=<text>[#n] puts the pointer on the n-th button (from the top) whose text is that.
+    // The step hoverrow=<row title> puts the pointer on the control of the row of that name.
+    // The step click=<text> clicks a button of that text (a dialog's).
+    // The step shot=<name> takes a shot, <shot>-win-<name>.png.
     internal static class WindowProbe
     {
         // Puts the cursor onto a desktop point.

@@ -12,10 +12,10 @@ namespace ReDefinition.Vendor
     // GPU gets of them. The player downloads them from NVIDIA's release after
     // accepting NVIDIA's licences (NvidiaDownloader).
     //
-    // Every figure below was read from that release: the entry's offset, sizes and
-    // name from the archive's central directory and local headers (general purpose
-    // flags 0 -- no data descriptor -- and no extra field in any of them), the
-    // checksums from the files of the same release, whose DLLs carry NVIDIA's valid
+    // Every figure below was read from that release. The entry's offset, sizes and
+    // name come from the archive's central directory and local headers (general purpose
+    // flags 0, so no data descriptor, and no extra field in any of them). The
+    // checksums come from the files of the same release, whose DLLs carry NVIDIA's valid
     // signatures. Only the entries' bytes are fetched, not the 276 MB archive; a
     // file that does not come out as the checksum says is not placed.
     //
@@ -188,9 +188,10 @@ namespace ReDefinition.Vendor
         }
 
         // What a GPU can use: DLSS and Ray Reconstruction on an RTX GPU from Turing on,
-        // frame generation from Ada on -- and on an RTX 30 or 20 with the dlssg_for_sm86 package in
-        // place (ampereFrameGeneration), whose DLSS-G needs Streamline's frame generation plugins
-        // too -- and the licence texts of what it gets. Nothing for another GPU, or an unknown one (0).
+        // frame generation from Ada on. An RTX 30 or 20 with the dlssg_for_sm86 package in
+        // place (ampereFrameGeneration) gets frame generation too, and its DLSS-G also needs Streamline's frame
+        // generation plugins. The result adds the licence texts of what it gets. Nothing for another GPU, or an
+        // unknown one (0).
         public static List<Entry> For(uint architecture, uint implementation, bool ampereFrameGeneration = false)
         {
             bool dlss = DlssRuns(architecture, implementation);

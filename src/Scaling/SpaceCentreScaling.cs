@@ -10,31 +10,25 @@ namespace ReDefinition.Scaling
 {
     // The R&D screen. It lies in its own canvas under the main canvas, so it takes
     // the UI scale as its panels do, but the tree's nodes and the parts list's
-    // tiles stay small beside the panels (decompiled):
-    // - the tree opens at UIGridArea.zoom 1 and zooms in no further (zoomMax 1);
-    //   here it opens at 1.5 and zooms in to 2.5, out to KSP's 0.6;
-    // - RDNode.Setup builds a tree node at the scene's root, at its tech tree's
-    //   scale (RDNode.scale, 0.6 in the stock tree) in pixels, then puts it under
-    //   RDNodeRoot keeping that size, and takes its width and height, where its
-    //   arrows meet it, from the same scale. So a node is as many pixels at any UI
-    //   scale and zoom, and the larger either is, the smaller it is beside the
-    //   tree. Here the scale is multiplied by RDNodeRoot's scale, the UI scale
-    //   times the zoom, so that a node keeps its share of the tree, times
-    //   NodeShare: what was set at a UI scale of 1.5, twice the tree's scale at
-    //   the opening zoom. For the Setup only, so that a tree saved from the game
-    //   keeps its own;
-    // - the parts list's tiles are laid out by a GridLayoutGroup at the prefab's
-    //   cell size; here each tile is drawn 1.2 times as large about its centre,
-    //   the gaps, padding and columns widened to match.
+    // tiles stay small beside the panels (decompiled).
+    // The tree opens larger and zooms in further (ZoomOpen, ZoomMax).
+    // The tree's nodes keep their share of the tree at any UI scale and zoom (RnDNodeHooks, NodeShare).
+    // The parts list's tiles are drawn larger (TileScale).
     // 4kSP Expanded's R&D scaler is turned off (OtherScalers).
     [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
     public class SpaceCentreScaling : MonoBehaviour
     {
-        // The zoom the tree opens at, and the furthest it zooms in (KSP: 1 for both).
+        // The zoom the tree opens at, and the furthest it zooms in.
+        // KSP opens the tree at UIGridArea.zoom 1 and zooms in no further (zoomMax 1).
+        // Here the tree zooms out to KSP's 0.6.
         private const float ZoomOpen = 1.5f;
         private const float ZoomMax = 2.5f;
         // A node's share of the tree against KSP's at a UI scale and zoom of 1.
+        // It is what was set at a UI scale of 1.5: twice the tree's scale at the opening zoom.
         internal const float NodeShare = 2f / (1.5f * ZoomOpen);
+        // How much larger each tile of the parts list is drawn.
+        // A GridLayoutGroup lays the tiles out at the prefab's cell size, so ScaleTiles draws each tile
+        // 1.2 times as large about its centre, and WidenTiles widens the gaps, padding and columns to match.
         private const float TileScale = 1.2f;
         private static readonly MethodInfo ZoomTo = typeof(UIGridArea).GetMethod("ZoomTo",
             BindingFlags.Instance | BindingFlags.NonPublic);
@@ -83,8 +77,8 @@ namespace ReDefinition.Scaling
                       + TileScale.ToString("0.0") + " times.");
         }
 
-        // The grid's gaps and padding grown by what each tile grows, and as many
-        // fewer columns, once per R&D screen: the screen and its grid are made anew
+        // The grid's gaps and padding grown by what each tile grows, and as many fewer columns.
+        // It runs once per R&D screen: the screen and its grid are made anew
         // at every opening (RDSceneSpawner), so the prefab's values are the base.
         private static GridLayoutGroup WidenTiles(RDController controller)
         {
@@ -118,6 +112,14 @@ namespace ReDefinition.Scaling
     }
 
     // The tree nodes' scale for RDNode.Setup (SpaceCentreScaling).
+    // RDNode.Setup builds a tree node at the scene's root, at its tech tree's scale
+    // (RDNode.scale, 0.6 in the stock tree) in pixels.
+    // It then puts the node under RDNodeRoot keeping that size, and takes the node's width and height,
+    // where its arrows meet it, from the same scale.
+    // So a node is as many pixels at any UI scale and zoom, and the larger either is, the smaller it is beside the tree.
+    // Here the scale is multiplied by RDNodeRoot's scale, the UI scale times the zoom,
+    // so that a node keeps its share of the tree, times SpaceCentreScaling.NodeShare.
+    // It applies to the Setup only, so that a tree saved from the game keeps its own.
     internal static class RnDNodeHooks
     {
         // The id the hook is installed under.

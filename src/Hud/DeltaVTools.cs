@@ -13,11 +13,11 @@ namespace ReDefinition.Hud
 {
     // KSP's delta-v tools as part of the staging stack (docs/player/stage-details.md).
     // The tools' button no longer shows KSP's window (DeltaVApp.DisplayApp is
-    // skipped): pressed, it opens every stage's details (StageManager.
-    // ToggleInfoPanels) and, in the VAB and the SPH, a window under the lowest
-    // stage, above the vessel's total delta-v; pressed again, it closes them. The
+    // skipped). Pressed, it opens every stage's details (StageManager.ToggleInfoPanels)
+    // and, in the VAB and the SPH, a window under the lowest
+    // stage, above the vessel's total delta-v. Pressed again, it closes them. The
     // button counts as pressed while the launcher holds it as its pinned button
-    // (ApplicationLauncher.lastPinnedButton): KSP turns its toggle off while the
+    // (ApplicationLauncher.lastPinnedButton). KSP turns its toggle off while the
     // pointer rests on another app's button and on again a frame after it leaves,
     // which is no press. The total delta-v's button, which opens and closes every
     // stage too (StageManager.DeltaVButtonClicked), presses the tools' button
@@ -26,20 +26,6 @@ namespace ReDefinition.Hud
     // while the tools are open opens with the others, and so do the stages of a
     // craft loaded or started anew (GameEvents.onEditorStarted, which closes every
     // stage in KSP).
-    //
-    // The window is KSP's own: its app frame (DeltaVApp.appFramePrefab, titled as
-    // KSP titles the tools) holding its situation panel (situationPrefab), made
-    // compact: without its "Vessel Situation" heading and its row labels, the body
-    // list across the row, the pressure beside the altitude. It stands in the
-    // stack's bottom group (the parent of StageManager.deltaVTotalSection, outside
-    // the stage list's mask), so it does not scroll with the stages and the list
-    // ends above it. Its box is as wide as the widest open stage at every moment of
-    // the slide, and grows in height with it; the frame, at its final size, is
-    // pinned to the box's corner on the stages' side, so it slides in sideways and
-    // from below. The editor's keys wait while its altitude is typed, as for KSP's
-    // own tools' field (a postfix on DeltaVApp.TextFieldHasFocus). In flight KSP
-    // works the stages out for where the vessel is and has no situation to choose,
-    // so there the button opens and closes the details only.
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class DeltaVToolsEditor : DeltaVTools
     {
@@ -51,7 +37,20 @@ namespace ReDefinition.Hud
     {
     }
 
-    // The tools as the comment above has them, in the editors and in flight.
+    // The tools as the comment on DeltaVToolsEditor has them, in the editors and in flight.
+    // The window is KSP's own: its app frame (DeltaVApp.appFramePrefab, titled as
+    // KSP titles the tools) holding its situation panel (situationPrefab), made
+    // compact. It is without its "Vessel Situation" heading and its row labels, the body
+    // list across the row, the pressure beside the altitude. It stands in the
+    // stack's bottom group (the parent of StageManager.deltaVTotalSection, outside
+    // the stage list's mask), so it does not scroll with the stages and the list
+    // ends above it. Its box is as wide as the widest open stage at every moment of
+    // the slide, and grows in height with it. The frame, at its final size, is
+    // pinned to the box's corner on the stages' side, so it slides in sideways and
+    // from below. The editor's keys wait while its altitude is typed, as for KSP's
+    // own tools' field (a postfix on DeltaVApp.TextFieldHasFocus). In flight KSP
+    // works the stages out for where the vessel is and has no situation to choose,
+    // so there the button opens and closes the details only.
     public abstract class DeltaVTools : MonoBehaviour
     {
         // KSP's members the tools reach that are not public.
@@ -354,9 +353,9 @@ namespace ReDefinition.Hud
             return true;
         }
 
-        // The situation panel in three rows and a slider (the prefab, read with
-        // UnityPy): its heading and the labels of the body, the atmosphere, the
-        // altitude and the pressure go, the body list takes the row, and the pressure
+        // Makes the situation panel compact: three rows and a slider (the prefab, read with
+        // UnityPy). Its heading and the labels of the body, the atmosphere, the
+        // altitude and the pressure go. The body list takes the row, and the pressure
         // stands at the end of the altitude's row.
         private static void Compact(Transform panel)
         {

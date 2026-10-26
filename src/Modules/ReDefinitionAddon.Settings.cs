@@ -13,8 +13,8 @@ namespace ReDefinition
     public partial class ReDefinitionAddon
     {
         // NativeAA: on the development machine, the 3D scene rendered with 89 %
-        // fewer pixels made the frame longer -- the pixel shading costs under 0.2 ms
-        // of a 10.3 ms frame, while the GPU at 90-97 % and the CPU at 30-40 % work on
+        // fewer pixels made the frame longer. The pixel shading costs under 0.2 ms
+        // of a 10.3 ms frame. The GPU at 90-97 % and the CPU at 30-40 % work on
         // what does not scale with output resolution: shadow cascades, cloud
         // volumes, reflection probes (docs/development/upscaler.md). At NativeAA the
         // upscaler is the temporal antialiasing.

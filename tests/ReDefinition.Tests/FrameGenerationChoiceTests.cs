@@ -75,8 +75,8 @@ namespace ReDefinition.Tests
             Assert.IsFalse(FrameGenerationChoice.Offered("4x", xess));
         }
 
-        // The note names the steps not offered and why: the package's or the GPU's limit, with how to raise
-        // the package's, FSR's one frame between two, and Dynamic being DLSS's alone; none where all are offered.
+        // The note names the steps not offered and why. The reason is the package's or the GPU's limit, with how to raise
+        // the package's, FSR's one frame between two, or Dynamic being DLSS's alone. There is no note where all are offered.
         [TestMethod]
         public void TheNoteSaysWhichStepsAreNotOfferedAndWhy()
         {

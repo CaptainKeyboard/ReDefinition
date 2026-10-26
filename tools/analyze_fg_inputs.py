@@ -1,17 +1,19 @@
 """Checks frame generation's inputs from an input dump (FrameGenerationDump.cpp).
 
 For each pair of consecutive frames in <folder> (the "-inputs" folder beside a screen
-recording in ReDefinitionCaptures):
+recording in ReDefinitionCaptures), it runs three checks.
 
-- Motion vectors against the colour: the previous frame's colour, fetched where each
-  pixel's motion vector says it was, compared with this frame's colour. Also with the
-  vectors scaled (0.5, 1.5, 2) and with no motion: the scale that fits best is what
-  the vectors really describe.
-- Motion vectors against the camera: for a pixel of the still world, the motion that
-  depth and clipToPrevClip give, as frame generation computes camera motion, compared
-  with the delivered vector. The two have to agree; frame generation gets both.
-- Measured motion: block matching of the colour per tile, against the mean vector
-  there.
+Motion vectors against the colour: the previous frame's colour, fetched where each
+pixel's motion vector says it was, compared with this frame's colour. Also with the
+vectors scaled (0.5, 1.5, 2) and with no motion: the scale that fits best is what
+the vectors really describe.
+
+Motion vectors against the camera: for a pixel of the still world, the motion that
+depth and clipToPrevClip give, as frame generation computes camera motion, compared
+with the delivered vector. The two have to agree; frame generation gets both.
+
+Measured motion: block matching of the colour per tile, against the mean vector
+there.
 
 Pixels are split by linear depth into near (the vessel, closer than --near metres)
 and far (ground and scenery); depth 0 (nothing drawn) is counted apart.

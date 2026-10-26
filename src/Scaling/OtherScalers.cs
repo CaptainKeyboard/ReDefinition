@@ -8,24 +8,20 @@ using UnityEngine;
 namespace ReDefinition.Scaling
 {
     // Other mods that scale what ReDefinition scales, their scaling turned off so
-    // that ReDefinition's applies alone and nothing is scaled twice; the rest of each
-    // mod stays as it is (their sources read):
-    // - 4kSP / 4kSP Expanded: FourkSP.UpdateNodes, which sizes the map's icons and
-    //   captions, and its toolbar button, whose window sets only those sizes;
-    // - 4kSP Expanded's R&D part: its bootstrap's Start, which patches the R&D part
-    //   list, and RDSceneScaler.Start, which hooks the R&D screen's opening;
-    // - 4kSP Expanded's window part: its bootstrap's Start, which patches the IMGUI
-    //   window methods;
-    // - Maneuver Node Evolved: its writes to the maneuver gizmo's screenSize in
-    //   ManeuverController.LateUpdate and gizmoSpawn go through Store instead, which
-    //   keeps ReDefinition's size and only reopens a gizmo KSP collapsed, where its
-    //   "Force Maneuver Node Open" asks for that; its snapping, input and other
-    //   windows stay.
+    // that ReDefinition's applies alone and nothing is scaled twice.
+    // The rest of each mod stays as it is (their sources were read).
+    // Of 4kSP and 4kSP Expanded, FourkSP.UpdateNodes sizes the map's icons and
+    // captions, and its toolbar button has a window that sets only those sizes.
+    // Of 4kSP Expanded's R&D part, its bootstrap's Start patches the R&D part
+    // list, and RDSceneScaler.Start hooks the R&D screen's opening.
+    // Of 4kSP Expanded's window part, its bootstrap's Start patches the IMGUI
+    // window methods.
+    // Maneuver Node Evolved is handled in OtherScalers.KeepManeuverGizmo.
     // Those Starts run in the main menu or later, after this is installed as the
-    // game starts. Each is patched only where its mod is installed, and 4kSP's R&D and
-    // window parts are skipped only where ReDefinition's own scaling of the same is in
-    // (and, for the windows, switched on as the bootstrap starts); otherwise they scale
-    // as the mod means them to.
+    // game starts.
+    // Each is patched only where its mod is installed.
+    // 4kSP's R&D and window parts are skipped only where ReDefinition's own scaling of the same is in
+    // (and, for the windows, switched on as the bootstrap starts). Otherwise they scale as the mod means them to.
     internal static class OtherScalers
     {
         // The Harmony id the patches are installed under (one suffix per mod), the type of 4kSP Expanded's R&D
@@ -64,6 +60,9 @@ namespace ReDefinition.Scaling
         }
 
         // Redirects Maneuver Node Evolved's writes to the gizmo's screenSize to Store (KeepScreenSize).
+        // The writes are in ManeuverController.LateUpdate and gizmoSpawn.
+        // Store keeps ReDefinition's size and only reopens a gizmo KSP collapsed, where its "Force Maneuver Node Open" asks for that.
+        // The mod's snapping, input and other windows stay.
         private static void KeepManeuverGizmo()
         {
             System.Type controller = TypeLookup.Find(UiScaling.ManeuverNodeEvolved);

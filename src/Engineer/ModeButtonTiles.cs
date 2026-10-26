@@ -6,9 +6,9 @@ namespace ReDefinition.Engineer
 {
     // The planner button's tiles, made in the game from the cargo button's
     // tiles as they are: KSP's own, or a UI theme's such as ZTheme's, which
-    // replaces them with flat ones. For each state the button takes, the same
-    // sprite, with the cargo glyph painted over in the face's colours row by
-    // row and "Δv" laid on in the glyph's own colour
+    // replaces them with flat ones. For each state the button takes, a tile is
+    // the same sprite. The cargo glyph is painted over in the face's colours row by
+    // row, and "Δv" is laid on in the glyph's own colour
     // (GameData/ReDefinition/Icons/EngineerGlyph_Fill.png, drawn by
     // tools/make_icon.py). So the button has the form, size and colours of its
     // neighbours. Textures are not readable from the CPU, so each is copied

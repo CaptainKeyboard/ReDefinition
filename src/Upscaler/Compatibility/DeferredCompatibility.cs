@@ -10,7 +10,7 @@ namespace ReDefinition.Upscaler
     // Deferred's screen-space reflections size their textures and command
     // buffers once, by their camera, and again only when HDR or VR change
     // (ScreenSpaceReflections.OnPreRender, "also need to detect width/height
-    // changes here"); the rig changes that size whenever it attaches, detaches
+    // changes here"). The rig changes that size whenever it attaches, detaches
     // or changes the mode. RecreateTexturesAndBuffers(1, false), which
     // OnPreRender calls on an HDR change, sizes them anew by
     // RenderingUtils.GetCameraRenderDimensions: the camera's activeTexture, the
@@ -56,7 +56,7 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        // At the end of a frame in which the render size changed (ReDefinitionAddon's follow-up): every
+        // Runs at the end of a frame in which the render size changed (ReDefinitionAddon's follow-up). Every
         // reflections component whose size is not its camera's any more is sized anew, or as its camera
         // next culls where Deferred could not read the size now.
         public static void AfterRenderSizeChange(string reason)

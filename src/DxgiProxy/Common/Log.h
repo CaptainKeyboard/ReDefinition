@@ -22,9 +22,9 @@ namespace redefinition
     // Formats an HRESULT as 0x........ so failures can be looked up directly.
     std::string Hr(long hr);
 
-    // Formatted into a fixed buffer and cut to it. sprintf_s ends the process when
-    // the text is longer than the buffer -- a number the format did not expect, a
-    // value of 1e300 printed with %f -- and no line of a log is worth the game.
+    // Formatted into a fixed buffer and cut to it. sprintf_s ends the process when the text is
+    // longer than the buffer. That happens with a number the format did not expect, such as a value
+    // of 1e300 printed with %f. No line of a log is worth the game.
     template <size_t N>
     inline void FormatTo(char (&buffer)[N], const char* format, ...)
     {

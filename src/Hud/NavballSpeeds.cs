@@ -9,9 +9,9 @@ using UnityEngine;
 namespace ReDefinition.Hud
 {
     // The vessel's vertical and horizontal speed under the navball's SAS modes, on
-    // its left: two fields as wide as the modes' block and a little more, one
-    // under the other, each a dark rounded plate of our own with a label, V or H,
-    // and the value in metres per second -- copies of the heading field's two
+    // its left. They are two fields as wide as the modes' block and a little more, one
+    // under the other. Each is a dark rounded plate of its own with a label, V or H,
+    // and the value in metres per second. The label and the value are copies of the heading field's two
     // texts (HeadingFrame: Label_HDG and TextHeading; sharedassets7), so that they
     // have the navball's font and colours. The heading field's own picture is
     // not used: a theme draws its plate into the navball's frame. The values are

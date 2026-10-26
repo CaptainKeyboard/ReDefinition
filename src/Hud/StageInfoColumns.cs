@@ -13,38 +13,16 @@ namespace ReDefinition.Hud
     // taller (docs/player/stage-details.md). KSP puts one line per chosen value
     // under the stage's info panel (StageGroup.InfoPanelLayout, its lines
     // StageGroupInfoItem in the private list stageGroupInfos), one below the
-    // other, the panel as wide as InfoPanelWidth (GameSettings.
+    // other. The panel is as wide as InfoPanelWidth (GameSettings.
     // STAGE_GROUP_INFO_WIDTH_EDITOR or _FLIGHT, 100) and each line's name and
-    // value sized from that width (StageGroupInfoItem.Setup); decompiled. Here,
+    // value are sized from that width (StageGroupInfoItem.Setup); decompiled. Here,
     // with more than four lines, the panel is twice as wide (InfoPanelWidth, which
-    // KSP's slide in and out also takes), its vertical layout gives way to a grid
+    // KSP's slide in and out also takes). Its vertical layout gives way to a grid
     // of two columns filled top to bottom, and each line is sized for one column.
     // With four or fewer, the panel's own layout comes back. The columns follow
     // the panel's width as KSP slides it in and out (StageGroup.ToggleInfoPanel,
     // preferredWidth from 0 to InfoPanelWidth), so the lines slide in as before.
     // Checked before the canvases draw, after KSP's own updates of the lines.
-    //
-    // While a stage's details are out, its part icons stand in two columns as
-    // well (StageGroup.IconsUIList, a vertical layout, swapped for IconColumnsLayout;
-    // its column, StageIcons, and the list as wide as two icons), moving from one
-    // column to two as the details slide in, and back as they slide out. They stay
-    // in two columns while an icon or a stage is dragged: KSP finds where a dragged
-    // icon lands by the icons' heights (StageGroup.GetStageGroupIndex), which in two
-    // columns picks the row, and its placeholder (a ResizingLayoutElement among the
-    // icons) takes a place in the grid. A stage without icons takes the width the
-    // others have, from the size an icon had last. KSP fits the stack's hover area to
-    // its widest stage only once a slide ends (StageManager.UpdateHoverArea, from
-    // StageGroup.OnInfoPanelSlideComplete); the stages hang from that area, so it is
-    // fitted every frame here, and the stages move with the slide rather than at its
-    // end.
-    //
-    // The stage list clips what it shows to the stack's own width (its ScrollRect's
-    // Mask; the stack root 250 wide in the editor, 265 in flight, read from the
-    // prefabs), which a stage with details in two columns outgrows: the root is
-    // widened to a stage's full width while details are out, and back to KSP's once
-    // they are in. And the stages' delta-v, which KSP writes under each stage's
-    // number anyway, is no value: its line (DeltaVAppValues.infoLines, "DELTAV") is
-    // taken out as the game starts (StageDetailsSetup).
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class StageInfoColumnsEditor : StageInfoColumns
     {
@@ -75,7 +53,20 @@ namespace ReDefinition.Hud
         }
     }
 
-    // The stage details in columns, as the comment above has them, in the editors and in flight.
+    // The stage details in columns, as the comment on StageInfoColumnsEditor has them, in the editors and in flight.
+    // While a stage's details are out, its part icons stand in two columns as
+    // well (StageGroup.IconsUIList, a vertical layout, swapped for IconColumnsLayout;
+    // its column, StageIcons, and the list as wide as two icons). They move from one
+    // column to two as the details slide in, and back as they slide out. They stay
+    // in two columns while an icon or a stage is dragged. KSP finds where a dragged
+    // icon lands by the icons' heights (StageGroup.GetStageGroupIndex), which in two
+    // columns picks the row, and its placeholder (a ResizingLayoutElement among the
+    // icons) takes a place in the grid. A stage without icons takes the width the
+    // others have, from the size an icon had last. KSP fits the stack's hover area to
+    // its widest stage only once a slide ends (StageManager.UpdateHoverArea, from
+    // StageGroup.OnInfoPanelSlideComplete). The stages hang from that area, so it is
+    // fitted every frame here, and the stages move with the slide rather than at its
+    // end.
     public abstract class StageInfoColumns : MonoBehaviour
     {
         // More lines than this go into two columns; the name of KSP's delta-v line.
@@ -89,7 +80,10 @@ namespace ReDefinition.Hud
         private RectTransform stack;
         private float stackWidth = -1f;
 
-        // KSP's delta-v line taken out of the values to choose; true once done.
+        // KSP's delta-v line taken out of the values to choose; true once done. The stages'
+        // delta-v, which KSP writes under each stage's number anyway, is no value: its line
+        // (DeltaVAppValues.infoLines, "DELTAV") is taken out as the game starts
+        // (StageDetailsSetup).
         internal static bool TakeOutDeltaV()
         {
             DeltaVAppValues values = DeltaVGlobals.DeltaVAppValues;
@@ -106,7 +100,7 @@ namespace ReDefinition.Hud
         private static DeltaVAppValues.InfoLine twrWidened;
 
         // KSP's TWR line with the TWR at the stage's end beside the one at its
-        // start, "1.45-2.80": the stage's thrust in the situation chosen against its
+        // start, "1.45-2.80". Each is the stage's thrust in the situation chosen against its
         // start mass and its end mass (DeltaVStageInfo.GetSituationTWR, startMass,
         // endMass; KSP's line gives the first, DeltaVGlobals.InitInfoLines;
         // decompiled). The thrust is the same at both ends, so the end's is the
@@ -511,7 +505,11 @@ namespace ReDefinition.Hud
         }
 
         // The stack at least as wide as its widest stage with its details out, so that
-        // the list's mask clips nothing of it; KSP's own width otherwise.
+        // the list's mask clips nothing of it; KSP's own width otherwise. The stage list
+        // clips what it shows to the stack's own width (its ScrollRect's Mask), and a
+        // stage with details in two columns outgrows that. The stack root is 250 wide in the
+        // editor, 265 in flight (read from the prefabs). So the root is widened to a stage's
+        // full width while details are out, and back to KSP's once they are in.
         private void KeepStackWide(StageManager manager)
         {
             RectTransform root = manager.transform as RectTransform;

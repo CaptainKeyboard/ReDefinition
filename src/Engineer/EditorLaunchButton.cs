@@ -6,21 +6,22 @@ using UnityEngine;
 namespace ReDefinition.Engineer
 {
     // A launch button over the launch pad seen through the VAB's door, and over
-    // the runway seen from the SPH (docs/player/planner.md): the editors' scenery
+    // the runway seen from the SPH (docs/player/planner.md). The editors' scenery
     // holds the space centre's pad and runway outside (VABscenery/Background/
     // LaunchPadMedium, the pad's model; SPHscenery/SpaceCenter/Runway; level10 and
     // level11, read with UnityPy). Over the pad it stands on the launch pad itself
     // (ksp_pad_launchPad, where a vessel stands at the model's origin), not on the
-    // middle of the whole complex with its tanks, ramps and flag pole. It looks like the space centre's own button for
-    // the pad or the runway (WorldButton, KscButtons) and launches there as KSP's
-    // launch button does (EditorLogic.launchVessel with the site's name), while
-    // KSP's own launch button can be pressed.
+    // middle of the whole complex with its tanks, ramps and flag pole. It looks like the
+    // space centre's own button for the pad or the runway (WorldButton, KscButtons).
+    // It launches there as KSP's launch button does (EditorLogic.launchVessel with the
+    // site's name), while KSP's own launch button can be pressed.
     [KSPAddon(KSPAddon.Startup.EditorAny, false)]
     public class EditorLaunchButton : MonoBehaviour
     {
-        // The button in the world; the pad or the runway it stands over, the launch site's name KSP takes, and the space
-        // centre button it looks like; its place on top of what the pad or runway draws, in their own space, and how far it
-        // is brought towards the camera; and whether that place was measured from something drawn.
+        // The button in the world. The fields after it hold the pad or the runway it stands over,
+        // the launch site's name KSP takes, and the space centre button it looks like. They hold
+        // its place on top of what the pad or runway draws, in their own space, and how far it is
+        // brought towards the camera. They also hold whether that place was measured from something drawn.
         private WorldButton marker;
         private Transform place;
         private string site;

@@ -11,9 +11,10 @@ namespace ReDefinition.Diagnostics
         // The height of a segment, and of the search field beside them.
         public const float RowHeight = 22f;
 
-        // The styles, each for what its name says it draws: small text, a row's label, a greyed one, a reason, a
-        // persistence marker, a segment, a page in the list, the pin star, a heading, the live strip, the frame rate, a
-        // value, a table cell, the tooltip box and the search field; and whether the font has the star glyphs.
+        // The styles, each named for what it draws: small text, a row's label, a greyed one, a reason, a
+        // persistence marker and a segment. Category is a page in the list, Star the pin star, Heading a heading,
+        // Strip the live strip, Fps the frame rate, Value a value, Cell a table cell, Tip the tooltip box and Field
+        // the search field. StarGlyph tells whether the font has the star glyphs.
         public readonly GUIStyle Small;
         public readonly GUIStyle Row;
         public readonly GUIStyle Dim;

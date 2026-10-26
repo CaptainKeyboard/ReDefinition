@@ -6,7 +6,7 @@ namespace ReDefinition.Upscaler
     // Redirects a camera into a shared RenderTexture and puts everything back
     // the way it was afterwards.
     //
-    // A smaller viewport (camera.rect) cannot scale KSP's image: KSP composes it
+    // A smaller viewport (camera.rect) cannot scale KSP's image. KSP composes it
     // from several cameras, and with an image effect on one camera Unity renders
     // that camera into a temporary texture at camera size, which loses what the
     // cameras before it drew into the frame buffer. Camera 00 clears only depth,
@@ -49,8 +49,8 @@ namespace ReDefinition.Upscaler
         private bool projectionWasUnitys;
 
         // Cameras whose nonJitteredProjectionMatrix a redirect ever assigned. Unity no
-        // longer computes it then, for the camera's whole life: it is kept in step with
-        // the projection in every frame without jitter -- by the camera's redirect, or
+        // longer computes it then, for the camera's whole life. It is kept in step with
+        // the projection in every frame without jitter, by the camera's redirect or
         // by KeepInStep where it has none any more (a rig torn down or rebuilt).
         private static readonly HashSet<Camera> touchedCameras = new HashSet<Camera>();
         private static bool keepInStepInstalled;

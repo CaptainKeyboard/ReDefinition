@@ -9,9 +9,9 @@ using ReDefinition.Vendor;
 namespace ReDefinition.Tests
 {
     // Intel's DLLs as the download finds, checks and places them (IntelFiles),
-    // without the network: the table's figures, what counts as missing, the ini's
-    // folders, and an archive entry laid out as Intel's release has it (streamed:
-    // a data descriptor, no sizes in the local header).
+    // without the network. The tests cover the table's figures, what counts as missing,
+    // the ini's folders, and an archive entry laid out as Intel's release has it
+    // (streamed: a data descriptor, no sizes in the local header).
     [TestClass]
     public class IntelFilesTests
     {
@@ -42,7 +42,7 @@ namespace ReDefinition.Tests
             return new IntelFiles.Folders { SuperResolution = folder, FrameGeneration = folder };
         }
 
-        // The file names of the items.
+        // The file name of each item's archive entry, in the order of the items.
         private static string[] Names(IEnumerable<IntelFiles.Item> items)
         {
             return items.Select(i => i.Entry.FileName).ToArray();
@@ -231,7 +231,7 @@ namespace ReDefinition.Tests
             Assert.IsTrue(frameGeneration);
         }
 
-        // The entry extracted from the bytes of its range.
+        // Runs NvidiaFiles.Extract on the entry with the bytes of its range as the archive stream, and returns what it writes.
         private static byte[] Extracted(NvidiaFiles.Entry entry, byte[] range)
         {
             using (MemoryStream output = new MemoryStream())

@@ -6,15 +6,15 @@ using UnityEngine;
 namespace ReDefinition.Dashboard
 {
     // What the dashboard's resource tapes mark: where on each tape engines run dry, and whether an
-    // engine lit now is empty. Where they run dry: the planner's own simulation (StageSim) run on the
-    // vessel as it flies, the stages lit by now taken as the current one, an engine switched off left
-    // out; each time rocket engines run dry, the vessel's total of every propellant they burn then, in
-    // units, as r.resource counts it. It needs KSP's delta-v simulation for the stage each part is
-    // dropped in (VesselDeltaV.PartInfo, decoupleStage); without it nothing is marked. Empty: an
-    // engine lit (ModuleEngines.EngineIgnited, which a solid booster stays) that reaches none of a
-    // propellant it burns, air aside (Propellant.totalResourceAvailable, which the engine updates every
-    // physics frame while lit, or isDeprived as it flames out; decompiled), marks every propellant it
-    // burns.
+    // engine lit now is empty. Where they run dry comes from the planner's own simulation (StageSim)
+    // run on the vessel as it flies. The stages lit by now count as the current one, and an engine
+    // switched off is left out. Each time rocket engines run dry, the tape marks the vessel's total
+    // of every propellant they burn then, in units, as r.resource counts it. It needs KSP's delta-v
+    // simulation for the stage each part is dropped in (VesselDeltaV.PartInfo, decoupleStage), and
+    // without it nothing is marked. Empty means an engine lit (ModuleEngines.EngineIgnited, which a
+    // solid booster stays) that reaches none of a propellant it burns, air aside
+    // (Propellant.totalResourceAvailable, which the engine updates every physics frame while lit, or
+    // isDeprived as it flames out; decompiled). It marks every propellant the engine burns.
     internal sealed class FuelTelemetry
     {
         // The simulation is run again after this many seconds.

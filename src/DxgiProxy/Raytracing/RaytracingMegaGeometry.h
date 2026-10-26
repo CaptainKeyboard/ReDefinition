@@ -111,11 +111,12 @@ namespace redefinition
         // NVAPI_D3D12_RAYTRACING_ACCELERATION_STRUCTURE_MULTI_INDIRECT_TRIANGLE_CLUSTER_ARGS
         struct TriangleClusterArgs
         {
-            // One CLAS from triangles, read by the GPU: its id and flags; its triangles' and
-            // vertices' count, the bits its positions are truncated by, the index formats; its
-            // triangles' geometry index and flags (here the cluster's number in the mesh, opaque);
-            // the strides and addresses of its indices, vertices, per-triangle geometry indices
-            // and micromaps, 0 for none.
+            // One CLAS from triangles, read by the GPU. The first fields are its id and flags.
+            // Then come its triangles' and vertices' count, the bits its positions are truncated
+            // by, and the index formats. Then come its triangles' geometry index and flags (here
+            // the cluster's number in the mesh, opaque). The last fields are the strides and
+            // addresses of its indices, vertices, per-triangle geometry indices and micromaps,
+            // 0 for none.
             uint32_t clusterId;
             uint32_t clusterFlags;
             uint32_t triangleCount : 9;
@@ -147,13 +148,14 @@ namespace redefinition
         // One execution of a cluster operation.
         struct OperationDesc   // NVAPI_D3D12_RAYTRACING_MULTI_INDIRECT_CLUSTER_OPERATION_DESC
         {
-            // Its inputs, as asked about for its memory; the address resolution flags (0 here: every
-            // address below points at its data itself, none at an address of it); with implicit
-            // destinations the range the results go into, otherwise ignored; the scratch, at least
-            // the asked size; the results' addresses (written with implicit destinations, read
-            // with explicit ones) and their sizes (written); the arguments, one structure of the
-            // operation's type each; and the address of their count (0 here: inputs.maxArgCount
-            // of them) (nvapi.h, NVAPI_D3D12_RAYTRACING_MULTI_INDIRECT_CLUSTER_OPERATION_DESC).
+            // Its inputs, as asked about for its memory. The address resolution flags are 0 here:
+            // every address below points at its data itself, none at an address of it. With
+            // implicit destinations the batch result data is the range the results go into,
+            // otherwise ignored. The scratch is at least the asked size. The results' addresses
+            // are written with implicit destinations and read with explicit ones, and their sizes
+            // are written. The arguments are one structure of the operation's type each. The
+            // address of their count is 0 here: inputs.maxArgCount of them
+            // (nvapi.h, NVAPI_D3D12_RAYTRACING_MULTI_INDIRECT_CLUSTER_OPERATION_DESC).
             Inputs inputs;
             uint32_t addressResolutionFlags;
             D3D12_GPU_VIRTUAL_ADDRESS batchResultData;

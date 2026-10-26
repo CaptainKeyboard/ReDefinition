@@ -43,17 +43,17 @@ namespace redefinition
     {
         // A value under name, as an unsigned 64-bit integer.
         virtual void Set(const char* name, unsigned long long value) = 0;
-        // A value under name, as a float.
+        // Stores a float value under the given name in the parameter map.
         virtual void Set(const char* name, float value) = 0;
-        // A value under name, as a double.
+        // Stores a double value under the given name in the parameter map.
         virtual void Set(const char* name, double value) = 0;
-        // A value under name, as an unsigned int.
+        // Stores an unsigned int value under the given name in the parameter map.
         virtual void Set(const char* name, unsigned int value) = 0;
-        // A value under name, as an int.
+        // Stores an int value under the given name in the parameter map.
         virtual void Set(const char* name, int value) = 0;
-        // A value under name, as a Direct3D 11 resource.
+        // Stores a Direct3D 11 resource under the given name in the parameter map.
         virtual void Set(const char* name, ID3D11Resource* value) = 0;
-        // A value under name, as a Direct3D 12 resource.
+        // Stores a Direct3D 12 resource under the given name in the parameter map.
         virtual void Set(const char* name, ID3D12Resource* value) = 0;
         // A value under name, as an untyped pointer.
         virtual void Set(const char* name, void* value) = 0;

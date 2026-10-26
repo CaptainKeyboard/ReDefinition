@@ -1,7 +1,7 @@
 """Shots of the same names from two light probe runs side by side, one picture each,
 captioned: as with Scatterer and without it.
 
-  python tools/side_by_side.py <left run folder> <right run folder> <out folder>
+Usage: python tools/side_by_side.py <left run folder> <right run folder> <out folder>
       [--labels "with Scatterer" "without Scatterer"] [name ...]
 """
 import os

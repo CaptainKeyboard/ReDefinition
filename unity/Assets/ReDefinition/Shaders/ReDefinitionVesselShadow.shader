@@ -2,19 +2,19 @@
 // Built into redefinition.shaders by BundleBuilder.
 //
 // Frame generation moves every pixel with its motion vector, which is the motion of the
-// surface. The vessel's shadow on that surface moves with the vessel instead; on a runway
+// surface. The vessel's shadow on that surface moves with the vessel instead. On a runway
 // under a vessel the camera follows it stands still on the screen while the ground under
 // it runs, and the generated frames drag it along with the ground. The HUD-less image
 // frame generation interpolates is given the scene with that shadow taken out, where
-// that is the smaller error, so the difference to the frame -- the shadow -- is treated
+// that is the smaller error. So the difference to the frame, the shadow, is treated
 // like the interface and not moved.
 //
 // Pass 0 draws the vessel's renderers from the sun into the light map: how far the
 // surface lies along the light, and how far it moved since the frame before.
-// Pass 1, at render size after the scene camera's lighting, finds per pixel how much of
-// the sun the vessel takes (Unity's own shadow mask, where the light map says the
-// vessel is in the way), where that bit of shadow lay in the frame before, and from it
-// the weight with which the shadow leaves the HUD-less image.
+// Pass 1 runs at render size after the scene camera's lighting. It finds per pixel how
+// much of the sun the vessel takes (Unity's own shadow mask, where the light map says the
+// vessel is in the way), and where that bit of shadow lay in the frame before. From these
+// it gets the weight with which the shadow leaves the HUD-less image.
 // Passes 2 and 3 gather, at display size, the colour in full shadow and on lit ground
 // near it; their mip chains give the local mean of each.
 // Pass 4 writes the HUD-less image: the colour brightened by the local ratio of lit to

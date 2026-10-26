@@ -23,8 +23,8 @@ cbuffer Constants : register(b0)
     uint rayFlags;
 };
 
-// One ray per thread up the grid; its result into table where asked, and into counts: misses, hits, rays
-// that met a candidate, then the rays whose hit was not the expected one, the first 60 of them as
+// One ray per thread up the grid. Its result goes into table where asked, and into counts: misses, hits, rays
+// that met a candidate, then the rays whose hit was not the expected one. The first 60 of those go in as
 // triangle << 16 | micro-triangle.
 [numthreads(256, 1, 1)]
 void main(uint3 id : SV_DispatchThreadID)

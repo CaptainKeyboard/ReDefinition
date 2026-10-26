@@ -54,19 +54,19 @@ namespace ReDefinition
         private bool reattachPending;
 
         // Techniques the proxy could not run, and why, at the output size they
-        // failed at: FSR 3 runs in their place until something that decides it
-        // changes -- the technique, its mode or preset, the output size, the
-        // scene -- or the player asks for another try.
+        // failed at. FSR 3 runs in their place until something that decides it
+        // changes (the technique, its mode or preset, the output size, the
+        // scene) or the player asks for another try.
         private readonly Dictionary<UpscalerBackend, string> nativeFailures = new Dictionary<UpscalerBackend, string>();
         private Vector2Int nativeFailureOutput;
         // Those the proxy called standing -- no RTX GPU, no DLL, no D3D12 path:
         // only a new choice of technique or the player's retry forgets them.
         private readonly HashSet<UpscalerBackend> stableFailures = new HashSet<UpscalerBackend>();
 
-        // What setting up the rig -- the upscaler's, or frame generation's capture
-        // alone -- last failed with, logged once, and how often each failed: after
-        // three, not again before the next scene or a switch of frame generation or
-        // the upscaler, and the upscaler once more after a change of its settings.
+        // What setting up the rig (the upscaler's, or frame generation's capture
+        // alone) last failed with, logged once, and how often each failed. After
+        // three failures it is not tried again before the next scene or a switch of frame generation or
+        // the upscaler. The upscaler is tried once more after a change of its settings.
         // The player's settings stay as they are; an upscaler that gave up leaves
         // frame generation its capture alone.
         private string loggedSetupProblem;
@@ -151,7 +151,7 @@ namespace ReDefinition
             }
             else
             {
-                Debug.Log(Log.Tag + " All eleven required compute shaders found."
+                Debug.Log(Log.Tag + " All ten required compute shaders found."
                           + " Compute support: " + SystemInfo.supportsComputeShaders
                           + ", graphics API: " + SystemInfo.graphicsDeviceType
                           + ", reversed depth: " + SystemInfo.usesReversedZBuffer);
@@ -318,14 +318,14 @@ namespace ReDefinition
         }
 
         // The other mods' antialiasing, and what Scatterer's TAA leaves behind, are
-        // taken while the upscaler runs -- with frame generation alone too, as
-        // antialiasing at the screen's size (NativeForFrameGeneration) -- and handed back
-        // when it stops (HostStack): without either, the mods' own antialiasing is the
+        // taken while the upscaler runs and handed back when it stops (HostStack). It also
+        // runs with frame generation alone, as antialiasing at the screen's size
+        // (NativeForFrameGeneration). Without either, the mods' own antialiasing is the
         // only one there is, one per camera (HostStack.Duplicates). Taken where the
         // cameras it configures exist: once a rig runs, or in flight and the editors.
         // Taken earlier, at the main menu say, HostStack would record Scatterer's state
-        // before Scatterer has set itself up. What a later scene builds anew is taken
-        // once a second, each with its own record (HostStack.Reassert).
+        // before Scatterer has set itself up. A later scene's new parts are taken
+        // each second, with their own record (HostStack.Reassert).
         private void SyncHostStack()
         {
             bool upscaling = ProfileChosen() && !PassThroughWanted;
@@ -409,9 +409,9 @@ namespace ReDefinition
         }
 
         // With the upscaler off and frame generation on, the upscaler runs all the same, at
-        // the screen's size (NativeAA: DLAA, FSR's and XeSS's native AA): the one
-        // antialiasing there is then, as while it upscales -- the mods' own taken
-        // (HostStack) -- and with a jitter frame generation is told of. Measured without
+        // the screen's size (NativeAA: DLAA, FSR's and XeSS's native AA). It is then the one
+        // antialiasing there is, as while it upscales, with the mods' own taken
+        // (HostStack) and with a jitter frame generation is told of. Measured without
         // ReDefinition, 2026-10-23: in the space centre and in flight Scatterer's TAA and
         // SMAA and TUFX's TAA all ran on the scene camera at once. Where the upscaler
         // cannot be set up, frame generation's capture alone, the mods' antialiasing theirs.

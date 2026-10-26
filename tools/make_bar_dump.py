@@ -1,10 +1,10 @@
 """Writes a synthetic input dump (the format of FrameGenerationDump.cpp) for the
-harness replay that stands for the vessel on the pad while the camera turns: a sky
-with soft cloud structure, depth 0 (nothing drawn, reversed Z), moving right by
-<speed> pixels a frame with exact motion vectors, and in front of it, still, a light
-bar 60 px wide (the rocket) and a dark pole 6 px wide, both at depth 0.0064 with
-zero motion, their edges antialiased over one pixel. Inputs known to be right: what
-frame generation draws beside the bar and the pole is its own.
+harness replay that stands for the vessel on the pad while the camera turns. The dump
+holds a sky with soft cloud structure, depth 0 (nothing drawn, reversed Z), moving
+right by <speed> pixels a frame with exact motion vectors. In front of it, still, are
+a light bar 60 px wide (the rocket) and a dark pole 6 px wide, both at depth 0.0064
+with zero motion, their edges antialiased over one pixel. The inputs are known to be
+right, so what frame generation draws beside the bar and the pole is its own.
 
 Usage: python tools/make_bar_dump.py <folder> [--speed 30] [--frames 8] [--hard] [--dilate]
 """

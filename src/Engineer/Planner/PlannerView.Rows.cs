@@ -6,11 +6,11 @@ using UnityEngine;
 namespace ReDefinition.Engineer
 {
     // The planner's rows, built from KSP's dialog elements, so a UI theme reaches
-    // them as it reaches KSP's dialogs. From the top: the vessel's sections; the
+    // them as it reaches KSP's dialogs. From the top come the vessel's sections. Next is the
     // route as a line of destinations, and between each two the steps that follow
-    // from it, a bar each (its length the step's delta-v, its colours the stages that
-    // pay for it, red what none covers), who flies it, the choices it offers, and in
-    // red what stands in its way; the fuel for the whole route; and the fuel plan,
+    // from it. Each step shows a bar (its length the step's delta-v, its colours the stages that
+    // pay for it, red what none covers). It also shows who flies it, the choices it offers, and in
+    // red what stands in its way. Then come the fuel for the whole route, and the fuel plan,
     // the steps with what each needs and leaves, each opening to its stages. A chosen
     // option is lit in its text rather than by the skin's pressed state. A fixed
     // number of rows, shown as the plan needs them.
@@ -173,9 +173,9 @@ namespace ReDefinition.Engineer
 
         // -------------------------------------------------------------- sections
 
-        // A section: what it is in the column of a step's place, its parts on a button
-        // from the column of who flies a step, its cross where a stop's cross is; under
-        // a satellite where it stays; and in red what is wrong with it.
+        // The rows of one section. They show what it is in the column of a step's place, its parts
+        // on a button from the column of who flies a step, and its cross where a stop's cross is.
+        // Under a satellite they show where it stays, and in red what is wrong with it.
         private IEnumerable<DialogGUIBase> SectionRows(int row)
         {
             DialogGUIButton group = null;
@@ -371,7 +371,7 @@ namespace ReDefinition.Engineer
         }
 
         // A step on the way from destination `leg` to the next, on one line in fixed
-        // columns: where it goes, who flies it (a button opening the list of who can),
+        // columns. The line shows where it goes, who flies it (a button opening the list of who can),
         // its bar, its delta-v and "..." for its further choices. Around it only where
         // there is something: a grey line where something leaves at its start or the
         // lander docks at its end, the further choices while "..." is open, and in red

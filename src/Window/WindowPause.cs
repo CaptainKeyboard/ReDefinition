@@ -20,23 +20,12 @@ namespace ReDefinition.Window
     // unless KSP's own pause menu stands in flight, which is a pause of the
     // player's own and stays.
     //
-    // The button sits in the window's title row. The title is a child object of
-    // the dialog's window named Title (PopupDialog.SetPopupData, decompiled), so
-    // the button is moved there once the dialog stands: in the row where it
-    // belongs, and out of the window's vertical layout, which would give it a
-    // row of its own.
+    // The button sits in the window's title row (PlaceInTitleRow).
     //
-    // Not in the main menu and the editors, where no game time runs. The choice
-    // is one of ReDefinition's own settings, so it is there again at the next
-    // opening.
+    // Not in the main menu and the editors, where no game time runs (Possible).
     //
     // The button carries a symbol rather than a word: two bars while the flight
-    // runs, a triangle while this window holds it. Both are drawn here into a
-    // texture, which needs no file and no glyph the game's font may not have.
-    // The symbol is an image on top of a plain button of the window's skin, not
-    // the button's own sprite: DialogGUIButton.Create puts a sprite in place of
-    // the button's background and swaps it for the skin's on hover, press and
-    // disable (SpriteState, decompiled), which hid the symbol on hover.
+    // runs, a triangle while this window holds it (Symbol, CenterSymbol).
     internal static class WindowPause
     {
         // The symbol's texture size, the button's size, both in pixels.
@@ -62,6 +51,7 @@ namespace ReDefinition.Window
         private static bool byTimeScale;
 
         // Whether the player's setting asks for the pause while the window is open.
+        // The choice is one of ReDefinition's own settings, so it is there again at the next opening.
         internal static bool Wanted
         {
             get
@@ -73,6 +63,7 @@ namespace ReDefinition.Window
 
         // Where game time runs: in flight, and in the space centre and the
         // tracking station.
+        // Not in the main menu and the editors, where no game time runs.
         internal static bool Possible
         {
             get
@@ -165,6 +156,10 @@ namespace ReDefinition.Window
         // Into the title row, once the dialog's objects stand. Anchored to the
         // right of the title itself, so it keeps the row whatever the window's
         // width and the UI's scale are.
+        // The title is a child object of the dialog's window named Title (PopupDialog.SetPopupData, decompiled).
+        // So the button is moved there once the dialog stands: in the row where it
+        // belongs, and out of the window's vertical layout, which would give it a
+        // row of its own.
         internal static void PlaceInTitleRow(PopupDialog dialog)
         {
             try
@@ -199,6 +194,11 @@ namespace ReDefinition.Window
         }
 
         // In the middle of the button, and not in the way of its clicks.
+        // The symbol is an image on top of a plain button of the window's skin, not
+        // the button's own sprite.
+        // DialogGUIButton.Create puts a sprite in place of
+        // the button's background and swaps it for the skin's on hover, press and
+        // disable (SpriteState, decompiled), which hid the symbol on hover.
         private static void CenterSymbol()
         {
             GameObject image = symbol != null ? symbol.uiItem : null;
@@ -224,6 +224,7 @@ namespace ReDefinition.Window
         // does: the bars where the window does not hold the flight, the triangle
         // where it does. Read from the choice, not from `holding`: the button is
         // built before the window takes hold.
+        // Both symbols are drawn here into a texture, which needs no file and no glyph the game's font may not have.
         private static Texture2D Symbol()
         {
             return Wanted && Possible ? Play() : Pause();

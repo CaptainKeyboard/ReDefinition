@@ -5,8 +5,9 @@ namespace ReDefinition.Settings
 {
     // What the store keeps (docs/development/architecture.md): the values kept for
     // the mods, the values from before ReDefinition per save with their marks to be
-    // put back, what waits for a mod's save -- and whether any of it changed since
-    // bundled.cfg was written. Plain data: no mod is reached from here (BundledStore).
+    // put back, and what waits for a mod's save.
+    // It also knows whether any of it changed since bundled.cfg was written.
+    // Plain data: no mod is reached from here (BundledStore).
     internal sealed class BundledLedger
     {
         // A value from before ReDefinition, and whether it is to be put back.

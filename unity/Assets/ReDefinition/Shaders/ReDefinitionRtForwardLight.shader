@@ -1,6 +1,6 @@
 // The raytraced light added to the frame (src/Raytracing/RtCamera.cs,
-// docs/development/raytracing.md, "Where the raytraced light enters Unity's lighting"):
-// drawn after the opaque geometry's light, before the transparent and the atmosphere,
+// docs/development/raytracing.md, "Where the raytraced light enters Unity's lighting").
+// It is drawn after the opaque geometry's light, before the transparent and the atmosphere,
 // for the raytraced camera, where Deferred's reflections pass is not there to take it.
 // The proxy's pass gives the light to add, less KSP's flat ambient light, which Unity's
 // shading added already: it may be negative. A render target without floats clamps
@@ -9,7 +9,7 @@
 // (Internal-DeferredShading.shader): there the third pass multiplies by exp2(-added)
 // where light is added, and the fourth by exp2(taken), as 1 + (exp2(taken) - 1), where
 // it is taken. Forward rendering, without a G-buffer, takes the surface's colour from
-// the frame itself: the fifth pass reads a copy of it and writes c + min(c, w) k plus the
+// the frame itself. The fifth pass reads a copy of it and writes c + min(c, w) k plus the
 // reflections, k and w from the proxy's ratio (Raytracing.hlsl, ForwardLight).
 Shader "Hidden/ReDefinition/RtForwardLight"
 {
@@ -17,15 +17,15 @@ Shader "Hidden/ReDefinition/RtForwardLight"
     #include "UnityCG.cginc"
     #include "ReDefinitionRtReproject.cginc"
 
-    // The camera's depth; the proxy's light to add (may be negative; the reflections for the relighting pass) and
-    // the forward ratio (rgb k, w the ceiling on c), both in the raytraced frame; the copy of the frame to relight.
+    // The camera's depth. Then the proxy's light to add (may be negative; the reflections for the relighting pass) and
+    // the forward ratio (rgb k, w the ceiling on c), both in the raytraced frame. Last, the copy of the frame to relight.
     UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
     sampler2D _ReDefinitionRtForward;
     sampler2D _ReDefinitionRtForwardRatio;
     sampler2D _ReDefinitionRtFrame;
     // KSP's own sea, where the raytracing traced it as water (RtCamera.TraceOcean): its
     // reflections whole and undenoised, w the reflected rays' hit distance, 0 where not
-    // water; and the main body's centre in Unity's world and its sea level, w 0 for none.
+    // water. The next variable holds the main body's centre in Unity's world and its sea level, w 0 for none.
     sampler2D _ReDefinitionRtOcean;
     float4 _ReDefinitionWaterSphere;
 

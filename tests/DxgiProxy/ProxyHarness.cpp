@@ -382,9 +382,9 @@ namespace
     }
 
     // A key in the ini next to the harness, the one the proxy reads. The
-    // harness owns the keys it sets: set before the proxy loads, and back to
-    // what the file held -- the template's default, which the proxy writes there
-    // -- on every return from main, and when the watchdog ends a stuck run
+    // harness owns the keys it sets. It sets them before the proxy loads, and puts
+    // back what the file held (the template's default, which the proxy writes
+    // there) on every return from main and when the watchdog ends a stuck run
     // (RestoreIniKeys). A run that crashes leaves its value behind, and the next
     // run takes it for what the file held.
     class IniKey
@@ -458,10 +458,10 @@ namespace
 
 namespace
 {
-    // REDEFINITION_HARNESS_REPLAY=<folder>: an input dump from the game
-    // (FrameGenerationDump.cpp) played through frame generation again and again, at
-    // half its size, while the screen is recorded -- frame generation's output for the
-    // game's own frames, without the game. The frame as presented is the dump's frame
+    // REDEFINITION_HARNESS_REPLAY=<folder> plays an input dump from the game
+    // (FrameGenerationDump.cpp) through frame generation again and again, at
+    // half its size, while the screen is recorded. That gives frame generation's
+    // output for the game's own frames, without the game. The frame as presented is the dump's frame
     // where it has one, the HUD-less image its colour.
     struct ReplayFrame
     {

@@ -13,9 +13,9 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Probe
 {
-    // -redefinitionProbeDownloads: choosing a technique whose files are missing, as the player does -- the
-    // dialog it opens (shot), its button clicked, the technique taken once the files are in place, and
-    // left as it was where the dialog is cancelled -- for XeSS frame generation (cancelled), DLSS as the
+    // -redefinitionProbeDownloads chooses a technique whose files are missing, as the player does. The probe
+    // shoots the dialog it opens and clicks its button. It takes the technique once the files are in place, and
+    // leaves it as it was where the dialog is cancelled. It runs for XeSS frame generation (cancelled), DLSS as the
     // upscaler (NVIDIA's files), XeSS as the upscaler (Intel's) and DLSS frame generation on an RTX 30
     // (the package from the zip in KSP's folder). The click on "Accept and download" is the player's
     // acceptance of the vendors' licences: the probe runs only where its caller asked for it.

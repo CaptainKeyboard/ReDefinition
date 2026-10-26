@@ -136,63 +136,14 @@ namespace DocLock
         }
     }
 
-    // The documentation as Markdown pages for a wiki: Home with the areas, a page per area with its files,
-    // a page per file with each element, its kind, line and documentation.
+    // The documentation as a wiki (WikiSite.cs): the start page, the hand-written developer pages, a page per area
+    // and per file made from the comments, and the indexes the code answers by itself.
     internal static class Wiki
     {
-        // The pages into the folder: Home, one page per area, one per file.
+        // The pages into the folder; `source` is the address of the repository's files on GitHub, or null.
         public static void Write(string folder, Scan scan, Lock lockFile, string source)
         {
-            Directory.CreateDirectory(folder);
-            int documented = scan.Elements.Count(Rules.Documented);
-            var home = new StringBuilder("# ReDefinition developer documentation\n\nWritten from the code's comments by tools/DocLock: ")
-                .Append(scan.Elements.Count).Append(" elements in ").Append(scan.Files.Count).Append(" files, ")
-                .Append((100.0 * documented / Math.Max(1, scan.Elements.Count)).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
-                .Append(" % documented.\n\n");
-            foreach (IGrouping<string, Element> area in scan.Elements.GroupBy(e => e.Area).OrderBy(g => g.Key, StringComparer.Ordinal))
-            {
-                string areaPage = Page(area.Key);
-                home.Append("- [").Append(area.Key).Append("](").Append(areaPage).Append(")\n");
-                var areaText = new StringBuilder("# ").Append(area.Key).Append("\n\n");
-                foreach (IGrouping<string, Element> file in area.GroupBy(e => e.Path).OrderBy(g => g.Key, StringComparer.Ordinal))
-                {
-                    string filePage = Page(file.Key);
-                    Element head = file.FirstOrDefault(e => e.Kind == "script" || e.Kind == "module" || e.Kind == "shader") ?? file.First();
-                    areaText.Append("- [").Append(file.Key).Append("](").Append(filePage).Append(") -- ")
-                            .Append(Escape(FirstSentence(head.Doc))).Append('\n');
-                    var fileText = new StringBuilder("# ").Append(file.Key).Append("\n\n");
-                    if (source != null) fileText.Append("[Source](").Append(source).Append(file.Key).Append(")\n\n");
-                    foreach (Element e in file)
-                    {
-                        string line = source != null ? "[line " + e.Line + "](" + source + e.Path + "#L" + e.Line + ")" : "line " + e.Line;
-                        fileText.Append("### ").Append(e.Kind).Append(" `").Append(e.Name).Append(e.Signature.Length > 0 ? "(" + e.Signature + ")" : "")
-                                .Append("`\n\n").Append(line).Append(lockFile.IsDirty(e) ? " -- **dirty**: the code changed since this was written" : "")
-                                .Append("\n\n").Append(e.Doc.Length > 0 ? Escape(e.Doc) : e.SharesDoc ? "(with the comment of the run above)" : "(undocumented)")
-                                .Append("\n\n");
-                    }
-                    File.WriteAllText(Path.Combine(folder, filePage + ".md"), fileText.ToString());
-                }
-                File.WriteAllText(Path.Combine(folder, areaPage + ".md"), areaText.ToString());
-            }
-            File.WriteAllText(Path.Combine(folder, "Home.md"), home.ToString());
-            Console.WriteLine("Wiki pages in " + folder + ".");
-        }
-
-        // A comment's text for Markdown: its underscores, stars and angle brackets as written, not as markup.
-        private static string Escape(string text)
-        {
-            return text.Replace("\\", "\\\\").Replace("_", "\\_").Replace("*", "\\*").Replace("<", "&lt;").Replace(">", "&gt;");
-        }
-
-        // A page name for a path: slashes and spaces as dashes, which wiki links take.
-        private static string Page(string name) => name.Replace('/', '-').Replace('\\', '-').Replace(' ', '-');
-
-        // The first sentence of a documentation, for the area pages' file list.
-        private static string FirstSentence(string doc)
-        {
-            string flat = Element.Normalise(doc);
-            int stop = flat.IndexOf(". ", StringComparison.Ordinal);
-            return stop > 0 ? flat.Substring(0, stop + 1) : flat;
+            new WikiSite(Sources.Root(), folder, scan, lockFile, source).Write();
         }
     }
 }

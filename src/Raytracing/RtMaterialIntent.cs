@@ -8,60 +8,57 @@ namespace ReDefinition.Raytracing
     // How a material's shine is meant, by its shader's family and its own values, for the
     // surfaces the raytracing writes back into Unity's G-buffer (RtCommon.hlsli,
     // SurfaceIntent). Deferred gives every KSP shader a shine by one formula, diffuse-only
-    // ones and the space centre's ground included; what each shader draws without Deferred
-    // was read from KSP's compiled shaders and Deferred's replacements (2026-10-05):
-    //
-    // * Diffuse-only shaders (KSP/Diffuse, Bumped, the scenery's Diffuse and Bumped, the
-    //   ground without specular, cut-outs, lightmapped and flag shaders, Unity's Lambert):
-    //   no shine on the scenery; a vessel's parts keep Deferred's.
-    // * KSP's legacy specular shaders: Blinn-Phong, _SpecColor times the gloss in the main
-    //   texture's alpha times (N.H)^(128 _Shininess). Its roughness from the exponent n as
-    //   Unity relates them (UnityStandardBRDF.cginc: n = 2 / m^2 - 2), its specular colour as
-    //   bright as the highlight: 8 c / (n + 2) times the gloss, which Deferred's smoothness
-    //   gives back divided by _Shininess^0.215 sqrt(|c|) (LegacyToStandard.cginc). Unity's
-    //   own legacy specular shaders write c gloss / pi as their specular colour instead.
-    //   The space centre's buildings with Unity's untouched defaults (_Shininess 0.078,
-    //   _SpecColor 0.5) as matt (the player, 2026-10-05: buildings matt rather than shiny),
-    //   and its concrete by its materials' names (Concrete).
-    // * The space centre's ground (Diffuse Ground KSC and its Specular variant): Unity's
-    //   specular setup with _SpecularColor as its specular colour, black on every stock
-    //   material; there its lawn shines as Parallax's terrain beside it, its tarmac not at all (Ground).
-    // * Parallax's terrain: its own Blinn-Phong, _SpecularIntensity at _SpecularPower, the
-    //   gloss in its colour's alpha, which its G-buffer's smoothness gives back over 0.644.
-    // * Unity's physically based shaders and every other one: the G-buffer's own.
+    // ones and the space centre's ground included. What each shader draws without Deferred
+    // was read from KSP's compiled shaders and Deferred's replacements (2026-10-05). Of tells
+    // the families apart, and the constants below carry the numbers of the legacy and Parallax ones.
+    // Unity's physically based shaders and every other one keep the G-buffer's own.
     internal struct RtMaterialIntent
     {
-        // How the shine is meant (RtNative's Surface constants); the specular colour and smoothness the hits take where it is not
-        // Keep; for the legacy families what the G-buffer's smoothness is divided by for the gloss, and the gloss where
-        // no G-buffer gives it (the ground: whether it is drawn as Parallax's terrain already).
+        // How the shine is meant (RtNative's Surface constants).
         public uint Mode;
+        // The specular colour and smoothness the hits take where Mode is not Keep.
         public Color Specular;
         public float Smoothness;
+        // For the legacy families, what the G-buffer's smoothness is divided by for the gloss.
         public float GlossDivisor;
+        // The gloss where no G-buffer gives it. For the ground it says whether the ground is drawn as Parallax's
+        // terrain already (Scenery/KscGround). The raytracing then does not lift or shade it to the terrain's look
+        // (RtCommon.hlsli, MeadowShade, LawnOcclusion). The ground's shine does not use the gloss.
         public float GlossMean;
 
-        // The power of _Shininess in the divisor that gives the gloss back from Deferred's smoothness (see above).
+        // The power of _Shininess in the divisor that gives the gloss back from Deferred's smoothness. KSP's legacy
+        // specular shaders are Blinn-Phong: _SpecColor times the gloss in the main texture's alpha times
+        // (N.H)^(128 _Shininess). The roughness comes from the exponent n as Unity relates them
+        // (UnityStandardBRDF.cginc: n = 2 / m^2 - 2). The specular colour is as bright as the highlight:
+        // 8 c / (n + 2) times the gloss, which Deferred's smoothness gives back divided by _Shininess^0.215 sqrt(|c|)
+        // (LegacyToStandard.cginc). Unity's own legacy specular shaders write c gloss / pi as their specular colour instead.
         private const float LegacyShininessPower = 0.215f;
-        // Unity's defaults, left on most of the space centre's specular materials.
+        // Unity's defaults, left on most of the space centre's specular materials. The space centre's buildings with
+        // Unity's untouched defaults (_Shininess 0.078, _SpecColor 0.5) are matt (the player, 2026-10-05: buildings
+        // matt rather than shiny), and its concrete by its materials' names (ConcreteNames).
         private const float DefaultShininess = 0.078125f;
         private const float DefaultSpecular = 0.5f;
-        // Parallax's G-buffer smoothness per unit of gloss (measured from its deferred pass).
+        // Parallax's G-buffer smoothness per unit of gloss (measured from its deferred pass). Parallax's terrain has
+        // its own Blinn-Phong, _SpecularIntensity at _SpecularPower, the gloss in its colour's alpha, which its
+        // G-buffer's smoothness gives back over this value.
         private const float ParallaxGlossDivisor = 0.644f;
         // The gloss a hit without a G-buffer takes for the legacy families.
         private const float MeanGloss = 0.5f;
-        // The gloss of Parallax's terrain beside the space centre's lawn, which the lawn takes (Ground):
-        // the terrain's F0 there 0.020 to 0.022 at its intensity 0.12, from six views in the evening
-        // (2026-10-25, tools/surface_sheet.py).
+        // The gloss of Parallax's terrain beside the space centre's lawn, which the lawn takes (Ground).
+        // The terrain's F0 there is 0.020 to 0.022 at its intensity 0.12, from six views in the evening
+        // (2026-10-25, tools/surface_sheet.py). Matt as a whole (Dry), the lawn is darker than the terrain at a
+        // glancing view: at the launch pad a dark strip where they meet (measured 2026-10-19: 66 against 100 with
+        // the rays).
         private const float LawnGloss = 0.175f;
 
         // The shaders already logged as taken as drawn, so that each is logged once.
         private static readonly HashSet<string> Unknown = new HashSet<string>();
 
-        // Materials whose values were changed for Deferred's G-buffer (EditorHallShine),
-        // with the shine their own values mean: read again from the changed ones, a
+        // Materials whose values are set for Deferred's G-buffer (EditorHallShine),
+        // with the shine their own values mean. It is not read again from the set ones, as a
         // highlight's colour and shininess set for Deferred's conversion give another. The
         // rays take a material's again whenever its texture arrives (RtScene.Deliver), after
-        // the hall was changed.
+        // the hall's values are set.
         private static readonly Dictionary<Material, RtMaterialIntent> meant = new Dictionary<Material, RtMaterialIntent>();
 
         // Holds the shine a material's own values mean before they are changed for Deferred (EditorHallShine).
@@ -77,7 +74,11 @@ namespace ReDefinition.Raytracing
         }
 
         // The material's shine as meant; `scenery` for the space centre and other scenery, whose diffuse and default
-        // specular shaders stay matt where a vessel's part keeps the G-buffer's.
+        // specular shaders stay matt where a vessel's part keeps the G-buffer's. Diffuse-only shaders (KSP/Diffuse,
+        // Bumped, the scenery's Diffuse and Bumped, the ground without specular, cut-outs, lightmapped and flag
+        // shaders, Unity's Lambert) have no shine on the scenery; a vessel's parts keep Deferred's. The space
+        // centre's ground (Diffuse Ground KSC and its Specular variant) has Unity's specular setup with
+        // _SpecularColor as its specular colour, black on every stock material (Ground).
         internal static RtMaterialIntent Of(Material material, bool scenery)
         {
             var keep = new RtMaterialIntent { Mode = RtNative.SurfaceKeep, Specular = Color.black, Smoothness = 0f };
@@ -147,15 +148,11 @@ namespace ReDefinition.Raytracing
 
         // The space centre's ground (RT_SURFACE_GROUND): its lawn, told apart per pixel by
         // its drawn colour, shines as Parallax's terrain beside it does, at the terrain's
-        // gloss there (LawnGloss); its tarmac and concrete not at all. Matt as a whole
-        // (Dry), the lawn was darker than the terrain at a glancing view: at the launch
-        // pad a dark strip where they meet (measured 2026-10-19: 66 against 100 with the
-        // rays). With the G-buffer's shine (0.22 at a smoothness of 0.013, rough and
-        // strong) it was lighter than the terrain towards a low sun instead (the player,
-        // 2026-10-25). Without Parallax the G-buffer's, as before. `asTerrain`: drawn as
-        // Parallax's terrain already (Scenery/KscGround), which the raytracing then does not
-        // lift or shade to the terrain's look (RtCommon.hlsli, MeadowShade, LawnOcclusion):
-        // in GlossMean, which the ground's shine does not use.
+        // gloss there (LawnGloss); its tarmac and concrete not at all. With the G-buffer's
+        // shine (0.22 at a smoothness of 0.013, rough and strong) the lawn is lighter than
+        // the terrain towards a low sun (the player, 2026-10-25). Without Parallax the
+        // G-buffer's shine stays, as before. The argument `asTerrain` says the ground is drawn as
+        // Parallax's terrain already (Scenery/KscGround). It goes in GlossMean.
         private static RtMaterialIntent Ground(bool asTerrain)
         {
             var ground = new RtMaterialIntent
@@ -238,8 +235,8 @@ namespace ReDefinition.Raytracing
 
         // The space centre's concrete, which KSP gives a highlight (the launch pad's
         // kap_pad_launchPad_mat, _SpecColor 0.28, _Shininess 0.45; its ramps, floors and
-        // foundations; the shader inventory, 2026-10-05): matt (the player: the pad must not
-        // shine). Its metal -- tanks, the water tower, pipes, steel beams -- keeps its shine.
+        // foundations; the shader inventory, 2026-10-05). It is matt (the player: the pad must not
+        // shine). Its metal (tanks, the water tower, pipes, steel beams) keeps its shine.
         private static readonly string[] ConcreteNames = { "launchPad", "ramp", "floor", "Foundation", "runway", "concrete" };
 
         // Whether a material's name is one of the space centre's concrete ones (ConcreteNames), steel excepted.

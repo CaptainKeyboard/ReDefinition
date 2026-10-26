@@ -139,15 +139,13 @@ namespace redefinition
         Streamline::Get().Release(this);
     }
 
-    // The most frames DLSS-G generates per rendered frame for this Present, 0 for
-    // no limit beyond the GPU's. Without VSync none. With it, NVIDIA's own table:
-    // "60Hz ... 4x", "75Hz ... 5x", above which "frames are generated faster than the
-    // display can present them, causing frame queue backup" and latency grows
-    // (ProgrammingGuideDLSS_G.md 22.7) -- a multiplier of a fifteenth of the rate
-    // frames are shown at: the refresh rate over the sync interval, down to the
-    // table's row, with a hundredth of a row for rates such as 59.94 Hz -- 72 Hz
-    // stays at 4x. A rate not known yet allows one generated frame, not the GPU's
-    // most.
+    // The most frames DLSS-G generates per rendered frame for this Present, 0 for no limit beyond
+    // the GPU's. Without VSync it is 0. With VSync it follows NVIDIA's own table: "60Hz ... 4x",
+    // "75Hz ... 5x". Above that "frames are generated faster than the display can present them,
+    // causing frame queue backup" and latency grows (ProgrammingGuideDLSS_G.md 22.7). It is a
+    // fifteenth of the refresh rate over the sync interval, down to the table's row with a
+    // hundredth of a row for rates such as 59.94 Hz, so 72 Hz stays at 4x. An unknown rate allows
+    // one generated frame, not the GPU's most.
     uint32_t SwapChainProxy::StreamlineFrameLimit(UINT syncInterval)
     {
         if (syncInterval == 0)
@@ -171,12 +169,12 @@ namespace redefinition
         return frames;
     }
 
-    // DLSS-G generates nothing while the game's window is not in the foreground: Streamline
-    // says "DLSS-G disabled: window not focused" (sl.dlss_g, shouldInterpolate) and presents
-    // the rendered frames alone, with its status still fine -- a benchmark started from
-    // another program's window found its frame generation rows at 1.00 presented per
-    // rendered frame that way. Said once per change, from the Present that asked it to
-    // generate; the foreground window of this process counts as the game's.
+    // DLSS-G generates nothing while the game's window is not in the foreground. Streamline says
+    // "DLSS-G disabled: window not focused" (sl.dlss_g, shouldInterpolate) and presents the rendered
+    // frames alone, with its status still fine. A benchmark started from another program's window
+    // found its frame generation rows at 1.00 presented per rendered frame that way. The note is
+    // said once per change, from the Present that asked it to generate. The foreground window of
+    // this process counts as the game's.
     void SwapChainProxy::NoteStreamlineFocus()
     {
         const HWND foreground = GetForegroundWindow();
@@ -194,12 +192,11 @@ namespace redefinition
         streamlineFocused = focused;
     }
 
-    // "Ensure the frame index provided with the common constants matches the
-    // presented frame (i.e., the frame index provided with Reflex markers
-    // ReflexMarker::ePresentStart and ReflexMarker::ePresentEnd)"
-    // (ProgrammingGuideDLSS_G.md 17.0): the game's frame from its main thread
-    // to this Present, as "Store a copy of the handle and use that in any async
-    // tasks ... asyncPresentFrame(currentFrame)" (ProgrammingGuide.md 2.10).
+    // The guide says "Ensure the frame index provided with the common constants matches the
+    // presented frame (i.e., the frame index provided with Reflex markers ReflexMarker::ePresentStart
+    // and ReflexMarker::ePresentEnd)" (ProgrammingGuideDLSS_G.md 17.0). So the game's frame goes from
+    // its main thread to this Present, as "Store a copy of the handle and use that in any async tasks
+    // ... asyncPresentFrame(currentFrame)" (ProgrammingGuide.md 2.10).
     uint32_t SwapChainProxy::TakeFrameIndex(bool takeGameFrame)
     {
         freshGameFrame = false;
@@ -262,13 +259,12 @@ namespace redefinition
         return index;
     }
 
-    // Without the game's frames, the next frame's index taken where the
-    // presenting thread begins it, and Reflex's sleep under it: "Starting new
-    // frame, grab handle from SL" and then slReflexSleep(*currentFrame)
-    // (ProgrammingGuideReflex.md 5.0) -- its wait "regardless of Reflex Low
-    // Latency mode state" (8.0). The frame's constants, tags and markers go under
-    // the same index when it is presented. With them, the game's main thread
-    // sleeps instead (Streamline::BeginGameFrame).
+    // Without the game's frames, the presenting thread begins the next frame. It takes the index and
+    // sleeps under it with Reflex: "Starting new frame, grab handle from SL" and then
+    // slReflexSleep(*currentFrame) (ProgrammingGuideReflex.md 5.0). Its wait comes "regardless of
+    // Reflex Low Latency mode state" (8.0). The frame's constants, tags and markers go under the
+    // same index when it is presented. With the game's frames, the game's main thread sleeps
+    // instead (Streamline::BeginGameFrame).
     void SwapChainProxy::BeginStreamlineFrame()
     {
         if (presentingGameFrames)
@@ -281,16 +277,14 @@ namespace redefinition
         streamline.ReflexSleep(nextFrameIndex);
     }
 
-    // DLSS-G off before the swapchain's size or full screen state changes: "Turn
-    // DLSS-G off ... before any window manipulation (resize, maximize/minimize,
-    // full-screen transition, etc.) to avoid potential deadlocks or instability"
-    // (ProgrammingGuideDLSS_G.md 17.0) -- and options take effect "in the next
-    // Present() call that executes after it" (6.0). So the shared colour is
-    // presented once more with generation off: the last frame, or whatever Unity
-    // drew into it since, flushed first. On the presenting thread
-    // only, which then is not inside a Present. From any other thread, where the
-    // lock the Present is taken under could hold both threads up, only a request
-    // for the next Present is left, and the log says so.
+    // DLSS-G off before the swapchain's size or full screen state changes: "Turn DLSS-G off ...
+    // before any window manipulation (resize, maximize/minimize, full-screen transition, etc.) to
+    // avoid potential deadlocks or instability" (ProgrammingGuideDLSS_G.md 17.0). Options take effect
+    // "in the next Present() call that executes after it" (6.0). So the shared colour is presented
+    // once more with generation off: the last frame, or whatever Unity drew into it since, flushed
+    // first. This runs on the presenting thread only, outside a Present. Another thread only
+    // requests the next Present, because the lock the Present is taken under could hold both
+    // threads up. The log says so.
     void SwapChainProxy::PresentWithStreamlineOff(const char* reason)
     {
         if (!streamlineSwapChain || presentCount == 0)

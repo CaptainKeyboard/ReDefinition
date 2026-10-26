@@ -33,10 +33,10 @@ namespace ReDefinition.Upscaler
 
         // Switching the component off is not enough. Scatterer's and Deferred's
         // SMAA attach their CommandBuffer to their camera in OnPreCull while
-        // their private "initialized" is false -- Scatterer again whenever the
-        // camera's HDR setting changes, without taking the old one off -- and
-        // take it away only in OnDestroy (SubpixelMorphologicalAntialiasing.cs
-        // in Scatterer, SubpixelMorphologicalAntiAliasing.cs in Deferred). A
+        // their private "initialized" is false, and take it away only in OnDestroy
+        // (SubpixelMorphologicalAntialiasing.cs in Scatterer,
+        // SubpixelMorphologicalAntiAliasing.cs in Deferred). Scatterer attaches again
+        // whenever the camera's HDR setting changes, without taking the old one off. A
         // disabled component attaches nothing new, but the buffer already on
         // the camera keeps running. So the component's own buffer, read from
         // its SMAACommandBuffer field, is taken off its camera as well.
@@ -176,9 +176,9 @@ namespace ReDefinition.Upscaler
         }
 
         // The status line only reads. What renders is a buffer on a camera, so
-        // it counts buffers by the names both mods give them, once per camera
-        // -- two SMAA components on one camera can share a name -- plus every
-        // enabled component without one yet, which will attach one.
+        // it counts buffers by the names both mods give them, once per camera,
+        // plus every enabled component without one yet, which will attach one.
+        // Two SMAA components on one camera can share a name.
         private const string ScattererSmaaBufferPrefix = "Scatterer SMAA CommandBuffer";
         private const string DeferredSmaaBufferPrefix = "Deferred editor SMAA CommandBuffer";
 

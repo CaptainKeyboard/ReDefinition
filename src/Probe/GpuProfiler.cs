@@ -14,14 +14,14 @@ namespace ReDefinition.Probe
     // With -redefinitionGpuProfile: where the GPU's time goes inside Unity's frame, named
     // by camera, pass and the mod whose work it is. KSP's player is a release build: no
     // GPU markers of Unity's own reach a profiler, so a capture shows thousands of
-    // unnamed draws. Here markers go into Unity's render stream -- the proxy ends a D3D11
-    // timestamp query at each (src/DxgiProxy/Diagnostics/GpuProfiler.h) -- at:
-    //   every camera's events (CameraEvent), the command buffers other mods and KSP hang
-    //   there each between two markers of its own;
-    //   the lights' shadow and screen-space mask events, the same way;
-    //   the drawing scripts of every assembly -- OnPreRender, OnPostRender, OnRenderImage,
-    //   OnRenderObject, and the handlers on Camera.onPreRender and onPostRender -- before
-    //   and after, through GL.IssuePluginEvent where they run.
+    // unnamed draws. Here markers go into Unity's render stream, and the proxy ends a D3D11
+    // timestamp query at each (src/DxgiProxy/Diagnostics/GpuProfiler.h).
+    // Every camera's events (CameraEvent) get a marker, and the command buffers other mods and KSP hang
+    // there each lie between two markers of its own.
+    // The lights' shadow and screen-space mask events get markers the same way.
+    // The drawing scripts of every assembly get a marker before and after, through
+    // GL.IssuePluginEvent where they run: OnPreRender, OnPostRender, OnRenderImage,
+    // OnRenderObject, and the handlers on Camera.onPreRender and onPostRender.
     // A segment is the GPU time from one marker to the next, named for the work that
     // lies between them; "Unity until X" is Unity's own rendering of that camera before
     // event X. Every 10 s the frame's GPU time, each camera's share and the costliest
@@ -73,9 +73,9 @@ namespace ReDefinition.Probe
             "parallax", "scatterer", "atmosphere", "eve", "deferred", "tufx", "waterfall", "firefly",
         };
 
-        // The proxy's marker callback (zero while the profiler is off), the ids of the labels and the labels by id,
-        // the one-marker command buffer for each id, the before and after ids of each patched script method, and
-        // the Harmony instance that patches them.
+        // The proxy's marker callback (zero while the profiler is off). The fields after it hold the ids of the
+        // labels and the labels by id, the one-marker command buffer for each id, the before and after ids of
+        // each patched script method, and the Harmony instance that patches them.
         private static IntPtr markerFunc = IntPtr.Zero;
         private static readonly Dictionary<string, int> ids = new Dictionary<string, int>();
         private static readonly List<string> labels = new List<string> { "frame start", "until Present" };
@@ -91,9 +91,10 @@ namespace ReDefinition.Probe
             public int Frames;
         }
 
-        // The period's segments by marker id; the buffers a frame is read into; the last frame read, the frames
-        // of the period and the spikes logged in it; the frame's usual time; the segments of a spike frame; the
-        // period's frame time summed and at most; when the next scan for cameras is due and the period started.
+        // The period's segments by marker id. Next are the buffers a frame is read into. Then come the last frame
+        // read, the frames of the period and the spikes logged in it, and the frame's usual time. Then come the
+        // segments of a spike frame, the period's frame time summed and at most, and when the next scan for
+        // cameras is due and the period started.
         private readonly Dictionary<int, Segment> segments = new Dictionary<int, Segment>();
         private readonly int[] readIds = new int[Capacity];
         private readonly float[] readMs = new float[Capacity];
@@ -228,8 +229,8 @@ namespace ReDefinition.Probe
 
         // Whether the marker is on the event already. GetCommandBuffers hands out new wrapper
         // objects every call, so the buffers are told apart by their names (one a marker),
-        // not by reference: a reference check never found it, and every scan, once a second,
-        // added another marker to every event of every camera until the frame held thousands.
+        // not by reference. A reference check would never find the marker, and every scan, once
+        // a second, would add another marker to every event of every camera until the frame held thousands.
         private static bool Has(CommandBuffer[] buffers, CommandBuffer marker)
         {
             foreach (CommandBuffer buffer in buffers)
@@ -239,9 +240,9 @@ namespace ReDefinition.Probe
 
         // Each event of each camera: a marker at its end, appended once, which ends the
         // segment of Unity's work up to the event and the command buffers hung there. The
-        // other buffers are not touched: taking them off and adding them back between
-        // markers of their own darkened the whole frame (the raytraced sun lost, at the
-        // launch pad, whichever half of the events was laid out), for a reason not found.
+        // other buffers are not touched. Taking them off and adding them back between
+        // markers of their own darkens the whole frame (the raytraced sun is lost, at the
+        // launch pad, whichever half of the events is laid out). The reason is not found.
         // What each mod's work costs, the mod cost probe measures (ModCost).
         private static void LayOutCamera(Camera camera)
         {
@@ -349,10 +350,10 @@ namespace ReDefinition.Probe
             if (scriptMarkers.TryGetValue(__originalMethod, out marker)) GL.IssuePluginEvent(markerFunc, marker[1]);
         }
 
-        // Not on Unity's camera of a reflection probe: a command buffer of the profiler's on
-        // it left the probe out (the raytracing's self-check: "missing the sky's probe"),
-        // and the raytraced scene dark with it. -redefinitionGpuProfileNoCameras: no
-        // markers on the cameras and lights at all.
+        // Whether the profiler puts markers on the cameras and lights; -redefinitionGpuProfileNoCameras
+        // puts none at all. They stay off Unity's camera of a reflection probe. A command buffer of the
+        // profiler's on it leaves the probe out (the raytracing's self-check: "missing the sky's probe"),
+        // and the raytraced scene is dark with it.
         private static readonly bool CameraMarkers = !CommandLine.Has("-redefinitionGpuProfileNoCameras");
 
         // Once a second: markers on the cameras and lights that came since (unless switched off), and the camera

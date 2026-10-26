@@ -5,9 +5,9 @@ namespace ReDefinition.Probe
     // A recording of the scene probe's camera sweep for FLIP (tools/flip_probe.ps1):
     // -redefinitionProbeFlip records what the monitor shows while the camera sweeps,
     // and quits. With -redefinitionProbeHalfStep the sweep takes twice the frames at
-    // half the angle each: the same path, so that without frame generation its odd
+    // half the angle each. It is the same path. So without frame generation its odd
     // frames show the camera where a generated frame of the full-step sweep stands
-    // between two of the game's frames -- the reference to measure that one against.
+    // between two of the game's frames. They are the reference to measure that one against.
     internal static class FlipProbe
     {
         // The switches for the recording and for the sweep at half step.

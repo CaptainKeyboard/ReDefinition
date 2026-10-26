@@ -13,28 +13,13 @@ namespace ReDefinition.Settings
     //
     // A value set here is saved as if it had been set in the mod's own window,
     // through the mod's own save routine, so that the mod's window shows what
-    // ReDefinition's shows. How it lasts depends on the mod (IBundledMod.Saving):
-    //   * InModFiles -- KSP, Scatterer, EVE, Parallax, Firefly: the mod keeps it.
-    //     Kept here as well until the mod has saved it, or while the mod cannot
-    //     take it yet, and handed over at the next chance.
-    //   * PerSave -- TUFX, Distant Object: the mod keeps it per save. A choice
-    //     here is for the game, not one save, so it is kept here and goes into
-    //     every save as that save loads; a change made in the mod's own window
-    //     to a choice kept here becomes that choice (TakeFromMod).
-    //   * AtEveryStart -- Deferred, Waterfall: no save routine of their own;
-    //     kept here, and set at every start and scene change.
+    // ReDefinition's shows. How it lasts depends on the mod (SettingsSaving).
     //
     // Before the first change of a setting through this window, the value its
-    // mod had is kept, for good -- for a per-save setting, per save
-    // (BundledSetting.Context). Restore, or a profile that no longer sets it
-    // (Release), marks each kept value to be put back once, with the bundling
-    // on or off: a value kept for the game as a whole at once, a per-save value
-    // in its save the next time that save is loaded. Once it is in its mod, and
-    // saved where the mod saves, it is done and no longer kept; a new choice
-    // before then unmarks it. A per-save value put back is a change to its save
-    // like one made in the mod's own window: TUFX keeps it in the game, which
-    // KSP writes when it saves, so a quicksave made before brings back what it
-    // holds; Distant Object writes the save's own file at once.
+    // mod had is kept, for good: for a per-save setting, per save
+    // (BundledSetting.Context).
+    // RestoreBackup, or a profile that no longer sets the setting (Release), marks each kept value
+    // to be put back once, with the bundling on or off (ContinueRestore).
     internal sealed class BundledStore
     {
         // The game as the store needs it; what is kept; the state (switch, buttons, notice, profile); whether
@@ -171,10 +156,10 @@ namespace ReDefinition.Settings
             }
         }
 
-        // The value the window starts from: the one kept here where there is one --
-        // a value waiting to be handed over or saved, or one set at every start or
-        // load -- otherwise the mod's own, which for a mod that saves is the value
-        // saved.
+        // The value the window starts from.
+        // That is the one kept here where there is one: a value waiting to be handed over or saved,
+        // or one set at every start or load.
+        // Otherwise it is the mod's own, which for a mod that saves is the value saved.
         public string Current(BundledSetting setting)
         {
             Load();
@@ -211,6 +196,7 @@ namespace ReDefinition.Settings
         // The player's change, from the window or a profile. The mods that save
         // are saved once after all of a batch's changes, by the caller's SaveNow
         // -- as is bundled.cfg, so `save` is asked for.
+        // A new choice unmarks a value marked to be put back.
         public void Set(BundledSetting setting, string value, bool save)
         {
             Load();
@@ -231,9 +217,9 @@ namespace ReDefinition.Settings
                           : " -- kept; it reaches the mod once the mod can take it."));
         }
 
-        // After something outside the store changed settings it is about to set
-        // -- KSP's own reset ahead of the window's steps, before KSP saves: the
-        // value each had before, given here, becomes its value from before
+        // After something outside the store changed settings it is about to set.
+        // An example is KSP's own reset ahead of the window's steps, before KSP saves.
+        // The value each had before, given here, becomes its value from before
         // ReDefinition where its mod holds another now and none is kept yet.
         // Written to bundled.cfg at once, as WriteToMod writes a backup before the
         // mod can save the new value. False where that write failed.
@@ -258,9 +244,11 @@ namespace ReDefinition.Settings
         }
 
         // A setting a newly chosen profile leaves alone while it still holds the
-        // profile applied before (ProfileApplier.WithReleased): no value is kept
-        // for it any more, and every value from before ReDefinition kept
+        // profile applied before (ProfileApplier.WithReleased).
+        // No value is kept for it any more, and every value from before ReDefinition kept
         // for it is put back, as by Restore. Saved by the caller's SaveNow.
+        // A value kept for the game as a whole is put back at once, a per-save value
+        // in its save the next time that save is loaded.
         public void Release(BundledSetting setting)
         {
             Load();
@@ -273,8 +261,9 @@ namespace ReDefinition.Settings
         }
 
         // The value *Reset to defaults* gives a setting
-        // (docs/player/graphics-profiles.md): as Set for a mod that saves -- kept as the choice, per-save ones for
-        // every save -- and for a mod without a save routine of its own only its
+        // (docs/player/graphics-profiles.md).
+        // For a mod that saves it is as Set: kept as the choice, per-save ones for every save.
+        // For a mod without a save routine of its own it is only its
         // running value, with no value kept here, so its own config stands at
         // the next start. Backed up as any change is, so Restore can undo it.
         // Quiet: the caller logs the reset once. Saved by the caller's SaveNow.
@@ -326,8 +315,8 @@ namespace ReDefinition.Settings
         }
 
         // A change made in the own window of a mod that keeps its values per save
-        // (the hooks on TUFX and Distant Object), to a choice kept here: that
-        // choice follows it, so both windows keep showing the same and the next
+        // (the hooks on TUFX and Distant Object), to a choice kept here.
+        // That choice follows it, so both windows keep showing the same and the next
         // save that loads gets it. True where it did. bundled.cfg is written by
         // `save`, or by the caller's SaveIfDirty.
         public bool TakeFromMod(BundledSetting setting, string value, bool save)
@@ -378,13 +367,14 @@ namespace ReDefinition.Settings
             Save();
         }
 
-        // After the mods' own applies -- at every scene change, on the main
-        // menu's tick, at camera changes, and after a mod read its own file: what
-        // is to be put back, then what is kept here, to the mods where it is not
-        // there yet. `only` limits both, and the saving, to one mod -- for a mod
+        // After the mods' own applies: at every scene change, on the main
+        // menu's tick, at camera changes, and after a mod read its own file.
+        // What is to be put back goes to the mods first, then what is kept here, where it is not
+        // there yet.
+        // `only` limits both, and the saving, to one mod. It serves a mod
         // that has just read its own file, where saving the others from inside it
-        // would run them at a moment their own timing was never meant for. What
-        // failed -- a save, a refused value -- is tried again only at a scene
+        // would run them at a moment their own timing was never meant for.
+        // What failed, a save or a refused value, is tried again only at a scene
         // change (`sceneChange`).
         public void ReapplyStored(string when, IBundledMod only, bool sceneChange)
         {
@@ -437,11 +427,13 @@ namespace ReDefinition.Settings
         }
 
         // Every setting back to what its mod had before ReDefinition first
-        // changed it, saved as the change was: at once where it can be, and where
-        // not -- a save not loaded now, a mod that cannot take it yet or is not
-        // installed -- at the next chance. No value stays kept here: a value still
+        // changed it, saved as the change was.
+        // That happens at once where it can, and otherwise at the next chance: a save not loaded now,
+        // a mod that cannot take it yet or is not installed.
+        // No value stays kept here: a value still
         // waiting for its mod, or one no different from a save's own, would be
         // handed over later. With the bundling on or off.
+        // A per-save value put back is a change to its save (SettingsSaving.PerSave).
         public void RestoreBackup()
         {
             Load();
@@ -557,9 +549,10 @@ namespace ReDefinition.Settings
         }
 
         // What is marked to be put back, where its setting's save is loaded now
-        // and its mod can take it; done once the mod holds it and has saved it. A
-        // per-save value its save already holds is saved once more; a whole-game
-        // value already in its mod is written and saved again only at a restore
+        // and its mod can take it.
+        // It is done once the mod holds it and has saved it, and is then no longer kept.
+        // A per-save value its save already holds is saved once more.
+        // A whole-game value already in its mod is written and saved again only at a restore
         // or scene change (`force`), since the mod's file may still hold ReDefinition's value.
         // Each is tried once per scene load (TriedAt).
         private void ContinueRestore(string when, IBundledMod only, bool force)

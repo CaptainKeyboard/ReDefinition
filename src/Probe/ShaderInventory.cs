@@ -10,11 +10,11 @@ using UnityEngine;
 
 namespace ReDefinition.Probe
 {
-    // With -redefinitionShaderInventory: six seconds into each scene, every renderer's
-    // materials grouped by shader, with what each says about its shine -- specular colour,
-    // shininess, smoothness, metallic, their maps, a reflection cube -- and where the
-    // renderers stand (a vessel's part, the space centre's buildings, the terrain), into
-    // the session's capture folder, shader-inventory-<scene>.txt. What the shine of a
+    // With -redefinitionShaderInventory, six seconds into each scene, the probe writes every renderer's
+    // materials grouped by shader. It writes what each says about its shine: specular colour,
+    // shininess, smoothness, metallic, their maps, a reflection cube. It writes where the
+    // renderers stand (a vessel's part, the space centre's buildings, the terrain). The file is
+    // shader-inventory-<scene>.txt in the session's capture folder. What the shine of a
     // surface is meant to be is read from these, per shader family.
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]
     internal sealed class ShaderInventory : MonoBehaviour

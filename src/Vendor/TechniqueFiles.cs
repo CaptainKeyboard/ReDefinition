@@ -7,9 +7,9 @@ using UnityEngine;
 
 namespace ReDefinition.Vendor
 {
-    // What choosing a technique whose files are missing does: it opens, one after the other, the steps for the
-    // RTX 30 package, the download of NVIDIA's files, the download of Intel's, the steps for AMD's DLL -- and
-    // chooses the technique only once they are in place. A dialog the player cancels leaves the choice
+    // What choosing a technique whose files are missing does. It opens, one after the other, the steps for the
+    // RTX 30 package, the download of NVIDIA's files, the download of Intel's, and the steps for AMD's DLL.
+    // It chooses the technique only once they are in place. A dialog the player cancels leaves the choice
     // as it was.
     internal static class TechniqueFiles
     {

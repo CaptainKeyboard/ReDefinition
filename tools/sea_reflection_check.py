@@ -1,33 +1,34 @@
 """The sun's and the moons' reflections on the sea, as the light probe captured them,
 against a physical model.
 
-The model: the sea's slopes as Cox and Munk measured them, Gaussian (Beckmann's
-distribution) with the mean square slope m^2 the raytracing was given (Scatterer's
-variance per pixel, m = 2 alpha, or KSP's own sea's waves, STOCK_M2); the specular
-microfacet BRDF D G / (4 N.L N.V) with Smith's shadowing (Walter et al. 2007); a disc
-of solid angle Omega and radiance L as a source of irradiance L Omega, which holds
-where the slopes spread it far wider than the disc. No Fresnel term: the traced
-picture holds the light before it (Raytracing.hlsl, SpecularLight).
+The sea's slopes are as Cox and Munk measured them, Gaussian (Beckmann's distribution).
+Their mean square slope m^2 is the raytracing's (Scatterer's variance per pixel,
+m = 2 alpha, or STOCK_M2 for KSP's own sea). The specular microfacet BRDF is
+D G / (4 N.L N.V) with Smith's shadowing (Walter et al. 2007). A disc of solid angle
+Omega and radiance L is a source of irradiance L Omega, which holds where the slopes
+spread it far wider than the disc. No Fresnel term: the traced picture holds the light
+before it (Raytracing.hlsl, SpecularLight).
 
 For each shot (<name>.json, <name>-traced.pfm, <name>-alpha.pfm from
-LightProbe.LogOceanTextures) it compares, in the body's frame -- degrees below the
-horizontal and azimuth from the body's -- the traced light averaged over bins against
-the model's, which is the average of the glints a pixel resolves or the glow it does
-not:
+LightProbe.LogOceanTextures) it compares the traced light averaged over bins against
+the model's. The bins are in the body's frame: degrees below the horizontal and azimuth
+from the body's. The model's light is the average of the glints a pixel resolves or the
+glow it does not.
 
-  ratio     traced / model over the path's core (model above half its peak)
-  peak      depression of the brightest bin, traced and model
-  extent    the path's depressions above half the peak, along the body's azimuth
-  half      the path's half width at half the peak, degrees across, at the peak's row
-  sparkle   standard deviation / mean of the traced pixels in the core: glints near
-            by, an even glow far off
+Ratio: traced / model over the path's core (model above half its peak). Peak: depression
+of the brightest bin, traced and model. Extent: the path's depressions above half the
+peak, along the body's azimuth. Half: the path's half width at half the peak, degrees
+across, at the peak's row. Sparkle: standard deviation / mean of the traced pixels in the
+core, glints near by, an even glow far off.
+
+With --log, the sun's colour the raytracing traced with is taken from the probe's line
+for the shot ("traced RGBA(...)"), for shots whose data predate it in the JSON.
+
+Usage:
 
   python tools/sea_reflection_check.py <ReDefinitionCaptures/...-probe folder> [--log KSP.log] [name ...]
   python tools/sea_reflection_check.py --noise
   python tools/sea_reflection_check.py --waves <ReDefinitionCaptures/...-probe folder>
-
-With --log, the sun's colour the raytracing traced with is taken from the probe's line
-for the shot ("traced RGBA(...)"), for shots whose data predate it in the JSON.
 """
 import json
 import math
@@ -345,10 +346,10 @@ def world_points(folder, name):
 
 
 def waves_in_place(folder, prefix):
-    """The light probe's check that the waves stay on the water (LightProbe.WavesInPlace):
-    each water pixel of the first shot found in the second, taken after the camera moved,
-    by its place on the body; the angle between the two shots' wave normals there. Waves
-    fixed to the water give the same normal at the same place."""
+    """The light probe's check that the waves stay on the water (LightProbe.WavesInPlace).
+    Each water pixel of the first shot is found in the second, taken after the camera moved,
+    by its place on the body. The check gives the angle between the two shots' wave normals
+    there. Waves fixed to the water give the same normal at the same place."""
     first, first_valid, _ = world_points(folder, prefix + '-a')
     second_points, second_valid, data = world_points(folder, prefix + '-b')
     n1 = read_pfm(os.path.join(folder, prefix + '-a-traced.pfm')).astype(float) * 2.0 - 1.0

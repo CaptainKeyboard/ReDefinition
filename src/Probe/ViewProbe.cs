@@ -10,20 +10,21 @@ using UnityEngine;
 
 namespace ReDefinition.Probe
 {
-    // -redefinitionProbeViews "pitch,distance,heading;...": the flight camera put at each pose in turn -- pitch in
-    // degrees (positive looks down), distance in metres, heading in degrees from the one it started with --
-    // and a shot of each with the raytracing in each mode of -redefinitionProbeViewModes "Off,Full" (the
-    // mode the settings hold where none is given), as <shot>-v<i>-<mode>.png. For how a surface looks from
-    // near and far, steep and flat: the grass against the ground beside it. With -redefinitionProbeSurfaces,
-    // in each mode with the raytracing on, the surfaces of each view too (<shot>-v<i>-<mode>-<name>.bin), at
-    // half the resolution, which tools/surface_sheet.py makes into pictures and figures per region; with
-    // -redefinitionProbeViewOverlay, the surfaces' overlay (RtCamera.SurfaceView) as <shot>-v<i>-<mode>-overlay.png.
-    // With -redefinitionProbeViewTarget <part of a name>, about the renderer so named instead of the vessel.
+    // -redefinitionProbeViews "pitch,distance,heading;...": the flight camera is put at each pose in turn.
+    // Pitch is in degrees (positive looks down), distance in metres, heading in degrees from the one it
+    // started with. Each pose gets a shot with the raytracing in each mode of -redefinitionProbeViewModes
+    // "Off,Full" (the mode the settings hold where none is given), as <shot>-v<i>-<mode>.png. The probe shows
+    // how a surface looks from near and far, steep and flat: the grass against the ground beside it.
+    // With -redefinitionProbeSurfaces, in each mode with the raytracing on, the surfaces of each view are
+    // written too (<shot>-v<i>-<mode>-<name>.bin), at half the resolution, which tools/surface_sheet.py makes
+    // into pictures and figures per region. With -redefinitionProbeViewOverlay, the surfaces' overlay
+    // (RtCamera.SurfaceView) is written as <shot>-v<i>-<mode>-overlay.png.
+    // With -redefinitionProbeViewTarget <part of a name>, the views are about the renderer so named instead of the vessel.
     //
-    // -redefinitionProbeNoGloss: Parallax's materials without their shine -- specular, Fresnel rim and
-    // environment reflection set to nothing, and so the raytracing's shine for them too, which it reads from
-    // the same values (RtMaterialIntent) -- set again every two seconds, since Parallax makes its scatter's
-    // materials as the scatter loads.
+    // -redefinitionProbeNoGloss gives Parallax's materials no shine. Specular, Fresnel rim and
+    // environment reflection are set to nothing, and so is the raytracing's shine for them, which it reads from
+    // the same values (RtMaterialIntent). They are set again every two seconds, since Parallax makes its
+    // scatter's materials as the scatter loads.
     internal static class ViewProbe
     {
         // The switch with the poses, the surfaces written per view, and the Parallax properties that hold its shine.

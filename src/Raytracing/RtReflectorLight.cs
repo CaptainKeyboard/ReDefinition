@@ -8,14 +8,14 @@ namespace ReDefinition.Raytracing
     //
     // Physically a sphere that scatters as Lambert's law says sends, at the phase angle a
     // (sun, body, observer), the irradiance
-    //   E = E_sun at the body * albedo * 2/3 * phase(a) * (R / d)^2,
-    //   phase(a) = (sin a + (pi - a) cos a) / pi,
-    // with R its radius and d its distance (the Lambert sphere's phase integral; Russell
+    //   E = E_sun at the body * albedo * 2/3 * phase(a) * (R / d)^2.
+    // Here phase(a) = (sin a + (pi - a) cos a) / pi, R is its radius and d its distance
+    // (the Lambert sphere's phase integral; Russell
     // 1916). For the Mun over Kerbin, full, that is some 6e-5 of the sunlight: too faint
     // to see on a screen without the eye's adaptation. The raytracing takes the square
-    // root of that share, times ten, which keeps the order of the bodies -- Minmus fainter
-    // than the Mun, the Mun's crescent fainter than its full disc -- and brings the full
-    // Mun to some 0.06 of the sunlight; and eases it towards 0.3, so that a planet that
+    // root of that share, times ten. That keeps the order of the bodies, Minmus fainter
+    // than the Mun and the Mun's crescent fainter than its full disc, and brings the full
+    // Mun to some 0.06 of the sunlight. It also eases the result towards 0.3, so that a planet that
     // fills half the sky from a low orbit, physically some 0.15 already, stays below the
     // sun. The player's percentage scales the result.
     internal static class RtReflectorLight

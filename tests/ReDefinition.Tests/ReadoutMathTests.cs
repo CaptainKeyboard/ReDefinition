@@ -57,9 +57,9 @@ namespace ReDefinition.Tests
         }
 
         // On the Mun, 5000 m up at 50 m/s down, 5 m/s^2 of thrust against 1.63 of
-        // gravity. Coasting, the vessel gains speed; the burn lights where
-        // 5000 - 50 t - 0.815 t^2 = (50 + 1.63 t)^2 / 6.74, after 38.4 s at
-        // (2500 + 2 * 1.63 * 5000) / 10 = 1880 m and 112.6 m/s -- not after the
+        // gravity. Coasting, the vessel gains speed. The burn lights where
+        // 5000 - 50 t - 0.815 t^2 = (50 + 1.63 t)^2 / 6.74. That is after 38.4 s at
+        // (2500 + 2 * 1.63 * 5000) / 10 = 1880 m and 112.6 m/s, not after the
         // (5000 - 371) / 50 = 92.6 s the speed now would take.
         [TestMethod]
         public void SuicideBurnCountsTheCoastsGravity()

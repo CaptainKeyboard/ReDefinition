@@ -5,11 +5,11 @@ using UnityEngine;
 namespace ReDefinition.Api
 {
     /// <summary>
-    /// The frame's state, decided once per frame before its first scene camera culls; the same as the
+    /// The frame's state, decided once per frame before its first scene camera culls. It is the same as the
     /// shader globals <c>_ReDefinition_Frame</c>, <c>_ReDefinition_RenderSize</c>,
     /// <c>_ReDefinition_DisplaySize</c>, <c>_ReDefinition_Jitter</c> and
-    /// <c>_ReDefinition_OriginShift</c> (ReDefinition.cginc). Read it from rendering code -- camera
-    /// callbacks, command buffers, <c>OnRenderImage</c>; read in <c>Update</c>, it is the frame before's.
+    /// <c>_ReDefinition_OriginShift</c> (ReDefinition.cginc). Read it from rendering code: camera
+    /// callbacks, command buffers, <c>OnRenderImage</c>. Read in <c>Update</c>, it is the previous frame's.
     /// </summary>
     public static class Frame
     {
@@ -115,9 +115,9 @@ namespace ReDefinition.Api
         }
 
         /// <summary>
-        /// Reports a cut the mod made -- a camera switch, a jump. Before the frame's first scene camera
-        /// culls, it reaches every mod in that frame; later, the upscaler and frame generation in that
-        /// frame and the mods in the next.
+        /// Reports a cut the mod made, such as a camera switch or a jump. Before the frame's first scene
+        /// camera culls, it reaches every mod in that frame. Later it reaches the upscaler and frame
+        /// generation in that frame and the mods in the next.
         /// </summary>
         /// <param name="reason">For the log and <see cref="HistoryResetReason"/>.</param>
         public static void RequestHistoryReset(string reason)

@@ -30,10 +30,10 @@ namespace redefinition
         std::atomic<int> g_logLines{ 0 };
         std::atomic<int> g_infoLines{ 0 };
 
-        // A line that repeats what the one before said, behind its own time stamps,
-        // is counted rather than logged, so that a burst of one message -- 180 of
-        // RSYNC's "Flip queue is empty" as the main menu comes up -- does not use up
-        // the lines for what follows.
+        // A line that repeats what the one before said, behind its own time stamps, is counted
+        // rather than logged. A burst of one message then does not use up the lines for what
+        // follows. An example is the 180 lines of RSYNC's "Flip queue is empty" as the main menu
+        // comes up.
         std::mutex g_repeatLock;
         std::string g_lastLine;
         int g_repeats = 0;
@@ -603,11 +603,11 @@ namespace redefinition
                          { return slEvaluateFeature(sl::kFeatureDLSS_RR, token, inputs, 1, list); });
     }
 
-    // "To turn off DLSS-RR set sl::DLSSDOptions.mode to sl::DLSSDMode::eOff, note
-    // that this does NOT release any resources, for that please use slFreeResources"
-    // (ProgrammingGuideDLSS_RR.md 5.0); "If slEvaluateFeature is pending on a command
-    // list, that command list must be flushed before calling this method"
-    // (sl_core_api.h) -- the caller's to see to.
+    // Frees the resources of DLSS-RR. The guide says "To turn off DLSS-RR set
+    // sl::DLSSDOptions.mode to sl::DLSSDMode::eOff, note that this does NOT release any resources,
+    // for that please use slFreeResources" (ProgrammingGuideDLSS_RR.md 5.0). The header adds "If
+    // slEvaluateFeature is pending on a command list, that command list must be flushed before
+    // calling this method" (sl_core_api.h). The caller sees to that flush.
     bool Streamline::FreeRayReconstruction()
     {
         if (!deviceSet || !rayReconstruction || slFreeResources == nullptr)
@@ -717,11 +717,10 @@ namespace redefinition
         return index;
     }
 
-    // Where the game's frame begins, on its main thread, before its messages are
-    // taken: "Starting new frame, grab handle from SL", then slReflexSleep
-    // (ProgrammingGuideReflex.md 5.0); "SIMULATION_START must be the first marker
-    // sent in a frame, after the previous frame's Sleep call (if used)" (nvapi.h,
-    // NvAPI_D3D_SetLatencyMarker).
+    // Where the game's frame begins, on its main thread, before its messages are taken. It reads
+    // "Starting new frame, grab handle from SL", then slReflexSleep (ProgrammingGuideReflex.md
+    // 5.0). The marker follows the rule "SIMULATION_START must be the first marker sent in a
+    // frame, after the previous frame's Sleep call (if used)" (nvapi.h, NvAPI_D3D_SetLatencyMarker).
     uint32_t Streamline::BeginGameFrame()
     {
         std::shared_lock<std::shared_mutex> calls(callMutex);
@@ -760,13 +759,12 @@ namespace redefinition
         return frameIndex != 0;
     }
 
-    // Installed once, on the thread that begins the game's frames, whose queue
-    // the game window's messages arrive in -- the ping among them, which PCL
-    // Stats posts to the foreground window (PCLStatsPingThreadProc, pclstats.h).
-    // "The hMod parameter must be set to NULL if the dwThreadId parameter
-    // specifies a thread created by the current process and the hook procedure
-    // is within the code associated with the current process" (Microsoft,
-    // SetWindowsHookExW).
+    // Installed once, on the thread that begins the game's frames. The game window's messages
+    // arrive in that thread's queue. The ping is among them, which PCL Stats posts to the
+    // foreground window (PCLStatsPingThreadProc, pclstats.h). The hook passes no module:
+    // "The hMod parameter must be set to NULL if the dwThreadId parameter specifies a thread
+    // created by the current process and the hook procedure is within the code associated with
+    // the current process" (Microsoft, SetWindowsHookExW).
     void Streamline::InstallPingHook()
     {
         static std::atomic<DWORD> hookedThread{ 0 };

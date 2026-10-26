@@ -63,22 +63,23 @@
 #ifndef REDEFINITION_RADIANCE_CACHE
 #define REDEFINITION_RADIANCE_CACHE
 
-// The cache's buffers, as root UAVs (RaytracingDevice.cpp, BuildPipelinesLocked): per entry
-// its fingerprint (0 for none), the frame's sums (rgb quantized, and the count), its value
-// (rgb, and the samples it holds) and the frame it was last met in; past the entries, in
-// cacheMeta, the counts (RT_CACHE_STAT_*); the entries the frame's samples went into, as
-// many as RT_CACHE_STAT_TOUCHED counts, for the resolve.
+// The cache's buffers, as root UAVs (RaytracingDevice.cpp, BuildPipelinesLocked). Per entry
+// they hold its fingerprint (0 for none), the frame's sums (rgb quantized, and the count),
+// its value (rgb, and the samples it holds) and the frame it was last met in. Past the
+// entries, cacheMeta holds the counts (RT_CACHE_STAT_*). cacheTouched holds the entries the
+// frame's samples went into, as many as RT_CACHE_STAT_TOUCHED counts, for the resolve.
 RWStructuredBuffer<uint> cacheChecksums : register(u0, space4);
 RWStructuredBuffer<uint4> cacheAccumulation : register(u1, space4);
 RWStructuredBuffer<float4> cacheValues : register(u2, space4);
 RWStructuredBuffer<uint> cacheMeta : register(u3, space4);
 RWStructuredBuffer<uint> cacheTouched : register(u4, space4);
 
-// The cache's state from cbuffer Frame (RaytracingCache.cpp, WriteRadianceCacheConstantsLocked):
-// whether the frame reads it and writes it; the frame's count and the cells' angle; the least
-// cell, the most samples an entry keeps, the samples a cell is read from, the chance a path
-// refreshes a warm cell; the buckets, the slots of a bucket, the entries, the frames an entry
-// is kept unmet, and the debug view (rtRadianceCacheDebug: 1 the values, 2 the cells; 0 none).
+// The cache's state from cbuffer Frame (RaytracingCache.cpp, WriteRadianceCacheConstantsLocked).
+// The first values say whether the frame reads it and writes it, the frame's count and the
+// cells' angle. Then come the least cell, the most samples an entry keeps, the samples a cell
+// is read from, and the chance a path refreshes a warm cell. The last are the buckets, the
+// slots of a bucket, the entries, the frames an entry is kept unmet, and the debug view
+// (rtRadianceCacheDebug: 1 the values, 2 the cells; 0 none).
 #define CACHE_ON ((frameFlags & RT_FLAG_RADIANCE_CACHE) != 0u)
 #define CACHE_UPDATE ((frameFlags & RT_FLAG_RADIANCE_CACHE_UPDATE) != 0u)
 #define CACHE_FRAME (asuint(cacheTile.w))
@@ -144,9 +145,9 @@ uint CacheXxHash(uint value)
     return ret ^ (ret >> 16);
 }
 
-// The cell's size at a distance from the camera: as Capsaicin's HashGridCache_GetDesc, the
-// distance times the angle of rtRadianceCacheCellPixels pixels, at least the least cell,
-// down to a power of two -- here of a metre --, at most kCacheTile.
+// The cell's size at a distance from the camera, as Capsaicin's HashGridCache_GetDesc has it.
+// It is the distance times the angle of rtRadianceCacheCellPixels pixels, at least the least
+// cell, rounded down to a power of two (here of a metre), at most kCacheTile.
 float CacheCellSize(float distance)
 {
     float step = max(distance * CACHE_ANGLE, CACHE_MIN_CELL);
@@ -161,11 +162,12 @@ struct CacheKey
     uint checksum;
 };
 
-// The key of a point on a surface: Binder's algorithm 1, the level by the distance, the
-// point jittered by up to half a cell along the surface, its level again, its cell; then
-// Capsaicin's descriptor -- the level, the cell, the direction quantized to five steps an
-// axis, GI-1.0's test of the ray's length against the cell -- through the PCG hash for the
-// bucket and xxHash for the fingerprint, never 0, which marks an empty slot.
+// The key of a point on a surface. It follows Binder's algorithm 1: the level by the
+// distance, the point jittered by up to half a cell along the surface, its level again,
+// its cell. Then it takes Capsaicin's descriptor: the level, the cell, the direction
+// quantized to five steps an axis, and GI-1.0's test of the ray's length against the cell.
+// The PCG hash of the descriptor gives the bucket and xxHash the fingerprint, never 0,
+// which marks an empty slot.
 CacheKey CacheKeyAt(float3 position, float3 normal, float rayLength, bool jitter, inout Random random)
 {
     float size = CacheCellSize(length(position));
@@ -246,8 +248,8 @@ bool CacheLookup(float3 position, float3 normal, float rayLength, inout Random r
 
 // A sample of the light arriving at a surface point into the frame's sums of its cell. The
 // sum rounds at random (floor of value + u), which keeps its mean. The lanes of a wave that
-// add to the same entry are summed first and one of them adds for all: the pixels side by
-// side share their cells, and atomic adds to one address wait for each other -- GI-1.0,
+// add to the same entry are summed first and one of them adds for all. The pixels side by
+// side share their cells, and atomic adds to one address wait for each other. GI-1.0,
 // 2.2.1: "The main bottleneck of a global hash map, such as the one we are describing, is
 // the extensive use of atomic operations for each insertion into the cache."
 void CacheAdd(float3 position, float3 normal, float rayLength, float3 sample, inout Random random)

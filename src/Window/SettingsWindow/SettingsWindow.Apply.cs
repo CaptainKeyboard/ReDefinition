@@ -62,10 +62,11 @@ namespace ReDefinition.Window
         }
 
         // Whether any of ReDefinition's own settings waits for Accept, the ones no
-        // row shows included -- a reset sets them too. Compared as a whole, as the
-        // add-on saves them: the copy the window started from once per copy, the
-        // one it edits at most ten times a second, or at once where it is a new
-        // copy -- after Apply, Cancel or Reset.
+        // row shows included, since a reset sets them too.
+        // They are compared as a whole, as the add-on saves them.
+        // The copy the window started from is compared once per copy.
+        // The one it edits is compared at most ten times a second, or at once where it is a new
+        // copy, after Apply, Cancel or Reset.
         private static OwnSettings ownBefore;
         private static OwnSettings ownAfter;
         private static string ownBeforeSnapshot;
@@ -107,8 +108,9 @@ namespace ReDefinition.Window
         }
 
         // Whether a row is set straight into its mod, as the mod's own screen
-        // would: one that is never bundled, and one of a mod whose registration
-        // says `direct` while the bundling is off -- as the window holds it, or
+        // would.
+        // That holds for a row that is never bundled, and for one of a mod whose registration
+        // says `direct` while the bundling is off, as the window holds it or
         // as it was applied.
         private static bool SetDirectly(BundledSetting setting, bool applied)
         {
@@ -203,19 +205,16 @@ namespace ReDefinition.Window
         }
 
         // Apply and Accept, as in KSP's dialog, in this order:
-        //   1. the bundling switch and the toolbar buttons -- on hands the stored
-        //      values over, off takes them back;
-        //   2. KSP's own reset, where the window resets;
-        //   3. the rows set directly;
-        //   4. KSP's keyboard layout, key bindings and axes -- a rebind to the
-        //      layout's preset before the keys changed by hand;
-        //   5. the store's steps and the profile;
-        //   6. every mod written saved once, KSP's settings among them;
-        //   7. ReDefinition's own settings through the add-on's setters, which
-        //      switch nothing on without the profile in place;
-        // then everything read back, as the section in KSP's settings dialog does.
-        // Each step is caught on its own: one that fails does not take the
-        // others with it.
+        //   1. The bundling switch and the toolbar buttons (ApplySwitches).
+        //   2. KSP's own reset, where the window resets (ResetKsp).
+        //   3. The rows set directly (ApplyDirect).
+        //   4. KSP's keyboard layout, key bindings and axes (ApplyLayout, ApplyKeyBindings, ApplyAxes).
+        //   5. The store's steps and the profile (ApplyBundled).
+        //   6. Every mod written saved once, KSP's settings among them.
+        //   7. ReDefinition's own settings through the add-on's setters (ApplyOwn).
+        // Then everything is read back, as the section in KSP's settings dialog does.
+        // Each step is caught on its own, so one that fails leaves the
+        // others.
         private static void Apply()
         {
             KeyCapture.Stop();
@@ -268,6 +267,7 @@ namespace ReDefinition.Window
         }
 
         // Step 1: the toolbar buttons' choices, and the bundling switch; the toolbar refreshed where either changed.
+        // The bundling switched on hands the stored values over, and switched off takes them back.
         private static void ApplySwitches()
         {
             bool buttonsChanged = model.ButtonsPending();
@@ -319,6 +319,7 @@ namespace ReDefinition.Window
         }
 
         // Step 7: ReDefinition's own settings through the add-on, and the copies taken afresh from what came of them.
+        // The add-on's setters switch nothing on without the profile in place.
         private static void ApplyOwn()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;

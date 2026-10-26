@@ -182,9 +182,9 @@ namespace
     // What a probe found.
     struct Outcome
     {
-        // Whether it ran; the shader's 64 counts (misses, hits, rays that met a candidate, rays
-        // not as expected, then the first 60 of those); per ray its result where writeTable
-        // asked; the driver's sizes of the micromap array and the structure.
+        // Whether it ran. Then the shader's 64 counts (misses, hits, rays that met a candidate, rays
+        // not as expected, then the first 60 of those). Then per ray its result where writeTable
+        // asked, and the driver's sizes of the micromap array and the structure.
         bool ok = false;
         std::vector<uint32_t> counts;
         std::vector<uint32_t> table;
@@ -464,9 +464,9 @@ namespace
         return alpha;
     }
 
-    // What the baker is held to for a mesh of triangles: a micro-triangle it calls transparent
-    // has coverage 0 at every point sampled in it, one it calls opaque has coverage 1; and how
-    // many it leaves unknown that the samples all found uniform.
+    // What the baker is held to for a mesh of triangles. A micro-triangle it calls transparent
+    // has coverage 0 at every point sampled in it, and one it calls opaque has coverage 1. The
+    // check also counts how many it leaves unknown that the samples all found uniform.
     struct Conservative
     {
         // The micro-triangles checked; those whose state the samples contradict; those left

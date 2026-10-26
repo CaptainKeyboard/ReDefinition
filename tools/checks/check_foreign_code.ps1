@@ -1,20 +1,22 @@
 # Checks what ReDefinition takes for granted about other mods' code
-# (src/Core/ForeignAssumptions.cs) against the mods installed, outside the game:
-# loads their assemblies and the built DLL, and evaluates every assumption --
-# whether the types, methods, fields and string literals it names are there, and
-# whether the methods it rests on are the code it was checked against
+# (src/Core/ForeignAssumptions.cs) against the mods installed, outside the game.
+# It loads their assemblies and the built DLL, and evaluates every assumption.
+# That is whether the types, methods, fields and string literals it names are there.
+# It is also whether the methods it rests on are the code it was checked against
 # (their fingerprints) or the versions it was.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_foreign_code.ps1
-#
-# Per assumption: PASS where it is verified or its mod is not installed; FAIL
-# where something it names is missing, or its code or version changed -- with
+# Per assumption: PASS where it is verified or its mod is not installed. FAIL
+# where something it names is missing, or its code or version changed. A FAIL gives
 # the installed fingerprint, to add to the catalogue once the new code has been
 # read. Exit code: the number of FAILs.
 #
 # Runs in Windows PowerShell 5.1 and in PowerShell 7. The KSP folder is taken
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
+#
+# Usage:
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_foreign_code.ps1
 
 . ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
 $resolveFolders = @($managed)

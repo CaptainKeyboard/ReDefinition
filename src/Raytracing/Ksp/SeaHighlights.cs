@@ -8,16 +8,16 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // The sun's own glint on the sea, where the raytraced reflections do not carry it:
-    // Scatterer's (OceanNode.InitOceanMaterial sets it on the material once from the
+    // The sun's own glint on the sea, where the raytraced reflections do not carry it.
+    // With Scatterer it is Scatterer's (OceanNode.InitOceanMaterial sets it on the material once from the
     // node's sunReflectionStrength; ForeignAssumptions.ScattererOceanSun) at the player's
-    // percentage (Sun reflection), and none while the ocean takes the raytraced
-    // reflections, which carry the sun's path themselves -- with both, a flat round glint
-    // at the horizon lay over the path (the player, 2026-10-03). KSP's own sea, without
-    // Scatterer, the same: its shader's highlight (_SpecColor) off while the raytracing
+    // percentage (Sun reflection). It is none while the ocean takes the raytraced
+    // reflections, which carry the sun's path themselves: with both, a flat round glint
+    // at the horizon lies over the path (the player, 2026-10-03). KSP's own sea, without
+    // Scatterer, works the same. Its shader's highlight (_SpecColor) is off while the raytracing
     // traces that sea's reflections, as water with the sun's disc (RtCamera.StockSeaTraced;
-    // RtCommon.hlsli, IsStockWater), its colour put back otherwise. The materials are set
-    // again every second; the seas themselves are looked for again every RescanSeconds
+    // RtCommon.hlsli, IsStockWater), and its colour is put back otherwise. The materials are set
+    // again every second. The seas themselves are looked for again every RescanSeconds
     // and when the main body changes, as they are made anew with a scene or a planet. The
     // node's own value, its configuration's, stays as it is, so 100 % is Scatterer's.
     [KSPAddon(KSPAddon.Startup.EveryScene, false)]

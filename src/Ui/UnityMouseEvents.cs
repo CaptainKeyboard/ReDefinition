@@ -9,38 +9,23 @@ using UnityEngine;
 
 namespace ReDefinition.Ui
 {
-    // Unity's mouse events -- OnMouseDown, OnMouseEnter and the rest, sent to
-    // the collider under the cursor -- skip every camera that renders into a
-    // texture (SendMouseEvents.DoSendMouseEvents, decompiled from KSP's
+    // Unity's mouse events (OnMouseDown, OnMouseEnter and the rest, sent to
+    // the collider under the cursor) skip every camera that renders into a texture.
+    // That is in SendMouseEvents.DoSendMouseEvents (decompiled from KSP's
     // UnityEngine.InputLegacyModule: "if (camera == null || (skipRTCameras !=
-    // 0 && camera.targetTexture != null)) continue;"), and every camera the rig
-    // redirects is one. KSP takes the space centre's buildings
+    // 0 && camera.targetTexture != null)) continue;").
+    // Every camera the rig redirects is one.
+    // KSP takes the space centre's buildings
     // (SpaceCenterBuilding.OnMouseDown) and the IVA switches
     // (InternalButton.OnMouseDown) only that way, and so do FreeIva's hatches
-    // (ClickWatcher.OnMouseDown): with the upscaler on, none of them would react.
+    // (ClickWatcher.OnMouseDown). With the upscaler on, none of them would react.
     //
-    // So each redirected camera gets its own target back -- the screen -- for
+    // So each redirected camera gets its own target back, the screen, for
     // the length of Unity's mouse event pass, and the rig's texture straight
-    // after: two systems in Unity's player loop, right before and right after
-    // PreUpdate.SendMouseEvents. The pass runs once a frame before any Update,
-    // long before a camera renders, and the handlers it calls see each camera
-    // unredirected: pixelRect and ScreenPointToRay in the screen's pixels, which
-    // the mouse position is given in. Public API (UnityEngine.LowLevel.PlayerLoop);
-    // what other mods put into the loop stays.
+    // after (Install).
     //
     // The same two systems keep clicks on ReDefinition's windows from reaching
-    // what lies behind them. Unity's mouse events know nothing of KSP's UI, and
-    // KSP guards its objects each its own way: the buildings by the
-    // KSC_FACILITIES lock, the main menu's entries by MAIN_MENU, parts in flight by
-    // EventSystem.IsPointerOverGameObject, the IVA switches not at all -- and a
-    // dialog, modal or not, locks none of those (PopupDialog, UIMasterController:
-    // a modal one locks UI_DIALOGS only). ClickThroughBlocker keeps clicks from
-    // IMGUI windows by locking ALLBUTCAMERAS while the cursor is over one
-    // (FocusLock, decompiled), which keeps out what asks for locks. So while the
-    // cursor is over one of ReDefinition's windows that lock is set, and for what
-    // asks for none every camera's event mask is nothing for the length of Unity's
-    // pass -- DoSendMouseEvents skips a camera whose eventMask is 0, and what was
-    // hovered gets its OnMouseExit -- and its own straight after.
+    // what lies behind them (Shield, Lock, MaskCameras).
     internal static class UnityMouseEvents
     {
         // The loop tells systems apart by type; Unity's profiler shows the names.
@@ -95,6 +80,12 @@ namespace ReDefinition.Ui
 
         // A window of this mod: clicks on it stay on it. Forgotten once it is
         // gone.
+        // Unity's mouse events know nothing of KSP's UI, and
+        // KSP guards its objects each its own way.
+        // The buildings have the KSC_FACILITIES lock, the main menu's entries MAIN_MENU, and parts in flight
+        // EventSystem.IsPointerOverGameObject. The IVA switches have no guard at all.
+        // A dialog, modal or not, locks none of those (PopupDialog, UIMasterController:
+        // a modal one locks UI_DIALOGS only).
         internal static PopupDialog Shield(PopupDialog dialog)
         {
             if (dialog == null || shielded.Contains(dialog)) return dialog;
@@ -104,6 +95,12 @@ namespace ReDefinition.Ui
         }
 
         // From the addon's Awake.
+        // It puts two systems into Unity's player loop, right before and right after PreUpdate.SendMouseEvents.
+        // The pass runs once a frame before any Update, long before a camera renders,
+        // and the handlers it calls see each camera
+        // unredirected: pixelRect and ScreenPointToRay in the screen's pixels, which
+        // the mouse position is given in.
+        // Public API (UnityEngine.LowLevel.PlayerLoop); what other mods put into the loop stays.
         public static void Install()
         {
             try
@@ -326,6 +323,9 @@ namespace ReDefinition.Ui
         // as ClickThroughBlocker takes it there (FocusLock: EditorLogic.Lock) --
         // all but cameras also locks part handling, gizmos and undo there.
         // EditorLogic.Unlock only removes the lock by name.
+        // ClickThroughBlocker keeps clicks from IMGUI windows by locking ALLBUTCAMERAS while the cursor is over one
+        // (FocusLock, decompiled), which keeps out what asks for locks.
+        // So while the cursor is over one of ReDefinition's windows that lock is set.
         private static void Lock(bool on)
         {
             // Set again where KSP cleared every lock meanwhile (the flight UI's
@@ -339,6 +339,9 @@ namespace ReDefinition.Ui
         }
 
         // Sets every camera's event mask to nothing for the pass, their own masks kept.
+        // That keeps out what asks for no lock: DoSendMouseEvents skips a camera whose eventMask is 0,
+        // and what was hovered gets its OnMouseExit.
+        // Each camera gets its own mask straight after the pass (UnmaskCameras).
         private static void MaskCameras()
         {
             int count = Camera.allCamerasCount;

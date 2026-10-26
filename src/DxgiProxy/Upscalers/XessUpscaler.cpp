@@ -69,12 +69,12 @@ namespace redefinition
             return shared.Create(device11, device12, desc.Width, desc.Height, format);
         }
 
-        // The preset whose scale the frame's comes nearest: "ULTRA_PERFORMANCE: 3.0,
-        // PERFORMANCE: 2.0, BALANCED: 1.7, QUALITY: 1.5, ULTRA_QUALITY: 1.3, AA: 1.0",
-        // the "legacy (pre 1.3.0) scale factors" (xess.h, xessForceLegacyScaleFactors),
-        // which are FSR's and which the context is set to. The render size is the
-        // mod's, given with every frame, and "XeSS expects all the input buffers [...]
-        // to be in the returned resolution range" (xessGetOptimalInputResolution).
+        // The preset whose scale the frame's comes nearest. The scales are "ULTRA_PERFORMANCE: 3.0,
+        // PERFORMANCE: 2.0, BALANCED: 1.7, QUALITY: 1.5, ULTRA_QUALITY: 1.3, AA: 1.0", the "legacy
+        // (pre 1.3.0) scale factors" (xess.h, xessForceLegacyScaleFactors). They are FSR's, and the
+        // context is set to them. The render size is the mod's, given with every frame. "XeSS
+        // expects all the input buffers [...] to be in the returned resolution range"
+        // (xessGetOptimalInputResolution).
         xess_quality_settings_t Preset(const XessUpscalerPacket& packet)
         {
             const double scale = packet.renderWidth > 0

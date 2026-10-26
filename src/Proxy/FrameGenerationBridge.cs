@@ -27,7 +27,7 @@ namespace ReDefinition.Proxy
         // misread.
         //
         // It is sent through the render thread (IssuePluginEventAndData) and
-        // not by a call from the main thread: with multithreaded rendering the
+        // not by a call from the main thread. With multithreaded rendering the
         // main thread runs ahead, and a value set here and read at Present time
         // could belong to the frame after the one being presented.
         [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -219,8 +219,8 @@ namespace ReDefinition.Proxy
 
         // Which frame generation the proxy's swapchain presents with, for the
         // settings row: DLSS where NVIDIA's Streamline runs, XeSS where Intel's
-        // XeSS-FG does, each with the frames shown per rendered frame while it
-        // generates, FSR 3 otherwise; null while none does. A proxy without the
+        // XeSS-FG does, FSR 3 otherwise. DLSS and XeSS come with the frames shown per
+        // rendered frame while they generate. Null while none does. A proxy without the
         // export is older than the mod.
         public static string TechniqueName()
         {
@@ -352,8 +352,8 @@ namespace ReDefinition.Proxy
         private static readonly Func<int> DlssVsyncCall = KspFgDlssVsync;
 
         // Whether the proxy presents every refresh at most because Intel's XeLL lowers
-        // the latency (KspXellEveryRefresh): with XeSS frame generation, or alone on an
-        // Intel GPU in its low latency mode -- "when VSync is enabled, sync interval for
+        // the latency (KspXellEveryRefresh). That holds with XeSS frame generation, or alone on an
+        // Intel GPU in its low latency mode. The reason: "when VSync is enabled, sync interval for
         // IDXGISwapChain::Present must always be 1 when Low Latency is active"
         // (xell_developer_guide_english.md). Asked whatever the ini says about frame
         // generation: XeLL runs without it on an Intel GPU. False without the proxy, or
@@ -588,8 +588,8 @@ namespace ReDefinition.Proxy
             Measured
         }
 
-        // The last completed second of load, each in percent, -1 where unknown:
-        // the main thread's and the render thread's CPU time as a share of one
+        // The last completed second of load, each in percent, -1 where unknown.
+        // These are the main thread's and the render thread's CPU time as a share of one
         // core, the busiest 3D engine of the game's adapter, and the game's
         // share of it.
         public static LoadState ReadLoad(out float mainThread, out float renderThread, out float gpu,

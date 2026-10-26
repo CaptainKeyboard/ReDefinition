@@ -72,8 +72,8 @@ namespace ReDefinition.Engineer
         // The steps a way can have: launch, transfer, arrival, landing (StepRole).
         internal const int Roles = 4;
 
-        // For each step on the way here (by StepRole, RouteSteps): who flies it, as a
-        // Flyer's code, -1 where the planner works it out; and whether a section that
+        // For each step on the way here (by StepRole, RouteSteps), By holds who flies it, as a
+        // Flyer's code, -1 where the planner works it out. Refuel holds whether a section that
         // docks at the step's end is refilled from the rest's tanks.
         public int[] By = { -1, -1, -1, -1 };
         public bool[] Refuel = new bool[Roles];
@@ -146,15 +146,15 @@ namespace ReDefinition.Engineer
     // The delta-v of a route, from the bodies' own gravity, size, rotation,
     // atmosphere and orbits (docs/development/planner.md). Transfers are Hohmann
     // transfers between circular orbits, with patched conics across spheres of
-    // influence: a burn from a low orbit leaves with the excess speed the transfer
-    // around the common parent needs, and one at the far end captures from the
+    // influence. A burn from a low orbit leaves with the excess speed the transfer
+    // around the common parent needs. One at the far end captures from the
     // excess speed it arrives with. Launches and landings are estimates. Free of
     // Unity, tested.
     internal static class RoutePlanner
     {
-        // Launch and landing: 7 % over the low orbit's speed for the turn and the
-        // gravity lost on the way up, less what the ground's rotation gives, and
-        // in an atmosphere what its drag and the steeper climb take:
+        // Launch and landing cost 7 % over the low orbit's speed for the turn and the
+        // gravity lost on the way up, less what the ground's rotation gives. In
+        // an atmosphere they also cost what its drag and the steeper climb take,
         // sqrt(g * depth) grown with the air's density. Fitted to the stock
         // system's known figures: Kerbin 3,400 m/s, Duna 1,450, Eve 8,000,
         // Laythe 2,900, the Mun 580, Tylo 2,270. Each is within 4 % (PlannerTests).

@@ -10,8 +10,8 @@ namespace ReDefinition.Proxy
     // Direct3D 12 for other mods (ReDefinition.Api.D3D12): the dxgi.dll proxy's
     // D3d12Compute, reached like the upscalers there (NativeUpscalerLink) -- packets for
     // render events on Unity's render thread, the status read from the main thread.
-    // Dispatches go through a ring, within a cap per frame; creates, destroys and
-    // releases, of which a mod may send any number in one frame, each in memory of its
+    // Dispatches go through a ring, within a cap per frame (MaxDispatchesPerFrame). A mod may send any number of creates,
+    // destroys and releases in one frame, each in memory of its
     // own, freed once the render thread is past it. docs/development/shared-foundation.md,
     // "Stage 2".
     internal static class D3d12Bridge

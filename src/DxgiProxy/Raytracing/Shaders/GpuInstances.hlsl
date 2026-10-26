@@ -10,9 +10,9 @@
 // RaytracingScene.cpp): one mesh and material for all of them.
 struct Group
 {
-    // The mesh's structure's address, low half first; its descriptor slot; the material's index
-    // among the frame's; where the run starts in t7 and how long it is; its first instance's
-    // place among the GPU's instances.
+    // The mesh's structure's address, low half first, and its descriptor slot. Then come the
+    // material's index among the frame's, where the run starts in t7 and how long it is, and
+    // its first instance's place among the GPU's instances.
     uint2 blas;
     uint meshSlot;
     uint material;

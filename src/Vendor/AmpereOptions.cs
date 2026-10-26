@@ -63,7 +63,7 @@ namespace ReDefinition.Vendor
         public const string InstalledCeiling = "5";
         // The ceiling the package's own ini has.
         public const string FactoryCeiling = "3";
-        // The preset an install sets where the package's ini has its own, Auto: C, which measured
+        // The preset an install sets where the package's ini has its own, Auto: C. It measured
         // +4 to 8 percent frame rate and less latency with the HUD and the scene unchanged
         // (docs/development/benchmarks.md, tools/hud_probe.py).
         public const string FactoryPreset = "Auto";
@@ -153,9 +153,9 @@ namespace ReDefinition.Vendor
             return Array.IndexOf(option.Values, option.Default);
         }
 
-        // The option set to the value in the file, the rest of the file as it was: the
-        // key's line where there is one in its section, else a line at the section's end,
-        // else the section at the end of the file. Returns false for a file that cannot be
+        // The option set to the value in the file, the rest of the file as it was. The
+        // value goes on the key's line where there is one in its section, else on a line at the section's end,
+        // else in a section at the end of the file. Returns false for a file that cannot be
         // read or written.
         public static bool Write(string path, Option option, string value)
         {

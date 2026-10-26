@@ -6,7 +6,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
     SubShader
     {
         // 0: at the scene camera's AfterForwardAlpha, while EVE's globals are still
-        // bound, into a copy of our own: the clouds' motion vectors without the
+        // bound, into a copy of our own. It writes the clouds' motion vectors without the
         // jitter EVE rendered them with (rg), their transmittance (b), and whether
         // they have motion vectors at all (a). Addressed by pixel, like the masks:
         // the sources are the camera's own size. With Scatterer's reconstruction;
@@ -24,7 +24,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
 
             // Bound by EVE's command buffer at AfterForwardOpaque: premultiplied
             // cloud colour with the transmittance in alpha, and the clouds' motion
-            // vectors -- as Unity's, the change in viewport position since the last
+            // vectors. The vectors are as Unity's, the change in viewport position since the last
             // frame, and below -1 where there are none (Scatterer's
             // Scatterer-EVE/ReconstructRaymarchedClouds writes them, its
             // TemporalAntialiasing reads them so).
@@ -53,7 +53,7 @@ Shader "Hidden/ReDefinition/CloudMotion"
 
         // 1: at BeforeImageEffects, over the copy of Unity's motion vectors, as
         // Scatterer's TemporalAntialiasing blends them: the clouds' where they
-        // cover the pixel, Unity's where they do not -- over the sky by the
+        // cover the pixel, Unity's where they do not. Over the sky the blend is by the
         // transmittance, over geometry already where a tenth of it is left.
         Pass
         {
@@ -91,12 +91,12 @@ Shader "Hidden/ReDefinition/CloudMotion"
             ENDCG
         }
 
-        // 2: at BeforeImageEffects, before the clouds: where the scene camera drew
-        // nothing, the motion of the nearest distant body the scaled camera's ray
-        // meets, on its surface or in the atmosphere around it; the scene camera's
+        // 2: at BeforeImageEffects, before the clouds. Where the scene camera drew
+        // nothing: the motion of the nearest distant body the scaled camera's ray
+        // meets, on its surface or in the atmosphere around it. The scene camera's
         // own everywhere else (ScaledSpaceMotion in the plugin). Where the scene
         // camera drew something far away, the motion of a point fixed to the main
-        // body, from the depth and the camera's move against that body; where it
+        // body, from the depth and the camera's move against that body. Where it
         // drew nothing and no body is met, the camera's turn alone. Unity's own
         // there is noise, worked out in single precision from world positions a
         // hundred kilometres and more from the origin.
@@ -226,10 +226,10 @@ Shader "Hidden/ReDefinition/CloudMotion"
         }
 
         // 3: at the scene camera's BeforeImageEffectsOpaque, before anything reads
-        // Unity's motion vectors, back into them (UnityMotionRepair in the plugin):
-        // where the copy still holds the value the plugin cleared the buffer to at
-        // the end of the frame before, Unity has not written the pixel, and the
-        // camera's own move takes its place -- against the main body where
+        // Unity's motion vectors, back into them (UnityMotionRepair in the plugin).
+        // Where the copy still holds the value the plugin cleared the buffer to at
+        // the end of the frame before, Unity has not written the pixel. Then the
+        // camera's own move takes its place: against the main body where
         // something is drawn, the camera's turn alone where nothing is. Unity's
         // own everywhere else.
         Pass
@@ -278,10 +278,10 @@ Shader "Hidden/ReDefinition/CloudMotion"
 
         // 4: in place of pass 0 where EVE's reconstruction leaves no motion vectors
         // (CloudMotionVectors in the plugin), the same four values, the motion
-        // worked out: each pixel's ray meets the cloud layer's shell around the main
-        // body where it enters it -- from below at its base, from above at its top
-        // -- or, from inside, half way to where it leaves it; that point, fixed to
-        // the body, into the frame before's clip space through the camera's move
+        // worked out. Each pixel's ray meets the cloud layer's shell around the main
+        // body where it enters it, from below at its base, from above at its top,
+        // or, from inside, half way to where it leaves it. That point, fixed to
+        // the body, goes into the frame before's clip space through the camera's move
         // against the body. Without jitter, as the camera's own projection is
         // taken without it.
         Pass

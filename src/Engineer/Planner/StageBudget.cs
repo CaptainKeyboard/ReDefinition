@@ -20,7 +20,10 @@ namespace ReDefinition.Engineer
     }
 
     // The player's choices for the stages of one leg, by stage number: kept for a
-    // later leg, or dropped once the leg is over.
+    // later leg, or dropped once the leg is over. The player can save a stage on a step:
+    // the step stops before it, and before the stages after it, since KSP cannot fire
+    // those first. The player can drop a stage after a step: at the step's end it goes
+    // with what it still holds, and so do the stages KSP fires before it on what flies the step.
     internal sealed class StagePlan
     {
         // The stages saved on the leg, and those dropped once it is over.
@@ -123,9 +126,9 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // A group gone for good as a step starts: it stays where it is as a vessel of its
-    // own (a lander left behind) or is only parts that fall away; it was with what
-    // flies, so that what it held goes with it, or waited elsewhere.
+    // A group gone for good as a step starts. It stays where it is as a vessel of its
+    // own (a lander left behind), or is only parts that fall away. Either it was with what
+    // flies, so that what it held goes with it, or it waited elsewhere.
     internal sealed class GoneGroup
     {
         // The group; whether it stays as a vessel of its own; whether it waited elsewhere rather than flew with what flies.
@@ -134,8 +137,8 @@ namespace ReDefinition.Engineer
         public bool Waiting;
     }
 
-    // One step as the budget sees it: what it needs with no margin, the groups that
-    // fly it, the groups gone for good as it starts, the group refilled from the rest
+    // One step as the budget sees it. It holds what the step needs with no margin and the groups that
+    // fly it. It holds the groups gone for good as it starts, the group refilled from the rest
     // once it is over, and the groups left at its destination once it is over.
     internal sealed class BudgetStep
     {
@@ -163,11 +166,6 @@ namespace ReDefinition.Engineer
     // highest number first, until empty; then what KSP drops before its next stage
     // fires goes. A group gone for good takes its stages with what they hold; a group
     // deployed stays at the step's destination with what it weighs.
-    //
-    // The player can save a stage on a step: the step stops before it, and before
-    // the stages after it, since KSP cannot fire those first. The player can drop a
-    // stage after a step: at the step's end it goes with what it still holds, and so
-    // do the stages KSP fires before it on what flies the step.
     //
     // After a step marked for it, a group, docked again, is refilled from the rest:
     // each of its stages up to what it held at the start, from the rest's stages in
@@ -268,10 +266,10 @@ namespace ReDefinition.Engineer
         // One working-out of the budget, holding what each stage and group has as the route goes on.
         private sealed class Run
         {
-            // The stages in KSP's order, highest number first, and the player's plans per step; the stages' and the groups'
-            // counts; per stage and group, in tonnes: the propellant held now, what it held as the vessel started, and the mass
-            // KSP drops after the stage; per stage: its exhaust velocity, whether it is solid, whether it burns on the first step
-            // only, and the group whose parts it fires.
+            // The stages in KSP's order, highest number first, and the player's plans per step. Then come the
+            // stages' and the groups' counts. Per stage and group, in tonnes, come the propellant held now, what it
+            // held as the vessel started, and the mass KSP drops after the stage. Per stage come its exhaust
+            // velocity, whether it is solid, whether it burns on the first step only, and the group whose parts it fires.
             private readonly List<BudgetStage> order;
             private readonly IList<StagePlan> plans;
             private readonly int count;

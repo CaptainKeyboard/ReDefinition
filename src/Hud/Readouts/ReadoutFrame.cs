@@ -57,8 +57,8 @@ namespace ReDefinition.Hud.Readouts
         // NaN until worked out for the refresh.
         private double maxThrust = double.NaN;
 
-        // What the engines lit now give at full throttle where the vessel is, in kN:
-        // each engine's full fuel flow times its Isp at the pressure here times g0,
+        // What the engines lit now give at full throttle where the vessel is, in kN.
+        // It is each engine's full fuel flow times its Isp at the pressure here times g0,
         // at its thrust limit (ModuleEngines: maxFuelFlow, atmosphereCurve,
         // thrustPercentage), as KSP works an engine's thrust out.
         internal double MaxThrust
@@ -127,7 +127,7 @@ namespace ReDefinition.Hud.Readouts
 
         // The last moment to brake to a stop over the ground, falling at the
         // vertical speed now and gaining speed under gravity until then, at full
-        // thrust (ReadoutMath.SuicideBurn): how high over the ground to light, how
+        // thrust (ReadoutMath.SuicideBurn). It gives how high over the ground to light, how
         // long until then, and the delta-v. The horizontal speed is not counted:
         // the fall alone, both in the coast and in the burn.
         internal void SuicideBurn(out double altitude, out double countdown, out double deltaV)
@@ -169,7 +169,7 @@ namespace ReDefinition.Hud.Readouts
         // ------------------------------------------------------------- aero
 
         // The angle between the nose and the flight through the air, in the pitch
-        // plane (angle of attack) and the yaw plane (sideslip), in degrees: the
+        // plane (angle of attack) and the yaw plane (sideslip), in degrees. It takes the
         // surface velocity against the control point's up (the nose), forward (the
         // belly) and right.
         internal void AeroAngles(out double attack, out double sideslip)
@@ -273,9 +273,9 @@ namespace ReDefinition.Hud.Readouts
         private double approachDistance = double.NaN, approachSeconds = double.NaN;
 
         // The closest the vessel comes to its target within a turn of its orbit (at
-        // most ten of KSP's days): both orbits followed at the same times, their
-        // bodies' own paths included (Orbit.getTruePositionAtUT), in 720 steps, then
-        // the nearest step narrowed down by thirds.
+        // most ten of KSP's days). Both orbits are followed at the same times, their
+        // bodies' own paths included (Orbit.getTruePositionAtUT), in 720 steps. Then
+        // the nearest step is narrowed down by thirds.
         internal void ClosestApproach(out double distance, out double seconds)
         {
             if (!approachDone)
@@ -373,16 +373,14 @@ namespace ReDefinition.Hud.Readouts
         private bool rcsDone;
         private double rcsDeltaV;
 
-        // What the RCS propellant on board gives the vessel, in m/s: its RCS
-        // thrusters' combined Isp in vacuum (thrust over the sum of thrust over
-        // Isp, ModuleRCS: thrusterPower at thrustPercentage, atmosphereCurve at 0),
-        // and the propellant they can burn, by the rocket equation. NaN without RCS.
+        // What the RCS propellant on board gives the vessel, in m/s, by the rocket equation.
+        // It uses the RCS thrusters' combined Isp in vacuum (thrust over the sum of
+        // thrust over Isp, ModuleRCS: thrusterPower at thrustPercentage, atmosphereCurve
+        // at 0) and the propellant they can burn. NaN without RCS.
         // Each propellant counts from the parts its thrusters draw it from, as
         // Part.GetConnectedResourceTotals finds them for its flow mode (the part
-        // itself, its crossfeed set, or the whole vessel), each part once, in the
-        // mix each kind of thruster burns it in (StageTable.UsablePropellant): a
-        // Vernor's liquid fuel and oxidizer from the tanks it reaches, as far as
-        // they go together.
+        // itself, its crossfeed set, or the whole vessel), each part once.
+        // It counts in the mix each kind of thruster burns it in (StageTable.UsablePropellant).
         internal double RcsDeltaV
         {
             get
@@ -475,15 +473,13 @@ namespace ReDefinition.Hud.Readouts
         private ModuleDockingNode ownPort;
 
         // The vessel's own docking port that docks with the target port, for the
-        // distance to it and the closing speed: the port the vessel controls from
+        // distance to it and the closing speed. It is the port the vessel controls from
         // ("Control from here", ModuleDockingNode.MakeReferenceTransform), where it
-        // is free and fits the target; else its free port nearest the target port
-        // that fits it, the one KSP's magnet takes first as they close; null where
-        // the target is no port or the vessel has none that fits. A port fits where
-        // the two share a node type, free where it is not docked, attached in the
-        // editor or disabled (ReadoutMath.PortFits, PortFree; ModuleDockingNode,
-        // decompiled). The nose the navball marker and PORT ALIGNMENT read stays
-        // the control point: that is what the player turns.
+        // is free and fits the target. Else it is the free port nearest the target port
+        // that fits it, the one KSP's magnet takes first as they close. It is null where
+        // the target is no port or the vessel has none that fits. ReadoutMath.PortFits and
+        // PortFree decide fit and free. The nose the navball marker and
+        // PORT ALIGNMENT read stays the control point: that is what the player turns.
         internal ModuleDockingNode OwnPort
         {
             get

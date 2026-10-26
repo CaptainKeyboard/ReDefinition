@@ -8,15 +8,15 @@ namespace redefinition
     // that the harness can run it (ProxyHarness.cpp, "brake controller").
     //
     // Per frame it takes the frame's wall time, the waits the frame met in the proxy and the
-    // target for them, and gives the sleep before the next frame's simulation: an integrating
+    // target for them. It gives the sleep before the next frame's simulation. It is an integrating
     // controller, a fifth of the difference a frame. The frame's own work is the wall time less
     // the sleep taken, so that the clamp below does not grow with the sleep.
     //
-    // A hitch -- one frame far longer than the others, a level load, a shader compile -- must
-    // count as a frame's worth at most. So the frame time that bounds a sample, and the waits
-    // counted, is the smoothed one from before the sample: the frame time smoothed with the
-    // hitch in it would lift the bound with the hitch (a 500 ms frame lifts a 16 ms average to
-    // 64 ms), and a sample is taken into the average at no more than twice that average.
+    // A hitch must count as a frame's worth at most. A hitch is one frame far longer than the
+    // others, such as a level load or a shader compile. So the frame time that bounds a sample, and
+    // the waits counted, is the smoothed one from before the sample. The frame time smoothed with
+    // the hitch in it would lift the bound with the hitch (a 500 ms frame lifts a 16 ms average to
+    // 64 ms). A sample is taken into the average at no more than twice that average.
     struct BrakeController
     {
         // The sleep before the next frame, the smoothed work and waits of a frame, in ms.

@@ -1,9 +1,9 @@
-# Starts KSP under RenderDoc with the scene probe (src/Probe/RenderDocCapture.cs):
-# KSP loads the save ReDefinitionProbe; the probe captures a frame with the camera
+# Starts KSP under RenderDoc with the scene probe (src/Probe/RenderDocCapture.cs).
+# KSP loads the save ReDefinitionProbe. The probe captures a frame with the camera
 # still and one at a step of its sweep (-redefinitionProbeCaptureStep, default 21,
-# where the turn reverses), then the same without the vessel's renderers -- the still
-# frame, and the four frames around that step, one of which shows the same pose --
-# and KSP quits. The captures (.rdc) land in the session's folder,
+# where the turn reverses). Then it captures the same without the vessel's renderers:
+# the still frame, and the four frames around that step, one of which shows the same
+# pose. Then KSP quits. The captures (.rdc) land in the session's folder,
 # <KSP>\ReDefinitionCaptures\<time>-run, as renderdoc_frame<n>.rdc, to open in qrenderdoc
 # or read with its Python API.
 #
@@ -11,12 +11,14 @@
 # its D3D12 swapchain is refused and it falls back to the real one, so a capture
 # holds the game without it either way. Unity's own passes do not depend on it.
 #
+# With -Stay the flight is instead left to run with its clouds and one frame captured
+# 25 s on (-redefinitionProbeRenderDoc), for where the GPU's time goes inside Unity's
+# passes (tools/renderdoc_gpu_times.py).
+#
+# Usage:
+#
 #   tools\renderdoc_probe.ps1 [-Ksp <KSP folder>] [-RenderDoc <renderdoccmd.exe>]
 #                             [-KeepProxy] [-Stay] [-TimeoutSeconds 420]
-#
-# -Stay: instead, the flight left to run with its clouds and one frame captured 25 s
-# on (-redefinitionProbeRenderDoc), for where the GPU's time goes inside Unity's
-# passes (tools/renderdoc_gpu_times.py).
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
     [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),

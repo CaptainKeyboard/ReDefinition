@@ -9,16 +9,16 @@ namespace ReDefinition.Hud
 {
     // Buttons over the space centre's other buildings while the vessel stands on its
     // launch site and has not moved yet (Vessel.Situations.PRELAUNCH), beside the
-    // assembly building's (AssemblyReturn), each where that one stands: the middle
+    // assembly building's (AssemblyReturn). Each stands where that one stands: the middle
     // of the building's hall, before its front (FacilitySpot). A click, after a
-    // question, leaves the flight as KSP's pause menu does -- the game saved, the
-    // vessel left where it stands (PauseMenu.saveAndExit, decompiled) -- for the
-    // tracking station, or for the space centre with that building opened, as a
+    // question, leaves the flight as KSP's pause menu does: the game saved, the
+    // vessel left where it stands (PauseMenu.saveAndExit, decompiled). It goes to the
+    // tracking station, or to the space centre with that building opened, as a
     // click on it there opens it (SpaceCenterBuilding.OnLeftClick, which shows a
-    // damaged building's menu instead). Only where the game allows it
+    // damaged building's menu instead). The buttons show only where the game allows it
     // (GameParameters.Flight.CanLeaveToTrackingStation and CanLeaveToSpaceCenter,
     // SpaceCenter.CanGoInTrackingStation) and the game can be saved now
-    // (FlightGlobals.ClearToSave). In flight view only: not on the map, nor from
+    // (FlightGlobals.ClearToSave). They show in flight view only: not on the map, nor from
     // inside the vessel (WorldButton.FromInside).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class SpaceCentreButtons : MonoBehaviour

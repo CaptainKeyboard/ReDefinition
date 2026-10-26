@@ -6,10 +6,10 @@ using UnityEngine;
 
 namespace ReDefinition.Tests
 {
-    // How fast a vessel turns (Turning), against cases worked out by hand: two
+    // How fast a vessel turns (Turning), against cases worked out by hand. Two
     // one-tonne parts a metre either side of the centre along the roll axis make
-    // 2 t m^2 about pitch and yaw; 1 kN m gives 0.5 rad/s^2, and 90 degrees from
-    // rest to rest takes 2 * sqrt((pi / 2) / 0.5) = 2 sqrt(pi) s.
+    // 2 t m^2 about pitch and yaw. A torque of 1 kN m gives 0.5 rad/s^2. A turn of
+    // 90 degrees from rest to rest takes 2 * sqrt((pi / 2) / 0.5) = 2 sqrt(pi) s.
     [TestClass]
     public class TurningTests
     {
@@ -45,7 +45,7 @@ namespace ReDefinition.Tests
         }
 
         // A pair of RCS nozzles at the top pushing along x makes a pitch or yaw
-        // torque only one way each: the weaker way counts, so one nozzle alone
+        // torque only one way each. The weaker way counts, so one nozzle alone
         // turns nothing, and a pushing pair both ways turns by its thrust times
         // its lever.
         [TestMethod]

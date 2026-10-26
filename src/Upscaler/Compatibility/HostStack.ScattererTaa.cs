@@ -56,8 +56,8 @@ namespace ReDefinition.Upscaler
 
         // The TAA's GameEvents registration outlives its disable
         // (TemporalAntiAliasing.Awake: onVesselLoaded, onVesselWasModified,
-        // onVesselPartCountChanged): each vessel loaded or changed -- at staging the
-        // vessel and what it drops -- has every renderer of its parts set to
+        // onVesselPartCountChanged). Each vessel loaded or changed (at staging the
+        // vessel and what it drops) has every renderer of its parts set to
         // ForceNoMotion (RegisterVesselRenderers, Part.FindModelComponents), which the
         // disabled TAA never corrects. Taken off again as it is set while the upscaler
         // runs, rather than up to ReassertInterval later and for the active vessel only.
@@ -93,26 +93,16 @@ namespace ReDefinition.Upscaler
             });
         }
 
-        // Switching the TAA component off is not enough on its own.
-        //
-        // Scatterer installs its replacement motion vector shader globally via
-        // GraphicsSettings.SetCustomShader at initialisation and never takes it
-        // back. The component is what feeds that shader
-        // TAA_UseFloatingOriginCameraMotion and TAA_PreviousFrameTransform every
-        // frame. Disable the component and those globals freeze at their last
-        // value -- from then on the shader folds a stale floating origin
-        // correction into every motion vector, every frame, at every mode, AA only
-        // included.
-        //
-        // Turning Scatterer's TAA off in its config does not have this problem:
-        // the shader is then never installed in the first place. Disabling the
-        // component at runtime has to neutralise the globals by hand. Undone, the
-        // switch goes back to what the first neutralising found; a TAA switched on
+        // The floating origin switch as the first neutralising found it, null while none is saved.
+        // Undone, the switch goes back to it; a TAA switched on
         // again sets it itself as it renders (TemporalAntiAliasing.OnPreCull, decompiled).
         private static int? savedUseFloatingOrigin;
 
         // Sets Scatterer's floating origin globals to no correction, saving the switch the first time; false puts the
-        // saved switch back.
+        // saved switch back. Switching the TAA component off is not enough on its own: the component is what feeds
+        // the replacement motion vector shader TAA_UseFloatingOriginCameraMotion and TAA_PreviousFrameTransform every
+        // frame. Disabled, those globals freeze at their last value. From then on the shader folds a stale floating
+        // origin correction into every motion vector, every frame, at every mode, AA only included.
         private static void NeutraliseFloatingOrigin(bool neutralise)
         {
             if (neutralise)
@@ -130,7 +120,8 @@ namespace ReDefinition.Upscaler
         // Neutralising the globals is not enough either -- the replacement shader
         // itself has to go.
         //
-        // Scatterer installs it globally for BuiltinShaderType.MotionVectors, but
+        // Scatterer installs it globally for BuiltinShaderType.MotionVectors via
+        // GraphicsSettings.SetCustomShader at initialisation and never takes it back, but
         // only inside its "if (useTemporalAntiAliasing)" block. Switching its TAA
         // off in the config therefore never installs it at all, which is why that
         // route behaves differently from disabling the component at runtime.

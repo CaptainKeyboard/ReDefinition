@@ -6,12 +6,12 @@ namespace ReDefinition.Hud
 {
     // The space centre's facility buttons (Buttons_VAB, Buttons_SPH, ... in
     // sharedassets5, the space centre scene's assets), so that the buttons over the
-    // buildings and in the editors are KSP's own: each a texture of four sprites,
+    // buildings and in the editors are KSP's own. Each is a texture of four sprites,
     // Buttons_<name>_0 to _3 (normal top left, highlighted top right, pressed
-    // bottom left, disabled bottom right; their rects, read with UnityPy). Taken by
-    // name from the loaded sprites wherever they are loaded -- the space centre, and
-    // a flight or an editor while they still are -- and held: Unity keeps an asset
-    // where something reaches it, static fields included
+    // bottom left, disabled bottom right; their rects, read with UnityPy). The class
+    // takes them by name from the loaded sprites wherever they are loaded: the space
+    // centre, and a flight or an editor while they still are. It holds them: Unity
+    // keeps an asset where something reaches it, static fields included
     // (Resources.UnloadUnusedAssets). A UI theme replaces their texture in place
     // (HUDReplacer: Texture2D.LoadImage on KSP's own texture), so the sprites held
     // show the theme.
@@ -42,9 +42,9 @@ namespace ReDefinition.Hud
         }
 
         // Looked for a second into the scene, through every loaded sprite. In the
-        // space centre, whose scene loads them, again at growing intervals until
-        // all are there, for ten seconds (at 3, 7 and 11 s); in a flight or an editor
-        // once only: there they are what the space centre left loaded, and none
+        // space centre, whose scene loads them, it looks again at growing intervals until
+        // all are there, for ten seconds (at 3, 7 and 11 s). In a flight or an editor
+        // it looks once only. There they are what the space centre left loaded, and none
         // comes later.
         private float next;
         private float until;

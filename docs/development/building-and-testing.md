@@ -62,11 +62,11 @@ run in Windows PowerShell 5.1 and in PowerShell 7, and take the game's path from
 `KspRoot` as the build does. `check_docs.ps1` reads only the pages and needs neither.
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_bundled_mods.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_profile_parser.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_key_bindings.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_foreign_code.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_docs.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_bundled_mods.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_profile_parser.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_key_bindings.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_foreign_code.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_docs.ps1
 ```
 
 `check_docs.ps1` checks the pages under `docs/` rather than the game:

@@ -2,13 +2,13 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // The sun's highlight a material's shader draws by itself, which the forward light
-    // takes out of the frame's colour before it relights it, and puts back as it was
-    // (Raytracing.hlsl, ForwardLight): without it the highlight was scaled with the light
-    // the raytracing replaces, brighter in a dim ambient light than in a bright one. In
-    // Unity's colour space the specular colour, and in w the shape: above 0 the exponent of
+    // The sun's highlight a material's shader draws by itself. The forward light
+    // takes it out of the frame's colour before it relights it, and puts it back as it was
+    // (Raytracing.hlsl, ForwardLight). Without that the highlight would be scaled with the light
+    // the raytracing replaces, brighter in a dim ambient light than in a bright one. It is held in
+    // Unity's colour space as the specular colour, and in w the shape: above 0 the exponent of
     // Unity's legacy Blinn-Phong (Lighting.cginc, UnityBlinnPhongLight; its gloss in the
-    // main texture's alpha), otherwise minus the smoothness of Unity's standard shader
+    // main texture's alpha). Otherwise w is minus the smoothness of Unity's standard shader
     // (UnityStandardBRDF.cginc, BRDF1_Unity_PBS). All 0 where the highlight is not known:
     // a texture's smoothness or gloss map, KSP's mapped and other shaders, which keep
     // theirs in the frame's colour as before.

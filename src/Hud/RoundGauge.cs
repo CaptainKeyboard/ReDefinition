@@ -28,43 +28,22 @@ namespace ReDefinition.Hud
     }
 
     // KSP's vertical speed gauge made a digital gauge: the vertical speed stands
-    // at the navball (NavballSpeeds). The gauge (GaugeVerticalSpeed under the top
-    // frame's altimeter, 83 by 85: its picture with the dial's face, scale and
-    // bezel, a needle, a knob, the label "VERT SPD" and the sink rate light;
-    // sharedassets7) keeps its bezel and its light. Its picture is read as it
-    // stands, the theme's where one replaces it, and its face painted over in the
-    // face's own colour up to the bezel; needle, knob and label are switched off.
-    // On the face: a lit arc of three quarters of a circle, open at the bottom,
+    // at the navball (NavballSpeeds). The gauge is GaugeVerticalSpeed under the top
+    // frame's altimeter, 83 by 85. Its picture has the dial's face, scale and
+    // bezel, a needle, a knob, the label "VERT SPD" and the sink rate light
+    // (sharedassets7). The gauge keeps its bezel and its light. On the face are a lit arc of three quarters of a circle, open at the bottom,
     // filled from its left end as far as the value goes, with a dot at its tip,
-    // over a dim track; the mode's name, the value, and "AUTO" while the gauge
-    // follows the situation.
-    //
-    // As FAA AC 23.1311-1C has an electronic dial (9.4, 17.6, 22.7): the digits
-    // and the arc give the same value, the arc on a scale fixed for the mode, so
-    // that the margin to a limit shows at a glance; the limits as marks on the
-    // scale, amber for caution and red for warning, and a limit that moves with
-    // the flight (the moment to brake, a safe closing speed) as a tick on it; the
-    // arc white while the value is fine, amber or red inside those bands. Where
-    // the values span a wide range, the scale is logarithmic, as a vertical speed
-    // indicator's is: fine near zero, compressed high up. The arc moves to a new
-    // value within a fraction of a second.
+    // over a dim track. On the face are also the mode's name, the value, and "AUTO"
+    // while the gauge follows the situation. GaugeReading describes the arc's scale
+    // and its limits.
     //
     // A click on the gauge goes to the next mode, a right-click to the one
-    // before; the face lights up under the mouse. The mode is kept
-    // (PluginData/gauge.cfg). The gauge is a Button, as the altimeter's mode
-    // switch beside it is (AltitudeModeButton: a clear Image with a Button;
-    // sharedassets7): the frame both stand in (SlideFrameParent) has an
-    // XSelectable, which takes a pointer's press from any child that has no
-    // handler for it, and Unity sends a click only to the object that took the
-    // press (StandaloneInputModule: pointerPress == the click's handler;
-    // decompiled). A Button takes the press itself. Its colour tint lights the
-    // track, as it lights any button.
+    // before. The face lights up under the mouse. The mode is kept
+    // (PluginData/gauge.cfg). The gauge is a Button (see Start).
     //
     // The figures are worked out from plain numbers in GaugeReadings, which is
-    // tested; here they are read from the game. The gauge watches itself in
-    // flight (Watch): every ten seconds and at each change of figure it writes
-    // what it shows into the log, and once per stage a warning where the stage's
-    // arc leaves the digits.
+    // tested. Here they are read from the game. The gauge watches itself in
+    // flight (Watch).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public partial class RoundGauge : MonoBehaviour
     {
@@ -89,9 +68,9 @@ namespace ReDefinition.Hud
         private static readonly Color CautionBand = new Color(1f, 0.72f, 0.2f, 0.45f);
         private static readonly Color WarningBand = new Color(1f, 0.32f, 0.28f, 0.5f);
 
-        // On the face: the mode's name, the value and AUTO; the track, the caution and warning bands and the arc; the limit's
-        // tick and the arc's tip; the arc's radius and the dial's middle on the gauge; the label's dim colour; when the
-        // figure is read next; the arc's fill as shown and as wanted, and its colour.
+        // On the face are the mode's name, the value and AUTO. Next are the track, the caution and warning bands and the arc,
+        // the limit's tick and the arc's tip, and the arc's radius and the dial's middle on the gauge. Then come the
+        // label's dim colour, when the figure is read next, and the arc's fill as shown and as wanted, and its colour.
         private TextMeshProUGUI title;
         private TextMeshProUGUI value;
         private TextMeshProUGUI auto;
@@ -113,8 +92,10 @@ namespace ReDefinition.Hud
         // What the gauge shows, kept across flights in gauge.cfg.
         private static GaugeMode mode = Load();
 
-        // Waits for KSP's vertical speed gauge, paints its face over and builds the digital gauge on it; KSP's gauge stays
+        // Waits for KSP's vertical speed gauge, paints its face over and builds the digital gauge on it. KSP's gauge stays
         // as it is where its label or picture is not found, or the navball does not show the vertical speed.
+        // The picture is read as it stands, the theme's where one replaces it, and its face painted over in the
+        // face's own colour up to the bezel. Needle, knob and label are switched off.
         private IEnumerator Start()
         {
             // KSP's vertical speed gauge stays where the navball does not show the
@@ -183,7 +164,14 @@ namespace ReDefinition.Hud
             auto.text = "AUTO";
             label.gameObject.SetActive(false);
 
-            // The button over the face.
+            // The button over the face. The gauge is a Button, as the altimeter's mode
+            // switch beside it is (AltitudeModeButton: a clear Image with a Button;
+            // sharedassets7). The frame both stand in (SlideFrameParent) has an
+            // XSelectable, which takes a pointer's press from any child that has no
+            // handler for it, and Unity sends a click only to the object that took the
+            // press (StandaloneInputModule: pointerPress == the click's handler;
+            // decompiled). A Button takes the press itself. Its colour tint lights the
+            // track, as it lights any button.
             GameObject click = new GameObject("ReDefinitionGaugeButton", typeof(RectTransform), typeof(Image), typeof(Button),
                 typeof(GaugeRightClick));
             click.layer = picture.gameObject.layer;
@@ -230,9 +218,9 @@ namespace ReDefinition.Hud
             return blankSprite != null && sprite != null && (sprite == blankFrom || sprite == blankSprite);
         }
 
-        // The gauge's picture with its face painted over, where the dial's middle
+        // Paints the face of the gauge's picture over. It gives where the dial's middle
         // lies off the picture's, as a share of its size, and how far the face
-        // reaches, as a share of its width; false where the picture cannot be
+        // reaches, as a share of its width. It returns false where the picture cannot be
         // read. The dial is the picture's opaque part: its middle is that part's.
         private static bool Blank(Image image, Color32[] pixels, int width, int height, out Vector2 centre, out float reach)
         {

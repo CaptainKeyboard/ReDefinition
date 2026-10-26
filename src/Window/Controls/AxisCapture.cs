@@ -6,9 +6,10 @@ using UnityEngine;
 namespace ReDefinition.Window
 {
     // Taking an axis from the player, as KSP's own input screen does it
-    // (SettingsInputBinding.SetupAxis and Update, decompiled): KSP's input
-    // manager defines the axes "joy<device>.<axis>" for 11 devices and 20 axes
-    // each; their values are noted when listening starts, and the first axis that
+    // (SettingsInputBinding.SetupAxis and Update, decompiled).
+    // KSP's input manager defines the axes "joy<device>.<axis>" for 11 devices and 20 axes
+    // each.
+    // Their values are noted when listening starts, and the first axis that
     // moves more than half its range away from where it stood is taken. Escape
     // cancels.
     //

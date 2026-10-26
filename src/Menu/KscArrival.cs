@@ -9,14 +9,14 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Menu
 {
-    // The way from the main menu to the space centre as one flight: the menu's camera
-    // closes in on Kerbin over the space centre's place; while KSP loads -- the game
-    // stands still for seconds there and draws nothing (measured 2026-10-05: 2.5 s and
-    // 1.6 s) -- the last picture of it stays on the screen in place of KSP's black
-    // loading screen; in the space centre the camera starts over the same place at the
-    // same height, the picture fades and the camera comes down to KSP's own view. On the
-    // way in the menu's sun turns to stand over the space centre as the save's does, so
-    // that a save at night is flown into the night side (MenuSun).
+    // The way from the main menu to the space centre as one flight. The menu's camera
+    // closes in on Kerbin over the space centre's place.
+    // While KSP loads, the game stands still for seconds and draws nothing (measured 2026-10-05: 2.5 s and 1.6 s).
+    // So the last picture of the menu stays on the screen in place of KSP's black loading screen.
+    // In the space centre the camera starts over the same place at the same height.
+    // Then the picture fades and the camera comes down to KSP's own view.
+    // On the way in the menu's sun turns to stand over the space centre as the save's does,
+    // so that a save at night is flown into the night side (MenuSun).
     // A click or a key ends the descent there. OwnSettings.MenuKscZoom switches it.
     internal static class KscArrival
     {
@@ -241,18 +241,17 @@ namespace ReDefinition.Menu
 
         // The temporal antialiasing of the other mods started afresh, each frame of the way
         // down and once at its end: to them the camera's flight is a cut in every frame.
-        // Scatterer's TAA, left with it, turned the picture to NaN for good, shown black by
-        // TUFX's post-processing -- in the space centre after the way down, with ReDefinition's
-        // upscaler off (which takes that TAA off while it runs), and not after KSP's own load
-        // (KscArrivalCheck, 2026-10-23); it keeps its history when switched off and on, and
-        // makes it anew only on a reset (TemporalAntiAliasing.ResetHistory, CheckHistory;
-        // Scatterer 0.908, decompiled). TUFX's PostProcessing takes the same
-        // (PostProcessLayer.ResetHistory).
+        // Scatterer's TAA, left with the cut, turned the picture to NaN for good, and TUFX's post-processing showed it black.
+        // That happened in the space centre after the way down with ReDefinition's upscaler off,
+        // which takes that TAA off while it runs. It did not happen after KSP's own load (KscArrivalCheck, 2026-10-23).
         private static readonly Dictionary<Type, System.Reflection.MethodInfo> resets =
             new Dictionary<Type, System.Reflection.MethodInfo>();
         private static bool resetWarned;
 
         // Calls ResetHistory on every camera's Scatterer TAA and TUFX PostProcessLayer, the methods looked up once per type.
+        // The TAA keeps its history when switched off and on, and makes it anew only on a reset
+        // (TemporalAntiAliasing.ResetHistory, CheckHistory; Scatterer 0.908, decompiled).
+        // TUFX's PostProcessing takes the same reset as Scatterer's TAA (PostProcessLayer.ResetHistory).
         internal static void ResetTemporalHistories()
         {
             try
@@ -439,11 +438,10 @@ namespace ReDefinition.Menu
     }
 
     // The menu's sun turned to an hour angle over the space centre. Every directional
-    // light of the menu turns with it. Parallax's main menu sets the direction of
-    // PlanetLight, FillLight and RenderSettings.sun in each Update (ScaledMainMenu.Update),
-    // so the lights are turned each frame after that, from where they stand then; a light
-    // nobody set again since the last turn turns from where it stood before it, so that
-    // it does not turn on and on.
+    // light of the menu turns with it.
+    // Parallax's main menu sets the direction of PlanetLight, FillLight and RenderSettings.sun in each Update
+    // (ScaledMainMenu.Update), so the lights are turned each frame after that, from where they stand then.
+    // A light nobody set again since the last turn turns from where it stood before it, so that it does not turn on and on.
     internal sealed class MenuSun
     {
         // Every directional light of the menu, each one's rotation before the turns, and the one each turn wrote.
@@ -549,8 +547,8 @@ namespace ReDefinition.Menu
         // How long the descent and the picture's fade take, in seconds.
         private const float Seconds = 5f;
         private const float FadeSeconds = 0.8f;
-        // The picture held whole this long first, the camera still: the space centre's
-        // first frames are not yet its picture (measured 2026-10-05 under the picture:
+        // The picture held whole this long first, the camera still.
+        // The space centre's first frames are not yet its picture (measured 2026-10-05 under the picture:
         // rings at 0.05 s, black at 0.4 s, the planet from 0.7 s).
         private const float HoldSeconds = 1f;
         // Whether the descent hid KSP's interface, which has to come back.
@@ -695,9 +693,9 @@ namespace ReDefinition.Menu
         }
     }
 
-    // In the test, at the end in the space centre: where each camera draws and how bright
-    // that is, the rig's state, and the view with the upscaler switched the other way and
-    // back, each into the log and a screenshot.
+    // In the test, at the end in the space centre, it logs where each camera draws and how bright that is.
+    // It also logs the rig's state and the view with the upscaler switched the other way and back.
+    // Each result goes into the log and a screenshot.
     internal static class KscArrivalCheck
     {
         // The stages of a camera's frame each sampled: where in it the picture goes.

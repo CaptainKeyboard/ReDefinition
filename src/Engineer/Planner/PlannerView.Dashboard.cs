@@ -4,10 +4,11 @@ using System.Globalization;
 
 namespace ReDefinition.Engineer
 {
-    // The planner as the dashboard's VAB page shows and works it (src/Dashboard/EditorTelemetry.cs):
-    // what its rows show, in the texts they show it in, KSP's rich text and all, for the page to
-    // draw as the game does; the lists its buttons fold out; and the same changes its buttons make,
-    // through the same handlers. Every row is read, folded in the game or not.
+    // The planner as the dashboard's VAB page shows and works it (src/Dashboard/EditorTelemetry.cs).
+    // This part gives the page what the rows show, in the texts they show it in, KSP's rich text and
+    // all, for the page to draw as the game does. It gives the lists the buttons fold out, and makes
+    // the same changes the buttons make, through the same handlers. Every row is read, folded in the
+    // game or not.
     internal sealed partial class PlannerView
     {
         // Set while the dashboard reads the rows: the fuel plan and the thrust part give every

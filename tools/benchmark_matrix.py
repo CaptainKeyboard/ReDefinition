@@ -1,22 +1,21 @@
 """The standing comparison of upscalers, frame generation, raytracing and latency models.
 
 Runs the scene probe's flight (the launch pad, or a field of grass) once per KSP start of a
-scenario matrix (tools/benchmark_matrix.json), sets the proxy's live keys in turn inside
-each start, reads the frame rate and the latency of each phase from the logs, and writes the
+scenario matrix (tools/benchmark_matrix.json). It sets the proxy's live keys in turn inside
+each start and reads the frame rate and the latency of each phase from the logs. It writes the
 run to docs/development/benchmarks/<date>.json and the tables in docs/development/benchmarks.md.
 The matrix is split into groups: the main matrix runs by default, the others (raytracing
 modes, frame generation steps, DLSS-G presets, latency brake targets, build variants, a
 grass scene) each by --group NAME.
 
-    python tools/benchmark_matrix.py run                 the default groups (the main matrix)
-    python tools/benchmark_matrix.py run --group NAME    one named group, or --group all
-    python tools/benchmark_matrix.py plan                the groups, starts and phases, with minutes, nothing run
-    python tools/benchmark_matrix.py parse <raw folder>  a run's logs read again
-    python tools/benchmark_matrix.py render              benchmarks.md from the JSON files
-
 The KSP install's settings files are copied before the run and put back after it, also
 when a start fails (snapshot and restore, as the probe scripts do). Python's standard
 library only.
+
+Usage: python tools/benchmark_matrix.py <command>. The command run runs the default groups (the
+main matrix). The command run --group NAME runs one named group, and run --group all runs all. The command plan
+prints the groups, starts and phases, with minutes, and runs nothing. The command parse <raw
+folder> reads a run's logs again. The command render writes benchmarks.md from the JSON files.
 """
 import argparse
 import copy
@@ -117,8 +116,8 @@ def scenario_label(s):
 
 
 def scenario_key(s):
-    """The rows' key: the radiance cache's, the opacity micromaps', a tweak's, a frame
-    generation step's, a scene's and a variant's rows have theirs, the others keep the key
+    """The rows' key. The radiance cache's, the opacity micromaps', a tweak's, a frame
+    generation step's, a scene's and a variant's rows have theirs. The others keep the key
     they had before those were rows of their own, so that runs before and after compare."""
     rr = s.get("ray_reconstruction")
     parts = []
@@ -222,13 +221,10 @@ def expand(matrix, vendor=None, resources=None, groups=None):
     phases (the key sets) in order, as (starts, skipped); skipped as (what, why).
 
     A group is the matrix with its own values over it (resolve_group); the main matrix is the
-    matrix's own lists. A group's "scenes" (the probe's scenes, matrix["scenes"]) and
-    "variants" (values for the proxy at load, "proxy_load", each a start of its own) multiply
-    its starts: the id of a start of another group than the main begins with the group's and
-    ends with its variant's and scene's. A scene may name "requires" (resources, as the
-    techniques do: a scene whose resource is missing is skipped) and "ready", a regular
-    expression the probe's line in KSP.log must match for the scene to have been the one
-    measured (scene_unavailable)."""
+    matrix's own lists. A group's "scenes" (matrix["scenes"]) and "variants" (proxy values at
+    load, "proxy_load") multiply its starts. The id of a start outside the main group begins with the group's and ends with its variant's and scene's. A scene may name
+    "requires" (resources; a scene with one missing is skipped) and "ready" (see
+    scene_unavailable)."""
     starts, skipped = [], []
     for group in select_groups(matrix, groups):
         sub = resolve_group(matrix, group)
@@ -276,18 +272,10 @@ def _expand_cell(matrix, vendor=None, resources=None):
 
     Only what is read at load splits the starts: the frame generation kind
     (frameGenerationTechnique, and the DLSS-G package next to KSP_x64.exe), and whatever
-    "separate_starts" names. The upscaler, the raytracing mode and Ray Reconstruction
-    are the mod's own settings, which the probe sets live through its mod.<key> keys; the
-    radiance cache ("radiance_cache") is the proxy's live key, a rendering of its own for
-    the one technique and raytracing mode it names, with the latency models it names; so
+    "separate_starts" names. The radiance cache ("radiance_cache") is the proxy's live key, a rendering of its own for
+    the one technique and raytracing mode it names, with the latency models it names. So
     are the opacity micromaps ("opacity_micromaps"), the last rendering of the start that
-    has that technique and mode: the first live 1 makes the passes' pipelines with micromap
-    support, which they keep, so no row after it is without.
-    A frame generation kind may name a "kind" other than its id (a variant of the same
-    technology, its rows checked against that kind), "dlssg_ini" (sections, keys and values
-    written into the DLSS-G package's ini for its start) and "only" (the renderings it is
-    measured with: "techniques", "raytracing", and "extras": false for none of the radiance
-    cache's and the micromaps').
+    has that technique and mode.
     Returns (starts, skipped), skipped as (what, why)."""
     resources = resources or {}
     skipped = []
@@ -296,8 +284,9 @@ def _expand_cell(matrix, vendor=None, resources=None):
         if not _vendor_ok(l, vendor):
             skipped.append(("latency " + l["id"], "only on " + "/".join(l["vendors"])))
     renderings = []
-    # The renderings that end a start: a tweak that is "last", and the opacity micromaps, whose
-    # first live 1 makes pipelines that stay.
+    # The renderings that end a start: a tweak that is "last", and the opacity micromaps. The
+    # first live 1 makes the passes' pipelines with micromap support, which they keep, so no row
+    # after it is without.
     tail = []
     for tech in matrix["techniques"]:
         if not _vendor_ok(tech, vendor):
@@ -366,7 +355,10 @@ def _expand_cell(matrix, vendor=None, resources=None):
 
 
 def _allowed(fg, rendering):
-    """Whether the frame generation kind is measured with the rendering ("only")."""
+    """Whether the frame generation kind is measured with the rendering ("only").
+
+    The kind's "only" names the renderings it is measured with: "techniques", "raytracing", and
+    "extras": false for none of the radiance cache's, the micromaps' and the tweaks'."""
     only = fg.get("only")
     if not only:
         return True
@@ -404,8 +396,10 @@ def _fill(value, resources):
 
 
 def _mod_values(rendering):
-    """The mod's settings that make this rendering, by their settings.cfg keys. Every
-    phase names all of them, so that none inherits a value from the phase before."""
+    """The mod's settings that make this rendering, by their settings.cfg keys. The upscaler,
+    the raytracing mode and Ray Reconstruction are the mod's own settings, which the probe sets
+    live through its mod.<key> keys. Every phase names all of them, so that none inherits a
+    value from the phase before."""
     values = dict(rendering["tech"].get("settings", {}))
     values["raytracing"] = rendering["raytracing"]
     rr = rendering["ray_reconstruction"]
@@ -415,10 +409,13 @@ def _mod_values(rendering):
 
 
 def _start(matrix, fg, renderings, group, latencies, resources, plain_off):
-    """One KSP start of a frame generation kind: the settings.cfg and proxy values it loads with, and
-    its phases, every rendering with frame generation off (where the kind has those) and on, at each
-    step, with each latency model, repeated as phase_repeats says. plain_off names the "FG off" rows
-    plainly; else they say which kind's files were loaded."""
+    """One KSP start of a frame generation kind. It holds the settings.cfg and proxy values the start
+    loads with, and its phases. The phases are every rendering with frame generation off (where the
+    kind has those) and on, at each step, with each latency model, repeated as phase_repeats says.
+    The argument plain_off names the "FG off" rows plainly, else they say which kind's files were
+    loaded. A kind may name a "kind" other than
+    its id (a variant of the same technology, its rows checked against that kind) and "dlssg_ini"
+    (sections, keys and values written into the DLSS-G package's ini for its start)."""
     start_id = "-".join(list(group) + [fg["id"]])
     settings = dict(matrix.get("mod_settings", {}))
     settings.update(_mod_values(renderings[0]))
@@ -721,9 +718,10 @@ def _with_parts(values):
 
 
 def parse_proxy_log(text):
-    """What ReDefinitionProxy.log says, each entry with its time: the Config lines at load and on
-    reload, the frame time reports, the latency, NVIDIA's latency, the brake, the stages, the
-    raytracing's mesh builds, and the lines of the backbuffer, the upscalers and frame generation."""
+    """What ReDefinitionProxy.log says, each entry with its time. It holds the Config lines at load
+    and on reload, the frame time reports, the latency, NVIDIA's latency and the brake. It also
+    holds the stages, the raytracing's mesh builds, and the lines of the backbuffer, the upscalers
+    and frame generation."""
     p = {"configs": [], "reports": [], "latency": [], "pcl": [], "brake": [], "stages": [], "rt_builds": [], "lines": {},
          "first_time": None}
     notes = []
@@ -790,8 +788,8 @@ _SCENE_REASON = re.compile(r"Probe: \w+ scene unavailable: (.*?)\r?$", re.M)
 
 
 def scene_unavailable(start, ksp_text):
-    """Why the start's scene was not the one measured, or None: the scene names a line of the probe
-    ("ready", a regular expression) that KSP.log must hold, and the probe says why in a line of its
+    """Why the start's scene was not the one measured, or None. The scene names a line of the probe
+    ("ready", a regular expression) that KSP.log must hold. The probe says why in a line of its
     own when it could not make the scene (it quits then). A start without a "ready" is not checked."""
     ready = start.get("scene_ready")
     if not ready or re.search(ready, ksp_text, re.M):
@@ -1090,9 +1088,9 @@ def _ratio_findings(proxy, s, ratio, end):
 
 
 def _step_check(scenario, ratio):
-    """What a frame generation step asked for and what the frames per rendered frame show:
-    asked "3x" and 2.0 presented per rendered frame is a step the GPU or the driver did not
-    deliver (shown_as the whole number nearest), and so is 2x asked for with 3.0 shown: a
+    """What a frame generation step asked for and what the frames per rendered frame show.
+    Asked "3x" and 2.0 presented per rendered frame is a step the GPU or the driver did not
+    deliver (shown_as the whole number nearest). So is 2x asked for with 3.0 shown, which is a
     multiplier that did not reach the proxy. Dynamic has no number to be held to."""
     step = scenario.get("step")
     if not step or not scenario.get("fg_requested") or ratio is None:
@@ -1219,12 +1217,12 @@ class _Win32:
 
 class Foreground:
     """Keeps a process's window in front, as little intrusively as it can. NVIDIA's DLSS-G
-    generates nothing while the game's window is not (Streamline: "DLSS-G disabled: window not
-    focused"), and a KSP that this tool starts is not given the foreground when another
-    program's window is in front. keep() does nothing while the window is in front; else it
-    restores it only if it is minimised, asks plainly, then with the input queue of the window
-    in front shared, and taps Alt only once for a process, when both failed. After a failure
-    it leaves the window alone for FOREGROUND_RETRY_SECONDS."""
+    generates nothing while the game's window is not in front (Streamline: "DLSS-G disabled:
+    window not focused"). A KSP that this tool starts is not given the foreground when another
+    program's window is in front. The method keep() does nothing while the window is in front.
+    Otherwise it restores the window only if it is minimised, asks plainly, then asks with the
+    input queue of the window in front shared. When both failed, it taps Alt, only once for a
+    process. After a failure it leaves the window alone for FOREGROUND_RETRY_SECONDS."""
 
     def __init__(self, pid, win=None, clock=time.monotonic):
         """For the process pid; win and clock stand in for _Win32 and time.monotonic in the tests."""
@@ -1600,7 +1598,7 @@ def run(args):
 
 def apply_profile(install, profile, settings_template, raw):
     """The profile applied in a KSP start of its own, from the given settings. Returns its
-    log lines and the mod's settings.cfg as the profile left it: the profile sets the
+    log lines and the mod's settings.cfg as the profile left it. The profile sets the
     mod's own module too (the upscaler's quality and model), so every start begins from
     that file rather than from the one before the profile."""
     with open(install.path(SETTINGS_REL), "w", encoding="utf-8") as f:
@@ -1639,9 +1637,9 @@ def _save_plan(raw, plan):
 
 
 def run_start(install, start, raw, settings_template, ini_template, package):
-    """One start: writes its settings.cfg and proxy ini (the first phase's keys at load), puts the
-    DLSS-G package in place where it needs it, launches KSP with the probe, then copies the logs and
-    shots this start wrote into the raw folder and puts the settings template back."""
+    """One start. It writes its settings.cfg and proxy ini (the first phase's keys at load), puts the
+    DLSS-G package in place where it needs it, and launches KSP with the probe. Then it copies the
+    logs and shots this start wrote into the raw folder and puts the settings template back."""
     settings = set_cfg_values(settings_template, start["mod_settings"])
     first = start["phases"][0]["keys"] if start["phases"] else {}
     ini_values = dict(start["proxy_load"])
@@ -1875,9 +1873,9 @@ def _fmt(v, digits=1, signed=False, unit=""):
 
 
 def summary_table(record, previous=None, group=MAIN_GROUP):
-    """The group's comparison table in Markdown: each row's fps and latency, against the group's
-    baseline, the same rendering with frame generation off and no latency model, and the previous
-    record; the columns the group's "show" names (ratio, rt_builds) in addition."""
+    """The group's comparison table in Markdown. It holds each row's fps and latency, against the
+    group's baseline (the same rendering with frame generation off and no latency model) and the
+    previous record. The columns the group's "show" names (ratio, rt_builds) come in addition."""
     rows = rows_of(record, group)
     by_key = {r["key"]: r for r in rows}
     prev = {r["key"]: r for r in rows_of(previous, group)} if previous else {}

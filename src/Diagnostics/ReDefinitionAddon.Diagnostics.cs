@@ -164,8 +164,8 @@ namespace ReDefinition
 
         // Drawn with KSP's own IMGUI skin, as RemoteTech, Parallax and TUFX draw
         // their windows. HUDReplacer patches that skin's getter and replaces its
-        // textures by name -- window, button, toggle, label, slider, scrollbars
-        // (Patches/HighLogic_Skin.cs there) -- so a UI theme such as ZTheme reaches
+        // textures by name: window, button, toggle, label, slider, scrollbars
+        // (Patches/HighLogic_Skin.cs there). So a UI theme such as ZTheme reaches
         // this window for every texture it ships under those names. Unity resets
         // GUI.skin to its default before every OnGUI (GUIUtility.BeginGUI) and hands
         // the skin current at GUILayout.Window to the window function, so setting it
@@ -343,9 +343,9 @@ namespace ReDefinition
         }
 
         // A click anywhere but in the search field, inside the window or outside it, ends
-        // the typing; so do Escape and Return in it. Asked before the window function: the
+        // the typing; so do Escape and Return in it. Asked before the window function. The
         // controls of the window are FocusType.Passive and use the click, so IMGUI leaves
-        // the keyboard control on the field (UiHygiene.Typing) and the field would be typed
+        // the keyboard control on the field (UiHygiene.Typing). The field would then be typed
         // into, with KSP's keys locked, until another text field is clicked.
         private void EndTypingByEvent(Event current)
         {

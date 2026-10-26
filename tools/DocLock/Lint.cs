@@ -15,7 +15,7 @@ namespace DocLock
         public string Detail;
     }
 
-    // The comment contract (docs/development/writing-code-comments.md) as checks that a machine can make: a
+    // The comment contract (docs/development/writing-code-comments.md) as checks that a machine can make. A
     // comment says more than the name, is no longer than its element deserves, can be read in one go, tells what
     // is and not what was, and is English. What it cannot judge -- whether the comment is true, and whether it
     // helps -- the reviews do (.doclock/review.md).
@@ -30,7 +30,7 @@ namespace DocLock
         private const int SentenceWords = 40;
         private const int BreaksOfThought = 5;
 
-        // Words that put a comment in the past or on a to-do list.
+        // Words that date a comment to an earlier state of the code or put it on a to-do list.
         private static readonly Regex History = new Regex(
             @"\b(previously|formerly|originally|used to be|was changed|has been changed|after the rewrite|in the past|we changed|todo|fixme|hack|xxx)\b",
             RegexOptions.IgnoreCase);
@@ -47,7 +47,9 @@ namespace DocLock
         {
             var found = new List<Finding>();
             if (e.Doc.Length == 0) return found;
-            string flat = Element.Normalise(e.Doc);
+            // XML tags are markup and not words, and the description of a parameter or a return value is reference, not part of the comment.
+            string withoutReference = Regex.Replace(e.Doc, "<(param|returns|typeparam)[^>]*>.*?</(param|returns|typeparam)>", " ", RegexOptions.Singleline);
+            string flat = Element.Normalise(Regex.Replace(withoutReference, "<[^>]+>", " "));
             int words = Element.Words(flat);
 
             bool file = e.Kind == "script" || e.Kind == "module" || e.Kind == "shader" || e.Kind == "config";

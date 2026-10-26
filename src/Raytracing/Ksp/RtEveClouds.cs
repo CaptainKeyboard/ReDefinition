@@ -8,16 +8,16 @@ using UnityEngine;
 namespace ReDefinition.Raytracing
 {
     // EVE's cloud layer over the main body, for the rays (RtCommon.hlsli: CloudTransmittance,
-    // CloudOverSky): the moons' light, the sun's and the moons' discs on the water and the
+    // CloudOverSky). The moons' light, the sun's and the moons' discs on the water and the
     // sun's light at the rays' hits are darkened under it as EVE darkens the sun's light on
-    // the frame, and rays that escape the scene see it. Read from EVE (Blackrack's, with the
+    // the frame. Rays that escape the scene see it. Read from EVE (Blackrack's, with the
     // raymarched volumetric layer; its assembly decompiled, 1.12 builds of 2026-10):
     // GenericEVEManager<CloudsObject>.ObjectList (static, not public) holds the loaded
-    // bodies' layers; a CloudsObject's Body, Layer2D (Clouds2D) and LayerRaymarchedVolume
+    // bodies' layers. A CloudsObject has Body, Layer2D (Clouds2D) and LayerRaymarchedVolume
     // (CloudsRaymarchedVolume). The volume's material carries the maps (CloudCoverage,
     // CloudType, DensityCurve, their alpha masks) and radii, its CloudRotationMatrix the
-    // world-to-map transform EVE sets each frame, its CurrentTimeFade* the fades; the 2D
-    // layer's ScreenSpaceShadowMaterial the shadow's sphere (_Radius), strength
+    // world-to-map transform EVE sets each frame, its CurrentTimeFade* the fades. The 2D
+    // layer's ScreenSpaceShadowMaterial carries the shadow's sphere (_Radius), strength
     // (_ShadowFactor, _Color's alpha), colour and fades (cloudTimeFadeDensity, mapViewFade).
     // The maps go into one texture of ours (ReDefinitionRtClouds.shader), packed again every
     // few seconds and when they change. Nothing without EVE or its volumetric layer; another
@@ -350,8 +350,8 @@ namespace ReDefinition.Raytracing
 
         // What EVE's own code (CloudsRaymarchedVolume.SampleCoverage: coverage times the
         // density curve, CPU) gives where the light's ray from `world` towards the sun leaves
-        // the shadow's sphere, as the transmittance and the shadow the rays take there
-        // (RtCommon.hlsli, CloudTransmittance, its fades 1); -1 where there is no layer.
+        // the shadow's sphere. It is the transmittance and the shadow the rays take there
+        // (RtCommon.hlsli, CloudTransmittance, its fades 1). It is -1 where there is no layer.
         internal float EvePrediction(Vector3 world, Vector3 towardsSun, Color colour, float strength)
         {
             if (lastLayer == null) return -1f;

@@ -20,9 +20,9 @@ namespace ReDefinition.Modules
     // returns to what the player chose in TUFX or Scatterer in the meantime.
     internal class OwnSettings
     {
-        // The upscaler: whether it runs, its quality mode and sharpening, and what it sets around it -- auto exposure, the
+        // The upscaler: whether it runs, its quality mode and sharpening. Then what it sets around it: auto exposure, the
         // mipmap and LOD bias, MSAA off, anisotropic filtering, the jitter, skinned motion vectors, TUFX after the upscale,
-        // the transparency and reactive masks; then whether frame generation is on.
+        // the transparency and reactive masks. Then whether frame generation is on.
         public bool Enabled;
         public Fsr3Upscaler.QualityMode Quality = Fsr3Upscaler.QualityMode.NativeAA;
         public float Sharpness = 1.0f;
@@ -107,9 +107,9 @@ namespace ReDefinition.Modules
         public DlssModel DlssModel = DlssModel.Default;
 
         // The hotkeys, as KeyCombination writes them. Unbound until the player
-        // sets one in the Keys tab: KSP's own bindings fire on their key whatever
+        // sets one in the Keys tab. KSP's own bindings fire on their key whatever
         // modifiers are held, and KSP binds nearly every letter, digit and
-        // function key, so a default would set off one of KSP's as well.
+        // function key. A default would set off one of KSP's as well.
         public string UpscalerKey = KeyCombination.NoneText;
         public string DiagnosticsKey = KeyCombination.NoneText;
         public string CameraListKey = KeyCombination.NoneText;
@@ -130,16 +130,16 @@ namespace ReDefinition.Modules
         // Other mods' IMGUI windows at KSP's UI scale (Scaling/ModWindowScale).
         public bool ScaleModWindows = true;
         // Better Time Warp Continued's own toolbar button: hidden while off, since
-        // its button stands in the time panel (Flight/TimeWarpButton).
+        // its button stands in the time panel (Hud/TimeWarpButton).
         public bool TimeWarpToolbarButton;
-        // The flight scene starts in KSP's maneuver mode (Flight/FlightStartMode).
+        // The flight scene starts in KSP's maneuver mode (Hud/FlightStartMode).
         public bool FlightStartsInManeuverMode = true;
-        // The altimeter switches between sea level and the ground itself (Flight/AutoAltimeter).
+        // The altimeter switches between sea level and the ground itself (Hud/AutoAltimeter).
         public bool AutoAltimeter = true;
-        // The flight panel switches to the profile of the situation (Flight/Panel/FlightPanel).
+        // The flight panel switches to the profile of the situation (Hud/Panel/FlightPanel).
         public bool FlightPanelAuto = true;
         // The buttons standing over the space centre's buildings in flight and over
-        // the launch site in the editors (Flight/WorldButton).
+        // the launch site in the editors (Hud/WorldButton).
         public bool WorldButtons = true;
         // Fireworks on Kerbin's night side in the main menu (Menu/MenuFireworks).
         public bool MenuFireworks = true;
@@ -154,29 +154,29 @@ namespace ReDefinition.Modules
         // The mods' antialiasing not twice on one camera with the upscaler and frame
         // generation off (Upscaler/HostStack.Duplicates).
         public bool OneAntialiasing = true;
-        // The round gauge in place of the vertical speed's (Flight/RoundGauge).
+        // The round gauge in place of the vertical speed's (Hud/RoundGauge).
         public bool RoundGauge = true;
-        // The vertical and horizontal speed at the navball (Flight/NavballSpeeds).
+        // The vertical and horizontal speed at the navball (Hud/NavballSpeeds).
         public bool NavballSpeeds = true;
-        // The navball's marker for a docking port as the target (Flight/NavballDockingMarker).
+        // The navball's marker for a docking port as the target (Hud/NavballDockingMarker).
         public bool NavballDockingMarker = true;
-        // The navball moved by dragging (Flight/NavballDrag).
+        // The navball moved by dragging (Hud/NavballDrag).
         public bool NavballDrag = true;
-        // The flight panel's profiles in the maneuver mode (Flight/Panel/FlightPanel).
+        // The flight panel's profiles in the maneuver mode (Hud/Panel/FlightPanel).
         public bool FlightPanel = true;
-        // The stage details in two columns (Flight/StageInfoColumns).
+        // The stage details in two columns (Hud/StageInfoColumns).
         public bool StageDetailColumns = true;
-        // The stage details' TWR at the stage's start and end (Flight/StageInfoColumns).
+        // The stage details' TWR at the stage's start and end (Hud/StageInfoColumns).
         public bool StageTwrRange = true;
-        // KSP's delta-v tools as part of the staging stack (Flight/DeltaVTools).
+        // KSP's delta-v tools as part of the staging stack (Hud/DeltaVTools).
         public bool DeltaVTools = true;
-        // Tooltips on the HUD's buttons (Flight/HudTooltips).
+        // Tooltips on the HUD's buttons (Hud/HudTooltips).
         public bool HudTooltips = true;
-        // The editors' staging reset asks first (Flight/HudTooltips).
+        // The editors' staging reset asks first (Hud/HudTooltips).
         public bool StagingResetAsks = true;
-        // The crew slot buttons in the staging stack's look (Flight/CrewSlotButtons).
+        // The crew slot buttons in the staging stack's look (Hud/CrewSlotButtons).
         public bool CrewSlotButtons = true;
-        // Better Time Warp's button in the time panel (Flight/TimeWarpBar).
+        // Better Time Warp's button in the time panel (Hud/TimeWarpBar).
         public bool TimeWarpPanelButton = true;
 
         // The settings file's node, which holds every key.
@@ -189,7 +189,7 @@ namespace ReDefinition.Modules
         }
 
         // Every setting once: its key in the file, how it is read from and written to a
-        // settings object, its text, and whether the add-on reads it live from its settings
+        // settings object, and its text. It says whether the add-on reads the value live from its settings
         // object (CopyLive, ChangeLive) rather than keeping it in a field of its own.
         private abstract class Field
         {

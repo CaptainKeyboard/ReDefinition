@@ -1,17 +1,19 @@
-﻿# Checks the bundled mods outside the game: loads the installed graphics mods,
+﻿# Checks the bundled mods outside the game. It loads the installed graphics mods,
 # then reads every registration in GameData\ReDefinition\Mods and builds its mod
-# with the built DLL -- the reader and the registry the game runs -- and
-# reports whether it found every member it needs, which settings it offers,
-# the rows, defaults and requirements it derives from them, and whether the
-# assembly it takes toolbar buttons from is the one the mod's button lives in.
-# Nothing is read from or written to the mods: their objects do not exist
-# outside the game.
-#
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_bundled_mods.ps1
+# with the built DLL, the reader and the registry the game runs. It reports
+# whether it found every member it needs, and which settings it offers. It
+# reports the rows, defaults and requirements it derives from them. It also
+# reports whether the assembly it takes toolbar buttons from is the one the
+# mod's button lives in. Nothing is read from or written to the mods: their
+# objects do not exist outside the game.
 #
 # Runs in Windows PowerShell 5.1 and in PowerShell 7. The KSP folder is taken
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
+#
+# Usage:
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_bundled_mods.ps1
 
 . ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
 $resolveFolders = @($managed)

@@ -2,11 +2,11 @@
 input dump (FrameGenerationDump.cpp), so that tools/replay_fg.ps1 plays them through frame
 generation as it plays the game's.
 
-    python tools/turn_to_fg_dump.py <turn folder> <dump folder> [first] [last]
-
 The colour is the frame as it came out (Ray Reconstruction's in the rr run), clamped and
-gamma-encoded into 8 bits as the game's HUD-less image; depth and motion vectors as they
+gamma-encoded into 8 bits as the game's HUD-less image. Depth and motion vectors are as they
 were rendered. The dump's rows are top-down, the readback's bottom-up.
+
+Usage: python tools/turn_to_fg_dump.py <turn folder> <dump folder> [first] [last]
 """
 
 import os

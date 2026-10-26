@@ -9,19 +9,16 @@ using System.Text.RegularExpressions;
 namespace Refactor
 {
     // Restructures the repository from a manifest, so that a move of many files is one reviewed step and not
-    // a hand edit of every reference. One line per operation, fields separated by tabs, "#" starts a comment:
+    // a hand edit of every reference. One line per operation, fields separated by tabs, "#" starts a comment.
+    // The operation move <from> <to> [namespace] moves one file, and its types go into the namespace where one is given.
+    // The operation movedir <from> <to> [namespace] moves every file under a folder, keeping the paths below it.
+    // The operation namespace <old> <new> renames a namespace in every text file.
+    // The operation rename <old> <new> renames an identifier: its tokens in C#, its words elsewhere.
+    // The operation text <old> <new> replaces a string in every text file (paths, names).
+    // The operation regex <pattern> <replacement> [path prefix] replaces a regular expression in C# files, with $1 for groups.
+    // The operation usings <namespace> - adds the using of that namespace to every file naming one of its types.
     //
-    //   move      <from> <to> [namespace]     one file; its types go into the namespace where one is given
-    //   movedir   <from> <to> [namespace]     every file under a folder, keeping the paths below it
-    //   namespace <old> <new>                 renames a namespace in every text file
-    //   rename    <old> <new>                 renames an identifier: its tokens in C#, its words elsewhere
-    //   text      <old> <new>                 replaces a string in every text file (paths, names)
-    //   regex     <pattern> <replacement> [path prefix]   a regular expression replaced in C# files, $1 for groups
-    //   usings    <namespace> -               adds the using of that namespace to every file naming one of its types
-    //
-    //   dotnet <Refactor.dll> apply <manifest> [--dry-run]
-    //
-    // Moves run with git mv. Then the namespaces of moved types are set, the namespace and identifier
+    // Run it as: dotnet <Refactor.dll> apply <manifest> [--dry-run]. Moves run with git mv. Then the namespaces of moved types are set, the namespace and identifier
     // renames and the path rewrites run over the text files, and the usings that a moved type needs
     // (Usings.cs) are added. The compiler then says what is left; unused usings go with
     // "dotnet format style --diagnostics IDE0005".

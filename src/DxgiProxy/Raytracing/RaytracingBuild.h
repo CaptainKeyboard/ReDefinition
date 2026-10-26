@@ -29,9 +29,9 @@ namespace redefinition
         bool Valid() const { return chunk != UINT32_MAX; }
     };
 
-    // Default-heap buffers of one kind -- their flags and the state they are made in --
-    // in chunks, handed out in ranges of a fixed granularity, first fit; a range freed is
-    // free again once the queue is past the fence value it was freed with (Reclaim), and a
+    // Default-heap buffers of one kind (their flags and the state they are made in) in
+    // chunks. Ranges of a fixed granularity are handed out, first fit. A range freed is
+    // free again once the queue is past the fence value it was freed with (Reclaim). A
     // chunk that has been wholly free for kIdleMs is let go of, but the last (Reclaim).
     class RtBufferPool
     {

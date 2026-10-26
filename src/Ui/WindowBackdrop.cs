@@ -10,11 +10,12 @@ namespace ReDefinition.Ui
     // How the settings window stands against what is behind it. The skin's window
     // sprite is half transparent.
     //
-    // Where nothing moves behind the window -- it holds the flight, or the scene
-    // is the main menu, the space centre or an editor -- the window is drawn
-    // nearly opaque: the dialog's own background once more behind
-    // its contents -- the same sprite, type and colour, stretched over the whole
-    // window -- which a UI theme that replaces the sprite, ZTheme, covers as well.
+    // Where nothing moves behind the window, the window is drawn nearly opaque.
+    // That is so where it holds the flight, or the scene
+    // is the main menu, the space centre or an editor.
+    // The backdrop is the dialog's own background once more behind
+    // its contents: the same sprite, type and colour, stretched over the whole
+    // window. A UI theme that replaces the sprite, ZTheme, covers it as well.
     //
     // While a flight runs behind it, the window is drawn thinner than the skin
     // draws it, and the rows are kept readable by their text instead: every text

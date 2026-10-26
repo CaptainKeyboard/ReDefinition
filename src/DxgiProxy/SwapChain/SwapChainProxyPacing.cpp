@@ -124,13 +124,12 @@ namespace redefinition
         return QueryRefreshRate(window);
     }
 
-    // The refresh rate the window's monitor runs at, as a thread of its own last
-    // found it: every two seconds and after a resize, so a window moved to another
-    // monitor or a mode changed in Windows follows -- and never on the present
-    // path, where the query, a round trip to the display driver, would land in a
-    // frame. Only while the limit asks for it; paused otherwise
-    // (PauseRefreshMonitor). 0 until the first answer; after a pause the last
-    // one, until the query that resuming asks for returns.
+    // The refresh rate the window's monitor runs at, as a thread of its own last found it. The
+    // thread asks every two seconds and after a resize, so a window moved to another monitor or a
+    // mode changed in Windows follows. It never asks on the present path, where the query, a round
+    // trip to the display driver, would land in a frame. It asks only while the limit asks for the
+    // rate (PauseRefreshMonitor). The result is 0 until the first answer. After a pause it is the
+    // last one, until the query that resuming asks for returns.
     double SwapChainProxy::MonitorRefreshRate()
     {
         if (!refreshThread.joinable())
@@ -174,16 +173,14 @@ namespace redefinition
         return refreshRate.load();
     }
 
-    // fgHalfRefreshLimit, after a Present whose frame frame generation
-    // generated from and which went out without VSync. The wait comes before
-    // the game starts on its next frame, so it delays when input is read rather
-    // than a finished frame on its way to the GPU.
+    // fgHalfRefreshLimit, after a Present without VSync whose frame frame generation generated from.
+    // The wait comes before the game starts its next frame, so it delays
+    // reading input rather than a finished frame on its way to the GPU.
     //
-    // Slightly below half the refresh rate -- AMD: "The application should
-    // ensure that the rendered frame rate is slightly below half the desired
-    // output frame rate"; 2 % below -- which keeps real and generated
-    // frames inside a VRR window too. A frame more than half a millisecond late
-    // starts the schedule anew from now: catching up would bunch real frames
+    // The limit is 2 % below half the refresh rate. AMD says "The application
+    // should ensure that the rendered frame rate is slightly below half the desired output frame
+    // rate". That also keeps real and generated frames inside a VRR window. A frame more than half a
+    // millisecond late starts the schedule anew from now. Catching up would bunch real frames
     // together, and FSR paces the generated ones from their spacing.
     void SwapChainProxy::LimitToHalfRefresh(UINT syncInterval)
     {

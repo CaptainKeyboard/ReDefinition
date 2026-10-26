@@ -8,8 +8,8 @@ using UnityEngine;
 namespace ReDefinition.Scenery
 {
     // Parallax Continued's scatters as ReDefinition reads them, for the space centre's
-    // grass (KscGrass) and the rays (Raytracing.RtKspMods.ParallaxScatter):
-    // ScatterManager.Instance.activeScatterRenderers, and each ScatterRenderer's
+    // grass (KscGrass) and the rays (Raytracing.RtKspMods.ParallaxScatter).
+    // It reads ScatterManager.Instance.activeScatterRenderers, and each ScatterRenderer's
     // planetName, scatter (its scatterName, distributionParams.range and
     // useCraftPosition), meshLOD0-2, instancedMaterialLOD0-2 and outputLOD0-2 (Parallax
     // Continued 1.0.0, Scatter
@@ -28,9 +28,9 @@ namespace ReDefinition.Scenery
         // The binding of the instance fields read.
         private const BindingFlags Members = BindingFlags.Public | BindingFlags.Instance;
 
-        // Whether Look ran, and the compiled getters it built: ScatterManager.Instance, the active renderers, each
-        // renderer's fields, its scatter's, and per level of detail the mesh, material and output buffer. strideWarned:
-        // whether the warning of an output buffer with another clump size was logged.
+        // Whether Look ran, and the compiled getters it built. They read ScatterManager.Instance, the active renderers,
+        // each renderer's fields, its scatter's, and per level of detail the mesh, material and output buffer.
+        // The flag strideWarned says whether the warning of an output buffer with another clump size was logged.
         private static bool looked;
         private static Func<object, object> manager;
         private static Func<object, IList> active;

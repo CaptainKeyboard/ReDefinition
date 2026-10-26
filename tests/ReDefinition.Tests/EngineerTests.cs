@@ -16,7 +16,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("0 m/s", EngineerFormat.Speed(double.NaN));
         }
 
-        // Masses are tonnes with four figures, kilograms below one tonne.
+        // EngineerFormat.Mass shows 552.255 t as "552.3 t" and 12.525 t as "12.53 t", four figures in tonnes, and 0.95 t
+        // as "950 kg", kilograms below one tonne.
         [TestMethod]
         public void MassesAreTonnesAndKilogramsBelowOne()
         {

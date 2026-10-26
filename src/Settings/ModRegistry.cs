@@ -11,10 +11,10 @@ namespace ReDefinition.Settings
     internal static class ModRegistry
     {
         // Whether the GameDatabase holds the registrations with ModuleManager's
-        // patches applied. GameDatabase.IsReady alone is not that: ModuleManager
-        // puts its PostPatchLoader right after the GameDatabase among the loading
-        // screen's loaders and patches once the database has loaded, and its own
-        // reload waits for the GameDatabase, the PostPatchLoader and PartLoader in
+        // patches applied. GameDatabase.IsReady alone is not that.
+        // ModuleManager puts its PostPatchLoader right after the GameDatabase among the loading
+        // screen's loaders and patches once the database has loaded.
+        // Its own reload waits for the GameDatabase, the PostPatchLoader and PartLoader in
         // that order (ModuleManager 4.2.3, decompiled: ModuleManager.Awake and
         // DataBaseReloadWithMM). PartLoader ready is after both, with
         // ModuleManager or without it.
@@ -103,17 +103,12 @@ namespace ReDefinition.Settings
         // A mod for every registration, by title, then name; one whose detect type is
         // not loaded is there, not installed. One that cannot be built is reported and
         // left out, and the others are built.
+        // The order is by title as the player reads it, a localization tag in their language.
+        // So the list of bundled mods, the main-menu notice, the Advanced buttons and rows of
+        // the same order stand the same wherever a registration's file is.
+        // The GameDatabase holds them in the order of their folders and files.
         //
-        // By title as the player reads it, a localization tag in their language: the
-        // list of bundled mods, the main-menu notice, the Advanced buttons and rows of
-        // the same order stand the same wherever a registration's file is -- the
-        // GameDatabase holds them in the order of their folders and files.
-        //
-        // What one mod holds of another's settings is left out, once all are built,
-        // while the other is loaded -- bundled or not: its own code holds them. Firefly
-        // sets KSP's aerodynamic FX to its lowest as it loads and warns whenever it is
-        // raised (AssetLoader, EventManager.OnGameSettingsApplied; its source), whether
-        // ReDefinition bundles it or not.
+        // Once all are built, each leaves out what another loaded mod holds for itself (RegisteredMod.LeaveOutHeld).
         internal static List<IBundledMod> Build(IList<ModRegistration> registrations, List<string> problems)
         {
             List<RegisteredMod> built = new List<RegisteredMod>();

@@ -13,6 +13,20 @@
 namespace redefinition
 {
     // Every setting of the ini's [Proxy] section, with its default.
+    //
+    // RaytracingScene.cpp, BuildMeshesLocked builds the meshes' acceleration structures after
+    // NVIDIA's "Best Practices for Using NVIDIA RTX Ray Tracing (Updated)" and the DXR spec
+    // (DirectX-Specs, Raytracing.md). The rtBlas* settings, rtTlasFastTrace and rtMegaGeometry
+    // each apply to the structures built after it changes, and all are live. The measurements
+    // come from the raytracing harness's
+    // vessel (RTX A4500, 2026-10-20): 150 parts of 54 272 triangles, as a flight's first frames
+    // hand them over, and 600 of 244 404 at once. A pair of figures is the slowest frame's GPU
+    // time to its meshes built or the CPU's time recording them, for the 150 and the 600 parts.
+    // The picture is the same in every variant. Mesh by mesh in buffers of their own, the
+    // baseline takes 21.6 and 172 ms of the GPU and 87 and 715 ms of the CPU. Against the
+    // defaults, rtMegaGeometry 1 took the slowest frame to 0.32 and 0.85 ms of the GPU against 0.54
+    // and 1.17. Its trace was slower in every frame after, 0.46 and 0.53 ms against 0.41 and 0.46,
+    // and its structures 3.44 and 14.83 MB against 1.62 and 7.11.
     struct ProxyConfig
     {
         // false makes every export a pure pass-through to the system dxgi.dll,
@@ -40,25 +54,23 @@ namespace redefinition
         // package ships AMD's runtime (Config.cpp).
         bool frameGeneration = true;
 
-        // Which frame generation the swapchain is made for (kFgTechnique*), taken when
-        // the swapchain is created, like the folders: which swapchain presents is
-        // decided once per swapchain.
-        // auto: DLSS-G where NVIDIA's Streamline 2.14.16 is there and the GPU runs it
-        // (Streamline.h), XeSS-FG on an Intel GPU where the player's libxess_fg.dll
-        // and libxell.dll are there (XessFg.h), FSR's otherwise. dlss and xess ask for
-        // theirs on any GPU that runs it -- XeSS-FG on "any non-Intel GPU supporting
-        // Shader Model 6.4" (xess_fg_developer_guide_english.md, Requirements) -- and
-        // FSR's where it does not; fsr asks for FSR's always.
+        // Which frame generation the swapchain is made for (kFgTechnique*), taken when the swapchain
+        // is created, like the folders: which swapchain presents is decided once per swapchain.
+        // The value auto picks DLSS-G where NVIDIA's Streamline 2.14.16 is there and the GPU runs it
+        // (Streamline.h). It picks XeSS-FG on an Intel GPU where the player's libxess_fg.dll and
+        // libxell.dll are there (XessFg.h), and FSR's otherwise. The values dlss and xess ask for
+        // theirs on any GPU that runs it, and for FSR's where it does not. The value fsr asks for
+        // FSR's always.
         int frameGenerationTechnique = 0;
 
-        // How DLSS Ray Reconstruction runs (kRrPath*), taken when the swapchain is
-        // created, like frameGenerationTechnique. auto: through Streamline where its
-        // swapchain presents -- DLSS-G, or frame generation off -- and through NGX
-        // directly on the proxy's Direct3D 12 device otherwise, beside FSR's or
-        // XeSS's frame generation (DlssRayReconstruction.h). streamline: through
-        // Streamline only, none beside FSR's or XeSS's frame generation. ngx: through
-        // NGX only; with frame generation off the swapchain is then not Streamline's,
-        // and under DLSS-G, whose Streamline holds NGX on the device, none.
+        // How DLSS Ray Reconstruction runs (kRrPath*), taken when the swapchain is created, like
+        // frameGenerationTechnique. The value auto runs it through Streamline where its swapchain
+        // presents, which is DLSS-G or frame generation off. Otherwise it runs through NGX directly
+        // on the proxy's Direct3D 12 device, beside FSR's or XeSS's frame generation
+        // (DlssRayReconstruction.h). The value streamline runs it through Streamline only, so none
+        // beside FSR's or XeSS's frame generation. The value ngx runs it through NGX only. With frame
+        // generation off the swapchain is then not Streamline's, and under DLSS-G, whose Streamline
+        // holds NGX on the device, there is none.
         int rrPath = 0;
 
         // ---- live from here down, but for the folders, rtOwnQueue, vendorDiagnostics,
@@ -66,25 +78,21 @@ namespace redefinition
         // xessFgAllowOld, rrPath and xessFgFrames' most, which apply when what they serve
         // starts ----
 
-        // Keep the UI out of the interpolated frames by handing FSR a HUD-less
-        // snapshot: the backbuffer copied after the last scene camera and before
-        // the first UI camera, so it differs from the presented frame in the UI
-        // and nowhere else -- which is what FSR's UI detection needs. Off, the UI
-        // is interpolated with the scene and smears with it.
+        // Keep the UI out of the interpolated frames by handing FSR a HUD-less snapshot. It is the
+        // backbuffer copied after the last scene camera and before the first UI camera. So it differs
+        // from the presented frame in the UI and nowhere else, which is what FSR's UI detection
+        // needs. The KSP log names the cameras it is taken after and every camera drawn later. Off,
+        // the UI is interpolated with the scene and smears with it.
         bool hudLessColour = true;
 
-        // Tell FSR the depth buffer runs [1..0], which Unity's on Direct3D
-        // does (SystemInfo.usesReversedZBuffer). The bundled upscaler sets the
-        // same flag for itself (Fsr3Upscaler.cs, CreateContext).
-        //
-        // Swapping near and far does not express the same: FSR's own source takes
-        // min(near, far) and max(near, far) -- "make sure it has no impact if
-        // near and far plane values are swapped in dispatch params, the flags
-        // 'inverted' and 'infinite' will decide what transform to use" -- so
-        // the flag is the only thing that decides, and without it FSR reads the
-        // nearest geometry as the farthest: the vessel smears outward into the
-        // world. Changing this rebuilds the context. XeSS-FG takes it as
-        // XEFG_SWAPCHAIN_INIT_FLAG_INVERTED_DEPTH when its swapchain is made.
+        // Tell FSR the depth buffer runs [1..0], which Unity's on Direct3D does
+        // (SystemInfo.usesReversedZBuffer). The bundled upscaler sets the same flag for itself
+        // (Fsr3Upscaler.cs, CreateContext). Swapping near and far is no substitute. FSR's own source
+        // takes min(near, far) and max(near, far). It says "make sure it has no impact if near and far
+        // plane values are swapped in dispatch params, the flags 'inverted' and 'infinite' will decide
+        // what transform to use". Without the flag FSR reads the nearest geometry as the farthest.
+        // Changing this rebuilds the context. XeSS-FG takes it when its swapchain is made
+        // (xefg::kInitInvertedDepth).
         bool fgDepthInverted = true;
 
         // Negate the motion vector scale. Unity's vectors point opposite to
@@ -113,39 +121,22 @@ namespace redefinition
         // generation always gets them.
         bool fgCameraBasis = true;
 
-        // Force VSync for as long as FSR frame generation is switched on and has a
-        // context (PacedByVSyncLocked), not only on the frames it interpolates,
-        // whatever the game asked for: a sync interval of 0 becomes 1, a higher one
-        // the game asks for stays. Off by default: KSP's own V-Sync setting applies. AMD's
-        // swapchain derives its pacing from the sync interval of the game's
-        // Present -- with VSync it "will slow down the application to half refresh
-        // rate, so every interpolated and real frame gets displayed for one
-        // refresh"; without it, in a window, "not all frames generated will get
-        // displayed". With G-Sync or FreeSync as well: AMD, "within half the VRR
-        // window supported by the monitor ... enabling VSync will result in optimal
-        // pacing", and in full screen without VSync "Tearing artifacts may appear
-        // even with VRR enabled" (frame-interpolation-swap-chain.md).
+        // Force VSync for as long as FSR frame generation is switched on and has a context
+        // (PacedByVSyncLocked), not only on the frames it interpolates, whatever the game asked for.
+        // A sync interval of 0 becomes 1, and a higher one the game asks for stays. Off by default:
+        // KSP's own V-Sync setting applies. FrameGeneration.PacedByVSyncLocked says how AMD's swapchain
+        // paces. With VRR, AMD advises running "within half the VRR window supported by the monitor
+        // ... enabling VSync will result in optimal pacing" (frame-interpolation-swap-chain.md).
         bool fgVSync = false;
 
-        // While frame generation generates and a frame is presented without
-        // VSync, hold the rendered rate slightly below half the monitor's
-        // refresh rate. AMD: "The application should ensure that the rendered
-        // frame rate is slightly below half the desired output frame rate"; and
-        // for windowed mode, where nothing tears, "generating more frames than
-        // can get presented is a waste of resources, so it is recommended to cap
-        // the frame rate to half the monitor refresh rate". In full screen it
-        // keeps real and generated frames inside a VRR window, but frames can
-        // still tear without VSync (frame-interpolation-swap-chain.md). Off by
-        // default. KSP's own frame limit is Unity's software timer (33/58 ms
-        // measured around a cap of 30).
-        //
-        // Under XeSS-FG the limit is XeLL's, the presented frames slightly below the
-        // refresh rate: "FPS Cap is controlled via xellSetSleepMode API when Low
-        // Latency mode is active", "XeLL will limit the frame rate to half of the
-        // target ensuring that the total count of presented frames (both generated
-        // and rendered) matches the requested FPS" (xell_developer_guide_english.md,
-        // Integration Checklist, XeSS-FG Support). Taken when the swapchain is made,
-        // with XeLL's mode.
+        // While frame generation generates a frame presented without VSync, hold the rendered rate
+        // slightly below half the monitor's refresh rate, as AMD advises. For windowed mode AMD adds
+        // "generating more frames than can get presented is a waste of resources, so it is
+        // recommended to cap the frame rate to half the monitor refresh rate". In full screen it
+        // keeps real and generated frames inside a VRR window, but frames can still tear without
+        // VSync (frame-interpolation-swap-chain.md). KSP's own frame limit is
+        // Unity's software timer (33/58 ms measured around a cap of 30). Under XeSS-FG the limit is
+        // XeLL's (xellLimitLive).
         bool fgHalfRefreshLimit = false;
 
         // Frame generation's optical flow and interpolation on a compute queue of
@@ -162,22 +153,24 @@ namespace redefinition
         // DLSS frame generation's minimum depth difference between two objects, in
         // metres (FrameGenerationDlss.cpp). Streamline takes it in linear depth,
         // 1 / depth with inverted depth, which is about the distance over the near
-        // plane; its default of 40 is 8.4 m at KSP's near plane in flight, 0.21 m
+        // plane. Its default of 40 comes to 8.4 m at KSP's near plane in flight, 0.21 m
         // (FlightCamera, decompiled). 0 keeps Streamline's default. On the runway,
         // 1 m and the default made no measurable difference.
         float fgObjectSeparationMetres = 0.0f;
 
-        // DLSS-G's mode (kDlssgMode*, FrameGenerationDlss.cpp). on: a fixed multiplier,
-        // as many generated frames as the display and the GPU allow. dynamic: Dynamic
-        // Multi Frame Generation, DLSSGMode::eDynamic -- Streamline "automatically adjusts
-        // the number of generated frames to align the output frame rate with the display's
-        // refresh rate or a user-defined target" (ProgrammingGuideDLSS_G.md 6.3), where
-        // DLSSGState::bIsDynamicMFGSupported says it runs; the fixed multiplier where not.
+        // DLSS-G's mode (kDlssgMode*, FrameGenerationDlss.cpp). The value on is a fixed multiplier,
+        // as many generated frames as the display and the GPU allow. The value dynamic is Dynamic
+        // Multi Frame Generation, DLSSGMode::eDynamic: Streamline "automatically adjusts the number
+        // of generated frames to align the output frame rate with the display's refresh rate or a
+        // user-defined target" (ProgrammingGuideDLSS_G.md 6.3). It runs where
+        // DLSSGState::bIsDynamicMFGSupported says so, and the fixed multiplier stays where not. The
+        // log's "DLSS frame generation: dynamic multi frame generation" line says what Streamline
+        // reports, once per swapchain.
         int dlssgMode = 0;
 
         // The generated frames DLSS-G is asked for per rendered frame, 1 for 2x and so on, where
-        // the mod has not asked for a multiplier itself (KspFgSetMultiplier); 0 = as many as
-        // the GPU, the package's MaxGeneratedFrames and the display allow. At most what
+        // the mod has not asked for a multiplier itself (KspFgSetMultiplier). The value 0 is as many
+        // as the GPU, the package's MaxGeneratedFrames and the display allow. At most it is what
         // DLSSGState::numFramesToGenerateMax says.
         int dlssgFrames = 0;
 
@@ -186,14 +179,17 @@ namespace redefinition
         float dlssgDynamicTargetFps = 0.0f;
 
         // DLSS-G's UI plane (FrameGenerationUi.cpp). KSP draws its HUD straight onto the
-        // backbuffer, so there is a HUD-less colour and no UI plane of the game's own. 1 = the
-        // proxy makes the plane from the HUD-less copy and the presented frame -- the pixels
-        // that differ are the UI -- tags it as UI colour and alpha, and turns user interface
-        // recomposition on (DLSSGOptions::enableUserInterfaceRecomposition), so that the scene
-        // is interpolated and the UI laid over it after. 0 = the HUD-less colour alone.
+        // backbuffer, so there is a HUD-less colour and no UI plane of the game's own. With 1 the
+        // proxy makes the plane from the HUD-less copy and the presented frame. It tags the plane
+        // as UI colour and alpha, and turns user interface
+        // recomposition on (DLSSGOptions::enableUserInterfaceRecomposition), which interpolates the
+        // scene and lays the UI over it after. With 0 the HUD-less colour alone goes in.
+        // In the RTX 30/20 package, Preset=C (FG Lite) turns recomposition off whatever is asked
+        // (its log's preset_pinned says effective 0).
         bool dlssgUiRecomposition = false;
-        // How the plane's alpha is found where the two differ: kDlssgUiAlphaBinary, 1 and the
-        // presented colour; kDlssgUiAlphaMinimal, the least alpha that reproduces the
+        // How the plane's alpha is found where the two differ. A difference gives no alpha, only a
+        // bound on it, so the plane is an approximation. The value kDlssgUiAlphaBinary is 1 and the
+        // presented colour. The value kDlssgUiAlphaMinimal is the least alpha that reproduces the
         // presented frame over the HUD-less one.
         int dlssgUiAlpha = 0;
         // The greatest difference, in levels of 255, that is still no UI.
@@ -208,15 +204,14 @@ namespace redefinition
         int fgPacingHybridSpinTime = 2;
         bool fgPacingWaitOnFence = false;
 
-        // The rendered frame rate, averaged over two seconds, below which frame
-        // generation stays off -- below nine tenths of it, until above nineteen
-        // twentieths again (FrameGeneration::NoteFrameRateLocked): AMD's "it may be
-        // preferable to ... [disable] FSR Frame Generation ... if the frame rate
-        // consistently drops below that threshold", with the hysteresis AMD describes
-        // (frame-interpolation-swap-chain.md, Minimum Framerate). -1: the rate FSR's
-        // provider was designed for (60 for 3.1, 30 for 4), 30 for DLSS-G, for which
-        // NVIDIA names none, 40 for XeSS-FG, Intel's "40 FPS minimum"
-        // (xess_fg_developer_guide_english.md, Introduction); 0: never off for this.
+        // The rendered frame rate, averaged over two seconds, below which frame generation stays off.
+        // It stays off below nine tenths of the rate, until above nineteen twentieths of it again
+        // (FrameGeneration::NoteFrameRateLocked). AMD says "it may be preferable to ... [disable] FSR
+        // Frame Generation ... if the frame rate consistently drops below that threshold", with its
+        // hysteresis (frame-interpolation-swap-chain.md, Minimum Framerate). The value -1 takes the
+        // rate FSR's provider was designed for. It takes 30 for DLSS-G, for
+        // which NVIDIA names none, and 40 for XeSS-FG, Intel's "40 FPS minimum"
+        // (xess_fg_developer_guide_english.md, Introduction). The value 0 is never off for this.
         float fgMinimumFps = -1.0f;
 
         // NVIDIA Reflex's low latency mode where Streamline's does not run
@@ -227,18 +222,21 @@ namespace redefinition
         // XeSS-FG, XeLL's is always on: "XeLL must be enabled before enabling frame
         // generation".
         bool lowLatency = true;
-        // Intel XeLL on an Intel GPU where XeSS-FG does not run: made, its mode as
-        // lowLatency says, or not made at all -- "The application can disable XeLL
-        // when frame generation is disabled" (xess_fg_developer_guide_english.md,
-        // Connect with XeLL) -- so the latency brake runs as on any other GPU. XeSS-FG
-        // makes its own always: "XeSS-FG requires a working XeLL integration on all
-        // GPUs". Read when the swapchain is made.
+        // Intel XeLL on an Intel GPU where XeSS-FG does not run. It is made, with its mode as
+        // lowLatency says, or not made at all, so that the latency brake runs as on any other GPU.
+        // The guide says "The application can disable XeLL when frame generation is disabled"
+        // (xess_fg_developer_guide_english.md, Connect with XeLL). XeSS-FG makes its own always:
+        // "XeSS-FG requires a working XeLL integration on all GPUs". Read when the swapchain is made.
         bool xell = true;
         // XeLL's bLowLatencyBoost, where it lowers the latency: "Boost is not supported
         // as of now" (xell.h). Read when the swapchain is made, with XeLL's mode.
         bool xellLowLatencyBoost = false;
-        // The latency brake (LowLatency::Brake), and the waits in the proxy it leaves
-        // per frame, in milliseconds. Live.
+        // The latency brake (LowLatency::Brake), and the waits in the proxy it leaves per frame, in
+        // milliseconds. Live. On a GPU other than Intel's XeLL lowers latency only while XeSS-FG
+        // generates: Intel says "If the condition is not fulfilled then XeLL will not perform
+        // Latency reduction". Measured on an RTX A4500 with raytracing Full and 4 ms, the median
+        // latency was 57.8 ms without the brake and 48.6 ms with it at the same frame rate. With FSR
+        // frame generation it was 60.2 and 45.7 ms, with DLSS-G 72.1 and 57.8 ms.
         bool latencyBrake = true;
         // AMD Anti-Lag 2 (LowLatency.h): 12 on the proxy's Direct3D 12 device, 11 on
         // Unity's Direct3D 11 device, 0 off. Live.
@@ -277,12 +275,11 @@ namespace redefinition
         // apart from the rendered frames.
         bool fgShowOnlyGenerated = false;
 
-        // XeSS-FG's UI composition: off, its default, the UI is interpolated with the
-        // scene -- "Interpolation (default, recommended): rely on the frame generation
-        // model to interpolate the UI"; on, it is composed onto the generated frames
-        // from the HUD-less copy and the backbuffer, the mode chosen "automatically ...
-        // based on the resources tagged by the application"
-        // (xess_fg_developer_guide_english.md, UI Handling). Live.
+        // XeSS-FG's UI composition. Off, its default, the UI is interpolated with the scene:
+        // "Interpolation (default, recommended): rely on the frame generation model to interpolate
+        // the UI". On, it is composed onto the generated frames from the HUD-less copy and the
+        // backbuffer, the mode chosen "automatically ... based on the resources tagged by the
+        // application" (xess_fg_developer_guide_english.md, UI Handling). Live.
         bool xessFgUiComposition = false;
 
         // XeSS-FG's UI mode, which its composition takes: kXessUiMode*, as
@@ -292,14 +289,14 @@ namespace redefinition
         // when the swapchain is made. The proxy tags no UI texture.
         int xessFgUiMode = 0;
 
-        // Frames XeSS-FG generates per rendered frame, 1 by default: "On non-Intel GPUs
-        // the maximum number of generated frames is one" (xess_fg_developer_guide_english.md,
-        // Requirements), and on Intel's as many as the swapchain says it supports
-        // (xefgSwapChainGetProperties). The most is set when the swapchain is made --
-        // "The maximum number of generated frames is set during the proxy swap chain
-        // initialization and cannot be updated" -- and fewer live within it
-        // (xefgSwapChainSetNumInterpolatedFrames, Controlling the Number of Generated
-        // Frames).
+        // Frames XeSS-FG generates per rendered frame, 1 by default. The guide's requirements say
+        // XeSS-FG runs on "any non-Intel GPU supporting Shader Model 6.4", and "On non-Intel GPUs the
+        // maximum number of generated frames is one" (xess_fg_developer_guide_english.md,
+        // Requirements). On Intel's it generates as many as the swapchain says it supports
+        // (xefgSwapChainGetProperties). The most is set when the swapchain is made: "The maximum
+        // number of generated frames is set during the proxy swap chain initialization and cannot be
+        // updated". Fewer live within it (xefgSwapChainSetNumInterpolatedFrames, Controlling the
+        // Number of Generated Frames).
         int xessFgFrames = 1;
 
         // XeSS-FG's scene change detection, 0 to 1: "A higher threshold value increases
@@ -321,34 +318,34 @@ namespace redefinition
         // each the variant of a behaviour OptiScaler's XeSS-FG integration (GPL-3.0) chose
         // differently.
         //
-        // xessFgOwnWaitable: which frame latency waitable object KSP gets when it asks for
-        // one. -1 auto and 1: a semaphore of the proxy's, released after each game Present, which
-        // never holds the game back (OptiScaler's "swapchain waitable object simulation",
-        // made for Unity games that stuck while loading -- KSP does with XeSS-FG's own
-        // handle); 0: XeSS-FG's swapchain's own. Read when the swapchain is made.
+        // xessFgOwnWaitable: which frame latency waitable object KSP gets when it asks for one.
+        // The values -1 (auto) and 1 give a semaphore of the proxy's, released after each game
+        // Present, which never holds the game back. OptiScaler calls it "swapchain waitable object
+        // simulation" and made it for Unity games that stuck while loading, which KSP does with
+        // XeSS-FG's own handle. The value 0 gives XeSS-FG's swapchain's own. Read when the swapchain
+        // is made.
         int xessFgOwnWaitable = -1;
-        // xessFgGraceFrames: the game's frames in a row without inputs (no packet, no
-        // depth or motion vectors for the Present, constants XeSS-FG would refuse) that
-        // XeSS-FG stays on for before it is switched off. A switch off marks the input
-        // history for cleanup, and the frames after it come with
-        // XEFG_SWAPCHAIN_RESULT_WARNING_TOO_FEW_FRAMES ("frame generation will take an
-        // extra frame to activate", xess_fg_developer_guide_english.md, Frame Constants); a
-        // frame without inputs is otherwise only presented without generated frames. 0: off
-        // at the first. Live.
+        // xessFgGraceFrames: the game's frames in a row without inputs (no packet, no depth or
+        // motion vectors for the Present, constants XeSS-FG would refuse) that XeSS-FG stays on for
+        // before it is switched off. A switch off marks the input history for cleanup. The frames
+        // after it come with XEFG_SWAPCHAIN_RESULT_WARNING_TOO_FEW_FRAMES ("frame generation will
+        // take an extra frame to activate", xess_fg_developer_guide_english.md, Frame Constants). A
+        // frame without inputs is otherwise only presented without generated frames. 0: off at the
+        // first. Live.
         int xessFgGraceFrames = 3;
-        // xessFgBadConstants: what a frame's constants that XeSS-FG would refuse -- a
-        // motion vector scale of 0 or not a number, a projection from a near plane, far
-        // plane or field of view that is not a positive number -- get. skip: the frame is
-        // handed no inputs and counts against xessFgGraceFrames, nothing locks XeSS-FG out;
-        // fix: a scale of 0 or not a number becomes 1 (OptiScaler's), a projection that is
-        // wrong still skips; pass: handed over as they are, XeSS-FG's refusal switches it
-        // off for two seconds. Live.
+        // xessFgBadConstants: what a frame's constants that XeSS-FG would refuse get. They are a
+        // motion vector scale of 0 or not a number, or a projection from a near plane, far plane or
+        // field of view that is not a positive number. The value skip hands the frame no inputs and
+        // counts it against xessFgGraceFrames, and nothing locks XeSS-FG out. The value fix makes a
+        // scale of 0 or not a number 1 (OptiScaler's), and a projection that is wrong still skips.
+        // The value pass hands them over as they are, and XeSS-FG's refusal switches it off for two
+        // seconds. Live.
         int xessFgBadConstants = 0;
-        // xessFgAllowOld: use a libxess_fg.dll older than 1.2.2 (XeSS SDK 2.1.1). The
-        // proxy tags resources without a command list and with the validity until the next
-        // Present, which those versions refuse (OptiScaler: "XeFG docs lie and cmd list is
-        // technically required", Intel's issues 45, 47, 48 and 50): refused with a line in
-        // the log, FSR's frame generation instead. Read when the swapchain is made.
+        // xessFgAllowOld: use a libxess_fg.dll older than 1.2.2 (XeSS SDK 2.1.1). The proxy tags
+        // resources without a command list and with the validity until the next Present, which those
+        // versions refuse (OptiScaler: "XeFG docs lie and cmd list is technically required", Intel's
+        // issues 45, 47, 48 and 50). They are refused with a line in the log, and FSR's frame
+        // generation runs instead. Read when the swapchain is made.
         bool xessFgAllowOld = false;
         // xessFgResetOnChange: XeSS-FG off for one Present and on again when the UI
         // composition, the generated frames or the sync interval change while it
@@ -362,7 +359,12 @@ namespace redefinition
         // xellLimitLive: XeLL's frame limit (fgHalfRefreshLimit) follows later changes of
         // that setting and of the monitor's refresh rate: xellSetSleepMode again only when
         // the mode differs, once the GPU is idle. false: set once when the swapchain is
-        // made. Live.
+        // made. Live. The limit is first taken with XeLL's mode when the swapchain is made. Intel
+        // says "FPS Cap is controlled via
+        // xellSetSleepMode API when Low Latency mode is active" (xell_developer_guide_english.md,
+        // Integration Checklist, XeSS-FG Support). Intel also says "XeLL will limit the frame rate to
+        // half of the target ensuring that the total count of presented frames (both generated and
+        // rendered) matches the requested FPS".
         bool xellLimitLive = true;
 
         // The raytracing and Ray Reconstruction on a Direct3D 12 queue of their own
@@ -374,25 +376,30 @@ namespace redefinition
         // For measuring, 0 by default: what the cut-out surfaces' tests cost the rays.
         // 1 decides their hits without reading their textures, 2 takes every surface as
         // opaque (RtContract.h, RT_FLAG_CUTOUT_PLAIN and RT_FLAG_CUTOUT_OPAQUE). The
-        // picture is wrong with either. Re-read while the game runs.
+        // picture is wrong with either. Re-read while the game runs. With rtOpacityMicromaps 1 a
+        // ray skips the transparent parts of a blade and stops at the opaque ones without the
+        // passes' test, which is left to the parts that are partly covered. The picture stays the
+        // same. A driver without the capability and any other GPU trace as with 0, with a line in
+        // the log.
         int rtCutoutTest = 0;
 
-        // Opacity Micromaps for the cut-out surfaces (grass, ferns), NVIDIA's only
-        // (RaytracingOmm.cpp), 0 by default. 1 bakes each cut-out mesh's triangles into micromaps
-        // from its texture coordinates and the material texture's coverage, and builds its
-        // structure with them through NVAPI: a ray skips the transparent parts of a blade and
-        // stops at the opaque ones without the passes' test, which is left to the parts that
-        // are partly covered. The picture stays the same. The Ada generation traces them in
-        // hardware; Ampere resolves them in software, "emulation may still produce a speedup"
-        // (NVIDIA). A driver without the capability and any other GPU trace as with 0, with
-        // a line in the log; the passes' pipelines are made with micromap support from the
-        // time it is on, which costs the other traces "a small penalty on traversal
-        // performance overall" (nvapi.h). Switched live without building a structure again,
-        // by the instances' flags; the first 1 of a session makes the pipelines again.
+        // Opacity Micromaps for the cut-out surfaces, NVIDIA's only (RaytracingOmm.cpp).
+        // The value 1 bakes each cut-out mesh's triangles into micromaps from its texture
+        // coordinates and the material texture's coverage, and builds its structure with them
+        // through NVAPI. The Ada generation traces them in hardware, and Ampere resolves them in
+        // software, "emulation may still produce a speedup" (NVIDIA). The passes' pipelines are
+        // made with micromap support once it is on, which costs the other traces "a small
+        // penalty on traversal performance overall" (nvapi.h). The instances' flags switch it live
+        // without building a structure again, and the first 1 of a session makes the pipelines
+        // again.
         int rtOpacityMicromaps = 0;
-        // The finest subdivision a micromap gets, 2 to 8: a triangle gets about one
-        // micro-triangle to a texel of the 64 x 64 coverage texture, 4^level of them at most;
-        // a micromap of level 6 is 1 KB. Read when a mesh is baked.
+        // The finest subdivision a micromap gets, 2 to 8: a triangle gets about one micro-triangle
+        // to a texel of the 64 x 64 coverage texture, 4^level of them at most. A micromap of level 6
+        // is 1 KB. Read when a mesh is baked. On a driver with micromaps the mod keeps what a
+        // later 1 bakes from, also while rtOpacityMicromaps is 0. These are the texture coordinates
+        // of the meshes a cut-out instance may use (24 bytes a triangle, on the CPU) and each
+        // material texture's 64 x 64 coverage (4 KB), because the game does not send them again.
+        // They stay until a restart.
         int rtOmmMaxSubdivision = 6;
 
         // For measuring, false by default: the sun's visibility as its pass traced it, one
@@ -403,62 +410,53 @@ namespace redefinition
         // How many of the denoiser's five à-trous steps filter the sun's visibility, and
         // the longest history, in frames (1 to 32), its temporal pass keeps of it. The rays
         // draw the shadows of the blades of grass, which the other signals' 5 steps and 32
-        // frames smoothed away; 0 and 4 keep them (at the launch pad, 2026-10-19: the lawn's
-        // structure against a 9x9 mean 6.3, 5.5 without the raytracing, 5.1 with 5 and 32;
-        // its pixel noise 4.9, 4.3 and 4.2; the pad's the same). Re-read while the game
-        // runs.
+        // frames smoothed away. 0 and 4 keep them. At the launch pad (2026-10-19) the
+        // lawn's structure against a 9x9 mean was 6.3, 5.5 without the raytracing and 5.1 with 5
+        // and 32. Its pixel noise was 4.9, 4.3 and 4.2, and the pad's the same. Re-read while the
+        // game runs.
         int rtSunAtrousSteps = 0;
         int rtSunHistory = 4;
 
-        // What of the sun's light a cut-out surface -- grass, ferns -- lets through to
-        // what lies behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded): a blade is thin and
-        // lets part of it through, as Parallax's own subsurface scattering shades it. Re-read
-        // while the game runs.
+        // What of the sun's light a cut-out surface (grass, ferns) lets through to what lies
+        // behind it, 0 to 1 (RtCommon.hlsli, SunUnoccluded). A blade is thin and lets part of
+        // it through, as Parallax's own subsurface scattering shades it. Re-read while the game
+        // runs.
         float rtFoliageTransmission = 0.5f;
 
         // The world-space radiance cache of the raytraced indirect light (RaytracingCache.cpp,
-        // Raytracing/Shaders/RadianceCache.hlsli): the diffuse light's and the reflections'
-        // paths end at a hit in the cache's value there, where it holds enough samples,
-        // instead of tracing on, and write what they trace into it. Off by default. Its table
-        // has 2^rtRadianceCacheEntries entries of 44 bytes (16 to 22); its cells are
-        // rtRadianceCacheCellPixels pixels across at their distance, never smaller than
-        // rtRadianceCacheMinCell metres (taken down to a power of two); a cell keeps at most
-        // rtRadianceCacheSamples samples' weight and goes when no ray used it for
-        // rtRadianceCacheMaxAge frames. rtRadianceCacheDebug 1 shows the cache's value where
-        // the diffuse light was, 2 its cells in colours of their own. All re-read while the
-        // game runs.
+        // Raytracing/Shaders/RadianceCache.hlsli). The diffuse light's and the reflections' paths
+        // end at a hit in the cache's value there, where it holds enough samples, instead of
+        // tracing on, and write what they trace into it. Off by default. All its settings are
+        // re-read while the game runs.
         bool rtRadianceCache = false;
+        // Its table has 2^rtRadianceCacheEntries entries of 44 bytes (16 to 22).
         int rtRadianceCacheEntries = 20;
+        // A cell is rtRadianceCacheCellPixels pixels across at its distance, never smaller than
+        // rtRadianceCacheMinCell metres (taken down to a power of two). It keeps at most
+        // rtRadianceCacheSamples samples' weight and goes when no ray used it for
+        // rtRadianceCacheMaxAge frames.
         float rtRadianceCacheCellPixels = 8.0f;
         float rtRadianceCacheMinCell = 0.125f;
         int rtRadianceCacheSamples = 256;
         int rtRadianceCacheMaxAge = 50;
+        // The value 1 shows the cache's value where the diffuse light was, and 2 shows its cells in
+        // colours of their own.
         int rtRadianceCacheDebug = 0;
 
-        // How the meshes' acceleration structures are built (RaytracingScene.cpp,
-        // BuildMeshesLocked), after NVIDIA's "Best Practices for Using NVIDIA RTX Ray
-        // Tracing (Updated)" and the DXR spec (DirectX-Specs, Raytracing.md). Each for the
-        // structures built after it changes; re-read while the game runs. The raytracing
-        // harness's vessel (RTX A4500, 2026-10-20): 150 parts of 54 272 triangles, as a
-        // flight's first frames hand them over, and 600 of 244 404 at once; the slowest
-        // frame's GPU time to its meshes built and the CPU's recording them. Mesh by mesh in
-        // buffers of their own, as before, 21.6 and 172 ms, 87 and 715 ms; the picture the
-        // same in every variant.
-        //
-        // rtBlasBatch: a frame's copies first, one barrier, then all its builds back to
-        // back, one UAV barrier before the scene's structure -- "Do not place resource
-        // barriers between consecutive calls ... All BLAS build calls need unique scratch
-        // memory to allow execution without barriers ... you can have a single global UAV
-        // barrier before TLAS build". false: copy, barrier and build mesh by mesh. Batched
-        // alone: 0.58 and 1.73 ms of the GPU, the CPU's time as before.
+        // rtBlasBatch: a frame's copies first, one barrier, then all its builds back to back, one UAV
+        // barrier before the scene's structure. The guide says "Do not place resource barriers
+        // between consecutive calls ... All BLAS build calls need unique scratch memory to allow
+        // execution without barriers ... you can have a single global UAV barrier before TLAS
+        // build". The value false copies, barriers and builds mesh by mesh. Batched alone, the
+        // figures are 0.58 and 1.73 ms of the GPU, with the CPU's time unchanged.
         bool rtBlasBatch = true;
-        // rtBlasPool: the structures, the geometry, the scratch and the uploads in ranges
-        // of a few large buffers -- "many BLASes can be stored in a single buffer by
-        // manually suballocating sections from the buffer ... the suballocations only have
-        // to follow 256-byte alignment". false: buffers of their own per mesh. Pooled
-        // alone: 1.4 and 5.8 ms of the CPU, the GPU's time as before; with rtBlasBatch
-        // 0.55 and 1.67 ms of the GPU, 1.1 and 4.7 of the CPU, the geometry 2.0 MB for 150
-        // parts against 29.8 in buffers of their own.
+        // rtBlasPool: the structures, the geometry, the scratch and the uploads in ranges of a few
+        // large buffers. The guide says "many BLASes can be stored in a single buffer by manually
+        // suballocating sections from the buffer ... the suballocations only have to follow 256-byte
+        // alignment". The value false gives per-mesh buffers. Pooled alone they are 1.4 and 5.8 ms
+        // of the CPU, the GPU's time unchanged. With rtBlasBatch they are 0.55 and 1.67 ms of the
+        // GPU and 1.1 and 4.7 of the CPU, the geometry 2.0 MB for 150 parts against 29.8 in buffers
+        // of their own.
         bool rtBlasPool = true;
         // rtBlasBudget: the triangles of new meshes built in one frame, the rest in the
         // next ones, at least one mesh a frame -- "many rebuilds on a single frame can lead
@@ -467,33 +465,30 @@ namespace redefinition
         // once. 20 000 took the slowest frame to 0.37 ms of the GPU, the 600 parts over 13
         // frames.
         int rtBlasBudget = 0;
-        // rtBlasCompaction: 0 none; 1 the structures built PREFER_FAST_TRACE with
-        // ALLOW_COMPACTION and compacted once their size is read back; 2 built
-        // PREFER_FAST_BUILD first ("about 1/2 to 1/3 the build time than default at a
-        // sacrifice in tracing performance"), rebuilt PREFER_FAST_TRACE with
-        // ALLOW_COMPACTION in later frames that build no new mesh, rtBlasRefineBudget
-        // triangles a frame, and compacted then. Batched and pooled: 1 took the slowest
-        // frame to 0.69 and 2.01 ms of the GPU, 2 to 0.63 and 1.16, the 600 parts' over 8
-        // frames; both the structures to 1.62 MB from 3.88 and to 7.11 from 17.26, the
-        // trace as fast.
+        // rtBlasCompaction: the value 0 is none. The value 1 builds the
+        // structures PREFER_FAST_TRACE with ALLOW_COMPACTION and compacts them once their size is
+        // read back. The value 2 builds them PREFER_FAST_BUILD first ("about 1/2 to 1/3 the build
+        // time than default at a sacrifice in tracing performance"). It rebuilds them
+        // PREFER_FAST_TRACE with ALLOW_COMPACTION in later frames that build no new mesh,
+        // rtBlasRefineBudget triangles a frame, and compacts them. Batched and pooled, 1 took the
+        // slowest frame to 0.69 and 2.01 ms of the GPU and 2 to 0.63 and 1.16, the 600 parts' over 8
+        // frames.
         int rtBlasCompaction = 2;
         int rtBlasRefineBudget = 65536;
-        // rtTlasFastTrace: the scene's structure PREFER_FAST_TRACE -- "For TLAS, consider
-        // the PREFER_FAST_TRACE flag and perform only rebuilds" -- instead of
-        // PREFER_FAST_BUILD. With 15 003 and 24 003 instances its build 0.265 and 0.357 ms
-        // against 0.276 and 0.360, the trace 1.230 and 1.706 against 1.231 and 1.715: no
-        // difference beyond the runs' own.
+        // rtTlasFastTrace: the scene's structure PREFER_FAST_TRACE instead of PREFER_FAST_BUILD. The
+        // guide says "For TLAS, consider the PREFER_FAST_TRACE flag and perform only rebuilds". With
+        // 15 003 and 24 003 instances its build took 0.265 and 0.357 ms against 0.276 and 0.360. The
+        // trace took 1.230 and 1.706 against 1.231 and 1.715, no difference beyond the runs' own.
+        // With rtMegaGeometry 1 the trace took 2.54 and 3.43 against 1.24 and 1.75 on the same
+        // instances.
         bool rtTlasFastTrace = false;
-        // rtMegaGeometry: 0 the structures above; 1 RTX Mega Geometry's cluster structures
-        // for new meshes, NVIDIA's only (RaytracingMegaGeometry.cpp): each run of 256
-        // triangles of a mesh a CLAS, all of a frame's built in one call, then each mesh a
-        // cluster BLAS of its CLAS, all in a second. A mesh whose runs do not fit, a driver
-        // without the cluster operations and any other GPU build as with 0. The harness's
-        // vessel against the defaults: the slowest frame 0.32 and 0.85 ms of the GPU
-        // against 0.54 and 1.17, but the trace slower in every frame after, 0.46 and 0.53
-        // ms against 0.41 and 0.46, with 15 003 and 24 003 instances 2.54 and 3.43 against
-        // 1.24 and 1.75; the structures 3.44 and 14.83 MB against 1.62 and 7.11. Off: the
-        // build saved once costs more than a frame's trace.
+        // rtMegaGeometry: 0 builds the structures above and 1 builds RTX Mega Geometry's cluster
+        // structures for new meshes (RaytracingMegaGeometry.cpp), NVIDIA's only.
+        // It makes a CLAS for each run of 256 triangles, all of a frame's in one call. Then it makes
+        // a cluster BLAS of its CLAS for each mesh, all in a second. A mesh whose runs do not fit,
+        // a driver without the cluster operations and any other GPU build as with 0. At the launch
+        // pad the sun's rays took 3.9 ms against 1.3, the diffuse light's 2.6 against 1.3 and the
+        // reflections' 3.2 against 1.6.
         int rtMegaGeometry = 0;
 
         // Where a player's nvngx_dlss.dll lies if not next to KSP_x64.exe, which

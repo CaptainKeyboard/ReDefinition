@@ -23,12 +23,12 @@ namespace ReDefinition.Raytracing
     }
 
     // The colour of the raytraced light from the sky and the surfaces around a point
-    // (ReDefinitionDeferredReflections.shader, RtCamera.AmbientColour), its strength the
-    // rays' in every case: its own; the colour of Deferred's ambient light, as without
-    // the raytracing; or grey, so that a surface in shadow keeps its own colour. Measured
-    // 2026-10-19 at the launch pad, against the frame without the raytracing, the
-    // vegetation's chromaticity off by 13 / 14 thousandths by day, 14 / 19 in the evening
-    // and 25 / 21 at night with its own, by at most 6 grey.
+    // (ReDefinitionDeferredReflections.shader, RtCamera.AmbientColour). Its strength is the
+    // rays' in every case. The colour is its own, or the colour of Deferred's ambient light, as without
+    // the raytracing, or grey, so that a surface in shadow keeps its own colour. Measured
+    // 2026-10-19 at the launch pad, against the frame without the raytracing: the
+    // vegetation's chromaticity is off by 13 / 14 thousandths by day, 14 / 19 in the evening
+    // and 25 / 21 at night with its own. With grey it is off by at most 6.
     internal enum RaytracingLightColour
     {
         // The rays' own colour.
@@ -128,8 +128,9 @@ namespace ReDefinition.Raytracing
             else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
         }
 
-        // Puts an RtCamera on the scene camera with all its inputs from KSP and the mods and its scene's sources;
-        // tried again in RetrySeconds while the proxy or the bundle is not ready, never again on a camera it failed on.
+        // Puts an RtCamera on the scene camera with all its inputs from KSP and the mods and its scene's sources.
+        // It is tried again in RetrySeconds while the proxy or the bundle is not ready, and never again on a camera it
+        // failed on.
         private void Attach(Camera sceneCamera)
         {
             Detach("the scene camera changed");
@@ -325,9 +326,9 @@ namespace ReDefinition.Raytracing
             return probe;
         }
 
-        // The reflection probe, looked up on a scene change and every five seconds, as it
-        // may come later -- every half second while there is none: KSP makes the flight's a
-        // few seconds into the scene, and until then the rays saw a flat grey sky.
+        // Looks up the reflection probe on a scene change and every five seconds, as it
+        // may come later, and every half second while there is none. KSP makes the flight's a
+        // few seconds into the scene, and until then the rays would see a flat grey sky.
         private void LookUp()
         {
             if (lookedUpIn == HighLogic.LoadedScene && Time.unscaledTime - lookedUpAt < (probe != null ? 5f : 0.5f)) return;

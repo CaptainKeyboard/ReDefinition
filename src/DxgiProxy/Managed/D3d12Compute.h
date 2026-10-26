@@ -26,9 +26,9 @@ namespace redefinition
     constexpr uint32_t kD3d12MaxTextures = 8;
     constexpr uint32_t kD3d12MaxConstants = 256;
 
-    constexpr uint32_t kD3d12CreateMagic = 0x4B534443u;     // 'KSDC'
-    constexpr uint32_t kD3d12DispatchMagic = 0x4B534444u;   // 'KSDD'
-    constexpr uint32_t kD3d12HandleMagic = 0x4B534448u;     // 'KSDH'
+    constexpr uint32_t kD3d12CreateMagic = 0x4B534443u;     // The create packet's tag, 'KSDC'
+    constexpr uint32_t kD3d12DispatchMagic = 0x4B534444u;   // The dispatch packet's tag, 'KSDD'
+    constexpr uint32_t kD3d12HandleMagic = 0x4B534448u;     // The handle packet's tag, 'KSDH'
 
     // Event 20: a compute pass from shader bytecode, DXIL or DXBC.
     struct D3d12CreatePacket
@@ -98,14 +98,13 @@ namespace redefinition
     // A compute pass is shader bytecode against one root signature: textures t0-t7,
     // read-write textures u0-u7, a constant buffer b0 of up to 256 bytes, samplers
     // s0 point clamp and s1 linear clamp. A dispatch goes the way AMD's upscaler goes
-    // (AmdUpscaler.h): Unity's textures are copied into textures both devices share,
-    // the queue waits on a shared fence for the point after those copies, the pass
-    // runs, and the write textures are copied back into Unity's -- after Direct3D 11
-    // waits for the queue in the same frame, or, with kD3d12DispatchNextFrame, at the
-    // pass's next dispatch.
+    // (AmdUpscaler.h). Unity's textures are copied into textures both devices share. The queue waits
+    // on a shared fence for the point after those copies, and the pass runs. The write textures are
+    // then copied back into Unity's. Direct3D 11 waits for the queue in the same frame, or, with
+    // kD3d12DispatchNextFrame, at the pass's next dispatch.
     //
-    // Runs on Unity's render thread, from render events; the capabilities and the
-    // status are read from the main thread.
+    // Runs on Unity's render thread, from render events. The capabilities and the status are read
+    // from the main thread.
     class D3d12Compute
     {
     public:
@@ -198,8 +197,9 @@ namespace redefinition
         bool EnsureRootSignatureLocked();
         // The pass's compute pipeline on the current device and root signature; a failure goes into its status.
         bool BuildLocked(Pass& pass);
-        // The shared copy of a Unity texture, made or made again for its size and format; null with problem set
-        // for a texture that is not one plain 2D level or whose format has no typed UAV store (or load, to read).
+        // The shared copy of a Unity texture, made or made again for its size and format. It is null
+        // with problem set for a texture that is not one plain 2D level or whose format has no typed
+        // UAV store (or load, to read).
         Shared* SharedForLocked(void* unityTexture, bool write, std::string& problem);
         // The copies back a kD3d12DispatchNextFrame dispatch left: D3D11 waits for its list, then copies them.
         void CompletePendingLocked(Pass& pass);
@@ -228,10 +228,10 @@ namespace redefinition
 
         // t0-t7, u0-u7, b0 and the two samplers, shared by every pass; made with the first pass built.
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
-        // A fence per direction, so each carries values of one command stream only and
-        // they rise in the order they complete: Direct3D 11 signals the copies into the
-        // shared textures on copied, which the queue waits for; the queue signals its
-        // lists on done, which Direct3D 11 and the CPU wait for.
+        // A fence per direction, so each carries values of one command stream only and they rise in
+        // the order they complete. Direct3D 11 signals the copies into the shared textures on copied,
+        // which the queue waits for. The queue signals its lists on done, which Direct3D 11 and the
+        // CPU wait for.
         Microsoft::WRL::ComPtr<ID3D12Fence> copied12;
         Microsoft::WRL::ComPtr<ID3D11Fence> copied11;
         UINT64 copiedValue = 0;

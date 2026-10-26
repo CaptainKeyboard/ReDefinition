@@ -7,15 +7,19 @@ using ReDefinition.Core;
 namespace ReDefinition.Settings
 {
     // A member path of a registration (docs/modders/registering-a-mod.md): a type's full
-    // name and the members from it -- fields, properties, an indexer with a string
-    // key, a method without parameters last -- resolved once, then read, written or
+    // name and the members from it.
+    // The members are fields, properties, an indexer with a string
+    // key, and a method without parameters last.
+    // The path is resolved once, then read, written or
     // called through reflection whenever asked.
     //
     // The type is the longest leading part that names a type from the mod's folder
-    // (ModFolder). The first member static: the path starts there; an instance
-    // member of a Unity object: the one in the scene, found again once it is
-    // destroyed. A struct on the way holds a copy, so a write puts it back whole
-    // into what holds it -- Parallax's settings groups -- and whatever holds a
+    // (ModFolder).
+    // A static first member is where the path starts.
+    // An instance first member of a Unity object is the one in the scene, found again once it is
+    // destroyed.
+    // A struct on the way holds a copy, so a write puts it back whole
+    // into what holds it, as with Parallax's settings groups, and whatever holds a
     // struct must take it back.
     internal sealed class MemberPath
     {

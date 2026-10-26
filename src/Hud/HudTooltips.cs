@@ -9,35 +9,35 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Hud
 {
-    // Tooltips for the buttons of KSP's HUD that have none, in KSP's own wording --
-    // a name or two words, as "Toggle SAS", "Docking Mode", "Warp to Sunrise"
+    // Tooltips for the buttons of KSP's HUD that have none. The wording is KSP's own: a name
+    // or two words, as "Toggle SAS", "Docking Mode", "Warp to Sunrise"
     // (TooltipController_Text on KSP's own buttons; sharedassets7, with KSP's
-    // dictionary) -- and with KSP's own tooltip (UiHygiene.Tooltip):
+    // dictionary). They use KSP's own tooltip (UiHygiene.Tooltip).
     //
-    // the staging stack, in flight and in the editors: a stage's plus and minus
-    // buttons (StageGroup.addButton, deleteButton), its delta-v bar, which opens
-    // and closes its details (StageGroup.DeltaVHeadingObject; the click is the
-    // group's, StageGroup.OnPointerClick), the total delta-v's button
+    // In the staging stack, in flight and in the editors, they cover a stage's plus and
+    // minus buttons (StageGroup.addButton, deleteButton). They cover its delta-v bar,
+    // which opens and closes its details (StageGroup.DeltaVHeadingObject; the click is the
+    // group's, StageGroup.OnPointerClick). They cover the total delta-v's button
     // (StageManager.deltaVTotalButton), and the button of KSP's delta-v tools on
-    // the toolbar (DeltaVApp.appLauncherButton);
+    // the toolbar (DeltaVApp.appLauncherButton).
     //
-    // in flight: the alarm clock's button in the time panel (TimeFrame/alarmButton),
+    // In flight they cover the alarm clock's button in the time panel (TimeFrame/alarmButton),
     // the altimeter's mode switch (AltitudeModeButton) and the navball's speed
     // field, a click on which goes from surface to orbit to target
-    // (SpeedDisplay.button);
+    // (SpeedDisplay.button).
     //
-    // in the editors: the staging's reset button (StageManager.resetButton), which
+    // In the editors they cover the staging's reset button (StageManager.resetButton), which
     // also asks before it resets.
     //
-    // Stages come and go, and KSP builds its HUD over the first frames: looked at
-    // twice a second, and set only where the tooltip is not there yet.
+    // Stages come and go, and KSP builds its HUD over the first frames. So the HUD is looked
+    // at twice a second, and a tooltip is set only where it is not there yet.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class HudTooltipsFlight : HudTooltips
     {
-        // The flight's three buttons, each set as soon as it is found, looked for
-        // over the first half minute of the scene, as KSP builds its HUD: the
-        // alarm clock's through a search of every loaded object, the costly one,
-        // at growing intervals (0.5 s, doubled each time), the others at every
+        // The seconds the flight's three buttons are looked for, over the first half minute
+        // of the scene, as KSP builds its HUD. Each is set as soon as it is found. The
+        // alarm clock's is found through a search of every loaded object, the costly one,
+        // at growing intervals (0.5 s, doubled each time). The others are looked for at every
         // pass. Then what was not found is written to the log, and none is looked
         // for again.
         private const float LookFor = 30f;

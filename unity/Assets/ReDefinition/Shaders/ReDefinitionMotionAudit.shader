@@ -5,11 +5,11 @@ Shader "Hidden/ReDefinition/MotionAudit"
     SubShader
     {
         // Drawn per renderer of the vessel at the scene camera's BeforeImageEffects,
-        // after the capture: where the renderer is the surface the scene camera saw
+        // after the capture. Where the renderer is the surface the scene camera saw
         // (its depth against the captured depth), the motion vector Unity writes for it
-        // -- this frame's position through this frame's view-projection against the
-        // previous frame's through the previous one, as Hidden/Internal-MotionVectors
-        // does -- is compared with the captured one. Per part, into a buffer: pixels,
+        // is compared with the captured one. That vector is this frame's position through
+        // this frame's view-projection against the previous frame's through the previous
+        // one, as Hidden/Internal-MotionVectors does. Per part, into a buffer: pixels,
         // pixels off by more than _AuditBadPixels, the sum and the largest error in
         // sixteenths of a pixel.
         Pass

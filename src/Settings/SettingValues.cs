@@ -6,7 +6,8 @@ namespace ReDefinition.Settings
 {
     // Values as text, the way the window, the store and bundled.cfg hold them: a
     // member's value turned into the invariant text a ConfigNode holds and back,
-    // and two texts compared -- callable without the game, for the decisions,
+    // and two texts compared.
+    // It is callable without the game, for the decisions,
     // their tests and the check outside the game.
     internal static class SettingValues
     {

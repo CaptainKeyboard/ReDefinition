@@ -10,7 +10,8 @@ namespace ReDefinition.Settings
     internal sealed partial class RegisteredMod
     {
         // A KEY block: the binding travels as the text of a KeyCombination, whatever
-        // the mod keeps it in -- a KeyCode, the name of one as text, or a key and its
+        // the mod keeps it in.
+        // The mod may keep a KeyCode, the name of one as text, or a key and its
         // modifiers in members of their own, as Scatterer keeps them.
         private void AddBinding(SettingRegistration entry, ModBehaviour behaviour, string where, List<string> problems)
         {

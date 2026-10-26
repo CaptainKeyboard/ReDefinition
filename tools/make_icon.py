@@ -1,22 +1,20 @@
 """Draws the mod's pictures: the toolbar icon, the planner's button, the
 planner's symbols, and the planet for a forum post.
 
-    python tools/make_icon.py
-
-**The toolbar icon** is a bank of sliders, in the stock toolbar's own colours: the
+The toolbar icon is a bank of sliders, in the stock toolbar's own colours: the
 button's grey is #3e3d44, the glyphs are #e5e5e8, both read from a screenshot of KSP's
 launcher. It says what the button opens -- every graphics mod's settings on one panel.
 KSP draws the button in a square box, so the icon fills its square. It goes to
 GameData/ReDefinition/Icons/ReDefinitionIcon.png at 128x128, the size Kopernicus ships
 and hands to AddModApplication.
 
-**The flight panel's tabs** are glyphs in the style of KSP's maneuver panel tabs, 45x40,
+The flight panel's tabs are glyphs in the style of KSP's maneuver panel tabs, 45x40,
 light with a glow while on and black while off: GameData/ReDefinition/Icons/FlightPanel_*.png.
 
-**The planner's symbols** are white on clear, 64x64, for KSP's buttons to show them over
+The planner's symbols are white on clear, 64x64, for KSP's buttons to show them over
 their own background: GameData/ReDefinition/Icons/Planner_*.png.
 
-**The picture for a page** is "Re:" on a planet's night side, the atmosphere lit at the
+The picture for a page is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,
 where it stands large. It goes to .local/icon.
 
@@ -25,6 +23,8 @@ light comes from the lower right: its rim, the wash across the letters, their sh
 the bright edge on the side facing the sun all follow that one direction.
 
 Needs Pillow (`pip install pillow`).
+
+Usage: python tools/make_icon.py
 """
 import os
 

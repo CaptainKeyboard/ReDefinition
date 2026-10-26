@@ -2,10 +2,10 @@ using ReDefinition.Proxy;
 
 namespace ReDefinition.Settings
 {
-    // The low latency row: Auto, or Off. Auto is what the proxy does by default -- the
-    // latency brake, and the card's own technique where it lowers the latency, which
+    // The low latency row: Auto, or Off. Auto is what the proxy does by default.
+    // That is the latency brake, and the card's own technique where it lowers the latency, which
     // runs alone (XeLL on an Intel adapter, Anti-Lag 2 on a Radeon once it has been
-    // tried there); Off writes the switches off into the proxy's ini.
+    // tried there). Off writes the switches off into the proxy's ini.
     internal static class LowLatencySetting
     {
         // The row's two values, as the settings file holds them.

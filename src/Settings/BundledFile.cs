@@ -67,8 +67,10 @@ namespace ReDefinition.Settings
     // the store that touches KSP's ConfigNode and the disk.
     internal static class BundledFile
     {
-        // The file's root node; its values, its values from before ReDefinition with a SAVE node per save, the
-        // profile's builds per mod; a SAVE node's name key; the key that lists the keys marked to be put back.
+        // The file's root node.
+        // Its children are the values, the values from before ReDefinition with a SAVE node per save, and the
+        // profile's builds per mod.
+        // Also named here are a SAVE node's name key and the key that lists the keys marked to be put back.
         private const string RootName = "REDEFINITION_BUNDLED";
         private const string ValuesName = "VALUES";
         private const string BackupName = "BEFORE_REDEFINITION";

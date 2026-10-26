@@ -5,11 +5,11 @@ using ReDefinition.Ui;
 
 namespace ReDefinition.Engineer
 {
-    // The planner (docs/player/planner.md): a route from destination to
-    // destination, A -> B -> C, the steps between them with who flies each
-    // (RouteSteps), what each step costs, and which of the vessel's stages pays for
+    // The planner (docs/player/planner.md) holds a route from destination to
+    // destination, A -> B -> C. It holds the steps between them with who flies each
+    // (RouteSteps), and what each step costs. It holds which of the vessel's stages pays for
     // it, as KSP fires them or as the player saves or drops them on a step. This
-    // part holds the plan and works it out; the vessel's sections are in
+    // part holds the plan and works it out. The vessel's sections are in
     // PlannerView.Sections.cs, the rows in PlannerView.Rows.cs.
     internal sealed partial class PlannerView
     {
@@ -33,10 +33,10 @@ namespace ReDefinition.Engineer
         // one on screen; a new one without the sections taken away from the last.
         private bool reload;
         private bool fresh;
-        // The plan worked out again only where something it rests on changed: the
-        // route or a setting in the planner (Changed), the vessel's plan loaded,
-        // or the vessel as read anew (EditorEngineer.Readout, read only where KSP
-        // changed it), told by the readout no longer being the one last worked
+        // Whether the plan is worked out again. That happens only where something it rests on changed:
+        // the route or a setting in the planner (Changed), the vessel's plan loaded,
+        // or the vessel as read anew. A new readout (EditorEngineer.Readout, read only where KSP
+        // changed it) tells that, by no longer being the one last worked
         // out from.
         private bool dirty = true;
         private EditorReadout evaluated;
@@ -208,11 +208,10 @@ namespace ReDefinition.Engineer
             saveAt = -1f;
         }
 
-        // The rows' texts, which KSP's labels ask for in every frame they show
-        // (DialogGUILabel.Update): worked out again only where something they show may
-        // have changed -- the plan worked out anew, a change of the route or a setting,
-        // or the player's click or key in the editor, which opens and folds rows --,
-        // and the string kept until then.
+        // A counter that rises when something the rows show may have changed. The rows' texts, which
+        // KSP's labels ask for in every frame they show (DialogGUILabel.Update), are worked out again
+        // only then, and the string is kept until then. A change is the plan worked out anew, a change
+        // of the route or a setting, or the player's click or key in the editor, which opens and folds rows.
         private int textVersion;
         private bool inputLastTick;
 

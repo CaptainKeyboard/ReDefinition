@@ -11,10 +11,11 @@ namespace ReDefinition.Window
     // The main menu's word about ReDefinition. The first time: ReDefinition does
     // nothing until a graphics profile is chosen, so the question is whether it
     // takes control now or later. Taking control applies High, which bundles the
-    // graphics mods here and switches the upscaler on, makes KSP's Settings
-    // buttons open ReDefinition's window, sets KSP's UI scale to the screen where
-    // it is still KSP's 100 %, and loads the main menu again, which then leads to
-    // the window. Later leaves every mod as it is. A mod installed after that follows the
+    // graphics mods here and switches the upscaler on.
+    // It makes KSP's Settings buttons open ReDefinition's window.
+    // It sets KSP's UI scale to the screen where it is still KSP's 100 %.
+    // It loads the main menu again, which then leads to the window.
+    // Later leaves every mod as it is. A mod installed after that follows the
     // answer given: bundled, it is named in a short note; kept apart, nothing is
     // said. The bundling can be changed under "Mods and toolbar" in the window.
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
@@ -199,12 +200,12 @@ namespace ReDefinition.Window
         }
 
         // KSP's settings ReDefinition recommends, as its registration's defaults
-        // hold them (Mods/KSP.cfg) and Reset sets them: advanced tweakables (more
-        // options in the parts' menus, such as autostrut), the extended burn
-        // indicator (when to start a manoeuvre burn, on the navball), the closest
-        // approach always shown, and six encounters ahead on the map. Saved as
-        // KSP's own screen saves them (GameSettings.SaveSettings). The two the
-        // registration bundles go through the store, which keeps what KSP had
+        // hold them (Mods/KSP.cfg) and Reset sets them.
+        // They are advanced tweakables (more options in the parts' menus, such as autostrut),
+        // the extended burn indicator (when to start a manoeuvre burn, on the navball),
+        // the closest approach always shown, and six encounters ahead on the map.
+        // Saved as KSP's own screen saves them (GameSettings.SaveSettings).
+        // The two the registration bundles go through the store, which keeps what KSP had
         // for Restore; the others are set straight, as their rows are.
         private static void RecommendedKspSettings()
         {

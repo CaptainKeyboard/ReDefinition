@@ -287,8 +287,8 @@ namespace DocLock
             }
         }
 
-        // The types a comment may name by Type.Member: the mod's and the tools', not the tests' stand-ins for
-        // KSP's and Unity's types (Part, Input), which comments mean as the game's; top-level types only, as a
+        // The types a comment may name by Type.Member are the mod's and the tools', not the tests' stand-ins for
+        // KSP's and Unity's types (Part, Input), which comments mean as the game's. Only top-level types count, as a
         // nested one's name (AmperePackage.Part) may be one of KSP's too.
         private static bool Referable(Element e) => e.Path.StartsWith("src/") || e.Path.StartsWith("tools/");
 

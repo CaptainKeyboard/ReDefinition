@@ -1,14 +1,16 @@
-# KSP once with Unity's development player in place of its release one, for Unity's
-# own profiler: KSP's release player has none of its samplers, the development player
+# Runs KSP once with Unity's development player in place of its release one, for Unity's
+# own profiler. KSP's release player has none of its samplers, and the development player
 # of the same Unity version (2019.4.18f1, from the editor's Windows support) has them
-# all. The probe's flight is left to run with its clouds; the perf monitor logs the
+# all. The probe's flight is left to run with its clouds. The perf monitor logs the
 # main thread's time by script and by Unity's samplers (culling, rendering, physics,
-# the canvases, the scripts, GC) into KSP.log, the GPU profiler the GPU's frame, and
+# the canvases, the scripts, GC) into KSP.log. The GPU profiler logs the GPU's frame.
 # Unity's profiler records into <KSP>\ReDefinitionCaptures\<time>-unity-profile\unity-profile.raw, which the
 # editor's Profiler window loads. KSP's own UnityPlayer.dll is put back afterwards.
 #
 # The development player is stricter: what a mod does in a MonoBehaviour's constructor
 # that Unity does not allow throws there and not in the game (HUDReplacer's GUI skins).
+#
+# Usage:
 #
 #   tools\unity_profile.ps1 [-Ksp <KSP folder>] [-Unity <Unity editor folder>] [-TimeoutSeconds 600]
 param(

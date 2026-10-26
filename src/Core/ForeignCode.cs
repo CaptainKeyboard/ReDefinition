@@ -9,12 +9,12 @@ using System.Text;
 namespace ReDefinition.Core
 {
     // Another mod's compiled code read as instructions: a fingerprint of a method,
-    // which changes where its instructions or what they refer to change -- tokens
-    // are resolved to names, written without assemblies, so that it is the same in
-    // the game's Mono and in .NET outside it, and a rebuild of unchanged code keeps
-    // it, unless the compiler names its own helpers anew (closures, lambdas),
-    // which then reads as changed -- and the string literals a method loads. Free
-    // of Unity, like TypeLookup: the checks run outside the game too
+    // and the string literals a method loads. The fingerprint changes where the
+    // method's instructions or what they refer to change. Tokens are resolved to
+    // names, written without assemblies, so that it is the same in the game's Mono
+    // and in .NET outside it. A rebuild of unchanged code keeps it, unless the
+    // compiler names its own helpers anew (closures, lambdas), which then reads as
+    // changed. Free of Unity, like TypeLookup: the checks run outside the game too
     // (tools/checks/check_foreign_code.ps1). Nothing here throws: what cannot be read
     // counts as not there.
     internal static class ForeignCode

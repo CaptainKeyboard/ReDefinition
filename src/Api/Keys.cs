@@ -31,9 +31,9 @@ namespace ReDefinition.Api
 
         /// <summary>
         /// Whether the binding's key went down this frame, with exactly its modifiers held:
-        /// <c>F10</c> does not answer while <c>Alt+F10</c> is pressed. False while the player
-        /// is setting a binding in the window, and while a text field has the keyboard: KSP's,
-        /// the settings window's, and the search field of the diagnostics window.
+        /// <c>F10</c> does not answer while <c>Alt+F10</c> is pressed. It is false while the player
+        /// is setting a binding in the window. It is also false while a text field has the keyboard:
+        /// KSP's, the settings window's, and the search field of the diagnostics window.
         /// </summary>
         /// <param name="key">As for <see cref="Binding"/>.</param>
         public static bool Pressed(string key)

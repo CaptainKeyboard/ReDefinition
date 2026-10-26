@@ -10,8 +10,8 @@ namespace ReDefinition.Hud
 {
     // The crew portraits' buttons that add and remove a portrait slot, which KSP
     // labels "|<" and ">|" (KerbalPortraitGallery: GalleryAddSlotBtn and
-    // GalleryRemSlotBtn, each an 18-unit Button with a TextMeshPro child "Text";
-    // sharedassets7, read with UnityPy), with the look of the staging stack's
+    // GalleryRemSlotBtn). Each is an 18-unit Button with a TextMeshPro child "Text"
+    // (sharedassets7, read with UnityPy). They get the look of the staging stack's
     // buttons that add and delete a stage (StageGroup.addButton and deleteButton on
     // StageManager.stageGroupPrefab): their picture, colour and states, the
     // theme's where one replaces them. Their "Add Slot" and "Remove Slot" labels on

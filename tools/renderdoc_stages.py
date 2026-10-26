@@ -1,15 +1,17 @@
 """Saves the scene colour of a RenderDoc capture after each stage of the frame, for
-tools/analyze_renderdoc_pair.py. Runs inside RenderDoc's own Python:
-
-    set RDC=<capture.rdc>& set RDC_TAG=with& set RDC_DIR=<folder>
-    qrenderdoc.exe --python tools\\renderdoc_stages.py
+tools/analyze_renderdoc_pair.py. It runs inside RenderDoc's own Python.
 
 A stage is a run of draws by one shader into the scene camera's colour target
 (TempBuffer 57, Unity's name for it in KSP) or ReDefinition's colour after the
-upscaler: the target is saved after the last draw of each run, as <tag>_<nn>.dds,
+upscaler. The target is saved after the last draw of each run, as <tag>_<nn>.dds,
 with <tag>.txt naming each (index, event, shader). The scene's depth after the
 lighting goes to <tag>_depth.dds, the frame as it went to the screen to
 <tag>_final.png. Shader names are Unity's, as RenderDoc shows them.
+
+Usage, inside RenderDoc:
+
+    set RDC=<capture.rdc>& set RDC_TAG=with& set RDC_DIR=<folder>
+    qrenderdoc.exe --python tools\\renderdoc_stages.py
 """
 import os
 import traceback

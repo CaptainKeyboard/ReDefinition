@@ -11,17 +11,11 @@ namespace ReDefinition.Upscaler
     // A camera with a target texture measures its screen space in that texture's pixels:
     // Unity's WorldToScreenPoint, ScreenPointToRay and the rest take pixelRect, the target's
     // size times the camera's rect. Everything outside the drawing means the screen's pixels
-    // by them -- the mouse position (Input.mousePosition), KSP's markers on its UI canvases
-    // over the map and the flight (UIMasterController, OrbitRendererBase, PatchedConics,
-    // ManeuverGizmo, RectTransformUtility.WorldToScreenPoint), the picking of parts under
-    // the cursor (Mouse, EditorLogic: ScreenPointToRay(Input.mousePosition)) and what the
-    // mods draw over the scene or pick in it (their DLLs call them: MechJeb, Kerbal
-    // Engineer, Trajectories, Waypoint Manager, Distant Object, Kopernicus, Firefly, FreeIva,
-    // EVE's cloud painter). At a render size below the screen's, a part was picked away
+    // by them (Scale). At a render size below the screen's, a part was picked away
     // from the cursor, and the markers sat away from what they mark.
     //
     // So the five conversions between the screen and the world or the viewport take and
-    // give the screen's pixels for those cameras, outside of their own drawing: there
+    // give the screen's pixels for those cameras, outside of their own drawing. Inside it
     // (Camera.current is the camera) what is drawn into the texture means its pixels, as
     // Vectrosity's lines drawn in OnPostRender and the mods' GL lines. Unity's mouse
     // event pass sees the cameras with the screen as their target (UnityMouseEvents), and
@@ -57,7 +51,13 @@ namespace ReDefinition.Upscaler
             Destroy(this);
         }
 
-        // Render pixels per screen pixel for this call, or false where it is to stay as it is.
+        // Render pixels per screen pixel for this call, or false where it is to stay as it is. Everything outside
+        // the drawing means the screen's pixels. That is the mouse position (Input.mousePosition), and KSP's markers
+        // on its UI canvases over the map and the flight (UIMasterController, OrbitRendererBase, PatchedConics,
+        // ManeuverGizmo, RectTransformUtility.WorldToScreenPoint). It is also the picking of parts under the cursor
+        // (Mouse, EditorLogic: ScreenPointToRay(Input.mousePosition)), and what the mods draw over the scene or pick
+        // in it. Their DLLs call them: MechJeb, Kerbal Engineer, Trajectories, Waypoint Manager, Distant Object,
+        // Kopernicus, Firefly, FreeIva, EVE's cloud painter.
         private static bool Scale(Camera camera, out float x, out float y)
         {
             if (!CameraRedirect.RenderPerScreen(camera, out x, out y)) return false;

@@ -1,24 +1,22 @@
 """Measures the test player's camera turn through each upscaler (RtTurnRunner -upscale).
 
-    python tools/analyze_upscale_turn.py <folder> [<folder> ...]
-
 Each folder is one run: the upscaled frames at the display size, their depth at the render
 size, and references of each pose rendered at twice the display size without jitter,
-averaged down to it. Per run:
-
-* error: the mean difference of the tone-mapped luminance against the reference, over
-  what came into view in the frame (behind a silhouette or past the frame's edge), within
-  the last four frames, and over the rest -- a ghost or smear shows in the first two,
-  blur and aliasing in the last;
-* settled: the same over the still frames at the end, after ten frames to settle;
-* flicker: how much a still frame differs from the one before, over the still frames at
-  the end; the reference does not change at all there.
+averaged down to it. Per run, three figures are printed. The error is the mean difference
+of the tone-mapped luminance against the reference, over what came into view in the frame
+(behind a silhouette or past the frame's edge), within the last four frames, and over the
+rest. A ghost or smear shows in the first two, blur and aliasing in the last. The settled
+figure is the same over the still frames at the end, after ten frames to settle. The
+flicker is how much a still frame differs from the one before, over the still frames at
+the end. The reference does not change at all there.
 
 The masks come from analyze_rt_turn.py, from the render size's depth, scaled to the
 display size, with the row order in which Unity's motion vectors agree with the cameras.
 
 Each run prints PASS or FAIL against limits of about twice the values measured on
 2026-10-03 (LIMITS); the exit code is 1 when a run failed or has no frames.
+
+Usage: python tools/analyze_upscale_turn.py <folder> [<folder> ...]
 """
 
 import os

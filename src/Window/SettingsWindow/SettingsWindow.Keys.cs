@@ -13,8 +13,9 @@ namespace ReDefinition.Window
     //
     // A row shows its key and takes a new one: clicked, it listens (KeyCapture),
     // the next key pressed is taken, Escape cancels, and the button beside it
-    // clears the binding. The modifiers are switches beside it, each clicked
-    // through off, left and right: pressed modifiers are not taken, since Windows
+    // clears the binding.
+    // The modifiers are switches beside it, each clicked through off, left and right.
+    // Pressed modifiers are not taken, since Windows
     // turns AltGr into Ctrl and right Alt at once, and a row with its modifiers in
     // switches stays as narrow as its key.
     //
@@ -394,8 +395,8 @@ namespace ReDefinition.Window
         }
 
         // Reset to defaults: ReDefinition's own bindings and the mods' go back to
-        // their defaults with their other settings, and KSP's to what KSP's own
-        // reset sets -- what KSP ships with the preset of the keyboard layout it
+        // their defaults with their other settings.
+        // KSP's go back to what KSP's own reset sets: what KSP ships with the preset of the keyboard layout it
         // detects (KspKeyBindings.Defaults), the same KspReset loads before these
         // are written. Filled in only: Apply writes them.
         internal static void ResetKeyBindings()

@@ -10,27 +10,21 @@ namespace ReDefinition.Upscaler
     //
     // None of KSP's shaders has a MotionVectors pass (docs/development/upscaler.md),
     // so a renderer on Object mode draws its motion with Unity's own
-    // Hidden/Internal-MotionVectors. That shader is not only transform based: its
-    // vertex function takes the previous position from TEXCOORD4 where Unity has
-    // one -- "_HasLastPositionData ? float4(v.oldPos, 1) : v.vertex"
-    // (builtin_shaders-2019.4.18f1, DefaultResourcesExtra/Internal-MotionVectors.shader)
-    // -- and a skinned renderer keeps it with SkinnedMeshRenderer.skinnedMotionVectors,
+    // Hidden/Internal-MotionVectors. That shader is not only transform based.
+    // Its vertex function takes the previous position from TEXCOORD4 where Unity has
+    // one: "_HasLastPositionData ? float4(v.oldPos, 1) : v.vertex"
+    // (builtin_shaders-2019.4.18f1, DefaultResourcesExtra/Internal-MotionVectors.shader).
+    // A skinned renderer keeps it with SkinnedMeshRenderer.skinnedMotionVectors,
     // which "Specifies whether skinned motion vectors should be used for this
     // renderer" (Unity ScriptReference 2019.4). A renderer on Camera mode draws no
     // motion of its own: "Use only camera movement to track motion".
     //
     // So while the rig runs with the switch on, every skinned renderer gets
-    // skinnedMotionVectors on, and Object where it was on Camera; what it had is
+    // skinnedMotionVectors on, and Object where it was on Camera. What it had is
     // put back when the rig goes. ForceNoMotion is left as it is: another mod set
     // it, and Scatterer's is HostStack's to undo. Not reached this way
     // is geometry a material's vertex function moves: the internal shader draws
     // the mesh without it.
-    //
-    // Kerbals and flags come with vessels, EVAs, the IVA view, the editor's ship
-    // and scene loads: those start a sweep -- never closer than a quarter of a
-    // second to the last, a second for the editor's, which come with every part
-    // attached -- a second later one more for what they finished building,
-    // and every ten seconds one catches the rest.
     internal sealed class SkinnedMotionVectors
     {
         // A renderer changed here, with the state it had before, to be put back.
@@ -61,7 +55,11 @@ namespace ReDefinition.Upscaler
 
         // From the rig's Update: while wanted, a sweep when something may have
         // brought skinned renderers and every ten seconds; everything put back as
-        // soon as it is not wanted.
+        // soon as it is not wanted. Kerbals and flags come with vessels, EVAs, the IVA view, the editor's ship
+        // and scene loads. Those start a sweep, never closer than a quarter of a
+        // second to the last, a second for the editor's, which come with every part
+        // attached. A second later one more follows for what they finished building,
+        // and every ten seconds one catches the rest.
         internal void Refresh(bool wanted)
         {
             if (!wanted)

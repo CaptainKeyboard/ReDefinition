@@ -17,7 +17,7 @@ namespace ReDefinition.Engineer
         DockingPort,
     }
 
-    // What the planner needs to know of one part (EditorReadout): where it hangs in
+    // What the planner needs to know of one part (EditorReadout). That is where it hangs in
     // the part tree, the stage KSP decouples it at (DeltaVPartInfo.decoupleStage, -1
     // for never; AttachedIn) and the one it is fired in (Part.inverseStage), what it
     // is, and its masses.
@@ -50,19 +50,19 @@ namespace ReDefinition.Engineer
         // In tonnes: with its resources as the vessel starts, and without.
         public double Mass;
         public double DryMass;
-        // Its RCS thrusters: their thrust in vacuum in kN at their thrust limit, that
-        // thrust over their vacuum Isp (so that thrusters combine), and per mix of
-        // propellants they burn (its names joined), per propellant that flow's share
-        // of it by mass (StageTable.UsablePropellant); the mass of each resource that
-        // an RCS thruster switched on draws from the part, in tonnes. Thrusters
-        // switched off count for nothing.
+        // Its RCS thrusters, in four fields. RcsThrust is their thrust in vacuum in kN at their
+        // thrust limit. RcsThrustOverIsp is that thrust over their vacuum Isp (so that thrusters
+        // combine). RcsMix holds, per mix of propellants they burn (its names joined), per
+        // propellant that flow's share of it by mass (StageTable.UsablePropellant). RcsResources
+        // holds the mass of each resource that an RCS thruster switched on draws from the part, in
+        // tonnes. Thrusters switched off count for nothing.
         public double RcsThrust;
         public double RcsThrustOverIsp;
         public readonly Dictionary<string, Dictionary<string, double>> RcsMix = new Dictionary<string, Dictionary<string, double>>();
         public readonly Dictionary<string, double> RcsResources = new Dictionary<string, double>();
-        // Where it sits and how large it is, for how the vessel turns (Turning): its
+        // Where it sits and how large it is, for how the vessel turns (Turning). Position is its
         // centre of mass, in metres in the vessel's frame (the root part's: x pitch,
-        // y roll, z yaw), and the size of the box round its colliders there.
+        // y roll, z yaw). Size is the size of the box round its colliders there.
         public Vector3 Position;
         public Vector3 Size;
         // Its reaction wheels' torque at their authority limiter, in kN m: pitch,
@@ -117,9 +117,9 @@ namespace ReDefinition.Engineer
     }
 
     // The sections of the vessel as parts of it (docs/development/planner.md). Each
-    // decoupler and docking port cuts the part tree in two; each side is a choice, less
-    // the launch clamps and the parts KSP stages away before its command part, its legs
-    // and its parachutes (unless its own engines still carry them), and of what is left
+    // decoupler and docking port cuts the part tree in two, and each side is a choice. A choice
+    // leaves out the launch clamps and the parts KSP stages away before its command part, its legs
+    // and its parachutes (unless its own engines still carry them). Of what is left it keeps
     // only the parts still joined to its command part. The planner finds a crewed
     // vessel's capsule, an uncrewed vessel's one satellite and a lander by itself;
     // the rest is the player's pick. Sections lie inside one another or apart, and the vessel
@@ -198,10 +198,10 @@ namespace ReDefinition.Engineer
             return innermost.Count == 1 ? innermost[0] : null;
         }
 
-        // A lander: the lightest choice with a command part, an engine and landing
-        // legs whose engines do not fire with the launch stage, so that no booster with
-        // legs that lands by itself is taken for it; inside the capsule or the
-        // satellite or apart from them, not one of them.
+        // Finds the lander: the lightest choice with a command part, an engine and landing
+        // legs. Its engines do not fire with the launch stage, so that no booster with
+        // legs that lands by itself is taken for it. It lies inside the capsule or the
+        // satellite or apart from them, and is not one of them.
         internal static PartGroupChoice AutoLander(IList<PartFacts> parts, IList<PartGroupChoice> choices, PartGroupChoice capsule,
                                                    PartGroupChoice satellite)
         {
@@ -267,14 +267,14 @@ namespace ReDefinition.Engineer
             return best;
         }
 
-        // The vessel's stages shared out over the rest (group 0) and the sections
-        // (group i + 1 for sections[i]), each part in the smallest section holding it,
-        // by the parts each stage fires, burns and drops; the groups' masses scaled to
-        // KSP's own mass of the whole vessel, launch clamps left out as KSP leaves them.
-        // What KSP's mass holds over the parts' is the crew's, with what they carry
+        // Shares the vessel's stages out over the rest (group 0) and the sections
+        // (group i + 1 for sections[i]). Each part goes in the smallest section holding it,
+        // and a stage goes by the parts it fires, burns and drops. The groups'
+        // masses are scaled to KSP's own mass of the whole vessel, launch clamps left out as KSP
+        // leaves them. KSP's mass holds more than the parts': the crew's, with what they carry
         // (ShipConstruct.GetShipMass: the crew's count times
         // PhysicsGlobals.KerbalCrewMass, their inventory and its resources;
-        // decompiled): it goes to the parts they sit in, by head, rather than over
+        // decompiled). It goes to the parts they sit in, by head, not over
         // every group with the scale.
         internal static VesselSplit Split(IList<BudgetStage> stages, IList<PartFacts> parts, IList<PartGroupChoice> sections)
         {

@@ -7,11 +7,12 @@ using UnityEngine;
 
 namespace ReDefinition.Window
 {
-    // How the settings window is found through: the categories as a tree -- the
-    // graphics' and the controls' tabs indented under Graphics and Controls, and
-    // shown only while one of theirs is open -- a search over every setting, a
-    // mark on rows and categories where a change waits for Apply, and a line that
-    // sets ReDefinition's own tabs apart.
+    // How the settings window is found through.
+    // The categories form a tree: the graphics' and the controls' tabs are indented under Graphics and Controls,
+    // and shown only while one of theirs is open.
+    // There is a search over every setting.
+    // A mark stands on rows and categories where a change waits for Apply.
+    // A line sets ReDefinition's own tabs apart.
     internal static partial class SettingsWindow
     {
         // How far a child tab is indented, and the colour of the mark for a change waiting for Apply.

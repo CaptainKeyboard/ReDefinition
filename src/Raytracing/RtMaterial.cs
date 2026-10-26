@@ -6,17 +6,17 @@ namespace ReDefinition.Raytracing
     // What a ray that hits a surface takes of its material: albedo, specular colour,
     // smoothness and emission, from the material's properties.
     //
-    // KSP's part shaders are legacy Blinn-Phong ones (_Shininess, _SpecColor): the
-    // specular colour over pi as Deferred takes it for its G-buffer (LegacyToStandard.cginc,
-    // Deferred 1.3.5, GPL 3.0), the smoothness as KSP's own shaders give the highlight --
-    // Blinn-Phong's exponent 128 times the shininess, Beckmann's m = sqrt(2 / (n + 2)) --,
-    // as the raytracing takes the G-buffer's (RtCommon.hlsli, LegacySmoothness), not
+    // KSP's part shaders are legacy Blinn-Phong ones (_Shininess, _SpecColor). The
+    // specular colour is taken over pi as Deferred takes it for its G-buffer (LegacyToStandard.cginc,
+    // Deferred 1.3.5, GPL 3.0). The smoothness is taken as KSP's own shaders give the highlight:
+    // Blinn-Phong's exponent 128 times the shininess, Beckmann's m = sqrt(2 / (n + 2)).
+    // That is how the raytracing takes the G-buffer's smoothness (RtCommon.hlsli, LegacySmoothness), not
     // Deferred's look, which turns many parts into mirrors.
     //
     // Unity's standard shaders give the diffuse light less than their albedo, what the
     // specular colour takes of it (UnityStandardUtils.cginc, Unity's built-in shaders
-    // 2019.4): the specular setup's albedo times 1 - the specular colour's largest
-    // channel, the metallic setup's times 1 - reflectivity, whose dielectric specular
+    // 2019.4). The specular setup gives its albedo times 1 - the specular colour's largest
+    // channel. The metallic setup gives its albedo times 1 - reflectivity, whose dielectric specular
     // colour is the colour space's (unity_ColorSpaceDielectricSpec). The rays take the
     // same, so that the light they bring matches what those shaders add.
     internal struct RtMaterial
@@ -95,9 +95,9 @@ namespace ReDefinition.Raytracing
         // The main texture of Unity's and KSP's shaders.
         private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
         // Parallax's terrain shaders (Parallax.shader, KSCTerrain.shader, Parallax
-        // Continued) have no _Color or _MainTex but a texture per altitude band, of which
-        // the material's keyword says which are used (PARALLAX_SINGLE_LOW to
-        // PARALLAX_FULL, TerrainShaderQuadData.cs); the KSC's has the low one only. The
+        // Continued) have no _Color or _MainTex but a texture per altitude band. The
+        // material's keyword says which are used (PARALLAX_SINGLE_LOW to
+        // PARALLAX_FULL, TerrainShaderQuadData.cs). The KSC's has the low one only. The
         // lowest band used stands for the ground.
         private static readonly int LowTexId = Shader.PropertyToID("_MainTexLow");
         private static readonly int MidTexId = Shader.PropertyToID("_MainTexMid");

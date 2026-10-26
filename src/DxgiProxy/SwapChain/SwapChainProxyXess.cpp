@@ -195,14 +195,14 @@ namespace redefinition
             ReleaseSemaphore(ownWaitable, 1, nullptr);
     }
 
-    // XeLL's frame limit (fgHalfRefreshLimit) as the settings and the monitor's refresh
-    // rate have it, the presented frames slightly below the refresh rate, as
-    // CreateXessSwapChain made it. "The function call needs to be done only once after
-    // settings change" (xell_developer_guide_english.md, Enable Features): so only when
-    // the interval differs from the one set, and then once "any GPU activity is finished
-    // before xellSetSleepMode is called" (Integration Checklist) -- the proxy's queue,
-    // which XeSS-FG's work is on, has passed the last frame's Present. A refresh rate not
-    // yet known leaves the limit as it stands.
+    // XeLL's frame limit (fgHalfRefreshLimit) as the settings and the monitor's refresh rate have
+    // it, the presented frames slightly below the refresh rate, as CreateXessSwapChain made it.
+    // The guide says "The function call needs to be done only once after settings change"
+    // (xell_developer_guide_english.md, Enable Features). So the call comes only when the interval
+    // differs from the one set. It comes once "any GPU activity is finished before xellSetSleepMode
+    // is called" (Integration Checklist), which means the proxy's queue, which XeSS-FG's work is
+    // on, has passed the last frame's Present. A refresh rate not yet known leaves the limit as it
+    // stands.
     void SwapChainProxy::FollowXellLimit(double refresh)
     {
         if (!xessSwapChain || xellContext == nullptr || !Config().xellLimitLive)
@@ -243,14 +243,14 @@ namespace redefinition
         }
     }
 
-    // XeLL on an Intel GPU without XeSS-FG: "Supported devices: Intel Arc A-Series or
-    // later, any non-Intel GPU supporting XeSS-FG" -- on any other, "XeLL requires
-    // XeSS-FG to be supported on the device in order to perform latency reduction"
-    // (xell_developer_guide_english.md, Requirements, Cross-vendor support). Only where
-    // xell asks for it: "The application can disable XeLL when frame generation is
-    // disabled" (xess_fg_developer_guide_english.md, Connect with XeLL). Its mode as
-    // lowLatency says, set before the first frame; no frame limit, which
-    // fgHalfRefreshLimit sets only while frames are generated.
+    // XeLL on an Intel GPU without XeSS-FG. The guide says "Supported devices: Intel Arc A-Series or
+    // later, any non-Intel GPU supporting XeSS-FG". On any other GPU "XeLL requires XeSS-FG to be
+    // supported on the device in order to perform latency reduction"
+    // (xell_developer_guide_english.md, Requirements, Cross-vendor support). It is made only where
+    // xell asks for it: "The application can disable XeLL when frame generation is disabled"
+    // (xess_fg_developer_guide_english.md, Connect with XeLL). Its mode is as lowLatency says, set
+    // before the first frame. It has no frame limit, which fgHalfRefreshLimit sets only while frames
+    // are generated.
     bool SwapChainProxy::SetUpIntelXell()
     {
         const ProxyConfig asked = ConfigAsked();

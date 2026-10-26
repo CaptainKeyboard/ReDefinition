@@ -22,7 +22,7 @@
 #define RT_MESH_MAGIC 0x4B53524Du          // 'KSRM'
 #define RT_MATERIAL_MAGIC 0x4B535241u      // 'KSRA'
 #define RT_FRAME_MAGIC 0x4B535246u         // 'KSRF'
-#define RT_RECONSTRUCT_MAGIC 0x4B535252u   // 'KSRR'
+#define RT_RECONSTRUCT_MAGIC 0x4B535252u   // Ray Reconstruction packets: 'KSRR'
 
 // A frame's flags (Raytracing.h, kRtFrame*).
 #define RT_FLAG_SAME_FRAME 0x1u
@@ -43,9 +43,9 @@
 // surface taken as opaque, as no candidate hit stops a ray.
 #define RT_FLAG_CUTOUT_PLAIN 0x800u
 #define RT_FLAG_CUTOUT_OPAQUE 0x1000u
-// The radiance cache (RadianceCache.hlsli; the proxy's rtRadianceCache), set by the proxy:
-// the paths read it at their hits, and, in a frame's own trace but not in a further one
-// (the ocean's), write their samples into it.
+// The radiance cache (RadianceCache.hlsli; the proxy's rtRadianceCache), set by the proxy.
+// The paths read it at their hits. In a frame's own trace but not in a further one (the
+// ocean's), they also write their samples into it.
 #define RT_FLAG_RADIANCE_CACHE 0x2000u
 #define RT_FLAG_RADIANCE_CACHE_UPDATE 0x4000u
 // What of the sun's light a cut-out surface -- a blade of grass, a fern -- lets through,
@@ -76,10 +76,11 @@
 // primary check, a test of its own, uses the same slot.
 #define RT_OUTPUT_FORWARD_RATIO 7
 
-// How a material's shine is meant (RtMaterialDesc.flags; RtMaterialIntent.cs): the
-// G-buffer's kept, none, KSP's legacy Blinn-Phong highlight with its gloss read back from
-// Deferred's smoothness (LegacyToStandard) or from Unity's own legacy specular colour, or
-// fixed values; in the mode output also water and a pixel no material was found for.
+// How a material's shine is meant (RtMaterialDesc.flags; RtMaterialIntent.cs). The values
+// are the G-buffer's kept, none, KSP's legacy Blinn-Phong highlight with its gloss read
+// back from Deferred's smoothness (LegacyToStandard) or from Unity's own legacy specular
+// colour, and fixed values. The mode output also holds water and a pixel no material was
+// found for.
 #define RT_SURFACE_KEEP 0
 #define RT_SURFACE_DRY 1
 #define RT_SURFACE_LEGACY 2
@@ -92,10 +93,11 @@
 #define RT_SURFACE_GROUND 7
 
 // What the camera's ray through a pixel met, in the surface mode output's z (the region / 8),
-// for the probe's surface images (tools/surface_sheet.py): the terrain at the drawn
-// surface, the space centre's ground there, a blade or other scatter there, ground behind
-// a blade the rays meet in front of the drawn surface, nothing near, something else there,
-// and no material at the drawn surface (something in front of it or beyond it).
+// for the probe's surface images (tools/surface_sheet.py). The regions, in order, are the
+// terrain at the drawn surface, the space centre's ground there, and a blade or other
+// scatter there. Then come ground behind a blade the rays meet in front of the drawn
+// surface, and nothing near. The last are something else there, and no material at the
+// drawn surface (something in front of it or beyond it).
 #define RT_REGION_TERRAIN 1
 #define RT_REGION_GROUND 2
 #define RT_REGION_BLADE 3
@@ -125,10 +127,10 @@
 #define RT_INSTANCE_SCENERY 0x4u
 
 // Set by the service in the flags of a group of GPU instances (Raytracing's AddGpuInstancesLocked),
-// high above the managed side's: the group's cut-out instances do not take FORCE_NON_OPAQUE
-// because their opacity micromaps decide the opaque parts, or switch the micromaps off
-// (RaytracingOmm.cpp). GpuInstances.hlsl turns them into the instances' flags and leaves
-// them out of what the passes read.
+// high above the managed side's. They say that the group's cut-out instances do not take
+// FORCE_NON_OPAQUE because their opacity micromaps decide the opaque parts, or switch the
+// micromaps off (RaytracingOmm.cpp). GpuInstances.hlsl turns them into the instances' flags
+// and leaves them out of what the passes read.
 #define RT_GROUP_NO_NON_OPAQUE 0x100000u
 #define RT_GROUP_DISABLE_OMMS 0x200000u
 #define RT_GROUP_SERVICE_FLAGS 0x300000u
@@ -137,9 +139,10 @@
 #define RT_MATERIAL_TEXTURE_SIZE 64
 #define RT_MAX_MATERIAL_TEXTURES 2048
 
-// The hit distances the signals carry in w (RtCommon.hlsli): a miss as a half float's
-// largest value, a reflected ray that met a moon's disc; in the water's frame a ray that
-// met the scene at most RT_WATER_HIT_LIMIT, one that met nothing RT_WATER_SKY.
+// The hit distances the signals carry in w (RtCommon.hlsli). A miss is a half float's
+// largest value, and a reflected ray that met a moon's disc has RT_DISC_HIT. In the
+// water's frame a ray that met the scene has at most RT_WATER_HIT_LIMIT, and one that met
+// nothing has RT_WATER_SKY.
 #define RT_FP16_MAX 65504.0f
 #define RT_DISC_HIT 60000.0f
 #define RT_WATER_HIT_LIMIT 59999.0f

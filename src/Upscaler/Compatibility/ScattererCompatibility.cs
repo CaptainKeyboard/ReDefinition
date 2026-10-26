@@ -8,44 +8,20 @@ using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // Scatterer's raymarched godrays -- light shafts through EVE's clouds,
-    // useRaymarchedCloudGodrays in its config -- size
-    // themselves by the screen, not by their camera: RaymarchedGodraysRenderer
+    // Scatterer's raymarched godrays, the light shafts through EVE's clouds
+    // (useRaymarchedCloudGodrays in its config), size
+    // themselves by the screen, not by their camera. RaymarchedGodraysRenderer
     // .Init sets screenWidth = Screen.width, renders at a quarter of it
     // (renderWidth = screenWidth / 4; renderHeight = screenHeight / 4, or / 2
-    // with terrain godrays) and tells its shader so (godrayRenderingResolution);
-    // afterwards only screenshots resize them (ResizeRenderTextures). A camera
-    // the rig renders smaller gets godrays made for the screen.
+    // with terrain godrays) and tells its shader so (godrayRenderingResolution).
+    // Afterwards only screenshots resize them (ResizeRenderTextures). A camera
+    // the rig renders smaller gets godrays made for the screen. Size gives each
+    // renderer its camera's size.
     //
-    // A renderer gets its camera's size -- pixelWidth, which for a redirected
-    // camera is the rig texture's and for any other the screen's, as Scatterer
-    // takes it -- the fraction Scatterer takes of it, as Scatterer's Init left it
-    // in screenWidth over renderWidth, and Scatterer's own ResizeRenderTextures,
-    // but only when the size really differs: a resize releases the godrays'
-    // history as Scatterer's own screenshot resize does.
-    // Checked whenever the rig attaches or detaches, and -- since Scatterer
-    // makes godrays whenever it loads a body's effects, often with the rig long
-    // in place (SkyNode.Init) -- straight after each Init, through a Harmony
-    // postfix.
-    //
-    // And their history leaves copies of a vessel's outline in the sky while the
-    // camera turns. RaymarchScatteringOcclusion reads last frame's occlusion
-    // (historyGodrayOcclusionBuffer) and its depth (historyGodrayDepthBuffer) at
-    // the reprojected position and keeps the occlusion where the depth matches --
-    // sky against sky, geometry against geometry (disassembled from
-    // scatterershaders-directx). The depth texture is made with point filtering,
-    // the occlusion texture with bilinear (Init: CreateVRFlipFlopRT ... ARGBHalf,
-    // FilterMode.Bilinear), at a quarter of the width. Beside a vessel's edge the
-    // depth read is the sky's and passes, while the occlusion read mixes in the
-    // vessel's texel; the sky keeps about two thirds of its history a frame at
-    // slow turns, so each frame's edge stays behind as one more fading outline.
-    // Measured with the scene probe, the upscaler, frame generation and
-    // raytracing off: the outlines go with useRaymarchedCloudGodrays off, stay
-    // with the terrain godrays off, and go with the history read with point
-    // filtering. The same texture is the next frame's history and this frame's
-    // godrays, which the sky upsamples, so it is set per frame after Scatterer's
-    // OnPreCull has chosen the pair: the history it reads to point, the one it
-    // writes to bilinear, as Scatterer made it.
+    // The godrays' history also leaves copies of a vessel's outline in the sky
+    // while the camera turns (AfterPreCull, Filter). The same texture is the next
+    // frame's history and this frame's godrays, which the sky upsamples, so its
+    // filter mode is set per frame.
     internal static class ScattererCompatibility
     {
         // Scatterer's godrays renderer by full type name, and the Harmony id of the sizing hook on its Init.
@@ -54,9 +30,9 @@ namespace ReDefinition.Upscaler
         // Its own id: a failure takes back only this hook, not the one above.
         private const string HarmonyHistoryId = "ReDefinition.ScattererGodrayHistory";
 
-        // Whether Resolve has run, and the renderer's type and members it found: the screen and render sizes, the
+        // Whether Resolve has run, and the renderer's type and members it found. They are the screen and render sizes, the
         // occlusion material and downscaled depth Init makes, ResizeRenderTextures, Init, OnPreCull, the godray textures,
-        // which of each pair is written this frame, and the camera; historyWarned: WarnHistory has warned once.
+        // which of each pair is written this frame, and the camera. historyWarned: WarnHistory has warned once.
         private static bool resolved;
         private static Type godraysType;
         private static FieldInfo screenWidth;
@@ -139,7 +115,14 @@ namespace ReDefinition.Upscaler
         private static Func<object, Object> skyNodeOf;
         private static Func<object, bool> inScaledSpaceOf;
 
-        // Runs inside Scatterer: nothing may escape.
+        // Runs inside Scatterer: nothing may escape. After Scatterer's OnPreCull has chosen the pair, it sets the
+        // history it reads to point filtering and the one it writes to bilinear, as Scatterer made it. The history
+        // leaves copies of a vessel's outline in the sky while the camera turns. RaymarchScatteringOcclusion reads
+        // last frame's occlusion (historyGodrayOcclusionBuffer) and its depth (historyGodrayDepthBuffer) at the
+        // reprojected position and keeps the occlusion where the depth matches, sky against sky, geometry against
+        // geometry (disassembled from scatterershaders-directx). The depth texture is made with point filtering, the
+        // occlusion texture with bilinear (Init: CreateVRFlipFlopRT ... ARGBHalf, FilterMode.Bilinear), at a quarter
+        // of the width.
         private static void AfterPreCull(object __instance)
         {
             if (pickTexture != null)
@@ -252,13 +235,18 @@ namespace ReDefinition.Upscaler
             return item != null ? item.GetValue(flipFlop, flip ? FlipTrue : FlipFalse) : null;
         }
 
-        // Sets a texture's filter mode where it differs.
+        // Sets a texture's filter mode where it differs. Beside a vessel's edge the depth read is the sky's and passes,
+        // while the occlusion read mixes in the vessel's texel. The sky keeps about two thirds of its history a frame
+        // at slow turns, so each frame's edge stays behind as one more fading outline. Measured with the scene probe,
+        // the upscaler, frame generation and raytracing off: the outlines go with useRaymarchedCloudGodrays off, stay
+        // with the terrain godrays off, and go with the history read with point filtering.
         private static void Filter(RenderTexture texture, FilterMode mode)
         {
             if (texture != null && texture.filterMode != mode) texture.filterMode = mode;
         }
 
-        // Runs inside Scatterer: nothing may escape.
+        // Runs inside Scatterer: nothing may escape. Scatterer makes godrays whenever it loads a body's effects, often
+        // with the rig long in place (SkyNode.Init), so a Harmony postfix sizes the renderer straight after each Init.
         private static void AfterInit(object __instance, bool __result)
         {
             try
@@ -282,7 +270,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        // Sizes every godrays renderer in the scene for its camera, after the rig changed the render size.
+        // Sizes every godrays renderer in the scene for its camera, after the rig changed the render size. It is
+        // checked whenever the rig attaches or detaches.
         public static void AfterRenderSizeChange(string reason)
         {
             if (!Present || !ForeignAssumptions.ScattererGodrays.Holds) return;
@@ -308,7 +297,11 @@ namespace ReDefinition.Upscaler
         }
 
         // True when the renderer was resized; false when it was right already
-        // or is not set up yet -- Init sizes that one, and the hook follows.
+        // or is not set up yet (Init sizes that one, and the hook follows). A renderer gets its camera's size,
+        // pixelWidth, which for a redirected camera is the rig texture's and for any other the screen's, as
+        // Scatterer takes it. It gets the fraction Scatterer takes of it, as Scatterer's Init left it in screenWidth
+        // over renderWidth, and Scatterer's own ResizeRenderTextures does the resize. It is resized only when the
+        // size really differs: a resize releases the godrays' history as Scatterer's own screenshot resize does.
         private static bool Size(Component renderer)
         {
             if (renderer == null) return false;
@@ -339,8 +332,8 @@ namespace ReDefinition.Upscaler
         }
 
         // The fraction of its screen Scatterer renders a renderer's godrays at, as its
-        // Init set them -- a quarter of the width, a half or a quarter of the height --,
-        // read once per renderer before anything here changes them: afterwards both
+        // Init set them: a quarter of the width, a half or a quarter of the height.
+        // Read once per renderer before anything here changes them, as afterwards both
         // sizes are the ones set here, in the same ratio. Zero where Init has not run.
         private static readonly Dictionary<int, Vector2Int> divisors = new Dictionary<int, Vector2Int>();
 

@@ -72,9 +72,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual(a.x, b.x, 1e-3f);
         }
 
-        // A stage dropped between two frames: on the vessel's steps it is drawn where the
-        // vessel is, a fresh history would draw it ahead by the part of a step not yet
-        // drawn, half the step's 2 m here.
+        // A stage dropped between two frames goes on from the vessel's steps. There it is drawn
+        // where the vessel is, while a fresh history would draw it ahead by the part of a step
+        // not yet drawn, half the step's 2 m here.
         [TestMethod]
         public void ADroppedStageGoesOnFromTheVesselsSteps()
         {

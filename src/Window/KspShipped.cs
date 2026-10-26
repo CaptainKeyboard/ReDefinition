@@ -4,11 +4,13 @@ using System.Reflection;
 
 namespace ReDefinition.Window
 {
-    // What KSP ships for its settings, read without touching the player's:
-    // GameSettings.SetDefaultValues assigns every static field anew and does
-    // nothing else, so every field is saved, `read` runs over the defaults, and
-    // every field is put back -- the same objects included -- whatever went
-    // wrong. The exception `read` threw, or null.
+    // What KSP ships for its settings, read without touching the player's.
+    // GameSettings.SetDefaultValues assigns every static field anew, 119 new KeyBindings among them,
+    // and does nothing else (its IL in KSP 1.12.5: stores to its own fields and constructors without side effects).
+    // So every field is saved, `read` runs over the defaults, and
+    // every field is put back, the same objects included, whatever went
+    // wrong. Nothing that holds one of KSP's bindings sees a change.
+    // The result is the exception `read` threw, or null.
     internal static class KspShipped
     {
         // Runs `read` over the defaults SetDefaultValues sets, every static field of GameSettings put back afterwards.

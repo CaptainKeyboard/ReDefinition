@@ -7,8 +7,8 @@ using System.Text;
 namespace ReDefinition.Vendor
 {
     // dlssg_for_sm86, sdli1995's community project (MIT; NVIDIA's DLSS frame generation
-    // runtime and kernels rebuilt from it inside), which runs DLSS frame generation on
-    // GeForce RTX 30 and RTX 20: its release zip, which the player downloads from the
+    // runtime and kernels rebuilt from it inside), runs DLSS frame generation on
+    // GeForce RTX 30 and RTX 20. This class handles its release zip, which the player downloads from the
     // project's page and puts into KSP's folder, and what is taken out of it next to
     // KSP_x64.exe (AmpereFrameGeneration). Its version.dll is loaded there by KSP and by
     // ReDefinition's dxgi.dll alike; it answers Streamline with a newer GPU and has
@@ -34,7 +34,7 @@ namespace ReDefinition.Vendor
         public const string Proxy = "version.dll";
         public const string Ini = "dlssg_sm86.ini";
 
-        // Paths within the zip and KSP's folder alike: NVIDIA's runtime the package rebuilt, its backend and
+        // Paths within the zip and KSP's folder alike. They are NVIDIA's runtime the package rebuilt, its backend and
         // kernels folders, the super-resolution folder with the two files that have to be in it, and its logs,
         // which are not taken.
         private const string Runtime = FolderName + "/runtime/nvngx_dlssg.dll";

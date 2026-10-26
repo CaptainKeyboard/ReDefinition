@@ -26,7 +26,7 @@
 | pinned option | An option of the diagnostics window that the star on its row keeps at the window's foot. |
 | member path | Where a value lives, written as in C#: `Deferred.Deferred.settings.useScreenSpaceReflections`. |
 | foreign assumption | Something ReDefinition relies on in another mod's code, kept in one catalogue with a fingerprint of the method it reads and what ReDefinition does when the fingerprint no longer matches. `tools/checks/check_foreign_code.ps1` checks them all. |
-| behaviour | Code that answers for settings a member path cannot reach. Either one of ReDefinition's own seven, named without a dot (`Tufx`, `Scatterer`, `Eve`, `Ksp`, `DistantObject`, `Firefly`, `ParallaxScatter`), or a type the mod itself brings, named with its namespace. |
+| behaviour | Code that answers for settings a member path cannot reach. Either one of ReDefinition's own eight, named without a dot (`Tufx`, `Scatterer`, `Eve`, `Ksp`, `DistantObject`, `Firefly`, `ParallaxScatter`, `ParallaxKeywords`), or a type the mod itself brings, named with its namespace. |
 
 ## The editor and the flight UI
 

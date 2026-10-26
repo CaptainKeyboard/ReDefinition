@@ -150,8 +150,8 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " DLSS model: " + DlssModels.Name(dlssModel) + ".");
         }
 
-        // NVIDIA's download placed nvngx_dlss.dll: a DLSS failure that stood for its
-        // lack stands no more once NGX's search has changed (Dlss::Status), and DLSS
+        // NVIDIA's download placed nvngx_dlss.dll. A DLSS failure that stood for its
+        // lack stands no more once NGX's search has changed (Dlss::Status). DLSS
         // is tried at once where it is chosen, not only after the next scene change.
         internal void NvidiaFilesPlaced()
         {

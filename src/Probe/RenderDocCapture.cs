@@ -10,8 +10,8 @@ namespace ReDefinition.Probe
     // of its camera move, to look at Unity's motion vector pass draw by draw. Nothing
     // where renderdoc.dll is not in the process.
     //
-    // renderdoc_app.h (RenderDoc 1.x): RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2,
-    // &api) hands out a table of function pointers, of which SetCaptureFilePathTemplate
+    // In renderdoc_app.h (RenderDoc 1.x), RENDERDOC_GetAPI(eRENDERDOC_API_Version_1_1_2,
+    // &api) hands out a table of function pointers. SetCaptureFilePathTemplate
     // is the twelfth, TriggerCapture the sixteenth and TriggerMultiFrameCapture the
     // twenty-third.
     internal static class RenderDocCapture

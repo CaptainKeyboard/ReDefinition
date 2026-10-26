@@ -4,14 +4,12 @@ using UnityEngine;
 namespace ReDefinition.Dashboard
 {
     /// <summary>
-    /// Steering from a dashboard on the active vessel, in two ways:
-    /// <list type="bullet">
-    /// <item>Rates: pitch, yaw and roll added to the player's own input, as keys would.</item>
-    /// <item>A target attitude, direction and roll: the vessel turns there and stays (dragging the
-    /// navball; the roll buttons turn the target about its own axis). With a target altitude the
-    /// turn is spread over the climb or descent to that altitude, linearly, as an S-curve, or (auto)
-    /// as MechJeb's classic gravity turn.</item>
-    /// </list>
+    /// Steers the active vessel from a dashboard, in two ways.
+    /// Rates add pitch, yaw and roll to the player's own input, as keys would.
+    /// A target attitude, direction and roll, makes the vessel turn there and stay (dragging the
+    /// navball; the roll buttons turn the target about its own axis).
+    /// With a target altitude the turn is spread over the climb or descent to that altitude,
+    /// linearly, as an S-curve, or (auto) as MechJeb's classic gravity turn.
     /// Rates have to be repeated while a finger is down and run out after <see cref="HoldSeconds"/>,
     /// so a dropped connection never leaves the controls deflected. A target is held until the
     /// player steers with the keyboard or a joystick, the vessel changes, or the dashboard resets it.
@@ -24,17 +22,9 @@ namespace ReDefinition.Dashboard
         // KSP's pitch axis, checked in the game: positive raises the nose, like a nose-up input.
         private const float PitchSign = 1f;
 
-        // The turn to a target, in two loops (as MechJeb and KSP's SAS do it in principle):
-        // - The nose turns along the shortest way to the target's (a great circle, about the axis
-        //   square to both), the vessel rolls about the nose by itself; the one never bends the
-        //   other's way. The wanted turning speed is what the vessel can still brake from before
-        //   the target: sqrt(2 * BRAKE * alpha * error), alpha being how fast the vessel can change
-        //   its turning speed about that axis (its torque over its moment of inertia). Near the
-        //   target it is error / SETTLE instead, at most MAX_RATE.
-        // - Per axis of the vessel, the input brings its turning speed (Vessel.angularVelocityD) to
-        //   the wanted one within RESPONSE seconds, at the vessel's alpha; an integral part (over
-        //   INTEGRAL seconds) grows while the vessel lags behind, so steady drag or an off-centre
-        //   thrust cannot hold it short of the target.
+        // The most the turn to a target turns, 20 degrees per second in radians. The turn runs in two
+        // loops, as MechJeb and KSP's SAS do it in principle: Wanted works out the turning speed and
+        // Command brings the vessel to it.
         private const double MAX_RATE = 20 * Math.PI / 180;
         private const double BRAKE = 0.5;       // share of the vessel's alpha planned for braking
         private const double SETTLE = 0.8;      // seconds: near the target the error is closed over this time
@@ -74,11 +64,11 @@ namespace ReDefinition.Dashboard
         private static Quaternion startAttitude;
 
         // How the turn is spread over the way to the target altitude. Auto climbs as MechJeb's classic
-        // ascent with its automatic turn does: straight up until 5 % of the atmosphere's height or about
-        // 99 m/s, then the pitch falls with ((altitude - turn start) / (turn end - turn start))^0.4,
-        // the turn ending at 85 % of the atmosphere's height or the target altitude if lower; the nose
-        // stays within 2000 Pa*rad / dynamic pressure of the surface prograde (MechJeb's Q-alpha limit).
-        // Going down it is the S-curve.
+        // ascent with its automatic turn does. It goes straight up until 5 % of the atmosphere's height
+        // or about 99 m/s, then the pitch falls with ((altitude - turn start) / (turn end - turn start))^0.4.
+        // The turn ends at 85 % of the atmosphere's height or the target altitude if lower.
+        // The nose stays within 2000 Pa*rad / dynamic pressure of the surface prograde (MechJeb's
+        // Q-alpha limit). Going down it is the S-curve.
         public enum Curve { Linear, S, Auto } // evenly, slow-faster-slow, or MechJeb's classic ascent
         private static Curve curve = Curve.S; // the shape chosen, the S-curve until the dashboard picks another
         private const double AUTO_SHAPE = 0.4; // the power the share of the way climbed is raised to
@@ -406,8 +396,8 @@ namespace ReDefinition.Dashboard
             }
         }
 
-        // The input on pitch, yaw and roll (x, y, z), each -1 to 1, that turns a vessel with these axes
-        // (nose, right, top) to the aim and its top, all in one frame; `alpha` per axis as Alpha gives
+        // The input on pitch, yaw and roll (x, y, z), each -1 to 1. It turns a vessel with these axes
+        // (nose, right, top) to the aim and its top, all in one frame. `alpha` is per axis as Alpha gives
         // it (pitch, roll, yaw). Positive pitch raises the nose towards the top, positive yaw turns it
         // right, positive roll turns the top right. Free of Unity, tested.
         internal static Vector3d Inputs(Turn turn, Vector3d nose, Vector3d right, Vector3d top, Vector3d aim, Vector3d aimTop, Vector3d alpha,
@@ -460,7 +450,12 @@ namespace ReDefinition.Dashboard
         }
 
         // The turning speed wanted towards the target from an error (radians) at the vessel's alpha
-        // about that axis: what it can still brake from, near the target error / SETTLE.
+        // about that axis. It is what the vessel can still brake from before the target:
+        // sqrt(2 * BRAKE * alpha * error), where alpha is how fast the vessel can change its turning
+        // speed about that axis (its torque over its moment of inertia). Near the target it is
+        // error / SETTLE instead, at most MAX_RATE. The nose turns along the shortest way to the
+        // target's, a great circle about the axis square to both. The vessel rolls about the nose by
+        // itself, so the one never bends the other's way.
         private static double Wanted(double error, double a)
         {
             double size = Math.Abs(error);
@@ -469,7 +464,11 @@ namespace ReDefinition.Dashboard
 
         // Input for one axis from the turning speed wanted about it and the one it has (radians per
         // second), at the vessel's alpha about it, and the change of turning speed it needs besides
-        // (radians per second squared). Positive input speeds the turn up.
+        // (radians per second squared). Positive input speeds the turn up. This is the second loop of
+        // the turn: per axis of the vessel, the input brings its turning speed (Vessel.angularVelocityD)
+        // to the wanted one within RESPONSE seconds, at the vessel's alpha. An integral part, over
+        // INTEGRAL seconds, grows while the vessel lags behind, so steady drag or an off-centre thrust
+        // cannot hold it short of the target.
         private static double Command(double wanted, double turning, double ahead, double a, ref double integral, double dt)
         {
             double shortfall = wanted - turning;

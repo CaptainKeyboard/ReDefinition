@@ -210,8 +210,8 @@ namespace ReDefinition.Engineer
         }
 
         // The parts a thruster on `part` draws a propellant of flow mode `mode` from,
-        // as Part.GetConnectedResourceTotals takes them: its crossfeed set, which
-        // the editor builds for its simulation (ShipConstruct: PartSet.BuildPartSets
+        // as Part.GetConnectedResourceTotals takes them. They are its crossfeed set,
+        // which the editor builds for its simulation (ShipConstruct: PartSet.BuildPartSets
         // with Simulate, into Part.simulationCrossfeedPartSet; decompiled), the
         // whole vessel, or the part itself.
         private static void AddRcsSources(Part part, ResourceFlowMode mode, List<Part> parts, HashSet<Part> into)
@@ -238,17 +238,18 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // Where a part sits, how large it is, and what it turns the vessel with
-        // (Turning), in the frame of the vessel's root part: its centre of mass
-        // (Part.CoMOffset), the box round its colliders' bounds, its reaction
-        // wheels (ModuleReactionWheel: PitchTorque, RollTorque, YawTorque at
-        // authorityLimiter percent), each of its RCS nozzles (ModuleRCS: the
-        // thruster transforms by thrusterTransformName, pushing along -up, or
-        // -forward with useZaxis, with thrusterPower at thrustPercentage percent,
-        // for the axes enabled), and its gimballing engines (ModuleGimbal:
-        // gimbalRange, or the smallest of its per-direction ranges where set, at
-        // gimbalLimiter percent, unless locked; ModuleEngines: maxThrust at
-        // thrustPercentage percent); decompiled.
+        // Fills `fact` with where a part sits, how large it is, and what it turns the vessel with
+        // (Turning), in the frame of the vessel's root part.
+        // It reads the centre of mass (Part.CoMOffset) and the box round the colliders' bounds.
+        // It reads the reaction wheels (ModuleReactionWheel: PitchTorque, RollTorque, YawTorque at
+        // authorityLimiter percent).
+        // It reads each RCS nozzle (ModuleRCS: the thruster transforms by
+        // thrusterTransformName, pushing along -up, or -forward with useZaxis, with
+        // thrusterPower at thrustPercentage percent, for the axes enabled).
+        // It reads the gimballing engines (ModuleGimbal: gimbalRange, or the smallest of its
+        // per-direction ranges where set, at gimbalLimiter percent, unless locked;
+        // ModuleEngines: maxThrust at thrustPercentage percent).
+        // Decompiled.
         private static void Shape(Part part, Transform frame, PartFacts fact)
         {
             fact.Position = frame.InverseTransformPoint(part.transform.TransformPoint(part.CoMOffset));
@@ -444,9 +445,10 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // One of an engine's modes as the planner's simulation takes it: its thrust at the thrust limiter, its Isp (in the
-        // air near the ground for a jet, in vacuum for a rocket), its propellants of mass, its thrust at each body's surface
-        // with air (with oxygen for a jet) and a jet's top Mach; null where it gives no thrust or burns nothing of mass.
+        // One of an engine's modes as the planner's simulation takes it. It holds the thrust at the thrust limiter and
+        // the Isp (in the air near the ground for a jet, in vacuum for a rocket). It holds the propellants of mass, the
+        // thrust at each body's surface with air (with oxygen for a jet) and a jet's top Mach.
+        // It is null where the mode gives no thrust or burns nothing of mass.
         private static SimEngine ModeOf(ModuleEngines engine, bool breathes, HashSet<string> air)
         {
             if (engine.atmosphereCurve == null || engine.propellants == null) return null;
@@ -554,10 +556,9 @@ namespace ReDefinition.Engineer
             return row;
         }
 
-        // The electric charge the stage's engines burn at full thrust, in units per
-        // second: each engine's mass flow (thrust over Isp) shared out over its
-        // propellants by ratio and density, which gives the charge, of no mass, its
-        // units by ratio.
+        // The electric charge the stage's engines burn at full thrust, in units per second.
+        // Each engine's mass flow (thrust over Isp) is shared out over its propellants by
+        // ratio and density, which gives the charge, of no mass, its units by ratio.
         private static double ElectricRate(DeltaVStageInfo info)
         {
             if (info.enginesActiveInStage == null) return 0.0;

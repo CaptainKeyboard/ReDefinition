@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using ReDefinition.Core;
 using ReDefinition.MotionVectorCheck;
 using UnityEditor;
 using UnityEditor.Build.Reporting;
@@ -13,12 +12,12 @@ using Debug = UnityEngine.Debug;
 namespace ReDefinition.EditorTools
 {
     // Checks the motion vectors ReDefinition computes against Unity's own, in a Windows
-    // player: in the editor the frames do not advance between renders, and Unity keeps the
-    // previous frame's matrices. Builds the player with MotionVectorProbe in a scene made
-    // for it, runs it, and compares, for a moving camera and a moving object, Unity's motion
-    // vectors over a sphere with those pass 2 of Hidden/ReDefinition/CloudMotion computes
-    // for it (ScaledSpaceMotion in the plugin, through ReDefinitionMotionVector). Fails when
-    // the pass misses more than a few of the sphere's pixels or its mean differs. A third
+    // player. In the editor the frames do not advance between renders, and Unity keeps the
+    // previous frame's matrices. The check builds the player with MotionVectorProbe in a
+    // scene made for it and runs it. For a moving camera and a moving object it compares
+    // Unity's motion vectors over a sphere with those pass 2 of Hidden/ReDefinition/CloudMotion
+    // computes for it (ScaledSpaceMotion in the plugin, through ReDefinitionMotionVector). It
+    // fails when the pass misses more than a few of the sphere's pixels or its mean differs. A third
     // case reads the sphere's centre with AsyncGPUReadback at the row MotionVectorAudit in
     // the plugin reads, the viewport y times the height.
     //
@@ -261,7 +260,7 @@ namespace ReDefinition.EditorTools
         }
 
         // SceneMotion: the ground 150 km away, seen from 150 km from the origin after a move of
-        // 10 m sideways and 6 m up, moves by its parallax, the same over neighbouring pixels, and
+        // 10 m sideways and 6 m up, moves by its parallax. It moves the same over neighbouring pixels, and
         // on average as Unity's vectors in this player show it, `y` up. Unity's own spread is
         // logged for comparison.
         private static void JudgeFar(string[] f, List<string> problems)
@@ -289,10 +288,10 @@ namespace ReDefinition.EditorTools
                 problems.Add("far: computed " + Show(ours) + ", Unity " + Show(unity) + ".");
         }
 
-        // VesselShadowLayer: the block's shadow found and nothing else; left in place where the
-        // camera follows the block, to the motion vectors where it stands; the shadowed ground
-        // brought to its brightness in the same frame without the shadow, the lit ground
-        // unchanged.
+        // VesselShadowLayer: the block's shadow found and nothing else. The shadow is left in place
+        // where the camera follows the block, and to the motion vectors where the block stands. The
+        // shadowed ground is brought to its brightness in the same frame without the shadow, and the
+        // lit ground is unchanged.
         private static void JudgeShadow(string[] f, List<string> problems)
         {
             int inShadow = int.Parse(f[1], CultureInfo.InvariantCulture);

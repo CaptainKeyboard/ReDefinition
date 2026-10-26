@@ -13,8 +13,8 @@ namespace ReDefinition.Window
     // Hides the toolbar buttons of the mods whose settings are bundled here,
     // for the run, and brings them back when the bundling is switched off. Only
     // where ReDefinition's window opens the mod's own (IBundledMod.OwnWindow) or a
-    // dialog of the mod's (DIALOG): what the rows leave out stays reachable -- a
-    // build without the method its registration names for that window keeps its
+    // dialog of the mod's (DIALOG), so that what the rows leave out stays reachable.
+    // A build without the method its registration names for that window keeps its
     // button.
     //
     // KSP's launcher, decompiled: ApplicationLauncherButton.VisibleInScenes is
@@ -266,12 +266,14 @@ namespace ReDefinition.Window
                           + " ReDefinition's window.");
         }
 
-        // A button hidden here that stands on again. When a scene starts, KSP's
+        // A button hidden here that stands on again.
+        // When a scene starts, KSP's
         // launcher moves every button into its new layout and switches each on
-        // there (SpawnSimpleLayout, UIList.AddItem); DetermineVisibility then moves
+        // there (SpawnSimpleLayout, UIList.AddItem).
+        // DetermineVisibility then moves
         // a button only between its shown and hidden lists, so one in the hidden
-        // list already stays on screen (ApplicationLauncher, decompiled). It is
-        // switched off as the launcher's SetHidden does it.
+        // list already stays on screen (ApplicationLauncher, decompiled).
+        // It is switched off as the launcher's SetHidden does it.
         private static void KeepOff(ApplicationLauncherButton button)
         {
             if (!hidden.ContainsKey(button)) return;

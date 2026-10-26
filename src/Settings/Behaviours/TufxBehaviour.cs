@@ -7,12 +7,12 @@ using ReDefinition.Core;
 namespace ReDefinition.Settings.Behaviours
 {
     // TUFX applies a post-processing profile per scene, at every scene load and
-    // change of camera mode: in the main menu the one in its configuration
+    // change of camera mode. In the main menu it applies the one in its configuration
     // (TUFX_CONFIGURATION), elsewhere the one in the loaded save's game parameters
     // (TUFXGameSettings), and with no save loaded the configuration's
     // (GetProfileNameForScene). Its window's choice goes through
-    // ChangeProfileForScene: for the main menu into its configuration, whose file
-    // it saves; for any other scene into the save, which KSP writes when it saves
+    // ChangeProfileForScene. For the main menu it goes into its configuration, whose file
+    // it saves. For any other scene it goes into the save, which KSP writes when it saves
     // the game.
     //
     // A choice here goes the same way: the main menu's into the configuration,
@@ -24,10 +24,6 @@ namespace ReDefinition.Settings.Behaviours
     // made in TUFX's own window becomes the choice here (a Harmony postfix on
     // ChangeProfileForScene). Its profiles are known only from the running mod, so
     // a choice waits until TUFX has loaded them.
-    //
-    // Utils.GetCurrentScene calls everything it does not know Flight -- the loading
-    // screen, KSP's settings screen -- so a profile is applied at once only in the
-    // five scenes TUFX has profiles for.
     internal sealed class TufxBehaviour : ModBehaviour
     {
         // The Harmony id of the hook on TUFX's window.
@@ -42,10 +38,11 @@ namespace ReDefinition.Settings.Behaviours
         // The mod the hook reports to; one per run.
         private static RegisteredMod hooked;
 
-        // TUFX's members as Attach finds them: the loader's instance, its profiles, the profile applied, a
-        // profile by name, the name for a scene, the window's change, Utils' current scene; the configuration,
-        // its file, its main-menu profile and its node's name; the save's settings type and its setter; the
-        // scene enum and its MainMenu.
+        // TUFX's members as Attach finds them.
+        // The loader's instance, its profiles, the profile applied, a profile by name, the name for a scene,
+        // the window's change, and Utils' current scene.
+        // The configuration, its file, its main-menu profile and its node's name.
+        // Also the save's settings type and its setter, and the scene enum and its MainMenu.
         private FieldInfo instance;
         private PropertyInfo profiles;
         private MethodInfo applyProfile;
@@ -199,11 +196,11 @@ namespace ReDefinition.Settings.Behaviours
             hooked = mod;
         }
 
-        // Whether TUFX renders the profile of that name with the effect of that type
-        // switched on: the profile it has loaded (TUFXProfile.Settings, each effect
-        // with its `enabled`), so a change made in its window counts, or -- as it
-        // applies a name it does not have -- its empty one (GetProfileByName). Null
-        // while its profiles are not loaded, or where they are not the shape this
+        // Whether TUFX renders the profile of that name with the effect of that type switched on.
+        // It reads the profile TUFX has loaded (TUFXProfile.Settings, each effect
+        // with its `enabled`), so a change made in its window counts.
+        // For a name TUFX does not have it reads its empty profile, as TUFX applies that (GetProfileByName).
+        // The result is null while its profiles are not loaded, or where they are not the shape this
         // was written against.
         internal bool? HasEffect(string profileName, string effectType)
         {
@@ -302,6 +299,9 @@ namespace ReDefinition.Settings.Behaviours
 
         // Whether this is the scene TUFX is showing -- then a profile for it is
         // applied at once.
+        // Utils.GetCurrentScene calls everything it does not know Flight -- the loading
+        // screen, KSP's settings screen -- so a profile is applied at once only in the
+        // five scenes TUFX has profiles for.
         private bool CurrentScene(object scene)
         {
             object loader = Loader();

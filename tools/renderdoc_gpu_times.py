@@ -1,20 +1,23 @@
 """GPU time per pass of a RenderDoc capture, to see where a frame's GPU time goes.
-Runs inside RenderDoc's own Python:
-
-    set RDC=<capture.rdc>& set RDC_OUT=<report.txt>
-    qrenderdoc.exe --python tools\\renderdoc_gpu_times.py
+It runs inside RenderDoc's own Python.
 
 Each action's EventGPUDuration (RenderDoc replays the frame and times every draw,
-dispatch and copy), summed three ways: by the marker the action stands under (Unity's
-camera and pass markers, e.g. Camera.Render > Drawing > Render.OpaqueGeometry), by the
-pixel or compute shader it ran, and by its render target. The report lists each, most
-costly first, with its share of the frame's GPU time; and by the mod a shader belongs
-to, by its name (MODS), with the draws and the time a draw.
+dispatch and copy) is summed three ways. The ways are by the marker the action stands
+under (Unity's camera and pass markers, e.g. Camera.Render > Drawing >
+Render.OpaqueGeometry), by the pixel or compute shader it ran, and by its render
+target. The report lists each, most costly first, with its share of the frame's GPU
+time. It also lists the sums by the mod a shader belongs to, by its name (MODS), with
+the draws and the time a draw.
 
-RenderDoc times each action on its own, with the GPU idle around it: many small draws
+RenderDoc times each action on its own, with the GPU idle around it. Many small draws
 come out dearer than they are in the game (605 depth-only draws of a vessel took 1.7 ms
 here and under 0.04 ms in the game, GpuProfiler). The share of a mod with few large
 draws is the one to go by; for many small ones, the game's own measurement.
+
+Usage, inside RenderDoc:
+
+    set RDC=<capture.rdc>& set RDC_OUT=<report.txt>
+    qrenderdoc.exe --python tools\\renderdoc_gpu_times.py
 """
 import os
 import traceback

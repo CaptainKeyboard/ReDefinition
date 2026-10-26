@@ -6,11 +6,11 @@ namespace ReDefinition.Settings
     // KSP's own reset, as its settings screen's Reset does it
     // (GameSettings.ResetSettings, decompiled): every GameSettings field to its
     // default (SetDefaultValues), the key bindings of the keyboard layout KSP
-    // detects, its terrain detail presets anew, then applied. Run by the settings
-    // window's *Reset to defaults* before any of its rows is set, so that what
-    // KSP's reset covers and no row shows -- the keyboard layout's bindings, the
-    // terrain presets -- is reset as well; the window saves KSP's settings once
-    // its rows are set.
+    // detects, its terrain detail presets anew, then applied.
+    // The settings window's *Reset to defaults* runs it before any of its rows is set.
+    // So what KSP's reset covers and no row shows, the keyboard layout's bindings and the
+    // terrain presets, is reset as well.
+    // The window saves KSP's settings once its rows are set.
     //
     // One difference: the screen resolution and full screen stay as they are.
     // KSP's defaults are 1280 x 720 in a window, which would resize the game on

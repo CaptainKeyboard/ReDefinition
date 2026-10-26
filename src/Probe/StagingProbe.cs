@@ -7,12 +7,12 @@ using UnityEngine;
 
 namespace ReDefinition.Probe
 {
-    // -redefinitionProbeLaunch <craft>: the probe's save's flight a new launch of that craft from the VAB's ships
+    // -redefinitionProbeLaunch <craft> makes the probe save's flight a new launch of that craft from the VAB's ships
     // (Ships/VAB/<craft>.craft), its first seat crewed, in place of the vessel on the pad.
-    // -redefinitionProbeStaging <seconds>: then the launch flown -- full throttle, the first stage, and after that
-    // many seconds the next, which drops what it decouples -- with the desktop recorded from just before the
-    // drop (ScreenRecordingBridge, frame generation's frames included; with -redefinitionProbeDumps its inputs
-    // too), and shots before and after. For what frame generation makes of parts the vessel drops.
+    // The switch -redefinitionProbeStaging <seconds> then flies the launch: full throttle, the first stage, and after that
+    // many seconds the next, which drops what it decouples. The desktop is recorded from just before the
+    // drop (ScreenRecordingBridge, frame generation's frames included, and with -redefinitionProbeDumps its inputs
+    // too), and shots are taken before and after. The probe shows what frame generation makes of parts the vessel drops.
     internal static class StagingProbe
     {
         // The switches for the craft to launch and for the staging flight after it.

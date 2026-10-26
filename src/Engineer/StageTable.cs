@@ -55,11 +55,12 @@ namespace ReDefinition.Engineer
             return isp * StandardGravity * System.Math.Log(startMass / endMass);
         }
 
-        // The propellant thrusters can burn from what is held, in tonnes: they draw
+        // The propellant thrusters can burn from what is held, in tonnes. They draw
         // their propellants in the mix they burn them in (`mix`, per resource its
-        // share of the flow by mass, in any unit), so the resource that runs out
-        // first ends it and the rest of the others stays. `held`: per resource, in
-        // tonnes.
+        // share of the flow by mass, in any unit). The resource that runs out
+        // first ends it, and the rest of the others stays. A Vernor's liquid fuel and
+        // oxidizer come from the tanks it reaches, as far as they go together.
+        // `held`: per resource, in tonnes.
         internal static double UsablePropellant(IDictionary<string, double> mix, IDictionary<string, double> held)
         {
             double total = 0.0;

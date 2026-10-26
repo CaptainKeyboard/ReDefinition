@@ -236,7 +236,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("True", steps[0].Value);
         }
 
-        // Apply's steps follow where each row's value came from: the player's change is set, a handed back row
+        // Apply's steps follow where each row's value came from. The player's change is set, a handed back row
         // released, a profile's value set where the mod holding it is not enough, and an unchanged row left out.
         [TestMethod]
         public void ApplyTakesEachRowAsItsValueCameIntoIt()
@@ -268,9 +268,9 @@ namespace ReDefinition.Tests
             Assert.AreEqual(SettingsEdit.StepKind.Set, steps[2].Kind);
         }
 
-        // The reset chooses High over the defaults: every row High fills is set,
-        // even one that held High's value as the window opened -- KSP's own reset
-        // runs first and puts KSP's defaults there -- and nothing is handed back.
+        // The reset chooses High over the defaults. Every row High fills is set,
+        // even one that held High's value as the window opened, because KSP's own reset
+        // runs first and puts KSP's defaults there. Nothing is handed back.
         [TestMethod]
         public void AResetSetsEveryRowOfItsProfileAndHandsNothingBack()
         {

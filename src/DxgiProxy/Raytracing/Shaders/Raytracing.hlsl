@@ -201,11 +201,8 @@ void DiffuseLightCached(uint3 id : SV_DispatchThreadID)
 // lobe, averaged over the lobe as a filtered reflection probe gives it; Unity's
 // lighting multiplies it by the Fresnel term. The sun's disc is left out, as Unity's
 // lighting draws its highlight. The reflected ray's hit distance in w. In the water's
-// frame (kRtFrameWater) on KSP's own sea (STOCK_WATER) only the sea (IsStockWater), its
-// waves and their roughness (StockWaves), whose highlight ReDefinition turns off:
-// what the rays meet and the sky, and the sun's and the moons' discs as on Scatterer's
-// ocean (BodiesMirroredAt), undenoised, as the glints are; the reflections' shader takes
-// it there with water's Fresnel term (ReDefinitionDeferredReflections.shader).
+// frame (kRtFrameWater) on KSP's own sea (STOCK_WATER) it holds the sea alone, as the
+// comment at stockWater says.
 // `cached`: with the radiance cache, as SpecularLightCached (DiffuseLightAt).
 void SpecularLightAt(uint3 id, bool cached)
 {
@@ -221,6 +218,12 @@ void SpecularLightAt(uint3 id, bool cached)
     SurfaceData surface = SurfaceAt(id.xy, position);
     float3 normal = surface.normal;
     float alpha = SmoothnessToAlpha(surface.smoothness);
+    // On KSP's own sea in the water's frame the output covers only the sea (IsStockWater),
+    // its waves and their roughness (StockWaves), whose highlight ReDefinition turns off. It
+    // holds what the rays meet and the sky, and the sun's and the moons' discs as on
+    // Scatterer's ocean (BodiesMirroredAt). It is undenoised, as the glints are. The
+    // reflections' shader takes it there with water's Fresnel term
+    // (ReDefinitionDeferredReflections.shader).
     bool stockWater = WATER_SURFACE && STOCK_WATER;
     float waterM = 0.0f;
     // The water a pixel covers across the view: its width at its distance.
@@ -372,20 +375,10 @@ Texture2D<float4> finishedSpecular : register(t1, space3);
 
 // u4, for rendering without a G-buffer of Unity's own lighting pass to put the raytraced
 // light in: the light to add to the frame Unity drew, from the signals as the denoiser
-// left them; a signal not traced reads as none. With a G-buffer (Unity's deferred path
-// without Deferred's reflections pass): the diffuse light less KSP's flat ambient light,
-// which Unity's shading added already, times the G-buffer's albedo, and the reflections.
-// Without one (forward), the surface's colour is taken from the frame Unity drew, not
-// guessed from its material: u7 holds per channel k = (diffuse - ambient) / (sun + ambient),
-// the light Unity shaded with (the sun as the screen-space shadows let it through, our own
-// sun visibility, faded out towards the shadow distance as Unity fades it, and the ambient
-// light), and in w the largest channel of sun + ambient;
-// the frame's colour c becomes c + min(c, w) k (ReDefinitionRtForwardLight.shader), its
-// colour as Unity shaded it, capped where other lights brightened it. Unity's sun term is
-// its shader's own: N.L, or Disney's diffuse term for its standard shader, and the sun's
-// highlight the material's shader draws (UnityDirectTerms), which u4 takes back out of
-// the relit colour, so that it stays as drawn; u4 holds it with the reflections. Unity's
-// standard Fresnel term (FresnelLerp, with its surface reduction) weighs the reflections.
+// left them. A signal not traced reads as none. With a G-buffer (Unity's deferred path
+// without Deferred's reflections pass) it is the diffuse light less KSP's flat ambient
+// light, which Unity's shading added already, times the G-buffer's albedo, and the
+// reflections. Without one (forward), the comment in the branch below says how.
 [numthreads(8, 8, 1)]
 void ForwardLight(uint3 id : SV_DispatchThreadID)
 {
@@ -423,6 +416,17 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
         light = OutputColor(surface.albedo) * (diffuse - ambient);
     else
     {
+        // Without a G-buffer the surface's colour is taken from the frame Unity drew, not
+        // guessed from its material. u7 holds per channel k = (diffuse - ambient) / (sun +
+        // ambient), the light Unity shaded with, and in w the largest channel of sun + ambient.
+        // That light is the sun as the screen-space shadows let it through, our own sun
+        // visibility, faded out towards the shadow distance as Unity fades it, and the ambient
+        // light. The frame's colour c becomes c + min(c, w) k (ReDefinitionRtForwardLight.shader),
+        // its colour as Unity shaded it, capped where other lights brightened it. Unity's sun
+        // term is its shader's own: N.L, or Disney's diffuse term for its standard shader, and
+        // the sun's highlight the material's shader draws (UnityDirectTerms), which u4 takes
+        // back out of the relit colour, so that it stays as drawn. u4 holds it with the
+        // reflections.
         // Unity's sun term in its colour space: the light's colour, N.L and its shadow, which
         // takes the light's shadow strength (sunColor.w) of it -- KSP's sun keeps a quarter
         // in its shadows.
@@ -455,6 +459,8 @@ void ForwardLight(uint3 id : SV_DispatchThreadID)
     float reduction = GAMMA_INPUTS ? 1.0f - 0.28f * roughness * perceptual : 1.0f / (roughness * roughness + 1.0f);
     float grazing = saturate(surface.smoothness + max(surface.specular.r, max(surface.specular.g, surface.specular.b)));
     float t = pow(1.0f - nv, 5.0f);
+    // Unity's standard Fresnel term (FresnelLerp, with its surface reduction) weighs the
+    // reflections.
     float3 fresnel = lerp(surface.specular, grazing.xxx, t);
     light += OutputColor(finishedSpecular[id.xy].rgb) * fresnel * reduction;
     output4[id.xy] = float4(light, 1.0f);

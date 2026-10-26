@@ -208,9 +208,9 @@ namespace ReDefinition.Engineer
             return warnings[step][line];
         }
 
-        // A stage of an open step: its swatch in the stage's colour, what it gives here,
-        // what it keeps after or held as it was dropped, its thrust against the weight at
-        // the body of a launch or a landing; Use and Drop after, where a stop's cross
+        // A stage of an open step. The row holds its swatch in the stage's colour, what it gives here,
+        // and what it keeps after or held as it was dropped. It holds its thrust against the weight at
+        // the body of a launch or a landing. Use and Drop come after, where a stop's cross
         // ends.
         private DialogGUIBase FuelStageRow(int step, int row)
         {
@@ -330,9 +330,9 @@ namespace ReDefinition.Engineer
         }
 
         // The stage's thrust against the weight it pushes as it starts its part of the
-        // step, at the surface of the body it lifts off from or lands on; red below what
+        // step, at the surface of the body it lifts off from or lands on. The text is red below what
         // that needs on the stage that lifts off or sets down, the first of a launch and
-        // the last of a landing, as the warnings have it. Nothing for a stage the step
+        // the last of a landing, as the warnings have it. It gives nothing for a stage the step
         // does not burn, or away from surfaces.
         private string StageTwrText(int step, int row)
         {

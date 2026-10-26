@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace ReDefinition
 {
-    // How the diagnostics window draws an option by its kind (DebugOption): a switch or a
-    // choice as segments, an action as a button, each with its persistence marker and its
-    // star; a row that does not apply greyed out with its reason beneath.
+    // How the diagnostics window draws an option by its kind (DebugOption). A switch or a
+    // choice is drawn as segments, an action as a button, each with its persistence marker and its
+    // star. A row that does not apply is greyed out with its reason beneath.
     public partial class ReDefinitionAddon
     {
         // The narrowest a segment is drawn, in pixels.

@@ -9,26 +9,22 @@ namespace ReDefinition.Settings
     // When the bundled settings reach their mods. The windows' part is
     // ModWindowsAddon's.
     //
-    // At every scene change: when the next scene is requested, before it loads
-    // -- Scatterer reads its node in the new scene's Awake, Deferred sets up
-    // its reflections as the scene loads; when it has loaded and when its GUI
-    // is ready -- after the mods' own per-scene applies: EVE's puts its quality
-    // values back, TUFX applies its own profile (onLevelWasLoaded, and at every
-    // change of camera mode, OnCameraChange). KSP's GameEvents call their
-    // handlers from the last subscribed to the first (EventData.Fire,
-    // decompiled: while (count-- > 0)); these subscribe at the start of the
-    // game, TUFX at the end of loading (its ModuleManagerPostLoad), so
-    // ReDefinition's run after TUFX's, in the same frame -- no frame shows its
-    // profile first.
+    // At every scene change the values are handed over again.
+    // That happens when the next scene is requested, before it loads (OnSceneLoadRequested).
+    // It happens again when the scene has loaded and when its GUI is ready,
+    // after the mods' own per-scene applies (OnLevelLoaded, OnLevelReady).
+    // It also happens at every change of camera mode (OnCameraChange).
+    // Awake says in what order KSP calls the handlers.
     // Values already in place are left alone (BundledStore).
     //
-    // In the main menu the values are handed over again on the tick below: EVE
-    // sets up that scene's managers late -- five physics frames after its
+    // In the main menu the values are handed over again on the tick below.
+    // EVE sets up that scene's managers late: five physics frames after its
     // global manager starts there, for Kopernicus
     // (GlobalEVEManager.waitToRunLateSetup; GenericEVEManager: SceneLoad main
-    // menu, DelayedLoad) -- and its apply puts EVE's own cloud quality back over
-    // ReDefinition's. Physics frames are not seconds, so this asks again while the
-    // menu is up; handing over values already in place costs nothing and says
+    // menu, DelayedLoad).
+    // Its apply then puts EVE's own cloud quality back over ReDefinition's.
+    // Physics frames are not seconds, so this asks again while the
+    // menu is up. Handing over values already in place costs nothing and says
     // nothing.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class BundledSettingsAddon : MonoBehaviour
@@ -46,6 +42,10 @@ namespace ReDefinition.Settings
         private float nextTick;
 
         // Kept across scenes, its handlers on KSP's events subscribed at the start of the game.
+        // KSP's GameEvents call their handlers from the last subscribed to the first (EventData.Fire,
+        // decompiled: while (count-- > 0)).
+        // TUFX subscribes at the end of loading (its ModuleManagerPostLoad), so
+        // ReDefinition's run after TUFX's, in the same frame, and no frame shows its profile first.
         private void Awake()
         {
             instance = this;
@@ -68,10 +68,10 @@ namespace ReDefinition.Settings
             if (instance == this) instance = null;
         }
 
-        // Once, at the end of this frame, however often it is asked for: EVE's
-        // rebuild of its clouds, as EveCompatibility does it -- a renderer still
+        // Once, at the end of this frame, however often it is asked for.
+        // It serves EVE's rebuild of its clouds, as EveCompatibility does it: a renderer still
         // rendering in the frame would set itself up again just before it is
-        // destroyed -- and Parallax's updates of its materials.
+        // destroyed. It also serves Parallax's updates of its materials.
         internal static void AtEndOfFrame(string key, Action action)
         {
             if (instance == null || !instance.isActiveAndEnabled)
@@ -158,6 +158,7 @@ namespace ReDefinition.Settings
 
         // Before the next scene loads: what is kept here to the mods, failures tried again, then the queued
         // follow-ups.
+        // Scatterer reads its node in the new scene's Awake, and Deferred sets up its reflections as the scene loads.
         private void OnSceneLoadRequested(GameScenes scene)
         {
             BundledSettings.ReapplyStored("before " + scene, sceneChange: true);
@@ -188,6 +189,8 @@ namespace ReDefinition.Settings
         }
 
         // The scene has loaded: the profile caught up, what is kept here to the mods, the requirements enforced.
+        // The mods' own per-scene applies come first: EVE's puts its quality values back, and TUFX applies its own
+        // profile (onLevelWasLoaded).
         private void OnLevelLoaded(GameScenes scene)
         {
             CatchUpProfile(scene + " loaded");

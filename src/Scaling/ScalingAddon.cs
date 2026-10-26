@@ -58,12 +58,12 @@ namespace ReDefinition.Scaling
             UiScaling.Note("the vessel labels and CommNet's lines");
         }
 
-        // KSP keeps each label at the size of a pixel: it parents it keeping its
+        // KSP keeps each label at the size of a pixel. It parents the label keeping its
         // world scale, and puts it back so as the UI scale changes
-        // (BaseLabel.ResetParent: SetParent(null), localScale one, SetParent back),
-        // and places it by anchoredPosition in the canvas's units (VesselLabels,
-        // WorldToMainCanvas); decompiled. Its own scale, about its anchor, is set
-        // here to the world scale wanted over its parent's.
+        // (BaseLabel.ResetParent: SetParent(null), localScale one, SetParent back).
+        // It places the label by anchoredPosition in the canvas's units (VesselLabels,
+        // WorldToMainCanvas); decompiled.
+        // Here the label's own scale, about its anchor, is set to the world scale wanted over its parent's.
         private static void VesselLabelsAt(float scale)
         {
             VesselLabels labels = VesselLabels.Instance;

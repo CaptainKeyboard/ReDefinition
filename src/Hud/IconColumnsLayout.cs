@@ -5,19 +5,19 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Hud
 {
-    // A stage's part icons between KSP's one column and two columns, blended by
+    // A layout of a stage's part icons between KSP's one column and two columns, blended by
     // `Blend` from 0 (one column, as KSP's vertical layout lays them) to 1 (two
-    // columns, filled left to right): each icon moves on a straight line between its
-    // two places, and the list's width and height follow, so that the icons close up
+    // columns, filled left to right). Each icon moves on a straight line between its
+    // two places. The list's width and height follow, so that the icons close up
     // as the stage's details slide in (StageInfoColumns). Every icon keeps `Cell`,
     // its size in KSP's column.
     //
     // KSP makes room for an icon moved in or out with a placeholder that grows or
     // shrinks in height (TweeningController.SpawnResizingLayoutElement, a
     // ResizingLayoutElement among the icons). A placeholder here takes the share of a
-    // place its height is of an icon's, and the icons after it move on by as much:
-    // along the column, and in two columns from one place to the next, so that they
-    // glide into the gap rather than jump.
+    // place its height is of an icon's, and the icons after it move on by as much.
+    // They move along the column, and in two columns from one place to the next, so
+    // that they glide into the gap rather than jump.
     public class IconColumnsLayout : LayoutGroup
     {
         // An icon's size in KSP's column; the gap between rows; and the blend, 0 for one column, 1 for two.

@@ -19,9 +19,9 @@ namespace ReDefinition.Tests
         }
 
         // A core of 20 t at 0.1 t/s with two pairs of boosters, 4 t and 6 t each at
-        // 0.08 t/s, dropped pair by pair as they burn out: 50 s, then 25 s more,
+        // 0.08 t/s, dropped pair by pair as they burn out. That takes 50 s, then 25 s more,
         // then the core alone. The digits are the time until the stage's boosters
-        // are empty, as KSP counts a stage; flown in half seconds. Throughout, the
+        // are empty, as KSP counts a stage. The test flies in half seconds. Throughout, the
         // arc stands at the digits' share of the timed engine's full burn, falls
         // with them, and is empty as the stage ends.
         [TestMethod]
@@ -87,7 +87,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("1.0s", reading.Text);
         }
 
-        // No stage gauge without engines or without a burn time left.
+        // GaugeReadings.Stage gives no reading, null, for a list of no engines or for a burn time of 0.
         [TestMethod]
         public void NoStageWithoutABurnTimeOrEngines()
         {
@@ -117,8 +117,8 @@ namespace ReDefinition.Tests
             Assert.IsNull(unpowered.Warning);
         }
 
-        // On the Mun from 5000 m at 50 m/s down (1.63 m/s^2, 5 of thrust): the
-        // ground in (-50 + sqrt(2500 + 2 * 1.63 * 5000)) / 1.63 = 53.4 s; the burn
+        // The case is the Mun from 5000 m at 50 m/s down (1.63 m/s^2, 5 of thrust). The
+        // ground comes in (-50 + sqrt(2500 + 2 * 1.63 * 5000)) / 1.63 = 53.4 s. The burn
         // lights in 38.4 s, at 1880 m and 112.6 m/s, from where the fall would take
         // 15.1 s more. The tick stands at those 15.1 s: the time to impact the
         // gauge shows as the moment to brake comes. With the countdown at the speed
@@ -147,7 +147,8 @@ namespace ReDefinition.Tests
         }
 
         // Closing on a target, the tick stands at the safe speed, a hundredth of the distance per second but at
-        // least 0.2 m/s: caution above it, warning beyond one and a half times it, an empty arc moving away.
+        // least 0.2 m/s. The level is caution above it and warning beyond one and a half times it. An empty arc means
+        // moving away.
         [TestMethod]
         public void ClosingAgainstTheSafeSpeed()
         {

@@ -20,7 +20,7 @@ namespace ReDefinition.Modules
     //
     // A profile sets the graphics settings of these modules -- the upscaler, its mode, frame
     // generation, raytracing, Ray Reconstruction and the low latency mode -- by the class of the
-    // graphics card (ProfileValue); a value may be Auto, which stands for what fits the card and
+    // graphics card (ProfileValue). A value may be Auto, which stands for what fits the card and
     // the screen (AutoSettings). Its sharpness is taste and stays the player's. None of them can
     // be changed without a graphics profile chosen: only a profile makes ReDefinition active
     // (ReDefinitionAddon).

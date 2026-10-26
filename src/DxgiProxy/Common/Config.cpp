@@ -196,12 +196,11 @@ namespace redefinition
         }
 
         // Every key of the template built into the proxy (ReDefinitionProxy.rc) stands in the
-        // player's file with its default: a file from an earlier version gets the keys added
-        // since, each after the comment above it in the template; the player's own values stay.
-        // Without a file, the template is written as it is. Where another section than
-        // [Proxy] ends the file, or the file is UTF-16, the keys go into [Proxy] without their
-        // comments. Then the defaults the proxy wrote earlier take this version's
-        // (RaiseDefaults).
+        // player's file with its default. A file from an earlier version gets the keys added since,
+        // each after the comment above it in the template, and the player's own values stay.
+        // Without a file, the template is written as it is. Where another section than [Proxy] ends
+        // the file, or the file is UTF-16, the keys go into [Proxy] without their comments. Then the
+        // defaults the proxy wrote earlier take this version's (RaiseDefaults).
         void CompleteIni(const std::wstring& file)
         {
             HMODULE self = nullptr;

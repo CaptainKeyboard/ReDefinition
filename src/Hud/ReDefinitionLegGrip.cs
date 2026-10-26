@@ -4,14 +4,14 @@ namespace ReDefinition.Hud
 {
     // A landing leg's grip chosen as a grip pad's is (Breaking Ground's
     // ModulePhysicMaterial, docs/player/leg-grip.md). A pad sets a PhysicMaterial
-    // on its collider; a leg stands on its wheel's collider, which does not take
+    // on its collider. A leg stands on its wheel's collider, which does not take
     // one, and grips by its tyre friction (ModuleWheelBase: frictionAdherent,
     // frictionPeak and frictionLimit, each times frictionMultiplier, set every
     // physics frame while grounded; decompiled). KSP keeps the multiplier of the
     // stock legs at 1 (autoFrictionAvailable = False). Here the chosen grip sets
-    // it to the grip's static friction over the default material's, as the
-    // physics materials give them (SquadExpansion/Serenity/Resources/
-    // PhysicMaterials.cfg: Default 0.4, Medium 0.5, High 0.75, Extreme 1.1);
+    // it to the grip's static friction over the default material's. The
+    // physics materials give those frictions (SquadExpansion/Serenity/Resources/
+    // PhysicMaterials.cfg: Default 0.4, Medium 0.5, High 0.75, Extreme 1.1).
     // Default leaves KSP's 1. Added to every leg whose friction KSP holds at 1 by
     // Patches/LegGrip.cfg, where ModuleManager is installed.
     public class ReDefinitionLegGrip : PartModule

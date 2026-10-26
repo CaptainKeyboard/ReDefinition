@@ -8,32 +8,27 @@ using UnityEngine;
 
 namespace ReDefinition.Settings.Behaviours
 {
-    // KSP's own settings (KSP 1.12.5, decompiled) -- what their registration
+    // KSP's own settings (KSP 1.12.5, decompiled): what their registration
     // cannot say in data.
     //
     // They are static fields of GameSettings. KSP hands the quality ones to Unity
-    // in GameSettings.ApplySettings -- the quality level, the texture mipmap limit,
-    // V-Sync, the pixel light count, the shadow cascades -- and the frame limit
-    // through Application.targetFrameRate. The others are read where they matter:
-    // the terrain shader quality and the terrain detail preset when a planet's
-    // surface is built, terrain scatter likewise, surface FX when a part's module
-    // starts, aerodynamic FX (FXCamera, AerodynamicsFX) and the reflection probe on
-    // OnGameSettingsApplied. A value set here is saved as KSP's own settings
-    // screens save it -- GameSettings.SaveSettings, the registration's `save`.
+    // in GameSettings.ApplySettings: the quality level, the texture mipmap limit,
+    // V-Sync, the pixel light count and the shadow cascades. The frame limit goes
+    // through Application.targetFrameRate.
+    // The others are read where they matter.
+    // The terrain shader quality and the terrain detail preset are read when a planet's
+    // surface is built, and terrain scatter likewise. Surface FX is read when a part's module
+    // starts. Aerodynamic FX (FXCamera, AerodynamicsFX) and the reflection probe read it on
+    // OnGameSettingsApplied.
+    // A value set here is saved as KSP's own settings
+    // screens save it: GameSettings.SaveSettings, the registration's `save`.
     //
-    // Here: what follows a change (FollowUp), the terrain detail preset, the
-    // screen resolution, the two bits of the temperature gauges' mode, Making
-    // History's settings only with the expansion, and what another mod holds for
-    // itself -- the reflection refresh while Deferred caps it, the terrain shader
-    // quality while Kopernicus enforces or warns about a level.
-    //
-    // The engine settings take effect as GameSettings.ApplySettings sets them:
-    // the physics step limit, running in the background, the UI scale, the
-    // master volume, the highlighting, and the resolution where it differs from
-    // the screen's. Antialiasing is kept for the reset only: while the upscaler runs it
-    // switches MSAA off again whenever KSP's settings are applied
-    // (ReDefinitionAddon.OnGameSettingsApplied), which FollowUp fires after every
-    // change here.
+    // This class handles what follows a change (FollowUp), the terrain detail preset and the
+    // screen resolution. It handles the two bits of the temperature gauges' mode and Making
+    // History's settings, which exist only with the expansion.
+    // It also handles what another mod holds for itself: the reflection refresh while Deferred caps it,
+    // and the terrain shader quality while Kopernicus enforces or warns about a level.
+    // EngineFollow and QualityFollow say how the engine settings and antialiasing take effect.
     internal sealed class KspBehaviour : ModBehaviour
     {
         // What follows a change of one of KSP's settings, at the end of the frame (FollowUp).
@@ -51,6 +46,9 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // The settings Unity's quality settings are set again for, then the event.
+        // Antialiasing is kept for the reset only: while the upscaler runs it
+        // switches MSAA off again whenever KSP's settings are applied
+        // (ReDefinitionAddon.OnGameSettingsApplied), which FollowUp fires after every change here.
         private static readonly string[] QualityFollow =
         {
             "QUALITY_PRESET", "TEXTURE_QUALITY", "LIGHT_QUALITY", "SYNC_VBL", "FRAMERATE_LIMIT", "SHADOWS_QUALITY",
@@ -64,6 +62,7 @@ namespace ReDefinition.Settings.Behaviours
         };
 
         // The settings GameSettings.ApplySettings hands the engine, set again, then the event.
+        // They take effect as GameSettings.ApplySettings sets them, the resolution only where it differs from the screen's.
         private static readonly string[] EngineFollow =
         {
             "PHYSICS_FRAME_DT_LIMIT", "SIMULATE_IN_BACKGROUND", "UI_SCALE", "MASTER_VOLUME", "HIGHLIGHT_FX",
@@ -82,18 +81,18 @@ namespace ReDefinition.Settings.Behaviours
         private static readonly HashSet<string> qualityDue = new HashSet<string>();
         private static bool engineDue;
 
-        // KSP.cfg's REQUIRES on V-Sync while DLSS frame generation runs: every
-        // refresh at most -- "SyncInterval > 1: Not supported" -- and none where its
+        // KSP.cfg's REQUIRES on V-Sync while DLSS frame generation runs.
+        // V-Sync is on every refresh at most -- "SyncInterval > 1: Not supported" -- and off where its
         // build does not support V-Sync -- "hide or disable VSync toggle"
-        // (ProgrammingGuideDLSS_G.md 22.1, 22.2). Held at run time: Unity's V-Sync
-        // count while it runs, KSP's SYNC_VBL left as the player set it (Hold). The
-        // proxy holds the same at Present.
+        // (ProgrammingGuideDLSS_G.md 22.1, 22.2).
+        // Held at run time: Unity's V-Sync count while it runs, KSP's SYNC_VBL left as the player set it (Hold).
+        // The proxy holds the same at Present.
         private const string DlssEveryRefreshCheck = "DlssFrameGenerationEveryRefresh";
         private const string DlssVsyncCheck = "DlssFrameGenerationVSync";
 
-        // KSP.cfg's REQUIRES on V-Sync while Intel's XeLL lowers the latency -- with XeSS
-        // frame generation always, alone on an Intel GPU in its low latency mode: every
-        // refresh at most, "when VSync is enabled, sync interval for
+        // KSP.cfg's REQUIRES on V-Sync while Intel's XeLL lowers the latency.
+        // That is always so with XeSS frame generation, and alone on an Intel GPU in its low latency mode.
+        // V-Sync is on every refresh at most, "when VSync is enabled, sync interval for
         // IDXGISwapChain::Present must always be 1 when Low Latency is active"
         // (xell_developer_guide_english.md, Integration Checklist). Held at run time like
         // DLSS's; the proxy holds the same at Present.
@@ -463,11 +462,11 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // Kopernicus sets the terrain shader quality back to its level in every
-        // frame, and saves KSP's settings as it does, where its config says
-        // EnforceShaders; and posts a warning in every frame outside a game where
+        // frame, and saves KSP's settings as it does, where its config says EnforceShaders.
+        // It posts a warning in every frame outside a game where
         // it says WarnShaders (TerrainQualitySetter, from its source). Its settings
-        // window switches neither, so they are read once. The level, or -1 where it
-        // holds none or cannot be asked.
+        // window switches neither, so they are read once.
+        // The result is the level, or -1 where it holds none or cannot be asked.
         private static int KopernicusShaderLevel()
         {
             try
@@ -571,10 +570,10 @@ namespace ReDefinition.Settings.Behaviours
             }
         }
 
-        // What GameSettings.ApplySettings hands Unity, but only what changed: a new
-        // quality level sets every one of Unity's quality settings anew
-        // (SetQualityLevel), and with it what other mods set over them for the
-        // scene -- so the level is set only where it moved, the members KSP hands
+        // What GameSettings.ApplySettings hands Unity, but only what changed.
+        // A new quality level sets every one of Unity's quality settings anew
+        // (SetQualityLevel), and with it what other mods set over them for the scene.
+        // So the level is set only where it moved, the members KSP hands
         // over after it all again, and what the others hold put back (OthersHold).
         // Without a new level only the members that changed are set.
         private static void ApplyQuality(HashSet<string> changed)
@@ -615,12 +614,11 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // What other mods set over Unity's quality level for the scene, which a
-        // new level would take back until the next scene: Scatterer's shadow
-        // distance where it holds one -- its static originalShadowDistance is the
-        // level's own while it does, 0 otherwise, and what it puts back when its
-        // terrain shadows go off -- and its shadow projection where it sets one:
-        // with the unified camera and d3d11ShadowFix or terrainShadows, or with
-        // shadowsOnOcean or oceanLightRays (Scatterer.SetShadows, 0.908, decompiled).
+        // new level would take back until the next scene.
+        // One is Scatterer's shadow distance, where it holds one. Its static originalShadowDistance is the
+        // level's own while it does, 0 otherwise, and what it puts back when its terrain shadows go off.
+        // The other is its shadow projection, where it sets one: with the unified camera and d3d11ShadowFix
+        // or terrainShadows, or with shadowsOnOcean or oceanLightRays (Scatterer.SetShadows, 0.908, decompiled).
         // Deferred's light count follows PixelLightCount.
         internal struct HeldQuality
         {

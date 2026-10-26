@@ -51,21 +51,22 @@ namespace redefinition
         float viewToClip[16];
     };
 
-    // DLSS Ray Reconstruction through NVIDIA's NGX on the proxy's Direct3D 12 device,
-    // where the presenting swapchain is not Streamline's -- beside FSR's or XeSS's
-    // frame generation -- and Streamline is not set up on the device (rrPath,
-    // Config.h). NGX's feature is RayReconstruction ("Set FeatureID to
-    // NVSDK_NGX_Feature_RayReconstruction", DLSS-RR Integration Guide 2.1), its DLL
-    // nvngx_dlssd.dll, which the core finds in streamlineDirectory, dlssDirectory or
-    // next to KSP_x64.exe. Under DLSS-G and with frame generation off, Streamline's
-    // sl.dlss_d runs it instead (Streamline.h), and NGX is started on the device by
-    // Streamline: "Init once per device" (nvsdk_ngx.h) holds for one of the two.
+    // DLSS Ray Reconstruction through NVIDIA's NGX on the proxy's Direct3D 12 device. It runs where
+    // the presenting swapchain is not Streamline's, beside FSR's or XeSS's frame generation, and
+    // Streamline is not set up on the device (rrPath, Config.h). NGX's feature is RayReconstruction
+    // ("Set FeatureID to NVSDK_NGX_Feature_RayReconstruction", DLSS-RR Integration Guide 2.1), its
+    // DLL nvngx_dlssd.dll, which the core finds in streamlineDirectory, dlssDirectory or next to
+    // KSP_x64.exe. Under DLSS-G and with frame generation off, Streamline's sl.dlss_d runs it
+    // instead (Streamline.h), and NGX is started on the device by Streamline: "Init once per device"
+    // (nvsdk_ngx.h) holds for one of the two.
     //
     // The NGX calls come from Unity's render thread under the raytracing's lock
-    // (RaytracingReconstruct.cpp) and hold NgxMutex, which DLSS Super Resolution's on
-    // Unity's Direct3D 11 device take too: "The NGX API is not thread safe" (DLSS
-    // Programming Guide 5.2.4). Ready is asked from the main thread and makes no
-    // NGX call.
+    // (RaytracingReconstruct.cpp) and hold NgxMutex, which DLSS Super Resolution's on Unity's
+    // Direct3D 11 device take too. The guide says "The NGX API is not thread safe" (DLSS Programming
+    // Guide 5.2.4). Ready is asked from the main thread and makes no NGX call.
+    //
+    // On Direct3D 12 the only other caller of the legacy Shutdown is Streamline's sl.common, which is
+    // not set up while this runs (ChooseRoute, RaytracingReconstruct.cpp).
     class DlssRayReconstruction
     {
     public:
@@ -76,12 +77,11 @@ namespace redefinition
         // until what NGX searches changes or the device goes. Why, either way.
         bool Ready(std::string& why);
 
-        // NGX started on device where it is not yet, the feature made for the frame's
-        // sizes, mode and preset where they changed -- after idle has let the lists
-        // that evaluated the previous one finish -- and the evaluation recorded into
-        // list, which is "open and recording" and runs on a direct queue (nvsdk_ngx.h,
-        // NVSDK_NGX_D3D12_CreateFeature and _EvaluateFeature). The inputs in
-        // NON_PIXEL_SHADER_RESOURCE, the output in UNORDERED_ACCESS, the caller's
+        // Starts NGX on device where it is not yet. It makes the feature for the frame's sizes, mode
+        // and preset where they changed, after idle has let the lists that evaluated the previous one
+        // finish. It records the evaluation into list, which is "open and recording" and runs on a
+        // direct queue (nvsdk_ngx.h, NVSDK_NGX_D3D12_CreateFeature and _EvaluateFeature). The inputs
+        // are in NON_PIXEL_SHADER_RESOURCE and the output in UNORDERED_ACCESS, with the caller's
         // barriers. False with the reason in problem.
         bool Evaluate(ID3D12Device* device, ID3D12GraphicsCommandList* list, const NgxRrFrame& frame,
                       const std::function<void()>& idle, std::string& problem);
@@ -91,9 +91,13 @@ namespace redefinition
         // tried again after it.
         bool ReleaseFeature();
 
-        // The device goes: the feature, the parameter map and NGX's instance on it,
-        // once the lists that used them finished (NVSDK_NGX_D3D12_Shutdown, not
-        // Shutdown1: DlssRayReconstruction.cpp says why).
+        // The device goes: the feature, the parameter map and NGX's instance on it, once the lists
+        // that used them finished (NVSDK_NGX_D3D12_Shutdown, not Shutdown1: DlssRayReconstruction.cpp
+        // says why). An NGX instance on a Direct3D 11 device keeps running past it. Its capabilities
+        // and a new feature after it work, and Super Resolution's live feature went on evaluating
+        // (driver 597.16, RaytracingHarness, "Super Resolution running after Ray Reconstruction's NGX
+        // shut down"). A Streamline of a second swapchain made while the first still lives would lose
+        // NGX with this one's.
         void Shutdown(ID3D12Device* device);
 
     private:

@@ -13,15 +13,16 @@
 namespace redefinition
 {
     // One frame's work on the meshes' structures. With rtBlasBatch the copies of all its
-    // meshes come first, then one barrier for all the buffers they wrote, then every build
-    // back to back, each with scratch memory of its own, and the one UAV barrier before the
-    // scene's structure (BuildMeshesLocked) -- NVIDIA, "Best Practices for Using NVIDIA RTX
-    // Ray Tracing (Updated)": "Consecutively execute ... all BLAS build calls. This allows
-    // the driver to parallelize the calls to an extent. Do not place resource barriers
-    // between consecutive calls. All BLAS build calls need unique scratch memory to allow
-    // execution without barriers. ... you can have a single global UAV barrier before TLAS
-    // build to ensure all BLAS builds are completed, regardless of the resource where they
-    // reside." Without it each mesh's copies, barrier and build go in turn.
+    // meshes come first. Then come one barrier for all the buffers they wrote, then every
+    // build back to back, each with scratch memory of its own, and the one UAV barrier
+    // before the scene's structure (BuildMeshesLocked). This follows NVIDIA, "Best
+    // Practices for Using NVIDIA RTX Ray Tracing (Updated)": "Consecutively execute ...
+    // all BLAS build calls. This allows the driver to parallelize the calls to an extent.
+    // Do not place resource barriers between consecutive calls. All BLAS build calls need
+    // unique scratch memory to allow execution without barriers". It goes on: "... you can
+    // have a single global UAV barrier before TLAS build to ensure all BLAS builds are
+    // completed, regardless of the resource where they reside." Without it each mesh's
+    // copies, barrier and build go in turn.
     struct Raytracing::BuildFrame
     {
         // The slot whose list records it, and the settings read once for the frame: rtBlasBatch,

@@ -9,17 +9,17 @@ namespace ReDefinition.Scenery
 {
     // Firefly's re-entry effects not drawn while they show nothing. Firefly keeps, for
     // each vessel in an atmosphere, a command buffer on the flight camera that draws an
-    // envelope over every part with its effect shader, and an orthographic camera that
-    // renders the vessel into its airstream texture, every frame -- on the launch pad too,
-    // where the effects' strength is 0: 2.2 ms of the GPU's 19.7 for the Kerbal X on the
+    // envelope over every part with its effect shader. It also keeps an orthographic camera that
+    // renders the vessel into its airstream texture. Both run every frame, on the launch pad too,
+    // where the effects' strength is 0. That costs 2.2 ms of the GPU's 19.7 for the Kerbal X on the
     // pad (RenderDoc, 2026-10-05, 621 draws), and the vessel once more for the airstream.
     // Its shader draws nothing below an entry strength of 50 in its main pass and of 1000
-    // in its bow shock (their geometry stages return), and its glow pass, which is all
+    // in its bow shock (their geometry stages return). Its glow pass, which is all
     // that is left, stays below a thousandth of a visible step under a strength of 1
-    // (GlowPass.cginc: alpha and heat both scale with _EntryStrength / 4000). Below that
-    // the command buffer is emptied and the airstream camera stopped; at 1 and above
-    // Firefly's own PopulateCommandBuffer fills the buffer again and the camera runs.
-    // OwnSettings.FireflyIdle switches it; switched off, every idle vessel's effects are
+    // (GlowPass.cginc: alpha and heat both scale with _EntryStrength / 4000). Below the
+    // sleep threshold (0.5) the command buffer is emptied and the airstream camera stopped. At the wake
+    // threshold (1) and above, Firefly's own PopulateCommandBuffer fills the buffer again and the camera runs.
+    // OwnSettings.FireflyIdle switches it. Switched off, every idle vessel's effects are
     // woken that way.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class FireflyIdle : MonoBehaviour

@@ -6,20 +6,23 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Ui
 {
-    // A dialog that stands over the settings window -- a question, NVIDIA's
-    // download -- set apart from it: the screen behind it darkened, which also
-    // takes the clicks meant for the window, the dialog drawn opaque, and a light
+    // A dialog that stands over the settings window, such as a question or NVIDIA's
+    // download, set apart from it.
+    // The screen behind it is darkened, which also
+    // takes the clicks meant for the window. The dialog is drawn opaque, with a light
     // edge around it.
     //
-    // It is spawned not modal. A modal dialog, as it goes, hands the focus to the
-    // modal one below it -- the pause menu, KSP's settings, where the window was
-    // opened from one of them -- which is then raised over the settings window,
+    // It is spawned not modal.
+    // A modal dialog, as it goes, hands the focus to the modal one below it,
+    // the pause menu or KSP's settings, where the window was opened from one of them.
+    // That one is then raised over the settings window,
     // and the window, not modal, is left without raycasts
     // (UIMasterController.UnregisterModalDialog, FocusModalDialog; decompiled).
-    // What a modal dialog would give is set here instead: the darkened screen
-    // takes the UI's clicks, the UI_DIALOGS lock stands while it is there, and
+    // What a modal dialog would give is set here instead.
+    // The darkened screen takes the UI's clicks, the UI_DIALOGS lock stands while it is there, and
     // Unity's mouse events are kept off what lies behind the dark
-    // (UnityMouseEvents.ShieldScreen). And links: buttons without a background, for what opens a
+    // (UnityMouseEvents.ShieldScreen).
+    // It also makes links: buttons without a background, for what opens a
     // page rather than acts.
     internal static class DialogOverWindow
     {

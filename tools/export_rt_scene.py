@@ -11,12 +11,11 @@ repository.
 
 Needs UnityPy (pip install UnityPy).
 
-The file, little-endian:
-    'RTSC', version 1, mesh count, instance count (uint32 each)
-    per mesh: vertex count, index count (uint32); positions, normals (3 floats a
-        vertex), texture coordinates (2 floats a vertex), indices (uint32)
-    per instance: mesh index (uint32); transform, 3x4 floats rows first, mesh to
-        world; albedo (3 floats); smoothness (float)
+The file is little-endian. It starts with 'RTSC', version 1, mesh count and instance
+count (uint32 each). Per mesh it holds vertex count and index count (uint32), then
+positions and normals (3 floats a vertex), texture coordinates (2 floats a vertex) and
+indices (uint32). Per instance it holds the mesh index (uint32), the transform (3x4
+floats, rows first, mesh to world), albedo (3 floats) and smoothness (float).
 """
 
 import os

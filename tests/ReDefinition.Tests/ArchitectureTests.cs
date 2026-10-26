@@ -8,8 +8,8 @@ namespace ReDefinition.Tests
 {
     // The layering of src/: which area may use which other, as the usings between areas say. An area is a
     // folder of src (the files directly in src are "(root)"); its namespace is ReDefinition.<Area>. The table
-    // below is the current truth, read from the code; a using that is not in it fails the test, and so does
-    // a table entry the code no longer needs, so the table only ever shrinks or grows by a decision made here.
+    // below is the current truth, read from the code. A using that is not in it fails the test, and so does
+    // a table entry the code no longer needs. So the table only ever shrinks or grows by a decision made here.
     //
     // Core uses nothing; Proxy and Scaling use only Core. Settings, Vendor and Ui sit just above, and Window,
     // Modules, Upscaler and Raytracing form the large middle, which use each other in places. Hud, Engineer,

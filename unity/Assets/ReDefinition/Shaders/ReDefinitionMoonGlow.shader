@@ -1,10 +1,10 @@
-// A moon's disc made to stand out in the sky (src/Raytracing/Ksp/MoonGlow.cs): a brighter
-// disc and a soft glow round it, added where the scene camera sees sky, before the
+// A moon's disc made to stand out in the sky (src/Raytracing/Ksp/MoonGlow.cs). It adds a
+// brighter disc and a soft glow round it, where the scene camera sees sky, before the
 // transparent pass, so that clouds and the atmosphere draw over it. It lights nothing.
-// Each pixel's direction from the camera as it renders this frame -- its projection and
-// orientation, whatever its field of view, its render size or the upscaler's jitter --
-// against the moon's direction and angular radius: the glow lies on the disc as the sky
-// draws it.
+// The shader takes each pixel's direction from the camera as it renders this frame: its
+// projection and orientation, whatever its field of view, its render size or the
+// upscaler's jitter. It sets that against the moon's direction and angular radius, so the
+// glow lies on the disc as the sky draws it.
 Shader "Hidden/ReDefinition/MoonGlow"
 {
     SubShader

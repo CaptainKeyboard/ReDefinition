@@ -9,10 +9,10 @@ using UnityEngine;
 namespace ReDefinition.Proxy
 {
     // Whether the dxgi.dll next to KSP_x64.exe is the one the game loaded. Windows
-    // may refuse it: Smart App Control and other code integrity policies block a DLL
+    // may refuse it. Smart App Control and other code integrity policies block a DLL
     // without a trusted signature, and the game then runs on System32's dxgi.dll
-    // without a word (seen with Smart App Control on, 2026-10-19: the
-    // CodeIntegrity log named the proxy, and KSP loaded System32's).
+    // without a word. Seen with Smart App Control on, 2026-10-19: the
+    // CodeIntegrity log named the proxy, and KSP loaded System32's.
     internal static class ProxyLoad
     {
         // A loaded module's handle by name or full path; zero where none of it is loaded.

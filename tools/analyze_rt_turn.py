@@ -1,17 +1,17 @@
 """Measures the raytracing test player's camera turn (RtTurnRunner).
 
-    python tools/analyze_rt_turn.py <folder> [<folder> ...]
-
 Each folder is one run (rr, denoiser, plain). Each frame of the turn is compared with the
-reference of the same pose, rendered after the camera stood there a while: the mean error
-of the tone-mapped luminance over the whole frame, over what came into view in this frame
-(behind a silhouette or past the frame's edge), over what came into view within the last
-four frames, and over the rest. A smear or a ghost left by a temporal filter shows as
+reference of the same pose, rendered after the camera stood there a while. The mean error
+of the tone-mapped luminance is taken over the whole frame. It is also taken over what came
+into view in this frame (behind a silhouette or past the frame's edge), over what came into
+view within the last four frames, and over the rest. A smear or a ghost left by a temporal filter shows as
 error where something just came into view. Unity's motion vectors are checked against
 the motion the depth and the cameras give, as Ray Reconstruction relies on them.
 
 Images of the error go into each folder as error_<frame>.png: the frame, the reference,
 the error magnified, and the mask of what came into view.
+
+Usage: python tools/analyze_rt_turn.py <folder> [<folder> ...]
 """
 
 import os

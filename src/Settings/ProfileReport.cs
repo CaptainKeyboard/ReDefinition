@@ -5,12 +5,12 @@ using UnityEngine;
 
 namespace ReDefinition.Settings
 {
-    // Makes the profiles visible before anything applies them. Once, at the
-    // main menu -- loading and ModuleManager's patches are done by then -- one
-    // entry in the log lists every profile the GameDatabase holds, every problem
+    // Makes the profiles visible before anything applies them.
+    // Once, at the main menu, loading and ModuleManager's patches are done by then.
+    // One entry in the log lists every profile the GameDatabase holds, every problem
     // the reader found with them, and every PROFILE block of a registration for a
-    // profile no GRAPHICS_PROFILE defines. A visual pack's author who writes
-    // or patches a profile sees here whether it arrived as meant.
+    // profile no GRAPHICS_PROFILE defines.
+    // A visual pack's author who writes or patches a profile sees here whether it arrived as meant.
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
     public class ProfileReport : MonoBehaviour
     {

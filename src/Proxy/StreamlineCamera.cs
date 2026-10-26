@@ -26,15 +26,15 @@ namespace ReDefinition.Proxy
         private static readonly double[,] Augmented = new double[4, 8];
 
         // gpuProjection: GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix,
-        // false) -- Direct3D's clip space with Unity's reversed depth, top of the
-        // screen up, as the depth and motion vectors reach DLSS-G flipped to the
+        // false), Direct3D's clip space with Unity's reversed depth, top of the
+        // screen up. The depth and motion vectors reach DLSS-G flipped to the
         // screen's orientation (fgFlipInputs). viewProjection and
         // previousViewProjection: that projection times worldToCameraMatrix, this
-        // frame and the one before; the same twice where there is no frame before.
+        // frame and the one before. They are the same twice where there is no frame before.
         //
         // clipToPrevClip = previousViewProjection * inverse(viewProjection) for
         // column vectors: from this frame's clip space through the world into the
-        // last frame's -- the way Unity's own camera motion vectors reproject.
+        // last frame's. This is the way Unity's own camera motion vectors reproject.
         public static void Fill(Matrix4x4 gpuProjection, Matrix4x4 viewProjection, Matrix4x4 previousViewProjection,
                                 float[] viewToClip, float[] clipToView, float[] clipToPrevClip, float[] prevClipToClip)
         {

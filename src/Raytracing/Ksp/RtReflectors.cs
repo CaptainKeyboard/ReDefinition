@@ -3,17 +3,17 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // The bodies the sun lights, as the raytracing's lights (docs/development/
-    // raytracing.md, "Light sources"): the planet the camera is at -- the main body, or
-    // the planet it orbits -- and that planet's moons; farther planets are left out.
-    // Each one's light at the camera by its albedo, its phase, its size and its distance
-    // (RtReflectorLight), in the colour of its surface and of the star; the two brightest
-    // go to the proxy, each a disc of its angular size, which the rays sample with its
-    // shadow -- the Mun lights only where it stands in the sky and nothing lies between.
+    // The bodies the sun lights, as the raytracing's lights (docs/development/raytracing.md,
+    // "Light sources"). They are the planet the camera is at, the main body or
+    // the planet it orbits, and that planet's moons. Farther planets are left out.
+    // Each one's light at the camera follows from its albedo, its phase, its size and its distance
+    // (RtReflectorLight), in the colour of its surface and of the star. The two brightest
+    // go to the proxy, each a disc of its angular size. The rays sample the disc with its
+    // shadow, so the Mun lights only where it stands in the sky and nothing lies between.
     // The main body is none of them: rays that miss the scene and meet its sphere take
     // its light there (RtCommon.hlsli, PlanetRadiance), from its albedo (PlanetAlbedo).
     //
-    // The lights are tinted cool: at night the eye sees moonlight bluish, though it is
+    // The lights are tinted cool. At night the eye sees moonlight bluish, though it is
     // nearly the sun's colour (the Purkinje effect), and a night lit in the sun's colour
     // looks warm (the player, 2026-10-03: "not cool enough").
     //
@@ -84,8 +84,8 @@ namespace ReDefinition.Raytracing
         }
 
         // Fills lights as RtCamera.Lights asks, for a camera at `eye` (world) over `main`,
-        // the player's percentage; the number of lights.
-        // surfaces: per light its body's albedo times the star's colour, linear, which a
+        // at the player's percentage `percent`. Returns the number of lights.
+        // `surfaces` gets, per light, its body's albedo times the star's colour, linear, which a
         // reflected ray sees on its disc, at the player's percentage `mirrored`.
         internal static int Fill(float[] lights, float[] surfaces, Vector3d eye, CelestialBody main, float percent,
                                  float mirrored)
@@ -191,11 +191,11 @@ namespace ReDefinition.Raytracing
         private static Color combinedColour;
 
         // The bodies' light over `main` as the raytracing takes it this frame or the last
-        // few, as one: the brightest body, the camera (world), the direction from it the
+        // few, as one. It gives the brightest body, the camera (world), the direction from it the
         // bodies' light comes from, each weighted by its brightness, and their colours
         // together, in units of the sunlight, linear, at the player's percentage. So a
         // moon as small as Minmus counts for as little as it lights, and the light does not
-        // jump from one body to another as their order changes. False where the raytracing
+        // jump from one body to another as their order changes. It is false where the raytracing
         // has handed over none since, as while it is off.
         internal static bool Combined(CelestialBody main, out CelestialBody body, out Vector3d eye, out Vector3 towards,
                                       out Color colour)

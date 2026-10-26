@@ -1,11 +1,12 @@
-// The main body's cloud layer for the raytracing (src/Raytracing/Ksp/RtEveClouds.cs): EVE's
-// volumetric layer's maps packed into one equirectangular texture the proxy takes
-// (RT_INPUT_CLOUDS; RtCommon.hlsli, CloudTransmittanceAt): r the coverage, g the density
-// curve's coverage at the height of EVE's cloud shadow, for the cloud type there. As EVE's
-// own shaders read them (its RaymarchCloud and ScreenSpaceCloudShadow shaders): the
-// coverage the alpha mask's channel where it has one (useAlphaMask1, alphaMask1), else its
-// alpha; the type the mask's channel (useAlphaMask2, alphaMask2), else its red; the curve
-// DensityCurve's red at (type, height between the inner and the outer radius).
+// The main body's cloud layer for the raytracing (src/Raytracing/Ksp/RtEveClouds.cs). EVE's
+// volumetric layer's maps are packed into one equirectangular texture the proxy takes
+// (RT_INPUT_CLOUDS; RtCommon.hlsli, CloudTransmittanceAt). In it r is the coverage, g the
+// density curve's coverage at the height of EVE's cloud shadow, for the cloud type there.
+// The maps are read as EVE's own shaders read them (its RaymarchCloud and
+// ScreenSpaceCloudShadow shaders). The coverage is the alpha mask's channel where it has
+// one (useAlphaMask1, alphaMask1), else its alpha. The type is the mask's channel
+// (useAlphaMask2, alphaMask2), else its red. The curve is DensityCurve's red at (type,
+// height between the inner and the outer radius).
 Shader "Hidden/ReDefinition/RtClouds"
 {
     Properties

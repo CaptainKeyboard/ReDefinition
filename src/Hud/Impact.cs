@@ -2,11 +2,12 @@ using UnityEngine;
 
 namespace ReDefinition.Hud
 {
-    // When a vessel's path meets the ground: its orbit, followed from now to its
-    // next periapsis, against the height of the ground under each point of it at
-    // the time the vessel gets there (CelestialBody.TerrainAltitude, the sea's
-    // surface over water, below the datum where there is no sea; the body turning
-    // beneath: the longitude moves west by its turn since now). Drag is not counted: in air the vessel falls later than
+    // When a vessel's path meets the ground. The orbit is followed from now to its
+    // next periapsis. At each point of it the vessel's height is set against the height of
+    // the ground under that point at the time the vessel gets there. The ground is
+    // CelestialBody.TerrainAltitude, the sea's surface over water, and below the datum
+    // where there is no sea. The body turns beneath, so the longitude moves west by its
+    // turn since now. Drag is not counted: in air the vessel falls later than
     // this says. First in steps along the way, then by halving the step where the
     // height over the ground turns negative. NaN where it does not meet the ground:
     // on the ground already, or a periapsis above the highest ground there is.
@@ -23,7 +24,7 @@ namespace ReDefinition.Hud
         private static double cached = double.NaN;
 
         // A search that met no ground up to the periapsis holds while the vessel
-        // keeps to that path, until the periapsis: the stretch it looked at is
+        // keeps to that path, until the periapsis. The stretch it looked at is
         // fixed in time, and so is the ground under it as the body turns. Orbits
         // under the highest ground's radius that never meet the ground (the Mun's
         // low orbits over its plains) would otherwise look at 201 heights every

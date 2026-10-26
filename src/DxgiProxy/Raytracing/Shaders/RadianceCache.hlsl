@@ -27,22 +27,22 @@ void CacheBegin(uint3 id : SV_DispatchThreadID)
         cacheMeta[CACHE_ENTRIES + id.x] = 0u;
 }
 
-// After the frame's traces, a thread per entry of the table: the entries the frame's samples
-// went into (cacheTouched), their samples blended into their values; and in one slice of
-// the table, a different one each frame, an entry no ray met for CACHE_MAX_AGE frames let
+// After the frame's traces, a thread per entry of the table. The entries the frame's samples
+// went into (cacheTouched) have their samples blended into their values. In one slice of
+// the table, a different one each frame, an entry no ray met for CACHE_MAX_AGE frames is let
 // go (GI-1.0, 2.2.1). Neither reads the whole table each frame: its 44 bytes an entry would
-// pass through the GPU's caches every frame. The blend is Binder et al.'s temporal
-// integration, "setting alpha := N_old / (N_old + N_new) correctly integrates across
-// frames", with their first heuristic for a world that changes, "to accumulate samples over
-// time up to a certain degree [...] using a fixed threshold for the number of samples"
-// (3.4.1): N_old is held to CACHE_MAX_SAMPLES, so that the value follows a change in the
-// light within some frames.
+// pass through the GPU's caches every frame.
 [numthreads(256, 1, 1)]
 void CacheResolve(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
     if (i < cacheMeta[CACHE_ENTRIES + RT_CACHE_STAT_TOUCHED] && i < CACHE_ENTRIES)
     {
+        // The blend is Binder et al.'s temporal integration, "setting alpha := N_old / (N_old +
+        // N_new) correctly integrates across frames", with their first heuristic for a world
+        // that changes, "to accumulate samples over time up to a certain degree [...] using a
+        // fixed threshold for the number of samples" (3.4.1). N_old is held to
+        // CACHE_MAX_SAMPLES, so that the value follows a change in the light within some frames.
         uint entry = cacheTouched[i];
         uint4 sum = cacheAccumulation[entry];
         float4 value = cacheValues[entry];

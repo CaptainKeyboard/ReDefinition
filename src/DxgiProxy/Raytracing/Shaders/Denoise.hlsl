@@ -37,9 +37,9 @@ Texture2D<float4> normalBefore : register(t6, space3);
 Texture2D<float4> motion : register(t7, space3);
 RWTexture2D<float4> outputA : register(u0, space3);
 RWTexture2D<float4> outputB : register(u1, space3);
-// The à-trous steps' fourth signal, and their third and fourth outputs; Reconstruct.hlsl
-// has the Ray Reconstruction guides in u2 and u3. inputD shares t5 with
-// linearDepthBefore: the temporal step reads the one, the à-trous steps the other, and
+// The à-trous steps' fourth signal, and their third and fourth outputs. Reconstruct.hlsl
+// has the Ray Reconstruction guides in u2 and u3. The texture inputD shares t5 with
+// linearDepthBefore. The temporal step reads the one, the à-trous steps the other, and
 // no pass reads both (RaytracingDenoise.cpp binds t5 by the step).
 Texture2D<float4> inputD : register(t5, space3);
 RWTexture2D<float4> outputC : register(u2, space3);
@@ -276,9 +276,9 @@ float SignalLuminance(uint s, float4 value)
     return IsColour(s) ? dot(value.rgb, float3(0.2126f, 0.7152f, 0.0722f)) : value.x;
 }
 
-// The half float nearest to each value: a typed store of a full float into a half-float
+// The half float nearest to each value. A typed store of a full float into a half-float
 // texture rounds towards zero, which over the three steps in half floats took 0.06 to
-// 0.09 % off the signals (measured); the nearest errs both ways alike.
+// 0.09 % off the signals (measured). The nearest errs both ways alike.
 float4 NearestHalf(float4 value)
 {
     uint4 below = f32tof16(value);
@@ -287,9 +287,9 @@ float4 NearestHalf(float4 value)
     return select(abs(value - low) <= abs(high - value), low, high);
 }
 
-// What an à-trous step writes: the colour and its standard deviation for the next step;
-// from the last, the texture Unity reads, a scalar in x with the view depth in w, as the
-// sun's pass writes it, or a colour in rgb.
+// What an à-trous step writes: the colour and its standard deviation for the next step.
+// The last step writes the texture Unity reads instead: a scalar in x with the view depth
+// in w, as the sun's pass writes it, or a colour in rgb.
 void WriteSignal(uint s, uint2 id, float4 value, float z)
 {
     if ((stepFlags & 4u) != 0u)

@@ -7,7 +7,7 @@ namespace ReDefinition.Settings
     // What a registration cannot say in data (docs/development/architecture.md):
     // a mod that keeps its settings per scene, in a config node beside its
     // running object, behind hooks. Named from a registration with `behaviour =`,
-    // on the mod or on one setting; a class of ReDefinition's own.
+    // on the mod or on one setting; a class of ReDefinition's own, or one that the mod brings (ProvidedSettings).
     //
     // Every step has a default that does nothing, so a behaviour says only what
     // is its mod's alone.
@@ -97,8 +97,8 @@ namespace ReDefinition.Settings
         }
 
         // Whether a REQUIRES with the check of that name holds only while
-        // something runs -- DLSS frame generation's limits on V-Sync: the
-        // setting's own value, the player's, stays as it is, and what runs is held
+        // something runs, such as DLSS frame generation's limits on V-Sync.
+        // The setting's own value, the player's, stays as it is, and what runs is held
         // to the fix instead (Hold).
         public virtual bool HeldAtRunTime(string check)
         {

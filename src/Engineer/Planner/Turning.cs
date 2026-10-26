@@ -4,19 +4,19 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // How fast what flies a step can turn (docs/player/planner.md): the time to
-    // turn it by 90 degrees about its pitch or yaw axis, whichever is slower,
-    // speeding up over the first half and slowing down over the second at the
+    // How fast what flies a step can turn (docs/player/planner.md) is the time to
+    // turn it by 90 degrees about its pitch or yaw axis, whichever is slower. It
+    // speeds up over the first half and slows down over the second at the
     // most its torque allows, from rest to rest (2 * sqrt(angle / acceleration)).
     //
-    // Its torque as KSP's own ITorqueProvider modules give theirs (decompiled):
-    // reaction wheels their PitchTorque and YawTorque at their authority limiter
-    // (ModuleReactionWheel); RCS thrusters, each nozzle its thrust times its
+    // Its torque is as KSP's own ITorqueProvider modules give theirs (decompiled).
+    // Reaction wheels give their PitchTorque and YawTorque at their authority limiter
+    // (ModuleReactionWheel). RCS thrusters give each nozzle its thrust times its
     // lever about the centre of mass, those that turn one way against those that
-    // turn the other, the weaker of the two counting (ModuleRCS); gimballing
-    // engines, while they burn, their thrust times the sine of their gimbal range
+    // turn the other, the weaker of the two counting (ModuleRCS). Gimballing
+    // engines, while they burn, give their thrust times the sine of their gimbal range
     // times their distance from the centre of mass (ModuleGimbal). Its moment of
-    // inertia as AtmosphereAutopilot takes a vessel's (RotationModel.get_moments):
+    // inertia is as AtmosphereAutopilot takes a vessel's (RotationModel.get_moments):
     // each part's mass at its distance from the centre of mass, plus the part's
     // own, here a solid box of its colliders' size. Torque in kN m over inertia in
     // t m^2 gives radians per second squared.
@@ -95,9 +95,9 @@ namespace ReDefinition.Engineer
             return 2.0 * Math.Sqrt(Angle / (torque / inertia));
         }
 
-        // A part's mass as stage `stage` starts: its dry mass and what its
+        // A part's mass as stage `stage` starts. It is its dry mass and what its
         // resources hold then (PartFacts.StageFuel: per stage its resources' mass as
-        // the stage starts and ends); where the stage leaves them alone, what the
+        // the stage starts and ends). Where the stage leaves them alone, it counts what the
         // last stage before it left, else all it holds.
         internal static double MassAt(PartFacts part, int stage)
         {

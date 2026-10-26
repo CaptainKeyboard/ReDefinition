@@ -1,20 +1,21 @@
 """What DLSS frame generation does to KSP's HUD, measured in the game.
 
 KSP runs on the launch pad with the HUD showing and the camera turning on the scene probe's
-sweep (src/Probe/FlipProbe.cs, -redefinitionProbeShowHud), once per case of a DLSS-G
-configuration (the package's preset, the proxy's keys); the proxy's screen recording takes
+sweep (src/Probe/FlipProbe.cs, -redefinitionProbeShowHud). It runs once per case of a DLSS-G
+configuration (the package's preset, the proxy's keys). The proxy's screen recording takes
 the frames the monitor shows, generated frames included. Then the HUD's regions of each
 generated frame are compared with the rendered frames either side of it.
 
-    python tools/hud_probe.py run  <out folder> [--cases auto,c,...]    KSP started once per case
-    python tools/hud_probe.py analyze <case folder>... [--regions ...]  the numbers, from the recordings
-    python tools/hud_probe.py truth <reference> <folder>... [--json f]  each recording against a reference one
-    python tools/hud_probe.py crops <case folder> <out folder>          side-by-side crops of the HUD
-
 The KSP install's settings files are copied before the run and put back after it
-(tools/benchmark_matrix.py's Install); the package's files and the experimental DLLs this
+(tools/benchmark_matrix.py's Install). The package's files and the experimental DLLs this
 tool is told to use (--dxgi, --mod) are removed and put back too. Python 3 with numpy and
 Pillow.
+
+Usage: python tools/hud_probe.py <command>. The command run <out folder> [--cases auto,c,...]
+starts KSP once per case. The command analyze <case folder>... [--regions ...] gives the
+numbers, from the recordings. The command truth <reference> <folder>... [--json f] compares each
+recording against a reference one. The command crops <case folder> <out folder> writes
+side-by-side crops of the HUD.
 """
 import argparse
 import hashlib
@@ -40,8 +41,9 @@ LOG2 = {"Logging": {"Level": "2", "FrameTiming": "1"}}
 
 
 def case(preset, proxy=None, ini=None, arguments=None, launch=None):
-    """One case: the package's ini with the DLSS-G preset and level 2 logging plus the sections given, the proxy's
-    keys, KSP's extra arguments for the flip sweep, or in launch the whole command line in place of the sweep's."""
+    """One case: the package's ini with the DLSS-G preset and level 2 logging plus the sections given, and the
+    proxy's keys. KSP's extra arguments for the flip sweep are in arguments, or in launch the whole command line
+    in place of the sweep's."""
     ini_values = {"DLSSG": {"Preset": preset}}
     ini_values.update(LOG2)
     for section, keys in (ini or {}).items():
@@ -244,8 +246,8 @@ def load_frames(folder):
 def classify(frames):
     """Real or generated. DLSS-G presents its generated frame after the Present of the newer
     rendered frame and before that frame, so the frames sharing a game frame number end with
-    the rendered one; the number is stamped from the proxy's Present times, so the order is
-    settled by the strict alternation of 2x instead, its phase voted over a window of frames
+    the rendered one. The number is stamped from the proxy's Present times, so the order is
+    settled by the strict alternation of 2x instead. Its phase is voted over a window of frames
     by those labels."""
     groups = []
     for f in frames:
@@ -306,10 +308,11 @@ def psnr(mse):
 
 
 def measure(frames, regions, threshold=1.0, bad_levels=12.0):
-    """Per region, over every generated frame with a rendered one on each side: the HUD's
-    pixels that never move in the recording (the static mask), the generated frame's
-    difference to the mean of the two rendered frames there -- mean absolute, PSNR, the
-    share of pixels off by more than bad_levels -- and its edge sharpness against theirs."""
+    """Per region, over every generated frame with a rendered one on each side, it finds the
+    HUD's pixels that never move in the recording (the static mask). There it measures the
+    generated frame's difference to the mean of the two rendered frames: mean absolute, PSNR,
+    and the share of pixels off by more than bad_levels. It also measures the frame's edge
+    sharpness against theirs."""
     import numpy as np
     reals = [f for f in frames if f["kind"] == "real"]
     result = {}
@@ -396,10 +399,10 @@ def edge_band(mask, radius=2):
 
 def against_truth(reference, frames, regions):
     """Each frame against the reference frame showing the same camera pose (the closest in
-    the scene window), per region, as PSNR by kind of frame: the region's whole box; its
-    pixels that never move (the HUD where it is opaque); the ring along the edge of those
-    (where the HUD meets the scene); and the edge sharpness of the frame against the
-    reference's there. The reference is a rendered frame at every pose, no frame
+    the scene window), per region, as PSNR by kind of frame. It takes the region's whole
+    box, its pixels that never move (the HUD where it is opaque), and the ring along the
+    edge of those (where the HUD meets the scene). It also takes the edge sharpness of the
+    frame against the reference's there. The reference is a rendered frame at every pose, no frame
     generation, so what it shows is what a generated frame should show."""
     import numpy as np
     ys, xs = scene_window(frames[0]["image"].shape)

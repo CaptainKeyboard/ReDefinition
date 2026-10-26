@@ -113,11 +113,11 @@ namespace ReDefinition.Settings
             get { return dropped; }
         }
 
-        // What the settings window cannot show of this build, though the mod has
-        // it: rows its registration places that this build lacks or holds
-        // otherwise -- not the `optional` ones, which a build is known to lack --
-        // and settings the mod saves that no registration names. Both stay in the
-        // mod's own window. Empty where nothing is missing, whatever the version.
+        // What the settings window cannot show of this build, though the mod has it.
+        // That is rows its registration places that this build lacks or holds
+        // otherwise, not the `optional` ones, which a build is known to lack,
+        // and settings the mod saves that no registration names.
+        // Both stay in the mod's own window. Empty where nothing is missing, whatever the version.
         public IList<string> RowsNotShown
         {
             get { return rowsNotShown; }
@@ -322,6 +322,9 @@ namespace ReDefinition.Settings
         // Settings another mod holds for itself (`leftOutWith`): left out while that
         // mod is loaded, bundled or not -- its own code holds them either way. Once
         // every mod is built, whatever their order.
+        // Firefly sets KSP's aerodynamic FX to its lowest as it loads and warns whenever it is
+        // raised (AssetLoader, EventManager.OnGameSettingsApplied; its source), whether
+        // ReDefinition bundles it or not.
         internal void LeaveOutHeld(Func<string, bool> loaded)
         {
             if (!IsInstalled) return;
@@ -337,9 +340,10 @@ namespace ReDefinition.Settings
         }
 
         // A setting this build of the mod does not offer, or one that cannot be
-        // set without its file being written: no row for it, the rest of the mod
-        // bundled as before, and the reason kept -- BundledSettings logs it once
-        // and the check outside the game reports it. No logging here: mods are
+        // set without its file being written.
+        // It gets no row, the rest of the mod stays bundled as before, and the reason is kept.
+        // BundledSettings logs it once and the check outside the game reports it.
+        // No logging here: mods are
         // built outside the game too, where Unity's logging is not there to call.
         internal void Drop(string name, string why)
         {

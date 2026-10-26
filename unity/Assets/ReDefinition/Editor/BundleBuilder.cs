@@ -4,7 +4,6 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
-using ReDefinition.Core;
 
 namespace ReDefinition.EditorTools
 {
@@ -16,15 +15,15 @@ namespace ReDefinition.EditorTools
     // 2019.4.18f1. The player rejects a bundle from another version without a
     // word.
     //
-    // Two ways:
+    // The KSP folder is -kspRoot, else the KspRoot environment variable as the build
+    // takes it, else the Steam location. The option -output writes the bundle to that file
+    // instead of into the game's GameData.
+    //
+    // Two ways to run it:
     //   * In the editor: menu "ReDefinition / Build AssetBundle"
     //   * Headless:      Unity.exe -batchmode -quit -projectPath <unity>
     //                      -executeMethod ReDefinition.EditorTools.BundleBuilder.BuildFromCommandLine
     //                      [-kspRoot "<path to KSP>"] [-output "<bundle file>"]
-    //
-    // The KSP folder: -kspRoot, else the KspRoot environment variable as the build
-    // takes it, else the Steam location. -output writes the bundle to that file
-    // instead of into the game's GameData.
     public static class BundleBuilder
     {
         // The bundle's file name, which the mod's ShaderBundle loads; the shader sources; the Steam install.
@@ -174,11 +173,11 @@ namespace ReDefinition.EditorTools
 
         // A compute shader in an AssetBundle carries compiled kernels only for
         // the graphics APIs configured for the build target. Build with D3D11
-        // alone and the bundle has no D3D12 kernels at all -- the player then
+        // alone and the bundle has no D3D12 kernels at all. The player then
         // loads the shader, reports zero kernels, and every Dispatch fails with
-        // "Invalid kernelIndex (0) passed, must be non-negative less than 0" --
-        // as ParallaxContinued's do where KSP is started with -force-d3d12. The
-        // bundle carries D3D11 and D3D12 kernels; the D3D12 ones add 51 KB to a
+        // "Invalid kernelIndex (0) passed, must be non-negative less than 0".
+        // ParallaxContinued's do too where KSP is started with -force-d3d12. The
+        // bundle carries D3D11 and D3D12 kernels. The D3D12 ones add 51 KB to a
         // 128 KB bundle.
         private static void EnsureGraphicsApis()
         {

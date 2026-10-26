@@ -28,9 +28,9 @@ namespace redefinition
         }
 
         // The CPU time a thread has used, kernel and user, in 100 ns units.
-        // Windows charges it by clock tick, so one second is a few percent
-        // coarse and a thread that runs in bursts locked to the tick can be
-        // off by more; the ten-second log line is the figure to go by.
+        // Windows charges it by clock tick, so one second is a few percent coarse. A thread that
+        // runs in bursts locked to the tick can be off by more. The ten-second log line is the
+        // figure to go by.
         bool CpuTime(HANDLE thread, uint64_t& ticks)
         {
             FILETIME creation = {};
@@ -448,7 +448,7 @@ namespace redefinition
 
                 // The GPU counters cost a walk over every process's engines, so
                 // they are collected while the figures are being read -- the
-                // mod's Debug tab, the harness -- and at the end of each log
+                // mod's diagnostics window, the harness -- and at the end of each log
                 // window; a reading averages over the time since the last one.
                 // A second without a reading has no GPU figure rather than an
                 // old one.
@@ -528,11 +528,10 @@ namespace redefinition
             return text;
         }
 
-        // The adapter this process renders on -- the one KSP's swapchain was made on,
-        // the first adapter before that -- made and released within the call: a
-        // static one would be released at process exit, when DXGI may already be
-        // gone -- which ends the process in its own teardown. A factory every ten
-        // seconds costs nothing next to that.
+        // The adapter this process renders on. It is the one KSP's swapchain was made on, the first
+        // adapter before that. It is made and released within the call. A static one would be
+        // released at process exit, when DXGI may already be gone, which ends the process in its
+        // own teardown. A factory every ten seconds costs nothing next to that.
         Microsoft::WRL::ComPtr<IDXGIAdapter3> VideoAdapter()
         {
             Microsoft::WRL::ComPtr<IDXGIFactory4> factory;

@@ -32,7 +32,8 @@ namespace redefinition
         constexpr Result kErrorPointerStillInUse = -19;
         constexpr Result kErrorMismatchInputResources = -12;
 
-        constexpr uint32_t kInitInvertedDepth = 1u << 0;            // XEFG_SWAPCHAIN_INIT_FLAG_INVERTED_DEPTH
+        // XEFG_SWAPCHAIN_INIT_FLAG_INVERTED_DEPTH, set from fgDepthInverted when the swapchain is made.
+        constexpr uint32_t kInitInvertedDepth = 1u << 0;
 
         constexpr int32_t kResourceHudLessColour = 0;               // XEFG_SWAPCHAIN_RES_HUDLESS_COLOR
         constexpr int32_t kResourceDepth = 1;                       // XEFG_SWAPCHAIN_RES_DEPTH
@@ -149,10 +150,10 @@ namespace redefinition
     // XeSS-FG brings a swapchain of its own -- "XeSS-FG provides a proxy swap chain
     // to simplify integration" -- which the proxy presents through as it does
     // through FidelityFX's or Streamline's (SwapChainProxyXess.cpp). Its inputs are
-    // the ones FSR and DLSS-G get (FrameGenerationXess.cpp). "XeSS-FG requires a
-    // working XeLL integration on all GPUs", XeLL "the same frame ID value for
-    // XeLL markers and the XeSS-FG present ID" (xess_fg_developer_guide_english.md,
-    // Connect with XeLL): LowLatency.h runs it at the marker points Reflex has.
+    // the ones FSR and DLSS-G get (FrameGenerationXess.cpp). The guide says "XeSS-FG requires a
+    // working XeLL integration on all GPUs" and, for XeLL, "the same frame ID value for XeLL
+    // markers and the XeSS-FG present ID" (xess_fg_developer_guide_english.md, Connect with
+    // XeLL). LowLatency.h runs XeLL at the marker points Reflex has.
     //
     // This holds the two DLLs' functions only; the contexts belong to the swapchain
     // proxy that made them, which destroys XeSS-FG's before XeLL's: "XeLL context

@@ -3,7 +3,6 @@ using System.IO;
 using UnityEngine;
 using UnityEngine.Rendering;
 using YourMod;
-using ReDefinition.Core;
 
 namespace ReDefinitionExample
 {

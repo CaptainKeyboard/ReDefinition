@@ -10,37 +10,16 @@ namespace ReDefinition.Upscaler
     // (docs/development/upscaler.md, "The masks for FSR 3").
     //
     // Transparency and composition: what the motion vectors do not follow though
-    // nothing is blended -- EVE's raymarched clouds, rebuilt over several frames, and
-    // Scatterer's ocean, refracting and reflecting. AMD: "a softer alternative
-    // compared to the reactive mask, as it only affects locks and color clamping".
-    // The clouds' opacity comes from EVE's own history, whose alpha is the
-    // transmittance (EVE/CompositeRaymarchedClouds draws background * alpha +
-    // colour, disassembled from EVE's bundle), scaled by the fade EVE sets on that
-    // composite (DeferredRaymarchedRendererToScreen.SetFade); the ocean's coverage
-    // from Scatterer's ocean G-buffer depth, gated by Scatterer's own switch for the
-    // camera.
+    // nothing is blended, EVE's raymarched clouds (rebuilt over several frames) and
+    // Scatterer's ocean (refracting and reflecting). AMD: "a softer alternative
+    // compared to the reactive mask, as it only affects locks and color clamping"
+    // (RecordTransparency).
     //
-    // Reactive: what is blended over the scene -- particles and their trails,
-    // engine effects, re-entry. AMD: "applications should write alpha to the
-    // reactive mask ... we recommend clamping the maximum reactive value to around
-    // 0.9". Either drawn from the transparent renderers in view with the mask
-    // shader -- their texture's alpha, what they add where they blend additively,
-    // layers over one another composited like alpha -- and occluded by a copy of
-    // the scene's depth in the shader, since a mask target paired with the camera's
-    // own depth buffer draws nothing. Or FSR's own generator, a luminance heuristic
-    // comparing an opaque-only copy with the image right after the transparent
-    // queue; EVE's cloud composite (queue 2998) and Scatterer's sky draw in that
-    // queue, so it sees them too. Measured in Unity 2019.4:
-    // CommandBuffer.DrawRenderer draws a particle system and, as submesh 1, its
-    // trails, and the depth test keeps what is behind the scene out.
+    // Reactive: what is blended over the scene, particles and their trails,
+    // engine effects, re-entry (RecordReactive, SyncOpaqueCopy).
     //
-    // Recorded at the scene camera's AfterForwardAlpha, anew every frame. Not
-    // later: the camera's OnPostRender, where EVE and Scatterer put back the
-    // globals the transparency mask reads, runs before BeforeImageEffects
-    // (measured), and until then the projection is jittered like the colour.
-    // Unity gives the camera its own target back after the buffer -- a buffer after
-    // it at the same event draws into the camera's colour, depth-tested (measured).
-    // Both masks are off by default.
+    // Both masks are recorded at the scene camera's AfterForwardAlpha, anew every
+    // frame (AttachMaskBuffer). Both masks are off by default.
     internal sealed class UpscalerMasks
     {
         // Where the reactive mask comes from, as the settings choose it.
@@ -63,9 +42,9 @@ namespace ReDefinition.Upscaler
         // Seconds between two looks through every renderer of the scene.
         private const float FullScanInterval = 10f;
 
-        // Transparent queues that are not something blended over the scene: what
-        // composites the clouds, the sky and the atmosphere -- the transparency
-        // mask's, or the whole sky --, what draws nothing, and decals, which lie
+        // Transparent queues that are not something blended over the scene. They are what
+        // composites the clouds, the sky and the atmosphere (the transparency
+        // mask's, or the whole sky), what draws nothing, and decals, which lie
         // still on the ground with their geometry's motion vectors. Read from the
         // transparent materials a flight draws.
         //
@@ -122,7 +101,9 @@ namespace ReDefinition.Upscaler
             public float DstBlend;
         }
 
-        // A renderer with a reactive material, found by a scan, and how to draw it into the mask.
+        // A renderer with a reactive material, found by a scan, and how to draw it into the mask. Measured in Unity
+        // 2019.4: CommandBuffer.DrawRenderer draws a particle system and, as submesh 1, its trails, and the depth
+        // test keeps what is behind the scene out.
         private struct Candidate
         {
             // The renderer, its particle system if it has one, whether its colour is in the vertices, its submesh count.
@@ -254,6 +235,12 @@ namespace ReDefinition.Upscaler
         }
 
         // The transparency mask in one fullscreen pass (pass 0) from EVE's cloud history and Scatterer's ocean.
+        // The clouds' opacity comes from EVE's own history, whose alpha is the
+        // transmittance (EVE/CompositeRaymarchedClouds draws background * alpha +
+        // colour, disassembled from EVE's bundle), scaled by the fade EVE sets on that
+        // composite (DeferredRaymarchedRendererToScreen.SetFade). The ocean's coverage
+        // comes from Scatterer's ocean G-buffer depth, gated by Scatterer's own switch for the
+        // camera.
         private void RecordTransparency()
         {
             CheckMods();
@@ -270,6 +257,11 @@ namespace ReDefinition.Upscaler
 
         // The reactive mask from the renderers: the scene's depth copied for occlusion, every visible candidate's
         // reactive submeshes drawn with its mask copy (pass 1), then clamped to ReactiveMaximum (pass 2).
+        // AMD: "applications should write alpha to the reactive mask ... we recommend clamping the maximum
+        // reactive value to around 0.9". The mask shader draws the transparent renderers in view: their texture's
+        // alpha, what they add where they blend additively, layers over one another composited like alpha. It is
+        // occluded by a copy of the scene's depth in the shader, since a mask target paired with the camera's own
+        // depth buffer draws nothing.
         private void RecordReactive(Camera camera, RenderTargetIdentifier depthSource, RenderTexture sceneDepth)
         {
             maskBuffer.Blit(depthSource, sceneDepth);
@@ -307,7 +299,9 @@ namespace ReDefinition.Upscaler
         }
 
         // For FSR's own generator: the image before the transparent queue, as
-        // FSR3Unity takes it -- a Blit of the camera target at BeforeForwardAlpha.
+        // FSR3Unity takes it, a Blit of the camera target at BeforeForwardAlpha. The generator is a luminance
+        // heuristic comparing that opaque-only copy with the image right after the transparent queue. EVE's cloud
+        // composite (queue 2998) and Scatterer's sky draw in that queue, so it sees them too.
         private void SyncOpaqueCopy(Camera camera, bool wanted, RenderTextureFormat format, Vector2Int size)
         {
             if (!wanted || camera == null)
@@ -542,6 +536,11 @@ namespace ReDefinition.Upscaler
         }
 
         // Puts the masks' command buffer on the camera at AfterForwardAlpha, moving it off another camera first.
+        // Not later: the camera's OnPostRender, where EVE and Scatterer put back the
+        // globals the transparency mask reads, runs before BeforeImageEffects
+        // (measured), and until then the projection is jittered like the colour.
+        // Unity gives the camera its own target back after the buffer. A buffer after
+        // it at the same event draws into the camera's colour, depth-tested (measured).
         private void AttachMaskBuffer(Camera camera)
         {
             if (maskBuffer != null && maskCamera == camera) return;

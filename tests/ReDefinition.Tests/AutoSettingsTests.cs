@@ -13,8 +13,8 @@ namespace ReDefinition.Tests
     [TestClass]
     public class AutoSettingsTests
     {
-        // DLSS on an RTX where it is usable, FSR 4 on a Radeon RX 7000 or 9000 with AMD's DLL, XeSS on Intel
-        // with its DLL, FSR 3 everywhere else, an RTX without DLSS's file or the proxy included.
+        // The technique is DLSS on an RTX where it is usable. It is FSR 4 on a Radeon RX 7000 or 9000 with AMD's DLL,
+        // and XeSS on Intel with its DLL. Everywhere else it is FSR 3, an RTX without DLSS's file or the proxy included.
         [TestMethod]
         public void TheTechniqueFollowsTheCard()
         {

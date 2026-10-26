@@ -23,8 +23,8 @@ namespace ReDefinition.Proxy
 
     // The DLSS model the player chooses, in every mode, or DLSS's own choice for each mode.
     // NVIDIA's DLSS Programming Guide (31 March 2026, 3.12): Preset K is the transformer
-    // model before L and M; Preset L "Delivers a sharper, more stable image with less
-    // ghosting than Preset J, K but are more expensive performance wise"; Preset M
+    // model before L and M. Preset L "Delivers a sharper, more stable image with less
+    // ghosting than Preset J, K but are more expensive performance wise". Preset M
     // "Delivers similar image quality improvements as Preset L but closer in speed to
     // Presets J, K". With Default, nvngx_dlss.dll 310.9.1 takes K for DLAA, quality and
     // balanced, M for performance and L for ultra performance (NGX's log).

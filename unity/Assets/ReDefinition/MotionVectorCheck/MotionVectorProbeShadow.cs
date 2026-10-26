@@ -9,26 +9,27 @@ namespace ReDefinition.MotionVectorCheck
     // red block casting its shadow onto a white ground under a directional light with
     // shadows. The matrices and passes follow VesselShadowLayer.Record and Compose.
     //
-    // chase: the block and the camera move together, as a camera following a vessel; the
-    // shadow stands on the screen while the ground runs, so the weight must choose the
-    // shadow's own place. parked: the block stands, the camera moves; the shadow moves with
-    // the ground, so the weight must leave it to the motion vectors. krakensbane: as chase,
-    // but the way KSP's Krakensbane does it -- the block and the camera stay, the ground is
-    // moved back by the step, and the step is reported as the bodies' shift, which the
-    // plugin takes from SharedFrame. On top of it the floating origin moves everything,
-    // block, camera and ground, by a few metres, reported as the origin shift: the frame
-    // before must be carried across it, or the shadow seems to jump. One line each: the
-    // ground pixels in the block's shadow (Unity's mask), those the pass found in it, those
-    // it found outside it, the mean choice over the shadow, and the shadowed ground's
-    // brightness before and after the composition against the same frame rendered without
-    // the block's shadow.
+    // The case krakensbane is as chase (see ShadowCases), but the way KSP's Krakensbane does it. The
+    // block and the camera stay, the ground is moved back by the step, and the step is
+    // reported as the bodies' shift, which the plugin takes from SharedFrame. On top of it
+    // the floating origin moves everything, block, camera and ground, by a few metres,
+    // reported as the origin shift. The frame before must be carried across it, or the
+    // shadow seems to jump.
+    //
+    // Each case writes one line. It holds the ground pixels in the block's shadow (Unity's mask),
+    // those the pass found in it, those it found outside it, and the mean choice over the shadow.
+    // It also holds the shadowed ground's brightness before and after the composition against
+    // the same frame rendered without the block's shadow.
     public partial class MotionVectorProbe
     {
         // The side of the light's depth map the block is drawn into, in texels.
         private const int LightMapSize = 1024;
 
         // Hides the sphere and builds the ground, block and shadow-casting light, runs the chase, parked and
-        // krakensbane cases, and removes the ground and block again.
+        // krakensbane cases, and removes the ground and block again. In chase the block and the camera move
+        // together, as a camera following a vessel: the shadow stands on the screen while the ground runs, so
+        // the weight must choose the shadow's own place. In parked the block stands and the camera moves: the
+        // shadow moves with the ground, so the weight must leave it to the motion vectors.
         private IEnumerator ShadowCases()
         {
             sphere.SetActive(false);

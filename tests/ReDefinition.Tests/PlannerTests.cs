@@ -213,9 +213,9 @@ namespace ReDefinition.Tests
         }
 
         // The budget with the lander the stages numbered up to `lander` and the capsule
-        // those up to `capsule` (VesselSplit.ByStages), each step flown as `modes` says:
-        // the lander flying alone while the rest waits and docking again with the next
-        // step of the whole vessel; the rest leaving it for good; the capsule leaving
+        // those up to `capsule` (VesselSplit.ByStages). Each step is flown as `modes` says.
+        // The lander flies alone while the rest waits, and docks again with the next
+        // step of the whole vessel. The rest leaves the lander for good. The capsule leaves
         // everything else, dropped where it was with the capsule, left where it waited.
         private static StageBudget.Result Allocate(IList<BudgetStage> stages, IList<double> legs, double margin, IList<StagePlan> plans,
                                                    int lander, IList<LegMode> modes, IList<bool> refuelAfter = null, int capsule = -1)
@@ -525,10 +525,10 @@ namespace ReDefinition.Tests
             };
         }
 
-        // Apollo's shape: the command module with its parachute (0, 1), a decoupler,
-        // the service module with its engine and docking port (2-5); the lander under
-        // it by its own docking port (6), its ascent stage (7, 8), a decoupler, its
-        // descent stage with legs (9-12); an adapter and the transfer stage (13-15).
+        // Apollo's shape. From the top come the command module with its parachute (0, 1), a decoupler,
+        // and the service module with its engine and docking port (2-5). Under it is the lander
+        // by its own docking port (6), its ascent stage (7, 8), a decoupler, and its
+        // descent stage with legs (9-12). Then come an adapter and the transfer stage (13-15).
         private static List<PartFacts> Apollo()
         {
             return new List<PartFacts>
@@ -1665,8 +1665,8 @@ namespace ReDefinition.Tests
             Near(150, stage.Seconds, 0.05, "the stage's own burn time");
         }
 
-        // A long burn loses what points away from the burn's direction over its arc: nothing for none, 1 - 2/pi
-        // over half an orbit, all past a whole one; up to a tenth of an orbit stays under the warning.
+        // A long burn loses what points away from the burn's direction over its arc. That is nothing for none, 1 - 2/pi
+        // over half an orbit, and all past a whole one. Up to a tenth of an orbit stays under the warning.
         [TestMethod]
         public void ALongBurnLosesWhatPointsAwayOverItsArc()
         {
@@ -1693,9 +1693,9 @@ namespace ReDefinition.Tests
             Assert.IsTrue(steps.Any(step => step.Problem != null && step.Problem.Contains("no docking port")));
         }
         // The stock Learstar A1 as KSP's delta-v simulation gives it (Ships/VAB/Learstar
-        // A1.craft): S4 lights the Rhino core and two Thuds on the pad (2,240 kN, Isp
-        // 336 s, 180 t of fuel), S3 fires four Kickbacks (2,680 kN, Isp 220 s, 75 t of
-        // solid fuel) and releases the clamps, S2 drops the boosters (18.3 t).
+        // A1.craft). S4 lights the Rhino core and two Thuds on the pad (2,240 kN, Isp
+        // 336 s, 180 t of fuel). S3 fires four Kickbacks (2,680 kN, Isp 220 s, 75 t of
+        // solid fuel) and releases the clamps. S2 drops the boosters (18.3 t).
         private static List<StageRow> PadRows()
         {
             return new List<StageRow>

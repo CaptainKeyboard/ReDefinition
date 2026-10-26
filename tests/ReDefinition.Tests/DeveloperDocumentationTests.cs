@@ -4,10 +4,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ReDefinition.Tests
 {
-    // The developer documentation, which lives in the code (tools/DocLock): every element documented, none dirty
-    // -- its code changed since its documentation was written or confirmed --, every element in the lock, and no
-    // comment naming a file, switch or member that does not exist. The tool is built and run as `check`; its
-    // output names what to fix.
+    // The developer documentation, which lives in the code (tools/DocLock), checked: every element documented, none
+    // dirty, every element in the lock, and no comment naming a file, switch or member that does not exist. An
+    // element is dirty when its code changed since its documentation was written or confirmed. The tool is built
+    // and run as `check`; its output names what to fix.
     [TestClass]
     public class DeveloperDocumentationTests
     {

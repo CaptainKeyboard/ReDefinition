@@ -1,13 +1,15 @@
-# What the pages under docs/ have to hold, and that the version the README and the
-# status page name is the project's
-# (docs/development/writing-these-pages.md): links that lead somewhere, paths that
-# exist, no dash asides, lines that fit, and an opening that says who the page is for.
-#
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_docs.ps1
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_docs.ps1 -Strict
+# Checks what the pages under docs/ have to hold (docs/development/writing-these-pages.md):
+# links that lead somewhere, paths that exist, no dash asides, lines that fit, and an
+# opening that says who the page is for. It also checks that the version the README and
+# the status page name is the project's.
 #
 # Without -Strict only links and paths fail the run; the style counts are reported.
 # With it, every rule fails the run.
+#
+# Usage:
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_docs.ps1
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_docs.ps1 -Strict
 [CmdletBinding()]
 param([switch]$Strict)
 

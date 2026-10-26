@@ -14,15 +14,16 @@ namespace ReDefinition.Scenery
     // Parallax's grass on the space centre's lawns. Parallax grows its grass on the terrain,
     // which lies 2.7 to 3.2 m under the space centre's grass surfaces (measured 2026-10-05,
     // the KscGrassGap probe), so its clumps stay under them. Here Parallax's own clumps of
-    // this frame -- its ScatterRenderers' outputLOD0-2, with their density, noise, scale,
-    // turn and the terrain's colour -- are lifted onto the lawns where they lie under one
+    // this frame are lifted onto the lawns where they lie under one
     // (ReDefinitionKscGrass.compute) and drawn with Parallax's own meshes and materials,
-    // so its shader, wind and lighting. The lawns: the triangles of the space centre's
-    // ground meshes drawn with the KSC ground shaders, where their blend mask (the red of
-    // _BlendMaskTexture, on the second texture coordinates: tarmac) leaves grass and no
-    // collider of the space centre stands over them; a clump only where all of its model's
-    // reach lies on them. Without Parallax, or with one whose fields differ, nothing is
-    // drawn. OwnSettings.KscGrass switches it.
+    // so its shader, wind and lighting. The clumps are its ScatterRenderers' outputLOD0-2,
+    // with their density, noise, scale, turn and the terrain's colour. The lawns are the
+    // triangles of the space centre's ground meshes drawn with the KSC ground shaders.
+    // A triangle counts where its blend mask (the red of _BlendMaskTexture, on the second
+    // texture coordinates: tarmac) leaves grass and no collider of the space centre stands
+    // over it. A clump stands only where all of its model's reach lies on them. Without
+    // Parallax, or with one whose fields differ, nothing is drawn. OwnSettings.KscGrass
+    // switches it.
     [KSPAddon(KSPAddon.Startup.FlightAndKSC, false)]
     public sealed class KscGrass : MonoBehaviour
     {
@@ -53,7 +54,11 @@ namespace ReDefinition.Scenery
             public float Reach;
             public readonly ComputeBuffer[] Lifted = new ComputeBuffer[3];
             // Parallax's clumps of this frame no ground of the space centre covers, for the
-            // rays (RaysBuffer).
+            // rays (RaysBuffer). At the launch pad on an RTX A4500 (measured 2026-10-19), leaving out the ones under
+            // the ground takes the sun's, the diffuse and the reflected rays from 6.66 ms to 6.1. The
+            // frame goes from 34.85 ms to 34.3, and the picture stays the same (every tile within 0.1 of a thousandth).
+            // With all of Parallax's own left out (-redefinitionProbeNoParallaxScatterRays), the rays take 5.0 ms,
+            // their shadows on the terrain around the space centre gone with them.
             public readonly ComputeBuffer[] Kept = new ComputeBuffer[3];
             public readonly int[] KeptFrame = { -1, -1, -1 };
             public readonly ComputeBuffer[] Arguments = new ComputeBuffer[3];
@@ -78,19 +83,23 @@ namespace ReDefinition.Scenery
             }
         }
 
-        // The grass kinds found; the space centre's root; the lift and its kernel; the lawns' map and its placement
-        // (texel 0's x and z, the texel size, the lowest lawn); each source buffer's clump count, which the lift
-        // reads; the indirect arguments set; whether the map is made; each source buffer's capacity, by slot
-        // (kind * 3 + lod).
+        // The grass kinds found.
         private readonly List<Kind> kinds = new List<Kind>();
+        // The space centre's root.
         private Transform root;
+        // The lift and its kernel.
         private ComputeShader lift;
         private int liftKernel = -1;
+        // The lawns' map and its placement (texel 0's x and z, the texel size, the lowest lawn).
         private Texture2D lawnMap;
         private Vector4 grid;
+        // Each source buffer's clump count, which the lift reads.
         private ComputeBuffer counts;
+        // The indirect arguments set.
         private readonly uint[] arguments = new uint[5];
+        // Whether the map is made.
         private bool ready;
+        // Each source buffer's capacity, by slot (kind * 3 + lod).
         private int[] capacities = new int[0];
         // The lawns' map's size for the lift, set without SetInts' params array each frame.
         private readonly int[] mapSize = new int[2];
@@ -253,11 +262,7 @@ namespace ReDefinition.Scenery
         // (RtKspMods.ParallaxScatter): where its clumps are lifted this frame, the ones no
         // ground of the space centre covers (Kept); else Parallax's own. Under the space
         // centre's ground Parallax's clumps stand on the terrain metres below it, where no ray
-        // reaches them. At the launch pad on an RTX A4500 (measured 2026-10-19): the ones under
-        // the ground left out, the sun's, the diffuse and the reflected rays 6.66 ms to 6.1, the
-        // frame 34.85 ms to 34.3, the picture the same (every tile within 0.1 of a thousandth);
-        // all of Parallax's own left out (-redefinitionProbeNoParallaxScatterRays), 5.0 ms,
-        // their shadows on the terrain around the space centre gone with them.
+        // reaches them. Kept has the measured gain.
         internal static ComputeBuffer RaysBuffer(object renderer, int lod, ComputeBuffer own)
         {
             KscGrass grass = current;
@@ -325,12 +330,12 @@ namespace ReDefinition.Scenery
             return true;
         }
 
-        // The lawns' map in the plane of the space centre's root, a texel a metre: the lawn's
+        // The lawns' map in the plane of the space centre's root, a texel a metre. It holds the lawn's
         // height and the room around it, in metres, to tarmac, the lawn's edge or a collider
-        // over it. Most of it off the main thread -- at once it held a frame for 0.7 s
-        // (measured 2026-10-05, the descent from the main menu) --: the triangles read here,
+        // over it. Most of the work runs off the main thread, as at once it held a frame for 0.7 s
+        // (measured 2026-10-05, the descent from the main menu). The triangles are read here,
         // rasterised and the rays laid out on a thread, the rays cast as Unity's job, the
-        // room measured on a thread, the texture made here. Sets ready.
+        // room measured on a thread, and the texture made here. It sets ready.
         private IEnumerator MapLawns()
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
@@ -721,18 +726,18 @@ namespace ReDefinition.Scenery
         }
 
         // -redefinitionProbeLawnMap: each map made as a picture (binary PPM) in the run's capture folder, a
-        // pixel a texel, the root's x to the right and its z up: lawn green (darker where its room keeps a
+        // pixel a texel, the root's x to the right and its z up. Lawn is green (darker where its room keeps a
         // clump of 1 m off), a collider over it red, the ground's banks and skirts yellow, its tarmac grey,
-        // no ground of the space centre black; the active vessel a white square. Every 600 frames drawn
-        // after, Parallax's clumps of this frame over it too (DumpClumps): its main grass (KerbinGrass)
-        // white as Parallax placed it, before the lift, and every kind's clumps lifted onto the lawns orange;
-        // in the log the room the main grass's clumps ask (their reach times their scale), a tenth, the
-        // half and nine tenths of them asking less.
+        // no ground of the space centre black. The active vessel is a white square. DumpClumps adds
+        // Parallax's clumps.
         private const string MapArgument = "-redefinitionProbeLawnMap";
         private int mapsWritten;
         private LawnMap probeMap;
 
-        // Parallax's clumps of this frame read back, per kind and level of detail, and drawn over the map.
+        // Parallax's clumps of this frame read back, per kind and level of detail, and drawn over the map. Every 600
+        // frames drawn after the map was made, they go over it: its main grass (KerbinGrass) white as Parallax placed
+        // it, before the lift, and every kind's clumps lifted onto the lawns orange. The log gets the room the main
+        // grass's clumps ask (their reach times their scale), a tenth, the half and nine tenths of them asking less.
         private void DumpClumps(Camera camera)
         {
             LawnMap map = probeMap;

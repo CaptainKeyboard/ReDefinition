@@ -9,17 +9,17 @@ namespace ReDefinition.Upscaler
     // The other mods' antialiasing without a second one on the same camera, while
     // ReDefinition neither upscales nor generates frames (OwnSettings.OneAntialiasing).
     // Measured without ReDefinition, 2026-10-23 (an AaSurvey run, TUFX's Default
-    // profiles): in the space centre, in flight and in IVA the scene camera ran
-    // Scatterer's TAA (JitterAndResolve), Scatterer's SMAA and TUFX's TAA at once, and in
-    // the map view the scaled space camera Scatterer's TAA and TUFX's SMAA. None of the
+    // profiles). In the space centre, in flight and in IVA the scene camera ran
+    // Scatterer's TAA (JitterAndResolve), Scatterer's SMAA and TUFX's TAA at once. In
+    // the map view the scaled space camera ran Scatterer's TAA and TUFX's SMAA. None of the
     // mods looks at another's (Scatterer, TUFX and Deferred decompiled): two temporal
     // filters averaged the frames twice over one jitter, and PostProcessing's read the
     // motion vectors of Scatterer's replacement shader.
     //
-    // Where a Scatterer TAA resolves on a camera -- its EffectiveRole JitterAndResolve:
-    // the near camera, and the scaled space camera in the map view -- that camera's
-    // PostProcessLayer is set to antialiasing None, TUFX's profile left as it is, and
-    // given its mode back once that TAA no longer resolves there, or this stops.
+    // A camera where a Scatterer TAA resolves has its PostProcessLayer set to antialiasing None,
+    // TUFX's profile left as it is. That is the near camera, and the scaled space camera in the map view
+    // (EffectiveRole JitterAndResolve). The layer is given its mode back once that TAA
+    // no longer resolves there, or this stops.
     // Scatterer's SMAA stays: it smooths alone when Scatterer pauses its TAA under
     // disableTaaBelowFrameRateThreshold (TemporalAntiAliasing.OnPreCull). Where no
     // Scatterer TAA resolves -- the editors, the tracking station, the main menu --

@@ -108,10 +108,10 @@ inline bool ReDefinitionOriginShifted()
 
 // A motion vector in the encoding Hidden/Internal-MotionVectors writes for a camera that
 // renders into a render texture, as every camera ReDefinition redirects does, and every
-// upscaler and frame generation read: the current minus the previous viewport position,
+// upscaler and frame generation read. It is the current minus the previous viewport position,
 // 0 to 1, y up. Unity projects there with the render texture's flipped projection and flips
 // y back where UNITY_UV_STARTS_AT_TOP, so the two cancel (measured in a Unity 2019.4.18f1
-// player on Direct3D 11). The two positions in clip space without jitter and with y up --
+// player on Direct3D 11). Both positions are in clip space without jitter, with y up:
 // a world position through
 // GL.GetGPUProjectionMatrix(camera.nonJitteredProjectionMatrix, false) * worldToCameraMatrix,
 // this frame's and the previous frame's.

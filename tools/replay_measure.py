@@ -1,6 +1,6 @@
-"""Cuts a replay recording (tools/replay_fg.ps1) to the replay window, deletes the
-rest, names each frame after the dumped frame it shows or the pair it was generated
-between, and prints the detail of the runway and of the vessel.
+"""Cuts a replay recording (tools/replay_fg.ps1) to the replay window and deletes the
+rest. It names each frame after the dumped frame it shows or the pair it was generated
+between. It prints the detail of the runway and of the vessel.
 
 Usage: python tools/replay_measure.py <recording folder> <dump folder>
 """

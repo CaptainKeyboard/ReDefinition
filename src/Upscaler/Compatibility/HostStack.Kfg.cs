@@ -30,7 +30,7 @@ namespace ReDefinition.Upscaler
         }
 
         // Back on only if it was found on at any point (kfgFound) and still
-        // holds the off written here -- the switch is written only by KFG's initializer and
+        // holds the off written here. The switch is written only by KFG's initializer and
         // the player's toggle (KSR2_UI_Controller.cs), so that follows the
         // player.
         private static string RestoreKfg()

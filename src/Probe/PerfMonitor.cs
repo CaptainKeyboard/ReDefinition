@@ -13,12 +13,12 @@ namespace ReDefinition.Probe
 {
     // With -redefinitionPerfMonitor: what ReDefinition costs the main thread, without
     // switching anything off. KSP's player is a release build, which Unity's profiler
-    // does not attach to, so each method of ReDefinition that Unity calls every frame --
+    // does not attach to. So each method of ReDefinition that Unity calls every frame
+    // is timed by a Harmony prefix and postfix. Those are
     // its MonoBehaviours' Update, LateUpdate, FixedUpdate, OnGUI, OnPreCull, OnPreRender,
     // OnPostRender, OnRenderImage, OnWillRenderObject, and what it hangs on
-    // Camera.onPreCull, onPreRender and onPostRender -- is timed by a Harmony prefix and
-    // postfix; every 10 s the most costly, per frame on average and at most, and their
-    // sum against the frame time into the log.
+    // Camera.onPreCull, onPreRender and onPostRender. Every 10 s the most costly go into
+    // the log, per frame on average and at most, and their sum against the frame time.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class PerfMonitor : MonoBehaviour
     {
@@ -52,9 +52,10 @@ namespace ReDefinition.Probe
         private int frames;
         private float frameSum, started;
 
-        // KSP's own phases, by its TimingManager's first and last stages: from the earliest
-        // FixedUpdate to the end of the physics step after it (WaitForFixedUpdate), summed
-        // over the frame's steps; and from the earliest Update to the latest LateUpdate.
+        // Whether KSP's own phases are timed, by its TimingManager's first and last stages. One phase
+        // runs from the earliest FixedUpdate to the end of the physics step after it
+        // (WaitForFixedUpdate), summed over the frame's steps. The other runs from the earliest
+        // Update to the latest LateUpdate.
         private static bool phasesHooked;
         private static long fixedStart, physicsTicks, updateStart, updateTicks;
         private static int physicsSteps;
@@ -333,8 +334,8 @@ namespace ReDefinition.Probe
             }
         }
 
-        // Last in the frame's scripts as far as it goes: the frame's sums closed, camera handlers looked for every 5 s,
-        // and every period the most costly methods, KSP's phases, Unity's samplers and the portraits into the log.
+        // Runs last in the frame's scripts as far as it goes. It closes the frame's sums and looks for camera handlers
+        // every 5 s. Every period it writes the most costly methods, KSP's phases, Unity's samplers and the portraits into the log.
         private void LateUpdate()
         {
             HookPhases();

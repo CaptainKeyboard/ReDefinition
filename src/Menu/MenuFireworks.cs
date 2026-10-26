@@ -24,10 +24,8 @@ namespace ReDefinition.Menu
     // is below the horizon (normal against the sun below NightDot), the camera
     // sees the ground, and the menu's buttons on the left of the screen are not.
     // Sizes follow the sphere's radius, with a least angle on the screen so the
-    // small Kerbin over the Mun shows them too. Each burst has a particle system
-    // of its own from a pool, so its sparks fall towards its own ground.
+    // small Kerbin over the Mun shows them too. MenuFireworks.BurstArgument fires bursts for screenshots.
     //
-    // -redefinitionFireworksBurst fires one every half second, for screenshots.
     // Anything that fails ends the fireworks with one line in KSP.log and leaves
     // the menu as KSP built it.
     [KSPAddon(KSPAddon.Startup.MainMenu, false)]
@@ -70,10 +68,12 @@ namespace ReDefinition.Menu
         };
 
         // One burst's particle system from the pool and where it stands in its life.
+        // Each burst has a system of its own, so its sparks fall towards its own ground.
         private sealed class Burst
         {
-            // Its system; whether it is in use and has exploded; its age; its ground point and the planet's up there; its
-            // size; its two colours; and the trail's particles not yet emitted.
+            // Its system, whether it is in use, whether it has exploded and its age.
+            // Its ground point and the planet's up there, its size and its two colours.
+            // The last field holds the trail's particles not yet emitted.
             public ParticleSystem System;
             public bool Busy;
             public bool Exploded;
@@ -86,9 +86,10 @@ namespace ReDefinition.Menu
             public float Trail;
         }
 
-        // The pool; the active area's Kerbin, the light that stands for the sun, the menu's camera and Kerbin's radius;
-        // whether the test switch is on; when the next burst and the extra ones of a salvo go; the shared material and
-        // spark texture; whether the first burst was logged; and whether the fireworks have stopped on a failure.
+        // The pool, then the active area's Kerbin, the light that stands for the sun, the menu's camera and Kerbin's radius.
+        // Then whether the test switch is on, and when the next burst and the extra ones of a salvo go.
+        // Then the shared material and spark texture, whether the first burst was logged,
+        // and whether the fireworks have stopped on a failure.
         private readonly List<Burst> pool = new List<Burst>();
         private Transform kerbin;
         private Light sun;

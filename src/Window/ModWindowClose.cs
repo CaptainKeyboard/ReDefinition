@@ -8,30 +8,24 @@ using UnityEngine;
 namespace ReDefinition.Window
 {
     // A close button on the own settings window of a mod bundled here. Such a
-    // window opens and closes with the mod's toolbar button -- EVE's and
-    // Distant Object's have no close of their own -- and that button is hidden
-    // while the mod's settings are bundled, so without this a window opened
+    // window opens and closes with the mod's toolbar button, and EVE's and
+    // Distant Object's have no close of their own.
+    // That button is hidden while the mod's settings are bundled, so without this a window opened
     // through Advanced could not be closed at all.
     //
-    // Every IMGUI window is drawn through one of two functions of Unity's
-    // IMGUIModule, decompiled: GUILayout.DoWindow, which GUILayout.Window and
-    // its overloads call, and GUI.DoWindow, which GUI.Window calls -- and which
-    // GUILayout.DoWindow calls in turn with a window function of Unity's own
-    // (LayoutedWindow). ClickThroughBlocker's windows end in the same two. A
-    // Harmony prefix on each swaps the window function of a bundled mod's
-    // settings window (IBundledMod.OwnWindow) for one that draws a close button
-    // at its top right, then the mod's own. The button comes first: these
+    // A Harmony prefix on each of Unity's two window functions (Install) swaps the window function of a bundled mod's
+    // settings window (IBundledMod.OwnWindow).
+    // The new function draws a close button at its top right, then the mod's own.
+    // The button comes first: these
     // windows call GUI.DragWindow last, and a control called earlier gets the
-    // click. It closes the window as the mod's button does
-    // (ToolbarTakeover.CloseOwnWindow) -- and only while that button is hidden
-    // here; with the bundling off the mods are as they were. A postfix notes
-    // where the window is, for the click shield (UnityMouseEvents).
+    // click.
+    // It closes the window as the mod's button does
+    // (ToolbarTakeover.CloseOwnWindow), and only while that button is hidden
+    // here; with the bundling off the mods are as they were.
+    // A postfix notes where the window is, for the click shield (UnityMouseEvents).
     //
     // Both run for every window of every mod in every GUI event: a window of
-    // another type costs a field read and a lookup by its type. Nothing is
-    // looked up before the mods are built: built from here, in the first window
-    // any mod draws, they would be built while the game still loads, before the
-    // configs they read.
+    // another type costs a field read and a lookup by its type.
     internal static class ModWindowClose
     {
         // The Harmony id of the two hooks, and the close button's size in pixels.
@@ -157,6 +151,11 @@ namespace ReDefinition.Window
         }
 
         // Installs the prefixes and the postfix on GUILayout.DoWindow and GUI.DoWindow.
+        // Every IMGUI window is drawn through one of those two functions of Unity's IMGUIModule (decompiled).
+        // GUILayout.DoWindow is called by GUILayout.Window and its overloads.
+        // GUI.DoWindow is called by GUI.Window, and by GUILayout.DoWindow in turn with a window function of
+        // Unity's own (LayoutedWindow).
+        // ClickThroughBlocker's windows end in the same two.
         internal static void Install()
         {
             MethodInfo layout = typeof(GUILayout).GetMethod("DoWindow", BindingFlags.NonPublic | BindingFlags.Static);
@@ -272,6 +271,9 @@ namespace ReDefinition.Window
         }
 
         // Builds the owners from the installed mods' OwnWindow, once the mods are built; false before.
+        // Nothing is looked up before the mods are built: built from here, in the first window
+        // any mod draws, they would be built while the game still loads, before the
+        // configs they read.
         private static bool Resolve()
         {
             if (!BundledSettings.Built) return false;

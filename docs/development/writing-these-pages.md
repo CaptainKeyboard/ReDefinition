@@ -125,7 +125,7 @@ player page carries no marks.
 6. Run the check:
 
    ```
-   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_docs.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_docs.ps1
    ```
 
    It fails on a link that leads nowhere, a path under `src/`, `tools/`, `tests/`,

@@ -32,21 +32,9 @@ namespace ReDefinition.Upscaler
         // with a copy of it that has no UI; whatever differs is UI. AMD documents
         // three ways of handling UI, and this is the one it added "for
         // compatibility with engines that can not apply either of the other two
-        // options" -- a callback that draws the UI a second time, or the UI in a
+        // options". The other two are a callback that draws the UI a second time, or the UI in a
         // texture of its own. KSP is such an engine: its UI and every mod's OnGUI
         // window go straight onto the backbuffer.
-        //
-        // The upscaler's output would differ from the backbuffer everywhere -- half
-        // float against 8 bit, and without what the effect cameras draw after the
-        // presenter. So the rig copies the backbuffer itself, at the end of every
-        // camera that draws scene content -- the
-        // presenter and the effect cameras after it. The last of them to render
-        // leaves the finished scene; whatever is drawn after that is UI to FSR,
-        // and is logged by name. The proxy's "HUD-less check" measures the result.
-        //
-        // The copy is a Blit recorded in the CommandBuffer, so Unity orders it
-        // with the rest of the frame's drawing; the proxy copies this texture at
-        // Present, once all of it is submitted (FrameGeneration::RegisterInputs).
         private void AttachHudLessCapture(Camera presenterCam, bool recheckLater)
         {
             DetachHudLessCapture();
@@ -74,7 +62,9 @@ namespace ReDefinition.Upscaler
         // The frame with the active vessel's shadow taken out where frame generation
         // would drag it along with the ground (VesselShadowLayer), or the frame as it is.
         // Recorded again into the same buffer, still on its carriers, where the vessel
-        // shadow's textures were made anew (RefreshHudLessComposition).
+        // shadow's textures were made anew (RefreshHudLessComposition). The copy is a Blit recorded in the
+        // CommandBuffer, so Unity orders it with the rest of the frame's drawing. The proxy copies this texture at
+        // Present, once all of it is submitted (FrameGeneration::RegisterInputs).
         private void RecordHudLessCopy()
         {
             hudLessBuffer.Clear();
@@ -99,7 +89,9 @@ namespace ReDefinition.Upscaler
         }
 
         // The presenter, and every effect camera drawing onto the backbuffer after
-        // it. Camera.allCameras lists only enabled cameras; one switched off
+        // it. The upscaler's output would differ from the backbuffer everywhere: half float against 8 bit, and
+        // without what the effect cameras draw after the presenter. So the rig copies the backbuffer itself, at the
+        // end of every camera that draws scene content. Camera.allCameras lists only enabled cameras; one switched off
         // later keeps the capture and simply does not render, and the copy taken
         // after the presenter then stands.
         private static List<Camera> HudLessCarriers(Camera presenterCam)
@@ -157,7 +149,8 @@ namespace ReDefinition.Upscaler
         }
 
         // Which cameras the snapshot follows, and what is drawn onto the
-        // backbuffer after the last of them. A post-processing layer there would
+        // backbuffer after the last of them. The last of them to render leaves the finished scene. Whatever is
+        // drawn after that is UI to FSR, and is logged by name. The proxy's "HUD-less check" measures the result. A post-processing layer there would
         // change every pixel after the snapshot; FSR would take the whole image
         // for UI and interpolation would quietly do nothing -- so that case is
         // called out by name.

@@ -18,11 +18,7 @@ namespace ReDefinition.Hud.Panel
     // intercept tab's name, by which KSP finds it for its target caption.
     //
     // The panel grows to the right where a profile needs more than its two
-    // columns: its left pane (LeftPane, 185 wide) by as much, its right pane
-    // (RightPane, at 185) and the whole (UIModeManNodeEditor, 313) with it, and the
-    // mode buttons beside it (UIModeSelector, a UIPanelTransition whose states 3 and
-    // 4 serve the maneuver modes; sharedassets7, FlightUIModeController's
-    // UIPanelStates) by as much again.
+    // columns (Resize).
     //
     // It switches to the profile of the situation the vessel is in once that has
     // held (FlightProfiles.Held), while the setting says so
@@ -30,8 +26,7 @@ namespace ReDefinition.Hud.Panel
     // situation changes.
     //
     // A profile added or deleted in the editor gets or loses its tab at once
-    // (Refresh): ours are taken out of KSP's lists of tabs and buttons and made
-    // anew the way its setupAllTabs makes them.
+    // (Refresh).
     //
     // The prefix is installed once as the game starts (FlightPanelHooks), before
     // any flight scene's panel starts.
@@ -168,8 +163,8 @@ namespace ReDefinition.Hud.Panel
         private static readonly FieldInfo LeftButtons =
             typeof(ManeuverNodeEditorManager).GetField("leftTabButtons", BindingFlags.Instance | BindingFlags.NonPublic);
 
-        // After KSP built its tabs: the tab buttons narrowed to fit the pane
-        // (KSP's are 44 wide, three of them), and a pencil after them, a copy of
+        // Runs after KSP built its tabs. It narrows the tab buttons to fit the pane
+        // (KSP's are 44 wide, three of them). It adds a pencil after them, a copy of
         // one without its toggle, that opens the profile editor for the tab shown.
         private static void AfterStart(ManeuverNodeEditorManager __instance)
         {
@@ -270,10 +265,11 @@ namespace ReDefinition.Hud.Panel
         private static readonly MethodInfo SetupTab =
             typeof(ManeuverNodeEditorTab).GetMethod("Setup", BindingFlags.Instance | BindingFlags.NonPublic, null, new[] { typeof(Transform) }, null);
 
-        // The tabs after the editor changed the profiles, `show` the one to open:
-        // where the same profiles stand in the same order, their names on their
-        // buttons and, with `build`, each built anew; otherwise ours taken out of KSP's lists and made
-        // again, their buttons before the pencil.
+        // Brings the tabs up to date after the editor changed the profiles. A profile added or
+        // deleted gets or loses its tab at once. `show` is the one to open. Where the same
+        // profiles stand in the same order, their names go on their buttons and, with `build`,
+        // each is built anew. Otherwise ours are taken out of KSP's lists of tabs and buttons
+        // and made anew the way its setupAllTabs makes them, their buttons before the pencil.
         internal static void Refresh(int show, bool build = true)
         {
             ManeuverNodeEditorManager manager = ManeuverNodeEditorManager.Instance;
@@ -393,8 +389,12 @@ namespace ReDefinition.Hud.Panel
 
         // ----------------------------------------------------------- widening
 
-        // A tab asks for `width`: the panel grows to the right by what it needs
-        // beyond the two columns KSP's pane holds, or back.
+        // A tab asks for `width`. The panel grows to the right by what the tab needs
+        // beyond the two columns KSP's pane holds, or back. Its left pane (LeftPane, 185 wide)
+        // grows by as much. Its right pane (RightPane, at 185) and the whole
+        // (UIModeManNodeEditor, 313) grow with it. The mode buttons beside it (UIModeSelector,
+        // a UIPanelTransition whose states 3 and 4 serve the maneuver modes; sharedassets7,
+        // FlightUIModeController's UIPanelStates) grow by as much again.
         internal static void Resize(ProfileTab tab, float width)
         {
             FlightPanel panel = current;

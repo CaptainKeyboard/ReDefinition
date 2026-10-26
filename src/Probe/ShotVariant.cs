@@ -8,24 +8,24 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Probe
 {
     // -redefinitionProbeShotVariant <name>: the probe's flight with one thing changed,
-    // from 5 s into it, and its shot (-redefinitionProbeShot) to compare with one
+    // from 5 s into it. Its shot (-redefinitionProbeShot) is compared with one
     // without the change, "none", at the same place and moment
-    // (docs/development/performance-findings.md). Only for that run.
-    //   cascades2      two shadow cascades instead of the quality level's
-    //   cascades1Low   one cascade at low resolution, the shadow distance kept
-    //   distanceHalf   the shadow distance halved
-    //   shadowsMinimal one cascade, 200 m, low resolution: where only the raytracing
-    //                  shades the sun, and where the shadow maps still show
-    //   noDeferredAo   Deferred's ambient occlusion command buffers taken off the cameras
-    //   noTufxAo       TUFX's ambient occlusion switched off in its volumes' profiles
-    //   portraitLayers the crew portraits' cameras drawing only the layers their
-    //                  interiors and kerbals are on, in place of every layer
-    //   portraitShadows the shadow distance 10 m while a crew portrait renders
-    //   noSun          KSP's sun lights at intensity 0
-    //   noLocalLights  every point and spot light off, each logged
-    //   detailAsDiffuse KSP/Scenery/Diffuse Detail drawn with KSP/Scenery/Diffuse
-    //   flagProbes     the renderers named flag set to blend the light probes
-    //   noFlags        the renderers named flag hidden
+    // (docs/development/performance-findings.md). The change is only for that run.
+    // The variant cascades2 has two shadow cascades instead of the quality level's.
+    // The variant cascades1Low has one cascade at low resolution, the shadow distance kept.
+    // The variant distanceHalf halves the shadow distance.
+    // The variant shadowsMinimal has one cascade, 200 m, low resolution: where only the raytracing
+    // shades the sun, and where the shadow maps still show.
+    // The variant noDeferredAo takes Deferred's ambient occlusion command buffers off the cameras.
+    // The variant noTufxAo switches TUFX's ambient occlusion off in its volumes' profiles.
+    // The variant portraitLayers has the crew portraits' cameras draw only the layers their
+    // interiors and kerbals are on, not every layer.
+    // The variant portraitShadows sets the shadow distance to 10 m while a crew portrait renders.
+    // The variant noSun sets KSP's sun lights at intensity 0.
+    // The variant noLocalLights switches every point and spot light off, each logged.
+    // The variant detailAsDiffuse draws KSP/Scenery/Diffuse Detail with KSP/Scenery/Diffuse.
+    // The variant flagProbes sets the renderers named flag to blend the light probes.
+    // The variant noFlags hides the renderers named flag.
     internal static class ShotVariant
     {
         // The variant the switch names, changed once in the flight, then two seconds to settle.

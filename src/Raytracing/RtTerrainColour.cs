@@ -6,14 +6,14 @@ namespace ReDefinition.Raytracing
     // The ground's colour as Parallax's terrain shaders give it, for the rays. With its
     // influence map (INFLUENCE_MAPPING, always in KSCTerrain.shader) a band's colour is
     //   lerp(vertexColour * (luminance(texture) + 0.5), texture, influence)
-    // (ParallaxUtils.cginc, BIPLANAR_TEXTURE_SET): the planet's colour map, carried in
-    // the vertex colours, shaded by the texture's brightness, the texture's own colour
+    // (ParallaxUtils.cginc, BIPLANAR_TEXTURE_SET). That is the planet's colour map, carried in
+    // the vertex colours, shaded by the texture's brightness, with the texture's own colour
     // only where the influence map says. Kerbin's influence averages 0.09 to 0.13, and
     // its grass texture is a bright yellow green (gamma 0.53, 0.67, 0.04): the texture
     // alone made the rays' ground far brighter and greener than the drawn one.
     //
     // Averaged over the texture, with the texture and the influence taken as
-    // independent: albedo = vertexColour * (L + 0.5) * (1 - I) + T * I, with T, L and I
+    // independent: albedo = vertexColour * (L + 0.5) * (1 - I) + T * I. T, L and I are
     // the averages of the band's texture, its luminance and its influence channel, all
     // in Unity's colour space. KSCTerrain.shader takes _GrassColor for the vertex colour.
     internal static class RtTerrainColour
@@ -67,9 +67,10 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
-        // The space centre's lawn as drawn as Parallax's meadow (Scenery/KscGround, ReDefinitionKscGround.shader):
-        // the meadow band's texture and the influence map's green channel of Parallax's terrain material, the
-        // terrain's vertex colour under the space centre, the diffuse colour after the shine's share.
+        // The space centre's lawn as drawn as Parallax's meadow (Scenery/KscGround, ReDefinitionKscGround.shader).
+        // It takes the meadow band's texture and the influence map's green channel of Parallax's terrain material,
+        // and the terrain's vertex colour under the space centre. It returns the diffuse colour after the shine's
+        // share.
         internal static Color Meadow(Material parallax, Color vertexColour)
         {
             Texture texture = parallax != null && parallax.HasProperty(MidTexId) ? parallax.GetTexture(MidTexId) : null;

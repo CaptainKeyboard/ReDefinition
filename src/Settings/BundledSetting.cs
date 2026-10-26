@@ -4,10 +4,11 @@ using System;
 namespace ReDefinition.Settings
 {
     // The tabs of the settings window, by feature, in this order: the game, its
-    // sound, the display with the upscaler, the graphics -- Graphics with the
-    // profiles and Detail under it -- the controls with their axes and devices
-    // under them, and last ReDefinition's own dealings with menus, mods and the
-    // toolbar. Shadows and reflections, planets and effects are groups of
+    // sound, the display with the upscaler, the graphics, the controls, and last ReDefinition's own dealings
+    // with menus, mods and the toolbar.
+    // Graphics has the profiles and Detail under it, and the controls have their axes and devices
+    // under them.
+    // Shadows and reflections, planets and effects are groups of
     // Detail, not tabs of their own. Which setting shows where, and in what
     // order, its registration says (`row`, `order`; WindowLayout).
     internal enum SettingCategory
@@ -69,12 +70,20 @@ namespace ReDefinition.Settings
     internal enum SettingsSaving
     {
         // The mod saves it in its own files, as its own window does, and keeps it.
+        // That is so for KSP, Scatterer, EVE, Parallax and Firefly.
+        // The store keeps it as well until the mod has saved it, or while the mod cannot
+        // take it yet, and hands it over at the next chance.
         InModFiles,
         // The mod saves it per save: kept here as well, and set into every save
-        // as that save loads.
+        // as that save loads. That is so for TUFX and Distant Object.
+        // A choice here is for the game, not one save.
+        // A change made in the mod's own window to a choice kept here becomes that choice (BundledStore.TakeFromMod).
+        // A per-save value put back is a change to its save like one made in the mod's own window.
+        // TUFX keeps it in the game, which KSP writes when it saves, so a quicksave made before brings back what
+        // it holds. Distant Object writes the save's own file at once.
         PerSave,
         // The mod has no save routine of its own: kept here, and set at every
-        // start and scene change.
+        // start and scene change. That is so for Deferred and Waterfall.
         AtEveryStart,
     }
 
@@ -215,10 +224,10 @@ namespace ReDefinition.Settings
         string ToolbarControlNamespace { get; }
 
         // Its own settings window, as "<type>.<method>" of the function that
-        // draws it -- the type of the object it is drawn by, or the declaring
-        // type of a static one: for the Advanced button, and for the close
-        // button added to it (ModWindowClose). Null where it offers none worth
-        // opening from here.
+        // draws it. The type is that of the object it is drawn by, or the declaring
+        // type of a static one.
+        // It serves the Advanced button, and the close button added to it (ModWindowClose).
+        // Null where it offers none worth opening from here.
         string OwnWindow { get; }
 
         // The type OwnWindow names, as it was found in the mod's folder:

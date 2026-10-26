@@ -9,8 +9,9 @@ namespace ReDefinition.Window
 {
     // KSP's own key bindings, read from GameSettings rather than listed by hand:
     // every static KeyBinding field there (about 119 in KSP 1.12.5), each with a
-    // primary and a secondary key -- and the keys of KSP's four custom axes, which
-    // are no static fields but members of AXIS_CUSTOM (AxisKeyBindingList, each
+    // primary and a secondary key.
+    // It also reads the keys of KSP's four custom axes.
+    // They are no static fields but members of AXIS_CUSTOM (AxisKeyBindingList, each
     // entry a plusKeyBinding and a minusKeyBinding), as KSP's input screen lists
     // them (InputSettings.xml in sharedassets3.assets).
     //
@@ -22,12 +23,10 @@ namespace ReDefinition.Window
     // as modeMask): two that never count together are no conflict.
     //
     // KSP's defaults are the ones its own reset sets: GameSettings.SetDefaultValues
-    // assigns every static field of GameSettings anew -- 119 new KeyBindings among
-    // them -- and does nothing else (its IL in KSP 1.12.5: stores to its own fields
-    // and constructors without side effects), and the keyboard layout's preset is
-    // loaded over them. Every field is saved first, the defaults are read, and
-    // every field is put back as it was, the same objects included: nothing that
-    // holds one of KSP's bindings sees a change.
+    // assigns every static field of GameSettings anew, and the keyboard layout's preset is
+    // loaded over them (KspShipped, KspKeyBindings.Defaults).
+    // Every field is saved first, the defaults are read, and
+    // every field is put back as it was, the same objects included.
     internal static class KspKeyBindings
     {
         // Where a binding counts: a key used on EVA and one used flying a vessel
@@ -382,11 +381,11 @@ namespace ReDefinition.Window
         }
 
         // KSP's own defaults of every binding (KspShipped), by field name: primary
-        // and secondary, as KSP's reset leaves them -- SetDefaultValues, then the
-        // layout's preset over it (LoadLayoutKeyBindings loads each of the layout
-        // file's nodes into the KeyBinding of that name: Squad/Controls/Azerty.cfg
-        // pitches on Z rather than W, Qwertz.cfg moves Z and the punctuation
-        // keys). Once per run and layout -- they
+        // and secondary, as KSP's reset leaves them.
+        // That is SetDefaultValues, then the layout's preset over it.
+        // LoadLayoutKeyBindings loads each of the layout file's nodes into the KeyBinding of that name:
+        // Squad/Controls/Azerty.cfg pitches on Z rather than W, Qwertz.cfg moves Z and the punctuation keys.
+        // Once per run and layout, since they
         // are KSP's files, not the player's.
         private static Dictionary<string, string[]> Defaults(string layout)
         {

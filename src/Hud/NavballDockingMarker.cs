@@ -9,9 +9,9 @@ namespace ReDefinition.Hud
     // on the navball stands in the direction into that port, the opposite of the
     // way it faces (ModuleDockingNode.nodeTransform.forward). With the vessel's
     // nose (its control point's up) on it, the two ports face each other. KSP's
-    // markers are pictures on quads under the navball's vector pivot, placed at
-    // attitudeGymbal times their direction times VectorUnitScale, shown while in
-    // front (z at least VectorUnitCutoff) and faded towards the ball's edge and top
+    // markers are pictures on quads under the navball's vector pivot. They are placed at
+    // attitudeGymbal times their direction times VectorUnitScale, and shown while in
+    // front (z at least VectorUnitCutoff). They fade towards the ball's edge and top
     // and bottom through their material's _Opacity (NavBall.SetVectorAlphaTint;
     // decompiled). This one is a copy of the target's marker (progradeWaypoint) with
     // a picture of its own (Icons/Navball_Docking.png, tools/make_icon.py), placed

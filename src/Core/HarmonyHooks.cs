@@ -5,10 +5,10 @@ using System;
 
 namespace ReDefinition.Core
 {
-    // One Harmony patch of a bundled mod: the method patched, and the names of
-    // the static hooks on the class that installs it -- null where it has none of
-    // that kind; and where their order among other patches of the same method
-    // matters, the priority of its prefix and of its postfix (Harmony's Priority:
+    // One Harmony patch of a bundled mod. It holds the method patched and the names of
+    // the static hooks on the class that installs it, null where it has none of
+    // that kind. Where the order among other patches of the same method
+    // matters, it holds the priority of its prefix and of its postfix (Harmony's Priority:
     // First 800, Normal 400, Last 0; -1 for Harmony's own).
     internal struct HarmonyHook
     {

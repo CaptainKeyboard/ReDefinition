@@ -9,10 +9,10 @@ using UnityEngine;
 namespace ReDefinition.Api.Internal
 {
     // The frame's state every mod may read and add to (ReDefinition.Api), set once
-    // per frame before its first scene camera culls: whether the upscaler and frame
+    // per frame before its first scene camera culls. It holds whether the upscaler and frame
     // generation run, the render and display size, the jitter, the history reset and
     // the floating origin's shifts, as properties and as shader globals. The hooks
-    // other mods register live here too; the rig calls them.
+    // other mods register live here too, and the rig calls them.
     // docs/development/shared-foundation.md.
     internal static class SharedFrame
     {

@@ -209,8 +209,9 @@ namespace ReDefinition.Window
             // for Apply (the settings window's rows; KSP's dialog has none).
             public Func<string, bool, string> Marked;
             // Where given: the chosen profile's value of a row, shown as such, where the
-            // row holds another; null where it holds the profile's or no profile is chosen
-            // (the settings window: a mark at the name, "Default: X" in the tooltip).
+            // row holds another.
+            // Null where it holds the profile's or no profile is chosen.
+            // The settings window shows it as a mark at the name, and "Default: X" in the tooltip.
             public Func<ModuleSetting, OwnSettings, string> Default;
 
             // The widths of the name, the control, the gap before the value and the value.

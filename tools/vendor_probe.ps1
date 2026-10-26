@@ -1,18 +1,20 @@
 # Runs the vendors' own checks of what ReDefinition hands their upscalers and frame
-# generation, in the game, without anyone at the keyboard (src/Probe/VendorProbe.cs):
+# generation, in the game, without anyone at the keyboard (src/Probe/VendorProbe.cs).
 # KSP starts with -redefinitionProbe -redefinitionProbeVendor, loads the save
 # ReDefinitionProbe, cycles the debug visualizations of NVIDIA's development DLLs
-# and records each, then quits. The proxy's ini is set for it and put back after:
-# NVIDIA's development DLLs from the Streamline SDK's bin\x64\development,
+# and records each, then quits. The proxy's ini is set for it and put back after.
+# The run sets NVIDIA's development DLLs from the Streamline SDK's bin\x64\development,
 # vendorDiagnostics=1 (AMD's debug checker), streamlineImgui as asked, and NGX's
 # ngxdlssg.json with the detailed on-screen text.
-#
-#   tools\vendor_probe.ps1 [-Ksp <KSP folder>] [-Development <folder with the dev DLLs>]
-#                          [-ShowOnlyGenerated]
 #
 # The recordings land in <KSP>\ReDefinitionCaptures, one folder per state, named in
 # KSP.log ("Probe: vendor ..."). The window must stay in front: the hotkeys go
 # through Windows' input queue.
+#
+# Usage:
+#
+#   tools\vendor_probe.ps1 [-Ksp <KSP folder>] [-Development <folder with the dev DLLs>]
+#                          [-ShowOnlyGenerated]
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
     [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),

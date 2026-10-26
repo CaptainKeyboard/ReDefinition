@@ -10,15 +10,15 @@ namespace ReDefinition.Probe
     // -redefinitionProbeScreenCheck, with the scene probe's flight: whether the screen's
     // pixels hold for the cameras the upscaler draws into its texture
     // (Upscaler/ScreenCoordinates), then KSP quits.
-    //   1. each part's screen point against its viewport point times the screen's size,
-    //      the ray back through it and the world point back from it;
-    //   2. the cursor put onto the middle of each part, up to twelve,
-    //      and the part KSP finds under it (Mouse.HoveredPart) against the part a ray
-    //      through the viewport point meets;
-    //   3. in the map view, KSP's map markers and the map camera's screen points
-    //      against their viewport points times the screen's size;
-    //   and Camera.current in Update, LateUpdate, OnGUI and at the end of the frame,
-    //   with the parts' screen points measured in OnGUI.
+    // Check 1 compares each part's screen point with its viewport point times the screen's size.
+    // It also takes the ray back through it and the world point back from it.
+    // Check 2 puts the cursor onto the middle of each part, up to twelve, and compares
+    // the part KSP finds under it (Mouse.HoveredPart) with the part a ray
+    // through the viewport point meets.
+    // Check 3 compares, in the map view, KSP's map markers and the map camera's screen points
+    // with their viewport points times the screen's size.
+    // A last check reads Camera.current in Update, LateUpdate, OnGUI and at the end of the frame,
+    // with the parts' screen points measured in OnGUI.
     // Each logs a line "Probe: screen check".
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class ScreenCheck : MonoBehaviour

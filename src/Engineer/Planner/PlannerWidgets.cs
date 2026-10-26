@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace ReDefinition.Engineer
 {
     // The planner's symbols (GameData/ReDefinition/Icons/Planner_*.png, drawn by
-    // tools/make_icon.py): white on clear, laid over a button of KSP's skin, so
+    // tools/make_icon.py) are white on clear. They are laid over a button of KSP's skin, so
     // that the button's own states and a UI theme stay as they are.
     internal static class PlannerIcons
     {
@@ -223,9 +223,9 @@ namespace ReDefinition.Engineer
         }
 
         // A scroll list as KSP's own panels show one. Its content is held at
-        // the top edge and always as tall as its rows: KSP's DialogGUIContentSizer
+        // the top edge and always as tall as its rows. KSP's DialogGUIContentSizer
         // (decompiled) sizes it only while it is taller than the view and then
-        // leaves it at its last height, so a list grown short stays scrollable
+        // leaves it at its last height. So a list grown short stays scrollable
         // into empty room below its rows (as TabScrollList). Its background, a
         // lighter box of KSP's scroll view prefab, is cleared, so that the panel
         // it stands in shows one background.
@@ -248,9 +248,9 @@ namespace ReDefinition.Engineer
             scroll.verticalNormalizedPosition = 1f;
         }
 
-        // KSP's scroll view insets its content 4 units at each side, and its
-        // vertical bar, 16 wide, stands 3 units in from the right edge (the
-        // prefab, read with UnityPy): what a row may fill of a list this wide.
+        // What a row may fill of a list this wide. KSP's scroll view insets its content 4 units
+        // at each side, and its vertical bar, 16 wide, stands 3 units in from the right edge
+        // (the prefab, read with UnityPy).
         internal static float RowRoom(float listWidth)
         {
             return listWidth - 4f - 19f;

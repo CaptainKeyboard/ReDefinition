@@ -5,8 +5,8 @@ using UnityEngine;
 
 namespace ReDefinition.Hud.Panel
 {
-    // One profile of the flight panel, as a tab of KSP's maneuver panel: its
-    // readouts in KSP's own blocks, copies of the orbit tab's apoapsis block
+    // One profile of the flight panel, as a tab of KSP's maneuver panel. Its
+    // readouts are in KSP's own blocks, copies of the orbit tab's apoapsis block
     // (ResultApoapsis: 88 by 64, KSP's emboss frame, a title and two value fields;
     // sharedassets7). A readout with two values takes the whole block; one with a
     // single value the block without its second field, 42 high. They fill columns

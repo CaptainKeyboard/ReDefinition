@@ -11,25 +11,19 @@ namespace ReDefinition.Ui
     // The keyboard. KSP's event system sends navigation events, with Submit on
     // Return and on Space and the directions on the arrow keys and W, A, S, D
     // (InputManager, globalgamemanagers; EventSystem.sendNavigationEvents,
-    // sharedassets7). A Selectable is selected by a click unless its navigation is
-    // None (Selectable.OnPointerDown; UnityEngine.UI.dll, decompiled), and what is
-    // selected is pressed again by Space or Return and hands the selection on at a
+    // sharedassets7).
+    // A Selectable is selected by a click unless its navigation is
+    // None (Selectable.OnPointerDown; UnityEngine.UI.dll, decompiled).
+    // What is selected is pressed again by Space or Return and hands the selection on at a
     // direction key: a button clicked in flight would be pressed again by the
-    // staging key. KSP's own dialog prefabs have navigation None (UIButtonPrefab,
-    // UITogglePrefab, UISliderPrefab; sharedassets0); a Button added at run time
-    // has Automatic. So every Selectable made or added here is set to None
-    // (MouseOnly). A text field selects itself at a click whatever its navigation
-    // (TMP_InputField.OnPointerDown) and stays selected after its edit ends, when
-    // Space or Return would open it again: it is let go then (Release).
+    // staging key.
+    // KSP's own dialog prefabs have navigation None (UIButtonPrefab,
+    // UITogglePrefab, UISliderPrefab; sharedassets0), and a Button added at run time
+    // has Automatic.
+    // So every Selectable made or added here is set to None (MouseOnly).
+    // A text field is let go when its edit ends (Release).
     //
-    // The layer. A GameObject made at run time is on layer 0; KSP's UI is on its
-    // UI layer (Child).
-    //
-    // The tooltip. KSP's own: a TooltipController_Text on the object with the
-    // game's Tooltip_Text prefab (Tooltip). On the HUD and in the editors its text
-    // is as KSP's there: a name or two or three words in title case, "Toggle SAS",
-    // "Warp to Sunrise". Rows of a settings dialog explain in sentences, as KSP's
-    // settings do.
+    // The layer (Child). The tooltip (Tooltip). Both are described on their members.
     internal static class UiHygiene
     {
         // A Selectable taken off the keyboard's navigation, so that Space, Return and the direction keys leave it alone.
@@ -53,6 +47,10 @@ namespace ReDefinition.Ui
         // KSP's tooltip on `target`, which has to answer the pointer itself or hold
         // something that does. Null, and no tooltip, where the game's prefab is
         // not there.
+        // It is a TooltipController_Text on the object with the game's Tooltip_Text prefab.
+        // On the HUD and in the editors its text is as KSP's there: a name or two or three words in title case,
+        // "Toggle SAS", "Warp to Sunrise". Rows of a settings dialog explain in sentences, as KSP's
+        // settings do.
         internal static KSP.UI.TooltipTypes.TooltipController_Text Tooltip(GameObject target, string text)
         {
             if (target == null) return null;
@@ -79,6 +77,7 @@ namespace ReDefinition.Ui
         }
 
         // A new object under `parent`, on its layer, placed in its space.
+        // A GameObject made at run time is on layer 0; KSP's UI is on its UI layer.
         internal static GameObject Child(string name, Transform parent, params Type[] components)
         {
             GameObject child = new GameObject(name, components);
@@ -88,11 +87,11 @@ namespace ReDefinition.Ui
         }
 
         // A dialog element goes grey or live as its OptionInteractableCondition
-        // turns (DialogGUIBase.Update; decompiled): KSP notes the new state and
-        // sets it on the element's Selectables -- found without the inactive ones,
-        // so that an element hidden at that moment (another page, a folded group)
-        // is noted as changed, nothing is set, and it is never set again. Each
-        // condition is wrapped: while the element is hidden it answers what it
+        // turns (DialogGUIBase.Update; decompiled).
+        // KSP notes the new state and sets it on the element's Selectables.
+        // They are found without the inactive ones, so that an element hidden at that moment
+        // (another page, a folded group) is noted as changed, nothing is set, and it is never set again.
+        // Each condition is wrapped: while the element is hidden it answers what it
         // answered last, and the change is seen once the element shows.
         internal static void DeferInteractable(System.Collections.Generic.IEnumerable<DialogGUIBase> elements)
         {
@@ -173,6 +172,8 @@ namespace ReDefinition.Ui
 
         // Lets go of a text field under `root` that is still selected though its
         // edit has ended: for the moment the typing is seen to end.
+        // A text field selects itself at a click whatever its navigation (TMP_InputField.OnPointerDown)
+        // and stays selected after its edit ends, when Space or Return would open it again.
         internal static void Release(GameObject root)
         {
             EventSystem events = EventSystem.current;

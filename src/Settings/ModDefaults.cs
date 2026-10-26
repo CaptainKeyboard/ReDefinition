@@ -38,7 +38,8 @@ namespace ReDefinition.Settings
 
         // The blocks that fit the build of the mod installed: those for every build
         // first, then those for its build, each in their order, a later value over an
-        // earlier one -- so a block for the build counts over one for every build
+        // earlier one.
+        // So a block for the build counts over one for every build
         // wherever a patch adds it. The profiles' blocks are taken the same way.
         internal static List<T> Fitting<T>(IBundledMod mod, IEnumerable<T> blocks) where T : ValueBlock
         {

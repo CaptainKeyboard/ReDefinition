@@ -181,15 +181,16 @@ namespace ReDefinition.Hud.Panel
         internal const double LandingEnterHeight = 20000.0, LandingLeaveHeight = 25000.0;
         internal const double LandingEnterSpeed = -5.0, LandingLeaveSpeed = 2.0;
 
-        // The situation the vessel is in, given the one before (null at first):
-        // a docking port as the target within 2 km (kept to 2.5 km), docking; on
-        // the ground, ascent; on wings in the air, flying; coming down faster than
-        // 5 m/s below 20 km over the ground without wings, landing, kept while it
-        // sinks, hovers or climbs slower than 2 m/s below 25 km; in orbit, or
-        // coming from there (a descent from orbit, above the landing's height),
-        // rendezvous with a target and orbit without; else ascent, the climb and
-        // the coast to a periapsis still under the ground included, past the
-        // apoapsis too.
+        // The vessel's situation, given the one before (null at first).
+        // Docking: a docking port as the target within 2 km (kept to 2.5 km).
+        // Ascent: on the ground.
+        // Flying: on wings in the air.
+        // Landing: coming down faster than 5 m/s below 20 km over the ground without
+        // wings, kept while it sinks, hovers or climbs slower than 2 m/s below 25 km.
+        // Rendezvous: in orbit, or coming from there (a descent from orbit, above the
+        // landing's height), with a target. Orbit: the same without one.
+        // Otherwise ascent, the climb and the coast to a periapsis still under the
+        // ground included, past the apoapsis too.
         internal static PanelSituation Classify(Facts facts, PanelSituation? before)
         {
             double dockingReach = before == PanelSituation.Docking ? DockingLeave : DockingEnter;
@@ -272,10 +273,10 @@ namespace ReDefinition.Hud.Panel
             return winged;
         }
 
-        // Wings enough to fly on: the lift of its lifting surfaces that are no
-        // control surfaces, pods or heat shields (ModuleLiftingSurface.
+        // Whether the vessel has wings enough to fly on. That is the lift of its lifting
+        // surfaces that are no control surfaces, pods or heat shields (ModuleLiftingSurface.
         // deflectionLiftCoeff: a basic fin 0.2, a wing panel 1 and more), at least 2
-        // and at least 0.1 per tonne, so that a rocket's fins and a Mk2 fuselage do
+        // and at least 0.1 per tonne. So a rocket's fins and a Mk2 fuselage do
         // not make it a plane.
         private static bool Wings(Vessel vessel)
         {

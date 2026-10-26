@@ -115,9 +115,9 @@ namespace ReDefinition.Raytracing
         // Submeshes that can never be handed over -- not readable, or not triangles -- not
         // tried again each frame.
         private readonly HashSet<long> unusable = new HashSet<long>();
-        // Submeshes the last hand-over failed for -- empty yet, or refused by the proxy --,
-        // with the frame it failed in: tried again after FailedRetryFrames, not every frame,
-        // each try reading the whole mesh into new arrays and taking the frame's upload budget.
+        // Submeshes the last hand-over failed for, empty yet or refused by the proxy,
+        // with the frame it failed in. They are tried again after FailedRetryFrames, not every frame,
+        // as each try reads the whole mesh into new arrays and takes the frame's upload budget.
         private readonly Dictionary<long, int> failed = new Dictionary<long, int>();
         private const int FailedRetryFrames = 30;
         private readonly Dictionary<Mesh, List<long>> keysOf = new Dictionary<Mesh, List<long>>();
@@ -127,8 +127,8 @@ namespace ReDefinition.Raytracing
         private readonly List<IRtGpuSource> gpuSources = new List<IRtGpuSource>();
         private readonly List<RtGpuItem> gpuCollected = new List<RtGpuItem>();
         private RtNative.GpuGroup[] gpuGroups = new RtNative.GpuGroup[16];
-        // How many places of each GPU buffer were taken lately, as read back (RtCamera):
-        // a buffer's capacity is what its mod may ever need, Parallax's up to hundreds
+        // How many places of each GPU buffer were taken lately, as read back (RtCamera).
+        // A buffer's capacity is what its mod may ever need, Parallax's up to hundreds
         // of thousands, and every place handed over is an instance to build.
         private readonly Dictionary<ComputeBuffer, int> gpuTaken = new Dictionary<ComputeBuffer, int>();
         private readonly List<ComputeBuffer> gpuGone = new List<ComputeBuffer>();
@@ -357,9 +357,9 @@ namespace ReDefinition.Raytracing
             return done;
         }
 
-        // The proxy's id of a submesh, handed over when first seen; 0 where it cannot
+        // The proxy's id of a submesh, handed over when first seen. It is 0 where the submesh cannot
         // be read, or not yet within this frame's upload budget.
-        // `material`: the one it is drawn with, for the colours KSP's terrain shaders make
+        // `material` is the one it is drawn with, for the colours KSP's terrain shaders make
         // of its vertex colours (RtStockTerrain).
         private int MeshId(Mesh mesh, int subMesh, Material material)
         {
@@ -529,8 +529,8 @@ namespace ReDefinition.Raytracing
         }
 
         // Hands the material's values to the proxy under `id`, its texture at `layer` of the proxy's array (-1 for
-        // none): the surface (RtMaterial), its colour from the terrain's where it is terrain, its shine as meant
-        // (RtMaterialIntent), its diffuse share and highlight for the forward light.
+        // none). The values are the surface (RtMaterial), its colour from the terrain's where it is terrain, its
+        // shine as meant (RtMaterialIntent), and its diffuse share and highlight for the forward light.
         private void SendMaterial(Material material, int id, int layer, bool scenery)
         {
             RtMaterial surface = RtMaterial.Of(material);
@@ -592,7 +592,7 @@ namespace ReDefinition.Raytracing
             RtNative.KspRtSetMaterial(ref desc);
         }
 
-        // A few material textures a frame: rendered down to 64 pixels, read back without
+        // Reads a few material textures a frame. Each is rendered down to 64 pixels, read back without
         // waiting for the GPU (AsyncGPUReadback; its callback runs on the main thread, in
         // a later frame) and handed over as a layer of the proxy's array. A synchronous
         // read would stall the main thread until the GPU caught up.

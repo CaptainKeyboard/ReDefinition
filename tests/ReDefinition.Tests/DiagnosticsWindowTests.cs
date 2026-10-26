@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests
 {
-    // The diagnostics window's decisions that need no game: what the settings file may
+    // The diagnostics window's decisions that need no game. The tests cover what the settings file may
     // hold for its position and page, the keys that end the typing in its search field,
     // the texts it makes once, and the mods' keys while the field has the keyboard.
     [TestClass]

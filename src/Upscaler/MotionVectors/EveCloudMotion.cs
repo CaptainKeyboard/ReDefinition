@@ -10,23 +10,23 @@ namespace ReDefinition.Upscaler
     // EVE's raymarched clouds and the upscaler's jitter.
     //
     // EVE casts the clouds' rays through unity_CameraInvProjection, the
-    // projection Unity binds for the camera, but reprojects their history and
-    // makes their motion vectors with the projection without the jitter:
+    // projection Unity binds for the camera. It reprojects their history and
+    // makes their motion vectors with the projection without the jitter.
     // DeferredRaymarchedVolumetricCloudsRenderer.OnPreRender takes
     // GL.GetGPUProjectionMatrix(VRUtils.GetNonJitteredProjectionMatrixForCamera
     // (targetCamera), false) for currentVP and keeps it for the next frame's
-    // previousVP (Atmosphere.dll 3.2.2, decompiled; the matrices' use
+    // previousVP (Atmosphere.dll 3.2.2, decompiled). The matrices' use is
     // disassembled from Scatterer-EVE/RaymarchCloud, which Scatterer puts in
-    // place of EVE's). NVIDIA: "Ensure that all input to DLSS is properly
+    // place of EVE's. NVIDIA: "Ensure that all input to DLSS is properly
     // jittered. This includes secondary passes that might otherwise have not been
     // jittered" (DLSS Programming Guide, 31 March 2026, troubleshooting).
     //
     // While EVE prepares the clouds for a camera the rig jitters, a Harmony
     // postfix hands it that camera's jittered projection, and the jitter it
-    // handed is kept: EVE's motion vectors, half the change in normalized device
+    // handed is kept. EVE's motion vectors, half the change in normalized device
     // coordinates since its last frame, then carry half the change of the jitter
-    // too, which CloudMotionVectors takes out again through
-    // _ReDefinitionCloudJitterDelta. Only inside OnPreRender -- EVE's
+    // too. CloudMotionVectors takes that out again through
+    // _ReDefinitionCloudJitterDelta. The postfix works only inside OnPreRender: EVE's
     // screen-space shadows and wet surfaces ask the same helper and stay as they
     // are.
     internal static class EveCloudMotion
@@ -41,18 +41,11 @@ namespace ReDefinition.Upscaler
         // The reconstruction whose motion vectors CloudMotionVectors reads: Scatterer
         // replaces EVE's own in EVE's shader dictionary ("replaced
         // ReconstructRaymarchedClouds in EVE shader dictionary" in KSP.log), and
-        // its output was read (disassembled): the change in viewport position
+        // its output was read (disassembled). That output is the change in viewport position
         // since the last frame, below -1 where there is none, as Scatterer's
-        // TemporalAntialiasing reads it. EVE's own, EVE/ReconstructRaymarchedClouds
-        // in eveshaders.bundle of EVE 3.2.2, has one pass with three targets --
-        // colour, historySecondaryBuffer, motion vectors (disassembled) -- where
-        // Atmosphere.dll binds four: colour, motion vectors (RGHalf), distance
-        // (RHalf), heuristics (DeferredRaymarchedVolumetricCloudsRenderer
-        // .HandleRenderingCommands, InitRenderTextures). What EVE binds as
-        // scattererReconstructedCloudMotionVectors then holds the secondary
-        // buffer, and the motion vectors land in the distance's single channel:
-        // with any other reconstruction, CloudMotionVectors works the clouds'
-        // motion out from the cloud layer's shell (Shell).
+        // TemporalAntialiasing reads it. With any other reconstruction,
+        // CloudMotionVectors works the clouds' motion out from the cloud layer's
+        // shell (Shell), as it does for EVE's own (CloudMotionVectors.Why).
         internal const string KnownReconstruction = "Scatterer-EVE/ReconstructRaymarchedClouds";
 
         // The Debug switch: jitter and motion vectors for the clouds together. Not
@@ -183,8 +176,8 @@ namespace ReDefinition.Upscaler
 
         // Whether the rig jitters this camera for the frame EVE prepares, and by how
         // much in normalized device coordinates. CameraRedirect jitters in its own
-        // OnPreRender, and Unity calls EVE's first where the rig's component was
-        // added to the camera after EVE's -- in the space centre -- so the jitter is
+        // OnPreRender. Unity calls EVE's first where the rig's component was
+        // added to the camera after EVE's, in the space centre, so the jitter is
         // applied from here where it is not yet (EnsureJitter). EVE is handed the
         // jitter the redirect applied, as long as the camera still has the
         // projection it applied it to. GL.GetGPUProjectionMatrix, which EVE puts the
@@ -245,7 +238,7 @@ namespace ReDefinition.Upscaler
         }
 
         // The radii of the clouds' shell around the body's centre, from the lowest
-        // layer's base to the highest layer's top, in world units: EVE sets them on
+        // layer's base to the highest layer's top, in world units. EVE sets them on
         // its composite in OnPreRender (innerSphereRadius, outerSphereRadius:
         // planet radius plus the layers' altitudes, CloudsRaymarchedVolume), the
         // frame before's like Fade. False while there is none.

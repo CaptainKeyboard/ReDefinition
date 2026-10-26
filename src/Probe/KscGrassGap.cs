@@ -9,11 +9,11 @@ using UnityEngine;
 
 namespace ReDefinition.Probe
 {
-    // With -redefinitionKscGrassGap, in a flight at the space centre: how far the space
+    // With -redefinitionKscGrassGap, in a flight at the space centre, the probe logs how far the space
     // centre's grass surfaces (its ground meshes' grass materials) stand above the terrain
-    // under them, which Parallax's grass grows on (PQS.GetSurfaceHeight with the KSC's
-    // flattening): random points on the grass triangles of every space centre renderer
-    // in range, per facility, into the log. Whether Parallax's blades reach through the
+    // under them (PQS.GetSurfaceHeight with the KSC's flattening). Parallax's grass grows
+    // on that terrain. The probe takes random points on the grass triangles of every space centre renderer
+    // in range, per facility. Whether Parallax's blades reach through the
     // grass surfaces depends on this gap alone.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class KscGrassGap : MonoBehaviour

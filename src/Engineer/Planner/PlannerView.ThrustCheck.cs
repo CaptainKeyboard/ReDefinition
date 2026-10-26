@@ -68,10 +68,10 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // How fast what flies the step turns: at launch as its first stage lights,
-        // its gimbals counting; at landing as its last stage lights, likewise; in
-        // orbit as its first stage starts, before it lights, on its reaction wheels
-        // and RCS alone. A note says it; one in orange where it is slower than the
+        // Works out how fast what flies the step turns. At launch it is as its first stage lights,
+        // its gimbals counting. At landing it is as its last stage lights, likewise. In
+        // orbit it is as its first stage starts, before it lights, on its reaction wheels
+        // and RCS alone. A note says it, and one in orange where it is slower than the
         // step allows.
         private void AddTurn(ThrustStep entry, RouteStep step)
         {
@@ -143,12 +143,12 @@ namespace ReDefinition.Engineer
             return "<color=" + (TurnSlow(entry) ? Warning : Good) + ">" + text + "</color>";
         }
 
-        // The RCS of what flies the step, as the step starts: the delta-v its RCS
-        // propellant gives it, its thrusters' thrust and combined Isp in vacuum and
-        // their TWR at standard gravity, as KSP states a TWR in the editor; where it
-        // docks, for the last metres, in orange and on the route where it has no RCS
+        // Adds the notes of a step on the RCS of what flies it, as the step starts. They give the delta-v
+        // its RCS propellant gives it, its thrusters' thrust and combined Isp in vacuum and
+        // their TWR at standard gravity, as KSP states a TWR in the editor. Where it
+        // docks, for the last metres, a note in orange and on the route says it has no RCS
         // or no RCS propellant. The electric charge an ion engine burns over the
-        // step against what the vessel holds.
+        // step is set against what the vessel holds.
         private void AddNotes(ThrustStep entry)
         {
             RouteStep step = steps[entry.Step];

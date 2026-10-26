@@ -9,10 +9,10 @@ namespace ReDefinition.Settings.Behaviours
     //
     // Its window keeps each field's text beside the value (ConfigField.uiText) and
     // parses its float fields back from that text in every frame
-    // (GuiUtils.DrawSettingsFieldFloat), so the text is brought up to date with
-    // each write, as its own loader does (ConfigField.UpdateUiText). Where its
-    // settings are already there, every key its registration shows must be: a build
-    // that renamed them would leave the rows dead and its button hidden.
+    // (GuiUtils.DrawSettingsFieldFloat).
+    // So the text is brought up to date with each write, as its own loader does (ConfigField.UpdateUiText).
+    // Where its settings are already there, every key its registration shows must be.
+    // A build that renamed them would leave the rows dead and its button hidden.
     // hdr_override is looked for alone: a build without it keeps the rest bundled.
     internal sealed class FireflyBehaviour : ModBehaviour
     {

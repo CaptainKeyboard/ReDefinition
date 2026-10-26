@@ -2,15 +2,14 @@
 "Testing without the game").
 
 It copies ReDefinition's raytracing sources and shaders into the player's Unity
-project, has Unity 2019.4.18f1 build the player in batch mode, puts the proxy
-(dxgi.dll) beside it, and runs it four times: with forward rendering, with Unity's own
-deferred lighting, with Deferred's lighting shaders from the installed game (skipped
-where Deferred is not installed), and the budget at DLSS Quality's render size. The
-player's checks come back from its log.
+project and has Unity 2019.4.18f1 build the player in batch mode. It puts the proxy
+(dxgi.dll) beside the player. It runs the player four times: with forward rendering,
+with Unity's own deferred lighting, with Deferred's lighting shaders from the installed
+game (skipped where Deferred is not installed), and the budget at DLSS Quality's render
+size. The player's checks come back from its log. Exits 0 when every check of every run
+passed.
 
-    python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build]
-
-Exits 0 when every check of every run passed.
+Usage: python tools/build_rt_player.py [--unity <Unity.exe>] [--ksp <KSP folder>] [--no-build]
 """
 
 import argparse

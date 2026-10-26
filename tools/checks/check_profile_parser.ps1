@@ -1,12 +1,14 @@
-# Checks the graphics profile reader outside the game: KSP's own
+# Checks the graphics profile reader outside the game. It runs KSP's own
 # ConfigNode.Parse, then GraphicsProfile.FromConfigNode from the built DLL, on
 # profiles with one mistake of each kind the reader has to survive.
-#
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_profile_parser.ps1
 #
 # Runs in Windows PowerShell 5.1 and in PowerShell 7. The KSP folder is taken
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
+#
+# Usage:
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_profile_parser.ps1
 
 . ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
 

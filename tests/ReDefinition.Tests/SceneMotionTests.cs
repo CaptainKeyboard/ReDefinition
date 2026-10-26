@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ReDefinition.Tests
 {
     // The scene camera's move as a clip-space matrix (SceneMotion), against the
-    // geometry it has to reproduce: KSP's flight camera with its near plane of
+    // geometry it has to reproduce. The geometry is KSP's flight camera with its near plane of
     // 0.21 m and far plane of 750 km, looking at ground 150 km away.
     [TestClass]
     public class SceneMotionTests

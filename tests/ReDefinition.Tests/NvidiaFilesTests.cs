@@ -242,7 +242,7 @@ namespace ReDefinition.Tests
             return Encoding.UTF8.GetBytes(text.ToString());
         }
 
-        // The entry extracted from the bytes of its range.
+        // Runs NvidiaFiles.Extract on the entry with the bytes of its range as the archive stream, and returns what it writes.
         private static byte[] Extracted(NvidiaFiles.Entry entry, byte[] range)
         {
             using (MemoryStream output = new MemoryStream())

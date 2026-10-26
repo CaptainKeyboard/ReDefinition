@@ -8,7 +8,8 @@ using UnityEngine;
 namespace ReDefinition.Window
 {
     // The Axes tab: KSP's joystick and gamepad axes (KspAxes), each with its
-    // primary and its secondary binding -- the axis bound, set by moving it
+    // primary and its secondary binding.
+    // A binding holds the axis bound, set by moving it
     // (AxisCapture), whether it is inverted, its sensitivity and its deadzone,
     // as KSP's own input screen shows them (SettingsInputAxis). The rows edit
     // copies; Apply writes them into KSP's bindings and KSP saves its settings.

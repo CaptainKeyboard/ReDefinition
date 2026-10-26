@@ -5,11 +5,11 @@ using System.Text;
 
 namespace DocLock
 {
-    // The elements of the brace languages -- C, C++, HLSL, the CG code in Unity's shaders, compute shaders --
-    // read token by token at the scopes where declarations stand (the file, namespaces, structs, classes,
-    // cbuffers), not inside function bodies: functions and their declarations, structs, classes, unions,
-    // enums and their members, cbuffers, typedefs and using aliases, variables and fields, macros (not include
-    // guards). A function declared in one place and defined in another is documented where either is.
+    // The brace languages are C, C++, HLSL, the CG code in Unity's shaders, and compute shaders. Their elements
+    // are read token by token at the scopes where declarations stand (the file, namespaces, structs, classes,
+    // cbuffers), not inside function bodies. The elements are functions and their declarations, structs, classes,
+    // unions, enums and their members, cbuffers, typedefs and using aliases, variables and fields, and macros (not
+    // include guards). A function declared in one place and defined in another is documented where either is.
     internal static class CLikeScanner
     {
         // A token's kind.

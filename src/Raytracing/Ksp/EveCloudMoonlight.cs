@@ -9,28 +9,21 @@ namespace ReDefinition.Raytracing
 {
     // A moon's light on EVE's clouds, while the raytracing lights the ground with it
     // (RtReflectors). Where Scatterer integrates EVE's clouds it puts in shaders of its own
-    // for them and sets their light each frame (SkyNode.UpdateEVECloudMaterials, in its
-    // OnPreRender), the main sun's alone; a postfix sets it anew for the body the camera is
-    // at:
+    // for them. It sets their light each frame (SkyNode.UpdateEVECloudMaterials, in its
+    // OnPreRender), the main sun's alone. A postfix sets it anew for the body the camera is
+    // at.
     //
-    // - The raymarched layers (Scatterer-EVE/RaymarchCloud) take one directional light,
-    //   _Sun_WorldSunDir and _sunColor; EVE's light volume is filled with the same material
-    //   (LightVolume.Update, its passes 4 to 7). As the sun sets the moon's light is added
-    //   at each cloud by its own place (EveCloudRelight), the sun staying their light, until
-    //   the sun reaches none of them in view; then that light turns to the moon, and back as
-    //   the sun rises; by day it is the sun's as before. Where the light per pixel cannot
-    //   run, the one light turns from the sun to the moon for all clouds together, by the
-    //   layers' heights (CloudLightBlend).
-    // - The 2D layers, which show from orbit (Scatterer-EVE/Cloud), take up to four lights
-    //   beside the sun, as Scatterer sets a secondary sun's (ProlandManager
-    //   .UpdateSecondarySuns): the moon in the first row, its position relative to the
-    //   planet, its colour times its strength. Only where Scatterer has its secondary
-    //   lights off on that material, which then are this class's to turn on and off.
+    // The raymarched layers (Scatterer-EVE/RaymarchCloud) take one directional light,
+    // _Sun_WorldSunDir and _sunColor. As the sun sets the moon's light is added
+    // at each cloud by its own place (EveCloudRelight), the sun staying their light, until
+    // the sun reaches none of them in view. Then that light turns to the moon, and back as
+    // the sun rises. By day it is the sun's as before. Where the light per pixel cannot
+    // run, the one light turns from the sun to the moon for all clouds together, by the
+    // layers' heights (CloudLightBlend). Light2D carries the 2D layers.
     //
     // The moon's light is the raytracing's moons' together (RtReflectors.Combined), in units
     // of the sunlight, at CloudShare of it, times the brightness of the sun's colour
-    // Scatterer sets on the material; the 2D layers take it from the brightest moon's
-    // place. Without Scatterer, EVE's own
+    // Scatterer sets on the material. Without Scatterer, EVE's own
     // clouds take the sun's direction alone, without a colour to dim: nothing here then.
     internal static class EveCloudMoonlight
     {
@@ -61,10 +54,10 @@ namespace ReDefinition.Raytracing
         private static double lastReach = 1.0;
 
         // The share of the raytracing's moonlight the clouds take. EVE's clouds answer their
-        // light far more brightly than the raytraced ground does: from 14 km over the pad,
+        // light far more brightly than the raytraced ground does. From 14 km over the pad,
         // the clouds came out 17 times as bright as the land under them in the sun and 49
-        // times in the full Mun's light (light probe, 2026-10-23, the brightest clouds
-        // against the land's median, linear), and the player found them too bright at night.
+        // times in the full Mun's light. That is the light probe of 2026-10-23: the brightest clouds
+        // against the land's median, linear. The player found them too bright at night.
         // At this share they stand to the land as in the sun.
         internal const float CloudShare = 0.35f;
 
@@ -221,8 +214,8 @@ namespace ReDefinition.Raytracing
             Report(reach <= 0.0 ? 2 : 1, moon);
         }
 
-        // With the moon's light per pixel (EveCloudRelight): the sun stays the raymarched
-        // layers' light as Scatterer set it, each cloud in its own sunset, and the moon's light
+        // With the moon's light per pixel (EveCloudRelight), the sun stays the raymarched
+        // layers' light as Scatterer set it, each cloud in its own sunset. The moon's light
         // is added at each cloud by its own place, from the dusk on and while the moon reaches
         // a cloud in view. Once the sun reaches none of them, the layers' light turns to the
         // moon and the per-pixel light gives way, over CloudLightBlend.HandoffWindow.
@@ -263,7 +256,8 @@ namespace ReDefinition.Raytracing
         internal static float ProbeShare = -1f;
 
         // The body's cloud materials Scatterer keeps, into raymarched and flat; false where
-        // it keeps none.
+        // it keeps none. EVE's light volume is filled with the same material as the raymarched
+        // layers' (LightVolume.Update, its passes 4 to 7).
         private static bool Collect(string name)
         {
             raymarched.Clear();
@@ -290,6 +284,11 @@ namespace ReDefinition.Raytracing
         }
 
         // The moon as the 2D layers' second light, or off again where this class turned it on.
+        // The 2D layers, which show from orbit (Scatterer-EVE/Cloud), take up to four lights
+        // beside the sun, as Scatterer sets a secondary sun's (ProlandManager.UpdateSecondarySuns).
+        // The moon goes in the first row, its position relative to the planet, its colour times its
+        // strength. They take it from the brightest moon's place, only where Scatterer has its
+        // secondary lights off on that material, which then are this class's to turn on and off.
         private static void Light2D(bool lit, CelestialBody main, CelestialBody moon, Color moonColour)
         {
             foreach (Material material in flat)
@@ -323,9 +322,9 @@ namespace ReDefinition.Raytracing
             lit2D.RemoveAll(m => m == null);
         }
 
-        // 0 the sun's alone, 1 from the sun to the moon, 2 the moon's alone; with the light
-        // per pixel 3 the sun's with the moon's per pixel, 4 from the sun to the moon while
-        // the per-pixel light gives way.
+        // The kind of the cloud light. Kind 0 is the sun's alone, 1 from the sun to the moon, 2 the moon's
+        // alone. With the light per pixel, 3 is the sun's with the moon's per pixel, and 4 from the sun
+        // to the moon while the per-pixel light gives way.
         private static int stateKind = -1;
         private static CelestialBody stateMoon;
 

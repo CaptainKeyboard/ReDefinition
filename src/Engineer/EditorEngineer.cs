@@ -18,10 +18,10 @@ namespace ReDefinition.Engineer
     // simulation's (EditorReadout), read while the planner is open.
     //
     // KSP's mode buttons, read from the editor scene (sharedassets6, UnityPy)
-    // and EditorLogic (decompiled): four Buttons in the top bar, 48 wide, placed
-    // by hand rather than by a layout group, each drawing its tile as its own
-    // sprite with sprite swap; the active mode's button is the one KSP makes not
-    // interactable. KSP places them once, from the anchors crewBtnOrigPos,
+    // and EditorLogic (decompiled), are four Buttons in the top bar, 48 wide.
+    // KSP places them by hand rather than by a layout group, and each draws its
+    // tile as its own sprite with sprite swap. The active mode's button is the
+    // one KSP makes not interactable. KSP places them once, from the anchors crewBtnOrigPos,
     // cargoBtnOrigPos and editorBtnOrigPos, and moves the switch-editor button
     // up where the crew button is hidden. The planner button takes the place one
     // step right of the last mode button, and the switch-editor button the one
@@ -32,20 +32,21 @@ namespace ReDefinition.Engineer
     {
         // Where the planner button's own drawn tiles lie, without the state (Normal, Hover, Active).
         private const string TilePath = "ReDefinition/Icons/EngineerButton_";
-        // The vessel read again only where it changed: KSP modified, loaded or
-        // started a new one (onEditorShipModified, which the part action window's
-        // fields and resource sliders fire too; onEditorLoad, onEditorRestart),
-        // finished its delta-v simulation (onDeltaVCalcsCompleted, which follows a
-        // crossfeed, a resource's flow or a staging change), or its delta-v app
-        // took another situation (onDeltaVAppAtmosphereChanged); and as the
-        // planner opens, for what changed while it was closed (the crew).
+        // The vessel is read again only where it changed. A read follows KSP modifying, loading or
+        // starting a new one (onEditorShipModified, which the part action window's
+        // fields and resource sliders fire too; onEditorLoad, onEditorRestart).
+        // It follows KSP finishing its delta-v simulation (onDeltaVCalcsCompleted, which follows a
+        // crossfeed, a resource's flow or a staging change). It follows its delta-v app
+        // taking another situation (onDeltaVAppAtmosphereChanged). The vessel is also read
+        // as the planner opens, for what changed while it was closed (the crew).
         // Decompiled: UIPartActionFieldItem, UIPartActionResourceEditor,
         // VesselDeltaV, DeltaVAppSituation. At most one read in RefreshInterval,
         // so that a change and the simulation it starts make one or two reads.
         private const float RefreshInterval = 0.25f;
 
-        // The editor; the planner's button, with the tile it shows as KSP's active mode (open) and as not clickable (closed);
-        // the planner's panel once made; whether the buttons went to the log; and whether the planner stands open.
+        // The editor, and the planner's button with the tile it shows as KSP's active mode (open)
+        // and as not clickable (closed). Then come the planner's panel once made, whether the
+        // buttons went to the log, and whether the planner stands open.
         private EditorLogic editor;
         private Button button;
         private Sprite tileActive;

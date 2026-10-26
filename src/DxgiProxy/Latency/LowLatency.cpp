@@ -145,10 +145,10 @@ namespace redefinition
         bool g_antiLag12Ready = false;
         bool g_antiLag11Ready = false;
 
-        // "you will need to poke some data into the DXGI swapchain's private data each
-        // frame using a specific struct format using a specific GUID" (the SDK's
-        // README, FSR 3 Frame Generation Support): FSR 3.1.1 and later then tell
-        // Anti-Lag 2 which presented frames are interpolated.
+        // The GUID of the private data that tells Anti-Lag 2 which presented frames are
+        // interpolated, with FSR 3.1.1 and later. The SDK's README says "you will need to poke some
+        // data into the DXGI swapchain's private data each frame using a specific struct format
+        // using a specific GUID" (FSR 3 Frame Generation Support).
         // {5083ae5b-8070-4fca-8ee5-3582dd367d13}
         const GUID kAntiLag2Data = { 0x5083ae5b, 0x8070, 0x4fca, { 0x8e, 0xe5, 0x35, 0x82, 0xdd, 0x36, 0x7d, 0x13 } };
         // The private data's layout under kAntiLag2Data.
@@ -528,12 +528,11 @@ namespace redefinition
         }
     }
 
-    // The latency brake: where the GPU holds the frames back, Unity's render thread
-    // waits in the proxy -- for a raytracing slot, a frame's allocator, and with
-    // latencyBrakeWaits=1 the Present -- after the frame's simulation has already read
-    // its input. The brake sleeps that long before the simulation instead, less
-    // latencyBrakeTargetMs: an integrating controller on the waits the last frame met,
-    // so the GPU is still fed in time.
+    // The latency brake. Where the GPU holds the frames back, Unity's render thread waits in the
+    // proxy for a raytracing slot, a frame's allocator, and with latencyBrakeWaits=1 the Present.
+    // That happens after the frame's simulation has already read its input. The brake sleeps that
+    // long before the simulation instead, less latencyBrakeTargetMs. It is an integrating
+    // controller on the waits the last frame met, so the GPU is still fed in time.
     void LowLatency::Brake()
     {
         {
@@ -603,12 +602,11 @@ namespace redefinition
         }
     }
 
-    // "It is recommended to call this function at the very start of each frame
-    // (e.g. before input sampling) ... it must be called exactly once on each frame",
-    // then "SIMULATION_START must be the first marker sent in a frame, after the
-    // previous frame's Sleep call" (nvapi.h); Anti-Lag 2's Update "just before the
-    // game polls for input" (its README). The sleeps are taken outside the lock, on
-    // references of their own.
+    // The nvapi.h header says "It is recommended to call this function at the very start of each
+    // frame (e.g. before input sampling) ... it must be called exactly once on each frame". It
+    // continues "SIMULATION_START must be the first marker sent in a frame, after the previous
+    // frame's Sleep call". Anti-Lag 2's README places its Update "just before the game polls for
+    // input". The sleeps are taken outside the lock, on references of their own.
     void LowLatency::BrakeBeforeFrame()
     {
         ApplyConfig();
@@ -724,10 +722,10 @@ namespace redefinition
         return frame;
     }
 
-    // "RENDERSUBMIT_END should come before calling Present. PRESENT_START and END
-    // should wrap the Present call" (nvapi.h); Anti-Lag 2's MarkEndOfFrameRendering
-    // "once the game's main rendering workload has been submitted ... before the
-    // FSR 3 Present call", and its data in the swapchain's private data.
+    // The nvapi.h header says "RENDERSUBMIT_END should come before calling Present. PRESENT_START
+    // and END should wrap the Present call". Anti-Lag 2's MarkEndOfFrameRendering comes "once the
+    // game's main rendering workload has been submitted ... before the FSR 3 Present call". Its
+    // data goes in the swapchain's private data.
     void LowLatency::BeforePresent(uint32_t frameIndex, IDXGISwapChain* swapChain)
     {
         std::lock_guard<std::mutex> lock(mutex);

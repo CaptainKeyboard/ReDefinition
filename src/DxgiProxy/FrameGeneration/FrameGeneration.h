@@ -68,9 +68,9 @@ namespace redefinition
     // sizeof against KspFgPacketSize before it sends anything.
     struct FramePacket
     {
-        // Size and magic first; then the frame's index, its render size, whether the history resets, the jitter
-        // and motion vector scale as the upscaler has them, the camera's near and far planes and vertical field of
-        // view, and the frame time in milliseconds.
+        // Size and magic come first. Then follow the frame's index, its render size and whether the history
+        // resets. Next come the jitter and motion vector scale as the upscaler has them. The camera's near and
+        // far planes and vertical field of view follow, and the frame time in milliseconds closes the list.
         uint32_t size;
         uint32_t magic;
         uint32_t frameIndex;
@@ -111,10 +111,9 @@ namespace redefinition
     static_assert(offsetof(FramePacket, viewToClip) == 104, "FramePacket layout changed");
     static_assert(offsetof(FramePacket, prevClipToClip) == 296, "FramePacket layout changed");
 
-    // Frame generation fed with KSP's own depth and motion vectors: FSR's, through
-    // FidelityFX's swapchain and whichever provider AMD's DLL carries, DLSS-G's,
-    // through Streamline's (FrameGenerationDlss.cpp), or XeSS-FG's, through Intel's
-    // (FrameGenerationXess.cpp).
+    // Frame generation fed with KSP's own depth and motion vectors. It runs FSR's through
+    // FidelityFX's swapchain and whichever provider AMD's DLL carries. It runs DLSS-G's through
+    // Streamline's (FrameGenerationDlss.cpp) and XeSS-FG's through Intel's (FrameGenerationXess.cpp).
     class FrameGeneration
     {
     public:
@@ -134,12 +133,12 @@ namespace redefinition
         // The mod's switch, every frame; takes the lock only when it changes, and logs the change.
         void SetEnabled(bool enabled);
 
-        // The multiplier the mod asks for, live, as the switch is: the frames shown per rendered
-        // frame, 2 and up, or 0 for none -- dlssgFrames and xessFgFrames in the ini and the most the
-        // GPU allows decide then -- and whether DLSS-G's Dynamic Multi Frame Generation is asked
-        // for, which takes the place of the multiplier where Streamline says it is supported.
-        // Never more than the technique that runs allows (StreamlineMultiplierMost,
-        // XessFramesMost); fewer where the display cannot show so many.
+        // The multiplier the mod asks for, live, as the switch is. It is the frames shown per rendered
+        // frame, 2 and up, or 0 for none. With 0, dlssgFrames and xessFgFrames in the ini and the most
+        // the GPU allows decide. The second argument asks for DLSS-G's Dynamic Multi Frame Generation,
+        // which takes the place of the multiplier where Streamline says it is supported.
+        // The multiplier is never more than the technique that runs allows (StreamlineMultiplierMost,
+        // XessFramesMost), and it is fewer where the display cannot show so many.
         void SetMultiplier(int multiplier, bool dynamic);
         // The multiplier asked for (SetMultiplier), 0 for none.
         int AskedMultiplier() const { return static_cast<int>(askedPacked.load() & 0xFFFFu); }
@@ -148,22 +147,21 @@ namespace redefinition
 
         // From the render thread, with the packet the managed side sent for
         // this frame.
-        void OnFramePacket(const void* data);
-
+        void OnFramePacket(const void* data);
+
         // Whether the mod wants frame generation on (SetEnabled).
-        bool Enabled() const;
-
+        bool Enabled() const;
+
         // Whether the rendered frame rate holds frame generation off (fgMinimumFps).
         // From any thread: the status line asks it.
         bool HeldOffForRate() const { return rateTooLow.load(); }
 
-        // From the present path, under the context lock, before each frame is prepared:
-        // the most frames a second the swapchain shows -- the refresh rate over the sync
-        // interval, 0 without V-Sync -- and how many it shows for each rendered frame
-        // while generating. Under V-Sync frame generation itself slows the game to the
-        // cap over that factor: where that lies below the minimum, it holds off for as
-        // long as the cap stands, instead of turning on, slowing the game below the
-        // minimum and turning off again.
+        // From the present path, under the context lock, before each frame is prepared. It sets the
+        // most frames a second the swapchain shows (the refresh rate over the sync interval, 0 without
+        // V-Sync) and how many it shows for each rendered frame while generating. Under V-Sync frame
+        // generation itself slows the game to the cap over that factor. Where that lies below the
+        // minimum, frame generation holds off for as long as the cap stands. Otherwise it would turn
+        // on, slow the game below the minimum and turn off again.
         void SetPresentCapLocked(double capFps, uint32_t shownPerRendered);
 
         // The minimum rendered frame rate (fgMinimumFps, else the provider's), under the
@@ -296,12 +294,14 @@ namespace redefinition
         // follows the inputs.
         void CheckMotionSize(UINT& width, UINT& height) const;
 
-        // Whether presentation should be paced by VSync: for as long as frame
-        // generation is switched on and has a context, not only on the frames
-        // it dispatches. A frame without inputs -- a scene change, the map, a
-        // missed capture -- presented with a different sync interval would
-        // mix paced and unpaced presents, and AMD notes that changing VSync
-        // resets pacing. Caller must hold ContextMutex.
+        // Whether presentation should be paced by VSync: for as long as frame generation is on and has
+        // a context, not only on the frames it dispatches. A frame without inputs (a scene change, the
+        // map, a missed capture) presented with another sync interval mixes paced and unpaced
+        // presents, and AMD notes that changing VSync resets pacing. AMD's swapchain paces by the sync
+        // interval. With VSync it "will slow down the application to half refresh rate, so every
+        // interpolated and real frame gets displayed for one refresh". Without it, in a window, "not
+        // all frames generated will get displayed" (frame-interpolation-swap-chain.md). Caller must
+        // hold ContextMutex.
         bool PacedByVSyncLocked() const { return wanted && contextCreated; }
 
         // ---- DLSS frame generation (Streamline.h, FrameGenerationDlss.cpp) ----
@@ -311,14 +311,12 @@ namespace redefinition
         // the check are the same for both; only what they are handed to differs.
         void UseStreamline(const void* caller);
 
-        // Caller must hold ContextMutex. This Present's constants, tags and
-        // options for DLSS-G under its frame index: generation on when this
-        // frame's own inputs and packet arrived flipped to the screen's
-        // orientation, the mod wants it and its status allows; off otherwise, off
-        // without an index (0), and off with the reason holdOff where it is given. At
-        // most maxFrames() generated frames, asked only for a Present that
-        // generates; fewer where the GPU offers fewer. Returns whether this frame
-        // generates.
+        // Caller must hold ContextMutex. Sets this Present's constants, tags and options for DLSS-G
+        // under its frame index. Generation is on when this frame's own inputs and packet arrived
+        // flipped to the screen's orientation, the mod wants it and its status allows. It is off
+        // otherwise, off without an index (0), and off with the reason holdOff where it is given.
+        // It asks for at most maxFrames() generated frames, and only for a Present that generates.
+        // It asks for fewer where the GPU offers fewer. Returns whether this frame generates.
         bool PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
                                      const char* holdOff);
 
@@ -328,13 +326,13 @@ namespace redefinition
         // (Attach). The inputs' tags are set to null with it.
         bool StreamlineOffLocked(const char* reason);
 
-        // What DLSS-G said after a Present (ReadStreamlineStateLocked): the frames
-        // it presented since the last one, and the fence and value its work on this
-        // Present's inputs completes at -- "SL client must wait on SL DLSS-G
-        // plugin-internal fence and associated value, before it can modify or
-        // destroy the tagged resources ... on a non-presenting queue ... in the
-        // frame it would modify those inputs" (sl_dlss_g.h, DLSSGState), which
-        // D3D11 is. Null where DLSS-G gives none.
+        // What DLSS-G said after a Present (ReadStreamlineStateLocked). It holds the frames it
+        // presented since the last one, and the fence and value its work on this Present's inputs
+        // completes at. The fence is null where DLSS-G gives none. The wait on it is required
+        // (sl_dlss_g.h, DLSSGState). The header reads: "SL client must wait on SL DLSS-G
+        // plugin-internal fence and associated value, before it can modify or destroy the tagged
+        // resources ... on a non-presenting queue ... in the frame it would modify those inputs".
+        // D3D11 is such a queue.
         struct StreamlinePresent
         {
             // The frames presented, and the fence and value of DLSS-G's work on the inputs.
@@ -360,10 +358,9 @@ namespace redefinition
         // generated frame, and so on. 0 while it does not.
         int StreamlineMultiplier() const { return streamlineMultiplier.load(); }
 
-        // The most frames shown per rendered frame DLSS-G allows here -- what its state says the GPU
-        // and the package offer, a generated frame more -- 0 until the first state; whether it
-        // supports Dynamic Multi Frame Generation (-1 not known yet, 0 no, 1 yes); and whether
-        // it generates in that mode now. From any thread: the mod's row asks.
+        // The most frames shown per rendered frame DLSS-G allows here, 0 until the first state. It is
+        // what DLSS-G's state says the GPU and the package offer, a generated frame more. From any
+        // thread: the mod's row asks.
         int StreamlineMultiplierMost() const
         {
             const int frames = streamlineFramesNow.load();
@@ -385,15 +382,14 @@ namespace redefinition
         // per rendered its swapchain was made for, the most it can be set to.
         void UseXess(const void* caller, xefg::Handle context, uint32_t framesMost);
 
-        // Caller must hold ContextMutex. This Present's resources and constants for
-        // XeSS-FG under presentId -- the frame id XeLL's markers carry, as Intel asks
-        // -- and generation on, when this frame's own inputs and packet arrived
-        // flipped to the screen's orientation, the mod wants it and the frame rate
-        // allows; off otherwise, without an id (0), and with the reason holdOff where
-        // it is given. A frame without inputs keeps it on for xessFgGraceFrames in a row.
-        // chain: XeSS-FG's swapchain, asked for exclusive full screen where switching on is
-        // refused; presentSync: the sync interval this Present goes out with, whose change
-        // xessFgResetOnChange takes. Returns whether this frame generates.
+        // Caller must hold ContextMutex. Sets this Present's XeSS-FG resources and constants under
+        // presentId, the frame id in XeLL's markers, as Intel asks. Generation is on when this
+        // frame's inputs and packet arrived flipped to screen orientation, the mod wants it and
+        // the frame rate allows. Otherwise, or without an id (0), it is off with the reason holdOff
+        // where given. A frame without inputs keeps it on for xessFgGraceFrames in a row.
+        // The chain (XeSS-FG's swapchain) is asked for exclusive full screen where switching on is
+        // refused. The presentSync is this Present's sync interval, whose change xessFgResetOnChange
+        // takes. Returns whether it generates.
         bool PrepareXessLocked(uint32_t presentId, const char* holdOff, IDXGISwapChain* chain = nullptr,
                                UINT presentSync = 0);
 
@@ -576,10 +572,9 @@ namespace redefinition
         // the camera to turn: made in the frames taken, thirty-two textures of up to
         // 33 MB slowed exactly the frames the dump is about.
         std::vector<DumpFrame> dumpReady;
-        // Read back one texture a Present (dumpRead counts them), the rows kept until
-        // all are read, then written in a thread of their own: the files of eight
-        // frames, some hundred megabytes, written at once in Present stalled the game
-        // for a quarter of a second.
+        // Read back one texture a Present (dumpRead counts them), the rows kept until all are read.
+        // A thread of its own then writes them. Writing the files of eight frames, some hundred
+        // megabytes, at once in Present stalled the game for a quarter of a second.
         struct DumpFile
         {
             // Where it goes, and its rows without the mapping's padding.
@@ -761,13 +756,12 @@ namespace redefinition
         std::atomic<uint32_t> askedPacked{ 0 };
         bool loggedDynamicAsked = false;
 
-        // XeSS-FG: whether the owner's swapchain is its, its context, whether it was
-        // last told to generate, the UI composition and debug view last set (-1 none
-        // yet), its last interpolation result, logged once per change, and when a
-        // generation XeSS-FG itself switched off is asked for again.
-        // Its generated frames: the most, as set, and xessFgFrames as last seen, which
-        // a change of sets them anew; its scene change threshold and the other debug
-        // features as last set.
+        // XeSS-FG state. It holds whether the owner's swapchain is its, its context and whether it was
+        // last told to generate. It holds the UI composition and debug view last set (-1 none yet).
+        // It holds its last interpolation result, logged once per change. It holds when a generation
+        // that XeSS-FG itself switched off is asked for again. For its generated frames it holds the
+        // most, as set, and xessFgFrames as last seen. A change of the asked number sets the frames
+        // anew. The scene change threshold and the other debug features are kept as last set.
         bool xess = false;
         xefg::Handle xessContext = nullptr;
         bool xessOn = false;
@@ -787,9 +781,10 @@ namespace redefinition
         ULONGLONG xessRetryAfter = 0;
         uint32_t xessTagFailures = 0;
         std::atomic<int> xessMultiplier{ 0 };
-        // The frames in a row without inputs XeSS-FG was kept on for (xessFgGraceFrames),
-        // the sync interval last seen (~0u none yet), the Presents it was handed inputs
-        // for, the number of the last one that carried a reset, and what was said once.
+        // The frames in a row without inputs XeSS-FG was kept on for (xessFgGraceFrames).
+        // The next fields are the sync interval last seen (~0u none yet) and the Presents it was
+        // handed inputs for. After them come the number of the last Present that carried a reset
+        // and the flags for what was said once.
         int xessMissing = 0;
         std::atomic<unsigned int> xessSwitchedOff{ 0 };
         std::atomic<unsigned int> xessSwitchedOn{ 0 };

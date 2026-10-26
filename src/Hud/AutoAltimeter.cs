@@ -5,9 +5,9 @@ using UnityEngine;
 namespace ReDefinition.Hud
 {
     // The altimeter switches itself between the height above sea level and above
-    // the ground, while the setting says so (OwnSettings.AutoAltimeter): to the
-    // ground's below Low metres over it and on the ground, back to the sea's above
-    // High, and between them it stays, so that it does not flicker at the edge.
+    // the ground, while the setting says so (OwnSettings.AutoAltimeter). It switches to the
+    // ground's below Low metres over it and on the ground, and back to the sea's above
+    // High. Between them it stays, so that it does not flicker at the edge.
     // KSP's own button switches it as before (AltitudeTumbler.ChangeAltimeterMode);
     // a mode set by hand stays until the rule would switch by itself again. KSP's
     // AltitudeTumbler.SetModeTumbler sets the mode, turns the drum that shows it and

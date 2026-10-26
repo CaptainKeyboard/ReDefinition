@@ -1,19 +1,17 @@
 """Measures what the vessel does to the sky around it in a scene probe
 (src/Probe/SceneProbe.cs).
 
-    python tools/analyze_probe.py <ReDefinitionCaptures\\<time>-probe> [station]
-
 Each variant -- baseline, then each other mod's component or command buffer switched
 off -- ran the camera path twice, with the vessel (captures 00, 01, ...) and with its
-renderers hidden (h00, h01, ...); meta.txt names each capture's phase of the path
-(steady, moving left, after it, and so on). On the sky beside the vessel the two
-differ only by what the vessel does to it: a halo, a trail. Given per capture, in the
-image the scene camera holds at the station (opaque, alpha, effects, after or screen,
-the finished frame; default screen): the 95th percentile of the difference 1-4, 4-8,
-8-16 and 16-32 px from the vessel's silhouette, and 40-80 px as the floor, then each
-band over the floor. 1-4 px holds the edge's own antialiasing. Sky is where the image
-after the scene camera's lighting is still empty (deferred shading) and the vessel's
-mask is empty.
+renderers hidden (h00, h01, ...). The file meta.txt names each capture's phase of the
+path (steady, moving left, after it, and so on). On the sky beside the vessel the two
+differ only by what the vessel does to it: a halo, a trail. The result is given per
+capture, in the image the scene camera holds at the station (opaque, alpha, effects,
+after or screen, the finished frame; default screen). It is the 95th percentile of the
+difference 1-4, 4-8, 8-16 and 16-32 px from the vessel's silhouette, and 40-80 px as
+the floor, then each band over the floor. The band 1-4 px holds the edge's own
+antialiasing. Sky is where the image after the scene camera's lighting is still empty
+(deferred shading) and the vessel's mask is empty.
 
 The vessel's mask is drawn at the render size; the screen station is cut at the
 display size around the same point, so it lines up with the mask only where both
@@ -21,6 +19,8 @@ sizes are one (NativeAA, or no upscaler).
 
 The two passes lie seconds apart: run the probe with -redefinitionProbeFreeze, game
 time stopped, or clouds and water drifting between them fill every band.
+
+Usage: python tools/analyze_probe.py <ReDefinitionCaptures\\<time>-probe> [station]
 """
 
 import os
@@ -75,8 +75,8 @@ BANDS = ((1, 4), (4, 8), (8, 16), (16, 32), (40, 80))
 
 def bands(diff, vessel, sky):
     """The 95th percentile of the difference in each band of distance from the
-    vessel: a halo is a band above the floor (the last band), on some part of the
-    outline if not all of it -- which a mean would average away."""
+    vessel. A halo is a band above the floor (the last band), on some part of the
+    outline if not all of it, which a mean would average away."""
     dist = ndimage.distance_transform_edt(~vessel)
     out = []
     for lo, hi in BANDS:

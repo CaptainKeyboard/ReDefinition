@@ -3,9 +3,9 @@
 Reads a craft file (Ships/VAB/*.craft) and the parts as the game loads them
 (GameData/ModuleManager.ConfigCache), or with --stock Squad's own part files, which
 give the same on every installation of the same KSP version. It burns the stages one
-after the other: a part drops when the first decoupler between it and the
-root fires; liquid fuel flows through crossfeeding parts and fuel lines, the tanks
-dropped soonest first; solid fuel stays in its part; a stage ends when its engines
+after the other. A part drops when the first decoupler between it and the
+root fires. Liquid fuel flows through crossfeeding parts and fuel lines, the tanks
+dropped soonest first. Solid fuel stays in its part. A stage ends when its engines
 are dry, or when the engines the next stage drops are. Air-breathing engines are
 left out, as KSP gives them no thrust in vacuum; a RAPIER counts in its
 air-breathing mode, KSP's default, so not at all. Writes each craft's stage rows,

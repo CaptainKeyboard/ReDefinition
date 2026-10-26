@@ -57,12 +57,11 @@ namespace
         });
     }
 
-    // An export of the system dxgi.dll, read from its export table rather than
-    // through GetProcAddress: a tool that hooks GetProcAddress -- RenderDoc does
-    // -- hands back its own CreateDXGIFactory*, which calls the first dxgi.dll in
-    // the process, this one, which asks GetProcAddress again: without end (seen
-    // under renderdoccmd, where the process ended right after loading the system
-    // dxgi.dll). Null for a forwarded export or a name not there.
+    // An export of the system dxgi.dll, read from its export table rather than through
+    // GetProcAddress. A tool that hooks GetProcAddress, as RenderDoc does, hands back its own
+    // CreateDXGIFactory*. That calls the first dxgi.dll in the process, this one, which asks
+    // GetProcAddress again, without end. This was seen under renderdoccmd, where the process ended
+    // right after loading the system dxgi.dll. Null for a forwarded export or a name not there.
     FARPROC ExportOf(HMODULE module, const char* name)
     {
         const auto base = reinterpret_cast<const BYTE*>(module);

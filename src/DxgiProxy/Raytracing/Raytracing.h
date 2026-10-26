@@ -71,9 +71,9 @@ namespace redefinition
     };
 
     // A material: linear albedo, and in w the alpha below which its texture cuts the
-    // surface out (0 for none); specular colour, smoothness as Unity's standard
-    // shading takes it, emitted radiance, and the layer of the material texture array
-    // (-1: none).
+    // surface out (0 for none). It also holds the specular colour, the smoothness as
+    // Unity's standard shading takes it, the emitted radiance, and the layer of the
+    // material texture array (-1: none).
     struct RtMaterialDesc
     {
         // sizeof and kRtMaterialMagic, checked against the mod's layout; the managed side's id
@@ -88,8 +88,8 @@ namespace redefinition
         float emission[3];
         int32_t texture;
         // Where vertexColour > 0, the albedo is in Unity's colour space and the vertex
-        // colour times this is added to it at each hit, the sum taken to linear as
-        // Unity's colours are (Parallax's terrain: RtTerrainColour); no texture then.
+        // colour times this is added to it at each hit. The sum is taken to linear as
+        // Unity's colours are (Parallax's terrain: RtTerrainColour). No texture then.
         float vertexColour;
         // RT_SURFACE_LEGACY and UNITY_LEGACY: what the G-buffer's smoothness, or its
         // specular colour, is divided by for the gloss; and the gloss where no G-buffer
@@ -100,10 +100,10 @@ namespace redefinition
         // shading would (RtDeferredLook); 0 for all of it.
         float diffuseShare;
         // The sun's highlight the material's shader draws by itself, in Unity's colour
-        // space, which the forward light takes out of the frame's colour before it relights
-        // it (RtForwardHighlight): the specular colour, and the shape -- above 0 a legacy
-        // Blinn-Phong exponent, otherwise minus the standard shader's smoothness. All 0
-        // for none.
+        // space. The forward light takes it out of the frame's colour before it relights
+        // it (RtForwardHighlight). The first three values are the specular colour. The
+        // fourth is the shape: above 0 a legacy Blinn-Phong exponent, otherwise minus the
+        // standard shader's smoothness. All 0 for none.
         float highlight[4];
     };
 
@@ -129,9 +129,9 @@ namespace redefinition
     // (RT_INSTANCE_SCENERY, RtContract.h).
     constexpr uint32_t kRtInstanceScenery = RT_INSTANCE_SCENERY;
 
-    // A run of instances the GPU made, in the frame's t7: mesh and material as the
-    // managed side handed them over, where the run starts in t7 and how long it is, the
-    // ray mask and flags each of its instances takes.
+    // A run of instances the GPU made, in the frame's t7. It holds the mesh and material
+    // as the managed side handed them over, where the run starts in t7 and how long it
+    // is, and the ray mask and flags each of its instances takes.
     struct RtGpuInstanceGroup
     {
         // As the comment above says, in its order; reserved pads the group to 32 bytes.
@@ -155,14 +155,14 @@ namespace redefinition
     // A further trace of a frame already traced (the ocean's reflections): it leaves the
     // frame's Ray Reconstruction guides and the frame count as they are.
     constexpr uint32_t kRtFrameExtra = RT_FLAG_EXTRA;
-    // The surface is water (Scatterer's ocean): its reflected rays stay above the
-    // horizon; where they meet nothing, the reflections hold only the sun's and the
+    // The surface is water (Scatterer's ocean). Its reflected rays stay above the
+    // horizon. Where they meet nothing, the reflections hold only the sun's and the
     // moons' discs mirrored by the waves, not single rays meeting them, and 65000 in w
     // (RtCommon.hlsli, BodiesMirroredAt).
     constexpr uint32_t kRtFrameWater = RT_FLAG_WATER;
     // With kRtFrameWater, for the light probe: the water's normal with ReDefinition's waves
-    // in place of its reflections (n * 0.5 + 0.5; on Scatterer's ocean its ripples on the
-    // level sea), to check that the waves stay on the water.
+    // in place of its reflections (n * 0.5 + 0.5). On Scatterer's ocean the normal holds its
+    // ripples on the level sea. It checks that the waves stay on the water.
     constexpr uint32_t kRtFrameWaterNormals = RT_FLAG_WATER_NORMALS;
     // The G-buffer's smoothness is Deferred's from KSP's legacy part shaders: taken as
     // their highlight (RtCommon.hlsli, LegacySmoothness). The game's; not a test's.
@@ -179,10 +179,10 @@ namespace redefinition
     constexpr uint32_t kRtSignalForwardLight = RT_SIGNAL_FORWARD_LIGHT; // u4: the light to add to a forward-rendered frame
     constexpr uint32_t kRtSignalPrimaryCheck = RT_SIGNAL_PRIMARY_CHECK; // u7: the camera ray's hit distance against the depth's
 
-    // The signals the denoiser filters: the output slot each writes, its place among
-    // the denoiser's textures, and its kind, 0 a scalar (the sun's visibility, the
-    // occlusion), 1 a colour (the diffuse light), 2 a colour that moves with the view
-    // (the reflections), whose history and filter smooth surfaces shorten.
+    // The signals the denoiser filters. An entry holds the output slot the signal writes,
+    // its place among the denoiser's textures, and its kind. Kind 0 is a scalar (the sun's
+    // visibility, the occlusion), 1 a colour (the diffuse light), and 2 a colour that moves
+    // with the view (the reflections), whose history and filter smooth surfaces shorten.
     struct RtDenoisedSignal
     {
         // The signal's bit (kRtSignal*), its output slot, its place, its kind (0, 1 or 2).
@@ -208,9 +208,9 @@ namespace redefinition
         return kRtDenoised[i];
     }
 
-    // The inputs, by slot: t1 depth as Direct3D's clip-space z (R32_FLOAT), t2-t4 the
-    // G-buffer in Unity's layout (albedo and occlusion, specular and smoothness, the
-    // world normal as n * 0.5 + 0.5), t5 motion vectors.
+    // The inputs, by slot. Slot t1 is the depth as Direct3D's clip-space z (R32_FLOAT).
+    // Slots t2-t4 are the G-buffer in Unity's layout: albedo and occlusion, specular and
+    // smoothness, and the world normal as n * 0.5 + 0.5. Slot t5 holds the motion vectors.
     constexpr uint32_t kRtInputDepth = RT_INPUT_DEPTH;
     constexpr uint32_t kRtInputGBuffer0 = RT_INPUT_G_BUFFER0;
     constexpr uint32_t kRtInputGBuffer1 = RT_INPUT_G_BUFFER1;
@@ -333,27 +333,27 @@ namespace redefinition
         float params[8];
         float bodySphere[4];     // the main body: centre relative to the camera, radius; radius 0 for none
         float ambient[12];       // Unity's ambient light, which its shading added already, linear: facing up
-                                 // (rgb, w 1 where Unity shades in gamma space), sideways, down
-        // The camera as AMD FSR Ray Regeneration takes it: matrices for row vectors, rows
-        // first, the view looking down +z and camera-relative, the projection without
-        // the jitter; the previous position minus this one in this frame's world; the
-        // jitter in pixels; the near and far planes.
+                                 // (rgb, w 1 where Unity shades in gamma space), sideways, down.
+        // The camera as AMD FSR Ray Regeneration takes it. The matrices are for row vectors,
+        // rows first, the view looking down +z and camera-relative, the projection without
+        // the jitter. cameraDelta is the previous position minus this one in this frame's
+        // world. Then come the jitter in pixels and the near and far planes.
         float worldToView[16];
         float viewToClip[16];
         float cameraDelta[4];
         float jitter[2];
         float depthRange[2];
-        // Up to two bodies lit by the sun, each a light of the size of its disc
-        // (RtReflectors): towards it with its angular radius in w, then its radiance at
-        // the scene, linear rgb, with in w how far its shadow ray goes, to the body's
-        // surface.
+        // Up to two bodies lit by the sun (RtReflectors), each a light of the size of its
+        // disc. Per light, the first four values are the direction towards it with its
+        // angular radius in w. The next four are its radiance at the scene, linear rgb,
+        // with in w how far its shadow ray goes, to the body's surface.
         float lights[16];
-        // x: how many of lights are used; y: 1 where the colours Unity hands over -- the
-        // G-buffer's albedo, the sun's and the sky's colour, the environment -- are
-        // gamma-space values, which the light transport takes as linear first; z: how
-        // strongly water mirrors the sun's disc (kRtFrameWater), 1 as it is; w: 1 where
-        // the main body's sea is KSP's own, which the specular signal takes as water by
-        // its level.
+        // The x value is how many of lights are used. The y value is 1 where the colours
+        // Unity hands over are gamma-space values, which the light transport takes as linear
+        // first. Those colours are the G-buffer's albedo, the sun's and the sky's colour, and
+        // the environment. The z value is how strongly water mirrors the sun's disc
+        // (kRtFrameWater), 1 as it is. The w value is 1 where the main body's sea is KSP's
+        // own, which the specular signal takes as water by its level.
         float lightParams[4];
         // The least diffuse light the forward light gives a point, as Unity's colours
         // are (rgb): KSP's flat ambient light (RenderSettings.ambientLight, which
@@ -371,27 +371,27 @@ namespace redefinition
         // all 0 for none.
         float sea[12];
         // The main body's cloud layer, where a mod draws one (EVE; RtKsp, RtEveClouds),
-        // with RT_INPUT_CLOUDS: rows 0-2 the camera-relative world to the layer's map,
-        // affine (the rotated planet's frame); then the shadow's sphere radius, the layer's
-        // inner and outer radii, 1 where it is there; the shadow's strength, the coverage's
-        // time fade, the fade of the whole, the density's time fade; the shadow's colour
-        // (rgb) and the cloud's brightness (w). All 0 for none.
+        // with RT_INPUT_CLOUDS. Rows 0-2 are the camera-relative world to the layer's map,
+        // affine (the rotated planet's frame). The next row holds the shadow's sphere radius,
+        // the layer's inner and outer radii, and 1 where it is there. The row after holds the
+        // shadow's strength, the coverage's time fade, the fade of the whole, and the
+        // density's time fade. The last holds the shadow's colour (rgb) and the cloud's
+        // brightness (w). All 0 for none.
         float clouds[24];
-        // prevWorldToClip for what the bodies carry -- the terrain, the scenery, the
-        // sea --, which a floating origin shift under Krakensbane moves by more than the
-        // camera and the vessels near it (offset + nonFrame, SharedFrame.BodyShift): the
-        // denoiser's history takes whichever of the two finds the surface it had.
+        // prevWorldToClip for what the bodies carry: the terrain, the scenery, the sea. A
+        // floating origin shift under Krakensbane moves them by more than the camera and the
+        // vessels near it (offset + nonFrame, SharedFrame.BodyShift). The denoiser's history
+        // takes whichever of the two finds the surface it had.
         float prevWorldToClipFar[16];
-        // How Unity fades the sun's realtime shadow out towards its shadow distance in
-        // forward rendering (AutoLight.cginc, UnityComputeForwardShadows), after the
-        // screen-space shadows the raytraced sun visibility goes into, for the forward
-        // light's estimate of what Unity shaded with: the fade's centre relative to the
-        // camera and its type (unity_ShadowFadeCenterAndType: 1 for the distance from the
-        // centre, 0 for the view depth), then its scale and bias (_LightShadowData.zw).
-        // All 0 for none. After them how far Parallax draws its grass about the camera and
-        // the light a meadow keeps from its ground; then the point its grass about the
-        // vessel is drawn about, relative to the camera, and how far (RtCommon.hlsli,
-        // MeadowShade).
+        // How Unity fades the sun's realtime shadow towards its shadow distance in forward
+        // rendering (AutoLight.cginc, UnityComputeForwardShadows), after the screen-space
+        // shadows the raytraced sun visibility goes into, for the forward light's estimate of
+        // what Unity shaded with. First come the fade's centre relative to the camera and its
+        // type (unity_ShadowFadeCenterAndType), then its scale and bias (_LightShadowData.zw).
+        // All 0 for none.
+        // Then come how far Parallax draws its grass about the camera, the light a meadow
+        // keeps from its ground, and the point it draws about the vessel, relative to the
+        // camera, with how far (RtCommon.hlsli, MeadowShade).
         float shadowFade[12];
         // Unity's textures as ID3D11Resource: the inputs, read as t1-t8 (by kRtInput*), and the
         // outputs, written as u0-u7 (by RT_OUTPUT_*); null for none.
@@ -404,10 +404,10 @@ namespace redefinition
 
     // Event 31: a frame for DLSS Ray Reconstruction, in place of DLSS Super Resolution.
     // The guides come from the raytraced frame of the same frameIndex where it had
-    // kRtFrameGuides, which needs no G-buffer; otherwise from gbuffer0-2 and specular.
-    // clipToWorld as RtFramePacket has it, for the guides; the other matrices as
-    // Streamline takes them (sl::Constants, DLSSDOptions), without jitter; the
-    // jitter in pixels and the motion vector scale as Streamline's constants say.
+    // kRtFrameGuides, which needs no G-buffer. Otherwise they come from gbuffer0-2 and
+    // specular. clipToWorld is as RtFramePacket has it, for the guides. The other matrices
+    // are as Streamline takes them (sl::Constants, DLSSDOptions), without jitter. The
+    // jitter in pixels and the motion vector scale are as Streamline's constants say.
     // mode is sl::DLSSMode's value, preset sl::DLSSDPreset's. flags: kRtFrameReset, and
     // kRtFrameLegacySmoothness as the raytraced frame had it, for guides from gbuffer1.
     struct RtReconstructPacket
@@ -536,9 +536,9 @@ namespace redefinition
     public:
         static Raytracing& Get();
 
-        // The swapchain proxy's devices and queue, from the swapchain that owns them: what the
-        // service held before let go of, the raytracing tier checked and the shaders loaded,
-        // and a queue of its own made where rtOwnQueue asks for it.
+        // The swapchain proxy's devices and queue, from the swapchain that owns them. It lets
+        // go of what the service held before, checks the raytracing tier, and loads the
+        // shaders. It makes a queue of its own where rtOwnQueue asks for it.
         void Attach(const void* owner, ID3D11Device5* device11, ID3D11DeviceContext4* context11,
                     ID3D12Device* device12, ID3D12CommandQueue* queue);
         // The owner's swapchain going: everything made on its devices let go of; another
@@ -658,8 +658,8 @@ namespace redefinition
             // The id it was handed over under.
             int32_t id = 0;
             // Opacity micromaps (RaytracingOmm.cpp): the set its structure is built with, 0 for
-            // none, and the texture layer and the coverage's hash it was baked for; whether its
-            // texture coordinates are kept for baking, and whether a bake is asked for.
+            // none, and the texture layer and the coverage's hash it was baked for. Also whether
+            // its texture coordinates are kept for baking, and whether a bake is asked for.
             uint32_t ommSet = 0;
             int32_t ommLayer = -1;
             uint64_t ommAlphaHash = 0;
@@ -792,13 +792,13 @@ namespace redefinition
             DenoiseTarget diffuseAlbedo;
         };
 
-        // Per signal (kRtDenoised: sun, diffuse, specular, occlusion): the noisy trace, and
-        // the history and its moments for this frame and the one before; a work texture,
-        // and one in half floats per signal; the view distance and normal for this frame
-        // and the one before; the signals the last run filtered, by their place. Each made
-        // only for the signals that take it (EnsureDenoiseTargetsLocked,
-        // EnsureFilterTargetsLocked): for all four signals they take 296 bytes a pixel,
-        // 485 MB at 1707x960.
+        // The denoiser's textures. Per signal (kRtDenoised: sun, diffuse, specular, occlusion)
+        // it holds the noisy trace, and the history and its moments for this frame and the one
+        // before. It also holds a work texture, and one in half floats per signal. Then come
+        // the view distance and normal for this frame and the one before, and the signals the
+        // last run filtered, by their place. Each is made only for the signals that take it
+        // (EnsureDenoiseTargetsLocked, EnsureFilterTargetsLocked). For all four signals they
+        // take 296 bytes a pixel, 485 MB at 1707x960.
         struct DenoiseTargets
         {
             // As the comment above lists them; the size they were made at; which of each pair
@@ -826,10 +826,10 @@ namespace redefinition
         static constexpr UINT kSlots = 3;
 
         // The world-space hash grid of the indirect light (RaytracingCache.cpp,
-        // Raytracing/Shaders/RadianceCache.hlsli): per entry its fingerprint, the frame's
-        // sums, its value and the frame it was last used in, whose buffer's tail holds the
-        // counts (kCacheStats), copied per slot for the CPU to read; and the list of the
-        // entries the frame's samples went into.
+        // Raytracing/Shaders/RadianceCache.hlsli). Per entry it holds its fingerprint, the
+        // frame's sums, its value, and the frame it was last used in. The tail of the buffer
+        // of that last frame holds the counts (kCacheStats), copied per slot for the CPU to
+        // read. A list holds the entries the frame's samples went into.
         static constexpr uint32_t kCacheStats = 8;
         // The cache's buffers and its state between frames.
         struct RadianceCache
@@ -877,10 +877,10 @@ namespace redefinition
         static constexpr UINT kRegenerationGuidesTable = kDenoiseDescriptors - 4 * kTableSize;
         static constexpr UINT kRegenerationAlbedoTable = kDenoiseDescriptors - 5 * kTableSize;
         static constexpr UINT kFixedTables = kRegenerationAlbedoTable;
-        // The shader-visible heap: per slot its frame's views (kFrameDescriptors); the
-        // meshes' index and attribute views (2 kMaxMeshes); per slot the material
-        // textures' view, written with the frame so that a slot still running reads its
-        // own; per slot its tables of the passes after the trace (kDenoiseDescriptors).
+        // The shader-visible heap holds, per slot, its frame's views (kFrameDescriptors). Then
+        // come the meshes' index and attribute views (2 kMaxMeshes). Then per slot the material
+        // textures' view, written with the frame so that a slot still running reads its own.
+        // Last come, per slot, its tables of the passes after the trace (kDenoiseDescriptors).
         static constexpr UINT kMaterialViews = kSlots * kFrameDescriptors + 2 * kMaxMeshes;
         static constexpr UINT kSlotTables = kMaterialViews + kSlots;
         static constexpr UINT kHeapDescriptors = kSlotTables + kSlots * kDenoiseDescriptors;
@@ -914,8 +914,8 @@ namespace redefinition
             D3D12_GPU_VIRTUAL_ADDRESS instanceDataAddress = 0;
             UINT64 done = 0;
             // The last list of another slot that read this slot's scene (a further trace of
-            // the same frame, ReuseSceneLocked): its instances and materials are written by
-            // the CPU when the slot is taken again, so that waits for this one too.
+            // the same frame, ReuseSceneLocked). The CPU writes its instances and materials
+            // when the slot is taken again, so that waits for this one too.
             UINT64 sceneReadUntil = 0;
             // Whether the slot's list resolves its timestamps: not for a frame that stopped
             // early.
@@ -1002,10 +1002,10 @@ namespace redefinition
         // DLSS Ray Reconstruction's guides from this frame's surfaces (kRtFrameGuides), for the
         // reconstruction of the same frame; not with the denoiser, nor in a further trace.
         void WriteFrameGuidesLocked(FrameWork& frame);
-        // The radiance cache (RaytracingCache.cpp): made, cleared or let go as the settings
-        // say, before the frame's constants; its constants and bindings; its clearing or the
-        // frame's counts zeroed before the passes; its resolve after them; the counts read
-        // once the slot's list is done.
+        // The radiance cache (RaytracingCache.cpp) made, cleared or let go of as the settings
+        // say, before the frame's constants. Its steps follow: its constants and bindings, its
+        // clearing or the frame's counts zeroed before the passes, its resolve after them, and
+        // the counts read once the slot's list is done.
         void PrepareRadianceCacheLocked(FrameWork& frame);
         // The cache's tile, offset, parameters and sizes into cbuffer Frame, where it runs.
         void WriteRadianceCacheConstantsLocked(RtFrameConstants& constants) const;
@@ -1111,9 +1111,9 @@ namespace redefinition
         // A frame's bakes taken in, bakes asked for, structures with micromaps queued.
         // How many structures it built again.
         uint32_t OmmUpdateLocked(BuildFrame& frame, Slot& slot);
-        // While rtOpacityMicromaps is 0 after having been 1: the bakes in flight dropped at once,
-        // and past a grace period the meshes with micromaps queued to be built plain again
-        // (RefineMeshesLocked lets go of their sets), the sets nobody holds freed.
+        // While rtOpacityMicromaps is 0 after having been 1: the bakes in flight dropped at once.
+        // Past a grace period the meshes with micromaps are queued to be built plain again
+        // (RefineMeshesLocked lets go of their sets), and the sets nobody holds are freed.
         void OmmIdleLocked();
         // The sets nobody has held for a while nor waits for freed, their arrays past the list
         // being recorded.
@@ -1302,7 +1302,7 @@ namespace redefinition
 
         // What the main thread hands over (SetMesh, ReleaseMesh, SetMaterial,
         // ReleaseMaterial, SetInstances, SetGpuGroups, SetMaterialTexture), written under
-        // handOverLock alone: the main thread never waits for the service's mutex, which
+        // handOverLock alone. The main thread never waits for the service's mutex, which
         // the render thread holds through a frame, its waits for the GPU and its builds
         // included. The render thread swaps it for the empty one under that lock at the
         // start of a frame and takes it into the pending state above (TakeHandOverLocked).
@@ -1365,17 +1365,16 @@ namespace redefinition
             // Per slot its share; the meshes built fast, waiting to be rebuilt (RefineMeshesLocked).
             PerSlot slots[kSlots];
             std::deque<int32_t> toRefine;
-            // rtMegaGeometry: a frame's CLAS in one range of the structures' pool, freed once
-            // none of the meshes built of them is left; whether the driver has the cluster
-            // operations (-1 not asked yet) and its functions; a cluster BLAS' size and scratch
-            // by its count of clusters.
+            // rtMegaGeometry: a frame's CLAS in one range of the structures' pool. The range is
+            // freed once none of the meshes built of them is left.
             struct ClasBatch
             {
                 // The CLAS' range, and how many meshes are built of them.
                 RtPoolRange range;
                 uint32_t meshes = 0;
             };
-            // The batches by number and the next number; the driver's support and its functions.
+            // The batches by number and the next number; whether the driver has the cluster
+            // operations (-1 not asked yet) and its functions.
             std::unordered_map<uint32_t, ClasBatch> clasBatches;
             uint32_t nextClasBatch = 1;
             int clusterSupport = -1;
@@ -1533,9 +1532,9 @@ namespace redefinition
         // meshes over again when it changes.
         std::atomic<uint32_t> generation{ 0 };
         // The generation the managed side hands over for (HandOverFor), UINT32_MAX until
-        // it says: a mesh, material, texture or scene it hands over for another than the
-        // service's own carries ids of a device let go of, which it resends under new ids
-        // once it sees the new generation -- built, they would never be released. Read
+        // it says. A mesh, material, texture or scene it hands over for another than the
+        // service's own carries ids of a device let go of. It resends them under new ids
+        // once it sees the new generation. Built, they would never be released. Read
         // and changed under handOverLock, as generation is changed.
         uint32_t handOverGeneration = UINT32_MAX;
         // Whether what the main thread hands over now is for the service's generation, under
@@ -1567,10 +1566,10 @@ namespace redefinition
         int slowFramesLogged = 0;
         int bigBuildsLogged = 0;
         int bigBuildsTimedLogged = 0;
-        // The meshes the last frame that built any built, the CPU's time the latest frame
-        // took on them, the GPU's of the last frame timed that changed structures and how
-        // many were; the memory the meshes' structures and their geometry take, and what the
-        // pools and the slots' build buffers hold in all.
+        // The meshes the last frame that built any built, and the CPU's time the latest frame
+        // took on them. Also the GPU's time of the last frame timed that changed structures,
+        // and how many were. Then the memory the meshes' structures and their geometry take,
+        // and what the pools and the slots' build buffers hold in all.
         uint32_t meshBuildCount = 0;
         float meshBuildCpuMs = 0.0f;
         float meshBuildGpuMs = 0.0f;

@@ -7,12 +7,12 @@ using UnityEngine;
 
 namespace ReDefinition.Dashboard
 {
-    // What the dashboard's VAB and SPH page shows and does: the Engineer, the vessel as built --
-    // its parts, mass, cost and size against what the buildings allow in a career, its stages and
-    // their delta-v, TWR, Isp, thrust and burn time in the situation KSP's delta-v app has, its
-    // resources and crew --, read from KSP's own delta-v simulation as the staging stack shows it;
-    // and the planner (PlannerView.Dashboard.cs), its plan, its lists and its changes. Read in the
-    // editors only.
+    // What the dashboard's VAB and SPH page shows and does. It shows the Engineer, the vessel as
+    // built. It shows its parts, mass, cost and size against what the buildings allow in a career.
+    // It shows its stages and their delta-v, TWR, Isp, thrust and burn time in the situation KSP's
+    // delta-v app has, and its resources and crew. These are read from KSP's own delta-v simulation as the staging stack shows
+    // them. It also shows the planner (PlannerView.Dashboard.cs), its plan, its lists and its
+    // changes. It reads in the editors only.
     internal sealed class EditorTelemetry
     {
         // The vessel read again at most this often: KSP's simulation runs by itself as it changes.
@@ -180,9 +180,9 @@ namespace ReDefinition.Dashboard
             return result;
         }
 
-        // What the buildings allow at their levels, as KSP checks it at launch: parts by the
-        // VAB's or the SPH's level, mass and size by the launch pad's or the runway's; in a
-        // career only, where buildings have levels.
+        // What the buildings allow at their levels, as KSP checks it at launch. Parts depend on the
+        // VAB's or the SPH's level, mass and size on the launch pad's or the runway's. It is null
+        // outside a career, where buildings have no levels.
         private static object Limits(bool vab)
         {
             if (HighLogic.CurrentGame == null || HighLogic.CurrentGame.Mode != Game.Modes.CAREER || GameVariables.Instance == null) return null;

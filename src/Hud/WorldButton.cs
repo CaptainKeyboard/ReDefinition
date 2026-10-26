@@ -11,13 +11,13 @@ namespace ReDefinition.Hud
 {
     // A button standing in the world, on a canvas of its own in world space that
     // the scene's camera draws with the rest (Canvas.renderMode WorldSpace, on the
-    // layer of the vessel's parts): what stands before it, a vessel, a building,
-    // the ground, hides it, and a click on it where a part stands before it goes
+    // layer of the vessel's parts). What stands before it, a vessel, a building,
+    // the ground, hides it. A click on it where a part stands before it goes
     // to the part (GraphicRaycaster.blockingObjects ThreeD). It turns to face the
     // camera and has a size in the world, so that it grows smaller as the camera
-    // draws away; on the screen it is kept between MinPixels and MaxPixels, and
+    // draws away. On the screen it is kept between MinPixels and MaxPixels, and
     // it goes where it would be smaller than MinPixels. Clicks are measured with a
-    // camera of its own that follows the scene's and draws nothing (Eyes): the
+    // camera of its own that follows the scene's and draws nothing (Eyes). The
     // upscaler has the scene's camera draw into a texture of the render size, and
     // a ray from the screen's pixels would miss there. It looks like one of the
     // space centre's facility buttons (KscButtons) where those are held, else a
@@ -37,9 +37,9 @@ namespace ReDefinition.Hud
         private static readonly System.Reflection.FieldInfo BlockingMask = typeof(GraphicRaycaster).GetField("m_BlockingMask",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
 
-        // The canvas in the world and its object; its size in metres; the button's rectangle, picture, fallback label,
-        // Button and tooltip; its name, for the log; the space centre's button it was asked to look like, and whether it
-        // shows that one rather than the fallback.
+        // The canvas in the world and its object. Then come its size in metres, and the button's rectangle, picture,
+        // fallback label, Button and tooltip. Then come its name, for the log, the space centre's button it was asked
+        // to look like, and whether it shows that one rather than the fallback.
         private readonly GameObject root;
         private readonly Canvas canvas;
         private readonly float metres;
@@ -165,16 +165,14 @@ namespace ReDefinition.Hud
             look = ksc;
         }
 
-        // At the world point, brought `pull` metres towards the camera -- a
-        // building's middle lies inside it -- and facing it; false, and hidden,
-        // where it is behind the camera or would be too small to see. `standing`:
+        // Puts the button at the world point, `pull` metres towards the camera (a
+        // building's middle lies inside it), and facing it. It returns false, and hides
+        // the button, where it is behind the camera or would be too small to see. With `standing`,
         // the point is under its lower edge, not its middle, so that it stands on
-        // what is there rather than halfway in it. `solid`: colliders it must stand
-        // before as a whole -- its middle and its four corners are looked at from
-        // the camera, and it is brought nearer until none of them lies behind one;
-        // its size on the screen stays. Hidden too while KSP's interface is (F2, or a
-        // mod that hides it) -- it is interface, though it stands in the world --,
-        // and where the player switched these buttons off.
+        // what is there rather than halfway in it. With `solid`, it must stand
+        // before these colliders as a whole, with its size on the screen kept (Before). It is hidden too
+        // where the interface is hidden or the player switched these buttons off
+        // (InterfaceShows).
         internal bool Place(Vector3 world, Camera camera, float pull, bool standing = false, Collider[] solid = null)
         {
             bool shown = false;
@@ -214,7 +212,8 @@ namespace ReDefinition.Hud
         // KSP's own flag for whether its interface shows (UIMasterController
         // .isUIShowing), which F2 and onHideUI/onShowUI set and TUFX reads the same
         // way; where there is no controller, it shows. And the player's setting for
-        // these buttons (OwnSettings.WorldButtons).
+        // these buttons (OwnSettings.WorldButtons). The buttons count as interface,
+        // though they stand in the world.
         private static bool InterfaceShows()
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -223,8 +222,8 @@ namespace ReDefinition.Hud
             return ui == null || ui.IsUIShowing;
         }
 
-        // The camera inside the vessel (CameraManager: IVA, or Internal for a
-        // part's interior): the main camera still draws the world through the
+        // Whether the camera is inside the vessel (CameraManager: IVA, or Internal for a
+        // part's interior). The main camera still draws the world through the
         // windows there, following the inside camera (CameraManager.SetCameraIVA
         // keeps FlightCamera enabled; decompiled), so a button in the world would
         // show and take clicks. The flight's buttons stand only in flight view.
@@ -238,7 +237,8 @@ namespace ReDefinition.Hud
 
         // How far along from the eye towards the button its middle and corners are
         // clear of `solid`, as a share of the way, with a margin; 1 where nothing
-        // stands before them.
+        // stands before them. Its middle and its four corners are looked at from the
+        // camera, and Place brings the button nearer until none of them lies behind a collider.
         private static float Before(Collider[] solid, Vector3 eye, Vector3 middle, Transform view, float half)
         {
             if (solid == null) return 1f;

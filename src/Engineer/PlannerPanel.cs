@@ -10,12 +10,12 @@ using UnityEngine.UI;
 namespace ReDefinition.Engineer
 {
     // The planner (docs/player/planner.md) as a fifth panel of the editor, made
-    // as KSP's crew panel is: a copy of its frame -- its transition, its
-    // background, its content area -- with the planner's rows in the content
+    // as KSP's crew panel is. It is a copy of the crew panel's frame (its transition, its
+    // background, its content area) with the planner's rows in the content
     // area (EditorPanels.crew, "Panel Crew" in the editor scene, read with
     // UnityPy). The copy is added to KSP's panel manager
     // (UIPanelTransitionManager.panels), so KSP brings it in and out as it does
-    // its own panels: bringing it in takes the parts list out, and bringing in
+    // its own panels. Bringing it in takes the parts list out, and bringing in
     // any other panel takes it out. The rows are KSP's dialog elements, created
     // as a PopupDialog creates its content (DialogGUIBase.Create, decompiled).
     internal sealed class PlannerPanel
@@ -58,7 +58,7 @@ namespace ReDefinition.Engineer
         private const float EdgeGap = 2f;
 
         // Copies the crew panel's frame, empties its content area, adds the copy to KSP's panel manager, and fills it with
-        // the planner's rows in a scroll list as wide as the parts list; false where the crew panel has no content area.
+        // the planner's rows in a scroll list as wide as the parts list. It returns false where the crew panel has no content area.
         private bool Build(EditorPanels panels)
         {
             UIPanelTransition crew = panels.crew;

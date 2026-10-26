@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ReDefinition.Tests
 {
-    // The camera matrices DLSS frame generation gets (StreamlineCamera): Unity's
+    // The camera matrices DLSS frame generation gets (StreamlineCamera). The tests cover Unity's
     // column-vector matrices as Streamline's row-major row-vector ones, a view
     // space looking down +z, and the reprojection from this frame's clip space
     // into the last one's.

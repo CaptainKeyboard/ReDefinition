@@ -9,49 +9,24 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Upscaler
 {
-    // The active vessel's depth and motion vectors -- and those of the vessels it dropped, near it -- written by the rig and checked on
-    // every pixel.
+    // The active vessel's depth and motion vectors, and those of the vessels it dropped near it, written by the
+    // rig and checked on every pixel.
     //
-    // The depth first. Unity's depth sources in the deferred path -- ResolvedDepth, which
-    // the rig captures, Depth and _CameraDepthTexture -- hold what the deferred pass drew
-    // and nothing of what the forward pass draws after it: measured in MotionVectorCheck
-    // with a forward-only cube in front of a deferred sphere, 0 at the cube in all three.
     // Parts KSP draws in the forward pass were missing from the depth every upscaler and
-    // frame generation read; in NVIDIA's alignment test the parts under the vessel showed
+    // frame generation read (RecordDepth). In NVIDIA's alignment test the parts under the vessel showed
     // through it, and frame generation placed the whole vessel wrong from some angles.
-    // Pass 2 writes each of the vessel's renderers' depth into the captured depth where
-    // it is nearer, skinned ones included.
-    //
-    // Measured on the runway with DLSS presets L and M: while the aircraft rolled fast,
-    // 0.5 to 1.2% of its pixels, in up to a quarter of the frames, carried Unity's
-    // camera motion -- the motion of standing ground at that depth -- instead of the
-    // part's own, off by up to a hundred pixels, most on the canards, the elevons, the
-    // nose and the landing gear. At a standstill both agree and it does not show. The
-    // upscalers then blend in the wrong history at those edges, which flickers.
+    // While the aircraft rolled fast, part of its pixels carried Unity's camera
+    // motion instead of the part's own (RepairEnabled).
     //
     // At the end of the capture each of the vessel's mesh renderers is drawn once more
     // with Hidden/ReDefinition/MotionAudit, rasterised with the scene camera's jittered
-    // projection so it covers the pixels it covered in the image. Where its depth is
-    // the captured depth -- the surface the camera saw -- the shader computes the motion
-    // vector Unity writes for an object, this frame's position against the previous
-    // frame's through the renderer's previous matrix and the previous view-projection.
-    // Pass 1 writes it into the captured motion vectors, before the other mods' hooks;
-    // pass 0, after them, compares it with what the upscalers read and counts, per part,
-    // the pixels, those off by more than a pixel and the largest error, read back and
-    // logged about every ten seconds -- with the diagnostic measurements on
-    // (ReDefinitionAddon.DebugMode). MotionVectorCheck in the Unity project
-    // checks the shader against Unity's own motion vectors.
-    //
-    // Skinned renderers are left out, since their previous pose is not at hand; so are
-    // materials above queue 2500, which write no motion vectors. Frames with an origin
-    // shift or a history reset since the frame before are left out, since there the
-    // previous matrices do not describe the motion. The repair has a Debug switch, not
+    // projection so it covers the pixels it covered in the image (Draw). The repair has a Debug switch, not
     // saved, for a look with and without.
     internal sealed class VesselMotionVectors
     {
-        // The shader's passes (audit, repair, depth); the most parts tallied; the error in pixels that counts a pixel
-        // as off, and the share of them that counts a frame as off; how often the audit reports; and how many of
-        // the parts most off the report names.
+        // The shader's passes (audit, repair, depth), and the most parts tallied. Then the error in pixels that
+        // counts a pixel as off, and the share of them that counts a frame as off. Last how often the audit
+        // reports, and how many of the parts most off the report names.
         private const int AuditPass = 0;
         private const int RepairPass = 1;
         private const int DepthPass = 2;
@@ -72,7 +47,11 @@ namespace ReDefinition.Upscaler
         private static readonly int MotionId = Shader.PropertyToID("_AuditMotion");
         private static readonly int DepthId = Shader.PropertyToID("_AuditDepth");
 
-        // The Debug switch; on at every start.
+        // The Debug switch; on at every start. Measured on the runway with DLSS presets L and M. While the aircraft
+        // rolled fast, 0.5 to 1.2% of its pixels, in up to a quarter of the frames, carried Unity's camera motion
+        // (the motion of standing ground at that depth) instead of the part's own. They were off by up to a
+        // hundred pixels, most on the canards, the elevons, the nose and the landing gear. At a standstill both
+        // agree and it does not show. The upscalers then blend in the wrong history at those edges, which flickers.
         internal static bool RepairEnabled = true;
 
         // A renderer drawn with the shader, the index of its part in parts, and how many of its submeshes are drawn.
@@ -155,7 +134,8 @@ namespace ReDefinition.Upscaler
 
         // In the scene camera's OnPreCull, after LateUpdate, where KSP has placed the
         // vessel for this frame: the frame's matrices, and whether the previous frame's
-        // describe the motion to it.
+        // describe the motion to it. Frames with an origin shift or a history reset since the frame before are
+        // left out, since there the previous matrices do not describe the motion.
         internal void Begin(Camera camera, Vector2Int renderSize)
         {
             active = false;
@@ -180,7 +160,11 @@ namespace ReDefinition.Upscaler
             if (!continuous) skipped++;
         }
 
-        // Into the capture, before the repair, which tests against it.
+        // Into the capture, before the repair, which tests against it. Unity's depth sources in the deferred path
+        // (ResolvedDepth, which the rig captures, Depth and _CameraDepthTexture) hold what the deferred pass drew
+        // and nothing of what the forward pass draws after it. Measured in MotionVectorCheck with a forward-only
+        // cube in front of a deferred sphere, 0 at the cube in all three. Pass 2 writes each of the vessel's
+        // renderers' depth into the captured depth where it is nearer, skinned ones included.
         internal void RecordDepth(CommandBuffer capture, RenderTexture depth)
         {
             if (!active || !RepairEnabled || depth == null) return;
@@ -193,7 +177,8 @@ namespace ReDefinition.Upscaler
             }
         }
 
-        // Into the capture, before the other mods' motion vector hooks.
+        // Into the capture, before the other mods' motion vector hooks. Pass 1 writes the shader's motion vector
+        // into the captured motion vectors.
         internal void RecordRepair(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
         {
             if (!active || !continuous || !RepairEnabled || motionVectors == null || depth == null) return;
@@ -213,8 +198,8 @@ namespace ReDefinition.Upscaler
             Draw(capture, RepairPass, false);
         }
 
-        // One frame in AuditShare, picked at random so that the frames with a physics
-        // step and those without are both sampled however the two rates line up: the
+        // One frame in AuditShare, picked at random, gets the audit. That way the frames with a physics
+        // step and those without are both sampled however the two rates line up. The
         // audit draws the vessel again and reads back, a diagnostic not worth every frame.
         private const int AuditShare = 6;
         private uint auditPick = 2463534242u;
@@ -223,7 +208,11 @@ namespace ReDefinition.Upscaler
         private System.Action<AsyncGPUReadbackRequest> readWithStep;
         private System.Action<AsyncGPUReadbackRequest> readWithoutStep;
 
-        // Into the capture, after the hooks: what the upscalers read.
+        // Into the capture, after the hooks: what the upscalers read. Pass 0 compares the shader's motion vector
+        // with what the upscalers read and counts, per part, the pixels, those off by more than a pixel and the
+        // largest error. They are read back and logged about every ten seconds with the diagnostic measurements on
+        // (ReDefinitionAddon.DebugMode). MotionVectorCheck in the Unity project checks the shader against Unity's
+        // own motion vectors.
         internal void RecordAudit(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth)
         {
             if (!active || !continuous || motionVectors == null || depth == null) return;
@@ -284,7 +273,10 @@ namespace ReDefinition.Upscaler
         }
 
         // Every visible renderer of drawn with its previous matrix in that pass, and its part's index for the audit;
-        // a renderer without a matrix from the frame before is left out.
+        // a renderer without a matrix from the frame before is left out. Where a renderer's depth is the captured
+        // depth (the surface the camera saw) the shader computes the motion vector Unity writes for an object.
+        // That is this frame's position against the previous frame's through the renderer's previous matrix and the
+        // previous view-projection.
         private void Draw(CommandBuffer capture, int pass, bool withPart)
         {
             foreach (Drawn d in drawn)
@@ -323,9 +315,9 @@ namespace ReDefinition.Upscaler
                                         out created);
         }
 
-        // How far from the active vessel another loaded vessel's parts are drawn too: what it dropped -- boosters,
-        // fairings, a stage -- which KSP makes vessels of their own the moment they part, and which frame generation
-        // and the upscalers otherwise read with the ground's motion and without their forward-drawn depth.
+        // How far from the active vessel another loaded vessel's parts are drawn too. These are what it dropped:
+        // boosters, fairings, a stage, which KSP makes vessels of their own the moment they part. Frame generation
+        // and the upscalers otherwise read them with the ground's motion and without their forward-drawn depth.
         // RenderInterpolation draws the same vessels between the physics steps.
         private const float NearbyMetres = 2500f;
 
@@ -336,7 +328,8 @@ namespace ReDefinition.Upscaler
         // The active vessel and the loaded vessels near it, the active one first.
         private readonly List<Vessel> near = new List<Vessel>();
 
-        // Fills near for vessel (NearVessels).
+        // Fills the near list, which LoadedSignature and Choose read, with vessel and the loaded vessels around it
+        // (NearVessels).
         private void Near(Vessel vessel)
         {
             NearVessels(vessel, near);
@@ -366,7 +359,9 @@ namespace ReDefinition.Upscaler
         }
 
         // The renderers of vessel and the vessels near it chosen anew, up to MaxParts parts: skinned ones for the
-        // depth only, opaque mesh renderers for depth, repair and audit; the tallies cleared.
+        // depth only, opaque mesh renderers for depth, repair and audit; the tallies cleared. Skinned renderers
+        // are left out of the repair, since their previous pose is not at hand; so are materials above queue 2500,
+        // which write no motion vectors.
         private void Choose(Vessel vessel, int signature)
         {
             drawnFor = vessel;

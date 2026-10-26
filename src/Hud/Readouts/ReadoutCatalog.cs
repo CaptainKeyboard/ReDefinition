@@ -5,10 +5,10 @@ using UnityEngine;
 
 namespace ReDefinition.Hud.Readouts
 {
-    // One value the flight panel can show (HUD, docs/player/flight-panel.md): its
-    // key, which profiles name; its title in capitals, as KSP's maneuver panel
-    // titles its fields; the group it is listed under; its value, and a second one
-    // where it has two, such as a height and the time until it; and when it applies
+    // One value the flight panel can show (HUD, docs/player/flight-panel.md). A readout
+    // has a key, which profiles name, and a title in capitals, as KSP's maneuver panel
+    // titles its fields. It has the group it is listed under. It has a value, and a second one
+    // where it has two, such as a height and the time until it. It also says when it applies
     // (a target for the rendezvous values, a docking port for the docking ones).
     internal sealed class Readout
     {

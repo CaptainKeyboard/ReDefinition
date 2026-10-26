@@ -8,7 +8,7 @@ using Upgradeables;
 namespace ReDefinition.Dashboard
 {
     // What the dashboard's Space Center page shows and does: the buildings, the vessels to fly, the
-    // alarms, the active contracts and the crew; entering a building, flying a vessel and warping to an
+    // alarms, the active contracts and the crew. It enters a building, flies a vessel and warps to an
     // alarm, each as KSP's own button there does it. The lists are read at most once a second, and only
     // at the Space Center; times go out as UT, for the page to count down from g.ut.
     internal sealed class KscTelemetry

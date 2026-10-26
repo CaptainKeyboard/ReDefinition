@@ -3,12 +3,12 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Engineer
 {
-    // The RCS of a group of parts as a stage starts or after it burnt (-1 for none):
-    // the thrusters' thrust in kN and their thrust over Isp, the propellant for
+    // The RCS of a group of parts as a stage starts or after it burnt (-1 for none).
+    // It gives the thrusters' thrust in kN and their thrust over Isp, the propellant for
     // them, and the delta-v that gives `mass`, in m/s. Of the group's parts only
-    // those still attached count (PartFacts.AttachedIn), and only the resources
-    // their own RCS thrusters burn, in the mix they burn them in
-    // (StageTable.UsablePropellant), no more than what `mass` still holds over those
+    // those still attached count (PartFacts.AttachedIn). Only the resources
+    // their own RCS thrusters burn count, in the mix they burn them in
+    // (StageTable.UsablePropellant), and no more than what `mass` still holds over those
     // parts' dry mass. Free of Unity, tested.
     internal static class SectionRcs
     {

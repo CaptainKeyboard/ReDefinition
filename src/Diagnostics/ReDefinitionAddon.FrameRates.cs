@@ -29,9 +29,9 @@ namespace ReDefinition
         private string loadText = "Load: --";
 
         // The window's frame rates: the frames the game renders, counted
-        // here, and -- while frame generation generates -- the frames the
-        // swapchain presented, generated ones included, from the proxy's running
-        // totals (KspFgCounters) read at the start and the end of the same second.
+        // here, and the frames the swapchain presented while frame generation generates. The
+        // presented frames include generated ones and come from the proxy's running
+        // totals (KspFgCounters), read at the start and the end of the same second.
         // Taken once a second, so the number can be read; and every frame's time
         // for the strip's graph.
         private void UpdateFrameRates()

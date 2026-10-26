@@ -27,19 +27,18 @@ namespace redefinition
     // Intel's XeSS Super Resolution on the proxy's D3D12 device, from the player's
     // libxess.dll (next to KSP_x64.exe or in xessDirectory, Config.h).
     //
-    // XeSS on Direct3D 11 "is limited to Intel Arc Graphics or later"; on Direct3D 12
-    // it runs on "Other vendor GPU supporting SM 6.4 and with hardware acceleration
-    // for DP4a", XMX on Intel Arc (xess_sr_developer_guide_english.md, Requirements,
-    // Initialization D3D11 specific). KSP renders on D3D11, so the frame goes across
-    // as AMD's upscaler takes it: Unity's colour, depth and motion vectors into
-    // textures both devices share, XeSS on the D3D12 queue, the result back into
-    // Unity's output, a shared fence between the two.
+    // XeSS on Direct3D 11 "is limited to Intel Arc Graphics or later". On Direct3D 12 it runs on
+    // "Other vendor GPU supporting SM 6.4 and with hardware acceleration for DP4a", with XMX on
+    // Intel Arc (xess_sr_developer_guide_english.md, Requirements, Initialization D3D11 specific).
+    // KSP renders on D3D11, so the frame goes across as AMD's upscaler takes it. Unity's colour,
+    // depth and motion vectors go into textures both devices share, XeSS runs on the D3D12 queue,
+    // and the result goes back into Unity's output. A shared fence sits between the two.
     //
-    // Its conventions are the ones the packet already carries for FSR: the jitter in
-    // pixels, as the projection's shear "ProjectionMatrix[2][0] += Jx * 2.0f /
-    // InputWidth; ProjectionMatrix[2][1] -= Jy * 2.0f / InputHeight"; "Motion vectors
-    // specify the screen-space motion in pixels from the current frame to the
-    // previous frame", at the input resolution, scaled by xessSetVelocityScale.
+    // Its conventions are the ones the packet already carries for FSR. The jitter is in pixels. It
+    // is the projection's shear "ProjectionMatrix[2][0] += Jx * 2.0f / InputWidth;
+    // ProjectionMatrix[2][1] -= Jy * 2.0f / InputHeight". The motion vectors are as XeSS says:
+    // "Motion vectors specify the screen-space motion in pixels from the current frame to the
+    // previous frame". They are at the input resolution, scaled by xessSetVelocityScale.
     //
     // Runs on Unity's render thread, from the render events 7 (a frame) and 8 (the
     // rig gone).

@@ -1,12 +1,14 @@
 # Plays an input dump through frame generation in the proxy harness and measures the
-# result: the recording is cut to the replay window at once, the rest of the screen
+# result. The recording is cut to the replay window at once, the rest of the screen
 # deleted, and the detail of rendered and generated frames printed.
-#
-#   tools\replay_fg.ps1 <dump folder> [NAME=VALUE ...]
 #
 # NAME=VALUE pairs set harness variables for this run, e.g. REDEFINITION_REPLAY_NO_JITTER=1.
 # REDEFINITION_STREAMLINE_DIR must name Streamline's DLLs. The replay window has to
 # stay in front while it runs; otherwise nothing is recorded.
+#
+# Usage:
+#
+#   tools\replay_fg.ps1 <dump folder> [NAME=VALUE ...]
 param(
     [Parameter(Mandatory = $true)][string]$Dump,
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$Variables

@@ -39,7 +39,7 @@ namespace ReDefinition.Upscaler
         }
 
         // What decides the scene camera's motion vectors, for motion vectors that do not
-        // follow the camera (MotionVectorAudit): its state, the command buffers on each
+        // follow the camera (MotionVectorAudit). It logs the camera's state, the command buffers on each
         // of its events, the motion vector shader, and the globals Scatterer's
         // replacement for it reads.
         internal static void WriteMotionSources(Camera cam)

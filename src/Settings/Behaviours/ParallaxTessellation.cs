@@ -9,29 +9,25 @@ namespace ReDefinition.Settings.Behaviours
     // Parallax's tessellation edge length for the time the upscaler runs.
     //
     // Parallax subdivides a terrain triangle's edge once per that many pixels of
-    // the target it renders into: EdgeTessellationFactor takes the edge's length
-    // in normalized device coordinates times _ScreenParams.y over
-    // _TessellationEdgeLength (Parallax-Continued
-    // Assets/Shaders/Terrain/ParallaxUtils.cginc:83-91), and the terrain materials
-    // get the setting as it stands (ToolbarMenu.UpdateTerrainMaterials,
+    // the target it renders into.
+    // EdgeTessellationFactor takes the edge's length in normalized device coordinates times _ScreenParams.y over
+    // _TessellationEdgeLength (Parallax-Continued Assets/Shaders/Terrain/ParallaxUtils.cginc:83-91).
+    // The terrain materials get the setting as it stands (ToolbarMenu.UpdateTerrainMaterials,
     // ParallaxTerrainBody: ConfigLoader.parallaxGlobalSettings
     // .terrainGlobalSettings.tessellationEdgeLength, ParallaxContinued.dll,
-    // decompiled). At the upscaler's lower render height the same edge covers
-    // fewer pixels and the ground turns coarser than at display size. The
-    // registered setting (parallax.tessellationEdgeLength) is divided by display
+    // decompiled).
+    // At the upscaler's lower render height the same edge covers
+    // fewer pixels and the ground turns coarser than at display size.
+    // The registered setting (parallax.tessellationEdgeLength) is divided by display
     // height over render height while the upscaler runs, with the LOD bias
-    // (QualityOverrides), and put back when it stops -- only where it still holds
-    // the value written here: a value the player set in Parallax's own window in
-    // the meantime stands, and is the one scaled from the next refresh on.
+    // (QualityOverrides), and put back when it stops (Restore).
     // Parallax's scaled-space bodies take a quarter of it once, as they are set
     // up (ParallaxScaledBody), and keep that.
     //
     // While scaled, the setting reads and takes the player's value: ReDefinition's
     // window, its store and the profiles see the unscaled one, and a value set
-    // there is scaled as it is written. Parallax's save (ParallaxSettings
-    // .SaveSettings -- its window's button, and ReDefinition's save of the
-    // registration) writes the player's value: the member holds it for the call,
-    // and the scaled one again after. Without that hook nothing is scaled, so the
+    // there is scaled as it is written (ReadPlayer, WritePlayer).
+    // Without the hook on Parallax's save (Hook) nothing is scaled, so the
     // scaled value never reaches Parallax's file.
     internal static class ParallaxTessellation
     {
@@ -100,6 +96,8 @@ namespace ReDefinition.Settings.Behaviours
 
         // The setting's own read and write back, and the player's value into Parallax where it still holds the
         // scaled one.
+        // Only a value that still is the one written here is replaced: a value the player set in Parallax's own
+        // window in the meantime stands, and is the one scaled from the next refresh on (Scale).
         private static void Restore()
         {
             if (!scaled) return;
@@ -182,6 +180,9 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // Runs inside Parallax: nothing may escape.
+        // Parallax's save (ParallaxSettings.SaveSettings, from its window's button and from ReDefinition's save of the
+        // registration) writes the player's value: the member holds it for the call, and the scaled one again after
+        // (AfterSave).
         private static void BeforeSave()
         {
             if (!scaled) return;

@@ -1,30 +1,19 @@
-// A moon's light on EVE's raymarched clouds, per pixel (src/Raytracing/Ksp/EveCloudRelight.cs):
-// EVE's reconstructed cloud buffer for the frame -- the clouds in the sun's light, as Scatterer's
-// raymarching shader lights them -- copied with the moon's light added at each pixel's cloud, a
-// second sun with the moon's values. The copy then stands in for EVE's buffer for everything
-// that reads it this frame (colorBuffer, scattererReconstructedCloud); EVE's own buffer, its
-// history, stays as EVE wrote it. Built into redefinition.shaders by BundleBuilder.
+// A moon's light on EVE's raymarched clouds, per pixel (src/Raytracing/Ksp/EveCloudRelight.cs).
+// EVE's reconstructed cloud buffer for the frame holds the clouds in the sun's light, as
+// Scatterer's raymarching shader lights them. This shader copies it with the moon's light added
+// at each pixel's cloud, a second sun with the moon's values. The copy then stands in for EVE's
+// buffer for everything that reads it this frame (colorBuffer, scattererReconstructedCloud).
+// EVE's own buffer, its history, stays as EVE wrote it. Built into redefinition.shaders by
+// BundleBuilder.
 //
 // Read off Scatterer-EVE/RaymarchCloud (Scatterer 0.908, scatterershaders-directx,
 // disassembled), which lights the clouds once per pixel at the weighted mean point of the
-// cloud along the ray: the light the sun gives there in through the atmosphere (Bruneton's
-// analytic optical depth times Scatterer's transmittance table), the planet's shadow with its
-// soft edge (the sun as a disc 20 planet radii out), and EVE's two phase functions, direct and
-// multiple (directPhaseFunctionProperties, multiplePhaseFunctionProperties: two
-// Henyey-Greenstein lobes each); and the sky's light the sun gives the cloud, from
-// Scatterer's irradiance table at the cloud's height and the sun's height over its horizon,
-// times EVE's skylight multiplier and tint and Scatterer's exposure. The same here with the
-// moon's direction. The two get a gain each, from the light probe's calibration against the
-// raymarching's own moonlight, which holds what is not repeated here. No extinction between
-// the camera and the cloud: with it the moon's light came out red where the raymarching's is
-// blue (light probe, 2026-10-23, night with the Mun at 41 degrees: blue over red 0.52 with it,
-// 1.57 without, the raymarching's 1.50), and the direct light alone, without it, matches the
-// raymarching's moonlight within 2 per cent in each colour. The light's way through the cloud
-// itself, which the raymarching takes from EVE's light volume along the sun, comes from the
-// layer's coverage map along the moon's (RtEveClouds' packed map, as the rays' cloud
-// shadows read it). Where EVE's reconstruction writes them (Scatterer-EVE/
-// ReconstructRaymarchedClouds, its third target): the distance from the camera to that point
-// in hundreds of metres, below 0 where there is no cloud.
+// cloud along the ray. That light is the light the sun gives there in through the atmosphere
+// (Transmittance), the planet's shadow with its soft edge (Lit), and EVE's two phase
+// functions, direct and multiple (Phase). The sky's light the sun gives the cloud comes on
+// top (SkyLight). The same is done here with the moon's direction. The two get a gain each,
+// from the light probe's calibration against the raymarching's own moonlight, which holds
+// what is not repeated here.
 Shader "Hidden/ReDefinition/CloudMoonlight"
 {
     Properties
@@ -47,6 +36,9 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             // rgb: the clouds' light, premultiplied, before Scatterer's tone mapping; a: the
             // transmittance.
             sampler2D _MainTex;
+            // The distance from the camera to the cloud's weighted mean point in hundreds of metres, below 0
+            // where there is no cloud. EVE's reconstruction writes it (Scatterer-EVE/
+            // ReconstructRaymarchedClouds, its third target).
             sampler2D _ReDefinitionCloudDistance;
             // The camera's projection inverted (OpenGL's, as unity_CameraInvProjection) and
             // its camera-to-world matrix, as EVE reconstructs each pixel's ray with them.
@@ -76,17 +68,19 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             sampler2D _ReDefinitionCloudAtlas;
             float4 _ReDefinitionCloudTransmittanceRect;
             float4 _ReDefinitionCloudAtlasSizes;
-            // The layer's packed coverage map (RtEveClouds): r coverage, g the density curve;
-            // from the planet's centre to the map in the rows; x the coverage fade, y the
-            // density fade, z the other fades together, w how strongly the cloud shadows itself.
+            // The layer's packed coverage map (RtEveClouds): r coverage, g the density curve.
+            // The rows take a position from the planet's centre to the map. In the fades, x is the
+            // coverage fade, y the density fade, z the other fades together, w how strongly the cloud
+            // shadows itself.
             sampler2D _ReDefinitionCloudMap;
             float4 _ReDefinitionCloudMapRow0;
             float4 _ReDefinitionCloudMapRow1;
             float4 _ReDefinitionCloudMapRow2;
             float4 _ReDefinitionCloudMapFades;
-            // 0: the clouds lit; 1: where each pixel's point lies -- green inside the layer's
-            // shell, red outside it, blue without a distance; 2: the moon's direct light alone;
-            // 3: the sky's light it gives alone; 4 to 7 the parts of the light (frag).
+            // Mode 0 shows the clouds lit. Mode 1 shows where each pixel's point lies: green inside
+            // the layer's shell, red outside it, blue without a distance. Mode 2 shows the moon's
+            // direct light alone. Mode 3 shows the sky's light it gives alone. Modes 4 to 7 show
+            // the parts of the light (frag).
             float _ReDefinitionCloudDebug;
 
             static const float kPi = 3.14159265f;
@@ -118,7 +112,8 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             }
 
             // The light's way to the atmosphere's top from radius r at cosine mu: 0 where the
-            // ground stands in it, 1 above the atmosphere.
+            // ground stands in it, 1 above the atmosphere. It is Bruneton's analytic optical depth
+            // (OpticalDepth) times Scatterer's transmittance table (Table).
             float3 Transmittance(float r, float mu)
             {
                 float Rg = _ReDefinitionCloudCamera.w, Rt = _ReDefinitionCloudMoon.w;
@@ -147,8 +142,8 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             }
 
             // The sky's light a light gives a cloud at radius r, its cosine over the cloud's
-            // horizon mu, as Scatterer's cloud shader takes it from the irradiance table: times
-            // 200, its colour drawn towards grey by EVE's tint multiplier.
+            // horizon mu. It comes from Scatterer's irradiance table, as Scatterer's cloud shader
+            // takes it: times 200, its colour drawn towards grey by EVE's tint multiplier.
             float3 SkyLight(float r, float mu)
             {
                 float Rg = _ReDefinitionCloudCamera.w, Rt = _ReDefinitionCloudMoon.w;
@@ -161,8 +156,8 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 return grey + (irradiance - grey) * _ReDefinitionCloudSkyColour.a;
             }
 
-            // Scatterer's planet shadow at a point: 1 lit, 0 in the shadow, with the light as a
-            // disc 20 planet radii out from the centre.
+            // Scatterer's planet shadow at a point, with its soft edge: 1 lit, 0 in the shadow, with the
+            // light as a disc 20 planet radii out from the centre.
             float Lit(float3 position, float3 towards)
             {
                 float Rg = _ReDefinitionCloudCamera.w;
@@ -184,7 +179,9 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 return (1.0f - g * g) / pow(1.0f + g * g - 2.0f * g * cosine, 1.5f) / 4.0f * kPi;
             }
 
-            // One of EVE's phase functions: its two lobes (g in x and z) weighted by y and w.
+            // One of EVE's phase functions, direct or multiple (directPhaseFunctionProperties,
+            // multiplePhaseFunctionProperties: two Henyey-Greenstein lobes each): its two lobes (g in x
+            // and z) weighted by y and w.
             float Phase(float4 lobes, float cosine)
             {
                 return Lobe(lobes.x, cosine) * lobes.y + Lobe(lobes.z, cosine) * lobes.w;
@@ -205,9 +202,11 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 return map.g < 0.01f || coverage < 0.01f ? 0.0f : map.g * coverage * _ReDefinitionCloudMapFades.y;
             }
 
-            // How much of the moon's light reaches the point through the layer above it: six
+            // How much of the moon's light reaches the point through the layer above it. It takes six
             // samples towards the moon to the layer's top, each a slice of a column whose whole
-            // lets 1 / (1 + 7 d + 26 d^2) through, as the rays' cloud shadow takes it.
+            // lets 1 / (1 + 7 d + 26 d^2) through, as the rays' cloud shadow takes it. The raymarching
+            // takes the light's way through the cloud itself from EVE's light volume along the sun. Here it
+            // comes from the layer's coverage map along the moon's (RtEveClouds' packed map).
             float SelfShadow(float3 position, float3 towards)
             {
                 float inner = _ReDefinitionCloudHeights.z, outer = _ReDefinitionCloudHeights.w;
@@ -225,7 +224,11 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             }
 
             // The pixel's clouds as EVE wrote them plus the moon's direct and sky light at the cloud's point; with
-            // _ReDefinitionCloudDebug set, the probe's views instead.
+            // _ReDefinitionCloudDebug set, the probe's views instead. There is no extinction between the camera and
+            // the cloud, because with it the moon's light came out red where the raymarching's is blue. The
+            // measurement is the light probe's of 2026-10-23, night with the Mun at 41 degrees: blue over red
+            // 0.52 with it, 1.57 without, the raymarching's 1.50. The direct light alone, without it, matches the raymarching's moonlight within
+            // 2 per cent in each colour.
             float4 frag(v2f_img i) : SV_Target
             {
                 float4 clouds = tex2Dlod(_MainTex, float4(i.uv, 0.0f, 0.0f));

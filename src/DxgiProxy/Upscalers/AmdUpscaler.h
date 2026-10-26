@@ -70,17 +70,15 @@ namespace redefinition
     //
     // FSR 4 "requires integration using the AMD FSR API and use of the signed
     // binary distribution", and the API is D3D12 or Vulkan (super-resolution-
-    // ml.md, ffx-api.md). KSP renders on D3D11, so the frame goes across: Unity's
-    // colour, depth and motion vectors are copied into textures both devices
-    // share, AMD's upscaler runs on the D3D12 queue, and the result is copied back
-    // into Unity's output. A shared fence orders the two: D3D12 waits for the
-    // point in D3D11's stream after the copies, D3D11 for the point after the
+    // ml.md, ffx-api.md). KSP renders on D3D11, so the frame goes across. Unity's colour, depth and
+    // motion vectors are copied into textures both devices share. AMD's upscaler runs on the D3D12
+    // queue, and the result is copied back into Unity's output. A shared fence orders the two:
+    // D3D12 waits for the point in D3D11's stream after the copies, D3D11 for the point after the
     // upscaler.
     //
-    // Which upscaler runs is the DLL's choice for the GPU: FSR 4 where the GPU and
-    // driver have it ("FSR4 requires an AMD 7000 series discrete GPU or AMD 9000
-    // series GPU or later"), otherwise the FSR 3.1 the DLL carries. The provider's
-    // name goes into the status. amd_fidelityfx_upscaler_dx12.dll comes from the
+    // Which upscaler runs is the DLL's choice for the GPU. It is FSR 4 where the GPU and driver have
+    // it ("FSR4 requires an AMD 7000 series discrete GPU or AMD 9000 series GPU or later"),
+    // otherwise the FSR 3.1 the DLL carries. The provider's name goes into the status. amd_fidelityfx_upscaler_dx12.dll comes from the
     // player, next to KSP_x64.exe or in amdUpscalerDirectory (Config.h).
     //
     // Runs on Unity's render thread, from the render event of the upscaler's
@@ -111,11 +109,11 @@ namespace redefinition
         // were -- 0 before the first packet; the text says what and why.
         int Status(char* buffer, int size) const;
 
-        // Which FSR the context runs, as "FSR 4.1.1" or "FSR 3.1.5", into buffer:
-        // 1 FSR 4; 2 an earlier FSR although the DLL is FSR 4's -- it offers this GPU
-        // no FSR 4 ("FSR4 requires an AMD 7000 series discrete GPU or AMD 9000 series
-        // GPU or later", super-resolution-ml.md) and runs the FSR 3 it carries; 3 an
-        // earlier FSR from an earlier DLL; 0 before a context, buffer empty.
+        // Which FSR the context runs, written as "FSR 4.1.1" or "FSR 3.1.5" into buffer. The result is
+        // 1 for FSR 4. It is 2 for an earlier FSR although the DLL is FSR 4's. The DLL offers this GPU
+        // no FSR 4 ("FSR4 requires an AMD 7000 series discrete GPU or AMD 9000 series GPU or later",
+        // super-resolution-ml.md) and runs the FSR 3 it carries. It is 3 for an earlier FSR from an
+        // earlier DLL. It is 0 before a context, with buffer empty.
         int Provider(char* buffer, int size) const;
 
     private:

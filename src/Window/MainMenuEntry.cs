@@ -10,23 +10,17 @@ namespace ReDefinition.Window
 {
     // A ReDefinition entry in KSP's main menu, directly under Settings.
     //
-    // The main menu's entries are no dialog but text objects in the scene: each a
-    // TextMeshPro with a TextProButton3D and a BoxCollider, all children of
-    // "stage 1" in one column -- Start Game, Settings, Community, Addons,
+    // The main menu's entries are no dialog but text objects in the scene.
+    // Each is a TextMeshPro with a TextProButton3D and a BoxCollider, all children of
+    // "stage 1" in one column: Start Game, Settings, Community, Addons,
     // Credits, Merch, Quit (the main menu scene, level2, read with UnityPy).
     // MainMenu holds them as fields and gives each its onTap in Start
     // (decompiled). The entry is a copy of Settings, so it has the same parent,
     // font, colours and hover; it gets its own text and tap. It takes the row
     // under Settings, and the entries below move down by one row: the distance
-    // between Settings and the entry under it. The column then keeps the height
-    // it had: every entry is made smaller and moved towards the top one by the
-    // same factor, the old height over the new, so the last entry stands where
-    // it stood before and the rows stay evenly spaced.
+    // between Settings and the entry under it (KeepHeight).
     //
-    // The entries fade in and out with the camera's distance: MainMenuEnvLogic
-    // sets the alpha of every text in its uiTexts each frame (DistanceFadeUI,
-    // decompiled), which is what makes them appear once the menu has loaded.
-    // The copy is added to that list wherever Settings is in it.
+    // The entries fade in with the camera's distance (FadeWithTheOthers).
     //
     // MainMenu locks its entries while one of its dialogs stands
     // (lockEverything, unlockEverything); Harmony postfixes lock the copy with
@@ -134,6 +128,10 @@ namespace ReDefinition.Window
 
         // Every entry scaled by the old height over the new, and its distance from
         // the top entry with it.
+        // The column then keeps the height it had.
+        // Every entry is made smaller and moved towards the top one by the
+        // same factor, the old height over the new, so the last entry stands where
+        // it stood before and the rows stay evenly spaced.
         private static void KeepHeight(List<Transform> entries, float top, float before, float after)
         {
             if (before <= 0f || after <= before) return;
@@ -148,6 +146,8 @@ namespace ReDefinition.Window
         }
 
         // Adds the copy to the texts MainMenuEnvLogic fades with the camera, where Settings is among them.
+        // MainMenuEnvLogic sets the alpha of every text in its uiTexts each frame (DistanceFadeUI,
+        // decompiled), which is what makes the entries appear once the menu has loaded.
         private static void FadeWithTheOthers(MainMenu menu, TextMeshPro settings, TextMeshPro text)
         {
             MainMenuEnvLogic scene = menu.envLogic;

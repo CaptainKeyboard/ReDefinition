@@ -44,10 +44,10 @@ namespace redefinition
         }
 
         // The micro-triangle at `index` of an OMM subdivided `level` times, along the OMM's
-        // space-filling curve, as its three corners on the base triangle's barycentric grid:
-        // (u, v) with the triangle's vertex 0 at (0, 0), vertex 1 at (2^level, 0) and vertex 2
-        // at (0, 2^level), u and v being the weights of vertices 1 and 2 -- the hit's
-        // barycentrics in a ray query. The corners keep the order the curve enters them.
+        // space-filling curve, as its three corners on the base triangle's barycentric grid.
+        // A corner is (u, v) with the triangle's vertex 0 at (0, 0), vertex 1 at (2^level, 0)
+        // and vertex 2 at (0, 2^level). The u and v are the weights of vertices 1 and 2, the
+        // hit's barycentrics in a ray query. The corners keep the order the curve enters them.
         struct Corners
         {
             // The three corners' u, then their v, in that order.

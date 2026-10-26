@@ -8,10 +8,10 @@ namespace ReDefinition.Ui
     // through a TooltipController_Text on its object, which it looks for when it is
     // created and then keeps current (DialogGUIBase.Create, Update; decompiled). KSP's
     // button prefab carries none: UIButtonPrefab has an Image, a Button and an
-    // EventTrigger (sharedassets0.assets, read with UnityPy). So after a dialog is
-    // created, every element with a tooltip gets the controller with the game's own
-    // prefab, as the toolbar button's does (ToolbarButton.SetTooltip), and the element
-    // is handed it, so that a changing tooltip stays current. A label's text does
+    // EventTrigger (sharedassets0.assets, read with UnityPy).
+    // So after a dialog is created, every element with a tooltip gets the controller with the game's own
+    // prefab, as the toolbar button's does (ToolbarButton.SetTooltip).
+    // The element is handed the controller, so that a changing tooltip stays current. A label's text does
     // not answer the pointer (UITextPrefab: raycastTarget off), so the pointer never
     // enters it and its tooltip would not show: a label with a tooltip is made to
     // answer. A click on it still goes to the first handler above it.

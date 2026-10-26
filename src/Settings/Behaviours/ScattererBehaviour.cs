@@ -222,8 +222,8 @@ namespace ReDefinition.Settings.Behaviours
             return mainSettings.GetValue(scatterer);
         }
 
-        // The running object where Scatterer runs -- what its window shows --
-        // otherwise what the next scene loads from the node, read as Scatterer reads
+        // The running object where Scatterer runs, which is what its window shows.
+        // Otherwise what the next scene loads from the node, read as Scatterer reads
         // it (loadMainSettings) into a fresh settings object: a key its shipped file
         // leaves out is its class default, not nothing.
         private string Read(FieldInfo field)

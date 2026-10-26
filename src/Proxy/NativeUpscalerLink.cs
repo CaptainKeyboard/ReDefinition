@@ -71,7 +71,7 @@ namespace ReDefinition.Proxy
     }
 
     // What DLSS (DlssBridge), AMD's upscaler (AmdUpscalerBridge) and XeSS
-    // (XessUpscalerBridge) share in reaching the dxgi.dll proxy: whether it has their
+    // (XessUpscalerBridge) share in reaching the dxgi.dll proxy. That is whether it has their
     // exports in this build's form, a ring of packet slots the render thread reads, the
     // render events that carry a frame and the release, and the status.
     //

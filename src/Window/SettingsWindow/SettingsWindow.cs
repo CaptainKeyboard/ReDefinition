@@ -17,7 +17,8 @@ namespace ReDefinition.Window
     // Built like KSP's in-game settings dialog (MiniSettings, decompiled): a
     // MultiOptionDialog in the MiniSettingsSkin, section buttons in the skin's
     // first custom style, a scroll list, and Apply, Accept and Cancel with
-    // KSP's own strings -- so ZTheme, which replaces KSP's UI textures by
+    // KSP's own strings.
+    // So ZTheme, which replaces KSP's UI textures by
     // name, themes it with the rest of KSP's dialogs.
     //
     // It edits copies, as KSP's dialog does: the upscaler's settings in an
@@ -550,10 +551,11 @@ namespace ReDefinition.Window
             return false;
         }
 
-        // Display's ReDefinition part, in three groups -- Upscaling, Frame generation, Raytracing -- each with
-        // the settings that belong to it, and under a technique what can be downloaded or installed to
-        // enable another (NVIDIA's, Intel's and the RTX 30 package's rows); then the rows other mods
-        // register as General.
+        // Display's ReDefinition part, in three groups: Upscaling, Frame generation and Raytracing.
+        // Each has the settings that belong to it.
+        // Under a technique stands what can be downloaded or installed to
+        // enable another (NVIDIA's, Intel's and the RTX 30 package's rows).
+        // Then come the rows other mods register as General.
         private static void AddUpscaling(List<DialogGUIBase> rows)
         {
             DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout());

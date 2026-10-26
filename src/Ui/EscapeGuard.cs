@@ -12,13 +12,14 @@ namespace ReDefinition.Ui
     // nothing else.
     //
     // Both of those end as the key goes down. KSP acts on the key going up, a few
-    // frames later: every PopupDialog dismisses itself (PopupDialog.Update:
-    // Input.GetKeyUp(KeyCode.Escape), with no lock asked; decompiled), and the
-    // pause menu opens (PauseMenu.Update: GameSettings.PAUSE.GetKeyUp, where the
-    // PAUSE control is unlocked). So from the press that was taken until the frame
-    // after the key is up, no PopupDialog dismisses itself on it (a prefix on
-    // PopupDialog.Update, which runs the dialog's own update and skips the rest),
-    // and KeyCapture keeps its lock, which holds PAUSE.
+    // frames later.
+    // Every PopupDialog dismisses itself (PopupDialog.Update:
+    // Input.GetKeyUp(KeyCode.Escape), with no lock asked; decompiled).
+    // The pause menu opens (PauseMenu.Update: GameSettings.PAUSE.GetKeyUp, where the
+    // PAUSE control is unlocked).
+    // So from the press that was taken until the frame after the key is up, no PopupDialog dismisses itself on it.
+    // That is a prefix on PopupDialog.Update, which runs the dialog's own update and skips the rest.
+    // KeyCapture keeps its lock, which holds PAUSE.
     internal static class EscapeGuard
     {
         // Whether an Escape taken here is still down, and the frame it came up in.

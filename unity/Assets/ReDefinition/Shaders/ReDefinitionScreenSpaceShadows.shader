@@ -222,7 +222,9 @@ inline float3 computeCameraSpacePosFromDepthAndInvProjMat(v2f i)
 }
 
 /**
-* Get camera space coord from depth and info from VS
+* Get the camera space position of the pixel from its depth and the vertex shader's
+* interpolated ray and orthographic near and far positions, for perspective and
+* orthographic cameras
 */
 inline float3 computeCameraSpacePosFromDepthAndVSInfo(v2f i)
 {

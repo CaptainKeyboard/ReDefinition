@@ -15,14 +15,14 @@ using UnityEngine;
 namespace ReDefinition.Vendor
 {
     // The player's download of NVIDIA's DLLs (NvidiaFiles) from NVIDIA's own
-    // release on GitHub: offered in the settings window where the GPU can use them
+    // release on GitHub. It is offered in the settings window where the GPU can use them
     // and they are missing, and started once the player has accepted NVIDIA's
     // licences in the dialog below.
     //
-    // First every file's bytes of the archive, by range, each into a file of its
-    // own in the system's temporary folder; then, on a thread of its own, every
-    // file inflated and checked into a partial file beside its target; only when
-    // all of them are right are they placed, all or none (NvidiaFiles.PlaceAll). DLSS
+    // The download first fetches every file's bytes of the archive, by range, each into a file of its
+    // own in the system's temporary folder. Then, on a thread of its own, it inflates and
+    // checks every file into a partial file beside its target. It places them only when
+    // all of them are right, all or none (NvidiaFiles.PlaceAll). DLSS
     // takes them at once; Streamline is loaded as KSP starts, so frame generation
     // after a restart.
     internal static class NvidiaDownloader

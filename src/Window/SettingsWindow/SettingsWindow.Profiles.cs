@@ -153,11 +153,12 @@ namespace ReDefinition.Window
         }
 
         // The titles of KSP's settings the reset sets to something other than what
-        // KSP ships: those whose default ReDefinition's registration recommends
+        // KSP ships.
+        // Those are the settings whose default ReDefinition's registration recommends
         // (Mods/KSP.cfg; the UI scale by the screen's height) and those an
-        // installed mod requires otherwise. Only the settings that are a field of
-        // GameSettings of the same name: SetDefaultValues sets those, and the others
-        // -- Track IR's switches, what a behaviour works out -- would read as they
+        // installed mod requires otherwise.
+        // Only the settings that are a field of GameSettings of the same name count: SetDefaultValues sets those.
+        // The others, such as Track IR's switches and what a behaviour works out, would read as they
         // are now rather than as KSP ships them.
         private static List<string> KspOwnDefaults()
         {

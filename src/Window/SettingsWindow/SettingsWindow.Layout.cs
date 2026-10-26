@@ -9,8 +9,8 @@ namespace ReDefinition.Window
 {
     // KSP's keyboard layout, above the Keys tab's bindings as in KSP's input
     // screen, and as that screen offers it (SettingsLayoutConfig,
-    // SettingsKeyboardLayoutOs, SettingsKeyboardLayoutInput, decompiled): the
-    // system's layout as a line, the layout chosen among
+    // SettingsKeyboardLayoutOs, SettingsKeyboardLayoutInput, decompiled).
+    // It offers the system's layout as a line, the layout chosen among
     // GameSettings.KeyboardLayouts, and binding the keys to that layout's preset.
     // KSP's Apply keeps the chosen layout (CURRENT_LAYOUT_SETTINGS) and loads it
     // (LoadLayoutKeyBindings); rebinding sets every key to the preset's. Here both

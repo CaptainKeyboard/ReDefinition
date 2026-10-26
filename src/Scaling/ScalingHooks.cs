@@ -11,22 +11,23 @@ using Vectrosity;
 namespace ReDefinition.Scaling
 {
     // What KSP sizes once, as it makes it, at a fixed number of pixels
-    // (docs/development/ui-scaling.md; decompiled):
-    // - the editor's move and rotate gizmos: ScreenSpaceObjectScaling.screenSize,
-    //   from the prefab, over Screen.height, as the maneuver gizmo;
-    // - the orbit lines: 5 px (OrbitRendererBase.MakeLine), the target's orbit 5 px
-    //   (OrbitTargeter.DottedLineUpdate), the patches PatchRendering.lineWidth
-    //   (MakeVector);
-    // - the portrait gallery's room: GetMaxGalleryCapacity divides the screen's
-    //   pixels by the portrait's width in canvas units, so at a UI scale above 1 it
-    //   counts room for more portraits than fit;
-    // - the map captions' bounds (MapNode.UpdateCaptionText keeps textBounds in the
-    //   caption's own units, and MoveAwayFromEachOthers adds them to its position on
-    //   the screen), which a map node scaled by MapNodeScale draws larger.
-    // A postfix on each sets them from what KSP made, times UiScaling.World; the
-    // gallery's by the UI and crew scales it is drawn at. No other mod sizes these
-    // (their sources read: KSPCommunityFixes patches the gizmos' undo and the
-    // portraits' enabling only, Kopernicus the orbits' colours).
+    // (docs/development/ui-scaling.md; decompiled).
+    // The editor's move and rotate gizmos have ScreenSpaceObjectScaling.screenSize,
+    // from the prefab, over Screen.height, as the maneuver gizmo.
+    // The orbit lines are 5 px (OrbitRendererBase.MakeLine), the target's orbit 5 px
+    // (OrbitTargeter.DottedLineUpdate), and the patches PatchRendering.lineWidth
+    // (MakeVector).
+    // The portrait gallery's room comes from GetMaxGalleryCapacity, which divides the screen's
+    // pixels by the portrait's width in canvas units, so at a UI scale above 1 it
+    // counts room for more portraits than fit.
+    // The map captions' bounds are textBounds, which MapNode.UpdateCaptionText keeps in the
+    // caption's own units, and MoveAwayFromEachOthers adds them to its position on
+    // the screen. A map node scaled by MapNodeScale draws them larger.
+    //
+    // A postfix on each sets them from what KSP made, times UiScaling.World.
+    // The gallery's postfix uses the UI and crew scales it is drawn at.
+    // No other mod sizes these (their sources were read).
+    // KSPCommunityFixes patches the gizmos' undo and the portraits' enabling only, and Kopernicus the orbits' colours.
     internal static class ScalingHooks
     {
         // The id the postfixes are installed under.

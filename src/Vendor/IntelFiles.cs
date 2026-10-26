@@ -13,9 +13,9 @@ namespace ReDefinition.Vendor
     // are not part of the package.
     //
     // Every figure below was read from that release's central directory and local
-    // headers by byte range: general purpose flags 8 (a data descriptor follows the
-    // data, so the local headers carry no sizes -- NvidiaFiles.Extract takes the
-    // sizes from here) and no extra field in any of them. The checksums are those of
+    // headers by byte range. The general purpose flags are 8 (a data descriptor follows the
+    // data, so the local headers carry no sizes: NvidiaFiles.Extract takes the
+    // sizes from here), and none of the entries has an extra field. The checksums are those of
     // the inflated files, which carry Intel's valid signatures; the versions are
     // libxess.dll 2.0.2.68, libxess_fg.dll 1.3.1.78 and libxell.dll 1.3.2.10. Only
     // the entries' bytes are fetched, not the 77 MB archive; a file that does not

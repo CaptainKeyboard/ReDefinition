@@ -1,18 +1,18 @@
-"""Finds the stage of a frame that changes the sky beside the vessel, from two RenderDoc
-captures of the same camera pose, with the vessel and with its renderers hidden
-(tools/renderdoc_probe.ps1), each split into stages by tools/renderdoc_stages.py with
-the tags "with" and "without".
-
-    python tools/analyze_renderdoc_pair.py <folder> [--stat p95|median]
+"""Finds the stage of a frame that changes the sky beside the vessel. It works from two
+RenderDoc captures of the same camera pose, with the vessel and with its renderers
+hidden (tools/renderdoc_probe.ps1). Each is split into stages by
+tools/renderdoc_stages.py with the tags "with" and "without".
 
 The stages of the two are matched by shader, from the last deferred lighting on. For
-each, on the sky (nothing drawn in either capture's depth) and outside the vessel
-(where the capture with it is nearer), the relative difference of the two in bands
-of distance from the vessel: 1-4 px holds the edge's own antialiasing; a band beyond
-it above the far ones is a halo, and the first stage where it appears is the one
-that makes it. The pose check first: the horizontal and vertical shift that best
-matches the two finished frames on the scenery right of the vessel, which has to
-be (0, 0).
+each stage it takes the relative difference of the two in bands of distance from the
+vessel. It looks on the sky (nothing drawn in either capture's depth) and outside the
+vessel (where the capture with it is nearer). The band 1-4 px holds the edge's own
+antialiasing. A band beyond it above the far ones is a halo, and the first stage where
+it appears is the one that makes it. The pose check comes first: the horizontal and
+vertical shift that best matches the two finished frames on the scenery right of the
+vessel, which has to be (0, 0).
+
+Usage: python tools/analyze_renderdoc_pair.py <folder> [--stat p95|median]
 """
 import argparse
 import os

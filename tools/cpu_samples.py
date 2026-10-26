@@ -1,16 +1,16 @@
-"""Where the game's main thread spends its time, from the CPU sampler's file
-(src/DxgiProxy/Latency/CpuSampler.h, -redefinitionProbeCpuSample):
-
-    python tools/cpu_samples.py <KSP>/ReDefinitionCaptures/<time>-run/cpu-samples.txt [report.txt]
+"""Reports where the game's main thread spends its time, from the CPU sampler's file
+(src/DxgiProxy/Latency/CpuSampler.h, -redefinitionProbeCpuSample).
 
 Each sample is the main thread's instruction pointer and the values on its stack that
 point into a module's code. The addresses are named with dbghelp and the symbol
 servers of Unity (UnityPlayer.dll, its PhysX) and Microsoft (Windows, D3D11), cached in
-%LOCALAPPDATA%/ReDefinition/symbols. The report: the time by module and by function
-where the thread was (self); and by function anywhere on its stack (inclusive, an upper
-bound: a stale return address left on the stack counts as well). Code of no module is
-Mono's compiled C# -- KSP's and the mods' scripts, which the perf monitor times by
-method (-redefinitionPerfMonitorAll).
+%LOCALAPPDATA%/ReDefinition/symbols. The report gives the time by module and by function
+where the thread was (self). It also gives the time by function anywhere on its stack
+(inclusive, an upper bound: a stale return address left on the stack counts as well).
+Code of no module is Mono's compiled C# -- KSP's and the mods' scripts, which the perf
+monitor times by method (-redefinitionPerfMonitorAll).
+
+Usage: python tools/cpu_samples.py <KSP>/ReDefinitionCaptures/<time>-run/cpu-samples.txt [report.txt]
 """
 import ctypes
 import os

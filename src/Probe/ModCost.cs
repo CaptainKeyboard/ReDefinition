@@ -14,13 +14,13 @@ namespace ReDefinition.Probe
     // With -redefinitionProbeModCost, in a probe flight left to run
     // (-redefinitionProbeStay, with -redefinitionGpuProfile): what each graphics mod
     // costs the frame, by switching it off for a while. Much of a mod's work lies inside
-    // Unity's own passes -- its terrain, scatters, ocean and shaders in the G-buffer and
-    // the shadows -- where no marker can split it from the rest; the difference with the
+    // Unity's own passes, such as its terrain, scatters, ocean and shaders in the G-buffer and
+    // the shadows. No marker can split that work from the rest, but the difference with the
     // mod off can. One after the other, each mod's behaviours, the renderers drawing
     // with its shaders and its command buffers on the cameras and lights are switched
-    // off and on in turn, on, off, on, off, on, the frame measured over the last 5 s of
-    // each and the off windows set against the on windows around them:
-    // the GPU's frame from Present to Present (GpuProfiler), the frame's time, and the
+    // off and on in turn, on, off, on, off, on. The frame is measured over the last 5 s of
+    // each and the off windows are set against the on windows around them.
+    // The measures are the GPU's frame from Present to Present (GpuProfiler), the frame's time, and the
     // main thread's and the GPU's load (the proxy's LoadMonitor). Then KSP quits. A
     // probe: switching a mod off and on mid-flight is nothing a game does, and what a
     // mod leaves broken afterwards shows in the "back on" rows.
@@ -304,7 +304,7 @@ namespace ReDefinition.Probe
         // Exceptions logged meanwhile, of anyone's, as what a switch may break.
         private static int ExceptionCount;
 
-        // Log listener: counts the exceptions.
+        // Log listener that adds one to ExceptionCount for each message Unity's log reports as an exception.
         private static void CountExceptions(string message, string stack, LogType type)
         {
             if (type == LogType.Exception) ExceptionCount++;

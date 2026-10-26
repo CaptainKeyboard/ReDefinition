@@ -10,12 +10,12 @@ namespace ReDefinition.Settings.Behaviours
     // times the density, the originals kept. Its window's change undoes that and
     // does it again with the new values (UpdateScatterSettings, through
     // ReverseNormalisationConversions and PerformNormalisationConversions, both
-    // public), then rebuilds the planet while paused. The same two calls here, but
-    // as the next scene is asked for: a scatter system already running keeps its
-    // buffers sized for the density and range it was built with
+    // public), then rebuilds the planet while paused.
+    // This class makes the same two calls, but as the next scene is asked for.
+    // A scatter system already running keeps its buffers sized for the density and range it was built with
     // (ScatterRenderer.Initialize), and rebaking under it would truncate what it
-    // draws until the next body load. Without those calls the two settings are not
-    // offered.
+    // draws until the next body load.
+    // Without those calls the two settings are not offered.
     internal sealed class ParallaxScatterBehaviour : ModBehaviour
     {
         // Parallax's members as Resolve finds them: the bodies' scatters, and the two conversions; whether they were

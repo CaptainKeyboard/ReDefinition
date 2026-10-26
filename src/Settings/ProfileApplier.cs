@@ -8,14 +8,15 @@ namespace ReDefinition.Settings
 {
     // Carries a graphics profile out (docs/player/graphics-profiles.md): the
     // PROFILE blocks of the registrations onto the settings of the registered
-    // mods, the same way the settings window commits a change, so that a profile
-    // is nothing but many rows set at once, saved like every other. Its MODULE
-    // nodes are ModuleProfiles'.
+    // mods, the same way the settings window commits a change.
+    // So a profile is nothing but many rows set at once, saved like every other.
+    // Its MODULE nodes are ModuleProfiles'.
     //
     // A mod that is not installed is skipped without a word: a profile covers
-    // every mod it knows, a player has only some of them. So is a setting an
-    // installed mod's registration or behaviour leaves out -- KSP's aerodynamic FX
-    // next to Firefly. A key an installed mod does not offer at all, or a value its
+    // every mod it knows, a player has only some of them.
+    // So is a setting an installed mod's registration or behaviour leaves out, such as KSP's aerodynamic FX
+    // next to Firefly.
+    // A key an installed mod does not offer at all, or a value its
     // control cannot take, is reported and left out.
     internal static class ProfileApplier
     {
@@ -42,13 +43,12 @@ namespace ReDefinition.Settings
             return null;
         }
 
-        // The profile's values for the mods installed now, by setting -- each
-        // looked up in its own mod's settings, not across all of them: every
-        // quality setting at the default of the installed build, the values each
-        // mod's registration gives this profile (ModProfiles.Select), what every
-        // profile sets so that the mods fit ReDefinition, whatever the kind, over
-        // them (ModProfiles.SelectAll), and what installed mods require over all of
-        // it (Requirements).
+        // The profile's values for the mods installed now, by setting.
+        // Each is looked up in its own mod's settings, not across all of them.
+        // They are every quality setting at the default of the installed build,
+        // then the values each mod's registration gives this profile (ModProfiles.Select).
+        // Over them go what every profile sets so that the mods fit ReDefinition, whatever the kind
+        // (ModProfiles.SelectAll), and over all of that what installed mods require (Requirements).
         public static Dictionary<BundledSetting, string> Values(GraphicsProfile profile, List<string> problems)
         {
             Dictionary<BundledSetting, string> values = new Dictionary<BundledSetting, string>();
@@ -67,7 +67,8 @@ namespace ReDefinition.Settings
 
         // What *Reset to defaults* fills in: every setting of every kind at the
         // default of the installed build, with what an installed mod requires
-        // over it -- KSP's terrain shader quality, which has no default, left as
+        // over it.
+        // KSP's terrain shader quality, which has no default, is left as
         // it is (docs/player/graphics-profiles.md).
         public static Dictionary<BundledSetting, string> DefaultValues(List<string> problems)
         {
@@ -120,14 +121,12 @@ namespace ReDefinition.Settings
 
         // What choosing a profile fills in: its own values, and for every
         // setting the profile applied now set but this one leaves alone, what it
-        // had before ReDefinition first changed it -- or a TUFX profile Low
-        // strips would stay stripped under Medium, whose rows leave the pack's
-        // own choice in place. Only where it still holds the applied profile's
-        // value: one changed since, here or in the mod's own window, is the
-        // player's and stays. Those settings also go into `released`: they are
-        // released rather than set, since a per-save mod's value from before
-        // differs from save to save. `applied` is null where no profile is
-        // applied; settings no profile names stay as well.
+        // had before ReDefinition first changed it.
+        // Only a value that still is the applied profile's is replaced: one changed since, here or in the mod's
+        // own window, is the player's and stays.
+        // Those settings also go into `released`.
+        // They are released rather than set, since a per-save mod's value from before differs from save to save.
+        // `applied` is null where no profile is applied; settings no profile names stay as well.
         public static Dictionary<BundledSetting, string> WithReleased(Dictionary<BundledSetting, string> own,
                                                                        Dictionary<BundledSetting, string> applied,
                                                                        ICollection<BundledSetting> released)
@@ -148,6 +147,8 @@ namespace ReDefinition.Settings
 
         // The full values of `profile` among `all`, as WithReleased has them
         // against the profile applied now.
+        // Without the released values a TUFX profile Low strips would stay stripped under Medium,
+        // whose rows leave the pack's own choice in place.
         public static Dictionary<BundledSetting, string> FullValues(GraphicsProfile profile, IList<GraphicsProfile> all,
                                                                      List<string> problems,
                                                                      ICollection<BundledSetting> released)

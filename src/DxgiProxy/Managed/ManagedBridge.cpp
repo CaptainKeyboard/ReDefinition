@@ -71,9 +71,9 @@ extern "C"
         redefinition::FrameGeneration::Get().SetMultiplier(multiplier, dynamic != 0);
     }
 
-    // What the technique that runs allows, for the settings row: the most frames shown per
-    // rendered frame (0 where it does not say yet), and for DLSS-G whether Dynamic Multi Frame
-    // Generation is supported (-1 not known yet, 0 no, 1 yes). Returns the technique as
+    // What the technique that runs allows, for the settings row. It writes the most frames shown per
+    // rendered frame (0 where it does not say yet). For DLSS-G it also writes whether Dynamic Multi
+    // Frame Generation is supported (-1 not known yet, 0 no, 1 yes). Returns the technique as
     // KspFgTechnique does: 3 XeSS, 2 DLSS, 1 FSR, 0 none.
     __declspec(dllexport) int KspFgLimits(int* mostMultiplier, int* dynamicSupport)
     {
@@ -159,11 +159,11 @@ extern "C"
         return redefinition::FrameGeneration::Get().StreamlineVsyncSupported() ? 1 : 0;
     }
 
-    // Whether the proxy presents every refresh at most because Intel's XeLL lowers the
-    // latency -- with XeSS frame generation always, alone on an Intel GPU with
-    // lowLatency=1: "when VSync is enabled, sync interval for IDXGISwapChain::Present
-    // must always be 1 when Low Latency is active" (xell_developer_guide_english.md,
-    // Integration Checklist). 1 then, 0 otherwise. For the mod's V-Sync row.
+    // Whether the proxy presents every refresh at most because Intel's XeLL lowers the latency.
+    // That holds with XeSS frame generation always, and alone on an Intel GPU with lowLatency=1.
+    // The guide says "when VSync is enabled, sync interval for IDXGISwapChain::Present must always
+    // be 1 when Low Latency is active" (xell_developer_guide_english.md, Integration Checklist).
+    // Returns 1 then, 0 otherwise. For the mod's V-Sync row.
     __declspec(dllexport) int KspXellEveryRefresh()
     {
         return redefinition::LowLatency::Get().XellActive() ? 1 : 0;
@@ -195,15 +195,13 @@ extern "C"
             wcsncpy_s(streamline, static_cast<size_t>(size), redefinition::StreamlineDirectory().c_str(), _TRUNCATE);
     }
 
-    // Reflex and PC latency for the game's frames (Streamline.h), from its main
-    // thread while Streamline has its device: KspReflexFrameStart where the frame
-    // begins -- Reflex's sleep, eSimulationStart under a new frame index, which it
-    // returns, 0 where Streamline has no device and nothing was called --
-    // KspReflexSimulationEnd once the frame's simulation is done. The index goes
-    // on to Unity's render thread as render event 40, for the frame's Present.
-    //
-    // Where Streamline's Reflex does not run, NVIDIA Reflex through NVAPI takes the
-    // same calls (LowLatency.h), under Streamline's index where it gives one.
+    // Reflex and PC latency for the game's frames (Streamline.h), from its main thread while
+    // Streamline has its device. KspReflexFrameStart is called where the frame begins. It runs
+    // Reflex's sleep and eSimulationStart under a new frame index, which it returns, 0 where
+    // Streamline has no device and nothing was called. The index goes on to Unity's render thread
+    // as render event 40, as the pointer's value, before the frame's first Direct3D call
+    // (Streamline::OnGameFrameRendered). Where Streamline's Reflex does not run, NVIDIA Reflex
+    // through NVAPI takes the same calls (LowLatency.h), under Streamline's index where it gives one.
     __declspec(dllexport) unsigned int KspReflexFrameStart()
     {
         redefinition::LowLatency::Get().BrakeBeforeFrame();
@@ -212,6 +210,7 @@ extern "C"
         return streamline != 0 ? streamline : lowLatency;
     }
 
+    // Called once the frame's simulation is done, for the index KspReflexFrameStart returned.
     __declspec(dllexport) void KspReflexSimulationEnd(unsigned int frameIndex)
     {
         redefinition::Streamline::Get().EndGameSimulation(frameIndex);
@@ -247,9 +246,9 @@ extern "C"
         redefinition::FrameGeneration::Get().RetryContext();
     }
 
-    // The Debug tab's screen recording (ScreenRecorder.h): frames the monitor shows,
-    // generated ones included, into ReDefinitionCaptures\<time> beside KSP_x64.exe, and
-    // with dumps not 0 frame generation's input dump into <time>-inputs. 0 where a
+    // The diagnostics window's screen recording (ScreenRecorder.h). It records the frames the monitor shows,
+    // generated ones included, into ReDefinitionCaptures\<time> beside KSP_x64.exe. With dumps not
+    // 0 it also writes frame generation's input dump into <time>-inputs. Returns 0 where a
     // recording already runs.
     __declspec(dllexport) int KspRecordScreen(int frames, int dumps)
     {
@@ -302,11 +301,10 @@ extern "C"
         redefinition::LoadMonitor::Get().RegisterMainThread();
     }
 
-    // The last completed second of load, each in percent, -1 where unknown:
-    // the main thread's and the render thread's CPU time as a share of one
-    // core, the busiest 3D engine of this process's adapter, and this
-    // process's share of it. Returns 1 with figures, 0 before a second has
-    // completed, -1 when the proxy is switched off in its ini.
+    // The last completed second of load, each in percent, -1 where unknown. The figures are the main
+    // thread's and the render thread's CPU time as a share of one core, the busiest 3D engine of
+    // this process's adapter, and this process's share of it. Returns 1 with figures, 0 before a
+    // second has completed, -1 when the proxy is switched off in its ini.
     __declspec(dllexport) int KspPerfLoad(float* mainThread, float* renderThread, float* gpu, float* gpuThisProcess)
     {
         if (!redefinition::LoadMonitor::Get().Allowed())
@@ -321,35 +319,18 @@ extern "C"
         return valid ? 1 : 0;
     }
 
-    // What the managed side must write per frame, so it can check its own
-    // sizeof before sending anything.
+    // What the managed side must write per frame, so it can check its own sizeof before sending
+    // anything. Render event 1 carries this frame's packet. The textures themselves are copied at
+    // Present, when everything Unity drew this frame is submitted.
     __declspec(dllexport) unsigned int KspFgPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::FramePacket));
     }
 
-    // Unity calls this on its render thread when the managed side raises the
-    // event from a CommandBuffer -- UnityRenderingEventAndData: the event id
-    // and the pointer given to IssuePluginEventAndData.
-    //
-    // 1: this frame's packet. The textures themselves are copied at Present,
-    //    when everything Unity drew this frame is submitted.
-    // 2: a DLSS frame (Dlss::OnPacket), evaluated here -- from the upscaler's
-    //    dispatch buffer, which Unity runs after the frame's drawing is
-    //    submitted.
-    // 3: the rig is gone, and the DLSS feature with it.
-    // 4: a frame for AMD's upscaler (AmdUpscaler::OnPacket), the same way.
-    // 5: the rig is gone, and AMD's context with it.
-    // 6: a question for DLSS's render sizes (Dlss::OnSizeQuery), before a rig.
-    // 7: a frame for XeSS (XessUpscaler::OnPacket), the same way.
-    // 8: the rig is gone, and XeSS's context with it.
-    // 20-23: Direct3D 12 for mods (D3d12Compute.h): a compute pass made, destroyed,
-    //    dispatched, a texture's shared copy released.
-    // 30: a raytracing frame (Raytracing.h); 31: a frame for DLSS Ray Reconstruction;
-    //    32: Ray Reconstruction no longer used, its resources freed; 33: raytracing no
-    //    longer used, what its frames made freed.
-    // 40: the game's frame index from KspReflexFrameStart, as the pointer's value,
-    //    before the frame's first Direct3D call (Streamline::OnGameFrameRendered).
+    // Unity calls this on its render thread when the managed side raises the event from a
+    // CommandBuffer (UnityRenderingEventAndData). It gets the event id and the pointer given to
+    // IssuePluginEventAndData. The ids are in ProxyContract.h, and the packet size exports above
+    // and below say what each group of events carries.
     static void DispatchRenderEvent(int eventId, void* data)
     {
         if (eventId == PX_EVENT_FRAME_PACKET)
@@ -470,20 +451,18 @@ extern "C"
         }
     }
 
-    // DLSS (Dlss.h): the packet size the managed side must write, what the
-    // native side sees (1 running, -1 stopped, -2 stopped for a reason that
-    // stands until the GPU, driver or DLL changes, 0 not yet), and the render sizes
-    // DLSS asked for at an output size and quality value once a feature or a
-    // query was made for them -- the optimal one and the range, each width and
-    // height; 0 before.
+    // DLSS (Dlss.h): the packet size the managed side must write. Render event 2 is a DLSS frame
+    // (Dlss::OnPacket), evaluated from the upscaler's dispatch buffer, which Unity runs after the
+    // frame's drawing. Event 3 says the rig is gone, and the DLSS feature with it.
     __declspec(dllexport) unsigned int KspDlssPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::DlssPacket));
     }
 
-    // AMD's upscaler (AmdUpscaler.h): the packet size, and what the native side
-    // sees, 1 running, -1 stopped, -2 stopped for a reason that stands (no usable
-    // DLL, while its folder and file are unchanged), 0 not yet.
+    // AMD's upscaler (AmdUpscaler.h): the packet size, and what the native side sees, 1 running, -1
+    // stopped, -2 stopped for a reason that stands (no usable DLL, while its folder and file are
+    // unchanged), 0 not yet. Render event 4 is a frame for AMD's upscaler (AmdUpscaler::OnPacket),
+    // evaluated the same way as DLSS's. Event 5 says the rig is gone, and AMD's context with it.
     __declspec(dllexport) unsigned int KspAmdUpscalerPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::AmdUpscalerPacket));
@@ -507,8 +486,10 @@ extern "C"
         return redefinition::AmdUpscaler::Get().Attached() ? 1 : 0;
     }
 
-    // XeSS (XessUpscaler.h): the packet size, the status as AMD's upscaler reports
-    // it, whether it has its devices, and the version libxess.dll reports.
+    // XeSS (XessUpscaler.h): the packet size, the status as AMD's upscaler reports it, whether it
+    // has its devices, and the version libxess.dll reports. Render event 7 is a frame for XeSS
+    // (XessUpscaler::OnPacket), evaluated the same way as DLSS's. Event 8 says the rig is gone, and
+    // XeSS's context with it.
     __declspec(dllexport) unsigned int KspXessUpscalerPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::XessUpscalerPacket));
@@ -529,6 +510,8 @@ extern "C"
         return redefinition::XessUpscaler::Get().Version(buffer, size);
     }
 
+    // What the native side sees of DLSS: 1 running, -1 stopped, -2 stopped for a reason that stands
+    // until the GPU, driver or DLL changes, 0 not yet.
     __declspec(dllexport) int KspDlssStatus(char* buffer, int size)
     {
         return redefinition::Dlss::Get().Status(buffer, size);
@@ -537,6 +520,10 @@ extern "C"
     // "2" in the name: the export takes an output size, and a managed side of
     // another layout finds no entry point. The managed side probes this name
     // before it sends anything (DlssBridge).
+    // Render event 6 is a question for DLSS's render sizes (Dlss::OnSizeQuery), asked before a rig.
+    // The export returns the render sizes DLSS asked for at an output size and quality value once a
+    // feature or a query was made for them, the optimal one and the range, each width and height,
+    // 0 before.
     __declspec(dllexport) int KspDlssRenderSizes2(unsigned int outputWidth, unsigned int outputHeight, int quality,
                                                   unsigned int* optimal, unsigned int* minimum, unsigned int* maximum)
     {
@@ -589,6 +576,10 @@ extern "C"
         return redefinition::Raytracing::Get().ReconstructedFrames();
     }
 
+    // The packet size of render event 31. Events 30 to 33 serve raytracing (Raytracing.h). Event 30
+    // is a raytracing frame and event 31 a frame for DLSS Ray Reconstruction. Event 32 says Ray
+    // Reconstruction is no longer used and its resources are freed. Event 33 says raytracing is no
+    // longer used and what its frames made is freed.
     __declspec(dllexport) unsigned int KspRtReconstructPacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::RtReconstructPacket));
@@ -677,6 +668,9 @@ extern "C"
         if (trace != nullptr) *trace = t;
     }
 
+    // The packet size of render event 20. Events 20 to 23 serve Direct3D 12 for mods
+    // (D3d12Compute.h): a compute pass made, destroyed and dispatched, and a texture's shared copy
+    // released.
     __declspec(dllexport) unsigned int KspD3d12CreatePacketSize()
     {
         return static_cast<unsigned int>(sizeof(redefinition::D3d12CreatePacket));
@@ -687,9 +681,9 @@ extern "C"
         return static_cast<unsigned int>(sizeof(redefinition::D3d12DispatchPacket));
     }
 
-    // HLSL to a compute shader's DXBC (D3d12Compute.h, CompileComputeShader): from source
-    // of sourceLength bytes, or from the file at path when source is null. 1 compiled, 0 the
-    // compiler's errors in messages, -1 capacity too small, -2 no d3dcompiler_47.dll.
+    // HLSL to a compute shader's DXBC (D3d12Compute.h, CompileComputeShader). It compiles from
+    // source of sourceLength bytes, or from the file at path when source is null. Returns 1
+    // compiled, 0 the compiler's errors in messages, -1 capacity too small, -2 no d3dcompiler_47.dll.
     __declspec(dllexport) int KspD3d12Compile(const char* source, int sourceLength, const wchar_t* path,
                                               const char* entry, unsigned char* bytecode, int capacity, int* written,
                                               char* messages, int messagesSize)

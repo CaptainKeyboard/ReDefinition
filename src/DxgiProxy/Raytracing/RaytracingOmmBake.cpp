@@ -21,9 +21,9 @@ namespace redefinition
             constexpr uint32_t kTableLevels = 9;
 
             // One level's micro-triangles along the curve, and the cells of the grid by the
-            // micro-triangle that fills them: an upright cell (a, b) the triangle (a, b),
-            // (a + 1, b), (a, b + 1); an inverted one the triangle (a + 1, b), (a + 1, b + 1),
-            // (a, b + 1) -- the cell's other half.
+            // micro-triangle that fills them. An upright cell (a, b) holds the triangle (a, b),
+            // (a + 1, b), (a, b + 1). An inverted one holds the triangle (a + 1, b),
+            // (a + 1, b + 1), (a, b + 1), the cell's other half.
             struct Level
             {
                 // The micro-triangles in curve order; per cell, row by row, the index of its upright
@@ -44,9 +44,9 @@ namespace redefinition
             // The curve is defined recursively, "by traversing into the sub-triangle nearest
             // vertex 0, then the middle triangle with ordering flipped, then nearest vertex 1,
             // then nearest vertex 2 with ordering flipped" (Vulkan specification, ray traversal,
-            // opacity micromap); a triangle's own vertices a, b, c are in the order its children
-            // enter them. Each child as the corners of the six points a, b, c and the midpoints
-            // of ab, bc and ca (indices 0 to 5), in the order it takes them.
+            // opacity micromap). A triangle's own vertices a, b, c are in the order its children
+            // enter them. Each row is a child as the corners of the six points a, b, c and the
+            // midpoints of ab, bc and ca (indices 0 to 5), in the order it takes them.
             constexpr int kChildren[4][3] = {
                 { 0, 3, 5 },
                 { 5, 4, 3 },

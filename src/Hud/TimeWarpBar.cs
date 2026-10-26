@@ -100,10 +100,10 @@ namespace ReDefinition.Hud
             Follow();
         }
 
-        // The copy where the mod draws its button (TimeWarpButton.ModDrawsButton), made
-        // the first time it does; hidden, with what joins the sunrise extension to it,
-        // where the player has switched the mod or its button off in its settings, so
-        // that the time panel shows no button that would open nothing the mod shows.
+        // Makes the copy where the mod draws its button (TimeWarpButton.ModDrawsButton) the
+        // first time it does. It hides the copy, with what joins the sunrise extension to it,
+        // where the player has switched the mod or its button off in its settings. So the
+        // time panel shows no button that would open nothing the mod shows.
         private void Follow()
         {
             followAt = Time.unscaledTime + 1f;
@@ -154,6 +154,10 @@ namespace ReDefinition.Hud
         }
 
         // The copy of the MET button at the end of the warp row, joined to the sunrise extension.
+        // It keeps one place on the screen: at the end of the warp row while the panel is
+        // unfolded, at the end of the MET row while it is folded. So the sunrise
+        // extension, which shows only while the panel is unfolded, slides out from under it.
+        // The extension's top right corner is squared to join it (Square).
         private void Build(UIWarpToNextMorning sunrise)
         {
             RectTransform row = label.transform.parent as RectTransform;
@@ -338,9 +342,9 @@ namespace ReDefinition.Hud
             return sliced;
         }
 
-        // How opaque a sprite's soft lower edge is: its lowest row that is neither
-        // see-through nor full, in the column at `x` (a fraction of it), under the
-        // part that is not see-through; half where there is none or it cannot be
+        // How opaque a sprite's soft lower edge is. It is the opacity of the lowest row that
+        // is neither see-through nor full, in the column at `x` (a fraction of it), under the
+        // part that is not see-through. It is half where there is none or it cannot be
         // read.
         private static float Edge(Sprite sprite, float x)
         {
@@ -371,10 +375,10 @@ namespace ReDefinition.Hud
             return true;
         }
 
-        // The sunrise extension's rounded top right corner filled square in the
-        // bar's colour, so that it joins the bar above it: a patch in the
+        // Fills the sunrise extension's rounded top right corner square in the
+        // bar's colour, so that it joins the bar above it. The fill is a patch in the
         // extension, under its button, as large as the corner's rounding, which is
-        // how far the sprite's top row stops short of its right edge. Returns that
+        // how far the sprite's top row stops short of its right edge. It returns that
         // size in the extension's units, 0 where there is nothing to square.
         private float Square(RectTransform container, Image plate, Color colour)
         {

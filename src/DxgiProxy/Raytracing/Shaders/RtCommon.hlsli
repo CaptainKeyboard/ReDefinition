@@ -48,9 +48,9 @@ cbuffer Frame : register(b0)
     float4 lightColor0 : RT_AT(RT_CB_LIGHT_COLOR0);
     float4 lightDirection1 : RT_AT(RT_CB_LIGHT_DIRECTION1);
     float4 lightColor1 : RT_AT(RT_CB_LIGHT_COLOR1);
-    // x: how many lights; y: 1 where Unity's colours are gamma-space values; z: how
-    // strongly water mirrors the sun's disc, 1 as it is; w: 1 where the main body's sea is
-    // KSP's own (no Scatterer), found by its level.
+    // The x value is how many lights. The y value is 1 where Unity's colours are gamma-space
+    // values. The z value is how strongly water mirrors the sun's disc, 1 as it is. The w
+    // value is 1 where the main body's sea is KSP's own (no Scatterer), found by its level.
     float4 lightParams : RT_AT(RT_CB_LIGHT_PARAMS);
     // rgb: the least diffuse light of the forward light, as Unity's colours are.
     float4 nightLight : RT_AT(RT_CB_NIGHT_LIGHT);
@@ -77,19 +77,22 @@ cbuffer Frame : register(b0)
     // by more than the camera (Raytracing.h, RtFramePacket.prevWorldToClipFar).
     row_major float4x4 prevWorldToClipFar : RT_AT(RT_CB_PREV_WORLD_TO_CLIP_FAR);
     // How Unity fades the sun's shadow out towards its shadow distance (Raytracing.h,
-    // RtFramePacket.shadowFade): the fade's centre relative to the camera and its type,
-    // its scale and bias; in z how far Parallax draws its grass about the camera, in w the light a
-    // meadow keeps from its ground (MeadowShade).
+    // RtFramePacket.shadowFade). The xyz values are the fade's centre relative to the
+    // camera, and in w its type (unity_ShadowFadeCenterAndType: 1 for the distance from the
+    // centre, 0 for the view depth). The next field, shadowFadeScale, holds the scale and bias
+    // in x and y, how far Parallax draws its grass about the camera in z, and the light a
+    // meadow keeps from its ground in w (MeadowShade).
     float4 shadowFadeCentre : RT_AT(RT_CB_SHADOW_FADE);
     float4 shadowFadeScale : RT_AT(RT_CB_SHADOW_FADE1);
     // The point Parallax draws its grass about the vessel from, relative to the camera, and in w how far
     // (MeadowShade).
     float4 meadowVessel : RT_AT(RT_CB_SHADOW_FADE2);
-    // The radiance cache (RadianceCache.hlsli; Raytracing.h, RtFrameConstants): its
-    // anchor's tile and the frame it counts, the anchor within the tile and the cells'
-    // angle; the least cell, the most samples, the samples it takes to be read, the chance a
-    // path traces on all the same; its buckets, their slots, the frames an unused cell
-    // lives, the debug view.
+    // The radiance cache (RadianceCache.hlsli; Raytracing.h, RtFrameConstants). The field
+    // cacheTile holds its anchor's tile and the frame it counts. The field cacheOffset holds
+    // the anchor within the tile and the cells' angle. The field cacheParams holds the least
+    // cell, the most samples, the samples it takes to be read, and the chance a path traces on
+    // all the same. The field cacheSizes holds its buckets, their slots, the frames an unused
+    // cell lives, and the debug view.
     int4 cacheTile : RT_AT(RT_CB_CACHE_TILE);
     float4 cacheOffset : RT_AT(RT_CB_CACHE_OFFSET);
     float4 cacheParams : RT_AT(RT_CB_CACHE_PARAMS);
@@ -200,10 +203,10 @@ SamplerState linearWrap : register(s2);
 #define GAMMA_INPUTS (lightParams.y > 0.5f)
 #define SUN_MIRROR (lightParams.z)
 
-// The hit distances the signals carry in w: a miss as a half float's largest value; a
-// reflected ray that met a moon's disc (kDiscHit); in the water's frame a ray that met
-// the scene at most kWaterHitLimit, one that met nothing kWaterSky (ReDefinitionRtCapture
-// .shader, fragOceanCompose, reads both).
+// The hit distances the signals carry in w. A miss is a half float's largest value. A
+// reflected ray that met a moon's disc has kDiscHit. In the water's frame a ray that met
+// the scene has at most kWaterHitLimit, and one that met nothing has kWaterSky
+// (ReDefinitionRtCapture.shader, fragOceanCompose, reads both).
 static const float kFp16Max = RT_FP16_MAX;
 static const float kDiscHit = RT_DISC_HIT;
 static const float kWaterHitLimit = RT_WATER_HIT_LIMIT;
@@ -213,9 +216,9 @@ static const float kWaterSky = RT_WATER_SKY;
 
 // The light transport is linear: sums and averages of light -- a hemisphere of sky and
 // ground, samples -- hold only there. Where Unity shades in gamma space, as KSP does,
-// the colours it hands over are gamma-space values, taken to linear here with the
-// curve Unity converts by (GammaToLinearSpace, UnityCG.cginc); the materials' colours
-// and small textures come linear from the mod (RtScene). The signals stay linear
+// the colours it hands over are gamma-space values. This function takes them to linear
+// with the curve Unity converts by (GammaToLinearSpace, UnityCG.cginc). The materials'
+// colours and small textures come linear from the mod (RtScene). The signals stay linear
 // through the denoiser and are taken back where Unity's lighting reads them.
 float3 InputColor(float3 c)
 {
@@ -338,14 +341,16 @@ float3 SampleCone(float3 axis, float halfAngle, float2 u)
 
 // Where a ray from a surface starts: off the surface along its normal, by more the
 // further the point is from the camera, as depth and position lose precision there.
-// 5 cm a kilometre: at 50 cm a kilometre the rays started over Parallax's grass from some
-// hundreds of metres on (75 cm at 1.5 km), and its shadow faded out with the camera's
-// distance -- the terrain under it saw 0.94 of the sun at 1.5 km and 0.99 at 4 km, 0.68
-// at 200 m; 0.72 and 0.70 at 5 cm, and the shadows of the space centre's buildings and the
-// sun on its tarmac the same within 0.03 (the launch pad at 200 m to 4 km, 2026-10-25).
+// The offset is 5 cm a kilometre, measured at the launch pad on 2026-10-25. The comment in
+// the body gives the measurement.
 float3 RayOrigin(float3 position, float3 normal)
 {
     float distance = length(position);
+    // 5 cm a kilometre: at 50 cm a kilometre the rays started over Parallax's grass from some
+    // hundreds of metres on (75 cm at 1.5 km), and its shadow faded out with the camera's
+    // distance. The terrain under it saw 0.94 of the sun at 1.5 km and 0.99 at 4 km, 0.68
+    // at 200 m; 0.72 and 0.70 at 5 cm, and the shadows of the space centre's buildings and the
+    // sun on its tarmac the same within 0.03 (the launch pad at 200 m to 4 km, 2026-10-25).
     return position + normal * (0.01f + distance * 0.00005f);
 }
 
@@ -365,9 +370,9 @@ bool BodyBlocks(float3 origin, float3 direction)
     return closest2 < radius * radius;
 }
 
-// How far a ray from a pixel's surface passes through terrain: Parallax displaces the
+// How far a ray from a pixel's surface passes through terrain. Parallax displaces the
 // drawn terrain on the GPU by up to some tenths of a metre near the camera
-// (ParallaxUtils.cginc), off the mesh the rays see, which would otherwise shade the
+// (ParallaxUtils.cginc), off the mesh the rays see. That mesh would otherwise shade the
 // drawn surface where it lies below. Terrain is the only non-opaque geometry
 // (Raytracing.h, kRtInstanceTerrain).
 static const float kTerrainSkip = 1.0f;
@@ -387,11 +392,9 @@ uint CutoutRayFlags()
 // Whether a candidate hit of the non-opaque geometry counts: terrain only past
 // terrainSkip; a cut-out surface where its texture covers the point. The alpha of a
 // cut-out material's small texture is how much of each texel its full-size texture
-// covers at the cut-out's threshold (RtScene.ReadTexture), as a fine cut-out -- a blade
-// of grass -- is far finer than a texel; the ray stops there with that chance, so on
-// average the surface lets through what its cut-out does (Raytracing.h,
-// kRtInstanceCutout). A cut-out surface whose texture is not read yet lets every ray
-// through: an opaque card would shade the ground under it as a square.
+// covers at the cut-out's threshold (RtScene.ReadTexture). The ray stops there with that
+// chance, so on average the surface lets through what its cut-out does (Raytracing.h,
+// kRtInstanceCutout).
 bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, float terrainSkip, float3 origin)
 {
     InstanceData instance = instanceData[instanceId];
@@ -402,6 +405,8 @@ bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, floa
     if ((frameFlags & RT_FLAG_CUTOUT_PLAIN) != 0u)
         return (primitive & 1u) == 0u;
     MaterialData material = materialData[instance.material];
+    // A cut-out surface whose texture is not read yet lets every ray through: an opaque card
+    // would shade the ground under it as a square.
     if (!MATERIAL_TEXTURES || material.texture < 0)
         return false;
     uint slot = instance.meshSlot;
@@ -409,6 +414,7 @@ bool CandidateCounts(uint instanceId, uint primitive, float2 bary, float t, floa
     float2 uv = meshAttributes[NonUniformResourceIndex(slot)][index.x].uv * (1.0f - bary.x - bary.y)
               + meshAttributes[NonUniformResourceIndex(slot)][index.y].uv * bary.x
               + meshAttributes[NonUniformResourceIndex(slot)][index.z].uv * bary.y;
+    // A fine cut-out, a blade of grass, is far finer than a texel, so the alpha is a chance.
     float coverage = materialTextures.SampleLevel(linearWrap, float3(uv, float(material.texture)), 0.0f).a;
     // Each ray its own chance: rays side by side meet a surface at the same distance.
     uint seed = Pcg(primitive ^ Pcg(asuint(t) ^ Pcg(asuint(origin.x) ^ Pcg(asuint(origin.z) ^ Pcg(frameIndex)))));
@@ -435,7 +441,7 @@ bool Unoccluded(float3 origin, float3 direction, float maxDistance, float terrai
     return query.CommittedStatus() == COMMITTED_NOTHING;
 }
 
-// The same towards the sun: a cut-out surface's hit -- grass, ferns -- lets the ray on
+// The same towards the sun. A cut-out surface's hit (grass, ferns) lets the ray on
 // with the chance the flags give (RT_FLAG_FOLIAGE_SHIFT), as a blade of grass lets
 // through part of the light that falls on it.
 bool SunUnoccluded(float3 origin, float3 direction, float maxDistance, float terrainSkip = 0.0f)
@@ -627,10 +633,10 @@ float3 Albedo(MaterialData material, float2 uv, float3 color)
     return albedo;
 }
 
-// The main body's cloud layer (EVE; RtEveClouds in the game): where a light's ray from a point
-// below the shadow's sphere (cloudRadii.x) leaves it, and the fade it takes there, as the
-// light comes from above the sphere and the point lies below it; false without a layer or
-// above the sphere (CloudTransmittance).
+// The main body's cloud layer (EVE; RtEveClouds in the game). It gives where a light's ray
+// from a point below the shadow's sphere (cloudRadii.x) leaves it, and the fade it takes
+// there, as the light comes from above the sphere and the point lies below it. It returns
+// false without a layer or above the sphere (CloudTransmittance).
 bool CloudExit(float3 position, float3 towards, out float3 at, out float fade)
 {
     at = position;
@@ -676,11 +682,11 @@ float CloudTransmittanceAt(float3 at)
 
 // What of a light's ray from a point towards it gets through the main body's cloud layer, as
 // EVE's own screen-space cloud shadow takes it for the sun (its ScreenSpaceCloudShadow shader,
-// volumetric variant): where the ray leaves the shadow's sphere above the point
-// (CloudExit), the coverage and the density curve at that height from the layer's map
-// (cloudTexture), the transmittance 1 / (1 + 7d + 26d^2), tinted by the shadow's colour at
-// the shadow's strength, faded in as the light comes from above and below the sphere. 1
-// without a layer.
+// volumetric variant). The ray leaves the shadow's sphere above the point (CloudExit).
+// There the coverage and the density curve at that height come from the layer's map
+// (cloudTexture). The transmittance is 1 / (1 + 7d + 26d^2), tinted by the shadow's colour
+// at the shadow's strength, faded in as the light comes from above and below the sphere.
+// It is 1 without a layer.
 float3 CloudTransmittance(float3 position, float3 towards)
 {
     float3 at;
@@ -691,10 +697,11 @@ float3 CloudTransmittance(float3 position, float3 towards)
     return 1.0f + fade * cloudFades.x * (1.0f - tr) * (saturate(tr * cloudColor.rgb) - 1.0f);
 }
 
-// The sky a ray that escapes the scene sees from under the layer: the cloud where it
-// covers, lit by the sun and the moons from above and by the sky, darker underneath the denser it is,
-// over the sky by its opacity (1 - its transmittance). The reflection probe the sky comes
-// from otherwise (HAS_ENVIRONMENT) holds EVE's clouds as EVE draws them already.
+// The sky a ray that escapes the scene sees from under the layer. It is the cloud where it
+// covers, lit by the sun and the moons from above and by the sky, darker underneath the
+// denser it is, over the sky by its opacity (1 - its transmittance). The reflection probe
+// the sky comes from otherwise (HAS_ENVIRONMENT) holds EVE's clouds as EVE draws them
+// already.
 float3 CloudOverSky(float3 origin, float3 direction, float3 sky)
 {
     float3 at;
@@ -733,9 +740,9 @@ float3 SunAt(Hit hit, float3 albedo, inout Random random)
 
 // Where a ray that missed the scene meets the main body's sphere: the light the sphere
 // sends back there, its albedo times the sun's and the moons' light on it, unshaded but
-// by the sphere itself. Below the horizon the ground is there -- past the terrain the
-// scene holds, over the ocean, under the metre of terrain a pixel's rays pass through --
-// and the sky's capture would show it as drawn, lit by KSP's ambient light.
+// by the sphere itself. Below the horizon the ground is there: past the terrain the
+// scene holds, over the ocean, and under the metre of terrain a pixel's rays pass through.
+// The sky's capture would show it as drawn, lit by KSP's ambient light.
 bool PlanetRadiance(float3 origin, float3 direction, out float3 radiance)
 {
     radiance = 0.0f;
@@ -755,10 +762,10 @@ bool PlanetRadiance(float3 origin, float3 direction, out float3 radiance)
     return true;
 }
 
-// A reflected ray that met nothing: the disc of a body the sun lights (RtReflectors)
-// where the ray meets it, the body's surface there as the sun lights it -- its albedo
-// times the star's light by N.L on its sphere, so a crescent shows as one. The diffuse
-// light takes the bodies as lights (ReflectedLightAt), and not this.
+// A reflected ray that met nothing sees the disc of a body the sun lights (RtReflectors)
+// where the ray meets it. The disc is the body's surface there as the sun lights it: its
+// albedo times the star's light by N.L on its sphere, so a crescent shows as one. The
+// diffuse light takes the bodies as lights (ReflectedLightAt), and not this.
 float3 BodyDiscs(float3 direction)
 {
     float3 total = 0.0f;
@@ -792,21 +799,15 @@ float BeckmannG1(float cosine, float m)
 
 // The specular light a disc of angular `radius` towards `towards` gives water of
 // Beckmann roughness `m` (the root mean square of its slopes), per unit of the disc's
-// illuminance. Beckmann's distribution, not GGX's: a sea's slopes are near Gaussian (Cox
-// and Munk), as Bruneton's ocean and Scatterer take them, and GGX's long tails let the
-// glints of slopes four and five times the usual mirror a disc as bright as the moon's
-// far to its sides -- measured at sea, 2026-10-04, a moon's path 2.5 times as wide as its
-// waves allow. The representative point -- the direction on the disc closest to the
-// reflection vector, after Frostbite's sun as a disc area light (Lagarde and de
-// Rousiers, "Moving Frostbite to Physically Based Rendering", 2014, listing 6) -- lit as
-// a punctual light, with the energy the wider lobe adds taken back by (m / m')^2,
-// m' = m + radius / 3 (Karis, "Real
-// Shading in Unreal Engine 4", 2013, equations 10 and 14), and never brighter than the
-// disc itself, which that approximation overshoots at grazing angles. Without the
-// Fresnel term, which the reader applies. Smooth water mirrors the disc as it is; rough
-// water spreads it into a highlight stretched at grazing angles, the sea's long path.
+// illuminance. It uses Beckmann's distribution, not GGX's, and a representative point
+// lit as a punctual light; the comments in the body say why. It leaves out the Fresnel
+// term, which the reader applies. Smooth water mirrors the disc as it is. Rough water
+// spreads it into a highlight stretched at grazing angles, the sea's long path.
 float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, float m)
 {
+    // The representative point: the direction on the disc closest to the reflection vector,
+    // after Frostbite's sun as a disc area light (Lagarde and de Rousiers, "Moving Frostbite
+    // to Physically Based Rendering", 2014, listing 6), lit as a punctual light.
     float3 r = reflect(-view, normal);
     float sinRadius = sin(radius);
     float cosRadius = cos(radius);
@@ -822,17 +823,26 @@ float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, flo
     float a = max(m, 1e-3f);
     float a2 = a * a;
     float nh2 = nh * nh;
+    // Beckmann's distribution, not GGX's: a sea's slopes are near Gaussian (Cox and Munk), as
+    // Bruneton's ocean and Scatterer take them, and GGX's long tails let the glints of slopes
+    // four and five times the usual mirror a disc as bright as the moon's far to its sides.
+    // Measured at sea, 2026-10-04, that made a moon's path 2.5 times as wide as its waves
+    // allow.
     float D = exp(-(1.0f - nh2) / (nh2 * a2)) / (kPi * a2 * nh2 * nh2);
     float visibility = BeckmannG1(nv, a) * BeckmannG1(nl, a) / (4.0f * nl * nv);
+    // The energy the wider lobe adds is taken back by (m / m')^2, m' = m + radius / 3 (Karis,
+    // "Real Shading in Unreal Engine 4", 2013, equations 10 and 14). The result is never
+    // brighter than the disc itself, which that approximation overshoots at grazing angles.
     float wide = saturate(a + radius / 3.0f);
     return min(D * visibility * nl * (a * a) / (wide * wide), 1.0f / (kPi * sinRadius * sinRadius));
 }
 
-// KSP's own sea (STOCK_WATER), drawn into Unity's G-buffer by its ocean shader with
-// normals from its normal map: a pixel within kStockWaterBand metres of the main
-// body's sea level whose normal faces up, as the sea's does, and which is no surface
-// of the raytracing's scene, as a vessel's deck is. Its waves and roughness are ReDefinition's (StockWaves); kWaterLeastRoughness
-// the least roughness, of ripples shorter than the shortest wave.
+// KSP's own sea (STOCK_WATER) is drawn into Unity's G-buffer by its ocean shader with
+// normals from its normal map. It is a pixel within kStockWaterBand metres of the main
+// body's sea level whose normal faces up, as the sea's does. It is also no surface of the
+// raytracing's scene, as a vessel's deck is. Its waves and roughness are ReDefinition's
+// (StockWaves). kWaterLeastRoughness is the least roughness, of ripples shorter than the
+// shortest wave.
 static const float kStockWaterBand = 2.0f;
 static const float kWaterLeastRoughness = 0.004f;
 
@@ -863,22 +873,12 @@ bool IsStockWater(float3 position, float3 normal)
 }
 
 // KSP's own sea's waves, which its normal map barely carries. The long waves, 40 m down
-// to 2 m, as kStockWaves sine waves spread about a wind direction and across it, each of
-// slope kStockWaveSlope, running as deep water's waves do (omega^2 = g k); the ripples,
-// 2 m down to 5 cm, as kRippleOctaves octaves of gradient noise, short-crested as
-// ripples are -- sine waves that short would draw straight crests across the sea, a weave
-// -- each of slope deviation kRippleSlope, drifting with the wind at their waves'
-// speed. Together a slope variance of about 0.025, Scatterer's ocean's (measured at sea:
-// its variance as Beckmann's m^2, m = 2 alpha, alpha 0.073 to 0.1). The time is
-// planetAlbedo.w, in seconds. Fixed to the body: positions from its centre along the
-// tangent plane under the camera. A wave is drawn as
-// far as a pixel resolves it -- its length against the water the pixel covers along the
-// wave's own direction (a ripple octave: along the view, the most), across the view and,
-// stretched by the grazing angle, along it -- and what it loses goes into the roughness,
-// as Bruneton's ocean and LEAN mapping move the slopes a pixel cannot show into the BRDF:
-// the glints of the ripples near by, a smooth glow far off, no flicker. xyz the normal,
-// w the Beckmann roughness of the waves no pixel shows, the root of their slopes' mean
-// square.
+// to 2 m, are kStockWaves sine waves spread about a wind direction and across it, each of
+// slope kStockWaveSlope, running as deep water's waves do (omega^2 = g k). The ripples,
+// 2 m down to 5 cm, are kRippleOctaves octaves of gradient noise, each of slope deviation
+// kRippleSlope, drifting with the wind at their waves' speed. Together they have a slope
+// variance of about 0.025, Scatterer's ocean's. The time is planetAlbedo.w, in seconds.
+// StockWaves holds the measurement and says how a pixel shows the waves.
 static const uint kStockWaves = 24u;
 static const float kStockWaveSlope = 0.0254f;
 static const uint kRippleOctaves = 6u;
@@ -912,14 +912,14 @@ float3 RippleNoise(float2 p, uint octave)
     return float3(value, derivative);
 }
 
-// The sea under a pixel: where it lies on the sea, in metres east and north of a point
-// fixed to the main body near the camera (seaOrigin, seaEast, seaNorth: RtCamera.Sea), so
-// that the waves stay where they are on the water as the camera moves and the body turns;
-// its own up, and east and north turned into its own plane; the view's direction along
-// it; and the water the pixel covers across the view and, stretched by the grazing angle,
-// along it. Positions relative to that point, which lies near the camera, keep a float's
-// precision to millimetres. Without the point (seaEast 0, as in the raytracing's test
-// player) the plane under the camera.
+// The sea under a pixel. Where the pixel lies on the sea is in metres east and north of a
+// point fixed to the main body near the camera (seaOrigin, seaEast, seaNorth: RtCamera.Sea).
+// That keeps the waves where they are on the water as the camera moves and the body turns.
+// The struct also holds the sea's own up, and east and north turned into its own plane.
+// It holds the view's direction along it, and the water the pixel covers across the view
+// and, stretched by the grazing angle, along it. Positions relative to that point, which lies near the
+// camera, keep a float's precision to millimetres. Without the point (seaEast 0, as in the
+// raytracing's test player) the plane under the camera is used.
 struct SeaFrame
 {
     // The sea's up, east and north; the pixel's place in metres east and north and the view's
@@ -967,6 +967,8 @@ float3 SeaRipples(SeaFrame f, float scale)
 {
     const float2 wind = float2(cos(0.35f), sin(0.35f));
     float time = planetAlbedo.w;
+    // The ripples are short-crested, as ripples are: sine waves that short would draw
+    // straight crests across the sea, a weave.
     float slopeDeviation = kRippleSlope * scale;
     float2 slope = 0.0f;
     float lost = 0.0f;
@@ -992,9 +994,13 @@ float3 SeaRipples(SeaFrame f, float scale)
 }
 
 // KSP's own sea's normal and roughness at a point, the waves and ripples above kStockWaves
-// describes summed over the sea's frame.
+// describes summed over the sea's frame. The result's xyz is the normal, and w the Beckmann
+// roughness of the waves no pixel shows, the root of their slopes' mean square.
 float4 StockWaves(float3 position, float acrossFootprint)
 {
+    // The waves are fixed to the body: positions from its centre along the tangent plane
+    // under the camera. Their slope variance is about 0.025, Scatterer's ocean's (measured at
+    // sea: its variance as Beckmann's m^2, m = 2 alpha, alpha 0.073 to 0.1).
     SeaFrame f = MakeSeaFrame(position, acrossFootprint);
     float time = planetAlbedo.w;
     float2 slope = 0.0f;
@@ -1014,6 +1020,12 @@ float4 StockWaves(float3 position, float acrossFootprint)
         float alongPart = dot(direction, f.along);
         float footprint = sqrt(alongPart * alongPart * f.alongFootprint * f.alongFootprint
                                + (1.0f - alongPart * alongPart) * f.acrossFootprint * f.acrossFootprint);
+        // A wave is drawn as far as a pixel resolves it: its length against the water the pixel
+        // covers along the wave's own direction (a ripple octave: along the view, the most),
+        // across the view and, stretched by the grazing angle, along it. What it loses goes
+        // into the roughness, as Bruneton's ocean and LEAN mapping move the slopes a pixel
+        // cannot show into the BRDF: the glints of the ripples near by, a smooth glow far off,
+        // no flicker.
         float shown = saturate(wavelength / (2.0f * max(footprint, 1e-4f)) - 1.0f);
         lost += 0.5f * kStockWaveSlope * kStockWaveSlope * (1.0f - shown * shown);
         if (shown <= 0.0f)
@@ -1028,11 +1040,11 @@ float4 StockWaves(float3 position, float acrossFootprint)
     return float4(normalize(f.up - slope.x * f.east - slope.y * f.north), sqrt(lost));
 }
 
-// Scatterer's ocean with the same ripples on its own normals: its waves are geometry and
-// normal maps down to some metres, the rest it keeps as a variance its glint spreads the
+// Scatterer's ocean with the same ripples on its own normals. Its waves are geometry and
+// normal maps down to some metres. The rest it keeps as a variance its glint spreads the
 // sun over (Bruneton's BRDF), which mirrors a disc as a flat patch. The ripples carry that
 // variance (`m`, Beckmann's, from it) as normals a pixel shows as glints, and the
-// roughness only what no pixel shows. xyz the normal, w the roughness.
+// roughness only what no pixel shows. The result's xyz is the normal, and w the roughness.
 float4 ScattererRipples(float3 position, float3 normal, float m, float acrossFootprint)
 {
     SeaFrame f = MakeSeaFrame(position, acrossFootprint);
@@ -1042,8 +1054,8 @@ float4 ScattererRipples(float3 position, float3 normal, float m, float acrossFoo
 }
 
 // The sun's and the moons' discs mirrored by water of Beckmann roughness `m`
-// (DiscSpecular), with nothing in the way towards the body: the sun by its light at the
-// player's strength (Sun reflection); a moon by its disc's light, its surface as the sun
+// (DiscSpecular), with nothing in the way towards the body. The sun gives its light at the
+// player's strength (Sun reflection). A moon gives its disc's light: its surface as the sun
 // lights it averaged over a Lambert sphere at its phase (2/3 of the full disc's centre at
 // full phase) times its solid angle.
 float3 BodiesMirroredAt(float3 position, float3 normal, float3 view, float m, float terrainSkip)
@@ -1081,10 +1093,10 @@ float3 BodiesMirroredAt(float3 position, float3 normal, float3 view, float m, fl
 }
 
 
-// The light of the bodies the sun lights (RtReflectors) arriving at a surface point:
-// one of them a sample, chosen by its brightness, towards its disc and in its shadow --
-// the main body, the scene -- as the sun's, weighed back by the chance it was chosen;
-// a white surface returns this times N.L, as for the sun.
+// The light of the bodies the sun lights (RtReflectors) arriving at a surface point.
+// One of them is a sample, chosen by its brightness, towards its disc and in its shadow
+// (the main body, the scene) as the sun's, weighed back by the chance it was chosen.
+// A white surface returns this times N.L, as for the sun.
 float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, float terrainSkip = 0.0f)
 {
     uint count = LIGHT_COUNT;
@@ -1115,20 +1127,10 @@ float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, flo
 #include "RadianceCache.hlsli"
 
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
-// lights that; the sky where it escapes: as light (SkyLight), or, for a mirror's ray
-// that sees it directly (`mirror`, its first segment), as it looks.
-//
-// With the radiance cache (`cached`, the passes' own pipelines for it, and CACHE_ON), at a
-// hit the path would bounce on from, the light arriving there is the cache's where its
-// cell holds CACHE_WARM_SAMPLES samples, and the path ends: its albedo times that in place
-// of what the bounces would bring, the light that reaches the hit itself (the sun, the
-// moons) traced as before. With the chance
-// CACHE_REFRESH, and where the cell is cold, the path traces on; the light its bounces
-// bring to its first such hit -- what it gathered past the hit, divided by the weight it
-// had there -- goes into the cache's cell of the hit (CACHE_UPDATE), as Binder et al.'s
-// vertices add "their contribution" to their voxel. As GI-1.0's "temporal radiance
-// feedback" (2.2.4), the cache's value holds the light of every bounce in time, where
-// today's paths stop after `bounces`.
+// lights that. The sky where it escapes is light (SkyLight) or, for a mirror's ray
+// that sees it directly (`mirror`, its first segment), as it looks. With the radiance
+// cache (`cached`, the passes' own pipelines for it, and CACHE_ON) a path may end at a
+// warm cell, as the comment in the loop says.
 float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces, inout Random random,
                 out float firstDistance, float firstTerrainSkip = 0.0f, bool mirror = false, bool cached = false)
 {
@@ -1161,6 +1163,16 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
                            + material.emission);
         if (bounce == bounces)
             break;
+        // With the radiance cache, at a hit the path would bounce on from, the light arriving
+        // there is the cache's where its cell holds CACHE_WARM_SAMPLES samples, and the path
+        // ends: its albedo times that in place of what the bounces would bring, the light that
+        // reaches the hit itself (the sun, the moons) traced as before. With the chance
+        // CACHE_REFRESH, and where the cell is cold, the path traces on. The light its bounces
+        // bring to its first such hit, what it gathered past the hit divided by the weight it
+        // had there, goes into the cache's cell of the hit (CACHE_UPDATE), as Binder et al.'s
+        // vertices add "their contribution" to their voxel. As GI-1.0's "temporal radiance
+        // feedback" (2.2.4), the cache's value holds the light of every bounce in time, where
+        // today's paths stop after `bounces`.
         if (cached && CACHE_ON)
         {
             float4 cell;
@@ -1211,9 +1223,9 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
     return total;
 }
 
-// What a pixel's surface is, for the passes: from the G-buffer where Unity's deferred
-// lighting filled one; without (forward rendering), from the camera's ray to the point
-// the depth gives, which lands on the triangle Unity drew there.
+// What a pixel's surface is, for the passes. It comes from the G-buffer where Unity's
+// deferred lighting filled one. Without one (forward rendering), it comes from the camera's
+// ray to the point the depth gives, which lands on the triangle Unity drew there.
 struct SurfaceData
 {
     // The world normal, Unity's smoothness, the albedo (linear) and the specular colour.
@@ -1234,19 +1246,14 @@ struct SurfaceData
 // A surface's smoothness as KSP's legacy part shaders give its highlight. Deferred turns
 // their Blinn-Phong shininess into a smoothness for its G-buffer by look
 // (LegacyToStandard.cginc: shininess ^ 0.215 times the specular map times the root of the
-// specular colour's length, the specular colour over pi), which reaches 1, a mirror,
-// from a shininess of about 0.4 with a white specular colour (measured at sea,
-// 2026-10-04: a capsule at 0.96 with a specular colour of 0.24; the player saw the Mun's
-// disc sharp in a wing). KSP's own shaders light those parts with Blinn-Phong's exponent
-// 128 times the shininess, which Beckmann's distribution matches with
-// m = sqrt(2 / (n + 2)) (Walter et al. 2007): at most a shininess of 1, m 0.124, a
-// smoothness of 0.65. In the game only (LEGACY_SMOOTHNESS: RtCamera.LegacySmoothness);
-// a test's G-buffer is Unity's own. Specular colours over Deferred's 1 / pi are Unity's standard
-// shaders' own and kept, and so is the standard shader's dielectric (0.2209 grey, 4 % in
-// the game's gamma colour space: unity_ColorSpaceDielectricSpec), as well as the water's
-// frame (WATER_SURFACE), whose surface is Scatterer's ocean with its own variance; the
-// specular map's share is taken for the shininess's.
+// specular colour's length, the specular colour over pi). That reaches 1, a mirror,
+// from a shininess of about 0.4 with a white specular colour. Measured at sea,
+// 2026-10-04: a capsule at 0.96 with a specular colour of 0.24. The player saw the Mun's
+// disc sharp in a wing. LegacySmoothness takes the value back to the shininess.
 static const float kLegacyShininessPower = 0.215f;
+// The standard shader's dielectric specular colour: 0.2209 grey, 4 % in the game's gamma
+// colour space (unity_ColorSpaceDielectricSpec). Specular colours over Deferred's 1 / pi
+// are Unity's standard shaders' own, and so is this one, and they are kept.
 static const float kStandardDielectric = 0.2209163f;
 
 // Whether a G-buffer specular colour is Deferred's from a legacy part shader: no channel
@@ -1261,12 +1268,19 @@ bool LegacySpecular(float3 specular)
 // Beckmann's match, as the comment above kLegacyShininessPower says; as it is elsewhere.
 float LegacySmoothness(float smoothness, float3 specular)
 {
+    // In the game only (LEGACY_SMOOTHNESS: RtCamera.LegacySmoothness); a test's G-buffer is
+    // Unity's own. The water's frame (WATER_SURFACE) is kept too, as its surface is
+    // Scatterer's ocean with its own variance.
     if (!LEGACY_SMOOTHNESS || WATER_SURFACE || !LegacySpecular(specular))
         return smoothness;
     float length3 = length(specular * kPi);
     if (length3 <= 1e-4f)
         return smoothness;
+    // The specular map's share is taken for the shininess's.
     float shininess = pow(saturate(smoothness / sqrt(length3)), 1.0f / kLegacyShininessPower);
+    // KSP's own shaders light those parts with Blinn-Phong's exponent 128 times the
+    // shininess, which Beckmann's distribution matches with m = sqrt(2 / (n + 2)) (Walter et
+    // al. 2007): at most a shininess of 1, m 0.124, a smoothness of 0.65.
     float m = sqrt(2.0f / (128.0f * shininess + 2.0f));
     return 1.0f - sqrt(m);
 }
@@ -1287,46 +1301,22 @@ float3 IntendedSpecular(MaterialData material)
     return material.specular;
 }
 
-// What a pixel's surface reflects as its material means it (SURFACE_INTENT), in the
-// G-buffer's terms: the specular colour and the smoothness. Deferred's G-buffer gives every
-// KSP shader a shine by one formula (LegacyToStandard.cginc), diffuse-only shaders and the
-// space centre's ground included (shine-table, 2026-10-05: concrete at 0.16 / 0.45, the
-// ground at 0.22 / 0.55, steel at a smoothness of 1); the material found by the camera's
-// ray through the pixel says what its shader draws (RtMaterialIntent.cs): nothing for
-// the diffuse ones; for KSP's legacy Blinn-Phong highlight its exponent's roughness and a
-// specular colour as bright as the highlight, times its gloss, which Deferred's smoothness
-// (or Unity's own legacy specular colour) gives back divided by the material's divisor;
-// fixed values; or the G-buffer's own, never a perfect mirror. KSP's sea keeps the
-// G-buffer's, which the water's reflections replace. Where the ray finds no material at
-// the pixel's depth (an edge, Parallax's displaced ground), the G-buffer's, its legacy
-// smoothness as KSP's highlight (LegacySmoothness).
+// The greatest smoothness SurfaceIntent keeps from the G-buffer's own, so that a surface is
+// never a perfect mirror.
 static const float kMostSmoothness = 0.95f;
 
-// The light a meadow's own blades keep from the ground they stand on, for the terrain where Parallax
-// no longer draws them: 1 nearer than its grass's range, the meadow's shade (shadowFadeScale.w) from
-// the range on, faded in over its last fifth as the grass fades out, and so to the horizon. Parallax
-// draws its grass within its range of the camera or of the vessel, as each scatter says (Kerbin's main
-// grass about the vessel: meadowVessel), and the shade lies past both; on green ground, which on Kerbin
-// is its meadow band (Parallax's lowest texture) and not its rock, sand or snow. 1 where Parallax draws
-// no grass. The grass casts this shade itself where it is drawn (its blades in the rays, letting part
-// of the sun through: rtFoliageTransmission), so the ground beyond looks the same; as a distant
-// meadow's darker colour, it takes the sky's light as the sun's.
-// `lawn`: the space centre's lawn, where it shines as the terrain (SurfaceIntent), told from its tarmac
-// and concrete by its drawn colour (LawnShare). It is lifted to the terrain's look (kLawnLift): darker
-// than the terrain's as drawn (albedo 0.30 against the terrain's 0.39 beside it), it is as bright only
-// with the rough shine Deferred gives it, which it does not keep under the rays (RT_SURFACE_GROUND).
-// 1.36 with the terrain's occlusion (LawnOcclusion): its picture 1.01 of the terrain's at the same
-// distance from the vessel by day and 1.03 in the evening, its outer edge at the launch pad 1.09 and
-// 1.06 (medians of eleven views from 150 m to 4 km, 2026-10-25). Where Parallax draws its grass, lifted
-// onto the lawn (Scenery/KscGrass.cs), the grass in the rays shades it itself; past it, the lawn takes
-// the meadow's shade as the terrain beside it, as the space centre's lawns away from the launch pad,
-// which stood brighter than the terrain round them without it (2026-10-25). The lift holds wherever
-// Parallax's grass is drawn or not.
+// The lift of the space centre's lawn to the terrain's look (MeadowShade), 1.36 with the
+// terrain's occlusion (LawnOcclusion). The lawn is darker as drawn (albedo 0.30 against the
+// terrain's 0.39 beside it), and as bright only with the rough shine Deferred gives it, which
+// it does not keep under the rays (RT_SURFACE_GROUND). Its picture is 1.01 of the terrain's
+// at the same distance from the vessel by day and 1.03 in the evening. Its outer edge at the
+// launch pad: 1.09 and 1.06 (medians of eleven views from 150 m to 4 km, 2026-10-25).
 static const float kLawnLift = 1.36f;
 
-// The share of a pixel of the space centre's ground that is its lawn, by its drawn colour: its tarmac
-// and concrete are grey (a saturation under 0.10 at the launch pad, 2026-10-19), its lawn a saturated
-// yellow-green (0.47, green over red, 2026-10-25), its yellow and orange markings red over green.
+// The share of a pixel of the space centre's ground that is its lawn, by its drawn colour.
+// Its tarmac and concrete are grey (a saturation under 0.10 at the launch pad, 2026-10-19).
+// Its lawn is a saturated yellow-green (0.47, green over red, 2026-10-25). Its yellow and
+// orange markings are red over green.
 float LawnShare(float3 drawn)
 {
     float most = max(drawn.r, max(drawn.g, drawn.b));
@@ -1334,9 +1324,10 @@ float LawnShare(float3 drawn)
     return smoothstep(0.15f, 0.30f, saturation) * step(drawn.r, drawn.g);
 }
 
-// The space centre's lawn's occlusion as the terrain's beside it: the G-buffer holds 0.85 for Parallax's
-// terrain and 0.99 for the lawn (the launch pad and the space centre's lawns from 150 m to 4 km,
-// 2026-10-25), which the raytraced diffuse light is multiplied by (ReDefinitionDeferredReflections.shader).
+// The space centre's lawn's occlusion as the terrain's beside it. The G-buffer holds 0.85 for
+// Parallax's terrain and 0.99 for the lawn (the launch pad and the space centre's lawns from
+// 150 m to 4 km, 2026-10-25). The raytraced diffuse light is multiplied by it
+// (ReDefinitionDeferredReflections.shader).
 // With the albedo lifted alike (kLawnLift), the lawn took 10 to 37 % more light than the terrain under the
 // same sun, and its outer edge at the launch pad, with less grass about it than its middle, stood out
 // brighter.
@@ -1348,12 +1339,24 @@ float LawnOcclusion(float3 drawn)
     return lerp(1.0f, kLawnOcclusion, LawnShare(drawn));
 }
 
-// The meadow's shade, or the lawn's lift, at a pixel's drawn colour, as the comment above
-// kLawnLift says; `lift` the share of kLawnLift the lawn takes.
+// The light a meadow's own blades keep from the ground they stand on, for the terrain where
+// Parallax no longer draws them, or the lawn's lift, at a pixel's drawn colour. It is 1
+// nearer than the grass's range, and from the range on the meadow's shade
+// (shadowFadeScale.w), faded in over its last fifth as the grass fades out, and so to the
+// horizon. It is 1 where Parallax draws no grass. `lawn`: the space centre's lawn, where it
+// shines as the terrain (SurfaceIntent), told from its tarmac and concrete by its drawn
+// colour (LawnShare). `lift`: the share of kLawnLift the lawn takes.
 float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 1.0f)
 {
     if (!HAS_GBUFFER)
         return 1.0f;
+    // Parallax draws its grass within its range of the camera or of the vessel, as each
+    // scatter says (Kerbin's main grass about the vessel: meadowVessel), and the shade lies
+    // past both; on green ground, which on Kerbin is its meadow band (Parallax's lowest
+    // texture) and not its rock, sand or snow. The grass casts this shade itself where it is
+    // drawn (its blades in the rays, letting part of the sun through: rtFoliageTransmission),
+    // so the ground beyond looks the same. As a distant meadow's darker colour, it takes the
+    // sky's light as the sun's.
     float range = shadowFadeScale.z;
     float vesselRange = meadowVessel.w;
     float shade = shadowFadeScale.w;
@@ -1373,6 +1376,11 @@ float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 
     if (vesselRange > 0.0f)
         beyond = min(beyond, smoothstep(vesselRange * 0.8f, vesselRange, distance(position, meadowVessel.xyz)));
     // The lawn: as bright as the terrain (kLawnLift), and past the grass in the meadow's shade as the terrain.
+    // Where Parallax draws its grass, lifted onto the lawn (Scenery/KscGrass.cs), the grass in
+    // the rays shades it itself. Past it, the lawn takes the meadow's shade as the terrain
+    // beside it, as the space centre's lawns away from the launch pad, which stood brighter
+    // than the terrain round them without it (2026-10-25). The lift holds wherever Parallax's
+    // grass is drawn or not.
     if (lawn && !everyGreen)
     {
         float share = LawnShare(drawn);
@@ -1399,15 +1407,26 @@ bool IsBlade(Hit hit)
     return (hit.flags & (RT_INSTANCE_TERRAIN | RT_INSTANCE_SCENERY)) == 0u && mode == RT_SURFACE_LEGACY;
 }
 
-// `region`: what the camera's ray met (RT_REGION_*), for the probe's surface images.
+// What a pixel's surface reflects as its material means it (SURFACE_INTENT), in the
+// G-buffer's terms: the specular colour and the smoothness. The material found by the
+// camera's ray through the pixel says what its shader draws (RtMaterialIntent.cs). The
+// diffuse shaders give nothing. KSP's legacy Blinn-Phong highlight gives its exponent's
+// roughness and a specular colour as bright as the highlight, times its gloss. Other
+// materials give fixed values, or the G-buffer's own, never a perfect mirror
+// (kMostSmoothness). `region`: what the camera's ray met (RT_REGION_*), for the probe's
+// surface images.
 float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn, out float lift,
                      out uint region)
 {
+    // Deferred's G-buffer gives every KSP shader a shine by one formula (LegacyToStandard.cginc),
+    // diffuse-only shaders and the space centre's ground included (shine-table, 2026-10-05:
+    // concrete at 0.16 / 0.45, the ground at 0.22 / 0.55, steel at a smoothness of 1).
     float4 g1 = gbuffer1[pixel];
     terrain = false;
     lawn = false;
     lift = 0.0f;
     region = RT_REGION_OTHER;
+    // KSP's sea keeps the G-buffer's, which the water's reflections replace.
     if (IsStockWater(position, normal))
     {
         mode = RT_SURFACE_WATER;
@@ -1455,6 +1474,8 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
              : RT_REGION_OTHER_MISSED;
     if (!near)
     {
+        // Where the ray finds no material at the pixel's depth (an edge, Parallax's displaced
+        // ground), the G-buffer's, its legacy smoothness as KSP's highlight (LegacySmoothness).
         mode = RT_SURFACE_MISSED;
         // Deferred's own value for every shader without a specular colour, 0.5 / pi grey
         // (ReplacementShader.cginc): a diffuse surface, as a cut-out grate's holes let the
@@ -1482,6 +1503,8 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     }
     if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
     {
+        // Deferred's smoothness (or Unity's own legacy specular colour) gives the gloss back
+        // divided by the material's divisor.
         float measured = mode == RT_SURFACE_LEGACY ? g1.a : max(g1.r, max(g1.g, g1.b));
         float gloss = saturate(measured / max(material.vertexColour.z, 1e-4f));
         return float4(material.specular * gloss, material.smoothness);
@@ -1490,9 +1513,9 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     return float4(g1.rgb, min(g1.a, kMostSmoothness));
 }
 
-// A pixel's surface (SurfaceData): the G-buffer's, with the intended shine where the sun's pass
-// found it; else the material of the triangle the camera's ray meets at the depth; else a
-// grey guess on the depth's normal, found false.
+// A pixel's surface (SurfaceData). It is the G-buffer's, with the intended shine where the
+// sun's pass found it. Else it is the material of the triangle the camera's ray meets at the
+// depth. Else it is a grey guess on the depth's normal, found false.
 SurfaceData SurfaceAt(uint2 pixel, float3 position)
 {
     SurfaceData surface;
@@ -1548,11 +1571,11 @@ float3 SurfaceNormal(uint2 pixel, float3 position)
     return HAS_GBUFFER ? DecodeNormal(gbuffer2[pixel]) : SurfaceAt(pixel, position).normal;
 }
 
-// The ambient light Unity's shading gave a surface of this normal: Unity's ambient probe
-// (ShadeSH9), which for flat and gradient ambient light depends on the normal's height
-// alone, and to second order: the quadratic through its values facing up, sideways and
-// down is the probe itself. In gamma space as Unity then converts it (LinearToGammaSpace,
-// UnityCG.cginc).
+// The ambient light Unity's shading gave a surface of this normal. It is Unity's ambient
+// probe (ShadeSH9), which for flat and gradient ambient light depends on the normal's height
+// alone, and to second order. The quadratic through its values facing up, sideways and
+// down is the probe itself. It is in gamma space as Unity then converts it
+// (LinearToGammaSpace, UnityCG.cginc).
 float3 UnityAmbient(float3 normal)
 {
     float y = normal.y;
@@ -1565,8 +1588,8 @@ float3 UnityAmbient(float3 normal)
 }
 
 // NVIDIA's approximation of the split-sum's environment term (ProgrammingGuideDLSS_RR.md
-// 4.2.1, after Ray Tracing Gems, chapter 32), as the guide gives it: the specular albedo
-// DLSS Ray Reconstruction and AMD FSR Ray Regeneration take as a guide.
+// 4.2.1, after Ray Tracing Gems, chapter 32), as the guide gives it. It is the specular
+// albedo that DLSS Ray Reconstruction and AMD FSR Ray Regeneration take as a guide.
 float3 EnvBRDFApprox2(float3 specularColor, float alpha, float nov)
 {
     nov = abs(nov);

@@ -15,11 +15,11 @@ namespace ReDefinition.Upscaler
         // stay out: they draw at full resolution on top of the upscaled image.
         //
         // The list follows KerbalVR, which redirects the same stack into its own
-        // RenderTextures:
-        //   flight external  GalaxyCamera, Camera ScaledSpace, Camera 00
-        //   flight IVA       plus InternalCamera
-        //   editor           GalaxyCamera, sceneryCam, Main Camera, markerCam
-        //   main menu        GalaxyCamera, Landscape Camera
+        // RenderTextures.
+        //   Flight external: GalaxyCamera, Camera ScaledSpace, Camera 00.
+        //   Flight IVA: plus InternalCamera.
+        //   Editor: GalaxyCamera, sceneryCam, Main Camera, markerCam.
+        //   Main menu: GalaxyCamera, Landscape Camera.
         //
         // FXCamera and FXDepthCamera draw no part of the scene image and stay out.
         private static readonly string[] SceneCameras =

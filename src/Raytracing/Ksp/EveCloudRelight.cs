@@ -11,29 +11,19 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Raytracing
 {
     // The moon's light on EVE's raymarched clouds per pixel, as a second sun with the moon's
-    // values, while the sun sets and the clouds still in its light keep it: Scatterer's
-    // raymarching shader lights the clouds with one light, the sun's, and shades each cloud by
+    // values, while the sun sets and the clouds still in its light keep it. Scatterer's
+    // raymarching shader lights the clouds with one light, the sun's. It shades each cloud by
     // the planet's shadow at its place, so that the clouds still in the sunset are lit by it and
     // the others dark. Right after EVE has reconstructed a camera's clouds for the frame (its
     // command buffer at AfterForwardOpaque, which DeferredRaymarchedVolumetricCloudsRenderer
     // .OnPreRender adds), a command buffer of this class adds the moon's light at each pixel's
-    // cloud into a copy of EVE's buffer (ReDefinitionCloudMoonlight.shader) and binds the copy
-    // where EVE bound its own (colorBuffer, scattererReconstructedCloud): EVE's composite,
-    // Scatterer's sky and the upscaler's cloud masks read it this frame, EVE's history stays its
+    // cloud. It adds it into a copy of EVE's buffer (ReDefinitionCloudMoonlight.shader) and binds the copy
+    // where EVE bound its own (colorBuffer, scattererReconstructedCloud). EVE's composite,
+    // Scatterer's sky and the upscaler's cloud masks read it this frame, and EVE's history stays its
     // own. No cloud is drawn a second time. EveCloudMoonlight says when and with what light
     // (Light), and turns the clouds' one light to the moon once the sun reaches none of them in
-    // view, as this light gives way.
-    //
-    // Read from EVE (Atmosphere.dll 3.2.2, decompiled; its renderer's source on GitHub,
-    // LGhassen/EnvironmentalVisualEnhancements): the renderer's targetCamera,
-    // renderingEnabled, reflectionProbeCamera, volumesAdded, useFlipUpscalingBuffer (the
-    // history EVE writes this frame, flipped in OnPostRender) and the histories historyRT
-    // (colour, rgb premultiplied light, a the transmittance) and historyDistanceRT (the
-    // distance to the clouds' weighted point in hundreds of metres), indexed by
-    // HistoryManager[flip, right eye, cubemap face]; a volume's RaymarchedCloudMaterial,
-    // which carries Scatterer's atmosphere (SkyNode.InitPostprocessMaterialUniforms) and EVE's
-    // phase functions and colour, and its radii. Only on cameras that are no reflection probe,
-    // in mono.
+    // view, as this light gives way. Only on cameras that are no reflection probe, in mono.
+    // The compiled getters below read EVE's members.
     internal static class EveCloudRelight
     {
         // The Harmony id, EVE's renderer and volume types, and the camera event EVE's command buffer runs at.
@@ -43,11 +33,11 @@ namespace ReDefinition.Raytracing
         private const CameraEvent Event = CameraEvent.AfterForwardOpaque;
 
         // The per-pixel light's strength against the light the raymarching gives the clouds in
-        // the moon's light, its direct light's and its sky's: the probe's calibration
-        // (LightProbe, CloudCalibration) at night, the raymarching's moonlight fitted by the
-        // two on the same clouds, in red, green and blue. 2026-10-23, the Mun at 41 degrees
+        // the moon's light, its direct light's and its sky's. It is the probe's calibration
+        // (LightProbe, CloudCalibration) at night: the raymarching's moonlight fitted by the
+        // two on the same clouds, in red, green and blue. Measured 2026-10-23 with the Mun at 41 degrees
         // over the pad: the direct light alone matches it within 3 per cent in each colour at
-        // 2.284; the sky's light took a weight below 0 in the fit, so it is left out (0).
+        // 2.284. The sky's light took a weight below 0 in the fit, so it is left out (0).
         internal const float DefaultDirectGain = 2.284f;
         internal const float DefaultSkyGain = 0f;
         internal static float DirectGain = DefaultDirectGain;
@@ -56,10 +46,10 @@ namespace ReDefinition.Raytracing
         // For the light probe: the clouds without this light.
         internal static bool HeldOff;
 
-        // -redefinitionCloudRelightDebug 1: each pixel's cloud point green inside the layer's
-        // shell, red outside it, blue without a distance; 2: the moon's direct light alone; 3
-        // its sky's; 4 to 7 the parts of the light (ReDefinitionCloudMoonlight.shader). The
-        // probe sets it too.
+        // The value of -redefinitionCloudRelightDebug. With 1 each pixel's cloud point is green inside the
+        // layer's shell, red outside it, blue without a distance. With 2 the image is the moon's direct
+        // light alone, with 3 its sky's, with 4 to 7 the parts of the light (ReDefinitionCloudMoonlight.shader).
+        // The probe sets it too.
         internal static float DebugMode = DebugArgument();
 
         // The colours last handed to the shader, for the probe's log: the moon's light, the
@@ -121,15 +111,27 @@ namespace ReDefinition.Raytracing
         private static readonly int SkyWId = Shader.PropertyToID("SKY_W");
         private static readonly int SkyHId = Shader.PropertyToID("SKY_H");
 
-        // Compiled getters of EVE's members (InstallHook); whether the hooks are in, whether a failure turned the light
-        // per pixel off for the session, whether it was logged; the material of ReDefinitionCloudMoonlight.shader.
+        // Compiled getters of EVE's members (InstallHook), read from Atmosphere.dll 3.2.2, decompiled
+        // (its renderer's source on GitHub, LGhassen/EnvironmentalVisualEnhancements): the renderer's targetCamera.
         private static Func<object, Camera> readCamera;
+        // The renderer's renderingEnabled, reflectionProbeCamera and useFlipUpscalingBuffer (the
+        // history EVE writes this frame, flipped in OnPostRender).
         private static Func<object, bool> readRendering, readProbe, readFlip;
+        // The renderer's volumesAdded.
         private static Func<object, IList> readVolumes;
+        // The histories historyRT (colour, rgb premultiplied light, a the transmittance) and historyDistanceRT
+        // (the distance to the clouds' weighted point in hundreds of metres), indexed by
+        // HistoryManager[flip, right eye, cubemap face].
         private static Func<object, bool, RenderTexture> readColour, readDistance;
+        // A volume's RaymarchedCloudMaterial, which carries Scatterer's atmosphere
+        // (SkyNode.InitPostprocessMaterialUniforms) and EVE's phase functions and colour.
         private static Func<object, Material> readMaterial;
+        // A volume's radii.
         private static Func<object, float> readInner, readOuter;
+        // Whether the hooks are in, whether a failure turned the light per pixel off for the session, whether it
+        // was logged.
         private static bool installed, failed, warned;
+        // The material of ReDefinitionCloudMoonlight.shader.
         private static Material material;
 
         // What EveCloudMoonlight asked for this frame: the body, from its centre towards the
@@ -308,10 +310,10 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // Every camera before it renders: where this frame's light was not prepared for it --
-        // EVE renders no clouds there this frame, or its renderer was turned off before its
-        // OnPostRender took ours off -- our command buffer off, so that it never binds a copy of
-        // an older frame. Whether Unity calls this before or after EVE's OnPreRender, a command
+        // Runs for every camera before it renders. Where this frame's light was not prepared for it, our
+        // command buffer comes off, so that it never binds a copy of an older frame. That happens where
+        // EVE renders no clouds there this frame, or where its renderer was turned off before its
+        // OnPostRender took ours off. Whether Unity calls this before or after EVE's OnPreRender, a command
         // buffer prepared this frame stays and one from before goes.
         private static void Unprepared(Camera camera)
         {
@@ -339,9 +341,9 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // For one camera of EVE's renderer, after it set up its clouds: where the light was asked for this frame and all
-        // inputs are there, the copy sized to EVE's buffer, the command buffer filled with the moon's light, the
-        // atmosphere and the rays' cloud map, and attached once; otherwise a missed frame.
+        // Runs for one camera of EVE's renderer, after it set up its clouds. Where the light was asked for this frame
+        // and all inputs are there, it sizes the copy to EVE's buffer. It fills the command buffer with the moon's light,
+        // the atmosphere and the rays' cloud map, and attaches it once. Otherwise the frame counts as missed.
         private static void Prepare(object renderer)
         {
             if (HeldOff || Time.frameCount - requested > 1 || (strength <= 0f && !ProbeAlways) || body == null) return;
@@ -508,9 +510,9 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // For the probe's calibration: the mean light over the frame of EVE's clouds as EVE
-        // reconstructed them and of the copy (with DebugMode 2 or 3 the one light alone), of the
-        // camera's last frame with this pass; false where there was none this frame or the one
+        // For the probe's calibration. It gives the mean light over the frame of EVE's clouds as EVE
+        // reconstructed them and of the copy (with DebugMode 2 or 3 the one light alone). It reads the
+        // camera's last frame with this pass, and returns false where there was none this frame or the one
         // before.
         internal static bool MeanColour(Camera camera, out Color eve, out Color relit)
         {

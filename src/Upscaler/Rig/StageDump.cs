@@ -12,21 +12,21 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Upscaler
 {
     // The diagnostics window's screen recording also writes the frame's stages, for following a
-    // fault through the pipeline away from the game: for a few consecutive frames from
-    // the first one in which the camera turns by more than a degree, the image the
-    // upscaler or Ray Reconstruction takes, the image it gives, and the raytracing's
-    // signals traced in that frame (RtCamera: the sun's visibility with the kept view
-    // depth in w, the diffuse light, the reflections, the light added without Deferred),
-    // and EVE's clouds where it draws them.
+    // fault through the pipeline away from the game. For a few consecutive frames from
+    // the first one in which the camera turns by more than a degree, it writes the
+    // image the upscaler or Ray Reconstruction takes and the image it gives. It also writes the
+    // raytracing's signals traced in that frame (RtCamera: the sun's visibility with the kept view
+    // depth in w, the diffuse light, the reflections, the light added without Deferred).
+    // It also writes EVE's clouds where it draws them.
     // Written into ReDefinitionCaptures\<time>-stages beside the other dumps; meta.txt
     // describes them.
     //
     // The frames dumped are the ones the recording is about, so they cost no more than a
-    // copy on the GPU each: the textures the copies go into are made while the dump waits
+    // copy on the GPU each. The textures the copies go into are made while the dump waits
     // for the turn, and read back one a frame after the last copy, through one buffer
-    // kept for all, which a thread of its own writes out before the next is read. Read
-    // back and copied into a new array each, seven textures a frame -- some hundred
-    // megabytes -- went with frames slowing from 17 to 138 ms (input dump of 2026-10-01
+    // kept for all. A thread of its own writes that buffer out before the next is read. Read
+    // back and copied into a new array each, seven textures a frame (some hundred
+    // megabytes) went with frames slowing from 17 to 138 ms (input dump of 2026-10-01
     // 22:03).
     internal static class StageDump
     {

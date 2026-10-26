@@ -240,9 +240,9 @@ namespace ReDefinition.MotionVectorCheck
         }
 
         // Hidden/ReDefinition/MotionAudit, as VesselMotionVectors in the plugin draws it, over
-        // the sphere moved in this frame: once with the sphere's previous matrix, where
+        // the sphere moved in this frame. It draws once with the sphere's previous matrix, where
         // it must find Unity's motion vectors right, and once with the current matrix in
-        // its place, where it must find them wrong; then pass 1 writes them into empty
+        // its place, where it must find them wrong. Then pass 1 writes them into empty
         // motion vectors, where pass 0 must find them right.
         private IEnumerator Audit()
         {

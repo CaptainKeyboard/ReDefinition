@@ -712,11 +712,11 @@ PsOut PsMain(VsOut input)
         void (*releaseMesh)(int) = nullptr;
         // Raytracing::SetMaterial.
         int (*setMaterial)(const RtMaterialDesc*) = nullptr;
-        // Raytracing::SetMaterialTexture.
+        // Raytracing::SetMaterialTexture: a layer of the material textures, RGBA8.
         int (*setMaterialTexture)(int, const uint8_t*, int) = nullptr;
         // Raytracing::SetInstances.
         int (*setInstances)(const RtInstance*, int, unsigned int) = nullptr;
-        // Raytracing::SetGpuGroups.
+        // Raytracing::SetGpuGroups: the GPU instance groups of a frame.
         int (*setGpuGroups)(const RtGpuInstanceGroup*, int, unsigned int) = nullptr;
         // Raytracing::PassTimings.
         void (*passTimings)(float*, int) = nullptr;
@@ -871,8 +871,8 @@ PsOut PsMain(VsOut input)
         Vec3 cameraDelta;
     };
 
-    // A frame through the render event as the mod sends it: the camera, the sun, the lighting's
-    // fields into the packet, the G-buffer as the inputs and the outputs; the service copies
+    // A frame through the render event as the mod sends it. It fills the packet with the camera, the sun and the
+    // lighting's fields, and sets the G-buffer as the inputs and the outputs. The service copies
     // the results back before the call returns.
     void SendFrame(Proxy& proxy, const Camera& camera, GBuffer& g, Outputs& outputs, Vec3 towardsSun, float sunRadius,
                    uint32_t frameIndex, uint32_t signals, const Lighting& lighting = Lighting())
@@ -1294,9 +1294,9 @@ static uint8_t OmmBladeAlpha(uint32_t x, uint32_t y, double ramp = 0.15)
     return static_cast<uint8_t>(std::lround(alpha * 255.0));
 }
 
-// Opacity micromaps through the proxy: a field of tufts of grass as a cut-out material's meshes,
-// the picture with them and without (the sun's visibility, the camera's rays, the diffuse
-// light) against each other, and what they cost and save.
+// Checks opacity micromaps through the proxy. The scene is a field of tufts of grass as a cut-out material's meshes.
+// The check sets the picture with them and without (the sun's visibility, the camera's rays, the diffuse
+// light) against each other, and reports what they cost and save.
 static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceContext* context, IDXGISwapChain1* swapChain,
                              IDXGIAdapter1* adapter, GBuffer& g, Outputs& outputs, std::map<int, Mesh>& meshes,
                              const std::vector<Instance>& scene, const Camera& camera, Vec3 sun, bool expectNone)

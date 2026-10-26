@@ -3,10 +3,11 @@ using System.Collections.Generic;
 
 namespace ReDefinition.Settings
 {
-    // What the settings window edits (docs/development/architecture.md): the
-    // bundled settings' rows as the player, a profile or the reset left them,
+    // What the settings window edits (docs/development/architecture.md).
+    // It holds the bundled settings' rows as the player, a profile or the reset left them,
     // where each value came from, the Profiles tab's status line, and Apply as a
-    // series of steps -- free of the game's UI, so that the decisions are tested
+    // series of steps.
+    // It is free of the game's UI, so that the decisions are tested
     // without the game. SettingsWindow draws the rows and carries the steps out.
     //
     // The rows are copies, as in KSP's own settings dialog: nothing reaches a mod
@@ -14,24 +15,21 @@ namespace ReDefinition.Settings
     internal sealed class SettingsEdit
     {
         // What filled a row, where that was not the player, and with which value.
-        // Apply acts on a row so filled only while it still holds that value; one
-        // changed since is the player's:
-        //   * Profile -- a profile's own value: set even where the save loaded now
-        //     shows it already, so that a per-save value becomes the choice for
-        //     every save;
-        //   * Released -- what the applied profile set and the chosen one leaves
-        //     alone: handed back to its mod. A hand edit ends it for good,
-        //     whatever value the row comes back to;
-        //   * Reset -- the default *Reset to defaults* filled in.
-        // One map for the chosen profile's rows and one for the reset's, which a
+        // Apply acts on a row so filled only while it still holds that value.
+        // One changed since is the player's.
+        // There is one map for the chosen profile's rows and one for the reset's, which a
         // profile chosen after it does not overwrite.
         internal enum Origin
         {
-            // A profile's own value, as described above.
+            // A profile's own value: set even where the save loaded now
+            // shows it already, so that a per-save value becomes the choice for
+            // every save.
             Profile,
-            // What the chosen profile hands back to its mod.
+            // What the applied profile set and the chosen one leaves
+            // alone: handed back to its mod. A hand edit ends it for good,
+            // whatever value the row comes back to.
             Released,
-            // The default the reset filled in.
+            // The default *Reset to defaults* filled in.
             Reset,
         }
 
@@ -43,6 +41,8 @@ namespace ReDefinition.Settings
             // Back to its mod, with what it had before ReDefinition.
             Release,
             // The default the reset filled in (BundledSettings.ResetTo).
+            // It is always set, since KSP's own reset (KspReset) runs before the steps and puts KSP's defaults over
+            // what the row was read with.
             Reset,
         }
 
@@ -71,7 +71,8 @@ namespace ReDefinition.Settings
         private readonly Dictionary<string, Filled> filled = new Dictionary<string, Filled>();
 
         // The defaults *Reset to defaults* filled in, the settings the window does
-        // not show among them: Apply sets each row still holding its default
+        // not show among them.
+        // Apply sets each row still holding its default
         // through BundledSettings.ResetTo, even where the mod shows it already,
         // since a value ReDefinition keeps may still stand over it
         // (docs/player/graphics-profiles.md). Empty where no reset is chosen.
@@ -274,11 +275,11 @@ namespace ReDefinition.Settings
         }
 
         // Fills the rows of every tab with the profile's values; nothing is set
-        // until Apply. False where the profile is not known. `reaches`: whether
-        // a row can take its value now -- null for every row; the window's
-        // leaves out the rows that go through the bundling while it is off,
-        // which take theirs once it is switched on (SetBundled). After the reset
-        // nothing is handed back: a row the profile leaves keeps the reset's
+        // until Apply. False where the profile is not known.
+        // `reaches` says whether a row can take its value now, and null means every row.
+        // The window's leaves out the rows that go through the bundling while it is off,
+        // which take theirs once it is switched on (SetBundled).
+        // After the reset nothing is handed back: a row the profile leaves keeps the reset's
         // default.
         public bool ChooseProfile(string name, Func<BundledSetting, bool> reaches = null)
         {
@@ -457,15 +458,13 @@ namespace ReDefinition.Settings
                    + rest + toSet;
         }
 
-        // Apply, row by row in the order given, worked out as the steps are taken:
-        // a row the reset filled is reset, one a profile hands back is released,
-        // and one the player, a profile or a sync changed is set. Handed back even
-        // where the row shows no change: in the main menu a per-save mod's row
-        // shows its own answer, and the saves still hold the choice kept here. A profile's value
-        // the mod holds already is set where the mod holding it is not all a
-        // choice needs (`holds`), and always with a reset: KSP's own reset
-        // (KspReset) runs before these steps and puts KSP's defaults over what
-        // the row was read with.
+        // Apply, row by row in the order given, worked out as the steps are taken.
+        // A row the reset filled is reset, one a profile hands back is released,
+        // and one the player, a profile or a sync changed is set.
+        // Handed back even where the row shows no change: in the main menu a per-save mod's row
+        // shows its own answer, and the saves still hold the choice kept here.
+        // A profile's value the mod holds already is set where the mod holding it is not all a
+        // choice needs (`holds`), and always with a reset (StepKind.Reset).
         public IEnumerable<Step> Steps(IEnumerable<BundledSetting> settings, Func<BundledSetting, string, bool> holds)
         {
             foreach (BundledSetting setting in settings)

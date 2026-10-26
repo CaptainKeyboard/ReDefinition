@@ -6,33 +6,17 @@ namespace ReDefinition.Raytracing
     // The ground's colour as KSP's own terrain shaders give it (Terrain/PQS/*), for the
     // rays, worked out per vertex and handed over as the vertex colours, with the
     // material's albedo black and its vertex factor 1 (RtScene). Read from KSP 1.12.5's
-    // compiled shaders (their glcore programs, which keep the uniforms' names):
+    // compiled shaders (their glcore programs, which keep the uniforms' names).
     //
     // Every PQS shader first turns the planet's colour (the vertex colour) by
     //   s = lum + _saturation * (c - lum), lum = dot(c, (0.299, 0.587, 0.114))
-    //   v = _contrast * (s - t) + t,       t = _tintColor.rgb * _tintColor.a
-    // then:
-    // - Texture Array 1-4 Blend (Kerbin at the highest terrain quality): up to four
-    //   layers of _AtlasTex, their indices and strengths packed into uv3 (x: indices,
-    //   five bits each, the first from 32768 up; y: strengths, the first in units of
-    //   40000 / 200, the next two in units of 200 and 1 times 0.01, the last the rest),
-    //   col = lerp(v, v * atlas, _ColorLerpModifier);
-    // - Triplanar Zoom Rotation and Main Shader - Triplanar Zoom Rotation: _lowTex,
-    //   _midTex and _highTex by the vertex colour's alpha (smoothstep between _lowStart
-    //   and _lowEnd, _highStart and _highEnd), col = v * tex;
-    // - Main - Optimised and Main Shader: the same bands, col = lerp(v, v * tex, _powerNear);
-    // and towards _steepTex by saturate(uv2.y * _steepPower), finally times
-    // _albedoBrightness where the shader has it. The standard-specular ones (those with
-    // _specularColor) write their diffuse colour times 1 - max(specular), as Unity's
-    // standard shading does. The textures are taken as their averages; the steep
-    // texture's fade with distance (from 10 km on) is left out.
-    //
-    // The space centre's ground (KSP/Scenery/Diffuse Ground KSC and its variants) has no
-    // vertex colour: grass, _NearGrassTexture times _GrassColor, and _TarmacTexture at
-    // uv0, mixed by _BlendMaskTexture's red at uv1 (both with their _ST). Per vertex here:
-    // the averages mixed by the mask at the vertex, so paths narrower than the mesh's
-    // spacing blur into the grass. Drawn as Parallax's terrain (Scenery/KscGround), its
-    // grass is the meadow's mean colour there.
+    //   v = _contrast * (s - t) + t,       t = _tintColor.rgb * _tintColor.a.
+    // Then the bands or the atlas give col (Colours, AtlasAt). The result goes towards _steepTex
+    // by saturate(uv2.y * _steepPower), finally times _albedoBrightness where the shader has it.
+    // The standard-specular ones (those with _specularColor) write their diffuse colour times
+    // 1 - max(specular), as Unity's standard shading does. The textures are taken as their
+    // averages. The steep texture's fade with distance (from 10 km on) is left out.
+    // KscColours has the space centre's ground.
     internal static class RtStockTerrain
     {
         // The PQS shaders' atlas, band and steep textures.
@@ -76,7 +60,10 @@ namespace ReDefinition.Raytracing
         }
 
         // The mesh's colours as the material draws its ground, or null where it is none of
-        // these shaders.
+        // these shaders. Triplanar Zoom Rotation and Main Shader - Triplanar Zoom Rotation give
+        // _lowTex, _midTex and _highTex by the vertex colour's alpha (smoothstep between _lowStart
+        // and _lowEnd, _highStart and _highEnd), col = v * tex. Main - Optimised and Main Shader
+        // give the same bands, col = lerp(v, v * tex, _powerNear).
         internal static Color32[] Colours(Mesh mesh, Material material)
         {
             if (mesh == null || !Applies(material)) return null;
@@ -147,6 +134,11 @@ namespace ReDefinition.Raytracing
         }
 
         // The space centre's ground per vertex: grass and tarmac averages mixed by the blend mask at the vertex's uv1.
+        // The ground (KSP/Scenery/Diffuse Ground KSC and its variants) has no vertex colour. It has grass,
+        // _NearGrassTexture times _GrassColor, and _TarmacTexture at uv0, mixed by _BlendMaskTexture's red at uv1
+        // (both with their _ST). Here the averages are mixed by the mask at the vertex, so paths narrower than the
+        // mesh's spacing blur into the grass. Drawn as Parallax's terrain (Scenery/KscGround), its grass is the
+        // meadow's mean colour there.
         private static Color32[] KscColours(Mesh mesh, Material material)
         {
             int count = mesh.vertexCount;
@@ -216,6 +208,10 @@ namespace ReDefinition.Raytracing
         }
 
         // The atlas's colour at a vertex: its layers' averages by the strengths packed in uv3.
+        // That is Texture Array 1-4 Blend (Kerbin at the highest terrain quality): up to four
+        // layers of _AtlasTex, their indices and strengths packed into uv3. In x the indices, five bits
+        // each, the first from 32768 up. In y the strengths, the first in units of 40000 / 200, the next two in
+        // units of 200 and 1 times 0.01, the last the rest. The colour is lerp(v, v * atlas, _ColorLerpModifier).
         private static Color AtlasAt(Texture atlas, Vector2 packed)
         {
             int indices = Mathf.RoundToInt(packed.x);

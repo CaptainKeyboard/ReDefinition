@@ -11,14 +11,15 @@ namespace ReDefinition.Settings.Behaviours
     // and rebuilds the clouds. Its own window edits those nodes, *Apply* rebuilds
     // from them and *Save* (EVEManagerBase.SaveConfig) saves their files.
     //
-    // A value set here goes the same way: into the first object node -- what EVE
-    // applies next time and what its window shows -- and into the static the
-    // clouds read now; the registration rebuilds the clouds after it. The light
-    // volume is a node of its own inside the first object's, and one object the
-    // manager and that object share: set in both. Only once EVE has loaded its
-    // quality config -- in the main menu, five physics frames after its global
-    // manager starts there (GlobalEVEManager.waitToRunLateSetup): before that the
-    // static holds its class default, and EVE's apply would put the pack's value
+    // A value set here goes the same way: into the first object node, which is what EVE
+    // applies next time and what its window shows, and into the static the
+    // clouds read now. The registration rebuilds the clouds after it.
+    // The light volume is a node of its own inside the first object's, and one object the
+    // manager and that object share: set in both.
+    // A value is set only once EVE has loaded its quality config.
+    // That happens in the main menu, five physics frames after its global
+    // manager starts there (GlobalEVEManager.waitToRunLateSetup).
+    // Before that the static holds its class default, and EVE's apply would put the pack's value
     // back over the one set here.
     internal sealed class EveBehaviour : ModBehaviour
     {
@@ -150,9 +151,9 @@ namespace ReDefinition.Settings.Behaviours
         // The registration's defaults are Volumetric Clouds' own: its Stock pack's
         // file (StockVolumetricClouds/raymarchedClouds.cfg sets horizontalResolution
         // 224 and directLightTimeSlicing 12) over the classes' initialisers (256
-        // and 8, LightVolumeSettings). Where another pack's file is the one EVE
-        // builds its quality from, Stock's numbers are not that pack's: its default
-        // is what the installed pack held before ReDefinition first changed it --
+        // and 8, LightVolumeSettings).
+        // Where another pack's file is the one EVE builds its quality from, Stock's numbers are not that pack's.
+        // Its default is then what the installed pack held before ReDefinition first changed it:
         // the backup ReDefinition keeps, else the value EVE holds now, which is the
         // class's where the pack's file sets none.
         public override string Default(RegisteredMod mod, string setting)

@@ -42,7 +42,7 @@ namespace ReDefinition.Hud
         }
 
         // The stage as KSP's delta-v simulation has it (DeltaVStageInfo:
-        // stageBurnTime, enginesActiveInStage), each engine with the propellants
+        // stageBurnTime, enginesActiveInStage). Each engine comes with the propellants
         // it can reach (Part.GetConnectedResourceTotals, each propellant's flow
         // mode), by mass, and its full fuel flow at its thrust limit
         // (ModuleEngines.maxFuelFlow, thrustPercentage).
@@ -140,7 +140,7 @@ namespace ReDefinition.Hud
         }
 
         // How fast the vessel closes on its target, its docking port where it is
-        // one, along the line between them, and how far it is: from the vessel's
+        // one, along the line between them, and how far it is. It measures from the vessel's
         // own port to a target port (ReadoutFrame.DockingFrom), else from its
         // control point.
         private static GaugeReading ClosingReading(ReadoutFrame frame)
@@ -178,10 +178,10 @@ namespace ReDefinition.Hud
         private static double arcPerSecond = double.NaN;
         private static bool warned;
 
-        // What the gauge shows, into the log every ten seconds and at each change
-        // of figure; and the stage's arc against its digits: within a stage the
+        // Writes what the gauge shows into the log every ten seconds and at each change
+        // of figure. It also checks the stage's arc against its digits. Within a stage the
         // arc must stand at the same share per second of burn time as when the
-        // stage began, or the two count different things. One warning per stage,
+        // stage began, or the two count different things. It gives one warning per stage,
         // with the engines as they were counted.
         private static void Watch(GaugeMode shown, GaugeReading reading, Vessel vessel)
         {

@@ -117,9 +117,10 @@ namespace ReDefinition.Window
             }
         }
 
-        // The entry goes directly under KSP's own Settings. In the space centre's
-        // menu that button is an entry of the menu's array, one column
-        // (KSCPauseMenu.draw); in flight's it is in the right of two columns,
+        // The entry goes directly under KSP's own Settings.
+        // In the space centre's menu that button is an entry of the menu's array, one column
+        // (KSCPauseMenu.draw).
+        // In flight's it is in the right of two columns,
         // a vertical layout inside one entry (PauseMenu.draw), and the entry goes
         // into that column. The buttons after Settings move down one place.
         // Without a Settings button the entry goes below the menu's buttons,

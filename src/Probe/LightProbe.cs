@@ -13,12 +13,12 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.Probe
 {
-    // The raytracing's light, driven by the scene probe (-redefinitionProbeLight): at
+    // The raytracing's light, driven by the scene probe (-redefinitionProbeLight). The probe works at
     // the launch pad by day and, after a time warp, by night with the Mun high over
-    // it, screenshots of the vessel from below and of the ground from above with the
-    // raytracing off and on -- by day at the default moonlight, by night the moonlight at
-    // 0, 10, 50 and 150 %, without KSP's night light -- each with the passes' GPU time into KSP.log
-    // ("Probe: light ..."), then the settings put back. By day, the ground's albedo as
+    // it. It takes screenshots of the vessel from below and of the ground from above with the
+    // raytracing off and on. By day it uses the default moonlight. By night it uses the moonlight at
+    // 0, 10, 50 and 150 %, without KSP's night light. Each shot comes with the passes' GPU time in KSP.log
+    // ("Probe: light ..."), and then the settings are put back. By day it also gives the ground's albedo as
     // the G-buffer has it beside the one the rays take (RtTerrainColour).
     // The screenshots land in ReDefinitionCaptures\<time>-light.
     internal static class LightProbe
@@ -64,9 +64,9 @@ namespace ReDefinition.Probe
             new Pose { Name = "above", Pitch = 35f },
         };
 
-        // The ocean's cases (tools/sea_reflection_check.py, its CASES): a body's height over
+        // The ocean's cases (tools/sea_reflection_check.py, its CASES). A case is a body's height over
         // the horizon, and for each the camera's height over the sea and how far it looks
-        // down; one warp to each height, the cases at it one after the other. The camera
+        // down. There is one warp to each height, the cases at it one after the other. The camera
         // looks at the vessel, so from Height / sin(Down) metres out.
         private struct SeaCase
         {
@@ -110,9 +110,9 @@ namespace ReDefinition.Probe
             new BodyHeight { Elevation = 65f, Cases = new[] { new SeaCase { Name = "case08", Height = 2000f, Down = 55f } } },
         };
 
-        // The probe into folder: one of the single runs a switch asks for (Firefly, clouds, frame times, the pad's
-        // smoke, the runway, the ocean), or else the day and night shots, the mirror and the runway; the
-        // raytracing's mode and light set back at the end.
+        // Runs the probe into folder. It runs one of the single runs a switch asks for (Firefly, clouds, frame times,
+        // the pad's smoke, the runway, the ocean), or else the day and night shots, the mirror and the runway.
+        // The raytracing's mode and light are set back at the end.
         internal static IEnumerator Run(string folder)
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -524,9 +524,9 @@ namespace ReDefinition.Probe
             RtCamera.SurfaceView = false;
         }
 
-        // The pad shots of one time of day: by day the buildings first; for each pose the raytracing off, then on
-        // with each moonlight variant, with the G-buffer's specular and the surfaces as PFM beside them, and by
-        // day also the Deferred shine and the surfaces' overlay.
+        // The pad shots of one time of day. By day the buildings come first. For each pose the raytracing is off, then
+        // on with each moonlight variant, with the G-buffer's specular and the surfaces as PFM beside them. By
+        // day the Deferred shine and the surfaces' overlay are also shot.
         private static IEnumerator Shots(ReDefinitionAddon addon, string folder, string time, float heading, bool night)
         {
             RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
@@ -582,14 +582,12 @@ namespace ReDefinition.Probe
             }
         }
 
-        // The light's times over the pad for the clouds: the sun rising and setting at 3 degrees, where the
-        // clouds take its light alone; at dusk with the Mun up, the sun 9, 13 and 17 degrees under the
-        // horizon -- the sunset on the clouds still in it, the Mun's light added per pixel on the others
-        // (EveCloudMoonlight, EveCloudRelight) --; and a night with the Mun high, with the per-pixel light's
+        // The light's times over the pad for the clouds: the sun rising and setting at 3 degrees (the clouds
+        // take its light alone), dusk with the Mun up, and a night with the Mun high. At dusk the sun is 9, 13
+        // and 17 degrees under the horizon, with the sunset on the clouds still in it and the Mun's light added
+        // per pixel on the others (EveCloudMoonlight, EveCloudRelight). The night has the per-pixel light's
         // calibration (CloudCalibration).
-        // Each time with clouds in the sky where they come (WarpUntilCloudy). At each, the clouds in the
-        // sun's light alone ("before") and with the Mun's light on them ("after"), the raytracing on, in the
-        // views CloudShotsAt names.
+        // Each time has clouds in the sky where they come (WarpUntilCloudy). CloudShotsAt takes the shots.
         private static IEnumerator CloudShots(ReDefinitionAddon addon, string folder)
         {
             CelestialBody sun = RtKspMods.StarBody();
@@ -648,14 +646,12 @@ namespace ReDefinition.Probe
         }
 
         // At night, the moon's light added per pixel (EveCloudRelight) against the light the
-        // raymarching itself gives the clouds in the moon's light, on the same clouds: first
-        // the clouds' one light the sun's -- deep down, it lights none of them -- with the
-        // moon's direct light per pixel alone and the sky's light it gives alone read; then the
-        // one light the moon's, EVE's buffer read again. The two gains then make the per-pixel
-        // light as bright and of the same colour as the raymarching's, so that the light handed
-        // over after the dusk does not jump. Then the views of the per-pixel light: where each
-        // pixel's cloud point lies, the moon's direct light alone, its sky's, the clouds with
-        // both, and the raymarching's own moonlight to compare.
+        // raymarching itself gives the clouds in the moon's light, on the same clouds.
+        // First the clouds' one light is the sun's (deep down, it lights none of them), with the
+        // moon's direct light per pixel alone and the sky's light it gives alone read.
+        // Then the one light is the moon's, EVE's buffer read again. The two gains then make the
+        // per-pixel light as bright and of the same colour as the raymarching's, so that the light
+        // handed over after the dusk does not jump.
         private static IEnumerator CloudCalibration(string folder, CelestialBody mun)
         {
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
@@ -729,6 +725,9 @@ namespace ReDefinition.Probe
                       + ", fitted " + Rgb(fitted) + ": gains now " + EveCloudRelight.DirectGain.ToString("0.000", CultureInfo.InvariantCulture)
                       + " and " + EveCloudRelight.SkyGain.ToString("0.000", CultureInfo.InvariantCulture) + ".");
 
+            // The views of the per-pixel light: where each pixel's cloud point lies, the moon's
+            // direct light alone, its sky's, the clouds with both, and the raymarching's own
+            // moonlight to compare.
             EveCloudMoonlight.ProbeHandoff = 0f;
             EveCloudMoonlight.ProbeShare = 1f;
             EveCloudRelight.DebugMode = 1f;
@@ -790,9 +789,9 @@ namespace ReDefinition.Probe
         // The cloud cover (CloudCover) from which the sky counts as cloudy.
         private const float CloudyEnough = 0.15f;
 
-        // How much cloud there is to see from the vessel: EVE's density along rays 8 degrees up
-        // in 16 directions, through the layer's shell, the densest direction's mean; the
-        // direction into `towards` (flat, world). -1 where EVE's layer is not in the rays.
+        // How much cloud there is to see from the vessel. It is EVE's density along rays 8 degrees up
+        // in 16 directions, through the layer's shell, the densest direction's mean. The
+        // direction goes into `towards` (flat, world). It is -1 where EVE's layer is not in the rays.
         private static float CloudCover(out Vector3 towards)
         {
             towards = Vector3.zero;
@@ -890,7 +889,8 @@ namespace ReDefinition.Probe
         }
 
         // The cloud shots at one time of CloudShots, by the light of the body named: logged with the body's and the
-        // sun's elevation, then the views below.
+        // sun's elevation, then the views below. The clouds are shot in the sun's light alone ("before") and with
+        // the Mun's light on them ("after"), the raytracing on.
         private static IEnumerator CloudShotsAt(ReDefinitionAddon addon, string folder, string time, CelestialBody light,
                                                 RaytracingMode on, float moonlight, float nightAmbient)
         {
@@ -944,7 +944,7 @@ namespace ReDefinition.Probe
         }
 
         // The vessel and the ground under it seen from where they would mirror the Mun, 20 m
-        // out: the raytracing off (Deferred's reflection probe), on with the parts'
+        // out. The shots have the raytracing off (Deferred's reflection probe), on with the parts'
         // smoothness as KSP's highlight (RtCommon.hlsli, LegacySmoothness) and on with
         // Deferred's.
         private static IEnumerator MirrorShots(ReDefinitionAddon addon, string folder)
@@ -1003,8 +1003,8 @@ namespace ReDefinition.Probe
             return (float)(90.0 - Vector3d.Angle(up, body.position - vessel.CoMD));
         }
 
-        // Time warp on rails at 10 000 times: once the vessel moves less than 0.2 m/s, as
-        // KSP otherwise warps with physics, at most 4 times; a minute at most for the waves
+        // Time warp on rails at 10 000 times, once the vessel moves less than 0.2 m/s. KSP
+        // otherwise warps with physics, at most 4 times. It waits a minute at most for the waves
         // to let a floating capsule settle.
         private static IEnumerator RailsWarp()
         {
@@ -1171,8 +1171,8 @@ namespace ReDefinition.Probe
         private static readonly int WaterDebugId = Shader.PropertyToID("_ReDefinitionWaterDebug");
 
         // Whether the waves stay on the water as the camera moves
-        // (tools/sea_reflection_check.py --waves): the water's normals with the waves' time
-        // held, before and after the camera moved a tenth further out, once with the sea's
+        // (tools/sea_reflection_check.py --waves). It reads the water's normals with the waves' time
+        // held, before and after the camera moved a tenth further out. It does so once with the sea's
         // frame fixed to the body (RtCamera.Sea) and once with the plane under the camera.
         private static IEnumerator WavesInPlace(string folder, string name)
         {
@@ -1468,10 +1468,10 @@ namespace ReDefinition.Probe
             addon.Apply(before, after);
         }
 
-        // From above: for terrain quads of the main body in view, the albedo the G-buffer
-        // holds at each one's middle (what the terrain shader drew) beside the one the rays
-        // take for it -- its material's colour plus its vertex colours times the factor
-        // (RtTerrainColour) -- in Unity's colour space.
+        // Compares, from above, the albedo the G-buffer holds at the middle of each terrain quad
+        // of the main body in view (what the terrain shader drew) with the one the rays
+        // take for it, in Unity's colour space. The rays take its material's colour plus its
+        // vertex colours times the factor (RtTerrainColour).
         private static IEnumerator GroundAlbedo(ReDefinitionAddon addon, float heading)
         {
             Camera scene = null;

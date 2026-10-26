@@ -31,11 +31,12 @@ namespace redefinition
                                              void** handle);
         using EvaluateFeatureFn = uint32_t (*)(ID3D11DeviceContext* context, const void* handle,
                                                const NgxParameters* parameters, void* progress);
-        // NVSDK_NGX_D3D11_Shutdown, not Shutdown1, as for Ray Reconstruction (DlssRayReconstruction.cpp): with
-        // no nvngx_dlss.dll beside the game, Shutdown1 on the device ended the process with an access
-        // violation right after the capability map said DLSS was not available (driver 617.14, an RTX 4090;
-        // an RTX A4500 the same, RaytracingHarness with the file moved away, 2026-10-25); Shutdown returns.
-        // It shuts NGX down on every Direct3D 11 device, and this is the only one that starts it there.
+        // NVSDK_NGX_D3D11_Shutdown, not Shutdown1, as for Ray Reconstruction (DlssRayReconstruction.cpp).
+        // With no nvngx_dlss.dll beside the game, Shutdown1 on the device ended the process with an
+        // access violation right after the capability map said DLSS was not available. This happened
+        // on driver 617.14 with an RTX 4090, and the same on an RTX A4500 (RaytracingHarness with the
+        // file moved away, 2026-10-25). Shutdown returns. It shuts NGX down on every Direct3D 11
+        // device, and this is the only one that starts it there.
         using ShutdownFn = uint32_t (*)();
 
         // The driver's D3D11 exports the proxy calls.
@@ -419,10 +420,10 @@ namespace redefinition
         }
     }
 
-    // The render size DLSS wants for an output size and quality value, and the
-    // range it accepts (guide 5.2.8): output size and quality in, optimal render
-    // size out; the range in the dynamic keys, the optimal size where a library
-    // has none. DLAA renders at the output size.
+    // The render size DLSS wants for an output size and quality value, and the range it accepts
+    // (guide 5.2.8). Output size and quality go in, and the optimal render size comes out. The range
+    // comes from the dynamic keys, or is the optimal size where a library has none. DLAA renders at
+    // the output size.
     bool Dlss::QueryRenderSize(uint32_t outputWidth, uint32_t outputHeight, int32_t quality, RenderSizeEntry& entry,
                                std::string& error)
     {

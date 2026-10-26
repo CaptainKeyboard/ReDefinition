@@ -6,7 +6,7 @@ namespace ReDefinition.Proxy
 {
     // The proxy's raytracing service (src/DxgiProxy/Raytracing/Raytracing.h), as the managed
     // side reaches it: exports called from the main thread, and packets for the
-    // render events 30 (a frame) and 31 (DLSS Ray Reconstruction); event 32 frees
+    // render events 30 (a frame) and 31 (DLSS Ray Reconstruction). Event 32 frees
     // Ray Reconstruction's resources once it is no longer used, event 33 what the
     // frames made once raytracing is no longer used.
     //
@@ -33,10 +33,10 @@ namespace ReDefinition.Proxy
         internal const uint FrameMagic = 0x4B535246u;       // 'KSRF', in a FramePacket
         internal const uint ReconstructMagic = 0x4B535252u; // 'KSRR', in a ReconstructPacket
 
-        // A frame's flags (FramePacket.Flags, ReconstructPacket.Flags; Raytracing.h, kRtFrame*, says what each does):
-        // same frame (accepted without effect), reset the history, denoise, motion vectors given, Ray
-        // Reconstruction's guides, a further trace (the ocean's), water, the water's normals for the probe, the
-        // G-buffer's smoothness from legacy shaders, the surfaces' intent, and the clouds' shadow alone.
+        // A frame's flags (FramePacket.Flags, ReconstructPacket.Flags). Raytracing.h, kRtFrame*, says what each does.
+        // They are same frame (accepted without effect), reset the history, denoise, motion vectors given, Ray
+        // Reconstruction's guides, a further trace (the ocean's) and water. Then come the water's normals for the
+        // probe, the G-buffer's smoothness from legacy shaders, the surfaces' intent, and the clouds' shadow alone.
         internal const uint FlagSameFrame = 1u << 0;
         internal const uint FlagReset = 1u << 1;
         internal const uint FlagDenoise = 1u << 2;
@@ -135,7 +135,7 @@ namespace ReDefinition.Proxy
             public uint Magic;
             public int Material;
             public uint Flags;
-            // Linear albedo, and in A the alpha below which its texture cuts the surface out (0 for none); the
+            // Linear albedo, and in A the alpha below which its texture cuts the surface out (0 for none). Then the
             // specular colour, the smoothness as Unity's standard shading takes it, the emitted radiance, and the
             // layer of the material textures (KspRtSetMaterialTexture), -1 for none.
             public float AlbedoR, AlbedoG, AlbedoB, AlbedoA;
@@ -318,10 +318,10 @@ namespace ReDefinition.Proxy
             public uint Preset;
             public uint Reserved0;
             public uint Reserved1;
-            // ClipToWorld as the raytraced frame had it, for the guides; the other matrices as Streamline's
-            // constants take them, without the jitter, the view looking down +z; the jitter in pixels and the
-            // motion vectors' scale to Streamline's normalised units; the camera's axes, its planes and its
-            // vertical field of view.
+            // ClipToWorld as the raytraced frame had it, for the guides. The other matrices are as Streamline's
+            // constants take them, without the jitter, the view looking down +z. The jitter is in pixels, and the
+            // motion vectors' scale is to Streamline's normalised units. The rest are the camera's axes, its planes
+            // and its vertical field of view.
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToWorld;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ViewToClip;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 16)] public float[] ClipToView;
@@ -338,9 +338,9 @@ namespace ReDefinition.Proxy
             public float FarPlane;
             public float VerticalFov;
             public float Reserved2;
-            // The textures' native pointers: the noisy frame at the render size, the depth, the motion vectors,
-            // the G-buffer and the reflections for guides where the raytraced frame made none (the mod leaves them
-            // zero), and the output at the output size.
+            // The textures' native pointers: the noisy frame at the render size, the depth and the motion vectors.
+            // Then the G-buffer and the reflections for guides where the raytraced frame made none (the mod leaves
+            // them zero), and the output at the output size.
             public IntPtr Colour;
             public IntPtr Depth;
             public IntPtr Motion;

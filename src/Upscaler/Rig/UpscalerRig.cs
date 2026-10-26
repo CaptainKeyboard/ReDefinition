@@ -15,14 +15,14 @@ namespace ReDefinition.Upscaler
     // KSP stacks several cameras that paint into the same buffer one after the
     // other: GalaxyCamera the starfield, Camera ScaledSpace the distant planets,
     // Camera 00 the near scene, then the FX cameras. A viewport rectangle on one
-    // camera cannot scale that stack (CameraRedirect), so the whole 3D stack
-    // renders into one shared RenderTexture at render resolution, and a presenter
+    // camera cannot scale that stack (CameraRedirect). So the whole 3D stack
+    // renders into one shared RenderTexture at render resolution. A presenter
     // camera behind the stack writes the result into the frame buffer before the
     // UI cameras draw on top.
     //
-    // Here the rig's setup, its frame and its teardown, and FSR 3's dispatch; the
-    // cameras in UpscalerCameras, the textures in UpscalerTextures, depth, motion
-    // vectors and masks in UpscalerInputs; its other parts in UpscalerRig.*.cs: the
+    // Here the rig's setup, its frame and its teardown, and FSR 3's dispatch. The
+    // cameras are in UpscalerCameras, the textures in UpscalerTextures, depth, motion
+    // vectors and masks in UpscalerInputs. Its other parts are in UpscalerRig.*.cs: the
     // HUD-less copy, the upscalers in the proxy, DLSS Ray Reconstruction, the hooks
     // other mods register, the camera and its cuts, the diagnostics and the preview.
     public partial class UpscalerRig : MonoBehaviour
@@ -69,7 +69,7 @@ namespace ReDefinition.Upscaler
 
         // Where the depth copy is taken from. In KSP's deferred path
         // BuiltinRenderTextureType.Depth stays empty and KSP logs "built-in render
-        // texture type 3 not found"; RenderTargetIdentifier has no
+        // texture type 3 not found". RenderTargetIdentifier has no
         // RenderTextureSubElement overload in Unity 2019.4, so the depth
         // sub-element of the camera target is not available either.
         public enum DepthSource
@@ -209,8 +209,8 @@ namespace ReDefinition.Upscaler
         // loading-buffer scene, so the count may rise twice per change.
         private static int sceneLoads;
 
-        // Up to 2: values above FidelityFX's range of 1 stay numerically sound;
-        // above about 1.2 artefacts appear.
+        // The largest sharpness: values above FidelityFX's range of 1 stay numerically sound,
+        // but above about 1.2 artefacts appear.
         internal const float MaximumSharpness = 1.2f;
 
         // The rig in place, or null; set by the add-on as it attaches and
@@ -237,10 +237,10 @@ namespace ReDefinition.Upscaler
             return UpscalerCameras.IsSceneCamera(name);
         }
 
-        // What the frame's state tells other mods (SharedFrame): whether this rig
-        // upscales -- not its bypass, not frame generation's capture alone, not a rig
+        // What the frame's state tells other mods (SharedFrame). First whether this rig
+        // upscales: not its bypass, not frame generation's capture alone, not a rig
         // waiting to be rebuilt, not an upscaler in the proxy while it shows none of
-        // their frames --, whether frame generation receives its frames, the
+        // their frames. Then whether frame generation receives its frames, the
         // jitter the upscaler is told of, and the camera it is built on.
         internal bool UpscalerRuns
         {
@@ -587,10 +587,10 @@ namespace ReDefinition.Upscaler
                       + ((Time.realtimeSinceStartup - started) * 1000f).ToString("0") + " ms.");
         }
 
-        // The mipmap bias for what came after ApplyMipmapBias: the parts of a vessel
+        // The mipmap bias for what came after ApplyMipmapBias. That is the parts of a vessel
         // loaded or of the ship in the editors, taken in the frame after, when they
-        // are in place; and a few seconds after a load that keeps the rig -- the
-        // editors' switch between VAB and SPH -- the whole scene again.
+        // are in place. A few seconds after a load that keeps the rig (the
+        // editors' switch between VAB and SPH) the whole scene is taken again.
         private readonly List<Part> biasParts = new List<Part>();
         private readonly List<Renderer> biasRenderers = new List<Renderer>();
         private int biasPartsFrame = -1;

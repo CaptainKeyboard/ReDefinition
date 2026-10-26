@@ -24,24 +24,6 @@ namespace ReDefinition.Upscaler
         // An instrument: numbers for two open questions of
         // docs/reference/graphics-mod-compatibility.md, logged about every ten seconds
         // while the rig dispatches with the diagnostic measurements on.
-        //
-        // The camera: in ordinary frames -- no cut, no origin shift -- its
-        // largest turn (roll included) and its largest move against the
-        // camera's target, each with the frame time it happened in, so a hitch
-        // cannot pass for a jump. At the cuts that reset the history, the turn and the
-        // jump in world space: across a change of target, a move against the
-        // target compares two different targets and means nothing. This
-        // measures KSP's own camera, which rides on its target; a free camera
-        // such as CameraTools' holds still while the target flies on and would
-        // need a measure of its own.
-        //
-        // The floating origin: KSP re-centres it when the vessel strays too
-        // far, and with Krakensbane engaged it shifts on every physics tick
-        // (FloatingOrigin.FixedUpdate and Krakensbane, decompiled). Counted in
-        // rendered frames that contained a shift, next to the ticks, with the
-        // re-centring offset and the Krakensbane step apart -- and, when the
-        // shifts are rare, the frame numbers, which are the proxy's own: its
-        // check lines read "HUD-less check (frame N ...)".
         private const float MotionReportSeconds = 10f;
         private const int ShiftFramesListed = 20;
         private float motionWindowStart = -1f;
@@ -52,6 +34,15 @@ namespace ReDefinition.Upscaler
         private Vector3 lastRelativePosition;
         private Transform lastSampleTarget;
         private int sampledFrames;
+        // The camera: in ordinary frames (no cut, no origin shift) its
+        // largest turn (roll included) and its largest move against the
+        // camera's target. Each comes with the frame time it happened in, so a hitch
+        // cannot pass for a jump. At the cuts that reset the history, the turn and the
+        // jump in world space: across a change of target, a move against the
+        // target compares two different targets and means nothing. This
+        // measures KSP's own camera, which rides on its target. A free camera
+        // such as CameraTools' holds still while the target flies on and would
+        // need a measure of its own.
         private float largestTurn;
         private float largestTurnDt;
         private float largestMove;
@@ -59,6 +50,13 @@ namespace ReDefinition.Upscaler
         private int detectedCuts;
         private float largestCutTurn;
         private float largestCutJump;
+        // The floating origin: KSP re-centres it when the vessel strays too
+        // far, and with Krakensbane engaged it shifts on every physics tick
+        // (FloatingOrigin.FixedUpdate and Krakensbane, decompiled). It is counted in
+        // rendered frames that contained a shift, next to the ticks, with the
+        // re-centring offset and the Krakensbane step apart. When the
+        // shifts are rare, the frame numbers are listed too. They are the proxy's own: its
+        // check lines read "HUD-less check (frame N ...)".
         private bool shiftedSinceLastSample;
         private int shiftTicks;
         private int framesWithShift;
@@ -127,11 +125,11 @@ namespace ReDefinition.Upscaler
         }
 
         // The Debug switch for the motion vectors in flight: a fast turn asks the proxy
-        // for its motion vector check at once rather than on its ten-second rhythm,
-        // and a line says what the camera did, with its frame number: the check starts
+        // for its motion vector check at once rather than on its ten-second rhythm.
+        // A line says what the camera did, with its frame number. The check starts
         // in this frame or one of the next, and the proxy's check line names the frame
         // it was written in, a few frames later. Also in frames the
-        // floating origin shifted, which in flight is nearly all of them. With frame
+        // floating origin shifted, nearly all of them in flight. With frame
         // generation only: the check reads its inputs. Written from Update, not here in
         // Present, where a log write would show in the frames being checked.
         private void RecordFastTurn(float turn, float dt, bool shifted)

@@ -9,7 +9,7 @@ namespace ReDefinition.Core
         // Whether the switch is on the command line, spelled as given.
         internal static bool Has(string name)
         {
-            return CommandLine.Has(name);
+            return Array.IndexOf(Environment.GetCommandLineArgs(), name) >= 0;
         }
 
         // The word after the switch; null where the switch is not given or is the last word.

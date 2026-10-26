@@ -6,32 +6,20 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Settings.Behaviours
 {
-    // A behaviour a mod brings itself: where `behaviour` holds a type name rather
+    // A behaviour a mod brings itself. Where `behaviour` holds a type name rather
     // than one of ReDefinition's own names (`behaviour = MyMod.SettingsBridge`),
     // that type comes from the mod's own folder and answers for the settings a
-    // member path cannot reach -- what ReDefinition's behaviours do for the mods it
+    // member path cannot reach.
+    // That is what ReDefinition's behaviours do for the mods it
     // ships registrations for (docs/modders/registering-a-mod.md).
     //
     // Its members are found by name and signature, so the mod needs no reference to
-    // ReDefinition and runs without it:
-    //
-    //   string Read(string name)                 needed -- the value as text, null
-    //                                            where it cannot be read now
-    //   void Write(string name, string value)    needed -- bool may be returned:
-    //                                            False is a value the mod refused
-    //   bool Ready                               property, field or method: whether
-    //                                            the mod can take values now
-    //   void Save()                              as the mod's own window saves
-    //   string[] Choices(string name)            a list only the running mod knows
-    //   string Default(string name)              a default only the running game
-    //                                            can tell; null keeps `default`
-    //   string Version                           property, field or method
-    //
-    // Static members are called on the type. For members that are not, a static
-    // Instance -- a property or field of the type itself -- is used where the type
-    // has one, and where it has none the type is made once through its parameterless
-    // constructor. A component of the scene without such an Instance is not reached:
-    // Unity makes those, and the log says so.
+    // ReDefinition and runs without it.
+    // The needed members are `string Read(string name)` and `void Write(string name, string value)`.
+    // The optional ones are `void Save()`, `string[] Choices(string name)`, `string Default(string name)`,
+    // `bool Ready` and `string Version`. Ready and Version may be a property, a field or a method.
+    // Value, Set, Save, Choices, Default, IsReady and Version say what each one does.
+    // Target says on what object the members are called.
     //
     // Every setting of the registration without a `member` goes through it; one with
     // a `member` keeps its path. Key bindings are not taken over: a binding without a
@@ -43,8 +31,8 @@ namespace ReDefinition.Settings.Behaviours
         private const BindingFlags Any = TypeLookup.Any;
         private const BindingFlags StaticAny = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
-        // The type as the registration names it and as found; its Read and Write, and the optional members of
-        // the table above as found -- null where the type has none of that shape -- and its static Instance.
+        // The type as the registration names it and as found; its Read and Write, and the optional members the
+        // class comment names as found (null where the type has none of that shape); and its static Instance.
         private readonly string typeName;
         private readonly Type type;
         private readonly MethodInfo read;
@@ -109,6 +97,7 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // The type's Version, where it has one and it answers.
+        // Version is a property, a field or a method.
         public override string Version(RegisteredMod mod)
         {
             if (version == null) return null;
@@ -168,6 +157,7 @@ namespace ReDefinition.Settings.Behaviours
         // Before the `save` a registration names. Not while the mod cannot take
         // values: what waits for it would count as saved; the store tries again at
         // the next scene change.
+        // The type's Save does what the mod's own window does to save.
         public override void Save(RegisteredMod mod)
         {
             if (save == null) return;
@@ -181,6 +171,7 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // The type's Read for the setting; null where its object is not there.
+        // Read answers the value as text, null where it cannot be read now.
         private string Value(string name)
         {
             object target;
@@ -188,6 +179,7 @@ namespace ReDefinition.Settings.Behaviours
             return read.Invoke(target, new object[] { name }) as string;
         }
 
+        // The type's Write may return a bool.
         // A Write that answers False has refused the value: the store says so and
         // keeps the value, as for a member path that throws.
         private void Set(string name, string text)
@@ -218,6 +210,7 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // The type's Default for the setting, where it has one; null keeps the registration's.
+        // Default is for a default only the running game can tell.
         public override string Default(RegisteredMod mod, string setting)
         {
             object target;
@@ -226,6 +219,7 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // The type's Choices for the setting; null where its object is not there or it has no answer yet.
+        // Choices is for a list only the running mod knows.
         private string[] Choices(string name)
         {
             object target;
@@ -235,6 +229,7 @@ namespace ReDefinition.Settings.Behaviours
 
         // Whether the mod can take values now. A Ready that throws counts as not
         // ready: this is asked while the window draws.
+        // Ready is a property, a field or a method.
         private bool IsReady()
         {
             if (ready == null) return true;
@@ -256,6 +251,11 @@ namespace ReDefinition.Settings.Behaviours
         // The object a member that is not static is called on: the type's own
         // Instance where it has one -- null while the mod has not made it yet -- or
         // one made here.
+        // Static members are called on the type. For members that are not, a static
+        // Instance, a property or field of the type itself, is used where the type
+        // has one, and where it has none the type is made once through its parameterless
+        // constructor. A component of the scene without such an Instance is not reached:
+        // Unity makes those, and the log says so.
         private bool Target(bool isStatic, out object target)
         {
             target = null;

@@ -1,14 +1,14 @@
-"""Measures frame generation on the test player's camera turn: each frame it generated
-between two frames of the turn against the reference of the pose halfway between them,
-beside what a reset would show there instead, a copy of the newer frame.
-
-    python tools/measure_fg_turn.py <recording client folder> <turn folder> <first turn frame>
+"""Measures frame generation on the test player's camera turn. It takes each frame it generated
+between two frames of the turn against the reference of the pose halfway between them. It
+also gives what a reset would show there instead, a copy of the newer frame.
 
 The recording is replay_fg.ps1's, of a dump turn_to_fg_dump.py wrote from <turn folder>
-starting at <first turn frame>; replay_measure.py has named its frames real-<n> and
-generated. The references are the turn's mid_<index> frames, encoded as the dump encodes
-the colour and at the replay's half size. Errors are mean absolute differences of 8-bit
-grey values, over the frame and over its outer tenth on each side.
+starting at <first turn frame>. The script replay_measure.py has named its frames real-<n>
+and generated. The references are the turn's mid_<index> frames, encoded as the dump
+encodes the colour and at the replay's half size. Errors are mean absolute differences of
+8-bit grey values, over the frame and over its outer tenth on each side.
+
+Usage: python tools/measure_fg_turn.py <recording client folder> <turn folder> <first turn frame>
 """
 
 import glob

@@ -30,21 +30,22 @@ namespace ReDefinition.Core
         Fallback,
     }
 
-    // One thing ReDefinition takes for granted about another mod's code -- what it
-    // names and what it reads out of it -- and how far that is checked:
+    // One thing ReDefinition takes for granted about another mod's code, what it
+    // names and what it reads out of it, and how far that is checked.
     //
-    // - Types, methods and fields by name, with the parameter types the code that
-    //   calls them passes: missing, the assumption is Broken.
-    // - String literals the mod's code must still load -- shader property and
-    //   global names it sets, which ReDefinition reads or sets as well: missing, it
-    //   is Broken, for a renamed one would read or set nothing, unseen.
-    // - The methods whose behaviour it rests on beyond their names, from their
-    //   source or decompiled: fingerprinted (ForeignCode), and compared with the
-    //   fingerprints it was checked against. Another one is Changed, and
-    //   WhenChanged decides. Where only a version can tell -- what a mod's shaders
-    //   do --, the versions it was checked against.
+    // Types, methods and fields are checked by name, with the parameter types the code that
+    // calls them passes. If one is missing, the assumption is Broken.
     //
-    // Evaluated once, on first use, from the loaded assemblies -- KSP loads every
+    // String literals the mod's code must still load are checked too: shader property and
+    // global names it sets, which ReDefinition reads or sets as well. If one is missing, the
+    // assumption is Broken, for a renamed one would read or set nothing, unseen.
+    //
+    // The methods whose behaviour it rests on beyond their names are fingerprinted from their
+    // source or decompiled (ForeignCode), and compared with the fingerprints it was checked
+    // against. Another fingerprint makes it Changed, and WhenChanged decides. Where only a
+    // version can tell, such as what a mod's shaders do, the versions it was checked against count.
+    //
+    // Evaluated once, on first use, from the loaded assemblies. KSP loads every
     // plugin before the first addon starts. Free of Unity: the catalogue
     // (ForeignAssumptions) is checked outside the game too.
     internal sealed class ForeignAssumption

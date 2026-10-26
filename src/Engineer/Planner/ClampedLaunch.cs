@@ -11,14 +11,14 @@ namespace ReDefinition.Engineer
     // on the pad would burn their tanks alone before the boosters that fire with the
     // clamps. Here the held stages (the core) and the releasing stage (the boosters)
     // lift off together, at their summed thrust and flow, until one of them is
-    // empty; the other burns on alone, after the boosters are dropped where the core
+    // empty. The other burns on alone, after the boosters are dropped where the core
     // stays on longer. Free of Unity, tested.
     internal static class ClampedLaunch
     {
         // `rows` in firing order, the highest number first. The rows as they burn:
         // the lift-off, numbered as the last held stage, and what burns on after it,
-        // numbered as the releasing stage, so that the order by number stays the order
-        // they burn in; `labels` names them ("S4+3", then "S4" or "S3").
+        // numbered as the releasing stage. So the order by number stays the order
+        // they burn in. The argument `labels` names them ("S4+3", then "S4" or "S3").
         // `gravity`: at the launch body's surface, in m/s²; `launchBody`: its name, for the
         // thrust in its air (StageRow.ThrustAtSurface), null for vacuum.
         internal static List<StageRow> Parallel(List<StageRow> rows, IList<PartFacts> parts, Dictionary<int, string> labels,

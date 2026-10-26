@@ -12,40 +12,31 @@ namespace ReDefinition.Scaling
     // a window is registered with and draws the window with it later
     // (GUI.BeginWindows keeps the matrix around the native calls; decompiled), and
     // maps the pointer back through it. So a prefix on every GUI.Window,
-    // GUI.ModalWindow and GUILayout.Window (all take the id, the rect and the window
-    // function first) sets a matrix that scales about the window's top left corner
-    // as it was first drawn, shifted back onto the screen where the grown window
-    // would leave it, and a postfix puts the one before back; a finalizer does so
-    // where the call throws. The point scaled about stays put while the window is
-    // dragged: GUI.DragWindow moves the rect by the pointer's travel mapped back
-    // through the matrix, 1/scale of it, and a matrix that followed the corner
-    // would leave the window behind the pointer (above 1) or ahead of it (below).
-    // A dragged window comes back in the rect the last call returned; one passed in
-    // anywhere else was placed by its mod's code (centred, clamped, a saved place
-    // loaded), and is scaled about its new corner, so that it stands where it was
-    // put and does not drift by (scale - 1) times the way it was moved.
+    // GUI.ModalWindow and GUILayout.Window overload sets a matrix that scales about
+    // the window's top left corner as it was first drawn. All overloads take the id,
+    // the rect and the window function first (Hookable).
+    // The matrix shifts the window back onto the screen where the grown window would leave it.
+    // A postfix puts the matrix before back, and a finalizer does so where the call throws.
+    // AnchorOf explains why the point scaled about stays put.
     //
-    // Left as they are: a window drawn while GUI.matrix is not the identity; those
-    // of Unity and KSP and ReDefinition's own; and those of mods that scale their
-    // windows themselves -- with a matrix that is the identity at their own scale of
-    // 1 (MechJeb, Kerbal Alarm Clock, RCSBuildAid, Janitor's Closet, CameraTools),
-    // or by UI_SCALE in their size or text (Kopernicus, KSPCommunityFixes,
-    // RemoteTech, KSP Craft Organizer); their sources read. The prefix runs first
-    // and the postfix last among the patches of these methods, so that
-    // ClickThroughBlocker's postfix, and ReDefinition's own (ModWindowClose, on
-    // GUI.DoWindow within), see the window where it is drawn. Where each scaled
-    // window is on the screen is kept for ReDefinition's click shield
-    // (UnityMouseEvents): mods that keep clicks from going through test the rect
-    // they passed in, which covers only the unscaled part. 4kSP's window scaler,
-    // which does the same, is kept from installing (OtherScalers).
+    // A window drawn while GUI.matrix is not the identity stays as it is.
+    // So do the windows of Unity, KSP, ReDefinition and the mods in ScaleThemselves.
+    // ModWindowScale.First and ModWindowScale.Last put the patches in order.
+    // ModWindowScale.drawn keeps where each scaled window is for ReDefinition's click shield (UnityMouseEvents).
+    // 4kSP's window scaler, which does the same, is kept from installing (OtherScalers).
     internal static class ModWindowScale
     {
         // The Harmony id, and the priorities that put the prefix first and the postfix last among the patches.
+        // So ClickThroughBlocker's postfix and ReDefinition's own (ModWindowClose, on GUI.DoWindow within)
+        // see the window where it is drawn.
         private const string HarmonyId = "ReDefinition.ModWindowScale";
         private const int First = 800;
         private const int Last = 0;
 
         // The assemblies of mods that scale their windows themselves, and ReDefinition's own.
+        // MechJeb, Kerbal Alarm Clock, RCSBuildAid, Janitor's Closet and CameraTools use a matrix that is the identity
+        // at their own scale of 1. Kopernicus, KSPCommunityFixes, RemoteTech and KSP Craft Organizer use UI_SCALE in
+        // their size or text. Their sources were read.
         private static readonly HashSet<string> ScaleThemselves = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "MechJeb2", "KerbalAlarmClock", "RCSBuildAid", "RCSBuildAidToolbar", "JanitorsCloset", "CameraTools",
@@ -60,8 +51,10 @@ namespace ReDefinition.Scaling
             public int Frame;
             // The point the window is scaled about.
             public Vector2 Anchor;
-            // Where the last call returned the window, in its own coordinates; a rect
-            // passed in elsewhere was placed by code (AnchorOf).
+            // Where the last call returned the window, in its own coordinates.
+            // A rect passed in elsewhere was placed by its mod's code (centred, clamped, a saved place loaded).
+            // It is scaled about its new corner, so that it stands where it was put
+            // and does not drift by (scale - 1) times the way it was moved (AnchorOf).
             public Vector2 Returned;
             public bool HasReturned;
             // Drawn without a background (Kerbal Engineer's HUD read-outs): no window to
@@ -74,6 +67,8 @@ namespace ReDefinition.Scaling
         // By window id: where a scaled window was last drawn, in the screen's pixels,
         // and the point it is scaled about. Windows not drawn for a while are dropped
         // now and then: a mod may draw each window under a new id.
+        // The click shield reads the areas: mods that keep clicks from going through test the rect they passed in,
+        // which covers only the unscaled part.
         private static readonly Dictionary<int, Drawn> drawn = new Dictionary<int, Drawn>();
         private const int PruneEvery = 300;
         private static int prunedFrame;
@@ -222,6 +217,9 @@ namespace ReDefinition.Scaling
         // The point window id is scaled about: its top left corner when first drawn,
         // or when its code last put it somewhere other than where the call before
         // returned it.
+        // The point stays put while the window is dragged: GUI.DragWindow moves the rect by the pointer's travel
+        // mapped back through the matrix, 1/scale of it. A matrix that followed the corner would leave the window
+        // behind the pointer (above 1) or ahead of it (below).
         private static Vector2 AnchorOf(int id, Rect rect)
         {
             Prune(drawn);

@@ -2,13 +2,13 @@ using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // The arithmetic of RenderInterpolation, apart from KSP so the tests can run it:
-    // from where the physics steps left a body, the offset that draws it where it was
-    // between its last two steps at this frame's time, as Unity's own interpolation
-    // does -- lerp(previous, current, alpha), alpha the part of a step since the latest
+    // The arithmetic of RenderInterpolation, apart from KSP so the tests can run it.
+    // From where the physics steps left a body, it gives the offset that draws it where it was
+    // between its last two steps at this frame's time. That is Unity's own interpolation:
+    // lerp(previous, current, alpha), alpha the part of a step since the latest
     // one began. A step moves the state from fixedTime to fixedTime + fixedDelta, so a
     // body in steady motion is drawn exactly where it is at the frame's time less one
-    // step, and every frame moves it on, a frame without a step of its own included.
+    // step. Every frame moves it on, a frame without a step of its own included.
     internal sealed class StepInterpolator
     {
         // Where the latest step left the body and where the one before it did, Unity's fixedTime at the last

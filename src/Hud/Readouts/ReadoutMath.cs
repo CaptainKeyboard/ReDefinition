@@ -13,10 +13,10 @@ namespace ReDefinition.Hud.Readouts
 
         // The phase angle, in degrees from 0 to 360, at which a transfer from a
         // circular orbit of radius `from` to one of radius `to` about the same body
-        // meets its target: the target must lead by 180 degrees less what it covers
-        // during the half ellipse's flight, pi * sqrt(((from + to) / 2)^3 / mu),
-        // against its period, 2 pi * sqrt(to^3 / mu) (Hohmann). Negative for a
-        // target lower down means it must trail; given here from 0 to 360.
+        // meets its target. The target must lead by 180 degrees less what it covers
+        // during the half ellipse's flight, pi * sqrt(((from + to) / 2)^3 / mu).
+        // It covers that against its period, 2 pi * sqrt(to^3 / mu) (Hohmann). Negative for a
+        // target lower down means it must trail. It is given here from 0 to 360.
         internal static double TransferAngle(double from, double to)
         {
             if (from <= 0.0 || to <= 0.0) return double.NaN;
@@ -45,20 +45,21 @@ namespace ReDefinition.Hud.Readouts
 
         // The last moment to light the engines to stop over the ground, falling
         // straight down: `height` metres over it at `fall` metres a second towards
-        // it, with `acceleration` the engines give at full thrust and `gravity`
-        // pulling down all the way. Until the burn the vessel coasts and gravity
-        // speeds it up, v^2 = fall^2 + 2 gravity (height - h); the burn then stops
-        // it over h = v^2 / (2 (acceleration - gravity)). Both together light it at
-        // h = (fall^2 + 2 gravity height) / (2 acceleration), at the speed
-        // v = sqrt(2 (acceleration - gravity) h), after the coast's height over
-        // its mean speed, 2 (height - h) / (fall + v); negative where that moment
-        // has passed. The burn costs acceleration times its v / (acceleration -
-        // gravity) seconds. NaN for all three where the engines cannot beat
-        // gravity. On the Mun from 5 km at 50 m/s, with 5 m/s^2 against 1.63: light
-        // at 1880 m in 38.4 s, at 113 m/s.
+        // it. The engines give `acceleration` at full thrust, and `gravity`
+        // pulls down all the way. It gives the height to light at, the seconds until
+        // then (negative where that moment has passed) and the delta-v of the burn.
+        // NaN for all three where the engines cannot beat gravity. On the Mun from
+        // 5 km at 50 m/s, with 5 m/s^2 against 1.63: light at 1880 m in 38.4 s, at 113 m/s.
         internal static void SuicideBurn(double height, double fall, double acceleration, double gravity, out double burnHeight,
                                          out double countdown, out double deltaV)
         {
+            // Until the burn the vessel coasts and gravity speeds it up,
+            // v^2 = fall^2 + 2 gravity (height - h). The burn then stops it over
+            // h = v^2 / (2 (acceleration - gravity)). Both together light it at
+            // h = (fall^2 + 2 gravity height) / (2 acceleration), at the speed
+            // v = sqrt(2 (acceleration - gravity) h), after the coast's height over
+            // its mean speed, 2 (height - h) / (fall + v). The burn costs acceleration
+            // times its v / (acceleration - gravity) seconds.
             double net = acceleration - gravity;
             if (net <= 0.0 || fall < 0.0 || height < 0.0)
             {
@@ -140,10 +141,10 @@ namespace ReDefinition.Hud.Readouts
             return sign + secs + "s";
         }
 
-        // A docking port not docked, not attached in the editor and not disabled,
-        // by its state's name (ModuleDockingNode's KFSM states: Ready, Acquire,
-        // Acquire (dockee), Disengage are free; Docked (docker), Docked (dockee),
-        // Docked (same vessel), PreAttached, Disabled are not; decompiled).
+        // Whether a docking port is free: not docked, not attached in the editor and not disabled,
+        // by its state's name. ModuleDockingNode's KFSM states Ready, Acquire,
+        // Acquire (dockee) and Disengage are free. Docked (docker), Docked (dockee),
+        // Docked (same vessel), PreAttached and Disabled are not (decompiled).
         internal static bool PortFree(string state)
         {
             if (string.IsNullOrEmpty(state)) return false;

@@ -10,15 +10,15 @@ namespace ReDefinition.Ui
     // and sets the scroll position to the top only as it is made and resized.
     // KSP's DialogGUIContentSizer, which would size that content, turns its
     // ContentSizeFitter on only while the page is taller than the view and off
-    // again once one fits, leaving the content at the height it last had: a
-    // shorter page after a taller one slides down, and at first rows of more than
-    // one line are squeezed onto each other. Here a
-    // fitter of the list's own keeps the content at its page's height, always,
-    // and the content hangs from the top -- Unity's ScrollRect places content
-    // smaller than its view by the content's pivot (ScrollRect.AdjustBounds). A
-    // new tab starts at the top once its page has been laid out (a few frames:
-    // the page switches in DialogGUIBase.Update, its size follows in the layout
-    // pass after).
+    // again once one fits, leaving the content at the height it last had.
+    // So a shorter page after a taller one slides down, and at first rows of more than
+    // one line are squeezed onto each other.
+    // Here a fitter of the list's own keeps the content at its page's height, always,
+    // and the content hangs from the top.
+    // Unity's ScrollRect places content smaller than its view by the content's pivot (ScrollRect.AdjustBounds).
+    // A new tab starts at the top once its page has been laid out: a few frames,
+    // since the page switches in DialogGUIBase.Update and its size follows in the layout
+    // pass after.
     internal sealed class TabScrollList : DialogGUIScrollList
     {
         // For how many frames a new tab is put back to the top, and how many of them are left.

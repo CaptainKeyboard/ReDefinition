@@ -9,22 +9,16 @@ namespace ReDefinition.Upscaler
     //
     // Camera ScaledSpace draws the planets seen from afar, their atmospheres and
     // the clouds on them; Camera 00 draws the near scene over it. The rig's motion
-    // vectors are Camera 00's, and where it draws nothing -- depth at the far
-    // plane -- Unity fills them with its camera motion at infinity: the camera's
+    // vectors are Camera 00's. Where it draws nothing (depth at the far
+    // plane) Unity fills them with its camera motion at infinity: the camera's
     // turn, nothing of the planet's rotation or of the vessel travelling along its
     // orbit. A planet that moves across the screen, fast under time warp, is then
     // reprojected as if it stood still, and trails.
     //
-    // KSP places and turns every scaled body in LateUpdate (ScaledMovement:
-    // position from ScaledSpace.LocalToScaledSpace, rotation from the body's), and
-    // hides a faded one by disabling its renderer (ScaledSpaceFader, decompiled).
     // As the scene camera culls, after LateUpdate, the bodies in view are taken
-    // with their transforms and the scaled camera's view and projection. A pass of
-    // the cloud motion shader then follows the scaled camera's ray through every
-    // pixel Camera 00 left empty to the nearest body it meets, on the surface or,
-    // passing it, in the atmosphere around it, moves that point back by the body's
-    // change of transform since the frame before, and writes the difference of the
-    // two projections in Unity's encoding. EVE's clouds are blended over the
+    // with their transforms and the scaled camera's view and projection (Sample).
+    // A pass of the cloud motion shader then writes the planets' motion (Merge).
+    // EVE's clouds are blended over the
     // result (CloudMotionVectors). The scaled camera itself is left as it is.
     //
     // What a shader moves -- EVE's two-dimensional cloud layers drifting over the
@@ -55,9 +49,9 @@ namespace ReDefinition.Upscaler
         // A body in view of the scaled camera, as Sample takes it this frame.
         private struct Body
         {
-            // Its outer radius over its distance, to keep the largest on screen; its centre and radius in scaled
-            // space; its atmosphere's radius, 0 with the camera inside it; and the change of its transform that
-            // moves a point back to where it stood the frame before.
+            // Its outer radius over its distance, to keep the largest on screen. Then its centre and radius in
+            // scaled space; its atmosphere's radius, 0 with the camera inside it; and the change of its transform
+            // that moves a point back to where it stood the frame before.
             internal float AngularSize;
             internal Vector4 Sphere;
             internal float Outer;
@@ -116,7 +110,12 @@ namespace ReDefinition.Upscaler
         }
 
         // In the scene camera's capture: its motion vectors into a copy, and the
-        // distant planets' over them where it drew nothing.
+        // distant planets' over them where it drew nothing. A pass of
+        // the cloud motion shader follows the scaled camera's ray through every
+        // pixel Camera 00 left empty to the nearest body it meets, on the surface or,
+        // passing it, in the atmosphere around it. It moves that point back by the body's
+        // change of transform since the frame before, and writes the difference of the
+        // two projections in Unity's encoding.
         internal void Merge(CommandBuffer capture, RenderTexture depth, Vector2Int size)
         {
             capture.Blit(BuiltinRenderTextureType.MotionVectors, scene);
@@ -128,7 +127,9 @@ namespace ReDefinition.Upscaler
 
         // As the scene camera culls, once a frame: the bodies in view and the
         // scaled camera, as this frame draws them. Globals, read by the capture at
-        // the scene camera's BeforeImageEffects.
+        // the scene camera's BeforeImageEffects. KSP places and turns every scaled body in LateUpdate
+        // (ScaledMovement: position from ScaledSpace.LocalToScaledSpace, rotation from the body's), and
+        // hides a faded one by disabling its renderer (ScaledSpaceFader, decompiled).
         internal void Sample()
         {
             if (!Active || camera == null || updatedFrame == Time.frameCount) return;

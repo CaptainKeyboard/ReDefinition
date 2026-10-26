@@ -72,10 +72,11 @@ namespace ReDefinition.Window
             });
         }
 
-        // A mod that opens one thing on either modifier with either key -- Scatterer's
-        // window: its row and the combination crossed with the other row's modifier
-        // both count, the crossed one marking the row, and the mod's own rows are no
-        // conflict with each other (they open the same window).
+        // A mod that opens one thing on either modifier with either key, such as Scatterer's
+        // window.
+        // Its row and the combination crossed with the other row's modifier
+        // both count, the crossed one marking the row.
+        // The mod's own rows are no conflict with each other (they open the same window).
         internal static void RegisterCrossed(string key, string apart, Func<string> crossed, int situations)
         {
             foreach (Entry own in entries)
@@ -148,9 +149,10 @@ namespace ReDefinition.Window
         }
 
         // Which of the bindings given share a combination with another that counts
-        // in the same situation. shipped holds KSP's default of each of its own
-        // bindings, null for the others; two with the same `apart` are never
-        // compared (null: none are kept apart). Without the game, for the tests.
+        // in the same situation.
+        // shipped holds KSP's default of each of its own bindings, null for the others.
+        // Two with the same `apart` are never compared (null: none are kept apart).
+        // Without the game, for the tests.
         internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> situations,
                                              IList<int> modes, IList<string> shipped, IList<string> apart)
         {

@@ -1,12 +1,14 @@
-# Checks the key bindings outside the game: KeyCombination from the built DLL on
-# the texts the mods and KSP write, the shipped registrations' KEY blocks, and
-# KSP's own bindings read from GameSettings.
-#
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\check_key_bindings.ps1
+# Checks the key bindings outside the game. It runs KeyCombination from the built
+# DLL on the texts the mods and KSP write, reads the shipped registrations' KEY
+# blocks, and reads KSP's own bindings from GameSettings.
 #
 # Runs in Windows PowerShell 5.1 and in PowerShell 7. The KSP folder is taken
 # from the KspRoot environment variable, as in Directory.Build.props, and
 # defaults to the Steam location.
+#
+# Usage:
+#
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_key_bindings.ps1
 
 . ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
 

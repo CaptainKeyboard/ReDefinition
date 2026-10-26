@@ -12,16 +12,12 @@ namespace ReDefinition.Ui
     //
     // Where the window would not fit within the margin KSP keeps dialogs from the
     // edge (PopupDialog.SpawnPopupDialog's ClampToScreen, 30), it is drawn smaller
-    // about its own middle -- the window, not the dialog's root, which stands at the
-    // canvas's middle, so that a window dragged aside stays where it was --, as large
-    // as fits: at the UI scale as far as
-    // the screen allows. Measured in the canvas's own units, window against canvas, so that
-    // the canvas's scale factor drops out. Looked at again each frame -- only
-    // sizes compared -- since both can change while it is open: the UI scale
-    // applied from the settings window itself, a tab of another height.
-    // Dragging is untouched: DragPanel moves the dialog by the pointer's travel in
-    // the world (UIMasterController.DragTooltip, decompiled), which this scale
-    // does not enter.
+    // about its own middle.
+    // It is as large as fits: at the UI scale as far as the screen allows.
+    // The window is scaled, not the dialog's root, which stands at the
+    // canvas's middle, so that a window dragged aside stays where it was.
+    // It is measured in the canvas's own units, window against canvas, so that
+    // the canvas's scale factor drops out.
     internal sealed class ScreenFit : MonoBehaviour
     {
         // The room KSP keeps between a dialog and the screen's edge, in canvas units.
@@ -46,12 +42,17 @@ namespace ReDefinition.Ui
         }
 
         // Fitted again each frame, where a size has changed.
+        // It is looked at again each frame, only sizes compared, since both can change while it is open:
+        // the UI scale applied from the settings window itself, a tab of another height.
         private void LateUpdate()
         {
             Fit();
         }
 
         // Scales the window about its middle to fit within the canvas less the margins, never above 1.
+        // Dragging is untouched: DragPanel moves the dialog by the pointer's travel in
+        // the world (UIMasterController.DragTooltip, decompiled), which this scale
+        // does not enter.
         private void Fit()
         {
             if (canvas == null || window == null) return;

@@ -10,15 +10,16 @@ namespace ReDefinition.Settings
     // What a mod needs of a setting, enforced whatever profile is chosen
     // (docs/reference/requirements.md): the last layer over the defaults, a
     // profile and the window alike. Each rule is a mod's REQUIRES
-    // (docs/modders/registering-a-mod.md), in force while that mod -- and the one its
-    // `whenInstalled` names -- is loaded: the mod errors or warns about the setting
-    // whether or not ReDefinition bundles it. Enforced only with the bundling on --
-    // but for a rule whose check holds only while something runs
-    // (ModBehaviour.HeldAtRunTime), which holds what runs and leaves the
-    // setting's own value as the player set it, with the bundling on or off. A mod
-    // that enforces a setting itself -- Firefly, Deferred, Kopernicus -- is left to it;
-    // its registration or behaviour leaves out or limits the row. Several mods may
-    // require the same setting: a value passes only what all of them allow.
+    // (docs/modders/registering-a-mod.md), in force while that mod and the one its
+    // `whenInstalled` names are loaded.
+    // The mod errors or warns about the setting whether or not ReDefinition bundles it.
+    // A rule is enforced only with the bundling on.
+    // The exception is a rule whose check holds only while something runs
+    // (ModBehaviour.HeldAtRunTime). It holds what runs and leaves the
+    // setting's own value as the player set it, with the bundling on or off.
+    // A mod that enforces a setting itself, such as Firefly, Deferred or Kopernicus, is left to it.
+    // Its registration or behaviour leaves out or limits the row.
+    // Several mods may require the same setting: a value passes only what all of them allow.
     internal static class Requirements
     {
         // One REQUIRES of a registration, on the setting of Key.
@@ -52,9 +53,10 @@ namespace ReDefinition.Settings
 
         // The rules in force, by key: worked out once the mods are built -- neither
         // the mods nor their builds change in a run, and the window asks in every
-        // frame. Whether the bundling is on is asked where it matters: Enforce acts
-        // only with it on, while a profile's values and a row's lock are worked out
-        // as with it on -- the window switches it on in the same Apply as it
+        // frame.
+        // Whether the bundling is on is asked where it matters.
+        // Enforce acts only with it on, while a profile's values and a row's lock are worked out
+        // as with it on: the window switches it on in the same Apply as it
         // sets them.
         private static Dictionary<string, List<Rule>> active;
 
@@ -175,11 +177,12 @@ namespace ReDefinition.Settings
         }
 
         // At every scene load and when KSP's own settings are applied, with the
-        // bundling on: a value set outside this mod -- KSP's settings screen, a
-        // mod's own window -- that a rule forbids is put right, saved as any
-        // change is, and said once per run. A per-save value in the save loaded
-        // now only, unless a choice for every save is kept (BundledSettings.
-        // Correct).
+        // bundling on.
+        // A value set outside this mod, in KSP's settings screen or a
+        // mod's own window, that a rule forbids is put right, saved as any
+        // change is, and said once per run.
+        // A per-save value is put right in the save loaded now only, unless a choice for every save is kept
+        // (BundledSettings.Correct).
         internal static void Enforce(string when)
         {
             if (enforcing) return;

@@ -50,7 +50,8 @@ namespace ReDefinition.Window
         }
 
         // While a row listens, and for the rest of the frame the combination was
-        // taken in: the keys of that combination are down in that frame, and a
+        // taken in.
+        // The keys of that combination are down in that frame, and a
         // hotkey or a mod reading them would fire on the binding being set.
         internal static bool Busy
         {

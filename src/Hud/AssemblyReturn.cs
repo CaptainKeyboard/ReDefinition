@@ -14,21 +14,16 @@ namespace ReDefinition.Hud
     // draws, and looks like the space centre's own button for it (WorldButton,
     // KscButtons).
     //
-    // Where KSP's pause menu offers a revert to the editor -- the game allows it
-    // (Flight.CanLeaveToEditor), the state before the launch is still kept
-    // (FlightDriver.CanRevertToPrelaunch) and the ship came from an editor
-    // (ShipConstruction.ShipConfig) -- the symbol stands over the building it was
-    // built in (ShipConstruction.ShipType) and reverts to it, in KSP's words
-    // ("Revert to Vehicle Assembly", "Revert to Spaceplane Hangar"). Otherwise it
-    // stands over the building for where the vessel stands -- the runway's
-    // hangar, else the assembly building -- and recovers the vessel as KSP's
-    // recover button does (OnVesselRecoveryRequested: saved, the space centre
+    // Where KSP's pause menu offers a revert to the editor (CanRevert), the symbol
+    // stands over the building the ship was built in (ShipConstruction.ShipType).
+    // It reverts to it, in KSP's words ("Revert to Vehicle Assembly", "Revert to
+    // Spaceplane Hangar"). Otherwise it stands over the building for where the vessel
+    // stands, the runway's hangar, else the assembly building. It recovers the vessel
+    // as KSP's recover button does (OnVesselRecoveryRequested: saved, the space centre
     // loaded, the vessel recovered there; VesselRetrieval), then opens that
-    // editor with the vessel (AssemblyAfterRecovery): the ship as it was launched
-    // where that is the same ship, else its craft file by its name, else an empty
-    // editor. It shows only where one of the two can be done: the vessel landed,
-    // within 3 km of the building, in flight view, on the body the space centre is
-    // on.
+    // editor with the vessel (AssemblyAfterRecovery). The editor gets the ship as it
+    // was launched where that is the same ship, else its craft file by its name, else
+    // it is empty. The symbol shows only where one of the two can be done (Wanted).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class AssemblyReturn : MonoBehaviour
     {
@@ -131,7 +126,9 @@ namespace ReDefinition.Hud
         }
 
         // Where the symbol stands now, and whether it reverts; false where it is
-        // not to be shown.
+        // not to be shown. It shows only where one of the two can be done: the vessel
+        // landed, within 3 km of the building, in flight view, on the body the space
+        // centre is on.
         private bool Wanted(out Building building, out bool revert)
         {
             building = null;
@@ -170,6 +167,9 @@ namespace ReDefinition.Hud
         }
 
         // Whether KSP's pause menu would offer a revert to the editor the ship was built in.
+        // That is so when the game allows it (Flight.CanLeaveToEditor), the state before the
+        // launch is still kept (FlightDriver.CanRevertToPrelaunch) and the ship came from an
+        // editor (ShipConstruction.ShipConfig).
         private static bool CanRevert()
         {
             return HighLogic.CurrentGame != null && HighLogic.CurrentGame.Parameters.Flight.CanLeaveToEditor

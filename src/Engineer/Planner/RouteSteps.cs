@@ -4,7 +4,7 @@ using System;
 namespace ReDefinition.Engineer
 {
     // The steps on the way from one destination to the next, each to a place of its
-    // own: up from the surface into an orbit, across to the next body's orbit or
+    // own. They go up from the surface into an orbit, across to the next body's orbit or
     // straight into its air (or from one orbit to another around the same body), and
     // down onto the surface. Where the player splits the way across, Transfer is the
     // burn that leaves and Arrive the burns after it.
@@ -153,19 +153,14 @@ namespace ReDefinition.Engineer
     // The steps of a route (docs/development/planner.md). Between two destinations
     // come the steps the way needs, each flown by the whole vessel, one of its
     // sections alone, or the vessel leaving a section behind. A section alone takes the
-    // sections that are part of it along; where the whole vessel flies the step after
-    // it, it docks first, and where the vessel leaves it behind then, it docks and is
-    // left from there; a satellite stays at its destination; a capsule leaves
+    // sections that are part of it along. Where the whole vessel flies the step after
+    // it, the section docks first. Where the vessel leaves it behind then, it docks and is
+    // left from there. A satellite stays at its destination. A capsule leaves
     // everything else for good. Who flies each step is worked out first, as a
     // section's climb goes to the rest's own orbit only where it docks after it. Who flies a step is the
-    // player's choice (RouteStop.By), or else: the capsule once it has left; the capsule
-    // for a landing on parachutes on the last destination, where what carries it is in
-    // the air already; a lander for a landing short of the route's end; from a surface
-    // whoever stands on it; across to another body the whole vessel where a lander that
-    // docks waits in an orbit of the body the rest is at; otherwise whoever flew the
-    // step before. A section climbs to the rest's own orbit where the rest waits around
-    // the body it starts from and the whole vessel flies on after it. Free of Unity,
-    // tested.
+    // player's choice (RouteStop.By), or else Default's. A section climbs to the rest's own
+    // orbit where the rest waits around the body it starts from and the whole vessel flies
+    // on after it. Free of Unity, tested.
     internal static class RouteSteps
     {
         // Finding the rest in its orbit and docking, over the climb to that orbit.
@@ -268,9 +263,9 @@ namespace ReDefinition.Engineer
             return Walkthrough(bodies, goals, sections, planeChanges, first, index => Rejoins(flown, sections, index));
         }
 
-        // A section that flies step `index` docks after it: the next step of the whole
-        // vessel, or the one that leaves it behind, comes before it flies again itself or
-        // a capsule leaves; the steps of other sections in between wait with it.
+        // Whether a section that flies step `index` docks after it. That is so when the next step of
+        // the whole vessel, or the one that leaves it behind, comes before it flies again itself or
+        // a capsule leaves. The steps of other sections in between wait with it.
         private static bool Rejoins(List<RouteStep> flown, IList<RouteSection> sections, int index)
         {
             if (index >= flown.Count || flown[index].Flyer.Kind != FlyerKind.Alone) return false;
@@ -371,7 +366,12 @@ namespace ReDefinition.Engineer
             return flyer.Kind == FlyerKind.Ship || walk.Of(flyer.Section) != null;
         }
 
-        // Who flies a step the player left to the planner, as the class's comment lists.
+        // Who flies a step the player left to the planner. The capsule flies once it has left.
+        // The capsule flies a landing on parachutes on the last destination, where what carries it
+        // is in the air already. A lander flies a landing short of the route's end. From a surface,
+        // whoever stands on it flies. Across to another body, the whole vessel flies where a lander
+        // that docks waits in an orbit of the body the rest is at. Otherwise whoever flew the step
+        // before flies it.
         private static Flyer Default(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, bool last)
         {
             if (walk.CapsuleOut != 0) return Flyer.Alone(walk.CapsuleOut);
@@ -628,10 +628,10 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // Where a step goes: the destination itself where the step reaches it; the
+        // Where a step goes. It is the destination itself where the step reaches it. It is the
         // body's low orbit, or the rest's own orbit where a section climbs to it to dock
-        // after; into the air for a landing on parachutes straight from the way across;
-        // on the way across, where the player splits it.
+        // after. It is into the air for a landing on parachutes straight from the way across.
+        // It is a point on the way across, where the player splits it.
         private static RouteStop Target(IList<PlannerBody> bodies, Walk walk, StepRole role, RouteStop from, RouteStop goal, Flyer flyer)
         {
             if (role == StepRole.Land) return goal;

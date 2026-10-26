@@ -9,15 +9,13 @@ namespace ReDefinition.Scenery
 {
     // The space centre's lawns drawn as Parallax's terrain beside them. KSP's ground shader (KSP/Scenery/
     // Diffuse Ground KSC, as Deferred replaces it) gives its lawn a grass texture of its own, tinted by
-    // _GrassColor: lighter and greyer than the terrain round the space centre, by day and from afar (the
+    // _GrassColor. That is lighter and greyer than the terrain round the space centre, by day and from afar (the
     // player, 2026-10-25), and the raytracing had to lift and shade it to match. Its materials take this
     // project's ground shader instead (ReDefinitionKscGround.shader): the tarmac as before, the lawn from
-    // Parallax's own terrain material of the home body -- its meadow texture, normals, influence and
-    // occlusion maps, its tiling and shine --, coloured by the vertex colours of the terrain's quads under
-    // the space centre (the colour map below), as the terrain is. Parallax's own shader for this
-    // (Custom/ParallaxKSCTerrain) is unfinished and left out of its build: it reads the tarmac's mask from
-    // the third texture coordinates, where the space centre's meshes carry it on the second, and lays the
-    // tarmac on by position rather than its own coordinates.
+    // Parallax's own terrain material of the home body. That takes its meadow texture, normals, influence and
+    // occlusion maps, its tiling and shine. It is coloured by the vertex colours of the terrain's quads under
+    // the space centre (the colour map below), as the terrain is. ShaderLookup says why Parallax's own
+    // shader for this is not used.
     //
     // Only with Parallax, while OwnSettings.KscLawnTerrain is on; the materials go back as they were when it
     // goes off, or the scene ends. The space centre's lawns only: the island's airfield and the other
@@ -28,7 +26,7 @@ namespace ReDefinition.Scenery
         // Texels of the colour map, in metres, and how far it reaches past the space centre's ground.
         private const float ColourTexel = 8f;
         private const float ColourMargin = 64f;
-        // How far past the map a terrain quad's middle may lie and its vertices still reach into it: the
+        // How far past the map a terrain quad's middle may lie and its vertices still reach into it. The
         // terrain's finest quads round the space centre are some hundreds of metres across (the nearest middle
         // 509 m from the middle of the map, 2026-10-25).
         private const float QuadReach = 2000f;
@@ -71,7 +69,10 @@ namespace ReDefinition.Scenery
             return material != null && material.shader != null && material.shader.name == ShaderLookup;
         }
 
-        // The name of this project's ground shader in the bundle.
+        // The name of this project's ground shader in the bundle. Parallax's own shader for this
+        // (Custom/ParallaxKSCTerrain) is unfinished and left out of its build. It reads the tarmac's mask from
+        // the third texture coordinates, where the space centre's meshes carry it on the second. It lays the
+        // tarmac on by position rather than its own coordinates.
         private const string ShaderLookup = "ReDefinition/Scenery/Diffuse Ground KSC";
 
         // Waits up to a minute for Parallax's textures and the terrain under the space centre, then every LookSeconds
@@ -184,10 +185,10 @@ namespace ReDefinition.Scenery
         private Color lawnVertexColour;
 
         // The vertex colours of the terrain's quads under and round the space centre, in the plane of its root
-        // (the colours Parallax's terrain is drawn with, the planet's colour map): each texel the colour between
+        // (the colours Parallax's terrain is drawn with, the planet's colour map). Each texel gets the colour between
         // the corners of the quads' triangles over it, as the terrain is drawn (their vertices lie some 40 m
-        // apart), the mean where several cover it; the empty ones filled from their neighbours, then smoothed
-        // once. False while the quads there are not built.
+        // apart), the mean where several cover it. The empty ones are filled from their neighbours, then smoothed
+        // once. It returns false while the quads there are not built.
         private bool MakeColours()
         {
             var materials = new List<Material>();

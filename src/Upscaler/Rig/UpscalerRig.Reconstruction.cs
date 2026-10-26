@@ -200,10 +200,10 @@ namespace ReDefinition.Upscaler
             return reconstructionReady;
         }
 
-        // The packet as Raytracing.h lays it out: the matrices as Streamline takes them
+        // The packet as Raytracing.h lays it out. The matrices are as Streamline takes them
         // (StreamlineCamera), from the projection without the jitter, as the render
         // textures hold the frame (GL.GetGPUProjectionMatrix(..., true)), like the
-        // raytracing's own; the jitter and the motion vectors' scale as DLSS Super
+        // raytracing's own. The jitter and the motion vectors' scale are as DLSS Super
         // Resolution gets them, the scale to Streamline's normalised units.
         private void FillReconstruction(RtCamera raytraced, uint flags)
         {

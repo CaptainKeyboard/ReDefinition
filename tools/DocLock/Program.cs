@@ -10,28 +10,26 @@ namespace DocLock
 {
     // The developer documentation's check. The documentation of this project's code is in the code: a comment
     // directly above every element (or after it on its line, or above the run of fields it stands in). This
-    // tool finds every element, says which are undocumented, and holds in a lock (.doclock/lock.tsv) a
-    // fingerprint of each element's code and of its documentation, so that a change to the code that leaves
+    // tool finds every element and says which are undocumented. It holds in a lock (.doclock/lock.tsv) a
+    // fingerprint of each element's code and of its documentation. A change to the code that leaves
     // its documentation as it was marks the documentation dirty, until it is fixed or confirmed.
     //
+    // The command report, the default, writes the coverage per area, language and kind to the console and
+    // .doclock/coverage.md. The command lint-baseline accepts the findings of the comments as they stand
+    // (.doclock/lint-baseline.tsv). The command wiki <folder> writes the documentation as Markdown pages, one
+    // per file, with an index per area. Main describes update, confirm and refs, and the methods Check, List and
+    // LintReport describe check, list and lint. What is left out, and why, is in Sources.Excluded.
+    //
+    // Build and run it as:
+    //
     //   dotnet build tools/DocLock -c Release, then: dotnet <its DocLock.dll> <command> [options]
-    //
-    //   report               coverage per area, language and kind, to the console and .doclock/coverage.md
-    //   check                fails (exit 1) on undocumented, dirty or unlocked elements, broken references and new lint findings
-    //   update               records every documented element that is not dirty; dirty ones stay dirty
-    //   confirm <part of id> confirms the dirty elements whose id contains it ("*" for all): the documentation
-    //                        still holds for the changed code
-    //   list [area|path]     the undocumented, dirty and unlocked elements, file:line
-    //   refs                 the comments' references that name nothing that exists
-    //   lint [rule]          the comments the contract finds fault with: counts per rule, or the findings of one rule
-    //   lint-baseline        accepts the findings of the comments as they stand (.doclock/lint-baseline.tsv)
-    //   wiki <folder>        the documentation as Markdown pages, one per file, with an index per area
-    //
-    // What is left out, and why, is in Sources.Excluded.
     public static class Program
     {
         // Runs one command on the repository the working folder lies in; 0 for success, 1 for a failed check, 2 for a
-        // wrong call.
+        // wrong call. The command update records every documented element that is not dirty, and dirty ones stay
+        // dirty. The command confirm <part of id> confirms the dirty elements whose id contains it ("*" for all),
+        // because the documentation still holds for the changed code. The command refs prints the comments'
+        // references that name nothing that exists.
         public static int Main(string[] args)
         {
             string root = Sources.Root();
@@ -81,8 +79,8 @@ namespace DocLock
             }
         }
 
-        // The check: counts, the first offenders of each kind, and 1 where anything is undocumented, dirty, unlocked,
-        // stale or broken.
+        // The command check: counts, the first offenders of each kind, and exit code 1 where anything is undocumented,
+        // dirty, unlocked, stale, broken or a new lint finding.
         private static int Check(string root, Scan scan, Lock lockFile)
         {
             List<Element> undocumented = scan.Elements.Where(e => !Rules.Documented(e)).ToList();
@@ -105,7 +103,8 @@ namespace DocLock
             return ok ? 0 : 1;
         }
 
-        // The comment lint's findings: the count per rule and, given a rule, each of its findings with the file and line.
+        // The command lint [rule]: the comments the contract finds fault with, the count per rule and, given a rule, each
+        // of its findings with the file and line.
         private static void LintReport(Scan scan, Lock lockFile, string rule)
         {
             var findings = Lint.All(scan.Elements.Where(Rules.Documented));
@@ -120,8 +119,8 @@ namespace DocLock
                 Console.WriteLine(f.element.Path + ":" + f.element.Line + "\t" + f.element.Kind + " " + f.element.Name + "\t" + f.finding.Detail);
         }
 
-        // The elements that need attention, under a path prefix or in an area, one per line: file:line, state, kind,
-        // name.
+        // The command list [area|path]: the undocumented, dirty and unlocked elements, under a path prefix or in an
+        // area, one per line: file:line, state, kind, name.
         private static void List(Scan scan, Lock lockFile, string filter)
         {
             foreach (Element e in scan.Elements)
@@ -137,10 +136,10 @@ namespace DocLock
     // Which files are this project's code.
     internal static class Sources
     {
-        // Left out: code of others that is vendored or adapted with its own documentation (the proxy's
+        // Left out is code of others that is vendored or adapted with its own documentation (the proxy's
         // headers of AMD, NVIDIA, Intel and Microsoft; AMD's FidelityFX shaders and FSR3Unity's port of
-        // them), copies (the test player's linked sources, which the build copies from src), what Unity or
-        // the build generates, and the documentation itself.
+        // them). Also left out are copies (the test player's linked sources, which the build copies from src),
+        // what Unity or the build generates, and the documentation itself.
         public static readonly string[] Excluded =
         {
             "src/DxgiProxy/extern/",

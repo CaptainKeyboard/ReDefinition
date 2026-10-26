@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // The rig's textures: the 3D stack's image at render size, the upscaler's output at
-    // display size, the rig's own copies of depth and motion vectors, frame generation's
+    // The rig's textures. They are the 3D stack's image at render size and the upscaler's output at
+    // display size. Then come the rig's own copies of depth and motion vectors, frame generation's
     // HUD-less copy, and the native handles the proxy is given.
     internal sealed class UpscalerTextures
     {
@@ -106,7 +106,7 @@ namespace ReDefinition.Upscaler
         }
 
         // The native handles asked for once after the textures are made and again when the
-        // game window has its focus back: asking synchronises with the render thread, and
+        // game window has its focus back. Asking synchronises with the render thread, and
         // once a second that held a frame for up to 18.6 ms (measured 2026-10-06). Lost
         // textures show in IsCreated each frame, as Unity documents.
         private bool nativeWanted = true;
@@ -120,7 +120,7 @@ namespace ReDefinition.Upscaler
         // Whether every texture whose native pointer went to the proxy at setup, and extra where
         // there is one, is still there. Unity: "render texture contents can become "lost" on certain
         // events, like loading a new level, system going to a screensaver mode, in and
-        // out of fullscreen", and they "will become "not yet created" again, you can
+        // out of fullscreen". They "will become "not yet created" again, you can
         // check for that with IsCreated function" (ScriptReference, RenderTexture,
         // 2019.4). The rig is rebuilt rather than handing on pointers to what is gone.
         internal bool Created(bool passThrough, RenderTexture extra)

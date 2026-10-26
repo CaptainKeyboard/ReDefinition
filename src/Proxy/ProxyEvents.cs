@@ -1,7 +1,7 @@
 namespace ReDefinition.Proxy
 {
     // The ids of the render events the mod raises on Unity's render thread for the proxy (the proxy's
-    // ManagedBridge.cpp, DispatchRenderEvent): a frame for frame generation, a frame and a release for each
+    // ManagedBridge.cpp, DispatchRenderEvent). They are a frame for frame generation, a frame and a release for each
     // upscaler, the Direct3D 12 compute for mods, and the game's frame index for Reflex. The raytracing's own are
     // RtNative's. Each is PX_EVENT_<NAME> in src/DxgiProxy/Managed/ProxyContract.h, which ProxyContractTests holds
     // these to.

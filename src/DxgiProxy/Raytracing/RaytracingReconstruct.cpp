@@ -38,10 +38,10 @@ namespace redefinition
             Ngx,          // NGX directly (DlssRayReconstruction.h)
         };
 
-        // Streamline's sl.dlss_d where Streamline has the device, which it has where its
-        // swapchain presents; NGX directly where Streamline is not set up on it -- one of
-        // the two starts NGX on a device (DlssRayReconstruction.h). rrPath narrows it to
-        // one of them.
+        // Chooses Streamline's sl.dlss_d where Streamline has the device, which it has where
+        // its swapchain presents, and NGX directly where Streamline is not set up on it. One
+        // of the two starts NGX on a device (DlssRayReconstruction.h). rrPath narrows the
+        // choice to one of them.
         Route ChooseRoute(int path, std::string& why)
         {
             Streamline& streamline = Streamline::Get();
@@ -454,11 +454,11 @@ namespace redefinition
         ++reconstructed;
     }
 
-    // The mod stopped sending Ray Reconstruction frames (UpscalerRig.Reconstruction):
-    // the lists that evaluated it finished first, as slFreeResources asks for pending
+    // The mod stopped sending Ray Reconstruction frames (UpscalerRig.Reconstruction).
+    // The lists that evaluated it finish first, as slFreeResources asks for pending
     // evaluations (Streamline::FreeRayReconstruction) and as a handle NGX releases is
     // gone ("after this call, it is invalid to use the provided handle", nvsdk_ngx.h,
-    // NVSDK_NGX_ReleaseFeature). On the render thread, after the last of its frames.
+    // NVSDK_NGX_ReleaseFeature). It runs on the render thread, after the last of its frames.
     void Raytracing::OnReconstructRelease()
     {
         std::lock_guard<std::mutex> lock(mutex);

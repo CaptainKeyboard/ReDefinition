@@ -288,10 +288,10 @@ namespace ReDefinition.Raytracing
             return vessel != null ? vessel.transform.position : camera;
         }
 
-        // How far Parallax draws its grass, in metres: the longest range of the active scatters named
-        // grass that it culls about the camera, and in `aboutVessel` of those it culls about the active
-        // vessel (Scenery.ParallaxScatterFields.AboutVessel: Kerbin's main grass, 320 m of the vessel in
-        // Parallax_StockScatterTextures, its tall grass 400 m of the camera); 0 where none is (or another
+        // How far Parallax draws its grass, in metres. The result is the longest range of the active scatters named
+        // grass that it culls about the camera. `aboutVessel` is the longest range of those it culls about the active
+        // vessel (Scenery.ParallaxScatterFields.AboutVessel). Kerbin's main grass is 320 m of the vessel in
+        // Parallax_StockScatterTextures, its tall grass 400 m of the camera. Each is 0 where none is (or another
         // version of Parallax). Asked once a second.
         internal static float ParallaxGrassRange(out float aboutVessel)
         {
@@ -351,11 +351,11 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // PlanetShine's light off while the raytraced diffuse light brings the planet's
-        // and the moons': the planet's from the reflection probe, which sees it
+        // PlanetShine's light is off while the raytraced diffuse light brings the planet's
+        // and the moons'. The planet's comes from the reflection probe, which sees it
         // (FlightReflectionProbe's culling mask has Scaled Scenery), or as a light where
-        // there is none, the moons' as lights (RtReflectors); back as it was afterwards. Where the player switches it
-        // on meanwhile, in PlanetShine's own window, that is the player's choice: it stays.
+        // there is none. The moons' come as lights (RtReflectors). It goes back as it was afterwards. Where the player
+        // switches it on meanwhile, in PlanetShine's own window, that is the player's choice, and it stays.
         private static bool planetShineHeld;
         private static bool planetShineBefore;
         private static bool planetShineLeft;
@@ -405,13 +405,11 @@ namespace ReDefinition.Raytracing
         // Deferred's screen-space reflections off on the scene camera while the raytraced
         // reflections take the specular light, and back as they were afterwards. With
         // them on, Deferred's reflection pass leaves the probe's specular out
-        // (useSSROnCurrentCamera, Internal-DeferredReflections.shader) and their own pass
+        // (useSSROnCurrentCamera, Internal-DeferredReflections.shader). Their own pass
         // adds the traced or the probe's in its place (ScreenSpaceReflections.shader,
-        // pass 0, Blend One One); ReDefinition's reflection pass writes the raytraced
-        // specular regardless, which then counted twice. Switched in Update, outside any
-        // camera's render: the component adds its command buffers in OnPreRender and
-        // takes those same ones off in OnPostRender, which sets useSSROnCurrentCamera
-        // back to 0. Where the player or another mod switches it on meanwhile, it stays.
+        // pass 0, Blend One One). ReDefinition's reflection pass writes the raytraced
+        // specular regardless, which then counted twice. Where the player or another mod
+        // switches it on meanwhile, it stays.
         private static Behaviour reflectionsHeld;
         private static bool reflectionsLeft;
 
@@ -502,7 +500,9 @@ namespace ReDefinition.Raytracing
         }
 
         // Holds (true) or gives back (false) the reflections as described above; called every frame from RtKsp.Update
-        // and with false on Detach.
+        // and with false on Detach. It switches them in Update, outside any camera's render: the component adds its
+        // command buffers in OnPreRender and takes those same ones off in OnPostRender, which sets
+        // useSSROnCurrentCamera back to 0.
         internal static void HoldDeferredReflections(bool hold, Camera sceneCamera)
         {
             Look();

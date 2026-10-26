@@ -55,7 +55,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual(KspKeyBindings.Everywhere, KspKeyBindings.SituationsOfGroup("My mod's tools"));
         }
 
-        // A binding whose default is no key binding is left out and reported.
+        // A binding whose default is no key binding, such as "Banana", is left out of the registration and reported.
         [TestMethod]
         public void ABindingWhoseDefaultIsNoKeyIsLeftOut()
         {

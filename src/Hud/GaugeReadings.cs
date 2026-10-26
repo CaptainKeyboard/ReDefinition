@@ -5,10 +5,20 @@ using ReDefinition.Hud.Readouts;
 
 namespace ReDefinition.Hud
 {
-    // A value as the round gauge shows it: its text (null for none), where it
-    // stands on the mode's scale (0 to 1), its caution and warning bands on that
-    // scale (from, to; null for none), a limit's tick (NaN for none), and 0 fine,
+    // A value as the round gauge shows it. It holds its text (null for none) and where it
+    // stands on the mode's scale (0 to 1). It holds its caution and warning bands on that
+    // scale (from, to; null for none) and a limit's tick (NaN for none). Its level is 0 fine,
     // 1 in the caution band, 2 in the warning band.
+    //
+    // The gauge follows FAA AC 23.1311-1C for an electronic dial (9.4, 17.6, 22.7).
+    // The digits and the arc give the same value, the arc on a scale fixed for the mode, so
+    // that the margin to a limit shows at a glance. The limits are marks on the
+    // scale, amber for caution and red for warning. A limit that moves with
+    // the flight (the moment to brake, a safe closing speed) is a tick on it. The
+    // arc is white while the value is fine, amber or red inside those bands. Where
+    // the values span a wide range, the scale is logarithmic, as a vertical speed
+    // indicator's is: fine near zero, compressed high up. The arc moves to a new
+    // value within a fraction of a second.
     internal sealed class GaugeReading
     {
         // In the order the class's comment names them; Level 0, 1 or 2.

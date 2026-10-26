@@ -85,8 +85,8 @@ namespace ReDefinition.Api
         }
 
         /// <summary>
-        /// A compute pass from shader bytecode -- DXIL signed by <c>dxc</c>, or DXBC -- against the
-        /// root signature every pass shares: <c>Texture2D</c> t0-t7, <c>RWTexture2D</c> u0-u7, a
+        /// A compute pass from shader bytecode, DXIL signed by <c>dxc</c> or DXBC. Its root signature
+        /// is the one every pass shares: <c>Texture2D</c> t0-t7, <c>RWTexture2D</c> u0-u7, a
         /// <c>cbuffer</c> b0 of up to 256 bytes, samplers s0 (point, clamp) and s1 (linear, clamp).
         /// The pipeline is built on the render thread; <see cref="ComputePassState"/> says whether it
         /// was.
@@ -194,10 +194,10 @@ namespace ReDefinition.Api
 
         /// <summary>
         /// One dispatch of a pass, executed at once. Call it where the textures read hold this frame's
-        /// image -- from a camera's own command buffer after they are drawn, or from <c>OnRenderImage</c>:
-        /// a render event issued from a camera's command buffer reads this frame (measured in Unity
-        /// 2019.4 with every graphics jobs mode, 2026-10-01; an earlier "a frame late" was the delay of a
-        /// texture with MSAA, which Unity resolves only at the camera's end).
+        /// image: from a camera's own command buffer after they are drawn, or from <c>OnRenderImage</c>.
+        /// A render event issued from a camera's command buffer reads this frame (measured in Unity
+        /// 2019.4 with every graphics jobs mode, 2026-10-01). A texture with MSAA is resolved only at the
+        /// camera's end, so read it after that.
         /// The write textures hold the result when it returns, or with <paramref name="nextFrame"/> at
         /// the pass's next dispatch, which lets the pass run beside the rest of the frame. At most 32
         /// dispatches a frame.

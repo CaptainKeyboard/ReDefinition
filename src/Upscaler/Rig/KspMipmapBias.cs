@@ -18,12 +18,7 @@ namespace ReDefinition.Upscaler
     // bring their textures in through Extend.
     //
     // Parallax draws its scatter without renderers (Graphics.DrawMeshInstancedIndirect),
-    // so its materials are taken from Parallax itself. Its grass and ferns cut their
-    // blades out by the alpha of their texture at the mip level the pixel picks
-    // (InstancedSolid.shader, ALPHA_CUTOFF), the raytracing by that alpha at full
-    // resolution (RtCommon.hlsli, CandidateCounts). Without the bias, at a lower render
-    // resolution the blades drawn and the blades the rays meet part: the rays from a
-    // drawn blade start inside the clump the rays see, and the sun's shadow and the
+    // so its materials are taken from Parallax itself (Extend). Without the bias the sun's shadow and the
     // diffuse light darkened the grass at the launch pad from 61.6 to 53.6 of 255
     // between AA only and Ultra Quality, 85.8 to 82.4 without the raytracing.
     internal class KspMipmapBias
@@ -68,7 +63,12 @@ namespace ReDefinition.Upscaler
             return BiasAddedSince(before);
         }
 
-        // The same for materials drawn without a renderer.
+        // The same for materials drawn without a renderer, such as Parallax's. Its grass and ferns cut their
+        // blades out by the alpha of their texture at the mip level the pixel picks
+        // (InstancedSolid.shader, ALPHA_CUTOFF), the raytracing by that alpha at full
+        // resolution (RtCommon.hlsli, CandidateCounts). Without the bias, at a lower render
+        // resolution the blades drawn and the blades the rays meet part. The rays from a
+        // drawn blade start inside the clump the rays see.
         public int Extend(List<Material> materials)
         {
             if (Mathf.Approximately(applied, 0f)) return 0;

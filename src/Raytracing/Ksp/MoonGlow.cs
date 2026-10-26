@@ -85,8 +85,9 @@ namespace ReDefinition.Raytracing
             depthAdded = false;
         }
 
-        // Every frame: the command buffer moved to the flight camera if it changed, then filled anew with a quad per moon
-        // of the system in or near the frame; empty in the map view, while held off or with the glow switched off.
+        // Every frame the command buffer moves to the flight camera if it changed, then is filled anew with a quad per
+        // moon of the system in or near the frame. It is empty in the map view, while held off or with the glow
+        // switched off.
         private void LateUpdate()
         {
             Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;

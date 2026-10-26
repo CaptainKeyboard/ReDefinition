@@ -197,11 +197,11 @@ namespace redefinition
         // creation so the forwarders do not query per call.
         void ResolveTargetInterfaces();
 
-        // Creates the presentation swapchain: through Streamline where it was set
-        // up (SetUpStreamline) -- for DLSS frame generation, or for DLSS Ray
-        // Reconstruction with frame generation off -- through XeSS-FG where it is
-        // wanted (xessWanted) and runs, through FidelityFX when frame generation is
-        // wanted and AMD's runtime is there, otherwise straight from DXGI.
+        // Creates the presentation swapchain. It goes through Streamline where that was set up
+        // (SetUpStreamline), for DLSS frame generation or for DLSS Ray Reconstruction with frame
+        // generation off. It goes through XeSS-FG where that is wanted (xessWanted) and runs. It goes
+        // through FidelityFX when frame generation is wanted and AMD's runtime is there. Otherwise it
+        // comes straight from DXGI.
         HRESULT CreatePresentationSwapChain(
             IDXGIFactory2* factory, HWND hwnd, const DXGI_SWAP_CHAIN_DESC1& desc,
             const DXGI_SWAP_CHAIN_FULLSCREEN_DESC* fullscreenDesc,
@@ -257,16 +257,14 @@ namespace redefinition
         // asked to generate (SwapChainProxyStreamline.cpp).
         void NoteStreamlineFocus();
 
-        // The index of the frame about to be presented, 0 for none: the game's,
-        // where its main thread began one and Unity's render thread received it
-        // since the last Present (Streamline::TakeGameFrame); otherwise the
-        // swapchain's own, begun after the last Present with Reflex's sleep under
-        // it (BeginStreamlineFrame). While the game's frames are presented, a
-        // Present without one -- or one that is no frame of the game's,
-        // takeGameFrame false -- gets none: an index once given its constants
-        // takes no others ("eErrorDuplicatedConstants", sl.common), and a new one
-        // would run ahead of the game's next. After kPresentsWithoutGameFrame of
-        // them in a row the swapchain begins its own frames again.
+        // The index of the frame about to be presented, 0 for none. It is the game's where its main
+        // thread began one and Unity's render thread received it since the last Present
+        // (Streamline::TakeGameFrame). Otherwise it is the swapchain's own, begun after the last
+        // Present with Reflex's sleep under it (BeginStreamlineFrame). While the game's frames are
+        // presented, a Present without one, or with takeGameFrame false, gets none. An index once
+        // given its constants takes no others ("eErrorDuplicatedConstants", sl.common), and a new one
+        // would run ahead of the game's next. After kPresentsWithoutGameFrame of them in a row the
+        // swapchain begins its own frames again.
         uint32_t TakeFrameIndex(bool takeGameFrame);
         void BeginStreamlineFrame();
 
@@ -296,19 +294,18 @@ namespace redefinition
         // DLSS-G's or XeSS-FG's own count where it gives one.
         void CountPresent(uint32_t framesPresented);
 
-        // The frame presented as it stands where it could not be copied, so the
-        // picture never goes away: counted, and said now and then. lowLatencyFrame:
-        // the game's frame taken for this Present (LowLatency::TakeGameFrame), whose
-        // markers then wrap it; 0 where none was taken, and the frame stays for the
-        // next Present.
+        // The frame presented as it stands where it could not be copied, so the picture never goes
+        // away. The Present is counted, and said now and then. The lowLatencyFrame is the game's
+        // frame taken for this Present (LowLatency::TakeGameFrame), whose markers then wrap it. It is
+        // 0 where none was taken, and the frame stays for the next Present.
         HRESULT PresentUncopied(UINT syncInterval, UINT flags, const char* why, uint32_t lowLatencyFrame = 0);
         // Presents that went out uncopied so far, for the log.
         unsigned long long uncopiedPresents = 0;
         // The two halves of a Present's command list, shared by CopyAndPresent and
-        // PresentWithStreamlineOff: this allocator's list reset once its last frame
-        // is done, and -- after whatever else is recorded into it -- the shared
-        // colour copied into the backbuffer, the list closed and executed. The list
-        // is closed on every way out of the second.
+        // PresentWithStreamlineOff. The first half resets this allocator's list once its last frame
+        // is done. The second half runs after whatever else is recorded into the list. It copies the
+        // shared colour into the backbuffer, closes the list and executes it. The list is closed on
+        // every way out of the second.
         HRESULT ResetCommandList();
         // The second half: Unity's texture copied into the current backbuffer, the list closed and executed.
         HRESULT CopySharedColourAndExecute();
@@ -484,10 +481,10 @@ namespace redefinition
         // SetFullscreenState and ResizeTarget calls logged so far.
         unsigned int fullscreenLogs = 0;
 
-        // The frame limit's state: when the next frame is due, the timer it
-        // waits on and what kind it is, whether it raised the system timer
-        // resolution, how many Presents went by without a generated frame, and
-        // the refresh rate, which a thread of its own keeps asking for.
+        // The frame limit's state. It holds when the next frame is due, the timer it waits on and
+        // what kind it is, and whether it raised the system timer resolution. It also holds how many
+        // Presents went by without a generated frame, and the refresh rate, which a thread of its own
+        // keeps asking for.
         int64_t limitDue = 0;
         HANDLE limitTimer = nullptr;
         bool limitTimerTried = false;
@@ -521,11 +518,10 @@ namespace redefinition
     // none.
     int FrameGenerationTechnique();
 
-    // Which frame generation the last swapchain made was made for, as
-    // frameGenerationTechnique and the GPU decided it then: kFgTechniqueXess where
-    // XeSS-FG was wanted -- asked for, or auto on an Intel GPU -- kFgTechniqueDlss
-    // where DLSS-G was, kFgTechniqueFsr where FSR's alone was, -1 with frame
-    // generation off, -2 before the first swapchain.
+    // Which frame generation the last swapchain made was made for, as frameGenerationTechnique and
+    // the GPU decided it then. It is kFgTechniqueXess where XeSS-FG was wanted, asked for or auto
+    // on an Intel GPU. It is kFgTechniqueDlss where DLSS-G was and kFgTechniqueFsr where FSR's alone
+    // was. It is -1 with frame generation off and -2 before the first swapchain.
     int FrameGenerationTechniqueWanted();
 
     // The window the last swapchain made through the proxy presents to, or null.

@@ -20,56 +20,31 @@
 
 namespace redefinition
 {
-    // Lower latency for the game's frames where Streamline's Reflex does not run --
-    // frame generation off, FSR's, DLSS Ray Reconstruction alone -- and a measure of
-    // it on every GPU.
+    // Lower latency for the game's frames where Streamline's Reflex does not run (frame generation
+    // off, FSR's, DLSS Ray Reconstruction alone), and a measure of it on every GPU.
     //
-    // - NVIDIA Reflex through NVAPI on the proxy's Direct3D 12 device, which presents
-    //   (nvapi.h, NvAPI_D3D_SetSleepMode, NvAPI_D3D_Sleep, NvAPI_D3D_SetLatencyMarker;
-    //   GeForce GTX 900 and later, driver R455). lowLatency in the ini sets its mode.
-    // - AMD Anti-Lag 2 (ffx_antilag2_dx12.h / ffx_antilag2_dx11.h, the Anti-Lag 2
-    //   SDK; Radeon RX 5000 and later), on the proxy's Direct3D 12 device or Unity's
-    //   Direct3D 11 device as antiLag2 asks (12, 11, 0 off). With it on, the brake is
-    //   off: "Any other forms of latency reduction ... should be disabled".
-    // - Intel XeLL (xell.h, XessFg.h) on the proxy's Direct3D 12 device: always with
-    //   XeSS frame generation, which requires it -- "XeSS-FG requires a working XeLL
-    //   integration on all GPUs" -- and, where xell asks for it, on an Intel GPU where
-    //   no other frame generation's swapchain presents, its mode from lowLatency when
-    //   the swapchain is made. Nothing else lowers the latency while its low latency
-    //   mode is on: "Latency reduction solutions other than XeLL are not supported and
-    //   may cause unexpected behavior" (xess_fg_developer_guide_english.md,
-    //   Requirements), "application must disable other latency reduction solutions
-    //   when running XeLL on Intel or non-Intel GPUs" (xell_developer_guide_english.md,
-    //   Integration Checklist). On a GPU other than Intel's it lowers the latency only
-    //   while XeSS-FG generates -- "application must ensure that XeSS-FG is enabled if
-    //   running in cross-vendor mode", "If the condition is not fulfilled then XeLL
-    //   will not perform Latency reduction" (Integration Checklist, Cross-vendor
-    //   support) -- and while XeSS-FG is held off the brake takes over; Reflex and
-    //   Anti-Lag 2 stay off under XeSS-FG's swapchain.
-    // - The latency brake (Brake), on any GPU, where nothing above lowers the latency.
-    // - The measure: from the frame's start on the main thread to the GPU's end of
-    //   its Present on the proxy's queue, through a fence of its own, logged every
-    //   reportSeconds -- the same on every GPU, so that what lowers it can be told
-    //   apart where the vendors' own reports are not there.
+    // NVIDIA Reflex runs through NVAPI on the proxy's Direct3D 12 device (ReflexLocked). AMD Anti-Lag 2
+    // is the second way (AntiLagLocked), and Intel XeLL the third (XellLocked, XellReducingLocked).
+    // The latency brake (Brake) runs on any GPU, where nothing above lowers the latency.
     //
-    // Streamline brings its own Reflex with DLSS frame generation (Streamline.h), and
-    // this then stays out of the way. The frame's beginning, its simulation's end and
-    // its first Direct3D call come through the same exports and render event as
-    // Streamline's (ManagedBridge.cpp, KspReflexFrameStart; ReflexFrames.cs), its
-    // Present from the swapchain proxy. As NVIDIA asks, Sleep and the markers go on
-    // every frame whether low latency is on or not -- and as Intel does: "xellSleep
-    // and xellAddMarkerData are always called". XeLL's markers are Reflex's, at the
-    // same points and with the same values (XELL_SIMULATION_START 0 to
-    // XELL_PRESENT_END 5, as NV_LATENCY_MARKER_TYPE).
+    // The measure (MeterThread) runs from the frame's start on the main thread to the GPU's end of its
+    // Present on the proxy's queue, through a fence of its own, logged every reportSeconds. It is the
+    // same on every GPU, so that what lowers the latency can be told apart where the vendors' own
+    // reports are not there.
+    //
+    // Streamline brings its own Reflex with DLSS frame generation (Streamline.h), and this then stays
+    // out of the way. The frame's beginning, its simulation's end and its first Direct3D call come
+    // through the same exports and render event as Streamline's (ManagedBridge.cpp, KspReflexFrameStart;
+    // ReflexFrames.cs). Its Present comes from the swapchain proxy.
     class LowLatency
     {
     public:
         static LowLatency& Get();
 
-        // The XeLL context a swapchain proxy made -- null for none -- whether XeSS
-        // frame generation's swapchain is the proxy's, whether XeLL's low latency mode
-        // was set on (always with XeSS-FG), and whether the GPU is Intel's, where XeLL
-        // lowers the latency without XeSS-FG generating.
+        // What a swapchain proxy tells about XeLL. It holds the XeLL context the proxy made (null for
+        // none), whether XeSS frame generation's swapchain is the proxy's, and whether XeLL's low
+        // latency mode was set on (always with XeSS-FG). It also holds whether the GPU is Intel's,
+        // where XeLL lowers the latency without XeSS-FG generating.
         struct XellSetup
         {
             // In the order of the comment above.
@@ -90,13 +65,18 @@ namespace redefinition
 
         // From the present path under XeSS frame generation's swapchain, after each
         // Present: whether XeSS-FG generates, without which XeLL lowers no latency on
-        // a GPU other than Intel's and the brake takes over.
+        // a GPU other than Intel's and the brake takes over. The guide says "application must ensure
+        // that XeSS-FG is enabled if running in cross-vendor mode" and "If the condition is not
+        // fulfilled then XeLL will not perform Latency reduction" (Integration Checklist,
+        // Cross-vendor support). Reflex and Anti-Lag 2 stay off under XeSS-FG's swapchain.
         void NoteXessGenerating(bool generating) { xessGenerating.store(generating); }
 
-        // On the game's main thread where its frame begins, before its input is read:
-        // the brake or Anti-Lag 2's delay, Reflex's or XeLL's Sleep, then SIMULATION_START, under
-        // the given index -- Streamline's where it gives one -- or one of its own.
-        // Returns the index the game's other calls take, 0 where nothing is tracked.
+        // On the game's main thread where its frame begins, before its input is read. It runs the
+        // brake or Anti-Lag 2's delay, Reflex's or XeLL's Sleep, then SIMULATION_START. The index is
+        // the given one, Streamline's where it gives one, or one of its own. As NVIDIA asks, Sleep and
+        // the markers go on every frame whether low latency is on or not. Intel does the same:
+        // "xellSleep and xellAddMarkerData are always called". Returns the index the game's other
+        // calls take, 0 where nothing is tracked.
         uint32_t BeginGameFrame(uint32_t streamlineIndex);
         // Before Streamline's Reflex sleep and everything else of the frame's start: the
         // brake's sleep, so that Reflex sleeps, and sends its markers, after it.
@@ -123,10 +103,10 @@ namespace redefinition
         // XeLL, 0 none -- the text says why.
         int Describe(char* buffer, int size) const;
 
-        // Whether XeLL's low latency mode is on, for the present path, which presents
-        // with a sync interval of 1 at most then -- "when VSync is enabled, sync
-        // interval for IDXGISwapChain::Present must always be 1 when Low Latency is
-        // active" -- and for the mod's V-Sync row.
+        // Whether XeLL's low latency mode is on. The present path asks it, and presents with a sync
+        // interval of 1 at most then: "when VSync is enabled, sync interval for
+        // IDXGISwapChain::Present must always be 1 when Low Latency is active". The mod's V-Sync row
+        // asks it too.
         bool XellActive() const { return xellActive.load(); }
 
         // The measure's last report: its median and 90th percentile in milliseconds;
@@ -160,28 +140,49 @@ namespace redefinition
         };
 
         bool TrackingLocked() const;
-        // Whether XeLL's context is attached, which then takes the markers instead of Reflex.
+        // Whether XeLL's context is attached, which then takes the markers instead of Reflex. XeLL
+        // (xell.h, XessFg.h) runs on the proxy's Direct3D 12 device. It runs always with XeSS frame
+        // generation, which requires it: "XeSS-FG requires a working XeLL integration on all GPUs".
+        // Where xell asks for it, it also runs on an Intel GPU where no other frame generation's
+        // swapchain presents. Its mode comes from lowLatency when the swapchain is made.
         bool XellLocked() const;
-        // Whether XeLL lowers the latency now: its low latency mode on, and on a GPU
-        // other than Intel's XeSS-FG generating.
+        // Whether XeLL lowers the latency now: its low latency mode on, and on a GPU other than
+        // Intel's XeSS-FG generating. Nothing else lowers the latency while its mode is on: "Latency
+        // reduction solutions other than XeLL are not supported and may cause unexpected behavior"
+        // (xess_fg_developer_guide_english.md, Requirements). The other guide adds "application must
+        // disable other latency reduction solutions when running XeLL on Intel or non-Intel GPUs"
+        // (xell_developer_guide_english.md, Integration Checklist). On a GPU other than Intel's it
+        // needs XeSS-FG (NoteXessGenerating).
         bool XellReducingLocked() const;
-        // Whether Reflex through NVAPI runs on the attached device.
+        // Whether Reflex through NVAPI runs on the attached device, the proxy's Direct3D 12 device,
+        // which presents. It uses NvAPI_D3D_SetSleepMode,
+        // NvAPI_D3D_Sleep and NvAPI_D3D_SetLatencyMarker (nvapi.h) on GeForce GTX 900 and later with
+        // driver R455. lowLatency in the ini sets its mode.
         bool ReflexLocked() const;
-        // Whether Anti-Lag 2 is on, on the device the ini asked for and it was initialised on.
+        // Whether Anti-Lag 2 is on, on the device the ini asked for and it was initialised on. It is
+        // the Anti-Lag 2 SDK (ffx_antilag2_dx12.h / ffx_antilag2_dx11.h) on Radeon RX 5000 and
+        // later. It runs on the proxy's Direct3D 12 device or Unity's Direct3D 11 device as antiLag2
+        // asks (12, 11, 0 off). With it on, the brake is off: "Any other forms of latency
+        // reduction ... should be disabled".
         bool AntiLagLocked() const;
-        // One latency marker (NV_LATENCY_MARKER_TYPE) for the frame: XeLL's where it is attached -- only for an
-        // id its sleep was called for -- otherwise Reflex's; the first failure logged.
+        // One latency marker (NV_LATENCY_MARKER_TYPE) for the frame: XeLL's where it is attached
+        // (only for an id its sleep was called for), otherwise Reflex's. The first failure is logged.
+        // XeLL's markers are Reflex's, at the same points and with the same values
+        // (XELL_SIMULATION_START 0 to XELL_PRESENT_END 5, as NV_LATENCY_MARKER_TYPE).
         void MarkerLocked(uint32_t frameIndex, int marker);
         void ReportLocked();
         // The id the frame's markers take: Streamline's index moved by the offset where the frame came with one.
         uint32_t IdLocked(uint32_t frameIndex) const;
         void Brake();
-        // The hand-over between XeLL and the brake as XeSS-FG generates or is held
-        // off on a GPU other than Intel's, in the log at most every kHandOverLogMs.
+        // The hand-over between XeLL and the brake as XeSS-FG generates or is held off on a GPU other
+        // than Intel's, in the log at most every kHandOverLogMs. While XeSS-FG is held off the brake
+        // takes over.
         void NoteHandOverLocked(bool xellReduces);
         // What Describe reports: the kind and its text, logged where it changes and log is set.
         void SetText(int kind, const std::string& text, bool log = true);
         // The measure's thread: waits for each pending Present's fence and takes the frame's latency and stages.
+        // The measure is the time from the frame's start on the main thread to the GPU's end of its
+        // Present on the proxy's queue, through a fence of its own, logged every reportSeconds.
         void MeterThread();
 
         // Guards the state below, except what antiLagMutex, xellMutex and textLock guard.
@@ -191,9 +192,9 @@ namespace redefinition
         std::mutex antiLagMutex;
         // The device Anti-Lag 2 is on, 12 or 11, 0 off, for the main thread's Update.
         std::atomic<int> antiLagOn{ 0 };
-        // XeLL's context, for the main thread's Sleep under a lock of its own as Anti-Lag
-        // 2's: the Sleep waits, and Detach takes it so that the context is not let go
-        // under a call. xell is the same under `mutex`, for the markers.
+        // XeLL's context, for the main thread's Sleep under a lock of its own as Anti-Lag 2's. The
+        // Sleep waits, and Detach takes the lock so that the context is not let go under a call.
+        // xell is the same under `mutex`, for the markers.
         std::mutex xellMutex;
         xell_context_handle_t xellSleeping = nullptr;
         xell_context_handle_t xell = nullptr;
@@ -211,10 +212,10 @@ namespace redefinition
         static constexpr ULONGLONG kHandOverLogMs = 10000;
         // Said once; the main thread's, under xellMutex.
         bool xellSleepFailed = false;
-        // The frame ids XeLL's sleep was called for, by id modulo 64: "xellSleep must be
-        // the first XeLL API function called with a newly assigned frame_id value", so a
-        // marker for an id without one -- the frames in flight when the context was made,
-        // or after a sleep that failed -- is not sent (MarkerLocked). Said once.
+        // The frame ids XeLL's sleep was called for, by id modulo 64. The guide says "xellSleep must be
+        // the first XeLL API function called with a newly assigned frame_id value". So a marker for
+        // an id without a sleep is not sent (MarkerLocked). Such ids are the frames in flight when
+        // the context was made and those after a sleep that failed. Said once.
         std::atomic<uint32_t> xellSlept[64] = {};
         bool xellMarkerDropLogged = false;
         const void* owner = nullptr;
@@ -237,9 +238,9 @@ namespace redefinition
         unsigned long long lastReport = 0;
         // Each frame's start, by id, for the measure.
         Stamps stamps[256] = {};
-        // The measure's stages of the frames it took, in milliseconds, since the last
-        // report: the simulation, from its end to the Present's start, the Present, the
-        // Present's end to the GPU's, and the render thread's first call to the Present.
+        // The measure's stages of the frames it took, in milliseconds, since the last report. The
+        // five are the simulation, from its end to the Present's start, the Present, the Present's
+        // end to the GPU's, and the render thread's first call to the Present.
         static constexpr int kLatencyStages = 5;
         std::vector<double> cpuStages[kLatencyStages];
 

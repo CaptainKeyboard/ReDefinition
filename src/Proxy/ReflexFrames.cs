@@ -14,20 +14,18 @@ namespace ReDefinition.Proxy
     // ProgrammingGuideDLSS_G.md 8.0). The proxy marks Present; the frame's
     // simulation is the main thread's, and only it can mark it.
     //
-    // Two systems in Unity's player loop. The last of PostLateUpdate -- the frame
-    // handed to the render thread, its Present included -- begins the next frame
-    // before Windows' messages are taken for it: Reflex's sleep and
-    // eSimulationStart under a new frame index (KspReflexFrameStart), and the index
+    // Two systems in Unity's player loop. The last of PostLateUpdate begins the next frame
+    // before Windows' messages are taken for it. By then the frame is handed to the render thread,
+    // its Present included. It starts Reflex's sleep and
+    // eSimulationStart under a new frame index (KspReflexFrameStart), and sends the index
     // to the render thread as render event 40, ahead of every Direct3D call of the
     // frame, for its Present. The one after PreLateUpdate's LateUpdate ends the
-    // simulation (KspReflexSimulationEnd); what follows is rendering.
+    // simulation (KspReflexSimulationEnd). What follows is rendering.
     //
-    // While Streamline has its device -- a swapchain made through it, the one DLSS
-    // frame generation presents with -- or the proxy follows the game's frames for its
-    // own low latency where it does not -- NVIDIA Reflex through NVAPI, AMD Anti-Lag 2,
-    // Intel XeLL, whose frame ids XeSS frame generation presents under (the proxy's
-    // LowLatency.h) -- the proxy answers with an index; otherwise with 0, and nothing
-    // more is sent. Without the proxy, or with one older than
+    // The proxy answers with an index while Streamline has its device (a swapchain made through it, the one DLSS
+    // frame generation presents with). Where it does not, it answers with an index while it follows the game's
+    // frames for its own low latency: NVIDIA Reflex through NVAPI, AMD Anti-Lag 2 or Intel XeLL (KspLowLatency).
+    // Otherwise it answers with 0, and nothing more is sent. Without the proxy, or with one older than
     // the mod, both systems go quiet for the session.
     internal static class ReflexFrames
     {
@@ -48,7 +46,8 @@ namespace ReDefinition.Proxy
         private static extern IntPtr KspFgGetRenderEventFunc();
 
         // What lowers the latency, as text, and which: 1 Reflex through NVAPI, 2 Streamline's Reflex, 3 AMD
-        // Anti-Lag 2, 4 Intel XeLL, 0 none.
+        // Anti-Lag 2, 4 Intel XeLL (whose frame ids XeSS frame generation presents under, the proxy's LowLatency.h),
+        // 0 none.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspLowLatency(StringBuilder buffer, int size);
 
@@ -111,7 +110,7 @@ namespace ReDefinition.Proxy
         private static bool measureMissing;
 
         // The proxy's last latency report (LowLatency::Measure), from the frame's start to the
-        // GPU's end of its Present, in milliseconds; how many frames it rests on, 0 before the
+        // GPU's end of its Present, in milliseconds. The result is how many frames it rests on, 0 before the
         // first report, or without the proxy or its export.
         internal static int LatencyMeasure(out double median, out double percentile90)
         {

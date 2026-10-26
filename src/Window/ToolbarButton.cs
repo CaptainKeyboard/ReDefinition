@@ -98,9 +98,9 @@ namespace ReDefinition.Window
         // the first child of the row. No other button is read, moved or removed,
         // and a failure leaves the toolbar as it was.
         //
-        // KSP adds a mod's button in the order the mods ask for it, which is their
-        // load order. Mods that add theirs later end up behind this one; one that
-        // moves its own the same way wins the front until the next pass here.
+        // KSP adds the buttons in the order the mods ask for them, their load order.
+        // Mods that add theirs later end up behind this one.
+        // One that moves its own the same way wins the front until the next pass here.
         internal void KeepFirst()
         {
             if (button == null) return;

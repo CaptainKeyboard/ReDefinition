@@ -105,9 +105,9 @@ namespace ReDefinition.Tests
     }
 
     // The stock crafts flown through the planner's model as the planner does in the
-    // editor (PlannerView.Evaluate): the stages lit on the pad together, the sections
-    // it finds by itself, the route, the stage budget with a 10 % margin, and the
-    // lift-off TWR; against what each craft's description promises.
+    // editor (PlannerView.Evaluate). The tests check the stages lit on the pad together, the
+    // sections it finds by itself, the route, the stage budget with a 10 % margin, and the
+    // lift-off TWR against what each craft's description promises.
     [TestClass]
     public class StockCraftTests
     {

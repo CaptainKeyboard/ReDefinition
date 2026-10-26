@@ -5,14 +5,14 @@ using UnityEngine.Rendering;
 
 namespace ReDefinition.MotionVectorCheck
 {
-    // Ground far away, seen from far away (SceneMotion in the plugin): KSP's flight camera
+    // Ground far away, seen from far away (SceneMotion in the plugin). KSP's flight camera
     // zoomed out over the Mun stands some 150 km from the origin, with its near plane of
-    // 0.21 m and far plane of 750 km, and looks at ground 100 to 150 km away. A camera of
-    // its own, on a layer of its own, at that place, a sphere of 50 km radius ahead, and a
-    // move of 10 m sideways and 6 m up. Over the sphere: how much Unity's motion vectors
-    // differ from one pixel to the next, how much pass 2's with the scene camera's move
-    // differ, how far pass 2's lie from the same motion worked out here for each pixel,
-    // and both means. One line, "far", to the result file.
+    // 0.21 m and far plane of 750 km, and looks at ground 100 to 150 km away. The setup is a
+    // camera of its own, on a layer of its own, at that place, a sphere of 50 km radius ahead,
+    // and a move of 10 m sideways and 6 m up. Over the sphere it measures how much Unity's
+    // motion vectors differ from one pixel to the next. It measures how much pass 2's with the
+    // scene camera's move differ, and how far pass 2's lie from the same motion worked out here
+    // for each pixel. It also measures both means. One line, "far", goes to the result file.
     public partial class MotionVectorProbe
     {
         // The layer only the far camera and its ground are on, so neither camera sees the other's scene.

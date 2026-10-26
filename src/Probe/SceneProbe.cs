@@ -17,14 +17,14 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Probe
 {
     // A measurement the game runs on its own, started with -redefinitionProbe on KSP's
-    // command line: KSP loads the save ReDefinitionProbe, goes to the flight of the
-    // vessel waiting on the launch pad, turns the flight camera on a fixed path from
-    // the vessel up into the sky, and writes what the scene camera holds at each stage
-    // of its rendering, around the vessel, into ReDefinitionCaptures\<time>-probe --
-    // each run twice, with the vessel and with its renderers hidden, so that the
-    // difference is what the vessel does to the sky around it, whatever the clouds;
-    // then the same with each other mod's component and command buffer on the flight's
-    // cameras switched off in turn, and quits. tools/analyze_probe.py measures the
+    // command line. KSP loads the save ReDefinitionProbe and goes to the flight of the
+    // vessel waiting on the launch pad. It turns the flight camera on a fixed path from
+    // the vessel up into the sky. It writes what the scene camera holds at each stage
+    // of its rendering, around the vessel, into ReDefinitionCaptures\<time>-probe.
+    // Each run is made twice, with the vessel and with its renderers hidden, so that the
+    // difference is what the vessel does to the sky around it, whatever the clouds.
+    // Then the same is made with each other mod's component and command buffer on the flight's
+    // cameras switched off in turn, and KSP quits. tools/analyze_probe.py measures the
     // halo and trail around the vessel in each.
     //
     // Nothing of it runs without the argument.
@@ -217,11 +217,11 @@ namespace ReDefinition.Probe
             FlightDriver.StartAndFocusVessel(game, index);
         }
 
-        // A Mk1 command pod on the ground where Parallax's Kerbin grass grows thick: the first
+        // A Mk1 command pod on the ground where Parallax's Kerbin grass grows thick. It stands at the first
         // place, by distance from the launch pad, in the Grasslands biome (Kerbin.cfg's grass
         // scatters grow from 25 m of altitude and are blacklisted from water, deserts and
-        // ice), on level ground that is grassland and above 80 m all round, 3 km from the pad
-        // at least. Made as KSP makes a vessel and set on the ground by KSP.
+        // ice). The place is on level ground that is grassland and above 80 m all round, 3 km from the pad
+        // at least. The pod is made as KSP makes a vessel and set on the ground by KSP.
         private static int GrassCapsule(Game game)
         {
             // Without Parallax the biome is bare: a field the shot would call grass.
@@ -459,10 +459,11 @@ namespace ReDefinition.Probe
             internal RenderTexture Texture;
         }
 
-        // The scene camera (Camera 00); the run's folder; meta.txt's lines; the stations; the probe's command buffer
-        // on each event; the crops waiting to be read and 1 while one is read; the vessel's mask material and the
-        // full-size mask; the variant running; the capture's number and file prefix ("h" without the vessel); the
-        // path's segment being captured; the heading both passes start from; whether a sweep captures in RenderDoc.
+        // The scene camera (Camera 00), the run's folder and meta.txt's lines. Then come the stations, the probe's
+        // command buffer on each event, and the crops waiting to be read and 1 while one is read. Then come the
+        // vessel's mask material and the full-size mask, and the variant running. Then come the capture's number
+        // and file prefix ("h" without the vessel), the path's segment being captured, and the heading both passes
+        // start from. The last field says whether a sweep captures in RenderDoc.
         private Camera scene;
         private string folder;
         private readonly StringBuilder meta = new StringBuilder();
@@ -676,9 +677,9 @@ namespace ReDefinition.Probe
         private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder value, uint size,
                                                            string file);
 
-        // The diagnostics window, step by step: each step's commands applied, 2 s for the window and
-        // its strip to settle, then the frame as the screen shows it, window included. 20 s in
-        // first, for the upscaler and the frame generation to be set up.
+        // Shoots the diagnostics window, step by step. Each step's commands are applied, then 2 s pass for the
+        // window and its strip to settle, then the frame is shot as the screen shows it, window included. It waits
+        // 20 s first, for the upscaler and the frame generation to be set up.
         private static IEnumerator DiagnosticsShots(string steps)
         {
             yield return new WaitForSeconds(20f);
@@ -781,7 +782,7 @@ namespace ReDefinition.Probe
                    + c.b.ToString("0.0000", CultureInfo.InvariantCulture);
         }
 
-        // The raytraced camera's light at a few places of the pad's view, into the log: the
+        // Logs the raytraced camera's light at a few places of the pad's view. It logs the
         // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
         // Unity's ambient probe up / side / down and the sun's colour.
         private static IEnumerator LightValues()
@@ -966,9 +967,9 @@ namespace ReDefinition.Probe
                       + ", sun " + rt.TracedSunColour + ", path " + rt.Camera.actualRenderingPath + ".");
         }
 
-        // Only in the probe's flight, once it stands: the switches' single runs (each quits KSP), the scene round
-        // trips, else the default measurement -- the baseline, each variant asked for, the baseline again -- the
-        // reads finished, meta.txt written, and KSP quit.
+        // Runs only in the probe's flight, once it stands. It does the switches' single runs (each quits KSP), the
+        // scene round trips, else the default measurement. That measurement is the baseline, each variant asked for,
+        // and the baseline again. Then the reads are finished, meta.txt is written, and KSP quits.
         private IEnumerator Start()
         {
             // A new launch (StagingProbe) is the probe's flight whatever save folder KSP names then.

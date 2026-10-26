@@ -35,9 +35,6 @@ set_property(SOURCE "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc" APPEND PR
 find_program(REDEFINITION_DXC dxc
     HINTS "$ENV{ProgramFiles\(x86\)}/Windows Kits/10/bin/${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}/x64")
 
-# The raytracing passes (Raytracing.cpp), one entry point each, compiled to DXIL and
-# embedded in dxgi.dll as RCDATA named RT_<entry>. Without dxc the proxy is built
-# without them and says so in its log.
 # The folders of the proxy's sources and the harnesses': every source includes its headers by their
 # plain names, found through these, and the one header outside its folder (Raytracing/Shaders/RtContract.h)
 # through the proxy's root.
@@ -48,6 +45,9 @@ set(REDEFINITION_SOURCE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/Managed" "${CMAKE_CURRENT_SOURCE_DIR}/Raytracing"
     "${CMAKE_CURRENT_SOURCE_DIR}/SwapChain" "${CMAKE_CURRENT_SOURCE_DIR}/Upscalers")
 
+# The raytracing passes (Raytracing.cpp), one entry point each, compiled to DXIL and
+# embedded in dxgi.dll as RCDATA named RT_<entry>. Without dxc the proxy is built
+# without them and says so in its log.
 set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Raytracing/Shaders")
 # Each entry as file:entry point.
 set(REDEFINITION_RT_ENTRIES

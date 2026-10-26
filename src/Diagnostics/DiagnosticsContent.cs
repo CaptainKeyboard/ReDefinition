@@ -4,8 +4,8 @@ using UnityEngine;
 namespace ReDefinition.Diagnostics
 {
     // The GUIContent, widths and layout options the diagnostics window draws with in every
-    // event, made once: IMGUI asks for them in the layout pass and again in the repaint, a
-    // row with its label, marker, star and segments each time, and the window is open for
+    // event, made once. IMGUI asks for them in the layout pass and again in the repaint, a
+    // row with its label, marker, star and segments each time. The window is open for
     // as long as the player watches it.
     internal sealed class DiagnosticsContent
     {

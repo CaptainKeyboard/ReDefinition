@@ -7,6 +7,10 @@ namespace ReDefinition.Upscaler
 {
     // The rig's part for the upscalers that run in the dxgi.dll proxy, DLSS, AMD's
     // DLL and XeSS: the textures handed to it, the packets, and what its state means.
+    // The packets carry the same jitter and motion vector scale as FSR's, in pixels at render size
+    // (NVIDIA's DLSS Programming Guide, 3.6.1 and 3.7.3; AMD's ffx_upscale.h; XessUpscaler.h). DLSS runs with
+    // auto exposure always: there is no exposure value to hand over (guide 3.9, 3.10). AMD's DLL and XeSS take
+    // FSR's auto exposure as the player set it.
     public partial class UpscalerRig
     {
         // RCAS after DLSS and XeSS, which sharpen nothing themselves (RcasSharpener):
@@ -16,15 +20,10 @@ namespace ReDefinition.Upscaler
         private IntPtr nativeSharpenInputHandle;
 
         // DLSS (DlssBridge), AMD's DLL (AmdUpscalerBridge) and XeSS
-        // (XessUpscalerBridge): this frame's packet into the dispatch buffer, where
+        // (XessUpscalerBridge): this frame's packet goes into the dispatch buffer, where
         // the proxy upscales it on Unity's render thread. Shown is the proxy's output
         // once it has reported an upscaled frame; the image without upscaling before
-        // that and after anything stopped it -- never an output nothing has written.
-        // The same jitter and motion vector scale as FSR's, in pixels at render size
-        // (NVIDIA's DLSS Programming Guide, 3.6.1 and 3.7.3; AMD's ffx_upscale.h;
-        // XessUpscaler.h). DLSS with auto exposure always: there is no exposure value
-        // to hand over (guide 3.9, 3.10). AMD's DLL and XeSS with FSR's auto exposure
-        // as the player set it.
+        // that and after anything stopped it, never an output nothing has written.
         //
         // The proxy's state outlives a rig: for the first frames it can still be
         // the one of the rig before, or of its release. Packets keep going while it
@@ -38,10 +37,10 @@ namespace ReDefinition.Upscaler
         private const float NativeStoppedSeconds = 2f;
         private const float NativeNeverShownSeconds = 1f;
 
-        // The link to the technique in the proxy (null for FSR 3, a bypass or pass-through); packets sent; the last
-        // state noted; whether the proxy's output is shown this frame and was in this rig at all; the reason it
-        // stopped, as last logged; since when it is stopped (-1 while it is not); and when a stopped state is
-        // noted again.
+        // The link to the technique in the proxy (null for FSR 3, a bypass or pass-through). Then the packets sent
+        // and the last state noted. Then whether the proxy's output is shown this frame and was in this rig at all.
+        // Then the reason it stopped, as last logged, and since when it is stopped (-1 while it is not). Last when
+        // a stopped state is noted again.
         private NativeUpscalerLink nativeLink;
         private int nativeSubmitted;
         private int nativeState;

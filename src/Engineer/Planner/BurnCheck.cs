@@ -39,10 +39,10 @@ namespace ReDefinition.Engineer
             get { return Period > 0.0 ? Seconds / Period : 0.0; }
         }
 
-        // Of the burn's delta-v, what goes astray: burnt in one direction across the
-        // arc of the orbit it spans, centred on the point it is meant for, only the
-        // average of the cosine over that arc pushes where the burn should,
-        // sin(a/2) / (a/2) for the arc a.
+        // The share of the burn's delta-v that goes astray, 1 - sin(a/2) / (a/2) for the arc a.
+        // A burn in one direction across the arc of the orbit it spans, centred on the point it
+        // is meant for, pushes where it should only by the average of the cosine over that arc.
+        // That average is sin(a/2) / (a/2).
         public double Loss
         {
             get
@@ -56,8 +56,8 @@ namespace ReDefinition.Engineer
 
     // How long a step's burns in orbit take with the stages that fly them
     // (docs/development/planner.md). The stages burn in their order, each at its
-    // thrust in vacuum and its exhaust speed, the delta-v it gives over the log of
-    // its start and end mass; the burns take the step's delta-v in their order, the
+    // thrust in vacuum and its exhaust speed. A stage gives the delta-v over the log of
+    // its start and end mass. The burns take the step's delta-v in their order, the
     // margin left over. Free of Unity, tested.
     internal static class BurnCheck
     {

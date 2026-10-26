@@ -12,57 +12,22 @@ namespace ReDefinition.Upscaler
 {
     // TUFX's post-processing, split around the upscaler.
     //
-    // TUFX gives its profile to the camera it calls final -- Camera 00 in flight,
+    // TUFX gives its profile to the camera it calls final (Camera 00 in flight,
     // InternalCamera in IVA, the scaled camera in the map view, Main Camera in the
-    // editors -- as a PostProcessLayer whose volumeLayer takes the profile's volume
+    // editors). It does so as a PostProcessLayer whose volumeLayer takes the profile's volume
     // (TexturesUnlimitedFXLoader.ApplyProfileToCamera). The rig redirects those
     // cameras into its render-size texture, so every effect of the profile would
-    // run before the upscaler. AMD sorts them (super-resolution-upscaler.md, "Post processing A"
-    // and "B"): screen-space reflections, ambient occlusion and exposure before the
-    // upscaler; film grain, chromatic aberration, vignette, tonemapping, bloom,
-    // depth of field and motion blur after it -- "Doing so before an upscaler might
-    // cause the upscaler to amplify the noise".
+    // run before the upscaler. AfterUpscaling sorts the effects, and the split
+    // draws only the sorted ones after it.
     //
-    // So each redirected layer keeps what belongs before the upscaler -- ambient
+    // So each redirected layer keeps what belongs before the upscaler: ambient
     // occlusion, screen-space reflections, fog, auto exposure and the effects other
-    // mods inject before the built-in stack -- and a layer of ReDefinition's, on a
+    // mods inject before the built-in stack. A layer of ReDefinition's, on a
     // camera that never renders, draws the rest over the upscaler's output from the
     // presenter, blended from the same volumes. Auto exposure stays in front: the
     // uber pass multiplies it in before bloom and colour grading
     // (Builtins/Uber.shader), and the layer after the upscaler then reads the image
     // as exposed, as its bloom and grading would have.
-    //
-    // Which layer draws which effect is decided right after PostProcessManager
-    // blends a layer's settings (UpdateSettings, a Harmony postfix): the other
-    // half's effects are switched off for that frame, and the next blend, which
-    // starts from the defaults again, brings them back -- the moment the split ends,
-    // TUFX renders as without it. A redirected layer counts as the profile's by its
-    // volumeLayer at that moment, so a camera change that moves the profile within a
-    // frame is followed in that frame; and ReDefinition's layer draws only in a
-    // frame in which one was split.
-    //
-    // Only while the image FSR receives is HDR: in an 8-bit render target the
-    // highlights bloom and tonemapping need are clamped before FSR.
-    //
-    // Depth of field and motion blur read _CameraDepthTexture and
-    // _CameraMotionVectorsTexture and linearise depth by _ZBufferParams
-    // (PostProcessing v2, Builtins/DepthOfField.hlsl, Builtins/MotionBlur.shader).
-    // After FSR those are the presenter's, so the rig's copies and the scene
-    // camera's planes are bound for them -- where the profile's layer is the scene
-    // camera's own. Where it is another's, InternalCamera in IVA or the scaled
-    // camera in the map view, the rig has no depth or motion of that camera, and
-    // the two stay in front of FSR with the camera's own. The motion vectors are
-    // bound at the display size, since motion blur turns them into pixels by their
-    // texture's size (_CameraMotionVectorsTexture_TexelSize.zw) and caps the blur by
-    // the output's. The globals stay bound afterwards, to the rig's copies, for any
-    // later camera that samples them without asking for depth of its own.
-    //
-    // Dithering stays out of the image FSR receives: PostProcessing v2 dithers in
-    // the uber pass of every layer's last stack -- the profile's and the ones TUFX
-    // adds to the galaxy and scaled cameras for HDR -- and noise added at render
-    // size is noise FSR accumulates. Every layer on a redirected camera dithers with
-    // a texture of alpha 0.5, which is no noise (Builtins/Dithering.hlsl);
-    // ReDefinition's layer dithers the final image.
     //
     // All of it through reflection: TUFX stays optional.
     internal sealed class TufxPostProcessing
@@ -75,8 +40,11 @@ namespace ReDefinition.Upscaler
         private const BindingFlags Members = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
         private const BindingFlags Statics = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
 
-        // PostProcessing v2's own effects that AMD puts after the upscaler. Lens
-        // distortion bends the finished image, which FSR's motion vectors would not
+        // PostProcessing v2's own effects that AMD puts after the upscaler. AMD sorts them
+        // (super-resolution-upscaler.md, "Post processing A" and "B"). Screen-space reflections, ambient occlusion
+        // and exposure go before the upscaler. Film grain, chromatic aberration, vignette, tonemapping, bloom,
+        // depth of field and motion blur go after it: "Doing so before an upscaler might cause the upscaler to
+        // amplify the noise". Lens distortion bends the finished image, which FSR's motion vectors would not
         // follow.
         private static readonly string[] BuiltinAfterUpscaling =
         {
@@ -166,9 +134,9 @@ namespace ReDefinition.Upscaler
         private static bool splitOnSceneCamera;
 
         // ReDefinition's layer: the inactive object and camera that carry it, the layer, its render context and
-        // command buffer, the display-size texture it draws into and the motion vectors scaled to it; the profile's
-        // layer and the volume mask last copied from it; an argument array for reflection calls; and the status,
-        // why the split is off or null while it runs.
+        // command buffer, the display-size texture it draws into and the motion vectors scaled to it. Then the
+        // profile's layer and the volume mask last copied from it. Then an argument array for reflection calls.
+        // Last the status, why the split is off or null while it runs.
         private GameObject host;
         private Camera ownCamera;
         private Component layer;
@@ -201,7 +169,8 @@ namespace ReDefinition.Upscaler
         }
 
         // From the rig's Update, before the frame's cameras render: whether the split
-        // can run, and ReDefinition's layer on the profile's volumes.
+        // can run, and ReDefinition's layer on the profile's volumes. It runs only while the image FSR
+        // receives is HDR: in an 8-bit render target the highlights bloom and tonemapping need are clamped before FSR.
         internal void Refresh(List<CameraRedirect> redirects, Camera scene, bool wanted, bool hdrInput, Vector2Int displaySize)
         {
             if (!wanted)
@@ -275,7 +244,11 @@ namespace ReDefinition.Upscaler
         }
 
         // Draws TUFX's effects after the upscaler from source into destination. False
-        // where nothing was drawn: the caller copies the image.
+        // where nothing was drawn: the caller copies the image. Depth of field and motion blur read
+        // _CameraDepthTexture and _CameraMotionVectorsTexture. After FSR those are the presenter's, so the rig's
+        // copies and the scene camera's planes are bound for them, where the profile's layer is the scene camera's
+        // own. The globals stay bound afterwards, to the rig's copies, for any later camera that samples them
+        // without asking for depth of its own.
         internal bool Render(Texture source, RenderTexture destination, RenderTexture depth, RenderTexture motion)
         {
             if (broken != null || layer == null || !ReferenceEquals(ownLayer, layer)) return false;
@@ -433,8 +406,10 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
-        // Whether any effect of the half after FSR is on in ReDefinition's layer this frame; depth of field and motion
-        // blur only count where the profile was split on the scene camera.
+        // Whether any effect of the half after FSR is on in ReDefinition's layer this frame. Depth of field and motion
+        // blur only count where the profile was split on the scene camera. Where the profile's layer is another's
+        // (InternalCamera in IVA, the scaled camera in the map view), the rig has no depth or motion of that camera.
+        // The two stay in front of FSR with the camera's own.
         private bool AnyAfterEffectOn()
         {
             foreach (Type type in afterTypes)
@@ -455,6 +430,8 @@ namespace ReDefinition.Upscaler
         }
 
         // The motion vectors at the display size for motion blur; false where there are none or the texture fails.
+        // They are bound at the display size, since motion blur turns them into pixels by their texture's size
+        // (_CameraMotionVectorsTexture_TexelSize.zw) and caps the blur by the output's.
         private bool EnsureMotion(RenderTexture motion)
         {
             if (motion == null || output == null) return false;
@@ -493,8 +470,9 @@ namespace ReDefinition.Upscaler
             copiedFrom = null;
         }
 
-        // As UnityShaderVariables.cginc defines it, for a reversed depth buffer --
-        // Direct3D 11's -- and for the other.
+        // The _ZBufferParams of a camera, which depth of field and motion blur linearise depth by (PostProcessing v2,
+        // Builtins/DepthOfField.hlsl, Builtins/MotionBlur.shader). As UnityShaderVariables.cginc defines it, for a
+        // reversed depth buffer (Direct3D 11's) and for the other.
         private static Vector4 ZBufferParamsOf(Camera camera)
         {
             float near = camera.nearClipPlane;
@@ -647,8 +625,14 @@ namespace ReDefinition.Upscaler
         }
 
         // PostProcessManager.UpdateSettings, after it blended a layer's settings: the
-        // layer, its first argument -- by position, which Harmony hands over without
-        // an array of all of them.
+        // layer is its first argument, by position, which Harmony hands over without
+        // an array of all of them. This decides which layer draws which effect. The other
+        // half's effects are switched off for that frame. The next blend, which
+        // starts from the defaults again, brings them back, so when the split ends
+        // TUFX renders as without it. A redirected layer counts as the profile's by its
+        // volumeLayer at that moment, so a camera change that moves the profile within a
+        // frame is followed at once. ReDefinition's layer draws only in a
+        // frame in which one was split.
         private static void UpdateSettingsPostfix(object __0)
         {
             if (broken != null || ownLayer == null) return;
@@ -689,7 +673,12 @@ namespace ReDefinition.Upscaler
         }
 
         // Dithering.Render, for the uber pass of a layer on a redirected camera: no
-        // noise. Its context by position, as above.
+        // noise. Its context by position, as above. Dithering stays out of the image FSR receives.
+        // PostProcessing v2 dithers in the uber pass of every layer's last stack, the profile's and the ones TUFX
+        // adds to the galaxy and scaled cameras for HDR, and noise added at render
+        // size is noise FSR accumulates. Every layer on a redirected camera dithers with
+        // a texture of alpha 0.5, which is no noise (Builtins/Dithering.hlsl).
+        // ReDefinition's layer dithers the final image.
         private static bool DitheringPrefix(object __0)
         {
             if (broken != null || ownLayer == null || __0 == null) return true;

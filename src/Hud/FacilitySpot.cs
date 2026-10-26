@@ -3,13 +3,13 @@ using UnityEngine;
 namespace ReDefinition.Hud
 {
     // Where a button over one of the space centre's buildings stands in flight
-    // (AssemblyReturn, SpaceCentreButtons): the middle of the building's hall,
-    // found once it is there -- over the middle of the largest drawn part that is
+    // (AssemblyReturn, SpaceCentreButtons). It is the middle of the building's hall,
+    // found once it is there. It lies over the middle of the largest drawn part that is
     // also solid (a collider on it: the SPH's model_sph_exterior_main, not the
-    // light flare 90 m up its tower, sharedassets9) and not the ground (Ground), half
-    // as high as its roof stands there, a ray down onto the building's colliders;
-    // the tower beside the SPH's hall would make the hall's box twice as high --
-    // and the building's colliders, which the button stands before
+    // light flare 90 m up its tower, sharedassets9) and not the ground (Ground). It is half
+    // as high as the roof stands there, which a ray down onto the building's colliders finds.
+    // The tower beside the SPH's hall would make the hall's box twice as high.
+    // The spot also holds the building's colliders, which the button stands before
     // (WorldButton.Place).
     internal sealed class FacilitySpot
     {
@@ -83,12 +83,12 @@ namespace ReDefinition.Hud
         }
 
         // Whether a part is the ground the building stands on rather than the
-        // building: the space centre's ground pieces follow the terrain and reach
-        // far under the building's origin -- of each facility's
+        // building. The space centre's ground pieces follow the terrain and reach
+        // far under the building's origin. Of each facility's
         // model_*_exterior_ground, 38 to 45 % of the height stands above it, of the
         // halls 79 to 96 % (measured for the VAB, tracking station, mission control,
-        // astronaut complex, R&D and administration). Without this the R&D's and the
-        // administration's ground, larger than any hall of theirs, was taken.
+        // astronaut complex, R&D and administration). Without this test the R&D's and the
+        // administration's ground, larger than any hall of theirs, would be taken.
         private static bool Ground(Bounds bounds, Vector3 ground, Vector3 up)
         {
             Vector3 extent = bounds.extents;
@@ -98,9 +98,9 @@ namespace ReDefinition.Hud
             return top < 0.6f * height;
         }
 
-        // The space centre's facility of that name (PSystemSetup's: VAB, SPH,
+        // Finds the space centre's facility of that name (PSystemSetup's: VAB, SPH,
         // TrackingStation, AstronautComplex, MissionControl, RnD, Administration, ...),
-        // with the body it stands on; null where it is not there. `label` names it
+        // with the body it stands on. It is null where it is not there. `label` names it
         // in the log; the facility's name where null.
         internal static FacilitySpot Find(string name, out CelestialBody body, string label = null)
         {

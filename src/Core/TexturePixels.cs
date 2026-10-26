@@ -15,10 +15,7 @@ namespace ReDefinition.Core
         // textures need not be readable. Where the graphics API counts a render
         // texture's rows from the top (Direct3D, SystemInfo.graphicsUVStartsAtTop),
         // the sprite's area lies mirrored in the copy, its rows still read from the
-        // bottom: read from ZTheme's bottomBar_plain.png (the sprite is the whole
-        // texture; its top row, which ends 5 pixels short of the right edge, came
-        // last only unturned) and FlightButtonNextMorning.png (the sun's rows from
-        // 0.04 to 1.00 of the sprite, as the file has them).
+        // bottom.
         internal static Color32[] OfSprite(Sprite sprite, out int width, out int height)
         {
             width = height = 0;
@@ -35,6 +32,9 @@ namespace ReDefinition.Core
             {
                 Graphics.Blit(texture, copy);
                 RenderTexture.active = copy;
+                // Read from ZTheme's bottomBar_plain.png: the sprite is the whole texture, and its top row,
+                // which ends 5 pixels short of the right edge, came last only unturned. Read from
+                // FlightButtonNextMorning.png: the sun's rows from 0.04 to 1.00 of the sprite, as the file has them.
                 bool flipped = SystemInfo.graphicsUVStartsAtTop;
                 float from = flipped ? texture.height - area.y - height : area.y;
                 read.ReadPixels(new Rect(area.x, from, width, height), 0, 0);
@@ -51,9 +51,9 @@ namespace ReDefinition.Core
 
         // The same as OfSprite, without waiting for the GPU: only the sprite's area is
         // copied, and read back a few frames later (AsyncGPUReadback), for a coroutine to
-        // step through; done gets the pixels or null. OfSprite copies the whole texture
-        // and waits for the GPU to finish all it was given before: for the vertical speed
-        // gauge's picture at a flight's start, 621 ms of the main thread in one frame
+        // step through. Done gets the pixels or null. OfSprite copies the whole texture
+        // and waits for the GPU to finish all it was given before. For the vertical speed
+        // gauge's picture at a flight's start, that took 621 ms of the main thread in one frame
         // (the perf monitor).
         internal static IEnumerator OfSpriteAsync(Sprite sprite, Action<Color32[], int, int> done)
         {

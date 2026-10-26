@@ -10,12 +10,12 @@ namespace ReDefinition.Engineer
     {
         // ---------------------------------------------------------------- thrust
 
-        // Whether the thrust does the job, for every step that burns: the thrust
-        // against the weight where it decides, a launch and a landing on the engines;
-        // the time each burn in orbit takes against the orbit it is in. Each step with
-        // what it needs and what it has; open, each stage it burns with its TWR as it
-        // starts and as it ends its part, in the air where the body has any, its thrust
-        // and how long it burns, then each burn in orbit and the body.
+        // Whether the thrust does the job, for every step that burns. It checks the thrust
+        // against the weight where it decides, a launch and a landing on the engines, and
+        // the time each burn in orbit takes against the orbit it is in. Each step shows
+        // what it needs and what it has. Open, a step shows each stage it burns, with its TWR as it
+        // starts and as it ends its part (in the air where the body has any), its thrust
+        // and how long it burns. After the stages come each burn in orbit and the body.
         private const float MassColumn = 60f;
         private const float IspColumn = 44f;
         private const float TwrColumn = 38f;

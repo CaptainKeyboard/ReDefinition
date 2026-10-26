@@ -351,7 +351,8 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Fine", kept);
         }
 
-        // What the installed mods require of a setting counts over the value set.
+        // What the installed mods require of a setting counts over the value set: with a requirement that adjusts every
+        // value to 1, setting 3 leaves the mod at 1.
         [TestMethod]
         public void WhatTheModsRequireCountsOverEveryValueSet()
         {

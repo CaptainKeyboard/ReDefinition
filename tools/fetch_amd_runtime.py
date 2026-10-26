@@ -6,7 +6,7 @@ amd_fidelityfx_denoiser_dx12.dll, AMD FSR Ray Regeneration for the raytracing, n
 KSP_x64.exe, where the proxy (dxgi.dll) loads them (docs/development/packaging.md).
 They are AMD's signed binaries, unmodified, redistributed under AMD's licence, which
 the package reproduces next to them (licenses/AMD-FidelityFX-SDK-license.md). The DLLs
-themselves are not kept in this repository: this script downloads exactly the pinned
+themselves are not kept in this repository. This script downloads exactly the pinned
 files from AMD's FidelityFX SDK release and checks them byte for byte against the
 SHA-256 in third_party/amd/, which the package build checks as well.
 

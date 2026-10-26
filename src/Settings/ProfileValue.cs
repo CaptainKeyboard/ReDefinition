@@ -9,9 +9,9 @@ namespace ReDefinition.Settings
     //   dlssModel = K (Rtx20 Rtx30), Default
     //
     // The alternatives stand in order, each with the classes it is for in
-    // brackets (GpuClass, by name, case aside); one without a list is for every
-    // other card and stands last. A card that none is for gets no value, and the
-    // setting stays as it is.
+    // brackets (GpuClass, by name, case aside).
+    // One without a list is for every other card and stands last.
+    // A card that none is for gets no value, and the setting stays as it is.
     internal static class ProfileValue
     {
         // One alternative: its value and the classes of card it is for.

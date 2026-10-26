@@ -14,14 +14,14 @@ namespace ReDefinition.Raytracing
         // The scene camera's culling mask, set each frame (RtKsp).
         internal static int CullingMask = ~0;
 
-        // What hangs on a camera is no part of the scene: mods hang helper meshes
-        // there for Unity to run a pass -- EVE a quad with EVE/InvisibleShadowCaster
-        // under FlightCamera (ScreenSpaceShadowsManager), Deferred one with
+        // What hangs on a camera is no part of the scene. Mods hang helper meshes
+        // there for Unity to run a pass: EVE a quad with EVE/InvisibleShadowCaster
+        // under FlightCamera (ScreenSpaceShadowsManager), and Deferred one with
         // Deferred/DummyForwardShader under the camera it works on
-        // (ForwardRenderingCompatibility), both with bounds far beyond the quad so
-        // that nothing culls them (Atmosphere.dll, Deferred.dll, decompiled). The
-        // flight camera itself hangs under the vessel it follows, among the renderers
-        // the vessel's parts are read from: taken in, such a quad would stand at the
+        // (ForwardRenderingCompatibility). Both have bounds far beyond the quad so
+        // nothing culls them (Atmosphere.dll, Deferred.dll, decompiled). The
+        // flight camera hangs under the vessel it follows, among the renderers
+        // the vessel's parts are read from. Taken in, a quad would stand at the
         // eye and cast a shadow. Found anew every frame (RtKsp): cameras come and go,
         // and the flight camera moves from vessel to vessel.
         private static readonly HashSet<Renderer> onCameras = new HashSet<Renderer>();
@@ -446,9 +446,9 @@ namespace ReDefinition.Raytracing
         }
     }
 
-    // Parallax's scatter -- rocks, trees, grass -- as the GPU placed it this frame
+    // Parallax's scatter (rocks, trees, grass) as the GPU placed it this frame
     // (RtKspMods.ParallaxScatter), and its grass lifted onto the space centre's lawns
-    // (Scenery.KscGrass): culled by Parallax to the view and a short radius
+    // (Scenery.KscGrass). Parallax culls it to the view and a short radius
     // around the camera, so what lies behind the camera further out casts no shadow.
     internal sealed class RtParallaxScatter : IRtGpuSource
     {

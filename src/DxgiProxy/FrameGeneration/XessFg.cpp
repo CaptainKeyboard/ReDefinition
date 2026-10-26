@@ -110,10 +110,9 @@ namespace redefinition
         return versions;
     }
 
-    // Loaded by path from the folder, as the XeSS upscaler's libxess.dll is
-    // (XessUpscaler.cpp): libxess_fg.dll looks for XeLL's functions itself
-    // ("XeLL library does not contains required functions",
-    // XEFG_SWAPCHAIN_RESULT_ERROR_LATENCY_REDUCTION_FUNCTION_MISSING), and a module
+    // Loaded by path from the folder, as the XeSS upscaler's libxess.dll is (XessUpscaler.cpp).
+    // libxess_fg.dll looks for XeLL's functions itself ("XeLL library does not contains required
+    // functions", XEFG_SWAPCHAIN_RESULT_ERROR_LATENCY_REDUCTION_FUNCTION_MISSING). A module
     // already loaded under its name is the one it finds.
     bool XessFg::LoadXell()
     {
@@ -278,10 +277,10 @@ namespace redefinition
     // "The function call needs to be done only once after settings change", and
     // "application must ensure any GPU activity is finished before xellSetSleepMode
     // is called" (xell_developer_guide_english.md, Enable Features, Integration
-    // Checklist). The frame limit is XeLL's where one is asked for: "FPS Cap is
-    // controlled via xellSetSleepMode API when Low Latency mode is active", and
-    // "Having both, application frame limiter and XeLL active at the same time is
-    // discouraged" -- the proxy's own then stays off (CopyAndPresent).
+    // Checklist). The frame limit is XeLL's where one is asked for. The guide says "FPS Cap is
+    // controlled via xellSetSleepMode API when Low Latency mode is active", and "Having both,
+    // application frame limiter and XeLL active at the same time is discouraged". The proxy's own
+    // limiter then stays off (CopyAndPresent).
     bool XessFg::XellSetSleepMode(xell_context_handle_t context, bool lowLatency, uint32_t minimumIntervalUs, bool boost)
     {
         if (context == nullptr || xellSetSleepMode == nullptr)

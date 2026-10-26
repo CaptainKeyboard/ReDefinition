@@ -43,20 +43,13 @@ namespace redefinition
                                              void** handle);
         using EvaluateFeatureFn = uint32_t (*)(ID3D12GraphicsCommandList* list, const void* handle,
                                                const NgxParameters* parameters, void* progress);
-        // NVSDK_NGX_D3D12_Shutdown, not Shutdown1: the driver's Shutdown1 export ends
-        // the process with an access violation inside _nvngx.dll once a feature was
-        // created and released on the device -- with the device or nullptr, measured
-        // with driver 597.16 in a program of its own (init, CreateFeature for Ray
-        // Reconstruction or Super Resolution, ReleaseFeature, Shutdown1); Shutdown
-        // returns success there, and an NGX instance on a Direct3D 11 device keeps
-        // running past it (its capabilities and a new feature after it, and Super
-        // Resolution's live feature went on evaluating: driver 597.16, RaytracingHarness,
-        // "Super Resolution running after Ray Reconstruction's NGX shut down"). "Legacy
-        // Shutdown() call does not have device pointer - so it will shut down NGX on
-        // ALL devices" (DLSS Programming Guide 5.7): on Direct3D 12 the only other
-        // caller is Streamline's sl.common, which is not set up while this runs
-        // (ChooseRoute, RaytracingReconstruct.cpp); a Streamline of a second swapchain
-        // made while the first still lives would lose NGX with this one's.
+        // NVSDK_NGX_D3D12_Shutdown, not Shutdown1. The driver's Shutdown1 export ends the process with
+        // an access violation inside _nvngx.dll once a feature was created and released on the
+        // device, with the device or nullptr. This was measured with driver 597.16 in a program of
+        // its own (init, CreateFeature for Ray Reconstruction or Super Resolution, ReleaseFeature,
+        // Shutdown1). Shutdown returns success there. The legacy call "does not have device pointer
+        // - so it will shut down NGX on ALL devices" (DLSS Programming Guide 5.7).
+        // DlssRayReconstruction.h says what it leaves running and which other callers it affects.
         using ShutdownFn = uint32_t (*)();
 
         // The driver's D3D12 exports the proxy calls.

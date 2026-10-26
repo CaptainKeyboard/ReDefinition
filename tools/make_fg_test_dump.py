@@ -1,7 +1,8 @@
 """Writes a synthetic input dump (the format of FrameGenerationDump.cpp) for the
-harness replay: fine grain like a runway, its left half moving right by <speed>
-pixels a frame with exact motion vectors, its right half still, a still camera and
-a flat depth. Frame generation's output for inputs known to be right.
+harness replay. The picture is fine grain like a runway, its left half moving right by
+<speed> pixels a frame with exact motion vectors, its right half still, with a still
+camera and a flat depth. It shows frame generation's output for inputs known to be
+right.
 
 Usage: python tools/make_fg_test_dump.py <folder> <speed> [--frames 8]
 """

@@ -9,8 +9,8 @@ namespace ReDefinition.Proxy
     // dxgi.dll proxy, which runs AMD's DLL on its D3D12 device and copies the result
     // back into Unity's texture (NativeUpscalerLink).
     //
-    // Which upscaler that is, is the DLL's choice for the GPU: FSR 4 where the DLL
-    // and the GPU have it, otherwise the FSR 3.1 the DLL carries; the proxy's status
+    // The DLL chooses the upscaler for the GPU: FSR 4 where the DLL
+    // and the GPU have it, otherwise the FSR 3.1 the DLL carries. The proxy's status
     // names it. amd_fidelityfx_upscaler_dx12.dll is the player's.
     internal static class AmdUpscalerBridge
     {
@@ -93,7 +93,7 @@ namespace ReDefinition.Proxy
 
         // Which FSR the DLL runs, for the settings row: "FSR 4.1.1", or "FSR 3.1.5
         // fallback" where the DLL is FSR 4's but offers this GPU only the FSR 3 it
-        // carries (AmdUpscaler::Provider); null before it made a context, or without
+        // carries (AmdUpscaler::Provider). Null before it made a context, or without
         // the proxy's export.
         internal static string RunningName()
         {

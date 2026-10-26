@@ -895,7 +895,7 @@ class GroupTest(unittest.TestCase):
 
     def test_every_phase_of_every_group_names_the_live_rendering_keys(self):
         """A group without the radiance cache, the micromaps or the cut-out tests still sets their keys to 0 in every
-        phase: left out, the install's ini would decide, and a player with rtOpacityMicromaps=1 in it would
+        phase. Left out, the install's ini would decide, and a player with rtOpacityMicromaps=1 in it would
         measure every group with micromaps."""
         for group in bm.group_list(self.matrix):
             for start in self.starts(group["id"]):
@@ -1235,8 +1235,8 @@ class StepCheckTest(unittest.TestCase):
         self.assertEqual(bm._step_check({"step": "6x", "fg_requested": True}, 4.5)["shown_as"], 5)
 
     def test_a_repeated_phase_is_judged_on_the_merged_window(self):
-        """The first pass of a rendering's first phase has the frame generation coming up (1.7 shown per rendered frame);
-        the phase is both passes, 1.85, and its step check, its notes and the frame generation that ran are of that."""
+        """The first pass of a rendering's first phase has the frame generation coming up (1.7 shown per rendered frame).
+        The phase is both passes, 1.85, and its step check, its notes and the frame generation that ran are of that."""
         ksp = "".join("[LOG {}] [ReDefinition] {}\n".format(t, text) for t, text in (
             ("12:00:00.000", "Upscaler running on 'Camera 00': 1707x960 -> 2560x1440 (Quality, AMD FSR (DLL))"),
             ("12:00:10.000", "Probe: ReDefinitionProxy.ini set to fgMinimumFps=0."),

@@ -1,11 +1,11 @@
 // The raytracing's inputs, copied in the scene camera's OnRenderImage
-// (src/Raytracing/RtCamera.cs): depth as Direct3D's clip-space z, the G-buffer as
+// (src/Raytracing/RtCamera.cs). They are depth as Direct3D's clip-space z, the G-buffer as
 // Unity's deferred path left it, the motion vectors, and the sky's cube map as a
 // latitude-longitude image. Each pass writes one; the source of the blit is only
 // there for its orientation. Pass 6 makes a material's small texture
-// (src/Raytracing/RtScene.cs, ReadTexture) from its full-size one. Passes 7 to 10:
-// Scatterer's ocean as a surface for the raytraced reflections, and their result as
-// the reflections Scatterer's ocean reads (RtCamera, the ocean's reflections); pass 11
+// (src/Raytracing/RtScene.cs, ReadTexture) from its full-size one. Passes 7 to 10 handle
+// Scatterer's ocean: it as a surface for the raytraced reflections, and their result as
+// the reflections Scatterer's ocean reads (RtCamera, the ocean's reflections). Pass 11 draws
 // the sun's and the moons' discs the waves mirror, added to the ocean Scatterer drew.
 Shader "Hidden/ReDefinition/RtCapture"
 {
@@ -29,11 +29,11 @@ Shader "Hidden/ReDefinition/RtCapture"
     sampler2D _MainTex;
     float _ReDefinitionRtCutoff;
 
-    // Scatterer's ocean G-buffer (OceanCommandBuffer, Scatterer 0.0908; read as
-    // Deferred's screen-space reflections read it, ScreenSpaceReflections.shader,
-    // CombineGbufferAndOcean): the depth as the camera's, the clear value where there is
-    // no ocean; the normal's x and y, its variance over _VarianceMax.x and the sign of
-    // its z.
+    // Scatterer's ocean G-buffer (OceanCommandBuffer, Scatterer 0.0908). It is read as
+    // Deferred's screen-space reflections read it (ScreenSpaceReflections.shader,
+    // CombineGbufferAndOcean). The depth is the camera's, the clear value where there is
+    // no ocean. The normals texture holds the normal's x and y, its variance over
+    // _VarianceMax.x and the sign of its z.
     sampler2D oceanGbufferDepth;
     sampler2D oceanGbufferNormalsAndSigma;
     float2 _VarianceMax;
@@ -114,8 +114,8 @@ Shader "Hidden/ReDefinition/RtCapture"
 
     // Scatterer's ocean reads its reflections as a screen colour and turns it back into
     // its own light (Scatterer 0.0908, OceanWhiteCapsDeferred, its main lighting pass,
-    // per tonemapper): ScattererLight is that inverse as it computes it, ScattererScreen
-    // its tonemapper, which ScattererLight undoes.
+    // per tonemapper). ScattererLight is that inverse as it computes it. ScattererScreen
+    // is its tonemapper, which ScattererLight undoes.
     float3 ScattererLight(float3 v)
     {
         if (TONEMAPPING_MODE == 2)
@@ -157,19 +157,21 @@ Shader "Hidden/ReDefinition/RtCapture"
     }
 
     // The reflections as Deferred's ssrOutput gives them to the ocean, which moves its own
-    // reflection of the sky towards them by their weight (alpha) and its Fresnel term:
-    // where a ray met the scene (w its distance, below 60000), what it met, as the frame's
-    // colour, and the whole weight; where it met nothing the weight 0, and the ocean keeps
-    // its own reflection of the sky. The sun's and the moons' discs the waves mirror there
-    // are added to the ocean once Scatterer has drawn it (fragOceanDiscs): Scatterer
-    // weighs what it reads here down from 1 km of the camera's height over the sea and to
-    // nothing from 2 km (its OceanWhiteCapsDeferred, disassembled: 1 - saturate((height -
-    // 1000) / 1000) on the weight), where the discs would vanish from the sea.
+    // reflection of the sky towards them by their weight (alpha) and its Fresnel term.
+    // Where a ray met the scene (w its distance, below 60000), the result is what it met,
+    // as the frame's colour, and the whole weight. Where it met nothing the weight is 0,
+    // and the ocean keeps its own reflection of the sky. The sun's and the moons' discs
+    // the waves mirror there are added to the ocean once Scatterer has drawn it
+    // (fragOceanDiscs).
     float4 fragOceanCompose(v2f i) : SV_Target
     {
         if (NoOcean(tex2D(oceanGbufferDepth, i.uv).r))
             return 0.0;
         float4 traced = tex2D(_ReDefinitionRtOcean, i.uv);
+        // The discs are added later because Scatterer weighs what it reads here down from 1 km of the
+        // camera's height over the sea and to nothing from 2 km (its OceanWhiteCapsDeferred,
+        // disassembled: 1 - saturate((height - 1000) / 1000) on the weight), where the discs would vanish
+        // from the sea.
         if (traced.w >= 60000.0)
             return 0.0;
         float3 linearLight = max(traced.rgb, 0.0);
@@ -206,17 +208,12 @@ Shader "Hidden/ReDefinition/RtCapture"
 
     // The sun's and the moons' discs the waves mirror (RtCommon.hlsli, BodiesMirroredAt;
     // the traced reflections where a ray met nothing, w 60000 and more), added to the
-    // ocean Scatterer drew, before its atmosphere draws over it: its pixel turned back
+    // ocean Scatterer drew, before its atmosphere draws over it. The pixel is turned back
     // into Scatterer's light (ScattererLight), the discs' light added in its light as the
-    // frame's colour gives it, and the sum through its tonemapper again. Water's Fresnel
-    // term over the waves' variance as Scatterer takes it for its sky, 0.02 + 0.98 times
-    // Bruneton's MeanFresnel ((1 - N.V) to the power 5 exp(-2.69 sigma), over 1 + 22.7
-    // sigma^1.5): what it reads from ssrOutput it weighs by MeanFresnel alone (its
-    // OceanWhiteCapsDeferred, disassembled), near 0 looking steeply down, where water
-    // reflects 2 %. The discs' light as Scatterer's
-    // light by its luminance as the frame's colour, its own colour kept in proportion:
-    // Scatterer's inverse taken per channel would tint a faint light towards its strongest
-    // channel.
+    // frame's colour gives it, and the sum put through its tonemapper again.
+    // The discs' light becomes Scatterer's light by its luminance as the frame's colour, its own
+    // colour kept in proportion: Scatterer's inverse taken per channel would tint a faint light
+    // towards its strongest channel.
     float4 fragOceanDiscs(v2fQuad i) : SV_Target
     {
         float2 uv = i.screen.xy / i.screen.w;
@@ -257,6 +254,10 @@ Shader "Hidden/ReDefinition/RtCapture"
         float4 far = mul(_ReDefinitionOceanScreenToWorld, float4(uv * 2.0 - 1.0, 1.0, 1.0));
         float3 ray = normalize(far.xyz / far.w);
         float nv = saturate(dot(-ray, normal));
+        // The discs are weighed by water's Fresnel term over the waves' variance, as Scatterer takes it for its
+        // sky: 0.02 + 0.98 times Bruneton's MeanFresnel ((1 - N.V) to the power 5 exp(-2.69
+        // sigma), over 1 + 22.7 sigma^1.5). What Scatterer reads from ssrOutput it weighs by MeanFresnel alone
+        // (its OceanWhiteCapsDeferred, disassembled), near 0 looking steeply down, where water reflects 2 %.
         float fresnel = 0.02 + 0.98 * min(pow(1.0 - nv, 5.0 * exp(-2.69 * sigma)) / (1.0 + 22.7 * pow(sigma, 1.5)), 1.0);
         return float4(ScattererScreen(ScattererLight(frame.rgb) + fresnel * light), frame.a);
     }
@@ -282,7 +283,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     }
 
     // A texel of a material's small texture from the full-size texture's texels under
-    // it, read at full size in 8 x 8 points: a mip level's averaged alpha would blur a
+    // it, read at full size in 8 x 8 points. A mip level's averaged alpha would blur a
     // cut-out's edge into the threshold. For a cut-out material (_ReDefinitionRtCutoff
     // above 0) the alpha is the share of points the cut-out keeps and the colour that of
     // those points alone, as only they are ever seen; otherwise both are the average.
@@ -328,10 +329,11 @@ Shader "Hidden/ReDefinition/RtCapture"
     sampler2D _ReDefinitionRtSurfaceMode;
 
     // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn as bright as the
-    // terrain beside it (RtCommon.hlsli, MeadowShade, in the surface mode's y), multiplied into the
-    // G-buffer's albedo: a distant meadow's darker colour, for the sun's light and the sky's alike; and the
-    // lawn's occlusion as the terrain's (RtCommon.hlsli, LawnOcclusion, in w) into the G-buffer's. 1 where
-    // the raytracing found no surface. Half the factors, which pass 16 blends in twice, up to 2.
+    // terrain beside it (RtCommon.hlsli, MeadowShade, in the surface mode's y). These are multiplied into the
+    // G-buffer's albedo, a distant meadow's darker colour, for the sun's light and the sky's alike. The
+    // lawn's occlusion as the terrain's (RtCommon.hlsli, LawnOcclusion, in w) goes into the G-buffer's. The
+    // result is 1 where the raytracing found no surface. It holds half the factors, which pass 16 blends in
+    // twice, up to 2.
     half4 fragMeadow(v2fQuad i) : SV_Target
     {
         float4 found = tex2D(_ReDefinitionRtSurfaceMode, i.screen.xy / i.screen.w);
@@ -341,11 +343,11 @@ Shader "Hidden/ReDefinition/RtCapture"
     }
 
     // The surfaces' overlay (RtCamera.SurfaceView), over the finished picture: each surface's
-    // shine as its material means it. Dark grey matt; blue to green to yellow to red from
-    // rough to smooth, brighter the stronger it reflects; striped where the G-buffer's own
-    // shine was kept (Unity's physically based or an unknown shader), striped across for the
-    // space centre's ground, striped down with magenta where no material was found at the
-    // pixel, each by the shine it gets; cyan KSP's sea; the sky as it is.
+    // shine as its material means it. Dark grey is matt. Blue to green to yellow to red runs from
+    // rough to smooth, brighter the stronger it reflects. Stripes mark where the G-buffer's own
+    // shine was kept (Unity's physically based or an unknown shader). Stripes across mark the
+    // space centre's ground, and stripes down with magenta mark where no material was found at the
+    // pixel, each by the shine it gets. Cyan is KSP's sea. The sky is as it is.
     half4 fragSurfaceView(v2fQuad i) : SV_Target
     {
         float2 uv = i.screen.xy / i.screen.w;
@@ -380,13 +382,11 @@ Shader "Hidden/ReDefinition/RtCapture"
         return half4(colour, 1.0);
     }
 
-    // Pass 14, after the G-buffer, from a copy of the light buffer: KSP's flat ambient
-    // light taken out where a surface's own G-buffer pass put it there, its albedo times
-    // RenderSettings.ambientLight -- Unity's for the shaders Deferred does not replace;
-    // the space centre's flag (a SkinnedMeshRenderer) and the launch pad's grate at night
-    // held 0.19 there, 0.24 times their albedo, every other surface none (measured
-    // 2026-10-19). The raytraced diffuse light comes in its place in the reflections pass
-    // (ReDefinitionDeferredReflections.shader), as for every other surface. Only where the
+    // Pass 14, after the G-buffer, from a copy of the light buffer. It takes KSP's flat ambient
+    // light out where a surface's own G-buffer pass put it there, its albedo times
+    // RenderSettings.ambientLight. That is Unity's for the shaders Deferred does not replace.
+    // The raytraced diffuse light comes in its place in the reflections pass
+    // (ReDefinitionDeferredReflections.shader), as for every other surface. It acts only where the
     // light buffer holds that and nothing else, within a tenth: an emissive surface keeps
     // its light.
     half4 _ReDefinitionFlatAmbient;
@@ -394,16 +394,18 @@ Shader "Hidden/ReDefinition/RtCapture"
     // The light buffer's texel less the albedo times the flat ambient light, where it holds that alone.
     half4 fragUnbakeAmbient(v2f i) : SV_Target
     {
+        // Measured 2026-10-19: the space centre's flag (a SkinnedMeshRenderer) and the launch pad's grate
+        // at night held 0.19 there, 0.24 times their albedo, every other surface none.
         half4 light = tex2D(_MainTex, i.uv);
         half3 baked = tex2D(_CameraGBufferTexture0, i.uv).rgb * _ReDefinitionFlatAmbient.rgb;
         bool holds = max(baked.r, max(baked.g, baked.b)) > 0.01 && all(abs(light.rgb - baked) <= baked * 0.1 + 0.002);
         return half4(holds ? max(light.rgb - baked, 0.0) : light.rgb, light.a);
     }
 
-    // Pass 15, after the sun's screen-space shadows, into two texels: how Unity fades its
+    // Pass 15, after the sun's screen-space shadows, into two texels. They hold how Unity fades its
     // shadow out towards the shadow distance in forward rendering, as it set it for them
     // (UnityShadowLibrary.cginc, UnityComputeShadowFade): _LightShadowData, whose z and w
-    // are the fade's scale and bias, and unity_ShadowFadeCenterAndType. Only for the
+    // are the fade's scale and bias, and unity_ShadowFadeCenterAndType. The pass runs only for the
     // raytraced camera: the sun's other cameras leave what it wrote.
     float _ReDefinitionRtOn;
 

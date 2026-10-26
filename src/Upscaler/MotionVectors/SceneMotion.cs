@@ -5,17 +5,17 @@ namespace ReDefinition.Upscaler
 {
     // The scene camera's move from the frame before to this one, against the
     // main body, as a matrix from this frame's clip space into the frame
-    // before's: for the motion of far points fixed to the body (pass 2 of the
+    // before's. It serves the motion of far points fixed to the body (pass 2 of the
     // cloud motion shader, ScaledSpaceMotion).
     //
     // Unity works out a camera's motion vectors from world positions in single
-    // precision. When the camera stands a hundred kilometres or more from the
-    // origin -- KSP's flight camera zoomed out to its farthest, over the Mun --
-    // and looks at ground as far away, the result is noise of several pixels
+    // precision. The camera may stand a hundred kilometres or more from the
+    // origin (KSP's flight camera zoomed out to its farthest, over the Mun)
+    // and look at ground as far away. Then the result is noise of several pixels
     // from one pixel to the next, and the upscaler reprojects every pixel of that
     // ground somewhere else each frame: it shimmers. Here only the camera's pose
     // against the body enters, the small difference between two frames, in
-    // double precision; the distance from the origin only through the
+    // double precision. The distance from the origin enters only through the
     // single-precision transform positions, about a centimetre at 150 km.
     // Against the body rather than the world, since KSP moves
     // the world under a fast vessel (Krakensbane) and turns it with the body near

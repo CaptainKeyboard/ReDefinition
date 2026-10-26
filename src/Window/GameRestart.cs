@@ -60,7 +60,7 @@ namespace ReDefinition.Window
             Application.Quit();
         }
 
-        // The scenes in which a game is loaded.
+        // Whether the scene is one in which a game is loaded: flight, the editor, the space centre or the tracking station.
         private static bool Loaded(GameScenes scene)
         {
             return scene == GameScenes.FLIGHT || scene == GameScenes.EDITOR || scene == GameScenes.SPACECENTER

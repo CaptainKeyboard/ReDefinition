@@ -4,14 +4,13 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
-using ReDefinition.Core;
 
 namespace ReDefinition.RaytracingPlayer
 {
     // Builds the raytracing test player (docs/development/raytracing.md, "Testing
-    // without the game"): a Windows player set up as KSP's is, Direct3D 11 with
+    // without the game"). It is a Windows player set up as KSP's is, Direct3D 11 with
     // native graphics jobs and gamma colour space, with one scene that holds the
-    // runner. tools/build_rt_player.py copies ReDefinition's raytracing sources and
+    // runner. The script tools/build_rt_player.py copies ReDefinition's raytracing sources and
     // shaders in first and calls this in batch mode:
     //
     //   Unity.exe -batchmode -quit -projectPath tests/RaytracingPlayer

@@ -7,8 +7,8 @@ namespace ReDefinition.Settings
 {
     // The bundled mods and their settings as the rest of ReDefinition reaches them
     // (docs/development/architecture.md): the mods, built from their registrations,
-    // and the store (BundledStore) with the game as its host -- bundled.cfg in
-    // GameData/ReDefinition/PluginData, KSP's loaded save, what installed mods
+    // and the store (BundledStore) with the game as its host.
+    // The game supplies bundled.cfg in GameData/ReDefinition/PluginData, KSP's loaded save, what installed mods
     // require, and ReDefinition's log.
     internal static class BundledSettings
     {
@@ -324,7 +324,7 @@ namespace ReDefinition.Settings
         // The game as the store's host.
         private sealed class GameHost : IStoreHost
         {
-            // bundled.cfg into the ledger and the state.
+            // Fills the ledger and the state from bundled.cfg in ReDefinition's PluginData (BundledFile.Read).
             public void Read(BundledLedger ledger, BundledState state)
             {
                 BundledFile.Read(Path, ledger, state, this);

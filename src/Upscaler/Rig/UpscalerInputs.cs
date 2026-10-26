@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Upscaler
 {
     // What the upscalers and frame generation take beside the colour, prepared on the
-    // scene camera: the capture buffer at BeforeImageEffects that copies depth and
+    // scene camera. That is the capture buffer at BeforeImageEffects that copies depth and
     // motion vectors into the rig's textures, the distant planets' motion
     // (ScaledSpaceMotion) and EVE's clouds (CloudMotionVectors) in those, and the masks
     // (UpscalerMasks).
@@ -56,9 +56,9 @@ namespace ReDefinition.Upscaler
 
         // The scene camera's inputs, recorded anew every frame: the masks follow
         // the renderers in view and their materials. They are recorded earlier in
-        // the frame, in a buffer of their own (UpscalerMasks); the reactive one
+        // the frame, in a buffer of their own (UpscalerMasks). The reactive one
         // copies the scene's depth into the depth copy for itself, and the capture
-        // here copies it again at BeforeImageEffects, so what the upscaler, TUFX and
+        // here copies it again at BeforeImageEffects. So what the upscaler, TUFX and
         // frame generation read does not depend on the masks.
         internal void Record(Camera cam, UpscalerTextures textures, UpscalerRig.DepthSource depth, Vector2Int renderSize,
                              bool transparency, bool reactiveRenderers, bool reactiveAutomatic)

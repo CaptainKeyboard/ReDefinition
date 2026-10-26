@@ -12,9 +12,9 @@ namespace ReDefinition.Window
     // setting, and a choice row's list, which a value from outside it joins.
     internal static partial class SettingsWindow
     {
-        // A choice row's list, which a value from outside the list joins -- in its
-        // place among numbers, else at the front (PlaceAmong): one a mod's own window
-        // set while this one is open, or one a profile hands back.
+        // A choice row's list, which a value from outside the list joins.
+        // The value takes its place among numbers, else the front (PlaceAmong).
+        // Such a value is one a mod's own window set while this one is open, or one a profile hands back.
         private sealed class ChoiceRow
         {
             // The values the row offers, and their labels where the values are not shown as they are.

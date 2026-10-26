@@ -17,49 +17,24 @@ namespace ReDefinition.Upscaler
     // motion of the surface. The vessel's shadow on that surface moves with the vessel. On
     // a runway under a vessel the camera follows, the shadow stands on the screen while the
     // ground under it runs, and the generated frames dragged the shadow along with the
-    // ground: measured in a recording at 2560x1440, the shadow of a canard 90 px off in each
+    // ground. Measured in a recording at 2560x1440, the shadow of a canard was 90 px off in each
     // generated frame, or gone. Given the HUD-less image with the shadow taken out, DLSS
     // frame generation treats the difference to the frame, the shadow, like the interface
     // and does not move it (measured in the proxy harness's replay of that recording).
     //
     // Per pixel, since a shadow has no one motion: nearer and farther parts of it, parts on
     // a slope or on a building, the shadows of different parts each move otherwise.
-    // - How much of the sun the vessel takes there: Unity's own screen-space shadow mask
-    //   for the light (LightEvent.AfterScreenspaceMask), which holds the half shadow,
-    //   cascades and filtering as drawn, where the light map says the vessel is in the way.
-    //   The light map is the vessel alone drawn from the sun, so the shadows of terrain,
-    //   buildings, grass and clouds never count.
-    // - Where that bit of shadow lay in the frame before: the occluding point, as far along
-    //   the light as the light map says, moved as its renderer moved, and its shadow along
-    //   the light onto a plane through the surface point here.
-    // - Left in place the shadow is off by its own screen motion, moved with the surface by
-    //   the difference to the surface's motion vector; the weight goes over to the smaller
-    //   error. A vessel standing still under a turning camera keeps its shadow in the
-    //   HUD-less image, as before.
-    // - How dark full shadow is in the finished image, per channel: the local mean colour
-    //   in full shadow against the lit ground next to it, from mip chains of both, so
-    //   whatever the sun's colour, the shadow strength, the atmosphere or the post
-    //   processing do to it is measured, not assumed.
-    //
-    // The light: the brightest enabled directional light casting shadows that lights the
-    // local scenery (layer 15); with several stars (Kopernicus) only the brightest one's
-    // shadow is handled. Its direction is read in the scene camera's OnPreRender, after
-    // every OnPreCull, where Unity has built the shadow cascades from it (CameraRedirect).
-    //
-    // KSP's floating origin and Krakensbane move the world between frames: the vessel and
-    // the camera by minus SharedFrame.OriginShift, the ground and the bodies by minus
-    // BodyShift, which holds the Krakensbane step in fast flight. The previous frame's
-    // view-projection and part matrices are carried into this frame's coordinates by the
-    // first, and the surface the shadow fell on lay off by the difference of the two.
+    // Four things are worked out there, described at FindLight, KeepModels, Compose and
+    // EnsureDisplayTargets. Begin handles the floating origin.
     //
     // Left alone: a frame with a history reset since the one before, and anything drawn
     // over the shadow (engine plumes, dust), which is taken out with it where the shadow
     // is.
     internal sealed class VesselShadowLayer
     {
-        // The light map's side in texels; the shader's passes (the vessel into the light map, the weight, full shadow
-        // and lit ground for the local means, the composition); the local scenery's layer; and how often the light
-        // is looked for again and the counts are logged, in seconds.
+        // The light map's side in texels. The shader's passes follow: the vessel into the light map, the weight, full
+        // shadow and lit ground for the local means, the composition. Then come the local scenery's layer, and how
+        // often the light is looked for again and the counts are logged, in seconds.
         private const int LightMapSize = 1024;
         private const int CasterPass = 0;
         private const int WeightPass = 1;
@@ -128,9 +103,11 @@ namespace ReDefinition.Upscaler
         private Vessel castersOf;
         private int castersPartCount;
 
-        // The shader's material, or why it could not be made; the light map, Unity's mask copied for the light, the
-        // weight; the textures the last Compose recorded, the half-size shadowed and lit images with their mips; the
-        // command buffer on the light that copies its mask; the light; and when it is looked for next.
+        // The shader's material, or why it could not be made. Then the light map, Unity's mask copied for the light,
+        // the weight; the textures the last Compose recorded, the half-size shadowed and lit images with their mips.
+        // Last the command buffer on the light that copies its mask, the light, and when it is looked for next.
+        // The light map is the vessel alone drawn from the sun, so the shadows of terrain, buildings, grass and
+        // clouds never count.
         private Material material;
         private string state;
         private RenderTexture lightMap;
@@ -203,6 +180,11 @@ namespace ReDefinition.Upscaler
         // In the scene camera's OnPreCull, after SharedFrame has begun the frame: its
         // matrices without the jitter, which CameraRedirect adds in OnPreRender, whether the
         // frame before describes the motion to this one, and the origin shift between them.
+        // KSP's floating origin and Krakensbane move the world between frames: the vessel and
+        // the camera by minus SharedFrame.OriginShift, the ground and the bodies by minus
+        // BodyShift, which holds the Krakensbane step in fast flight. The previous frame's
+        // view-projection and part matrices are carried into this frame's coordinates by the
+        // first, and the surface the shadow fell on lay off by the difference of the two.
         internal void Begin(Camera camera, Vector2Int renderSize)
         {
             active = false;
@@ -232,8 +214,9 @@ namespace ReDefinition.Upscaler
             active = true;
         }
 
-        // In the scene camera's OnPreRender, after the shadow cascades are built: the light
-        // map and the weight, appended to the capture at BeforeImageEffects after its depth,
+        // In the scene camera's OnPreRender, after every OnPreCull, where Unity has built the shadow cascades
+        // from the light (CameraRedirect): the light map and the weight,
+        // appended to the capture at BeforeImageEffects after its depth,
         // motion vectors and hooks. A frame without a weight clears it, so the HUD-less
         // composition, recorded once, never uses an old one.
         internal void Record(CommandBuffer capture, RenderTexture depth, RenderTexture motionVectors)
@@ -324,7 +307,10 @@ namespace ReDefinition.Upscaler
 
         // Into the HUD-less capture, in place of the plain copy: the frame with the
         // vessel's shadow taken out by this frame's weight. False where there is no
-        // weight for this frame; the caller then copies as before.
+        // weight for this frame; the caller then copies as before. Left in place the shadow is off by its own
+        // screen motion, so it is moved with the surface by the difference to the surface's motion vector, and the
+        // weight goes over to the smaller error. A vessel standing still under a turning camera keeps its shadow in
+        // the HUD-less image, as before.
         internal bool Compose(CommandBuffer buffer, RenderTargetIdentifier source, RenderTexture hudLess,
                               Vector2Int renderSize)
         {
@@ -365,7 +351,9 @@ namespace ReDefinition.Upscaler
             capture.ClearRenderTarget(false, true, Color.clear);
         }
 
-        // Every caster's matrix of this frame, kept for the next one's motion.
+        // Every caster's matrix of this frame, kept for the next one's motion. The shader works out where a bit
+        // of shadow lay in the frame before. That is the occluding point, as far along the light as the light map says,
+        // moved as its renderer moved, and its shadow along the light onto a plane through the surface point here.
         private void KeepModels()
         {
             foreach (Caster c in casters)
@@ -438,7 +426,11 @@ namespace ReDefinition.Upscaler
         }
 
         // The light that casts the local scenery's shadows, looked for every few seconds and
-        // whenever the one found is gone or switched off.
+        // whenever the one found is gone or switched off. It is the brightest enabled directional light casting
+        // shadows that lights the local scenery (layer 15). With several stars (Kopernicus) only the brightest
+        // one's shadow is handled. The shader takes how much of the sun the vessel takes there from Unity's own
+        // screen-space shadow mask for the light (LightEvent.AfterScreenspaceMask). The mask holds the half shadow,
+        // cascades and filtering as drawn, where the light map says the vessel is in the way.
         private void FindLight()
         {
             bool usable = light != null && light.isActiveAndEnabled && light.shadows != LightShadows.None;
@@ -531,7 +523,10 @@ namespace ReDefinition.Upscaler
             return true;
         }
 
-        // Half the display size with mips, for the local means.
+        // Half the display size with mips, for the local means. They give how dark full shadow is in the finished
+        // image, per channel: the local mean colour in full shadow against the lit ground next to it, from mip
+        // chains of both. Whatever the sun's colour, the shadow strength, the atmosphere or the post processing do
+        // to it is measured, not assumed.
         private bool EnsureDisplayTargets(RenderTexture hudLess)
         {
             int width = Mathf.Max(1, hudLess.width / 2);

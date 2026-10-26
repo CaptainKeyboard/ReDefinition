@@ -13,21 +13,16 @@ namespace ReDefinition.Hud
     // Better Time Warp Continued's drop-down button as part of KSP's time panel.
     // The mod draws it with IMGUI at a place worked out from KSP's stock panel
     // (BetterTimeWarp.OnGUI: `GUI.Toggle(new Rect(scale * y, x, ...), windowOpen,
-    // buttonContent, skin.button)`; its source read), which a UI theme's panel does
-    // not keep, and in every scene its OnGUI runs in, the loading between scenes
-    // too. Here a copy of the panel's MET button (its sprites, states and theme;
+    // buttonContent, skin.button)`; its source read). A UI theme's panel does
+    // not keep that place. The mod draws it in every scene its OnGUI runs in, the loading
+    // between scenes too. Here a copy of the panel's MET button (its sprites, states and theme;
     // the panel read with UnityPy from sharedassets7), square, stands at the end of
-    // the warp row: as high as the row, as wide as the warp-to-sunrise button below
+    // the warp row. It is as high as the row, as wide as the warp-to-sunrise button below
     // it (UIWarpToNextMorning.button) and right above it, showing the mod's arrow
-    // and opening the mod's window (BetterTimeWarp.UIOpen). It keeps one place on
-    // the screen: at the end of the warp row while the panel is unfolded, at the
-    // end of the MET row while it is folded, so that the sunrise extension, which
-    // shows only while the panel is unfolded, slides out from under it; the
-    // extension's top right corner is squared to join it. The mod's own IMGUI
-    // button is not drawn while the copy stands (a transpiler routes its
-    // GUI.Toggle through Toggle), nor where there is no time panel; elsewhere it
-    // stays, right of the WARP label (Place). Where the mod's own settings switch the
-    // mod or its drop-down button off, no copy stands either (ModDrawsButton).
+    // and opening the mod's window (BetterTimeWarp.UIOpen). TimeWarpBar keeps it in
+    // its place. The mod's own IMGUI button is not drawn while the copy stands
+    // (Toggle), nor where there is no time panel. Where the mod's own settings switch
+    // the mod or its drop-down button off, no copy stands either (ModDrawsButton).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
@@ -120,8 +115,9 @@ namespace ReDefinition.Hud
             return original;
         }
 
-        // The mod's GUI.Toggle: not drawn while the copy stands, nor while loading or where there is no time panel; else
-        // drawn as the mod draws it.
+        // The mod's GUI.Toggle, which a transpiler routes here. The button is not drawn while the copy
+        // stands, nor while loading or where there is no time panel. Elsewhere it stays, right of the
+        // WARP label (Place), and is drawn as the mod draws it.
         private static bool Toggle(Rect position, bool value, GUIContent content, GUIStyle style)
         {
             if (Replaced) return value;
@@ -146,12 +142,12 @@ namespace ReDefinition.Hud
             return new Rect(end.x + Gap * GameSettings.UI_SCALE, Screen.height - end.y - height / 2f, width, height);
         }
 
-        // Whether the mod draws its drop-down button in this game: its OnGUI returns at
-        // once where its "Mod Enabled?" is off, and draws no button where "Hide the
-        // dropdown button in the flight scene?" is on -- at the space centre too
+        // Whether the mod draws its drop-down button in this game. Its OnGUI returns at
+        // once where its "Mod Enabled?" is off. It draws no button where "Hide the
+        // dropdown button in the flight scene?" is on, at the space centre too
         // (BTWCustomParams.enabled, hideDropdownButtonInFlight, read in OnGUI from
         // HighLogic.CurrentGame.Parameters; its source read). Where they cannot be read,
-        // as it draws by default.
+        // it returns true, as the mod draws by default.
         internal static bool ModDrawsButton()
         {
             if (!paramsResolved)

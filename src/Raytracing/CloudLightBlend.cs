@@ -8,22 +8,9 @@ namespace ReDefinition.Raytracing
     //
     // With the moon's light added per pixel (EveCloudRelight) the sun stays the clouds'
     // light, each cloud in its own sunset as Scatterer shades it, until it reaches none in
-    // view; the light then turns to the moon (Handoff) as the per-pixel light gives way.
-    // Without it, as follows.
-    //
-    // A cloud at height h over a planet of radius R sees the sun until it sinks
-    // acos(R / (R + h)) under the horizon of the ground below (Dip): on Kerbin some 10
-    // degrees for the top of a layer at 10 km. The clouds farther off towards the sunset
-    // see it longer, by the angle between their place and the camera's from the planet's
-    // centre; the farthest in view, on the horizon of the layer's top, by that dip again
-    // (FarthestDip). Down to the top's dip the sun alone lights them, as without this, and
-    // the clouds overhead that it no longer reaches go dark as they would; from the
-    // farthest clouds' dip on the moon alone; in between the sun's share eases from 1 to 0
-    // (Reach) -- so that the clouds still in the sunset keep its light (the player,
-    // 2026-10-23: the moon's light on them at 9 degrees under the horizon was wrong).
-    // Each light counts by its brightness times its share: the light comes from their
-    // weighted mean direction and in the sum of their colours, so that it moves from the
-    // sun to the moon while both are faint, instead of switching.
+    // view. The light then turns to the moon (Handoff) as the per-pixel light gives way.
+    // Without it, Dip, FarthestDip, Reach and Direction make the blend, so that the clouds
+    // still in the sunset keep the sun's light.
     internal static class CloudLightBlend
     {
         // Where the layer is too thin for a window of its own: so wide a one, in radians.
@@ -31,7 +18,9 @@ namespace ReDefinition.Raytracing
 
         // How far under the horizon of the ground below, in radians, the sun sinks before
         // it leaves a cloud `radius` from the centre of a planet of `planetRadius`; 0 at or
-        // below the ground.
+        // below the ground. A cloud at height h over a planet of radius R sees the sun until it
+        // sinks acos(R / (R + h)) under the horizon: on Kerbin some 10 degrees for the top of a
+        // layer at 10 km.
         internal static double Dip(double planetRadius, double radius)
         {
             if (planetRadius <= 0.0 || radius <= planetRadius) return 0.0;
@@ -39,8 +28,10 @@ namespace ReDefinition.Raytracing
         }
 
         // How far under the horizon of the ground below the sun sinks before it leaves the
-        // farthest clouds in view, given the dip of the layer's top and that of the camera's
-        // own height (0 on the ground): those clouds stand where the line of sight that
+        // farthest clouds in view. It takes the dip of the layer's top and that of the camera's
+        // own height (0 on the ground). Clouds farther off towards the sunset see the sun
+        // longer, by the angle between their place and the camera's from the planet's centre.
+        // The farthest clouds stand where the line of sight that
         // grazes the ground meets the top, as far round the planet as the two dips together,
         // and see the sun so much longer, by the top's dip again.
         internal static double FarthestDip(double topDip, double cameraDip = 0.0)
@@ -67,7 +58,7 @@ namespace ReDefinition.Raytracing
         internal const double HandoffWindow = 2.0 * Math.PI / 180.0;
 
         // The moon's share of the clouds' one light at the sun's elevation over the camera's
-        // horizon, in radians, with the moon's light added per pixel: 0 while the sun still
+        // horizon, in radians, with the moon's light added per pixel. It is 0 while the sun still
         // reaches a cloud in view (down to -farthest), 1 from HandoffWindow further on, smooth
         // in between. The sun's light no longer reaches any cloud then, so the light can take
         // the moon's direction at once and only its strength eases in.
@@ -80,7 +71,12 @@ namespace ReDefinition.Raytracing
         }
 
         // The sun's share of the clouds' light at its elevation over the ground's horizon,
-        // in radians: 1 down to -lowest, 0 from -highest on, smooth in between.
+        // in radians: 1 down to -lowest, 0 from -highest on, smooth in between. Down to the top's dip
+        // the sun alone lights the clouds, as without this, and the clouds overhead that it no
+        // longer reaches go dark as they would. From the farthest clouds' dip on, the moon alone lights them.
+        // In between the sun's share eases from 1 to 0, so that the clouds still in the sunset keep
+        // its light. The player found the moon's light on them at 9 degrees under the horizon
+        // wrong (2026-10-23).
         internal static double Reach(double elevation, double lowest, double highest)
         {
             if (highest < lowest + NarrowestWindow) highest = lowest + NarrowestWindow;
@@ -92,7 +88,10 @@ namespace ReDefinition.Raytracing
 
         // The direction the light comes from, unit length, into `towards`: the sun's and
         // the moon's (unit length each) weighted by brightness times share, `reach` the
-        // sun's. The sun's where neither has any weight, or where they cancel.
+        // sun's. The sun's where neither has any weight, or where they cancel. Each light counts by
+        // its brightness times its share. The light comes from their weighted mean direction and in the
+        // sum of their colours, so that it moves from the sun to the moon while both are faint, instead of
+        // switching.
         internal static void Direction(double[] sun, double sunBrightness, double[] moon, double moonBrightness,
                                        double reach, double[] towards)
         {

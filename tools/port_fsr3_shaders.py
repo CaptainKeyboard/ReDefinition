@@ -13,9 +13,9 @@ Two things stand in the way, both only available from Unity 2020.1:
 
   2. CommandBuffer.SetComputeConstantBufferParam. Without that API an explicitly
      registered cbuffer cannot be filled. Global uniforms set through
-     SetComputeIntParams/SetComputeFloatParams do not work either: those calls
+     SetComputeIntParams/SetComputeFloatParams do not work either. Those calls
      write raw into the constant buffer and follow the HLSL layout rules, which
-     align elements to float4, so an int2 occupies 16 bytes instead of 8 and every
+     align elements to float4. So an int2 occupies 16 bytes instead of 8 and every
      field lands on the next one.
 
      So every cbuffer becomes a StructuredBuffer. SetComputeBufferParam

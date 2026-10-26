@@ -12,25 +12,24 @@ namespace ReDefinition.Settings.Behaviours
     // TheDarkBadger, LisiasT)
     //
     // Its settings are the singleton DistantObject.Settings.Instance, whose groups
-    // are plain objects with public fields, kept per save: Load reads the loaded
+    // are plain objects with public fields, kept per save. Load reads the loaded
     // save's file, with none loaded the one in its PluginData, and Save writes that
-    // same file. Its registration reaches the fields; here is what a path cannot say:
-    //   * the three switches and the debug mode go through Commit, which enables or
-    //     disables its drawing components -- at once, as its window does;
-    //   * its window works on a copy of the settings (SettingsGui.buffer), taken as
-    //     it opens and written back at its Apply: a value set here goes into that
-    //     copy too, and only that value;
-    //   * its names' font, among the dynamic fonts loaded;
-    //   * two Harmony postfixes keep both windows alike: on Load, whatever file it
-    //     has just read, the choices kept here go back over it and into that file;
-    //     on its window's ApplySettings, a value changed there becomes the choice
-    //     here;
-    //   * a postfix on DarkenSky.Update: its sky dimming takes the sun's term by the
-    //     angle between the view and the sun alone (CommonUtils.CalculateSunBrightness,
-    //     decompiled), so on the night side, looking towards the sun behind the planet,
-    //     the stars go out. Where a body stands between the camera and the sun, the
-    //     sky is dimmed by the planets' term alone, as KSP's own glare fade does
-    //     (GalaxyCubeControl's line of sight to the sun, decompiled).
+    // same file. Its registration reaches the fields. This class does what a path cannot say.
+    //
+    // The three switches and the debug mode go through Commit, which enables or
+    // disables its drawing components at once, as its window does.
+    //
+    // Its window works on a copy of the settings (SettingsGui.buffer), taken as
+    // it opens and written back at its Apply. A value set here goes into that
+    // copy too, and only that value (IntoWindows).
+    //
+    // The font of its names is among the dynamic fonts loaded (FontChoice).
+    //
+    // Two Harmony postfixes keep both windows alike. On Load, whatever file it
+    // has just read, the choices kept here go back over it and into that file.
+    // On its window's ApplySettings, a value changed there becomes the choice here.
+    //
+    // A postfix on DarkenSky.Update dims the sky where a body hides the sun (DarkenSkyPostfix).
     internal sealed class DistantObjectBehaviour : ModBehaviour
     {
         // The Harmony id the hooks are installed under, and where the registration's member paths start.
@@ -222,8 +221,8 @@ namespace ReDefinition.Settings.Behaviours
             return true;
         }
 
-        // Into an open window's copy of the settings -- of the same groups, since
-        // Settings is a SettingsBuffer -- looked for once a frame: a save as it loads
+        // Into an open window's copy of the settings. The copy has the same groups, since
+        // Settings is a SettingsBuffer. The copies are looked for once a frame: a save as it loads
         // writes most of the settings at once.
         private void IntoWindows(FieldInfo group, FieldInfo field, object value)
         {
@@ -302,6 +301,11 @@ namespace ReDefinition.Settings.Behaviours
 
         // Where the sun is behind a body, the sky as Distant Object dims it without the
         // sun's term: by the bright planets in view alone.
+        // Its sky dimming takes the sun's term by the angle between the view and the sun alone
+        // (CommonUtils.CalculateSunBrightness, decompiled), so on the night side, looking towards the sun
+        // behind the planet, the stars go out. Where a body stands between the camera and the sun,
+        // the sky is dimmed by the planets' term alone, as KSP's own glare fade does
+        // (GalaxyCubeControl's line of sight to the sun, decompiled).
         // Runs inside Distant Object every frame: nothing may escape.
         private static void DarkenSkyPostfix()
         {
@@ -388,10 +392,10 @@ namespace ReDefinition.Settings.Behaviours
             return target => property.GetValue(target, null);
         }
 
-        // Whether a body stands between the camera and the sun: the star that lights the
-        // scene, Kopernicus's current one where it is installed, as Distant Object's
-        // Kopernicus solar system takes it (KopernicusStar.Current; decompiled), KSP's sun
-        // otherwise (RtKspMods.StarBodyOnly).
+        // Whether a body stands between the camera and the sun.
+        // The sun is the star that lights the scene: Kopernicus's current one where it is installed,
+        // as Distant Object's Kopernicus solar system takes it (KopernicusStar.Current; decompiled),
+        // KSP's sun otherwise (RtKspMods.StarBodyOnly).
         private static bool SunHidden(Vector3 cameraAt)
         {
             CelestialBody sun = ReDefinition.Raytracing.RtKspMods.StarBodyOnly();

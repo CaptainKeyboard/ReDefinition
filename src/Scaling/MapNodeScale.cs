@@ -9,10 +9,10 @@ namespace ReDefinition.Scaling
     // canvas and scales that container by 1 / uiScale (MapViewCanvasUtil.
     // ResetNodeCanvasContainerScale), and sizes each icon in pixels
     // (MapNode.Create's pixelSize, 14 to 32); decompiled. The positions are in
-    // pixels too, so the container stays as KSP has it; each node is scaled about
-    // its own centre instead (MapNode's own transform, which KSP only moves), and
-    // its icon, caption, hover label and click area grow with it. 4kSP's own sizing
-    // of them is turned off (OtherScalers).
+    // pixels too, so the container stays as KSP has it.
+    // Each node is scaled about its own centre instead (MapNode's own transform, which KSP only moves).
+    // Its icon, caption, hover label and click area grow with it.
+    // 4kSP's own sizing of them is turned off (OtherScalers).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class MapNodeScaleFlight : MapNodeScale
     {

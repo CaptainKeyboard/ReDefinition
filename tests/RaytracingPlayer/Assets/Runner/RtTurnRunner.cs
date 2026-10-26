@@ -12,29 +12,30 @@ using UnityEngine.Rendering;
 namespace ReDefinition.RaytracingPlayer
 {
     // The camera turning around a rocket on its pad, as in the game's recordings, for
-    // tools/analyze_rt_turn.py: each frame of the turn as it comes out, and the same
+    // tools/analyze_rt_turn.py. It writes each frame of the turn as it comes out, and the same
     // poses after the camera stood still, as references.
     //
-    //   RaytracingPlayer.exe -turn <rr|denoiser|plain> -out <folder> [-jitter 1]
-    //     [-deferred <folder with Deferred's "deferredshaders" bundle>]
+    // Option -upscale renders at the render size with the upscaler's jitter and keeps the
+    // upscaled frame (RtTurnUpscale.cs). Its references are rendered at twice the display
+    // size without jitter, for tools/analyze_upscale_turn.py. The value native renders at the
+    // display size without jitter or upscaler. Option -scale takes the render scale, 0.5 for
+    // half the display's width.
     //
-    //   RaytracingPlayer.exe -turn plain -upscale <fsr3|dlss|amd|native> -scale <render
-    //     scale, 0.5 for half the display's width> -out <folder> [-bundle <shader bundle>]
+    // Option -jitter offsets the projection each frame as the upscaler does. Option
+    // -deferred takes the folder with Deferred's "deferredshaders" bundle and renders with
+    // Deferred's lighting shaders, as KSP with Deferred does.
     //
-    // -upscale renders at the render size with the upscaler's jitter and keeps the
-    // upscaled frame (RtTurnUpscale.cs); its references are rendered at twice the display
-    // size without jitter, for tools/analyze_upscale_turn.py. native renders at the
-    // display size without jitter or upscaler.
-    //
-    // -jitter offsets the projection each frame as the upscaler does (CameraRedirect,
-    // UpscalerRig: FSR's Halton sequence, 8 phases at the render size); -deferred renders
-    // with Deferred's lighting shaders, as KSP with Deferred does.
-    //
-    // rr: raytraced, through DLSS Ray Reconstruction as the game's upscaler sends it
-    // (UpscalerRig.Reconstruction.cs), at the render size (DLAA); denoiser: raytraced,
-    // ReDefinition's denoiser, no upscaler; plain: Unity's lighting alone. Each frame
-    // writes its colour (RGBA half), its depth (Direct3D's z, float) and its camera
+    // Mode rr is raytraced, through DLSS Ray Reconstruction. Mode denoiser is raytraced,
+    // with ReDefinition's denoiser and no upscaler. Mode plain is Unity's lighting alone. Each
+    // frame writes its colour (RGBA half), its depth (Direct3D's z, float) and its camera
     // into the folder; meta.txt lists them.
+    //
+    // Usage:
+    //
+    //   RaytracingPlayer.exe -turn <rr|denoiser|plain> -out <folder> [-jitter 1] [-deferred <folder>]
+    //
+    //   RaytracingPlayer.exe -turn plain -upscale <fsr3|dlss|amd|native> -scale <render scale>
+    //     -out <folder> [-bundle <shader bundle>]
     public sealed class RtTurnRunner : MonoBehaviour
     {
         // The display size, the circle the camera turns on and its eye height, the point it looks at, and the
@@ -393,15 +394,17 @@ namespace ReDefinition.RaytracingPlayer
         internal ulong Reconstructed;
         internal readonly StringBuilder Meta = new StringBuilder();
 
-        // The upscaler's jitter (CameraRedirect, UpscalerRig): the offset in pixels as the
-        // upscalers take it, the projection without it and the one rendered with it.
+        // The upscaler's jitter (CameraRedirect, UpscalerRig: FSR's Halton sequence, 8 phases at the render size):
+        // the offset in pixels as the upscalers take it, the projection without it and the one rendered with it.
         private bool jitter;
         internal Vector2 JitterPixels;
         internal Matrix4x4 UnjitteredProjection;
         internal Matrix4x4 RenderedProjection;
 
         // Sets the pass up for the camera and the raytracing: with or without Ray Reconstruction and jitter, the
-        // output folder, the capture material, the command buffer, the packet ring and meta.txt's header.
+        // output folder, the capture material, the command buffer, the packet ring and meta.txt's header. Ray
+        // Reconstruction runs as the game's upscaler sends it (UpscalerRig.Reconstruction.cs), at the render size
+        // (DLAA).
         internal void Init(Camera camera, RtCamera rt, bool reconstruct, bool withJitter)
         {
             jitter = withJitter;
@@ -495,9 +498,9 @@ namespace ReDefinition.RaytracingPlayer
         // The upscaled turn's reference frame, copied at its own size to be read back.
         private RenderTexture referenceCopy;
 
-        // Copies the frame's colour, depth and motion, reconstructs or upscales it, shows it, and where a capture
-        // is asked for writes it with its camera to meta.txt and reads its images back; references at twice the
-        // display size are kept as rendered.
+        // Copies the frame's colour, depth and motion, reconstructs or upscales it, and shows it. Where a capture
+        // is asked for, it writes the frame with its camera to meta.txt and reads its images back. References at
+        // twice the display size are kept as rendered.
         private void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
             // A reference of the upscaled turn: rendered at twice the display size, kept as

@@ -47,13 +47,13 @@ namespace redefinition
             return std::isfinite(value) && value != 0.0f;
         }
 
-        // Why XeSS-FG cannot use the packet's constants, nullptr where it can. A motion
-        // vector scale of 0 gives XEFG_SWAPCHAIN_RESULT_ERROR_INVALID_ARGUMENT in
-        // OptiScaler's fork ("so 0.0f inputs safely default to 1.0f"); Intel's header names
-        // no range, and libxess_fg 1.3.1 took it in the harness -- but it turns every
-        // vector to none. A projection from no near plane, far plane or field of view is
-        // none: "View/Projection matrices required" (xess_fg_developer_guide_english.md,
-        // Inputs). The scale is left out where it is made 1 instead.
+        // Why XeSS-FG cannot use the packet's constants, nullptr where it can. A motion vector scale
+        // of 0 gives XEFG_SWAPCHAIN_RESULT_ERROR_INVALID_ARGUMENT in OptiScaler's fork ("so 0.0f
+        // inputs safely default to 1.0f"). Intel's header names no range, and libxess_fg 1.3.1 took
+        // it in the harness. But it turns every vector to none. A projection from no near plane,
+        // far plane or field of view is none: "View/Projection matrices required"
+        // (xess_fg_developer_guide_english.md, Inputs). The scale is left out where it is made 1
+        // instead.
         const char* RefusedConstants(const FramePacket& packet, bool scaleFixed)
         {
             if (!scaleFixed && (!Scale(packet.motionVectorScaleX) || !Scale(packet.motionVectorScaleY)))
@@ -73,12 +73,12 @@ namespace redefinition
             return nullptr;
         }
 
-        // The view matrix, world to view, for row vectors and row by row, as the
-        // projection beside it is: "viewMatrix - scene view matrix in a row-major order
-        // without applied jitter" (Frame Constants), the guide's example storing
-        // DirectXMath's matrices, which are for row vectors. The view space the packet's
-        // viewToClip takes -- down +z along forward, x right, y up (FrameGeneration.h,
-        // FramePacket; StreamlineCamera.cs) -- with the camera at the packet's position.
+        // The view matrix, world to view, for row vectors and row by row, as the projection beside
+        // it is. The guide says "viewMatrix - scene view matrix in a row-major order without applied
+        // jitter" (Frame Constants), and its example stores DirectXMath's matrices, which are for
+        // row vectors. The view space is the one the packet's viewToClip takes: down +z along
+        // forward, x right, y up (FrameGeneration.h, FramePacket; StreamlineCamera.cs). The camera
+        // is at the packet's position.
         void ViewMatrix(const FramePacket& packet, float view[16])
         {
             const float* axes[3] = { packet.right, packet.up, packet.forward };

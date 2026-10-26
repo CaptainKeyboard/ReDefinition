@@ -8,7 +8,7 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Upscaler
 {
     // Unity's motion vectors of the flight camera, repaired where Unity has not written
-    // them, for everything that reads them: the upscalers and frame generation, and with
+    // them. The readers are the upscalers and frame generation, and with
     // ReDefinition's upscaler off Scatterer's TAA, TUFX's effects and Deferred's
     // reflections.
     //
@@ -20,34 +20,33 @@ namespace ReDefinition.Upscaler
     //
     // At the end of the camera's frame the buffer is cleared to Missing. At
     // BeforeImageEffectsOpaque of the next, after Unity writes its motion vectors and
-    // before anything reads them, a copy is taken, and pass 3 of the cloud motion shader
+    // before anything reads them, a copy is taken. Pass 3 of the cloud motion shader
     // writes it back with the camera's own move where it still holds Missing: against
     // the main body where something is drawn (SceneMotion), the camera's turn alone where
     // nothing is. Both matrices are set here as the camera culls; pass 2 uses the first
     // for far ground as well (ScaledSpaceMotion). Only while something reads them (Wanted).
-    // With the diagnostic measurements on, a row of the copy is read back every
-    // CheckEvery frames, and the share of unwritten pixels logged every ten seconds while
-    // there are any.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public sealed class UnityMotionRepair : MonoBehaviour
     {
         // The cloud motion shader's repair pass; the frames between two readbacks of the copy; the seconds between two
-        // reports of unwritten pixels.
+        // reports of unwritten pixels. With the diagnostic measurements on, a row of the copy is read back every
+        // CheckEvery frames, and the share of unwritten pixels logged every ten seconds while there are any.
         private const int RepairPass = 3;
         private const int CheckEvery = 30;
         private const float ReportSeconds = 10f;
 
         // From this view depth on, pass 2 replaces the scene camera's own motion vectors
-        // by those of points fixed to the main body, while the camera stands farther
-        // than FarFromOrigin from the world's origin: Unity's are noise there, worked
-        // out in single precision from world positions that far out. Nearer to the
+        // by those of points fixed to the main body, while the camera is beyond
+        // FarFromOrigin from the origin. Nearer the
         // camera, other vessels, kerbals and debris keep Unity's, which moves them as
-        // objects; the active vessel is repaired after this in any case
+        // objects. The active vessel is repaired after this in any case
         // (VesselMotionVectors). Nearer to the origin, Unity's are precise and stay
         // everywhere: a vessel in orbit a kilometre from the active one would otherwise
         // move by the camera's travel against the body. Beyond it, such a vessel is at
         // least that far from the camera and a few pixels large.
         private const float PreciseFrom = 500f;
+        // Unity's motion vectors are noise farther from the world's origin than this, worked out in single
+        // precision from world positions that far out.
         private const float FarFromOrigin = 20000f;
 
         // Far outside the range of a motion vector in viewport units; half precision

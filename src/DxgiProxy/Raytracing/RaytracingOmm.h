@@ -77,7 +77,7 @@ namespace redefinition
 
         // NVAPI_D3D12_RAYTRACING_INSTANCE_FLAGS_EX beyond D3D12's own four.
         // FORCE_OMM_2_STATE: "Ignore the Unknown state and only consider the Transparent/Opaque
-        // bit for all 4-state OMMs"; DISABLE_OMMS: "Disable OMMs for all triangles, and revert
+        // bit for all 4-state OMMs". DISABLE_OMMS: "Disable OMMs for all triangles, and revert
         // to using geometry opaque/non-opaque state instead (legacy behavior). ... only valid
         // if the referenced BLAS was built with the ..._ALLOW_DISABLE_OMMS_EX flag".
         constexpr uint32_t kInstanceForceOmm2State = 1u << 4;

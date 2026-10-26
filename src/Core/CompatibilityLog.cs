@@ -4,9 +4,9 @@ using UnityEngine;
 
 namespace ReDefinition.Core
 {
-    // Warnings from the classes that adjust other mods at run time: a few of
-    // each kind at most, so a failure repeated at every mode change cannot flood
-    // the log -- and counted per kind, so one kind failing cannot silence
+    // Warnings from the classes that adjust other mods at run time. A few of
+    // each kind at most are logged, so a failure repeated at every mode change cannot flood
+    // the log. They are counted per kind, so one kind failing cannot silence
     // another.
     internal static class CompatibilityLog
     {

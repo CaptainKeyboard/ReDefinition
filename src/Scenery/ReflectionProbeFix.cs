@@ -13,12 +13,12 @@ namespace ReDefinition.Scenery
     // there turnOff comes first: it switches the probe off and clears rendering. So
     // an Enable(true) that follows an Enable(false) before the next flight is lost.
     // That happens at every start with the reflection refresh Off in KSP's
-    // settings.cfg and Deferred installed: the flight camera, and its probe, are made
-    // while KSP loads, the probe reads Off and calls Enable(false); Deferred raises
-    // the refresh to Low in the main menu (HandleStockProbe) and calls Enable(true);
-    // in the flight the probe stays off with the refresh at Low. Deferred lights its
-    // ambient from that probe and the raytracing its sky: measured at the launch
-    // pad, the frame's brightness 30.6 without raytracing and 18.9 with it, against
+    // settings.cfg and Deferred installed. The flight camera, and its probe, are made
+    // while KSP loads, and the probe reads Off and calls Enable(false). Deferred raises
+    // the refresh to Low in the main menu (HandleStockProbe) and calls Enable(true).
+    // In the flight the probe stays off with the refresh at Low. Deferred lights its
+    // ambient from that probe and the raytracing its sky. Measured at the launch
+    // pad, the frame's brightness is 30.6 without raytracing and 18.9 with it, against
     // 58.7 with the probe. Enable(true) here clears turnOff as well.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class ReflectionProbeFix : MonoBehaviour

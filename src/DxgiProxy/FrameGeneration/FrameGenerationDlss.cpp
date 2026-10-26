@@ -93,10 +93,10 @@ namespace redefinition
             return text;
         }
 
-        // How long a failing status keeps DLSS-G off before it is tried again, and
-        // for how many generating Presents after it comes on a failing status is
-        // not yet held against it: Reflex needs frames to be detected, and a
-        // status read straight after a Present may still be the one before.
+        // How long a failing status keeps DLSS-G off before it is tried again. The grace period
+        // after it comes on is a number of generating Presents in which a failing status is not
+        // yet held against it. Reflex needs frames to be detected, and a status read straight after
+        // a Present may still be the one before.
         constexpr ULONGLONG kStatusRetryMs = 2000;
         constexpr uint32_t kStatusGracePresents = 8;
     }

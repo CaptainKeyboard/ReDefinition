@@ -35,9 +35,9 @@ namespace ReDefinition.Modules
             Fsr3Upscaler.QualityMode.Balanced, Fsr3Upscaler.QualityMode.Performance, Fsr3Upscaler.QualityMode.UltraPerformance,
         };
 
-        // The technique for a card: DLSS on an RTX where the proxy offers it and NVIDIA's DLL is there,
-        // FSR 4 through AMD's DLL on a Radeon RX 7000 or 9000 where the DLL is there, XeSS on an Intel
-        // adapter where its DLL is, FSR 3 otherwise -- so that Auto never names a technique that would
+        // The technique for a card. It is DLSS on an RTX where the proxy offers it and NVIDIA's DLL is there.
+        // It is FSR 4 through AMD's DLL on a Radeon RX 7000 or 9000 where the DLL is there, and XeSS on an Intel
+        // adapter where its DLL is. Otherwise it is FSR 3, so that Auto never names a technique that would
         // fall back to FSR 3 with the mode of another.
         public static UpscalerBackend Technique(GpuClass gpu, bool dlssUsable, bool amdDllOffered, bool xessDllOffered)
         {
@@ -111,7 +111,7 @@ namespace ReDefinition.Modules
         }
 
         // The frame generation technique a choice stands for: itself, or for Auto the card's own where it
-        // runs here -- DLSS on an RTX, XeSS on an Intel GPU -- else FSR 3, else whichever other runs; FSR 3
+        // runs here (DLSS on an RTX, XeSS on an Intel GPU), else FSR 3, else whichever other runs. FSR 3
         // where none does (the row greys Auto out then). Written into the proxy's ini, which makes its
         // swapchain for it when KSP starts.
         public static string FrameGenerationTechnique(string chosen, TechniqueAvailability.Facts f)
@@ -128,7 +128,7 @@ namespace ReDefinition.Modules
         }
 
         // What Resolve depends on besides the settings, for the add-on to settle Auto again when
-        // one changes: the card, the screen's height, and whether DLSS, AMD's DLL and Intel's can run
+        // one changes. These are the card, the screen's height, and whether DLSS, AMD's DLL and Intel's can run
         // (the proxy attaches them after the settings load, a download places them).
         public static string Inputs()
         {

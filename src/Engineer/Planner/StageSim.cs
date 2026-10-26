@@ -24,11 +24,11 @@ namespace ReDefinition.Engineer
         public SimFlow Flow;
     }
 
-    // One engine mode: its thrust in vacuum at its thrust limit, in kN, its Isp in
-    // vacuum, the propellants it burns that have mass (not the air it takes in, not
-    // electric charge, which KSP's simulation leaves out as well), its thrust at the
+    // One engine mode. It holds its thrust in vacuum at its thrust limit, in kN, and its Isp in
+    // vacuum. It holds the propellants it burns that have mass (not the air it takes in, not
+    // electric charge, which KSP's simulation leaves out as well). It holds its thrust at the
     // surface of each body with air, and whether it burns out once lit. An
-    // air-breathing mode: its thrust standing at the launch body's sea level (set
+    // air-breathing mode holds its thrust standing at the launch body's sea level (set
     // from ThrustAtSurface for the body, AirLaunch.Plan), its Isp there, and the
     // Mach number it can push the vessel to (AirLaunch.MachLimit).
     internal sealed class SimEngine
@@ -72,13 +72,13 @@ namespace ReDefinition.Engineer
     // drain the liquid fuel they reach, which leaves the rockets sharing those tanks
     // nothing. Instead, where the route starts on a body with oxygen, the
     // air-breathing engines lit first burn as the vessel lifts off (`AirDeltaV`, the
-    // part of the launch they fly), before any stage: a row of their own, numbered
-    // one above the highest stage, taking the liquid fuel they reach at their Isp.
+    // part of the launch they fly), before any stage. Their own row, numbered
+    // one above the highest stage, takes the liquid fuel they reach at their Isp.
     // The stages then burn what is left, rocket modes only (a RAPIER's closed
     // cycle).
     //
     // The flow follows tools/craft_stages.py, which matches KSP's figures for the
-    // stock crafts: a stage drops the parts it decouples, lights the rocket engines
+    // stock crafts. A stage drops the parts it decouples, lights the rocket engines
     // activated by then that still reach every propellant, and burns until they
     // are dry or the engines the next stage drops are. A resource is drawn from its
     // own part, from the parts reachable through crossfeed and fuel lines, or from
@@ -90,9 +90,10 @@ namespace ReDefinition.Engineer
         // One stage, or the air-breathing engines' row, as the simulation works it out.
         internal sealed class Row
         {
-            // The stage's number, one above the highest stage for the air-breathing row; its masses as it starts and ends, in
-            // tonnes; its delta-v, its thrust in kN and its burn time in seconds; whether it is the air-breathing row; whether
-            // only solid engines burn in it; and its thrust at each body's surface with air, by the body's name.
+            // The stage's number, one above the highest stage for the air-breathing row. Then come its masses as it
+            // starts and ends, in tonnes, and its delta-v, its thrust in kN and its burn time in seconds. Then come whether
+            // it is the air-breathing row, whether only solid engines burn in it, and its thrust at each body's
+            // surface with air, by the body's name.
             public int Number;
             public double StartMass;
             public double EndMass;
@@ -130,8 +131,9 @@ namespace ReDefinition.Engineer
             public readonly Dictionary<string, double> Dropped = new Dictionary<string, double>();
         }
 
-        // Standard gravity, for the exhaust speed from Isp; the longest a stage is burnt, in seconds, and the most events
-        // worked out per stage, so that a burn that never ends stops; and the amount, in units, that counts as none.
+        // Standard gravity, for the exhaust speed from Isp. The next constants hold the longest a stage is burnt, in
+        // seconds, and the most events worked out per stage, so that a burn that never ends stops. The last holds
+        // the amount, in units, that counts as none.
         private const double G0 = StageTable.StandardGravity;
         private const double MaxTime = 100000.0;
         private const int MaxEvents = 5000;
@@ -528,10 +530,10 @@ namespace ReDefinition.Engineer
             return RoutePlanner.Launch(body) * Math.Min(1.0, mach * body.SpeedOfSound / reference);
         }
 
-        // The stages the planner budgets with. KSP's (`rows`) where no engine breathes
-        // air; otherwise StageSim's, with the air-breathing engines' row where the
-        // route lifts off from `launch` (null where it does not start on a surface),
-        // the parts' fuel per stage (PartFacts.StageFuel) rewritten to match.
+        // The stages the planner budgets with. They are KSP's (`rows`) where no engine breathes
+        // air. Otherwise they are StageSim's, with the air-breathing engines' row where the
+        // route lifts off from `launch` (null where it does not start on a surface).
+        // The parts' fuel per stage (PartFacts.StageFuel) is rewritten to match.
         // `airRow`: its number, -1 for none.
         internal static List<StageRow> Plan(IList<StageRow> rows, IList<PartFacts> facts, IList<SimPart> sim,
                                             IDictionary<string, double> density, PlannerBody launch, string launchId, out int airRow)

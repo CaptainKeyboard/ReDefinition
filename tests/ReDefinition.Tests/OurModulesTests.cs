@@ -214,7 +214,7 @@ namespace ReDefinition.Tests
             Assert.AreEqual("NativeAA", modes[modes.Length - 1]);
         }
         // The settings window builds a switch, a slider or a list for every own row
-        // of a tab but Keys, whose rows are bindings it builds itself: a binding in
+        // of a tab but Keys, whose rows are bindings it builds itself. A binding in
         // another tab, or a list without its choices, would stop the window from
         // opening.
         [TestMethod]

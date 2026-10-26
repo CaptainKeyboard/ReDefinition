@@ -144,10 +144,10 @@ namespace ReDefinition.Vendor
                       + ", applies after a restart of KSP");
         }
 
-        // What the install leaves in the package's ini (AmpereOptions.AfterInstall): on a first
-        // install the factory's ceiling raised to the most the runtime supports (the Frame
-        // generation row chooses within it, live) and the factory's preset Auto set to C; on a
-        // reinstall the player's values from before.
+        // What the install leaves in the package's ini (AmpereOptions.AfterInstall). On a first
+        // install that is the factory's ceiling raised to the most the runtime supports (the Frame
+        // generation row chooses within it, live) and the factory's preset Auto set to C. On a
+        // reinstall it is the player's values from before.
         private static void SettleIni(Dictionary<AmpereOptions.Option, string> before)
         {
             try

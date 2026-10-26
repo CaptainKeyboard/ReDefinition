@@ -1,14 +1,15 @@
 # Measures frame generation's frames against rendered ones with FLIP, in the game,
 # without anyone at the keyboard (src/Probe/FlipProbe.cs). Two runs of KSP on the save
 # ReDefinitionProbe, each recording what the monitor shows during the same camera
-# sweep: first without frame generation at half the step (the reference: a rendered
-# frame at every pose a generated frame stands at), then with frame generation at the
+# sweep. The first is without frame generation at half the step (the reference: a rendered
+# frame at every pose a generated frame stands at), the second with frame generation at the
 # full step. The proxy's ini is set for each run and put back after. The two
-# recordings then go to tools\analyze_flip.py.
+# recordings then go to tools\analyze_flip.py. The game's own settings (upscaler,
+# raytracing) stay as they are in both runs.
+#
+# Usage:
 #
 #   tools\flip_probe.ps1 [-Ksp <KSP folder>] [-Fsr] [-TimeoutSeconds 420]
-#
-# The game's own settings (upscaler, raytracing) stay as they are in both runs.
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
     [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),

@@ -14,38 +14,22 @@ using UnityEngine.UI;
 namespace ReDefinition.Hud
 {
     // The navball moved sideways by dragging its show/hide button
-    // (docs/player/navball.md). A click on the button still shows and hides it;
-    // a drag moves the whole navball frame, the SAS and RCS switches, the
-    // autopilot modes, the throttle and G gauges and the delta-v gauge with it --
-    // all of them are one group, NavballFrame, in the flight UI (sharedassets7,
+    // (docs/player/navball.md). A click on the button still shows and hides it.
+    // A drag moves the whole navball frame: the SAS and RCS switches, the
+    // autopilot modes, the throttle and G gauges and the delta-v gauge go with it.
+    // All of them are one group, NavballFrame, in the flight UI (sharedassets7,
     // read with UnityPy).
     //
     // KSP shows and hides the navball through a UIPanelTransitionToggle
-    // (NavBallToggle.panel, decompiled): it sets its RectTransform's
+    // (NavBallToggle.panel, decompiled). It sets its RectTransform's
     // anchoredPosition to one of two stored states, and animates from a position
     // it keeps privately. A move therefore shifts the panel, both states and that
     // kept position by the same amount, so that showing and hiding keep the new
     // place, in the map view too. The offset is saved in ReDefinition's settings
-    // (OwnSettings.NavballOffset) and applied again in every flight scene; on a
+    // (OwnSettings.NavballOffset) and applied again in every flight scene. On a
     // screen of another size it goes back to the centre (ReDefinitionAddon.
-    // NavballOffset).
-    //
-    // KSP places the navball itself, where its own setting has it
-    // (FlightUIModeController.SetNavBallHPos, GameSettings.UI_POS_NAVBALL): the
-    // panel, its states and the transform set anew, at every change of the flight
-    // UI's mode (the map, docking, maneuvers), a few frames after the flight
-    // starts and when the crew portraits change; decompiled. After each, the
-    // offset is laid on KSP's place again (a postfix, Placed).
-    //
-    // The navball keeps clear of the flight UI's mode buttons on its left
-    // (FlightUIModeController.uiModeFrame) and of the crew portraits on its right
-    // (UIFrameCrewPortaits), as they stand now, and of the screen's edges: where
-    // either grows (another mode chosen, a portrait slot added), the navball moves
-    // aside, and back towards where it was put once there is room. All three are
-    // measured by what they draw now (Extent): their holders reach beyond it, and
-    // the navball's frame holds parts shown only at times, such as the maneuver's
-    // delta-v gauge right of the navball (DeltaVGauge, sharedassets7), which moves
-    // the navball aside only while it shows.
+    // NavballOffset). KSP places the navball itself too (Placed), and the room
+    // around it decides how far it may move (Settle).
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballDrag : MonoBehaviour
     {
@@ -140,6 +124,12 @@ namespace ReDefinition.Hud
         }
 
         // KSP set the navball where its own setting has it: the offset from there.
+        // KSP places the navball itself, where its own setting has it
+        // (FlightUIModeController.SetNavBallHPos, GameSettings.UI_POS_NAVBALL). It sets
+        // the panel, its states and the transform anew at every change of the flight
+        // UI's mode (the map, docking, maneuvers), a few frames after the flight
+        // starts and when the crew portraits change; decompiled. After each, this
+        // postfix lays the offset on KSP's place again.
         private static void Placed()
         {
             NavballDrag drag = current;
@@ -187,7 +177,12 @@ namespace ReDefinition.Hud
             return Mathf.Abs(a - b) < 0.5f || float.IsNaN(a) && float.IsNaN(b);
         }
 
-        // To the offset asked for, as far as the room allows.
+        // To the offset asked for, as far as the room allows. The navball keeps clear
+        // of the flight UI's mode buttons on its left (FlightUIModeController.uiModeFrame)
+        // and of the crew portraits on its right (UIFrameCrewPortaits), as they stand
+        // now, and of the screen's edges. Where either grows (another mode chosen, a
+        // portrait slot added), the navball moves aside, and back towards where it was
+        // put once there is room.
         private void Settle()
         {
             float wanted = Clamp(requested);
@@ -232,7 +227,11 @@ namespace ReDefinition.Hud
                 right = Mathf.Min(right, found.xMin);
         }
 
-        // What the navball draws now, sideways, in the root canvas's units.
+        // What the navball draws now, sideways, in the root canvas's units. The mode buttons,
+        // the crew portraits and the navball are all measured by what they draw now (Extent).
+        // Their holders reach beyond it, and the navball's frame holds parts shown only at
+        // times, such as the maneuver's delta-v gauge right of the navball (DeltaVGauge,
+        // sharedassets7), which moves the navball aside only while it shows.
         private void Drawn(out float min, out float max)
         {
             RectTransform root = Root();
@@ -250,11 +249,11 @@ namespace ReDefinition.Hud
         // Filled anew at each look, a few times a second for the whole flight.
         private static readonly List<Graphic> Graphics = new List<Graphic>();
 
-        // Where the pictures and texts under `under` stand that are drawn now, in
-        // the root canvas's units: shown, not see-through, not a mask's shape, on
+        // Finds where the pictures and texts under `under` stand that are drawn now, in
+        // the root canvas's units. They are shown, not see-through, not a mask's shape, on
         // the screen, reaching into the height from `low` to `high`, and not under
         // `skip`. A text counts by its letters, a picture that keeps its aspect by
-        // the part of its rectangle it fills: the throttle and G gauges are square
+        // the part of its rectangle it fills. The throttle and G gauges are square
         // rectangles (219 wide) around narrow arcs (sprites 92 by 244;
         // sharedassets7), which reach far beyond the navball's rim. Empty holders
         // do not count.
@@ -378,10 +377,10 @@ namespace ReDefinition.Hud
         }
 
         // At most as far as keeps what the navball draws within its room (Room),
-        // each side on its own: the SAS modes stand out on its left (AutopilotModes,
+        // each side on its own. The SAS modes stand out on its left (AutopilotModes,
         // sharedassets7) and the speeds on its right (NavballSpeeds), so the frame's
         // own width is not enough.
-        // Nothing drawn (the navball hidden): the offset as asked.
+        // With nothing drawn (the navball hidden) it returns the offset as asked.
         private float Clamp(float offset)
         {
             RectTransform canvasRect = Root();

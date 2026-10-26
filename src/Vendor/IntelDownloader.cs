@@ -14,16 +14,16 @@ using UnityEngine;
 namespace ReDefinition.Vendor
 {
     // The player's download of Intel's DLLs (IntelFiles) from Intel's own release
-    // of the XeSS SDK on GitHub, as NvidiaDownloader does NVIDIA's: offered in the
+    // of the XeSS SDK on GitHub, as NvidiaDownloader does NVIDIA's. It is offered in the
     // settings window where they are missing, and started once the player has
     // accepted Intel's licence in the dialog below.
     //
-    // First every file's bytes of the archive, by range, each into a file of its
-    // own in the system's temporary folder; then, on a thread of its own, every
-    // file inflated and checked into a partial file beside its target; only when
-    // all of them are right are they placed, all or none (NvidiaFiles.PlaceAll).
-    // libxess.dll takes effect at once -- the proxy looks for it again as it
-    // changes --, XeSS frame generation after a restart: its DLLs are loaded as KSP
+    // The download first fetches every file's bytes of the archive, by range, each into a file of its
+    // own in the system's temporary folder. Then, on a thread of its own, it inflates and
+    // checks every file into a partial file beside its target. It places them only when
+    // all of them are right, all or none (NvidiaFiles.PlaceAll).
+    // Once placed, libxess.dll takes effect at once (the proxy looks for it again as it
+    // changes), XeSS frame generation after a restart: its DLLs are loaded as KSP
     // makes its swapchain.
     internal static class IntelDownloader
     {

@@ -1,26 +1,23 @@
-"""The probe's surface images (RtCamera.WriteSurfaceImages) as pictures and figures per region: what the
-camera's ray met at each pixel, the shine the raytracing gives it (specular colour F0, smoothness), the
-reflected light it traced, and, where the same view was shot with the raytracing's light but without its
-reflections (mode Light beside Full), what the reflections add to the finished picture; where it was shot
-without the raytracing (mode Off), how bright each region is there, and the space centre's lawn against the
-terrain beside it with the raytracing and without.
+"""The probe's surface images (RtCamera.WriteSurfaceImages) as pictures and figures per region. They show
+what the camera's ray met at each pixel, the shine the raytracing gives it (specular colour F0, smoothness),
+and the reflected light it traced. Where the same view was shot with the raytracing's light but without its
+reflections (mode Light beside Full), they show what the reflections add to the finished picture. Where it
+was shot without the raytracing (mode Off), they show how bright each region is there. They also show the
+space centre's lawn against the terrain beside it with the raytracing and without.
 
-  python tools/surface_sheet.py <run folder> [prefix ...] [--out <folder>]
-
-For each <prefix>-surface.bin in the run folder (the scene probe's views: <shot>-v<i>-Full), a sheet
-<prefix>-sheet.png and a table on the console and in <prefix>-regions.txt. Regions (RT_REGION_* in
-RtContract.h; the space centre's ground split by the shine it gets, its lawn from its tarmac):
-
-  terrain        the terrain at the drawn surface
-  lawn           the space centre's ground where it shines (its lawn)
-  tarmac         the space centre's ground without shine
-  blade          a blade or other scatter at the drawn surface
-  behind blade   ground behind a blade the rays meet in front of the drawn surface
-  nothing        nothing near (far away)
-  other          something else at the drawn surface (buildings, the vessel)
-  other missed   something else in front of the drawn surface
+For each <prefix>-surface.bin in the run folder (the scene probe's views: <shot>-v<i>-Full), the script
+writes a sheet <prefix>-sheet.png and a table on the console and in <prefix>-regions.txt. The regions are
+RT_REGION_* in RtContract.h, with the space centre's ground split by the shine it gets, its lawn from its
+tarmac. The region terrain is the terrain at the drawn surface. The region lawn is the space centre's
+ground where it shines (its lawn). The region tarmac is the space centre's ground without shine. The
+region blade is a blade or other scatter at the drawn surface. The region behind blade is ground behind a
+blade the rays meet in front of the drawn surface. The region nothing is nothing near (far away). The
+region other is something else at the drawn surface (buildings, the vessel). The region other missed is
+something else in front of the drawn surface.
 
 Needs numpy and Pillow.
+
+Usage: python tools/surface_sheet.py <run folder> [prefix ...] [--out <folder>]
 """
 import os
 import re

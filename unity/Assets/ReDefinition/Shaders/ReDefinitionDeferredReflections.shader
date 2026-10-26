@@ -1,14 +1,14 @@
 // Modified version of Unity built-in shader source.
-// This adds the diffuse ambient evaluation here
+// This adds the diffuse ambient evaluation here.
 //
-// Deferred's reflections shader (Deferred 1.3.5, Copyright (c) 2024-2025 Ghassen
+// This is Deferred's reflections shader (Deferred 1.3.5, Copyright (c) 2024-2025 Ghassen
 // Lahmar, GPL 3.0), changed for ReDefinition (docs/development/raytracing.md, "Where
-// the raytraced light enters Unity's lighting"): for the camera that is raytraced,
+// the raytraced light enters Unity's lighting"). For the camera that is raytraced,
 // the ambient light is the raytraced diffuse light and the reflection the raytraced
-// one, found for each point by ReDefinitionRtReproject.cginc -- the game's own frame's,
-// traced before its lighting; the frame before's, carried over, where the trace follows
-// the frame (the test players) --, in place of the reflection probe (the block marked
-// ReDefinition in frag). Everything else is Deferred's. Its name is kept apart: ReDefinition/Internal-DeferredReflections.
+// one, in place of the reflection probe (the block marked ReDefinition in frag).
+// ReDefinitionRtReproject.cginc finds them for each point: the game's own frame's,
+// traced before its lighting, or the frame before's, carried over, where the trace follows
+// the frame (the test players). Everything else is Deferred's. Its name is kept apart: ReDefinition/Internal-DeferredReflections.
 Shader "ReDefinition/Internal-DeferredReflections" {
 Properties {
     _SrcBlend ("", Float) = 1
@@ -39,8 +39,8 @@ sampler2D _CameraGBufferTexture1;
 sampler2D _CameraGBufferTexture2;
 
 // Deferred's switches for the camera being drawn: the probe's light at all, the probe's reflections, its
-// screen-space reflections in their place; the probe's diffuse light's strength and how much of its colour
-// is kept; the IVA's rotation.
+// screen-space reflections in their place. Then the probe's diffuse light's strength and how much of its colour
+// is kept, and the IVA's rotation.
 int useReflectionProbeOnCurrentCamera;
 int disableProbeReflectionsOnCurrentCamera;
 int useSSROnCurrentCamera;
@@ -64,31 +64,32 @@ float4 _ReDefinitionRtLight;   // x: diffuse light, y: reflections, z: the share
 // body's centre in Unity's world and its radius, the sea level; w 0 for none
 // (IsStockSea).
 float4 _ReDefinitionWaterSphere;
-// 1: where the sea could be, which of the sea's tests (IsStockSea) a pixel fails, as
-// colour far over white (the light probe's -water-debug shots, src/Probe/LightProbe.cs):
-// red outside the band about the sea's level, green its normal not facing up, blue not
-// traced as water; none where it passes all.
+// Value 1 shows where the sea could be, which of the sea's tests (IsStockSea) a pixel fails, as
+// colour far over white (the light probe's -water-debug shots, src/Probe/LightProbe.cs).
+// Red is outside the band about the sea's level, green its normal not facing up, blue not
+// traced as water. A pixel that passes all shows none.
 float _ReDefinitionWaterDebug;
-// Its reflections from the water's own trace, whole and undenoised (RtCamera, TraceOcean).
+// Its reflections from the water's own trace, whole and undenoised (RtCamera, TraceOcean). The water
+// frame holds the reflected rays' hit distance in w where it traced water, 0 elsewhere (Raytracing.hlsl,
+// SpecularLight, with RtCommon.hlsli's IsStockWater on positions it rebuilds exactly).
 sampler2D _ReDefinitionRtOcean;
 sampler2D _ReDefinitionRtDiffuse;
 sampler2D _ReDefinitionRtSpecular;
 
-// Whether a point is KSP's own sea, as the raytracing took it (its water frame holds the
-// reflected rays' hit distance in w where it traced water, 0 elsewhere: Raytracing.hlsl,
-// SpecularLight, with RtCommon.hlsli's IsStockWater on positions it rebuilds exactly),
-// facing up, and near the sea's level, against a hull beside the water. The level test
-// loose, as the position this pass rebuilds from Unity's depth is off by a share of the
-// distance, a height error of about that share of the camera's height over the sea in
-// every pixel (measured at sea, 2026-10-04: from 5 km up the sea in front failed a band
-// of a thousandth of the distance and only the far sea kept its reflection, at an edge):
-// within 2 m, a thousandth of the distance or a hundredth of the camera's height.
-// `outside`, `facing`: the level and normal tests, for the debug view.
+// Whether a point is KSP's own sea, as the raytracing took it (traced, the water frame, holds
+// the hit distance in w), facing up, and near the sea's level, against a hull beside the
+// water. The level test is loose, as the position this pass rebuilds from Unity's depth is
+// off by a share of the distance. That is a height error of about that share of the camera's
+// height over the sea in every pixel. The band is within 2 m, a thousandth of the distance or
+// a hundredth of the camera's height. `outside`, `facing`: the level and normal tests, for
+// the debug view.
 bool IsStockSea(float3 worldPos, float3 normal, float4 traced, out bool outside, out bool facing)
 {
     float3 up = worldPos - _ReDefinitionWaterSphere.xyz;
     float level = length(up);
     float cameraHeight = length(_WorldSpaceCameraPos - _ReDefinitionWaterSphere.xyz) - _ReDefinitionWaterSphere.w;
+    // Measured at sea, 2026-10-04: from 5 km up the sea in front failed a band of a thousandth of the
+    // distance and only the far sea kept its reflection, at an edge.
     float band = max(max(2.0, 0.001 * length(worldPos - _WorldSpaceCameraPos)), 0.01 * cameraHeight);
     outside = abs(level - _ReDefinitionWaterSphere.w) >= band;
     facing = dot(normal, up / level) > 0.8;
@@ -108,9 +109,9 @@ float3 ReDefinitionRtSignal(float3 linearLight)
 #endif
 }
 
-// One probe's reflection and Deferred's diffuse ambient light at the pixel, the raytraced light in their
-// place where the raytraced frame has the point (or KSP's sea lit by its own reflection); alpha the
-// falloff at the probe's box. Nothing where Deferred has the probe off for the camera.
+// One probe's reflection and Deferred's diffuse ambient light at the pixel, with alpha the falloff at the
+// probe's box. The raytraced light stands in their place where the raytraced frame has the point (or
+// KSP's sea lit by its own reflection). Nothing where Deferred has the probe off for the camera.
 half4 frag (unity_v2f_deferred i) : SV_Target
 {
     [branch]

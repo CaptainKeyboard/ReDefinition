@@ -109,12 +109,11 @@ namespace redefinition
         // frameID" (nvapi.h, NvAPI_D3D_GetLatency). Never 0.
         uint32_t NextFrameIndex();
 
-        // The game's frames (ManagedBridge.cpp, KspReflex*): the main thread
-        // begins one -- Reflex's sleep, then eSimulationStart under a new index,
-        // which it returns, 0 without Streamline's device -- and ends its
-        // simulation; Unity's render thread receives the index before the frame's
-        // first Direct3D call, marks eRenderSubmitStart and notes it as the frame
-        // in progress; the presenting thread takes it for the frame's Present.
+        // The game's frames (ManagedBridge.cpp, KspReflex*). The main thread begins one with
+        // Reflex's sleep, then eSimulationStart under a new index. It returns that index, 0 without
+        // Streamline's device, and later ends the simulation. Unity's render thread receives the
+        // index before the frame's first Direct3D call, marks eRenderSubmitStart and notes it as
+        // the frame in progress. The presenting thread takes it for the frame's Present.
         uint32_t BeginGameFrame();
         // eSimulationEnd for the game's frame, on its main thread; nothing for index 0.
         void EndGameSimulation(uint32_t frameIndex);

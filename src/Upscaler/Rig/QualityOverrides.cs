@@ -16,6 +16,9 @@ namespace ReDefinition.Upscaler
     internal class QualityOverrides
     {
         // Whether the LOD bias is ReDefinition's now, the bias it replaced, and the factor it multiplies that by.
+        // KSP never writes the LOD bias. It comes with the quality level, and whether Unity's level still carries
+        // ReDefinition's is not known here. Reassert takes it over only where it differs from ReDefinition's: a bias
+        // taken over while it is ReDefinition's would be multiplied again at every Apply, and restored to.
         private bool lodApplied;
         private float previousLodBias;
         private float lodRatio = 1f;
@@ -26,20 +29,21 @@ namespace ReDefinition.Upscaler
         private int appliedAntiAliasing;
 
         // Whether anisotropic filtering is forced now, the setting it replaced, and the setting written.
+        // KSP never writes it either. It comes with the quality level, and Reassert takes it over only where it
+        // differs from ReDefinition's.
         private bool anisoApplied;
         private AnisotropicFiltering previousAnisotropic;
         private AnisotropicFiltering appliedAnisotropic;
 
         // The LOD bias written into QualitySettings; 0 while the bias is not ReDefinition's.
-        public float AppliedLodBias { get; private set; }
-
         // Unity picks LOD levels from how many pixels an object covers on screen.
         // At a lower render resolution the same object covers fewer pixels, so
-        // Unity switches to coarser meshes earlier -- as with the mipmap levels.
-        //
+        // Unity switches to coarser meshes earlier, as with the mipmap levels.
+        public float AppliedLodBias { get; private set; }
+
+        // Multiplies the LOD bias by Max(1, ratio) while wanted, and restores it otherwise.
         // At NativeAA the ratio is 1, so Max(1, ratio) is 1 and the bias is
         // multiplied by one: the switch changes nothing at AA only.
-        //
         // The factor is display height over render height. The mipmap bias is a
         // different quantity: FSR's own log2(render / display) - 1.
         // Affects everything with a LODGroup, so Parallax' scatter objects and
@@ -72,7 +76,9 @@ namespace ReDefinition.Upscaler
 
         // MSAA resolves before the rig's capture and removes the aliasing a
         // temporal upscaler reconstructs from. The shared RenderTexture of the 3D
-        // stack has no MSAA; QualitySettings.antiAliasing is set off as well.
+        // stack has no MSAA; QualitySettings.antiAliasing is set off as well. KSP sets the quality level and then
+        // MSAA, every time it applies its settings (GameSettings.ApplySettings: SetQualityLevel, then
+        // antiAliasing = ANTI_ALIASING, decompiled).
         public void SetAntiAliasing(bool disable)
         {
             if (disable)
@@ -118,23 +124,17 @@ namespace ReDefinition.Upscaler
             anisoApplied = false;
         }
 
-        // After KSP applied its own settings -- Apply or Accept in the settings
-        // dialog, the main menu's settings screen. KSP sets the quality level
-        // there and then MSAA, every time (GameSettings.ApplySettings:
-        // SetQualityLevel, then antiAliasing = ANTI_ALIASING, decompiled).
+        // After KSP applied its own settings: Apply or Accept in the settings
+        // dialog, the main menu's settings screen.
         //
         // MSAA: a value in Unity other than ReDefinition's is what KSP has just
         // written. ReDefinition's value there is the player's choice only where KSP
-        // keeps it as theirs too, GameSettings.ANTI_ALIASING -- a player who switched
+        // keeps it as theirs too, GameSettings.ANTI_ALIASING: a player who switched
         // MSAA off while ReDefinition had it off too chose off. Otherwise nothing
-        // wrote it: the event also comes from
+        // wrote it. The event also comes from
         // ReDefinition's own follow-up of a change that leaves MSAA alone
         // (KspBehaviour.FollowUp), and a rig set up between KSP's write and the
-        // event has saved what KSP wrote already. LOD bias and anisotropic filtering KSP never
-        // writes; they come with the quality level, and whether Unity's level
-        // still carries ReDefinition's is not known here. They are taken over only
-        // where they differ from ReDefinition's: a bias taken over while it is
-        // ReDefinition's would be multiplied again at every Apply, and restored to.
+        // event has saved what KSP wrote already.
         public void Reassert()
         {
             if (lodApplied && !Mathf.Approximately(QualitySettings.lodBias, AppliedLodBias))

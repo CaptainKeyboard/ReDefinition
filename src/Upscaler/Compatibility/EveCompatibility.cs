@@ -11,36 +11,17 @@ namespace ReDefinition.Upscaler
     // again, and the rig changes that size whenever it attaches, detaches or
     // changes the mode.
     //
-    // * Raymarched volumetric clouds: DeferredRaymarchedVolumetricCloudsRenderer
-    //   .Initialize reads targetCamera.activeTexture.width once and changes it
-    //   afterwards only for screenshots (HandleScreenshotMode). EVE's own
-    //   ReinitAll, which its quality settings call, drops every renderer, and
-    //   EVE adds new ones as the clouds next render
-    //   (DeferredRaymarchedRendererNotifier.OnWillRenderObject).
-    // * Screen-space cloud shadows -- the 2D layers' shadows on the terrain with
-    //   Deferred: ScreenSpaceShadowsRenderer.Init reads camera.pixelWidth once
-    //   (SetRenderingResolution) and renders the shadows at half that size into
-    //   the light's screen-space mask (UpdateCommandBuffer). With the camera
-    //   redirected into a smaller texture they stay made for the old size, and
-    //   the terrain shows vertical stripes in the cloud shadows. The renderers
-    //   come from EVE's own
-    //   ScreenSpaceShadowsManager (cameraToShadowsRenderer); each whose size is
-    //   not its camera's any more -- at the end of the frame a redirected
-    //   camera's pixelWidth is the rig texture's -- gets it anew by EVE's own
-    //   SetRenderingResolution, and the manager rebuilds the command buffers
-    //   (UpdateRenderers). The IVA camera's renderer is made as the view
-    //   changes to IVA (RegisterInternalCamera, on OnCameraChange), before the
-    //   rig has redirected that camera, so the shadows are checked at every
-    //   follow-up, not only when the render size changed.
+    // The raymarched volumetric clouds are dropped through EVE's own
+    // ReinitAll so that EVE builds them anew (RebuildClouds).
+    // The screen-space cloud shadows, the 2D layers' shadows on the terrain with
+    // Deferred, are sized anew through EVE's own
+    // SetRenderingResolution (ResizeShadows).
     //
     // All at the end of the frame, after every camera has rendered: ReinitAll's
     // Cleanup clears a renderer's initialised flag, and one still rendering in
-    // that frame would set itself up again just before it is destroyed. The
-    // clouds are rebuilt only when the render size changed: a rebuild throws
-    // their history away, and EVE makes the renderers of cameras new to the rig
-    // as they first render, by the camera as it then is. Whether EVE's particle
-    // clouds, wet surfaces and droplets size themselves once the same way is not
-    // verified.
+    // that frame would set itself up again just before it is destroyed. Whether
+    // EVE's particle clouds, wet surfaces and droplets size themselves once the
+    // same way is not verified.
     internal static class EveCompatibility
     {
         // EVE's types, by full name: the volumetric clouds renderer, the screen-space shadows renderer and its manager.
@@ -80,7 +61,9 @@ namespace ReDefinition.Upscaler
         }
 
         // rebuildClouds: whether the render size changed, which alone needs the
-        // clouds rebuilt; the shadows are checked every time.
+        // clouds rebuilt. The shadows are checked every time: the IVA camera's renderer is
+        // made as the view changes to IVA (RegisterInternalCamera, on OnCameraChange),
+        // before the rig has redirected that camera.
         public static void AfterRenderSizeChange(bool rebuildClouds, string reason)
         {
             Resolve();
@@ -88,7 +71,12 @@ namespace ReDefinition.Upscaler
             ResizeShadows(reason);
         }
 
-        // Drops every volumetric clouds renderer through EVE's ReinitAll; EVE makes new ones by the current camera size.
+        // Drops every volumetric clouds renderer through EVE's ReinitAll, which its quality settings call too.
+        // EVE adds new ones as the clouds next render (DeferredRaymarchedRendererNotifier.OnWillRenderObject), by the
+        // current camera size. DeferredRaymarchedVolumetricCloudsRenderer.Initialize reads
+        // targetCamera.activeTexture.width once and changes it afterwards only for screenshots
+        // (HandleScreenshotMode). A rebuild throws the clouds' history away, so it runs only when the render size
+        // changed: EVE makes the renderers of cameras new to the rig as they first render, by the camera as it then is.
         private static void RebuildClouds(string reason)
         {
             if (reinitAll == null) return;
@@ -106,7 +94,12 @@ namespace ReDefinition.Upscaler
         }
 
         // Sizes every screen-space shadow renderer whose size is not its camera's any more anew, then has the manager
-        // rebuild the command buffers.
+        // rebuild the command buffers (UpdateRenderers). ScreenSpaceShadowsRenderer.Init reads camera.pixelWidth once
+        // (SetRenderingResolution) and renders the shadows at half that size into the light's screen-space mask
+        // (UpdateCommandBuffer). With the camera redirected into a smaller texture they stay made for the old size,
+        // and the terrain shows vertical stripes in the cloud shadows. The renderers come from EVE's own
+        // ScreenSpaceShadowsManager (cameraToShadowsRenderer). At the end of the frame a redirected camera's
+        // pixelWidth is the rig texture's.
         private static void ResizeShadows(string reason)
         {
             if (!ShadowsUsable) return;

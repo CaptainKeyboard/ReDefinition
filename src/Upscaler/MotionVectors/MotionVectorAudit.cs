@@ -15,26 +15,15 @@ namespace ReDefinition.Upscaler
     // (ReDefinitionAddon.DebugMode).
     //
     // Every fifth frame, as the scene camera culls, the capture gets readbacks of the
-    // finished motion vectors and depth at a few pixels: the centres of three of the
-    // vessel's parts (the root and the two farthest from its centre of mass, the
-    // extremities) and four points low in the picture, mostly ground. From the depth
-    // the pixel's world position is taken back through this frame's view-projection;
-    // where it lies is where it was a frame before: for a part moved by the part's change
-    // of transform, for the ground not at all. Both positions go through this frame's
-    // and the previous frame's view-projection, as Unity's motion vectors do, and the
-    // difference is compared with what was read. A vessel pixel counts only where the
-    // position lies within that part's bounds, a ground pixel only away from the vessel
-    // and short of the far plane. Frames with a floating origin shift or a history
+    // finished motion vectors and depth at a few pixels (Record). Each pixel's expected
+    // motion is worked out from its depth and compared with what was read (Finish).
+    // Frames with a floating origin shift or a history
     // reset since the frame before are left out.
     //
-    // The pixel's row is its viewport y times the height, as the capture's render
-    // texture is laid out; MotionVectorCheck in the Unity project checks that
-    // addressing against a rendered sphere. The motion vectors are the rig's
-    // encoding, y up (ReDefinitionMotionVector).
-    //
-    // Alongside, every frame: how far Unity's own record of the previous frame's
+    // Alongside, every frame, it measures how far apart two placements of the vessel and of a point 1 km ahead
+    // are. One is from Unity's own record of the previous frame's
     // camera (Camera.previousViewProjectionMatrix), from which it works out the
-    // camera's motion, places the vessel and a point 1 km ahead from where the
+    // camera's motion. The other is from where the
     // previous frame's camera placed them. When the ground is off by more than
     // SourcesFromError on average, the camera's state and everything that writes into
     // its frame goes to the log once a minute (CameraSurvey.WriteMotionSources).
@@ -56,12 +45,17 @@ namespace ReDefinition.Upscaler
         };
 
         // One pixel read back: where and when it was taken, what it should show, and what came back.
+        // The pixel's world position is taken from its depth back through this frame's view-projection. Where it
+        // lies is where it was a frame before: for a part moved by the part's change of transform, for the ground
+        // not at all. Both positions go through this frame's and the previous frame's view-projection, as Unity's
+        // motion vectors do, and the difference is compared with what was read.
         private sealed class Sample
         {
-            // A part's pixel or a ground pixel and its name for the log; the pixel's viewport position; this frame's
-            // and the previous frame's view-projection; Motion, which takes a world position now to where it was a
-            // frame before; the part's bounds, or the vessel's centre and radius a ground pixel must lie outside; the
-            // texture size; then the depth and motion vector read back (NaN until they came) and whether a read failed.
+            // Whether it is a part's pixel or a ground pixel, and its name for the log. Then the pixel's viewport
+            // position, and this frame's and the previous frame's view-projection. Motion takes a world position now
+            // to where it was a frame before. Then the part's bounds, or the vessel's centre and radius a ground
+            // pixel must lie outside, and the texture size. Last the depth and motion vector read back (NaN until
+            // they came) and whether a read failed.
             internal bool Vessel;
             internal string Name;
             internal Vector2 Viewport;
@@ -165,7 +159,9 @@ namespace ReDefinition.Upscaler
         private float windowStart = -1f;
 
         // In the scene camera's OnPreCull, after the motion vector hooks: the readbacks
-        // go at the end of the capture, which has written the motion vectors by then.
+        // go at the end of the capture, which has written the motion vectors by then. The pixels are the centres
+        // of three of the vessel's parts (the root and the two farthest from its centre of mass, the extremities)
+        // and four points low in the picture, mostly ground.
         internal void Record(CommandBuffer capture, Camera camera, RenderTexture motionVectors, RenderTexture depth,
                              Vector2Int size)
         {
@@ -283,6 +279,10 @@ namespace ReDefinition.Upscaler
         }
 
         // Snaps the sample to its pixel and asks the capture for that pixel's depth and motion vector.
+        // The pixel's row is its viewport y times the height, as the capture's render
+        // texture is laid out; MotionVectorCheck in the Unity project checks that
+        // addressing against a rendered sphere. The motion vectors are the rig's
+        // encoding, y up (ReDefinitionMotionVector).
         private void Issue(CommandBuffer capture, RenderTexture motionVectors, RenderTexture depth, Sample sample)
         {
             int x = Mathf.Clamp(Mathf.FloorToInt(sample.Viewport.x * sample.Size.x), 0, sample.Size.x - 1);
@@ -342,9 +342,9 @@ namespace ReDefinition.Upscaler
             idleSamples.Enqueue(sample);
         }
 
-        // Once both values are in: the pixel's world position from its depth, the motion it should show, and the
-        // difference to what was read into the vessel's or the ground's tally -- or a rejection where the position
-        // lies at the far plane, off the part or on the vessel.
+        // Once both values are in, the pixel goes into the vessel's or the ground's tally, or is rejected. A vessel
+        // pixel counts only where its world position lies within that part's bounds, a ground pixel only away from
+        // the vessel and short of the far plane.
         private void Finish(Sample sample)
         {
             if (sample.Failed || float.IsNaN(sample.Depth) || float.IsNaN(sample.Read.x)) return;

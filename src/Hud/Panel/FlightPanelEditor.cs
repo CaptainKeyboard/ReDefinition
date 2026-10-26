@@ -7,13 +7,13 @@ using UnityEngine;
 
 namespace ReDefinition.Hud.Panel
 {
-    // The window the flight panel's pencil opens: the profile of the tab shown,
+    // The window the flight panel's pencil opens. It shows the profile of the tab shown,
     // with its name, its readouts in order (each up, down or out) and every other
-    // readout to add, by group; a new profile, removing one, and the defaults. Made
+    // readout to add, by group. It also offers a new profile, removing one, and the defaults. Made
     // of KSP's dialog parts (PopupDialog, MultiOptionDialog), so that a UI theme
     // themes it as it themes KSP's. A change takes effect at once in the tabs and
-    // is saved (FlightProfiles.Save); the window is made anew after each, above
-    // the panel; a new profile's tab opens (FlightPanel.Refresh). While it is open, the
+    // is saved (FlightProfiles.Save). The window is made anew after each, above
+    // the panel. A new profile's tab opens (FlightPanel.Refresh). While it is open, the
     // keyboard does not steer the vessel (a control lock), so that typing a name
     // does not stage it.
     internal static class FlightPanelEditor

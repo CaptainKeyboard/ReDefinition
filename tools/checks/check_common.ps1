@@ -1,10 +1,9 @@
-# Shared by the check scripts, dot-sourced at their top:
+# Shared by the check scripts. It sets $repo, $kspRoot (the KspRoot environment
+# variable, as in Directory.Build.props, by default the Steam location), $managed
+# and $gameData, resolves KSP's assemblies, and gives Expect. A script
+# dot-sources it at its top:
 #
 #   . ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
-#
-# Sets $repo, $kspRoot (the KspRoot environment variable, as in
-# Directory.Build.props, by default the Steam location), $managed and $gameData,
-# resolves KSP's assemblies, and gives Expect.
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }

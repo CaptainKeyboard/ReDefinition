@@ -78,9 +78,9 @@ namespace ReDefinition.Engineer
                     if (stop.By[i] > 0 && Flyer.FromCode(stop.By[i]).Section == section.Id) stop.By[i] = -1;
         }
 
-        // The stop at `index` is gone (Stops.RemoveAt): the steps into the stop
+        // Adjusts the plan to the stop at `index` being gone (Stops.RemoveAt). The steps into the stop
         // after it now start elsewhere and cost what they did not, so their stages
-        // burn as KSP fires them again; a satellite staying there stays where the
+        // burn as KSP fires them again. A satellite staying there stays where the
         // planner puts it.
         internal void RemoveStop(int index)
         {

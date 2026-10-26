@@ -36,10 +36,10 @@ namespace ReDefinition.Raytracing
     }
 
     // The raytracing of one camera (docs/development/raytracing.md, "How the frame
-    // goes"). On the scene camera: in OnPreCull the scene's instances of this frame; in
-    // the game (TraceBeforeLighting) the depth and G-buffer copied in the camera's own
-    // command stream before its lighting and the raytracing started on the proxy there,
-    // its results read by this frame's lighting. The test players can trace after the
+    // goes"). On the scene camera, OnPreCull hands over the scene's instances of this frame.
+    // In the game (TraceBeforeLighting) the depth and G-buffer are copied in the camera's own
+    // command stream before its lighting, and the raytracing starts on the proxy there.
+    // This frame's lighting reads its results. The test players can trace after the
     // frame instead (RtLateTrace), its results carried over to the next frame's lighting.
     //
     // What depends on KSP comes in through the fields below: the sources of the scene,
@@ -91,8 +91,8 @@ namespace ReDefinition.Raytracing
         // as a sphere; radius 0 for none.
         internal Func<Vector4> Body = () => Vector4.zero;
         // The sea's frame fixed to the main body, for the waves (RtCommon.hlsli,
-        // MakeSeaFrame): a point on the sea relative to the camera, and its east and north,
-        // world space; false for none, where the waves take the plane under the camera.
+        // MakeSeaFrame). It gives a point on the sea relative to the camera, and its east and north,
+        // world space. It returns false for none, where the waves take the plane under the camera.
         internal SeaFrameSource Sea = (out Vector3 origin, out Vector3 east, out Vector3 north) =>
         {
             origin = east = north = Vector3.zero;
@@ -168,9 +168,9 @@ namespace ReDefinition.Raytracing
         private static readonly Vector3[] AmbientDirections = { Vector3.up, Vector3.right, Vector3.down };
         private readonly Color[] ambientValues = new Color[3];
         // Unity's frame count at which the upscaler last asked for DLSS Ray
-        // Reconstruction's frames: until the frame after it, they go undenoised, as Ray
+        // Reconstruction's frames. Until the frame after it, they go undenoised, as Ray
         // Reconstruction denoises the finished frame, and make its guides from their
-        // surfaces (UpscalerRig.Reconstruction.cs). A lease, so that nothing holds it on
+        // surfaces (UpscalerRig.Reconstruction.cs). It is a lease, so that nothing holds it on
         // once the upscaler stops asking.
         internal int ReconstructionLease = -1;
         private bool reconstructedBefore;
@@ -189,10 +189,10 @@ namespace ReDefinition.Raytracing
         internal Func<bool> Cut = () => false;
         // The camera's motion vectors, where they are rendered and correct.
         internal bool MotionVectors;
-        // Trace each frame after its G-buffer (deferred) or depth texture (forward) and
-        // before its lighting, so that the lighting reads this frame's signals: nothing is
+        // Whether to trace each frame after its G-buffer (deferred) or depth texture (forward) and
+        // before its lighting. Then the lighting reads this frame's signals: nothing is
         // carried from the frame before, and nothing is missing where the frame before did
-        // not see. Otherwise after the frame, for the next one (OnRenderImage).
+        // not see. Otherwise the trace runs after the frame, for the next one (OnRenderImage).
         internal bool TraceBeforeLighting;
         // Called before the trace reads the camera's projection in OnPreRender: whatever
         // jitters it (the upscaler's CameraRedirect) applies its offset now, as Unity
@@ -209,30 +209,31 @@ namespace ReDefinition.Raytracing
         // diffuse, reflections, ..., denoiser at 6).
         internal float[] PassTimings = new float[8];
 
-        // The camera; the capture material with ReDefinitionRtCapture.shader's passes; the screen-space shadows and
-        // deferred reflections put in Unity's place (RtLighting); the trace's command buffer, the G-buffer's copy
-        // after it is filled, the forward light; the sun mask's flag on and off around the sun's screen-space mask,
-        // and the light they are on.
+        // The camera this component raytraces for.
         private Camera cam;
+        // The capture material with ReDefinitionRtCapture.shader's passes.
         private Material capture;
+        // The screen-space shadows and deferred reflections put in Unity's place (RtLighting).
         private Shader shadows;
         private Shader reflections;
+        // The trace's command buffer, the G-buffer's copy after it is filled, the forward light.
         private CommandBuffer command;
         private CommandBuffer gbufferCopy;
         private CommandBuffer forwardLight;
+        // The sun mask's flag on and off around the sun's screen-space mask, and the light they are on.
         private CommandBuffer maskOn, maskOff;
         private Light maskedLight;
-        // How Unity fades the sun's shadow out towards its shadow distance in forward
-        // rendering, which only the GPU knows: written after the sun's screen-space shadows
-        // (ReDefinitionRtCapture.shader, fragShadowFade), read back a frame or two later,
-        // and kept in the camera's own frame, where Unity's fade does not move with it.
+        // The pass of ReDefinitionRtCapture.shader (fragShadowFade) that writes how Unity fades the sun's shadow out
+        // towards its shadow distance in forward rendering, which only the GPU knows. It runs after the sun's
+        // screen-space shadows. The result is read back a frame or two later, and kept in the camera's own frame,
+        // where Unity's fade does not move with it.
         private const int ShadowFadePass = 15;
-        // The light a meadow's blades keep from its ground, measured at the launch pad on the RTX A4500 with the
-        // blades letting through half the sun (rtFoliageTransmission 0.5): the terrain past Parallax's grass
-        // about the vessel as bright as the terrain in it, 0.99 of it by day and 0.94 in the evening (medians of
-        // eleven views from 150 m to 4 km, single views 0.81 to 1.10; 2026-10-25; 0.77 before, when the rays saw
-        // the grass's shadow only near the camera, RtCommon.hlsli, RayOrigin). Into the ground's albedo, for the
-        // sun and the sky alike.
+        // The light a meadow's blades keep from its ground. Measured at the launch pad on the RTX A4500, 2026-10-25,
+        // with the blades letting through half the sun (rtFoliageTransmission 0.5). The terrain past Parallax's grass
+        // about the vessel is as bright as the terrain in it: 0.99 of it by day and 0.94 in the evening. Medians of
+        // eleven views from 150 m to 4 km, single views 0.81 to 1.10. When the rays saw the grass's
+        // shadow only near the camera (RtCommon.hlsli, RayOrigin), it was 0.77. It goes into the ground's
+        // albedo for sun and sky alike.
         private const float MeadowShade = 0.82f;
         private static readonly float MeadowShadeProbe = CommandLine.After("-redefinitionProbeMeadowShade") != null
             && float.TryParse(CommandLine.After("-redefinitionProbeMeadowShade"),
@@ -322,12 +323,12 @@ namespace ReDefinition.Raytracing
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
         private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
-        // The raytraced diffuse light's colour (ReDefinitionDeferredReflections.shader): 0 its
-        // own; up to 1, that much of Deferred's limit on its ambient light's tint (its
-        // ambientTint); from 1 to 2, more and more in the colour of Deferred's own ambient
-        // light, its strength kept; from 2 to 3, more and more grey.
+        // The raytraced diffuse light's colour (ReDefinitionDeferredReflections.shader). At 0 it is its
+        // own. Up to 1, it takes that much of Deferred's limit on its ambient light's tint (its
+        // ambientTint). From 1 to 2, it is more and more in the colour of Deferred's own ambient
+        // light, its strength kept. From 2 to 3, it is more and more grey.
         // -redefinitionProbeRtAmbientTint <value> sets it for a probe's run.
-        // The player's choice (RtKsp, RaytracingLightColour).
+        // It is the player's choice (RtKsp, RaytracingLightColour).
         internal Func<float> AmbientColour = () => 0f;
         private static readonly float probeAmbientTint = ProbeAmbientTint();
 
@@ -563,9 +564,9 @@ namespace ReDefinition.Raytracing
             command = gbufferCopy = flagOn = flagOff = null;
         }
 
-        // Before the camera culls: the lighting shaders and the sun's mask in place, the scene's instances of this frame
-        // handed over, the forward light and the G-buffer's copy set up, and the previous frame's results carried to
-        // this frame's world for the lighting.
+        // Runs before the camera culls. It puts the lighting shaders and the sun's mask in place and hands over the
+        // scene's instances of this frame. It sets up the forward light and the G-buffer's copy, and carries the
+        // previous frame's results to this frame's world for the lighting.
         private void OnPreCull()
         {
             KeepLateTrace();
@@ -693,11 +694,11 @@ namespace ReDefinition.Raytracing
             HoldReflections(false);
         }
 
-        // Unity's own reflections -- the reflection probes', KSP's on the vessel among them,
-        // and the sky's -- taken out while this camera draws, where the raytraced
+        // Unity's own reflections are taken out while this camera draws, where the raytraced
         // reflections come into the frame without Deferred's reflections pass (the forward
-        // light): the surfaces would shine with both. Set back after this camera, for the
-        // others. The probes looked for once a second.
+        // light): the surfaces would shine with both. They are the reflection probes', KSP's on
+        // the vessel among them, and the sky's. They are set back after this camera, for the
+        // others. The probes are looked for once a second.
         private ReflectionProbe[] probes = new ReflectionProbe[0];
         private float[] probeIntensities = new float[0];
         private float probesFound = float.NegativeInfinity;
@@ -849,16 +850,12 @@ namespace ReDefinition.Raytracing
             frameIndex++;
         }
 
-        // Scatterer's ocean's reflections from the rays, in this frame: its surface from
-        // its G-buffer into the shape of Unity's, traced as a second frame of the same
+        // Scatterer's ocean's reflections from the rays, in this frame. Its surface goes from
+        // its G-buffer into the shape of Unity's. It is traced as a second frame of the same
         // camera and scene with the reflections alone, and handed to the ocean where it
         // reads Deferred's screen-space reflections (ssrOutput). Where a reflected ray
         // meets nothing the weight is 0, and the ocean keeps its own reflection of Scatterer's sky.
-        // KSP's own sea (`stockSea`) the same way from Unity's G-buffer as the frame's
-        // trace took it, its reflections whole and undenoised for the reflections' shader
-        // (_ReDefinitionRtOcean, ReDefinitionDeferredReflections.shader): traced in the
-        // frame's own command buffer (`into`), right after the frame, before the
-        // reflections pass reads it.
+        // KSP's own sea (`stockSea`) is traced the same way, as StockSeaTraced says.
         private void TraceOcean(bool wanted, bool stockSea, CommandBuffer into = null)
         {
             StockSeaTraced = wanted && stockSea;
@@ -939,7 +936,7 @@ namespace ReDefinition.Raytracing
         }
 
         // Scatterer's ocean weighs the reflections it reads (ssrOutput) down from 1 km of the
-        // camera's height and to nothing from 2 km: the discs the waves mirror go onto it
+        // camera's height and to nothing from 2 km. The discs the waves mirror go onto it
         // once it is drawn instead, through its tonemapper (fragOceanDiscs).
         private void AttachOceanDiscs(bool wanted)
         {
@@ -1005,8 +1002,8 @@ namespace ReDefinition.Raytracing
 
         // The mask flag on the sun's light, moved when the sun is another light now.
         // While the raytraced visibility makes the sun's shadows, they take all of its light,
-        // as a shadow does: the traced sky light fills them (KSP's sun keeps a quarter of its
-        // light in its shadows otherwise, shadow strength 0.75). Set back when the mask moves
+        // as a shadow does. The traced sky light fills them (KSP's sun keeps a quarter of its
+        // light in its shadows otherwise, shadow strength 0.75). It is set back when the mask moves
         // or the raytracing goes.
         private void MaskSun(Light light)
         {
@@ -1037,17 +1034,18 @@ namespace ReDefinition.Raytracing
         private float maskedStrength = -1f;
 
         // While the rays make the sun's shadows, the shadow maps are used only where the
-        // raytraced frame did not see a point (RtShadow, ReDefinitionScreenSpaceShadows),
-        // and by Scatterer's godrays and caustics, EVE's cloud shadows and the vessel's
-        // shadow for frame generation. Two cascades in place of four took 1.4 ms of the
+        // raytraced frame did not see a point (RtShadow, ReDefinitionScreenSpaceShadows).
+        // Scatterer's godrays and caustics, EVE's cloud shadows and the vessel's
+        // shadow for frame generation use them too. Two cascades in place of four took 1.4 ms of the
         // GPU's frame off at the pad, with the 3D scene unchanged against two shots
         // without a change (docs/development/performance-findings.md). The distance and
-        // the resolution stay Scatterer's. Set back when the rays stop, where the value is
-        // still the one set here. A count set meanwhile -- the player's shadow quality in
-        // KSP's settings (KspBehaviour.ApplyQuality) -- is what comes back then: more
+        // the resolution stay Scatterer's.
+        private const int RaytracedCascades = 2;
+        // The count the cascades had before they were held at RaytracedCascades; -1 for none held. They are set back
+        // when the rays stop, where the value is still the one set here. A count set meanwhile, the player's shadow
+        // quality in KSP's settings (KspBehaviour.ApplyQuality), is what comes back then: more
         // than two is held again, one stays as it is (two cannot be told from the count
         // set here).
-        private const int RaytracedCascades = 2;
         private int heldCascades = -1;
 
         // Holds the shadow cascades at RaytracedCascades while the rays make the sun's shadows, and sets them back after.
@@ -1071,8 +1069,8 @@ namespace ReDefinition.Raytracing
             heldCascades = -1;
         }
 
-        // Unity's shadow fade of the frame before read back, from the start of this one,
-        // where the GPU has its texels after that frame; this frame's written in forward
+        // Reads back Unity's shadow fade of the frame before, from the start of this one,
+        // where the GPU has its texels after that frame. This frame's is written in forward
         // rendering, where Unity fades the screen-space shadows in the surfaces' own passes.
         // Unity's deferred lighting fades them itself, and the forward light there takes
         // the surface from the G-buffer.
@@ -1125,8 +1123,8 @@ namespace ReDefinition.Raytracing
             maskedStrength = -1f;
         }
 
-        // The trace after the frame, for the next one, through RtLateTrace's OnRenderImage:
-        // a component of its own, as a camera with any OnRenderImage draws into a texture
+        // The trace after the frame, for the next one, through RtLateTrace's OnRenderImage.
+        // It is a component of its own, as a camera with any OnRenderImage draws into a texture
         // of Unity's in between and copies it each frame, which the trace before the
         // lighting, the game's, does not need.
         private RtLateTrace lateTrace;
@@ -1301,9 +1299,9 @@ namespace ReDefinition.Raytracing
             return GL.GetGPUProjectionMatrix(renderedProjection, true) * view;
         }
 
-        // The frame packet for this frame: the view and the previous one, the inputs, the sun, sky, lights, clouds, sea
-        // and settings, and which passes to run; `deferred` where the G-buffer was copied, the others where motion
-        // vectors and the sky's cube were.
+        // The frame packet for this frame. It holds the view and the previous one, the inputs, the sun, sky, lights,
+        // clouds, sea and settings, and which passes to run. The argument `deferred` is set where the G-buffer was
+        // copied, the others where motion vectors and the sky's cube were.
         private void FillPacket(bool deferred, bool withMotion, bool withEnvironment)
         {
             Matrix4x4 worldToClip = WorldToClipRelative();
@@ -1611,12 +1609,12 @@ namespace ReDefinition.Raytracing
             gbufferReady = false;
         }
 
-        // For the scene probe (-redefinitionProbeSurfaces): this frame's G-buffer copies,
+        // For the scene probe (-redefinitionProbeSurfaces). It writes this frame's G-buffer copies,
         // the surfaces as their materials mean them with their modes and what the camera's
         // ray met (RT_REGION_*), the raytraced diffuse and reflected light, and the sun's
-        // visibility, each into <prefix>-<name>.bin in folder -- the width and height as two
-        // little-endian ints, then four floats a pixel, rows from the bottom. `step`: every
-        // step-th pixel of every step-th row; `only`: the names to write, or all. The names
+        // visibility. Each goes into <prefix>-<name>.bin in folder. A file holds the width and height as two
+        // little-endian ints, then four floats a pixel, rows from the bottom. Argument `step` keeps every
+        // step-th pixel of every step-th row. Argument `only` names the images to write, or all. It returns the names
         // written (tools/surface_sheet.py reads them).
         internal string WriteSurfaceImages(string folder, string prefix, int step = 1, string[] only = null)
         {
@@ -1738,7 +1736,10 @@ namespace ReDefinition.Raytracing
         // The ocean's raytraced reflections as Scatterer's ocean reads them (ssrOutput).
         internal RenderTexture OceanReflectionsTexture { get { return oceanReflections; } }
         // Whether KSP's own sea took the raytraced reflections, with the sun's disc, in the
-        // last frame (TraceOcean).
+        // last frame (TraceOcean). The sea is traced from Unity's G-buffer as the frame's trace took it, its
+        // reflections whole and undenoised for the reflections' shader (_ReDefinitionRtOcean,
+        // ReDefinitionDeferredReflections.shader). TraceOcean traces it in the frame's own command buffer (`into`),
+        // right after the frame, before the reflections pass reads it.
         internal static bool StockSeaTraced { get; private set; }
         // The sun's colour the last frame's trace took (SunColor as the frame drew it).
         internal Color TracedSunColour { get; private set; }

@@ -3,26 +3,24 @@ using System.Collections.Generic;
 namespace ReDefinition.Settings
 {
     // Where the bundled settings show in the settings window: tabs by what a setting
-    // does, each listing the rows of every mod, as the registrations
-    // place them (docs/modders/registering-a-mod.md): a setting's or a dialog's `row`
+    // does, each listing the rows of every mod.
+    // The registrations place them (docs/modders/registering-a-mod.md) with a setting's or a dialog's `row`
     // and `order`, `rowUnless`, and a mod's `tab` for its Advanced button.
     //
-    // Shown of the graphics mods is what players set in a game's graphics menu:
-    // one row per feature -- its quality, or whether it is on -- for the features
-    // one sees and that cost frame time: shadows, reflections, clouds, the sea, the
+    // Shown of the graphics mods is what players set in a game's graphics menu.
+    // That is one row per feature, its quality or whether it is on.
+    // The features are those one sees and that cost frame time: shadows, reflections, clouds, the sea, the
     // ground's detail and scatter, re-entry, engine plumes, flares, distant
-    // vessels; and the few switches players ask for beyond graphics -- waves moving
-    // vessels, the clouds' sounds, names on flares, solid scatter. Not shown: a
-    // feature's finer switches and technical parameters, tessellation among them;
-    // the look a visual pack decides; switches for troubleshooting and
-    // compatibility; the rest of a mod's interface. Those stay in the mod's own
-    // window, through Advanced. A setting not shown stays bundled: a profile still
+    // vessels. It also includes the few switches players ask for beyond graphics:
+    // waves moving vessels, the clouds' sounds, names on flares, solid scatter.
+    // Not shown are a feature's finer switches and technical parameters, tessellation among them,
+    // the look a visual pack decides, switches for troubleshooting and
+    // compatibility, and the rest of a mod's interface.
+    // Those stay in the mod's own window, through Advanced.
+    // A setting not shown stays bundled: a profile still
     // sets it for the frame time it costs, and a value from before ReDefinition can
     // still be put back (docs/reference/how-each-mod-keeps-its-settings.md).
-    //
-    // Of KSP, every control of its own settings screen is shown, so that the
-    // window can stand in for that screen: its graphics in the graphics tabs, and
-    // its audio, gameplay, system and input settings in tabs of their own.
+    // WindowLayout.In says what is shown of KSP.
     internal static class WindowLayout
     {
         // A row with what sorts it: the registration's order, then its place among every mod's settings.
@@ -35,6 +33,9 @@ namespace ReDefinition.Settings
         }
 
         // The rows of a tab, of the mods installed now.
+        // Of KSP, every control of its own settings screen is shown, so that the
+        // window can stand in for that screen: its graphics in the graphics tabs, and
+        // its audio, gameplay, system and input settings in tabs of their own.
         internal static List<BundledSetting> In(SettingCategory tab)
         {
             return In(tab, BundledSettings.Installed());

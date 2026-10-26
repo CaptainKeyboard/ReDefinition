@@ -3,21 +3,22 @@
 Takes the two recordings of tools/flip_probe.ps1: the reference (no frame
 generation, the camera sweep at half step) and the run with frame generation
 (full step). Every frame of the second is matched to the reference frame showing
-the same camera pose -- the one closest in a cheap downscaled comparison, then the
-best of the closest few by FLIP -- and its FLIP error against that one taken.
+the same camera pose. The match is the one closest in a cheap downscaled comparison,
+then the best of the closest few by FLIP. The frame's FLIP error against that one is
+taken.
 
-In the reference a rendered frame stands at every half step: frames of the
+In the reference a rendered frame stands at every half step. Frames of the
 frame-generation run that match an even reference frame stand between two of the
-game's frames (generated), odd ones on a game frame (rendered) -- the sweep's
+game's frames (generated), odd ones on a game frame (rendered). The sweep's
 first step is reference frame 1. Both groups are reported apart; what frame
 generation adds is the difference between them. Scene animation (clouds, water)
 differs between the two runs and sets the floor both groups share.
 
-    python tools/analyze_flip.py <reference folder> <generated folder> [--out <folder>]
-        [--ppd 67] [--candidates 3]
-
 Writes flip.txt (one line a frame) and the FLIP error maps of the five worst
 frames of each group into --out (default: <generated folder>/flip).
+
+Usage: python tools/analyze_flip.py <reference folder> <generated folder> [--out <folder>]
+    [--ppd 67] [--candidates 3]
 """
 import argparse
 import os

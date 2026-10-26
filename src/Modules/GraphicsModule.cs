@@ -7,10 +7,10 @@ namespace ReDefinition.Modules
 {
     // One of ReDefinition's own features -- the upscaler, frame generation, raytracing
     // and the others in OurModules -- as the profiles and the settings windows see it
-    // (docs/development/architecture.md):
-    // the name a profile's MODULE node gives, a title, and its settings over
-    // ReDefinition's settings file (OwnSettings), which the settings window and KSP's settings
-    // dialog edit as a copy and commit through the add-on. Modelled on Community
+    // (docs/development/architecture.md).
+    // It has the name a profile's MODULE node gives, a title, and its settings over
+    // ReDefinition's settings file (OwnSettings). The settings window and KSP's settings
+    // dialog edit those as a copy and commit it through the add-on. Modelled on Community
     // Shaders' Feature (its header Feature.h), cut to what KSP needs. The modules
     // are OurModules.
     internal interface IGraphicsModule
