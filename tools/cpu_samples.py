@@ -1,5 +1,5 @@
 """Where the game's main thread spends its time, from the CPU sampler's file
-(src/DxgiProxy/CpuSampler.h, -redefinitionProbeCpuSample):
+(src/DxgiProxy/Latency/CpuSampler.h, -redefinitionProbeCpuSample):
 
     python tools/cpu_samples.py <KSP>/ReDefinitionCaptures/<time>-run/cpu-samples.txt [report.txt]
 

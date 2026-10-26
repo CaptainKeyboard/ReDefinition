@@ -46,7 +46,7 @@ runs. It runs where Streamline 2.14.16 signed by NVIDIA lies in the player's fil
 NVIDIA GPU that supports it, under Windows 10 20H1 or newer, with hardware-accelerated GPU
 scheduling on. Streamline itself decides the support: `slIsFeatureSupported` for DLSS-G,
 and the same for Reflex, which DLSS-G requires **[doc]**. NVAPI reports the GPU's
-architecture (`src/DxgiProxy/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation
+architecture (`src/DxgiProxy/Upscalers/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation
 files from Ada on, Streamline's core and Ray Reconstruction's from Turing on
 (`src/Vendor/NvidiaFiles.cs`). The proxy loads Streamline 2.14.16 only; a file of
 another version counts as missing there.

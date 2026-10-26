@@ -46,7 +46,7 @@ processes would share the logs.
    usual time. Each names its five costliest segments.
 
 The profiler sets markers in Unity's render stream. The proxy ends a D3D11 timestamp
-query at each one (`src/DxgiProxy/GpuProfiler.h`). A segment is the GPU time from one
+query at each one (`src/DxgiProxy/Diagnostics/GpuProfiler.h`). A segment is the GPU time from one
 marker to the next. The markers sit around the drawing scripts of every assembly, at
 each camera's start, around the `Update` and `LateUpdate` of the graphics mods, inside
 ReDefinition's own raytracing and upscaler work (`Probe.GpuProfiler.Mark`), and in the
@@ -178,7 +178,7 @@ Keep in mind:
    `ReDefinitionCaptures\<time>-run\cpu-samples.txt`. KSP then ends by itself.
 2. Run `python tools/cpu_samples.py <that file> [report.txt]`.
 
-The sampler is a thread of the proxy's (`src/DxgiProxy/CpuSampler.h`). About a thousand
+The sampler is a thread of the proxy's (`src/DxgiProxy/Latency/CpuSampler.h`). About a thousand
 times a second it stops the main thread for a few microseconds and copies its
 instruction pointer and the top of its stack. The script names the addresses with the
 symbols of Unity's and Microsoft's symbol servers, cached in
@@ -270,7 +270,7 @@ The proxy writes these into `ReDefinitionProxy.log` on its own, every 10 s:
 
 * Under each `D3D12 proxy:` line, `The render thread waited, per frame:` names how long
   Unity's render thread waited at the proxy's CPU waits. They are a frame in flight, a
-  raytracing slot, and frame generation's inputs (`src/DxgiProxy/WaitStats.h`).
+  raytracing slot, and frame generation's inputs (`src/DxgiProxy/Latency/WaitStats.h`).
 * `Raytracing: a slow frame` names a raytracing frame over 15 ms of GPU time with its
   scene build in parts and each pass. It is said at most 30 times a session.
 * The raytracing's status line in `KSP.log` gives `extra build` and `extra trace`, the

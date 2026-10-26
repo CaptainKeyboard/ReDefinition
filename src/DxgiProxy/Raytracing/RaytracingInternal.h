@@ -50,7 +50,7 @@ namespace redefinition
     // first, then the denoiser, then what reads the denoised signals.
     inline constexpr UINT kRtPassOrder[kRtPassTimings] = { 0, 1, 2, 3, kRtPassDenoiser, 4, 5, 7 };
 
-    // The entry points of the passes after the trace (RaytracingShaders/Denoise.hlsl and
+    // The entry points of the passes after the trace (Raytracing/Shaders/Denoise.hlsl and
     // the others beside it), and of the radiance cache's (RadianceCache.hlsl) and of the
     // diffuse light's and the reflections' passes with it (Raytracing.hlsl).
     inline const wchar_t* const kRtDenoiseEntries[] = {

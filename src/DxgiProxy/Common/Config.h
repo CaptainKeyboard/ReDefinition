@@ -417,7 +417,7 @@ namespace redefinition
         float rtFoliageTransmission = 0.5f;
 
         // The world-space radiance cache of the raytraced indirect light (RaytracingCache.cpp,
-        // RaytracingShaders/RadianceCache.hlsli): the diffuse light's and the reflections'
+        // Raytracing/Shaders/RadianceCache.hlsli): the diffuse light's and the reflections'
         // paths end at a hit in the cache's value there, where it holds enough samples,
         // instead of tracing on, and write what they trace into it. Off by default. Its table
         // has 2^rtRadianceCacheEntries entries of 44 bytes (16 to 22); its cells are

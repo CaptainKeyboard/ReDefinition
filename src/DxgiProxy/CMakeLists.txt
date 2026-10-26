@@ -38,7 +38,17 @@ find_program(REDEFINITION_DXC dxc
 # The raytracing passes (Raytracing.cpp), one entry point each, compiled to DXIL and
 # embedded in dxgi.dll as RCDATA named RT_<entry>. Without dxc the proxy is built
 # without them and says so in its log.
-set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/RaytracingShaders")
+# The folders of the proxy's sources and the harnesses': every source includes its headers by their
+# plain names, found through these, and the one header outside its folder (Raytracing/Shaders/RtContract.h)
+# through the proxy's root.
+set(REDEFINITION_HARNESS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/DxgiProxy")
+set(REDEFINITION_SOURCE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/Common" "${CMAKE_CURRENT_SOURCE_DIR}/Diagnostics"
+    "${CMAKE_CURRENT_SOURCE_DIR}/FrameGeneration" "${CMAKE_CURRENT_SOURCE_DIR}/Latency"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Managed" "${CMAKE_CURRENT_SOURCE_DIR}/Raytracing"
+    "${CMAKE_CURRENT_SOURCE_DIR}/SwapChain" "${CMAKE_CURRENT_SOURCE_DIR}/Upscalers")
+
+set(REDEFINITION_RT_SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Raytracing/Shaders")
 # Each entry as file:entry point.
 set(REDEFINITION_RT_ENTRIES
     Raytracing:SunVisibility Raytracing:AmbientOcclusion Raytracing:DiffuseLight Raytracing:SpecularLight
@@ -76,84 +86,84 @@ else()
 endif()
 
 add_library(ReDefinitionProxy SHARED
-    AmdUpscaler.cpp
-    AmdUpscaler.h
-    Log.cpp
-    Log.h
-    Config.cpp
-    Config.h
-    D3d12Compute.cpp
-    D3d12Compute.h
-    D3d12Util.h
-    Dlss.cpp
-    Dlss.h
-    DlssRayReconstruction.cpp
-    DlssRayReconstruction.h
-    FileUtil.cpp
-    FileUtil.h
-    FidelityFx.cpp
-    FidelityFx.h
-    FrameGeneration.cpp
-    FrameGeneration.h
-    FrameGenerationCheck.cpp
-    FrameGenerationContext.cpp
-    FrameGenerationDump.cpp
-    FrameGenerationInputs.cpp
-    FrameGenerationUi.cpp
-    FrameGenerationDlss.cpp
-    FrameGenerationXess.cpp
-    FrameGenerationPrepare.cpp
-    FrameGenerationRate.cpp
-    CpuSampler.cpp
-    CpuSampler.h
-    GpuProfiler.cpp
-    GpuProfiler.h
-    LoadMonitor.cpp
-    LoadMonitor.h
-    LowLatency.cpp
-    LowLatency.h
-    ManagedBridge.cpp
-    NgxCore.cpp
-    NgxCore.h
-    ScreenRecorder.cpp
-    ScreenRecorder.h
-    NvidiaGpu.cpp
-    NvidiaGpu.h
-    ProjectIdentity.h
-    Raytracing.cpp
-    Raytracing.h
-    RaytracingCache.cpp
-    RaytracingDenoise.cpp
-    RaytracingBuild.cpp
-    RaytracingBuild.h
-    RaytracingBuildFrame.h
-    RaytracingMegaGeometry.cpp
-    RaytracingMegaGeometry.h
-    RaytracingOmm.cpp
-    RaytracingOmm.h
-    RaytracingOmmBake.cpp
-    RaytracingOmmBake.h
-    RaytracingDevice.cpp
-    RaytracingInternal.h
-    RaytracingReconstruct.cpp
-    RaytracingRegenerate.cpp
-    RaytracingScene.cpp
-    Streamline.cpp
-    Streamline.h
-    SwapChainProxy.cpp
-    SwapChainProxy.h
-    SwapChainProxyBuffers.cpp
-    SwapChainProxyForwarding.cpp
-    SwapChainProxyPacing.cpp
-    SwapChainProxyPresent.cpp
-    SwapChainProxyState.h
-    SwapChainProxyStreamline.cpp
-    SwapChainProxyXess.cpp
-    XessFg.cpp
-    XessFg.h
-    XessUpscaler.cpp
-    XessUpscaler.h
-    DxgiExports.cpp
+    Upscalers/AmdUpscaler.cpp
+    Upscalers/AmdUpscaler.h
+    Common/Log.cpp
+    Common/Log.h
+    Common/Config.cpp
+    Common/Config.h
+    Managed/D3d12Compute.cpp
+    Managed/D3d12Compute.h
+    Common/D3d12Util.h
+    Upscalers/Dlss.cpp
+    Upscalers/Dlss.h
+    Upscalers/DlssRayReconstruction.cpp
+    Upscalers/DlssRayReconstruction.h
+    Common/FileUtil.cpp
+    Common/FileUtil.h
+    FrameGeneration/FidelityFx.cpp
+    FrameGeneration/FidelityFx.h
+    FrameGeneration/FrameGeneration.cpp
+    FrameGeneration/FrameGeneration.h
+    FrameGeneration/FrameGenerationCheck.cpp
+    FrameGeneration/FrameGenerationContext.cpp
+    FrameGeneration/FrameGenerationDump.cpp
+    FrameGeneration/FrameGenerationInputs.cpp
+    FrameGeneration/FrameGenerationUi.cpp
+    FrameGeneration/FrameGenerationDlss.cpp
+    FrameGeneration/FrameGenerationXess.cpp
+    FrameGeneration/FrameGenerationPrepare.cpp
+    FrameGeneration/FrameGenerationRate.cpp
+    Latency/CpuSampler.cpp
+    Latency/CpuSampler.h
+    Diagnostics/GpuProfiler.cpp
+    Diagnostics/GpuProfiler.h
+    Latency/LoadMonitor.cpp
+    Latency/LoadMonitor.h
+    Latency/LowLatency.cpp
+    Latency/LowLatency.h
+    Managed/ManagedBridge.cpp
+    Upscalers/NgxCore.cpp
+    Upscalers/NgxCore.h
+    Diagnostics/ScreenRecorder.cpp
+    Diagnostics/ScreenRecorder.h
+    Upscalers/NvidiaGpu.cpp
+    Upscalers/NvidiaGpu.h
+    Common/ProjectIdentity.h
+    Raytracing/Raytracing.cpp
+    Raytracing/Raytracing.h
+    Raytracing/RaytracingCache.cpp
+    Raytracing/RaytracingDenoise.cpp
+    Raytracing/RaytracingBuild.cpp
+    Raytracing/RaytracingBuild.h
+    Raytracing/RaytracingBuildFrame.h
+    Raytracing/RaytracingMegaGeometry.cpp
+    Raytracing/RaytracingMegaGeometry.h
+    Raytracing/RaytracingOmm.cpp
+    Raytracing/RaytracingOmm.h
+    Raytracing/RaytracingOmmBake.cpp
+    Raytracing/RaytracingOmmBake.h
+    Raytracing/RaytracingDevice.cpp
+    Raytracing/RaytracingInternal.h
+    Raytracing/RaytracingReconstruct.cpp
+    Raytracing/RaytracingRegenerate.cpp
+    Raytracing/RaytracingScene.cpp
+    FrameGeneration/Streamline.cpp
+    FrameGeneration/Streamline.h
+    SwapChain/SwapChainProxy.cpp
+    SwapChain/SwapChainProxy.h
+    SwapChain/SwapChainProxyBuffers.cpp
+    SwapChain/SwapChainProxyForwarding.cpp
+    SwapChain/SwapChainProxyPacing.cpp
+    SwapChain/SwapChainProxyPresent.cpp
+    SwapChain/SwapChainProxyState.h
+    SwapChain/SwapChainProxyStreamline.cpp
+    SwapChain/SwapChainProxyXess.cpp
+    FrameGeneration/XessFg.cpp
+    FrameGeneration/XessFg.h
+    Upscalers/XessUpscaler.cpp
+    Upscalers/XessUpscaler.h
+    SwapChain/DxgiExports.cpp
     ReDefinitionProxy.def
     "${CMAKE_CURRENT_BINARY_DIR}/ReDefinitionProxy.rc"
     "${REDEFINITION_RT_RC}"
@@ -164,6 +174,7 @@ add_library(ReDefinitionProxy SHARED
 # under extern/ (extern/XeSS/MIT.txt). The runtimes are DLLs loaded at run time;
 # XeSS frame generation's declarations are the proxy's own (XessFg.h).
 target_include_directories(ReDefinitionProxy PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern")
+target_include_directories(ReDefinitionProxy PRIVATE ${REDEFINITION_SOURCE_DIRS})
 
 # NVIDIA's Streamline headers, MIT (extern/Streamline/license.txt), for DLSS frame
 # generation. NVIDIA's DLLs are loaded at run time.
@@ -192,18 +203,19 @@ target_link_libraries(ReDefinitionProxy PRIVATE d3d11 d3d12 winmm version window
 # A test driver that exercises the proxy without KSP. It lands in the same
 # directory as dxgi.dll, so LoadLibrary("dxgi.dll") finds the proxy by the
 # ordinary search order, as in the game.
-add_executable(ProxyHarness ProxyHarness.cpp FileUtil.cpp FileUtil.h)
+add_executable(ProxyHarness "${REDEFINITION_HARNESS_DIR}/ProxyHarness.cpp" Common/FileUtil.cpp Common/FileUtil.h)
 target_compile_definitions(ProxyHarness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(ProxyHarness PRIVATE /W4 /permissive-)
 target_link_libraries(ProxyHarness PRIVATE d3d11 dxgi version dbghelp)
+target_include_directories(ProxyHarness PRIVATE ${REDEFINITION_SOURCE_DIRS})
 add_dependencies(ProxyHarness ReDefinitionProxy)
 
 # The raytracing harness (docs/development/raytracing.md): the proxy's raytracing
 # without KSP, against the CPU.
-add_executable(RaytracingHarness RaytracingHarness.cpp RaytracingOmmHarness.cpp RaytracingOmmBake.cpp)
+add_executable(RaytracingHarness "${REDEFINITION_HARNESS_DIR}/RaytracingHarness.cpp" "${REDEFINITION_HARNESS_DIR}/RaytracingOmmHarness.cpp" Raytracing/RaytracingOmmBake.cpp)
 target_compile_definitions(RaytracingHarness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
 target_compile_options(RaytracingHarness PRIVATE /W4 /permissive-)
-target_include_directories(RaytracingHarness PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/extern"
+target_include_directories(RaytracingHarness PRIVATE ${REDEFINITION_SOURCE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/extern"
     "${CMAKE_CURRENT_SOURCE_DIR}/extern/Streamline/include")
 target_link_libraries(RaytracingHarness PRIVATE d3d11 d3d12 dxgi d3dcompiler)
 add_dependencies(RaytracingHarness ReDefinitionProxy)
@@ -213,7 +225,7 @@ add_dependencies(RaytracingHarness ReDefinitionProxy)
 if(REDEFINITION_DXC)
     add_custom_command(TARGET RaytracingHarness POST_BUILD
         COMMAND "${REDEFINITION_DXC}" -nologo -T cs_6_5 -E main -HV 2021
-            -Fo "$<TARGET_FILE_DIR:RaytracingHarness>/OmmProbe.cso" "${CMAKE_CURRENT_SOURCE_DIR}/OmmProbe.hlsl"
+            -Fo "$<TARGET_FILE_DIR:RaytracingHarness>/OmmProbe.cso" "${REDEFINITION_HARNESS_DIR}/OmmProbe.hlsl"
         COMMENT "OmmProbe.cso compiled to DXIL")
 endif()
 
@@ -228,7 +240,7 @@ add_custom_command(TARGET ProxyHarness POST_BUILD
 if(REDEFINITION_DXC)
     add_custom_command(TARGET ProxyHarness POST_BUILD
         COMMAND "${REDEFINITION_DXC}" -nologo -T cs_6_0 -E main
-            -Fo "$<TARGET_FILE_DIR:ProxyHarness>/HarnessPass.cso" "${CMAKE_CURRENT_SOURCE_DIR}/HarnessPass.hlsl"
+            -Fo "$<TARGET_FILE_DIR:ProxyHarness>/HarnessPass.cso" "${REDEFINITION_HARNESS_DIR}/HarnessPass.hlsl"
         COMMENT "HarnessPass.cso compiled to DXIL")
 endif()
 

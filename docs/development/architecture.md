@@ -414,7 +414,7 @@ button.
 | `RaytracingOmm.h`, `RaytracingOmm.cpp`, `RaytracingOmmBake.h`, `RaytracingOmmBake.cpp` | opacity micromaps through NVAPI, and the baker that makes them from the textures |
 | `RaytracingMegaGeometry.h`, `RaytracingMegaGeometry.cpp` | RTX Mega Geometry's cluster structures through NVAPI |
 | `RaytracingRegenerate.cpp` | AMD FSR Ray Regeneration where its DLL runs |
-| `RaytracingShaders/` | the raytracing and denoising passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
+| `Raytracing/Shaders/` | the raytracing and denoising passes in HLSL, compiled to DXIL at build time and embedded in `dxgi.dll` |
 | `FidelityFx.h`, `FidelityFx.cpp` | AMD's frame generation runtime, loaded at run time through a function table |
 | `NvidiaGpu.h`, `NvidiaGpu.cpp` | the GPU's architecture through NVAPI, for what DLSS and DLSS-G need |
 | `ProjectIdentity.h` | what ReDefinition tells NVIDIA's libraries it is |

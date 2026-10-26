@@ -20,7 +20,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 HEADER = os.path.join(ROOT, "src", "DxgiProxy", "extern", "FidelityFX",
                       "framegeneration", "include", "ffx_framegeneration.h")
 # Frame generation's files, all of them: a descriptor filled in one of them counts.
-IMPL = [os.path.join(ROOT, "src", "DxgiProxy", name)
+IMPL = [os.path.join(ROOT, "src", "DxgiProxy", "FrameGeneration", name)
         for name in ("FrameGeneration.cpp", "FrameGenerationContext.cpp", "FrameGenerationPrepare.cpp",
                      "FrameGenerationInputs.cpp", "FrameGenerationCheck.cpp")]
 

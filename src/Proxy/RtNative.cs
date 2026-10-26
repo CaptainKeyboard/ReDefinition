@@ -4,7 +4,7 @@ using System.Text;
 
 namespace ReDefinition.Proxy
 {
-    // The proxy's raytracing service (src/DxgiProxy/Raytracing.h), as the managed
+    // The proxy's raytracing service (src/DxgiProxy/Raytracing/Raytracing.h), as the managed
     // side reaches it: exports called from the main thread, and packets for the
     // render events 30 (a frame) and 31 (DLSS Ray Reconstruction); event 32 frees
     // Ray Reconstruction's resources once it is no longer used, event 33 what the
@@ -14,7 +14,7 @@ namespace ReDefinition.Proxy
     // collect KSP's scene: the raytracing test player compiles it on its own.
     //
     // Its constants and the packets' layouts are the contract's
-    // (src/DxgiProxy/RaytracingShaders/RtContract.h, RT_<NAME>), which
+    // (src/DxgiProxy/Raytracing/Shaders/RtContract.h, RT_<NAME>), which
     // tests/ReDefinition.Tests holds them to (RtContractTests).
     internal static class RtNative
     {

@@ -4,6 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using ReDefinition.Core;
 
 namespace ReDefinition.EditorTools
 {

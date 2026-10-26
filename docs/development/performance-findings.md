@@ -56,7 +56,7 @@ thread, not for the GPU.
 
 The GPU's load is 82 % to 87 % by the proxy's report, the main thread's 33 % to 48 % of
 one core **[meas]**. The proxy samples Windows' counter of the GPU's busiest 3D engine
-once a second (`src/DxgiProxy/LoadMonitor.h`) **[src]**. NVIDIA's `nvidia-smi` gives the
+once a second (`src/DxgiProxy/Latency/LoadMonitor.h`) **[src]**. NVIDIA's `nvidia-smi` gives the
 GPU 95 % to 98 % **[meas]**. Why the two differ is **[open]**.
 
 Unity's main thread spends 12.4 ms of a 24.9 ms frame in
@@ -73,7 +73,7 @@ frames.
 
 A raytracing slot holds what one raytracing job sends to the GPU: its command list,
 its constants, its part of the descriptor heap, its timestamps and the resources the
-GPU still reads **[src]** `src/DxgiProxy/Raytracing.h`. Before the proxy writes into a
+GPU still reads **[src]** `src/DxgiProxy/Raytracing/Raytracing.h`. Before the proxy writes into a
 slot again, it waits on the CPU until the GPU finished the slot's last job
 (`Raytracing::WaitForSlotLocked`) **[src]**. The wait itself is needed. Without it the
 CPU would overwrite what the GPU still reads.

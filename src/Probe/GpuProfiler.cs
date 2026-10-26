@@ -15,7 +15,7 @@ namespace ReDefinition.Probe
     // by camera, pass and the mod whose work it is. KSP's player is a release build: no
     // GPU markers of Unity's own reach a profiler, so a capture shows thousands of
     // unnamed draws. Here markers go into Unity's render stream -- the proxy ends a D3D11
-    // timestamp query at each (src/DxgiProxy/GpuProfiler.h) -- at:
+    // timestamp query at each (src/DxgiProxy/Diagnostics/GpuProfiler.h) -- at:
     //   every camera's events (CameraEvent), the command buffers other mods and KSP hang
     //   there each between two markers of its own;
     //   the lights' shadow and screen-space mask events, the same way;
@@ -444,7 +444,7 @@ namespace ReDefinition.Probe
             frameSum = frameMost = 0.0;
         }
 
-        // The proxy's markers (src/DxgiProxy/GpuProfiler.h, kProfNativeBase).
+        // The proxy's markers (src/DxgiProxy/Diagnostics/GpuProfiler.h, kProfNativeBase).
         private const int NativeBase = 1000000;
         private static readonly string[] NativeLabels =
         {

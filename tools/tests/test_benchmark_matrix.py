@@ -679,7 +679,7 @@ class FakeWindows:
 class StagesLineTest(unittest.TestCase):
     def test_the_parser_reads_the_line_the_proxy_writes(self):
         """The five labels are the proxy's (LowLatency.cpp, names[]): both change together."""
-        source = os.path.join(os.path.dirname(HERE), "..", "src", "DxgiProxy", "LowLatency.cpp")
+        source = os.path.join(os.path.dirname(HERE), "..", "src", "DxgiProxy", "Latency", "LowLatency.cpp")
         with open(source, encoding="utf-8") as f:
             text = f.read()
         block = text[text.index("names[kLatencyStages]"):]
@@ -1301,7 +1301,7 @@ class OptionsRecordTest(unittest.TestCase):
 
     def test_the_proxys_config_line_holds_every_key_it_reads(self):
         """Every ini key Config.cpp reads is in the line the record keeps: the options of a phase are the line's."""
-        source = read_source("src", "DxgiProxy", "Config.cpp")
+        source = read_source("src", "DxgiProxy", "Common", "Config.cpp")
         read = set(re.findall(r'(?:ReadFlag|ReadFloat|GetPrivateProfileIntW|GetPrivateProfileStringW)\(\s*(?:L"Proxy",\s*)?L"(\w+)"', source))
         described = source[source.index("std::string Describe"):source.index("void ReadInto")]
         named = set(re.findall(r"(\w+)=", described))
@@ -1321,7 +1321,7 @@ class OptionsRecordTest(unittest.TestCase):
 
     # The mod has the frameGenerationMultiplier setting, and the probe sets the mod's settings by mod.<key> keys.
     def test_the_mods_multiplier_is_a_setting_the_probe_sets_by_key(self):
-        settings = read_source("src", "OwnSettings.cs")
+        settings = read_source("src", "Modules", "OwnSettings.cs")
         self.assertIn('Key = "frameGenerationMultiplier"', settings)
         probe = read_source("src", "Probe", "SceneProbe.cs")
         self.assertIn('key.StartsWith("mod."', probe)

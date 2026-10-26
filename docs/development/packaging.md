@@ -216,7 +216,7 @@ https://support.curseforge.com/support/solutions/articles/9000197279-moderation-
 The template is `src/DxgiProxy/ReDefinitionProxy.ini`. CMake builds it into `dxgi.dll` as a
 resource (`ReDefinitionProxy.rc.in`), and the release build copies it into
 `GameData/ReDefinition` as well. At every start the proxy completes the file next to
-`KSP_x64.exe` from its own copy (`CompleteIni` in `src/DxgiProxy/Config.cpp`):
+`KSP_x64.exe` from its own copy (`CompleteIni` in `src/DxgiProxy/Common/Config.cpp`):
 
 * Without a file, it writes the template as it is.
 * A file from an earlier version gets the keys added since, each with its default and

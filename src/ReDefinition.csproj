@@ -298,8 +298,7 @@
     <ItemGroup>
       <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinition\Include\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
       <_StaticGameDataZip Include="$(_RepoRoot)GameData\**\*.*" />
-      <_NativeSource Include="$(_Native)\*.cpp;$(_Native)\*.h;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\*.ini;$(_Native)\CMakeLists.txt;$(_Native)\extern\**\*.h;$(_Native)\RaytracingShaders\*.hlsl;$(_Native)\RaytracingShaders\*.hlsli;$(_Native)\RaytracingShaders\*.h"
-                     Exclude="$(_Native)\ProxyHarness.cpp;$(_Native)\RaytracingHarness.cpp;$(_Native)\RaytracingOmmHarness.cpp" />
+      <_NativeSource Include="$(_Native)\**\*.cpp;$(_Native)\**\*.h;$(_Native)\**\*.hlsl;$(_Native)\**\*.hlsli;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\*.ini;$(_Native)\CMakeLists.txt" />
     </ItemGroup>
 
     <Delete Files="$(_ReleaseZip);$(_SourceZip)" />

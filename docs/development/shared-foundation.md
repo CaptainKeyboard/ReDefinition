@@ -1,7 +1,7 @@
 # The shared foundation for mods
 
 **For:** anyone working on the interface ReDefinition offers other mods.
-**You need:** `src/Api`, `src/Api/Internal`, `src/Proxy` and `src/DxgiProxy/D3d12Compute.cpp`
+**You need:** `src/Api`, `src/Api/Internal`, `src/Proxy` and `src/DxgiProxy/Managed/D3d12Compute.cpp`
 to hand.
 **You get:** why each part exists only once, what ReDefinition offers instead, and what
 has been verified.
@@ -162,7 +162,7 @@ not to be used.
      Direct3D 11 waits for the queue (`nextFrame` false), or at the pass's next dispatch
      (`nextFrame` true), which lets the Direct3D 12 work run beside the rest of the frame.
 
-  The pattern is AMD's upscaler's in the proxy (`src/DxgiProxy/AmdUpscaler.cpp`).
+  The pattern is AMD's upscaler's in the proxy (`src/DxgiProxy/Upscalers/AmdUpscaler.cpp`).
 * **When to call it [meas].** A render event that reads a texture Unity drew this frame
   sees it only when it is issued through `Graphics.ExecuteCommandBuffer` from
   `OnRenderImage`. Issued from a camera's own command buffer, it sees the previous frame
@@ -177,9 +177,9 @@ not to be used.
 * **One texture in several passes.** A dispatch that reads or writes a texture another
   pass's `nextFrame` dispatch writes brings that result into the texture first. Direct3D 11
   copies into a shared copy only once the queue is past every list that used it.
-* **The code.** `src/DxgiProxy/D3d12Compute.h` and `src/DxgiProxy/D3d12Compute.cpp` in the
+* **The code.** `src/DxgiProxy/Managed/D3d12Compute.h` and `src/DxgiProxy/Managed/D3d12Compute.cpp` in the
   proxy, with render events 20 to 23 and the `KspD3d12*` exports
-  (`src/DxgiProxy/ManagedBridge.cpp`); `src/Proxy/D3d12Bridge.cs` and `src/Api/D3D12.cs`
+  (`src/DxgiProxy/Managed/ManagedBridge.cpp`); `src/Proxy/D3d12Bridge.cs` and `src/Api/D3D12.cs`
   in the mod.
 
 ### Limits
@@ -225,10 +225,10 @@ the GPU, such as Parallax's terrain, is not there.
   hooks' guarding, the Direct3D 12 packets' layout, that the wrapper finds every member of
   the interface and returns its values, and that 400,000 reads of the frame's state through
   it allocate nothing.
-* The proxy harness (`src/DxgiProxy/ProxyHarness.cpp`): the capabilities; HLSL compiled by
+* The proxy harness (`tests/DxgiProxy/ProxyHarness.cpp`): the capabilities; HLSL compiled by
   the proxy from source, from a file with an `#include`, and broken source, whose error has
   to come back; compute passes from that DXBC and from DXIL
-  (`src/DxgiProxy/HarnessPass.hlsl`, compiled by the build with the Windows SDK's `dxc`),
+  (`tests/DxgiProxy/HarnessPass.hlsl`, compiled by the build with the Windows SDK's `dxc`),
   each with a dispatch whose result is back in the same frame and two for the next frame,
   read back on Direct3D 11; the example mod's `ExampleEffect.hlsl` compiled and built.
 * The include: `IncludeCheck` in the Unity project compiles

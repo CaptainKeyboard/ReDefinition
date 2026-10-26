@@ -90,7 +90,7 @@ packet to the proxy on Unity's render thread (`src/Proxy/NativeUpscalerLink.cs`,
 `src/Proxy/PacketRing.cs`). Jitter and motion vector scale are FSR's, in pixels at render
 size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[doc]**.
 
-* **DLSS** (`src/DxgiProxy/Dlss.cpp`, `src/Proxy/DlssBridge.cs`) runs through NGX on
+* **DLSS** (`src/DxgiProxy/Upscalers/Dlss.cpp`, `src/Proxy/DlssBridge.cs`) runs through NGX on
   Unity's Direct3D 11 device, with auto exposure, and the model the player chose
   (`DlssModel`). *Default* leaves the choice per mode to the DLSS library: 310.9.1 takes
   K for DLAA, quality and balanced, M for performance and L for ultra performance (NGX's
@@ -104,7 +104,7 @@ size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[do
   choice. DLSS sharpens nothing itself, so with sharpness
   above 0 it writes into the input of FSR 3's RCAS pass (`RcasSharpener`), which writes the
   output. DLSS renders at the size it asks for, and another size makes a new rig.
-* **AMD's DLL** (`src/DxgiProxy/AmdUpscaler.cpp`, `src/Proxy/AmdUpscalerBridge.cs`) runs
+* **AMD's DLL** (`src/DxgiProxy/Upscalers/AmdUpscaler.cpp`, `src/Proxy/AmdUpscalerBridge.cs`) runs
   on the proxy's Direct3D 12 device. Colour, depth and motion vectors are copied into
   textures both devices share, AMD's upscaler runs on the Direct3D 12 queue, and the result
   is copied back into Unity's output, with a shared fence between the two. The DLL decides
@@ -116,7 +116,7 @@ size (NVIDIA's DLSS Programming Guide 3.6.1, 3.7.3; AMD's `ffx_upscale.h`) **[do
   A4500 with AMD's FSR SDK 2.3.0 DLL, 4.1.1.2740: it offers 3.1.5 and 2.3.4 and runs
   3.1.5, in the proxy harness and in KSP). FSR 4 needs a Radeon RX 7000 (discrete) or RX
   9000 or newer.
-* **XeSS** (`src/DxgiProxy/XessUpscaler.cpp`, `src/Proxy/XessUpscalerBridge.cs`) runs
+* **XeSS** (`src/DxgiProxy/Upscalers/XessUpscaler.cpp`, `src/Proxy/XessUpscalerBridge.cs`) runs
   Intel's `libxess.dll` from next to `KSP_x64.exe` or `xessDirectory`, on the proxy's
   Direct3D 12 device and in the same way as AMD's DLL: the packet is AMD's, with its own
   magic, and the render events are 7 and 8. On Direct3D 12 it takes "Other vendor GPU

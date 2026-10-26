@@ -425,7 +425,7 @@ namespace ReDefinition.Probe
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class SceneProbeRunner : MonoBehaviour
     {
-        // The proxy's CPU sampler (src/DxgiProxy/CpuSampler.h): the main thread sampled for seconds into path; 1
+        // The proxy's CPU sampler (src/DxgiProxy/Latency/CpuSampler.h): the main thread sampled for seconds into path; 1
         // started, 0 not.
         [System.Runtime.InteropServices.DllImport(ReDefinition.Proxy.ProxyDll.Name, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl,
                                                    CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
@@ -1036,7 +1036,7 @@ namespace ReDefinition.Probe
                     yield break;
                 }
                 // -redefinitionProbeCpuSample: the main thread sampled for 30 s from 20 s on
-                // (src/DxgiProxy/CpuSampler.h) into the session's capture folder, cpu-samples.txt,
+                // (src/DxgiProxy/Latency/CpuSampler.h) into the session's capture folder, cpu-samples.txt,
                 // then KSP quits; tools/cpu_samples.py reads it.
                 if (CommandLine.Has("-redefinitionProbeCpuSample"))
                 {

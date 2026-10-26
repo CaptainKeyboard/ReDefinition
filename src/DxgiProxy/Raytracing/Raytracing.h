@@ -10,7 +10,7 @@
 #include "RaytracingBuild.h"
 #include "RaytracingOmm.h"
 #include "RaytracingOmmBake.h"
-#include "RaytracingShaders/RtContract.h"
+#include "Raytracing/Shaders/RtContract.h"
 
 #include <FidelityFX/api/include/ffx_api_loader.h>
 
@@ -42,7 +42,7 @@ namespace redefinition
     // world has moved.
 
     // The values and layouts the managed side and the shaders share are the contract's
-    // (RaytracingShaders/RtContract.h); the static_asserts below hold the structures to it.
+    // (Raytracing/Shaders/RtContract.h); the static_asserts below hold the structures to it.
     constexpr uint32_t kRtMeshMagic = RT_MESH_MAGIC;
     constexpr uint32_t kRtMaterialMagic = RT_MATERIAL_MAGIC;
     constexpr uint32_t kRtFrameMagic = RT_FRAME_MAGIC;
@@ -728,7 +728,7 @@ namespace redefinition
             bool Create(ID3D12Device* device, UINT width, UINT height, DXGI_FORMAT format);
         };
 
-        // The guides DLSS Ray Reconstruction takes (RaytracingShaders/Reconstruct.hlsl).
+        // The guides DLSS Ray Reconstruction takes (Raytracing/Shaders/Reconstruct.hlsl).
         struct GuideTargets
         {
             // The four guides and the size they were made at (EnsureGuidesLocked).
@@ -826,7 +826,7 @@ namespace redefinition
         static constexpr UINT kSlots = 3;
 
         // The world-space hash grid of the indirect light (RaytracingCache.cpp,
-        // RaytracingShaders/RadianceCache.hlsli): per entry its fingerprint, the frame's
+        // Raytracing/Shaders/RadianceCache.hlsli): per entry its fingerprint, the frame's
         // sums, its value and the frame it was last used in, whose buffer's tail holds the
         // counts (kCacheStats), copied per slot for the CPU to read; and the list of the
         // entries the frame's samples went into.

@@ -1,6 +1,6 @@
 // The instances only the GPU knows -- Parallax's scatter -- gathered for the raytracing
 // (src/Raytracing/RtCamera.cs, GatherGpuInstances): one append buffer of transforms at a
-// time into the texture the proxy reads (src/DxgiProxy/Raytracing.h, kRtInputInstances),
+// time into the texture the proxy reads (src/DxgiProxy/Raytracing/Raytracing.h, kRtInputInstances),
 // each transform's rows 0-2 relative to the camera in three texels side by side, 256 to
 // a row. Beyond the buffer's count, zeros: no instance.
 #pragma kernel Gather

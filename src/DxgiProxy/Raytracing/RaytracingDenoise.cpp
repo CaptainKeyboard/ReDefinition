@@ -1,4 +1,4 @@
-// ReDefinition's own denoiser for the raytraced signals (RaytracingShaders/Denoise.hlsl):
+// ReDefinition's own denoiser for the raytraced signals (Raytracing/Shaders/Denoise.hlsl):
 // its textures on the proxy's Direct3D 12 device, and the passes of one frame.
 
 #include "Raytracing.h"

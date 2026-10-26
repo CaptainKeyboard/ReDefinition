@@ -821,7 +821,7 @@ driver has. `--omm-scene` runs only the micromaps through the proxy, and `--omm-
 same with the driver's capability simulated as none (`REDEFINITION_OMM_CAPS=none`). The
 full run has both and a child run with the capability simulated as none.
 
-The harness checks, in the order it runs them (`src/DxgiProxy/RaytracingHarness.cpp`):
+The harness checks, in the order it runs them (`tests/DxgiProxy/RaytracingHarness.cpp`):
 
 | Area | Checks |
 |---|---|
@@ -846,7 +846,7 @@ The harness checks, in the order it runs them (`src/DxgiProxy/RaytracingHarness.
 ## Measuring keys
 
 `ReDefinitionProxy.ini` has keys for measuring the raytracing. The proxy reads them again
-while the game runs (`src/DxgiProxy/Config.h`) **[src]**:
+while the game runs (`src/DxgiProxy/Common/Config.h`) **[src]**:
 
 | Key | Default | What it does |
 |---|---|---|

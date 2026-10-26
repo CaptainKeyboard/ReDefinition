@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using ReDefinition.Core;
 using ReDefinition.MotionVectorCheck;
 using UnityEditor;
 using UnityEditor.Build.Reporting;

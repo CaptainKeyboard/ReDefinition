@@ -268,7 +268,7 @@ Shader "Hidden/ReDefinition/RtCapture"
     }
 
     // x the angle around the vertical from the +z axis, y from straight up; as
-    // RaytracingShaders/RtCommon.hlsli reads it (Sky). The first row in memory, where
+    // Raytracing/Shaders/RtCommon.hlsli reads it (Sky). The first row in memory, where
     // the proxy starts, is Unity's top of a render texture: straight up (measured in
     // the raytracing test player).
     half4 fragEnvironment(v2f i) : SV_Target

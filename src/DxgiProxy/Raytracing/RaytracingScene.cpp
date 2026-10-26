@@ -1271,7 +1271,7 @@ namespace redefinition
         return true;
     }
 
-    // A group as the GPU pass reads it (RaytracingShaders/GpuInstances.hlsl).
+    // A group as the GPU pass reads it (Raytracing/Shaders/GpuInstances.hlsl).
     struct GpuGroup
     {
         // The mesh's structure's address in two halves, its descriptor slot, the material's

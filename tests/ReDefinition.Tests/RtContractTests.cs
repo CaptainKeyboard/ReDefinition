@@ -12,7 +12,7 @@ using ReDefinition.Raytracing;
 
 namespace ReDefinition.Tests
 {
-    // The raytracing contract (src/DxgiProxy/RaytracingShaders/RtContract.h), which the proxy
+    // The raytracing contract (src/DxgiProxy/Raytracing/Shaders/RtContract.h), which the proxy
     // and its shaders include: RtNative's constants and its packets' layouts as it gives
     // them. RT_<NAME> is the constant <Name>; RT_FRAME_PACKET_<FIELD> and
     // RT_RECONSTRUCT_PACKET_<FIELD> a field's offset (SIZE_FIELD for Size).
@@ -84,7 +84,7 @@ namespace ReDefinition.Tests
         {
             DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
             string path = null;
-            while (directory != null && !File.Exists(path = Path.Combine(directory.FullName, "src", "DxgiProxy", "RaytracingShaders", "RtContract.h")))
+            while (directory != null && !File.Exists(path = Path.Combine(directory.FullName, "src", "DxgiProxy", "Raytracing", "Shaders", "RtContract.h")))
                 directory = directory.Parent;
             Assert.IsNotNull(directory, "RtContract.h was not found above the test's folder");
             var values = new Dictionary<string, long>();

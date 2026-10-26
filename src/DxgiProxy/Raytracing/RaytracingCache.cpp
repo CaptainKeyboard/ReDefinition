@@ -1,5 +1,5 @@
 // The radiance cache of the raytraced indirect light (Config.h, rtRadianceCache;
-// RaytracingShaders/RadianceCache.hlsli, where the method and its sources are): its
+// Raytracing/Shaders/RadianceCache.hlsli, where the method and its sources are): its
 // buffers, the anchor that ties its cells to the world near the camera, its constants, its
 // own passes, and the counts it reads back.
 
