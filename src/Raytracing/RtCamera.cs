@@ -277,8 +277,8 @@ namespace ReDefinition.Raytracing
         private static PacketRing ring;
         private RtNative.FramePacket packet;
         private RenderTexture depth, gbuffer0, gbuffer1, gbuffer2, motion, environment;
-        // The G-buffer 1 as the G-buffer pass left it, before a mod's later pass changes it.
-        private RenderTexture gbuffer1Early;
+        // The G-buffer 0 and 1 as the G-buffer pass left them, before a mod's later pass changes them.
+        private RenderTexture gbuffer0Early, gbuffer1Early;
         private RenderTexture sun, diffuse, specular, forward, forwardRatio;
         // The surfaces as their materials mean them, and how each was found (SurfaceIntent).
         private RenderTexture surface, surfaceMode;
@@ -382,6 +382,8 @@ namespace ReDefinition.Raytracing
         private const int WetFlagPass = 17;
         private static readonly int G1NowId = Shader.PropertyToID("_ReDefinitionRtG1Now");
         private static readonly int G1EarlyId = Shader.PropertyToID("_ReDefinitionRtG1Early");
+        private static readonly int G0NowId = Shader.PropertyToID("_ReDefinitionRtG0Now");
+        private static readonly int G0EarlyId = Shader.PropertyToID("_ReDefinitionRtG0Early");
         private static readonly int WetAllId = Shader.PropertyToID("_ReDefinitionRtWetAll");
         // -redefinitionProbeWetAll: every surface marked as made shinier, to see what the rays make of it.
         private static readonly bool WetAll = CommandLine.Has("-redefinitionProbeWetAll");
@@ -784,12 +786,13 @@ namespace ReDefinition.Raytracing
             traceAttached = false;
         }
 
-        // The G-buffer 1 as the G-buffer pass leaves it, copied then, before a mod's later pass changes it
-        // (the wet flag, WetFlagPass).
+        // The G-buffer 0 and 1 as the G-buffer pass leaves them, copied then, before a mod's later pass changes
+        // them (the wet flag, WetFlagPass).
         private void RecordEarlyGBuffer1()
         {
-            if (gbuffer1Early != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
-                gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1Early);
+            if (gbuffer1Early == null || cam.actualRenderingPath != RenderingPath.DeferredShading) return;
+            gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0Early);
+            gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer1, gbuffer1Early);
         }
 
         // The trace in the camera's own command stream, between its G-buffer or depth
@@ -825,6 +828,8 @@ namespace ReDefinition.Raytracing
                 // The pixels a mod made shinier since the G-buffer pass, marked in the alpha of the normals' copy.
                 command.SetGlobalTexture(G1NowId, gbuffer1);
                 command.SetGlobalTexture(G1EarlyId, gbuffer1Early);
+                command.SetGlobalTexture(G0NowId, gbuffer0);
+                command.SetGlobalTexture(G0EarlyId, gbuffer0Early);
                 command.SetGlobalFloat(WetAllId, WetAll ? 1f : 0f);
                 command.SetRenderTarget(gbuffer2);
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, WetFlagPass);
@@ -1684,6 +1689,7 @@ namespace ReDefinition.Raytracing
             depth = Target(RenderTextureFormat.RFloat);
             gbuffer0 = Target(RenderTextureFormat.ARGB32);
             gbuffer1 = Target(RenderTextureFormat.ARGB32);
+            gbuffer0Early = Target(RenderTextureFormat.ARGB32);
             gbuffer1Early = Target(RenderTextureFormat.ARGB32);
             gbuffer2 = Target(RenderTextureFormat.ARGB2101010);
             motion = Target(RenderTextureFormat.RGHalf);
@@ -1814,14 +1820,14 @@ namespace ReDefinition.Raytracing
         // Releases the frame's targets and forgets their native textures.
         private void ReleaseTargets()
         {
-            foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer1Early, gbuffer2, motion, environment, sun, diffuse,
+            foreach (RenderTexture texture in new[] { depth, gbuffer0, gbuffer1, gbuffer0Early, gbuffer1Early, gbuffer2, motion, environment, sun, diffuse,
                                                       specular, forward, forwardRatio, surface, surfaceMode, parity, parityRays, parityRaster })
                 if (texture != null)
                 {
                     texture.Release();
                     Destroy(texture);
                 }
-            depth = gbuffer0 = gbuffer1 = gbuffer1Early = gbuffer2 = motion = environment = sun = diffuse = specular = forward = forwardRatio = null;
+            depth = gbuffer0 = gbuffer1 = gbuffer0Early = gbuffer1Early = gbuffer2 = motion = environment = sun = diffuse = specular = forward = forwardRatio = null;
             surface = surfaceMode = parity = parityRays = parityRaster = null;
             surfaceHandle = surfaceModeHandle = parityHandle = parityRaysHandle = parityRasterHandle = IntPtr.Zero;
             depthHandle = gbuffer0Handle = gbuffer1Handle = gbuffer2Handle = motionHandle = environmentHandle = IntPtr.Zero;

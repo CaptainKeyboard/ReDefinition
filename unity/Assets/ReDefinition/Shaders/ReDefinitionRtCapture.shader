@@ -342,18 +342,26 @@ Shader "Hidden/ReDefinition/RtCapture"
         return half4(shade, shade, shade, occlusion) * 0.5;
     }
 
-    // The mark of a surface a mod made shinier after the G-buffer pass (RtCamera, the wet flag): EVE's wet effect
-    // runs at the reflections' event and raises the smoothness of what the rain wets. The G-buffer's smoothness now
-    // and as the G-buffer pass left it give the mark, into the alpha of the G-buffer 2's copy, which Unity writes as
-    // 1: 0 for a pixel made shinier. The probe switch -redefinitionProbeWetAll marks every pixel.
+    // The mark of a surface a mod made wetter after the G-buffer pass (RtCamera, the wet flag): EVE's wet effect
+    // runs at the reflections' event. It raises the smoothness of what the rain wets and darkens its diffuse colour.
+    // The G-buffer now and as the G-buffer pass left it give the mark. It goes into the alpha of the G-buffer 2's
+    // copy, which Unity writes as 1. A pixel made smoother by 0.02 or darker by 3 % gets 0.
+    // The probe switch -redefinitionProbeWetAll marks every pixel.
     sampler2D _ReDefinitionRtG1Now;
     sampler2D _ReDefinitionRtG1Early;
+    sampler2D _ReDefinitionRtG0Now;
+    sampler2D _ReDefinitionRtG0Early;
     float _ReDefinitionRtWetAll;
 
     half4 fragWetFlag(v2fQuad i) : SV_Target
     {
         float2 uv = i.screen.xy / i.screen.w;
-        bool wet = tex2D(_ReDefinitionRtG1Now, uv).a - tex2D(_ReDefinitionRtG1Early, uv).a > 0.04 || _ReDefinitionRtWetAll > 0.5;
+        half3 colourNow = tex2D(_ReDefinitionRtG0Now, uv).rgb;
+        half3 colourEarly = tex2D(_ReDefinitionRtG0Early, uv).rgb;
+        half3 weights = half3(0.2126, 0.7152, 0.0722);
+        bool smoother = tex2D(_ReDefinitionRtG1Now, uv).a - tex2D(_ReDefinitionRtG1Early, uv).a > 0.02;
+        bool darker = dot(colourNow, weights) < dot(colourEarly, weights) * 0.97 - 0.002;
+        bool wet = smoother || darker || _ReDefinitionRtWetAll > 0.5;
         return half4(0.0, 0.0, 0.0, wet ? 0.0 : 1.0);
     }
 

@@ -234,6 +234,63 @@ namespace ReDefinition.Raytracing
             return brightest;
         }
 
+        private static float grassNotedAt = -100f;
+
+        // Where Parallax's main grass lies against the camera and the point it culls about, once a minute in the log.
+        // It names the blades' distances from the camera in 50 m steps and the share past the range. It reads the
+        // first level of detail that holds blades. A patch of grass the rays see and the picture does not (the space
+        // centre, 2026-10-26) can then be told from the log alone.
+        private static void NoteGrass(IList renderers)
+        {
+            if (Time.realtimeSinceStartup - grassNotedAt < 60f) return;
+            grassNotedAt = Time.realtimeSinceStartup;
+            Camera main = Camera.main;
+            if (main == null) return;
+            for (int r = 0; r < renderers.Count; r++)
+            {
+                string name = Scenery.ParallaxScatterFields.ScatterName(renderers[r]);
+                if (name == null || name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) < 0
+                    || name.IndexOf("Tall", StringComparison.OrdinalIgnoreCase) >= 0 || name.IndexOf("Dry", StringComparison.OrdinalIgnoreCase) >= 0)
+                    continue;
+                for (int lod = 0; lod < 3; lod++)
+                {
+                    ComputeBuffer buffer = Scenery.ParallaxScatterFields.Output(renderers[r], lod);
+                    if (buffer == null) continue;
+                    var count = new ComputeBuffer(1, 4, ComputeBufferType.Raw);
+                    ComputeBuffer.CopyCount(buffer, count, 0);
+                    var taken = new int[1];
+                    count.GetData(taken);
+                    count.Release();
+                    int blades = Mathf.Min(taken[0], buffer.count);
+                    if (blades == 0) continue;
+                    var data = new float[blades * 16];
+                    buffer.GetData(data, 0, 0, blades * 16);
+                    Vector3 eye = main.transform.position;
+                    Vector3 about = Scenery.ParallaxScatterFields.AboutVessel(renderers[r])
+                        ? Scenery.ParallaxScatterFields.CraftPosition() : Scenery.ParallaxScatterFields.CameraPosition();
+                    float range = Scenery.ParallaxScatterFields.Range(renderers[r]);
+                    var bins = new int[8];
+                    float nearest = float.MaxValue, farthest = 0f;
+                    int beyond = 0;
+                    for (int i = 0; i < blades; i++)
+                    {
+                        var at = new Vector3(data[i * 16 + 12], data[i * 16 + 13], data[i * 16 + 14]);
+                        float d = (at - eye).magnitude;
+                        nearest = Mathf.Min(nearest, d);
+                        farthest = Mathf.Max(farthest, d);
+                        bins[Mathf.Min(7, (int)(d / 50f))]++;
+                        if ((at - about).magnitude > range * 1.1f + 20f) beyond++;
+                    }
+                    Debug.Log(Core.Log.Tag + " Parallax's " + name + " in " + HighLogic.LoadedScene + ", level " + lod + ": " + blades
+                              + " blades, " + nearest.ToString("F0") + " to " + farthest.ToString("F0") + " m from the camera ("
+                              + string.Join("/", Array.ConvertAll(bins, b => b.ToString())) + " per 50 m), range " + range.ToString("F0")
+                              + " m about " + (Scenery.ParallaxScatterFields.AboutVessel(renderers[r]) ? "the vessel" : "the camera") + " at "
+                              + about + ", the camera at " + eye + ", " + (beyond * 100 / blades) + " % past the range.");
+                    return;
+                }
+            }
+        }
+
         // Parallax's scatter this frame: per active renderer and level of detail, the
         // append buffer its evaluation filled in LateUpdate, with its mesh and material.
         // A shared scatter draws its parent's buffers with a mesh of its own: both are
@@ -246,6 +303,7 @@ namespace ReDefinition.Raytracing
             {
                 IList renderers = Scenery.ParallaxScatterFields.Renderers();
                 if (renderers == null) return 0;
+                NoteGrass(renderers);
                 for (int r = 0; r < renderers.Count; r++)
                 {
                     object renderer = renderers[r];
