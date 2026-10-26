@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ReDefinition.Raytracing
 {
     // The installed mods raytracing reaches into, each only where it is there
-    // (docs/development/raytracing.md, "Installed mods").
+    // (docs/development/flow-raytracing.md, "Installed mods").
     internal static class RtKspMods
     {
         // Whether the assemblies were looked through (Look); Kopernicus's current star and the light of a Sun;

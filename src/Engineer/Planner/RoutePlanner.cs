@@ -144,7 +144,7 @@ namespace ReDefinition.Engineer
     }
 
     // The delta-v of a route, from the bodies' own gravity, size, rotation,
-    // atmosphere and orbits (docs/development/planner.md). Transfers are Hohmann
+    // atmosphere and orbits (src/Engineer/README.md). Transfers are Hohmann
     // transfers between circular orbits, with patched conics across spheres of
     // influence. A burn from a low orbit leaves with the excess speed the transfer
     // around the common parent needs. One at the far end captures from the

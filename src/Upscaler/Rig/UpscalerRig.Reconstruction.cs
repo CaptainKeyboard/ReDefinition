@@ -10,7 +10,7 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Upscaler
 {
     // DLSS Ray Reconstruction in DLSS Super Resolution's place while the scene camera
-    // is raytraced (docs/development/raytracing.md, "Denoising"): the raytraced signals
+    // is raytraced (docs/development/flow-raytracing.md). The raytraced signals
     // go into the lighting undenoised, and Ray Reconstruction denoises and upscales the
     // finished frame in one step. Its guides come from the raytraced frame of the same
     // index (RtCamera.ReconstructionLease), so it needs no G-buffer. It runs in the

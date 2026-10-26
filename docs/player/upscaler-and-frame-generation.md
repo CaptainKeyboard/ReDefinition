@@ -94,7 +94,7 @@ something else limits it, they gain nothing, and the upscaler is worth having as
 antialiasing in *AA only*.
 
 The measurements behind that, for anyone who wants the numbers:
-[development/upscaler.md](../development/upscaler.md).
+[development/flow-frame.md](../development/flow-frame.md).
 
 ### Where the upscaler falls short
 
@@ -193,7 +193,7 @@ Measured on an RTX A4500 at the Medium profile, preset *C* gave 4 to 8 % more re
 frames a second than *Auto*. Without raytracing that is 71.1 against 66.1, with it 41.8
 against 40.2. The HUD stayed intact. Its pixels that never move came out equal to the
 rendered frames'. Along the HUD's edges *C* scored 1 to 3 dB below *Auto*
-([development/frame-generation.md](../development/frame-generation.md)).
+([development/flow-proxy-present.md](../development/flow-proxy-present.md)).
 
 ### XeSS frame generation
 

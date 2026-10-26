@@ -10,7 +10,7 @@ profile, your key bindings, and Direct3D 12 compute passes, each with the code t
 A KSP game has some things only once: the camera's jitter, the frame's motion vectors,
 camera cuts, the floating origin's shifts, the image after upscaling, and a Direct3D 12
 device. ReDefinition offers all of them to every mod, in `ReDefinition.Api`. Why it is
-built this way: [development/shared-foundation.md](../development/shared-foundation.md).
+built this way: [development/flow-mod-interface.md](../development/flow-mod-interface.md).
 
 ## Reach the interface
 

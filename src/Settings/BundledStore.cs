@@ -6,7 +6,7 @@ namespace ReDefinition.Settings
 {
     // The other mods' settings as the player chose them in ReDefinition's window, and the
     // switch that bundles them here: the hand-over of the store
-    // (docs/development/settings-store.md) -- what reaches the mods, and when.
+    // (docs/development/flow-setting.md) -- what reaches the mods, and when.
     // What is kept is the ledger's (BundledLedger), bundled.cfg BundledFile's, and
     // what this needs of the game its host's (IStoreHost; the game's own in
     // BundledSettings).

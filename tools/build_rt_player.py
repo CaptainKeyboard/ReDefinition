@@ -1,4 +1,4 @@
-"""Builds and runs the raytracing test player (docs/development/raytracing.md,
+"""Builds and runs the raytracing test player (docs/development/flow-raytracing.md,
 "Testing without the game").
 
 It copies ReDefinition's raytracing sources and shaders into the player's Unity

@@ -33,7 +33,7 @@ the generated frames. They are FSR, DLSS-G through Streamline and XeSS-FG.
   Intel's.
 
 See [The proxy's present path](../../../docs/development/flow-proxy-present.md) for where it sits
-in a frame, and [Frame generation](../../../docs/development/frame-generation.md) for what each
+in a frame, and [Frame generation](../../../docs/development/flow-proxy-present.md) for what each
 runtime asks for.
 
 ## What it uses and what uses it

@@ -162,7 +162,7 @@ the discontinuous camera transformation."* **[doc]**
 | Kerbal Frame Generator installed alongside | its blend is switched off for the run, and the diagnostics window says so |
 
 What would settle each, with the instruments:
-[development/upscaler.md](../development/upscaler.md).
+[development/flow-frame.md](../development/flow-frame.md).
 
 ## Sources
 

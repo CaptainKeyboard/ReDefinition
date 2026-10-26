@@ -50,7 +50,7 @@ namespace ReDefinition.RaytracingPlayer
         }
     }
 
-    // The raytracing test player's run (docs/development/raytracing.md, "Testing
+    // The raytracing test player's run (docs/development/flow-raytracing.md, "Testing
     // without the game"). It builds a scene, renders it without raytracing and with
     // it, and checks the images: a shadow the shadow maps do not reach, one they do,
     // light that does not change. Its lines start with RTPLAYER in the player's log;
@@ -970,7 +970,7 @@ namespace ReDefinition.RaytracingPlayer
         // The budget scene's rocks from the GPU: their transforms, released with the runner.
         private ComputeBuffer budgetTransforms;
 
-        // The budget (docs/development/raytracing.md, "Plan"): on the RTX 4090 at 2560 by
+        // The budget (docs/development/flow-raytracing.md, "Plan"): on the RTX 4090 at 2560 by
         // 1440 with DLSS Quality, which renders 1707 by 960, everything together within
         // 4 ms of GPU time. The scene has 400 m of rolling ground in 131 072 triangles as
         // terrain quads come near the camera, 400 boxes as a vessel's parts and the

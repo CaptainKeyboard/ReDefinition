@@ -3,7 +3,7 @@ using System;
 namespace ReDefinition.Raytracing
 {
     // How much of the sun's light a body the sun lights sends to the scene, and how bright
-    // the raytracing makes it (docs/development/raytracing.md, "Light sources"). Free of
+    // the raytracing makes it (docs/development/flow-raytracing.md, "Light sources"). Free of
     // Unity and KSP, for the tests.
     //
     // Physically a sphere that scatters as Lambert's law says sends, at the phase angle a

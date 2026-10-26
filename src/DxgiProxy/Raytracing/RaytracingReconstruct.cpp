@@ -1,4 +1,4 @@
-// DLSS Ray Reconstruction for the raytraced frame (docs/development/raytracing.md,
+// DLSS Ray Reconstruction for the raytraced frame (docs/development/flow-raytracing.md,
 // "Denoising"): the noisy frame and its guides into NVIDIA's denoiser and upscaler,
 // on the proxy's Direct3D 12 device, in place of DLSS Super Resolution -- through
 // Streamline where its swapchain presents, through NGX directly beside FSR's or

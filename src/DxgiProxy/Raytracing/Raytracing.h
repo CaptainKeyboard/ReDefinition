@@ -28,7 +28,7 @@
 
 namespace redefinition
 {
-    // Raytracing on the proxy's Direct3D 12 device (docs/development/raytracing.md).
+    // Raytracing on the proxy's Direct3D 12 device (docs/development/flow-raytracing.md).
     //
     // The managed side hands over meshes, materials and each frame's instances
     // through plain exports from the main thread; the data is copied at once. The

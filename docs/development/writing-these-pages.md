@@ -17,7 +17,7 @@ Each page serves one need, after [Diátaxis](https://diataxis.fr/):
 | Getting started | "Show me how this works at all." | [modders/getting-started.md](../modders/getting-started.md) |
 | How to | "I have this job to do." | [player/installing.md](../player/installing.md) |
 | Reference | "What exactly does this key do?" | [modders/registration-reference.md](../modders/registration-reference.md) |
-| Explanation | "Why is it built this way?" | [settings-store.md](settings-store.md) |
+| Explanation | "Why is it built this way?" | [settings-store.md](flow-setting.md) |
 
 Do not mix them on one page. A reference table with a paragraph of reasoning in it
 serves neither reader: put the reasoning in an explanation page and link to it.

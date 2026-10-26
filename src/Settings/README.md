@@ -33,7 +33,7 @@ settings, keeps the values the player chose, and applies graphics profiles.
 
 The area is a stop on [A setting's path](../../docs/development/flow-setting.md) and on
 [Startup and scenes](../../docs/development/flow-startup.md). The store is explained in
-[The settings store](../../docs/development/settings-store.md), and a new setting is added as in
+[The settings store](../../docs/development/flow-setting.md), and a new setting is added as in
 [Add a setting](../../docs/development/howto-add-a-setting.md).
 
 ## What it uses and what uses it

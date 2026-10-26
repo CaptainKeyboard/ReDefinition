@@ -26,7 +26,7 @@ recorder captures what the monitor showed, generated frames included.
   `Present` instead. The frames frame generation makes are then not among them.
 - `NoteGamePresent` names, for each recorded frame, the game's frame presented last before it.
 
-See [Measure where the frame's time goes](../../../docs/development/profiling.md).
+See [Measure where the frame's time goes](../../../src/Probe/README.md).
 
 ## What it uses and what uses it
 

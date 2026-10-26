@@ -1,6 +1,6 @@
 """Exports a test scene for the raytracing harness from KSP's own files.
 
-The raytracing harness (docs/development/raytracing.md, "Testing without the game")
+The raytracing harness (docs/development/flow-raytracing.md, "Testing without the game")
 renders a scene file when REDEFINITION_RT_SCENE names one. This script writes that
 file from the meshes of the installed game: the launch pad as the VAB's scenery holds
 it (level10) and the SPH's level 3 exterior (sharedassets9), placed beside it. The

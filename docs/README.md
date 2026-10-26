@@ -52,21 +52,22 @@ editors, the main menu and the space centre.
 
 | You want to | Page |
 |---|---|
+| know where to begin | [development/start-here.md](development/start-here.md) |
 | find your way around the code | [development/architecture.md](development/architecture.md) |
-| build it, run the tests and the checks | [development/building-and-testing.md](development/building-and-testing.md) |
+| build it, run the tests and the checks | [development/howto-build-and-check.md](development/howto-build-and-check.md) |
+| see the build and test details | [development/building-and-testing.md](development/building-and-testing.md) |
 | build the release package | [development/packaging.md](development/packaging.md) |
-| understand the upscaler | [development/upscaler.md](development/upscaler.md) |
-| understand frame generation | [development/frame-generation.md](development/frame-generation.md) |
-| understand what lowers the latency, and how it is measured | [development/low-latency.md](development/low-latency.md) |
-| understand the settings store | [development/settings-store.md](development/settings-store.md) |
-| understand the interface for mods | [development/shared-foundation.md](development/shared-foundation.md) |
-| understand or build the raytracing | [development/raytracing.md](development/raytracing.md) |
-| understand the planner's place in the editor | [development/engineer.md](development/engineer.md) |
-| understand the planner's route and fuel budget | [development/planner.md](development/planner.md) |
-| understand the scaling of what KSP leaves unscaled | [development/ui-scaling.md](development/ui-scaling.md) |
-| measure what costs the frame, in ReDefinition, KSP or another mod | [development/profiling.md](development/profiling.md) |
-| know where the frame's time goes and what can be improved | [development/performance-findings.md](development/performance-findings.md) |
+| follow a frame through the mod | [development/flow-frame.md](development/flow-frame.md) |
+| follow a frame through the proxy | [development/flow-proxy-present.md](development/flow-proxy-present.md) |
+| understand what lowers the latency, and how it is measured | [src/DxgiProxy/Latency/README.md](../src/DxgiProxy/Latency/README.md) |
+| follow a setting through the store | [development/flow-setting.md](development/flow-setting.md) |
+| understand the interface for mods | [development/flow-mod-interface.md](development/flow-mod-interface.md) |
+| understand the raytracing | [development/flow-raytracing.md](development/flow-raytracing.md) |
+| understand the planner and the engineer window | [src/Engineer/README.md](../src/Engineer/README.md) |
+| understand the scaling of what KSP leaves unscaled | [src/Scaling/README.md](../src/Scaling/README.md) |
+| measure what costs the frame, in ReDefinition, KSP or another mod | [src/Probe/README.md](../src/Probe/README.md) |
 | compare the upscalers, frame generation, raytracing and latency models in fps and latency | [development/benchmarks.md](development/benchmarks.md) |
+| write a comment in the code | [development/writing-code-comments.md](development/writing-code-comments.md) |
 | write or change a page here | [development/writing-these-pages.md](development/writing-these-pages.md) |
 | see what is done, open or settled | [project/status.md](project/status.md), [project/reviews.md](project/reviews.md) |
 

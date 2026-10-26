@@ -4,7 +4,7 @@ using UnityEngine;
 namespace ReDefinition.Scaling
 {
     // The scale for what KSP draws at a fixed number of pixels, whatever its UI
-    // scale (docs/development/ui-scaling.md), and the mods that scale the same
+    // scale (src/Scaling/README.md), and the mods that scale the same
     // things, whose scaling OtherScalers turns off.
     internal static class UiScaling
     {

@@ -1,5 +1,5 @@
 // The raytraced light added to the frame (src/Raytracing/RtCamera.cs,
-// docs/development/raytracing.md, "Where the raytraced light enters Unity's lighting").
+// docs/development/flow-raytracing.md, "Where the raytraced light enters Unity's lighting").
 // It is drawn after the opaque geometry's light, before the transparent and the atmosphere,
 // for the raytraced camera, where Deferred's reflections pass is not there to take it.
 // The proxy's pass gives the light to add, less KSP's flat ambient light, which Unity's

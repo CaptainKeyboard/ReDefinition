@@ -15,7 +15,7 @@ namespace ReDefinition.Upscaler
     //
     // So all 3D cameras get the same targetTexture at render resolution. They
     // compose there in their usual order, and the upscaler writes the result into
-    // the frame buffer (docs/development/upscaler.md).
+    // the frame buffer (docs/development/flow-frame.md).
     public class CameraRedirect : MonoBehaviour
     {
         // The jitter has to reach every participating camera, not just the near

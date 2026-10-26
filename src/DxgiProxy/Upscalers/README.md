@@ -30,7 +30,7 @@ Reconstruction serves raytraced frames.
   `Latency`, `Raytracing` and `FrameGeneration` use both.
 
 The runtimes load from next to `KSP_x64.exe` or from the folders in the ini (`dlssDirectory`,
-`amdUpscalerDirectory`, `xessDirectory`). See [The upscaler](../../../docs/development/upscaler.md)
+`amdUpscalerDirectory`, `xessDirectory`). See [The upscaler](../../../docs/development/flow-frame.md)
 and [A frame in the mod](../../../docs/development/flow-frame.md) for the C# side of a frame.
 
 ## What it uses and what uses it

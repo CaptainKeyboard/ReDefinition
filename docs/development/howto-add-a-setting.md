@@ -71,7 +71,7 @@ steps around it.
    and reports a member it cannot find.
 8. If the setting relies on something in the mod's code that may change in a later version,
    record it in `ForeignAssumptions` (`src/Core/ForeignAssumptions.cs`) and run
-   `tools/checks/check_foreign_code.ps1`. [The settings store](settings-store.md) says how
+   `tools/checks/check_foreign_code.ps1`. [The settings store](flow-setting.md) says how
    a value then reaches the mod.
 
 ## Where to change it

@@ -1,7 +1,7 @@
 # The proxy: a dxgi.dll that hands Unity a shared D3D11 texture as its backbuffer
 # and presents through a D3D12 swapchain, with NVIDIA's DLSS, Intel's XeSS or AMD's
 # FSR frame generation, and runs DLSS and AMD's upscaler for the mod
-# (docs/development/frame-generation.md).
+# (docs/development/flow-proxy-present.md).
 #
 # Build:  cmake -S src/DxgiProxy -B build/DxgiProxy -A x64
 #         cmake --build build/DxgiProxy --config Release
@@ -211,7 +211,7 @@ target_link_libraries(ProxyHarness PRIVATE d3d11 dxgi version dbghelp)
 target_include_directories(ProxyHarness PRIVATE ${REDEFINITION_SOURCE_DIRS})
 add_dependencies(ProxyHarness ReDefinitionProxy)
 
-# The raytracing harness (docs/development/raytracing.md): the proxy's raytracing
+# The raytracing harness (docs/development/flow-raytracing.md): the proxy's raytracing
 # without KSP, against the CPU.
 add_executable(RaytracingHarness "${REDEFINITION_HARNESS_DIR}/RaytracingHarness.cpp" "${REDEFINITION_HARNESS_DIR}/RaytracingOmmHarness.cpp" Raytracing/RaytracingOmmBake.cpp)
 target_compile_definitions(RaytracingHarness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)

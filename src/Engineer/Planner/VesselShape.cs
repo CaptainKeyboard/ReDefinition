@@ -116,7 +116,7 @@ namespace ReDefinition.Engineer
         public bool DockingPort;
     }
 
-    // The sections of the vessel as parts of it (docs/development/planner.md). Each
+    // The sections of the vessel as parts of it (src/Engineer/README.md). Each
     // decoupler and docking port cuts the part tree in two, and each side is a choice. A choice
     // leaves out the launch clamps and the parts KSP stages away before its command part, its legs
     // and its parachutes (unless its own engines still carry them). Of what is left it keeps

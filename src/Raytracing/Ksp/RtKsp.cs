@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ReDefinition.Raytracing
 {
-    // How much of the lighting is raytraced (docs/development/raytracing.md, "What
+    // How much of the lighting is raytraced (docs/development/flow-raytracing.md, "What
     // raytracing replaces").
     internal enum RaytracingMode
     {

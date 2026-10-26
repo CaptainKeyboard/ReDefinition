@@ -264,7 +264,7 @@ namespace ReDefinition.Modules
                     settings.FrameGenerationTechnique, FrameGenerationBridge.Limits()),
             });
 
-        // The low latency mode (docs/development/low-latency.md): Auto, or Off. Written into the
+        // The low latency mode (src/DxgiProxy/Latency/README.md): Auto, or Off. Written into the
         // proxy's ini, which reads it within a second.
         public static readonly IGraphicsModule Latency = new GraphicsModule("latency", "Low latency",
             new ModuleSetting
@@ -290,7 +290,7 @@ namespace ReDefinition.Modules
             });
 
         // Raytracing: how much of the lighting, and how often its light bounces
-        // (docs/development/raytracing.md). Not a quality a profile sets: it asks for a GPU
+        // (docs/development/flow-raytracing.md). Not a quality a profile sets: it asks for a GPU
         // with raytracing and costs what the player decides to spend.
         public static readonly IGraphicsModule Raytracing = new GraphicsModule("raytracing", "Raytracing",
             new ModuleSetting

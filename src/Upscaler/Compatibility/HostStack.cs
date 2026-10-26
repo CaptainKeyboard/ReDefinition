@@ -32,7 +32,7 @@ namespace ReDefinition.Upscaler
     //       the image, and smear.
     //
     // All three are cleaned up here, so taking Scatterer's TAA in the middle of a
-    // session needs no restart (docs/development/upscaler.md).
+    // session needs no restart (docs/development/flow-frame.md).
     //
     // Everything goes through reflection: ReDefinition loads without TUFX and
     // Scatterer.

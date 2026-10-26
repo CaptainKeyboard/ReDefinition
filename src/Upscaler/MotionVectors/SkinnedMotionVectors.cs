@@ -8,7 +8,7 @@ namespace ReDefinition.Upscaler
     // plays its deploy animation (FlagSite) on a skinned mesh, as the editor's
     // background flag has one (EditorBackgroundFlag; both decompiled).
     //
-    // None of KSP's shaders has a MotionVectors pass (docs/development/upscaler.md),
+    // None of KSP's shaders has a MotionVectors pass (docs/development/flow-frame.md),
     // so a renderer on Object mode draws its motion with Unity's own
     // Hidden/Internal-MotionVectors. That shader is not only transform based.
     // Its vertex function takes the previous position from TEXCOORD4 where Unity has

@@ -589,7 +589,7 @@ src/Api/Hooks.cs|method|ReDefinition.Api.Hooks.RegisterOverlay(Action<CommandBuf
 src/Api/Hooks.cs|method|ReDefinition.Api.Hooks.UnregisterAfterUpscaling(Action<CommandBuffer,RenderTexture,Camera>)	b625f62aa74ab0f5	3497109ff2e6485f
 src/Api/Hooks.cs|method|ReDefinition.Api.Hooks.UnregisterMotionVectors(Action<CommandBuffer,RenderTexture,RenderTexture,Camera>)	bd7c39a03b9462dd	c0b023e291fb6c95
 src/Api/Hooks.cs|method|ReDefinition.Api.Hooks.UnregisterOverlay(Action<CommandBuffer,Camera>)	baf431c1ab654464	a3ddc92a75e821da
-src/Api/Internal/CameraCuts.cs|class|ReDefinition.Api.Internal.CameraCuts	56174dc573be2c16	2af99591bfecc8f6
+src/Api/Internal/CameraCuts.cs|class|ReDefinition.Api.Internal.CameraCuts	56174dc573be2c16	11d7b6cf625757f4
 src/Api/Internal/CameraCuts.cs|field|ReDefinition.Api.Internal.CameraCuts.lastIvaKerbal	ca735422dbec091e	f09b5251e768a9bd
 src/Api/Internal/CameraCuts.cs|field|ReDefinition.Api.Internal.CameraCuts.lastParent	24a8d78998fd57b9	8e6418bd9c1e111f
 src/Api/Internal/CameraCuts.cs|field|ReDefinition.Api.Internal.CameraCuts.lastTarget	1cef61fd3d567806	1e904f554f4ba477
@@ -616,7 +616,7 @@ src/Api/Internal/HookList.cs|method|ReDefinition.Api.Internal.HookList.Invoke(Ac
 src/Api/Internal/HookList.cs|method|ReDefinition.Api.Internal.HookList.Remove(T)	9f0947e5bd464308	592d1f8a2c46eec3
 src/Api/Internal/HookList.cs|property|ReDefinition.Api.Internal.HookList.Any	9a556bf79e8ede5b	904b2c4c9ee2c65e
 src/Api/Internal/HookList.cs|property|ReDefinition.Api.Internal.HookList.Count	e3ef5ea3b5ea23d7	55356f8391ee4a4a
-src/Api/Internal/SharedFrame.cs|class|ReDefinition.Api.Internal.SharedFrame	bb88ad9d25bff4a6	fa470a3c0ea4259b
+src/Api/Internal/SharedFrame.cs|class|ReDefinition.Api.Internal.SharedFrame	bb88ad9d25bff4a6	da913dd16d568f59
 src/Api/Internal/SharedFrame.cs|class|ReDefinition.Api.Internal.SharedFrame.Ids	ba8b2c9d4edd2ab2	f80e8745ff19527b
 src/Api/Internal/SharedFrame.cs|class|ReDefinition.Api.Internal.SharedFrame.ShiftReceiver	301ba7ee4c4e9d05	aa617ec2e71917d0
 src/Api/Internal/SharedFrame.cs|constant|ReDefinition.Api.Internal.SharedFrame.InterfaceVersion	8ce6ec5885b6a123	d4930e755ff13385
@@ -2815,7 +2815,7 @@ src/DxgiProxy/Managed/D3d12Compute.cpp|struct|redefinition::Compiler	80fa85c1168
 src/DxgiProxy/Managed/D3d12Compute.cpp|variable|redefinition::kConstantBufferSize	a40276ca175c0481	fbc1b16ac50ccdd6
 src/DxgiProxy/Managed/D3d12Compute.cpp|variable|redefinition::kDescriptors	aebeab4ce4ee885e	e3b0c44298fc1c14
 src/DxgiProxy/Managed/D3d12Compute.cpp|variable|redefinition::kUnusedMs	5a71aaea726f00d9	899947f38d92941d
-src/DxgiProxy/Managed/D3d12Compute.h|class|redefinition::D3d12Compute	a6f61edf3f3ec6bb	ca8e8de338bee9eb
+src/DxgiProxy/Managed/D3d12Compute.h|class|redefinition::D3d12Compute	a6f61edf3f3ec6bb	e7a1120782941205
 src/DxgiProxy/Managed/D3d12Compute.h|field|redefinition::D3d12Compute::Capabilities::featureLevel	8d6093c20bdf62ee	b38fa7d43c45de3a
 src/DxgiProxy/Managed/D3d12Compute.h|field|redefinition::D3d12Compute::Capabilities::meshShaderTier	15fa4fd9fa629479	e3b0c44298fc1c14
 src/DxgiProxy/Managed/D3d12Compute.h|field|redefinition::D3d12Compute::Capabilities::raytracingTier	6bb8aa466a56fa57	e3b0c44298fc1c14
@@ -5843,7 +5843,7 @@ src/Engineer/ModeButtonTiles.cs|method|ReDefinition.Engineer.ModeButtonTiles.Fro
 src/Engineer/ModeButtonTiles.cs|method|ReDefinition.Engineer.ModeButtonTiles.LayGlyph(Color32[],int,RectInt,Texture2D,Color32)	f911f3256d8bff04	69309730b7f97c28
 src/Engineer/ModeButtonTiles.cs|method|ReDefinition.Engineer.ModeButtonTiles.ReadSprite(Sprite,int,int)	bc7dab57cc93d8bf	d8c5cbd19e211ffb
 src/Engineer/Planner/BurnCheck.cs|class|ReDefinition.Engineer.Burn	6b85f14607a83ea8	ee25a2fc5cb44a80
-src/Engineer/Planner/BurnCheck.cs|class|ReDefinition.Engineer.BurnCheck	7ab2c7b63ecb37ae	369ed9cc79c023bb
+src/Engineer/Planner/BurnCheck.cs|class|ReDefinition.Engineer.BurnCheck	7ab2c7b63ecb37ae	54434a7aad72c698
 src/Engineer/Planner/BurnCheck.cs|class|ReDefinition.Engineer.BurnStage	023259bbe5379266	6fb1f92a78bae8bc
 src/Engineer/Planner/BurnCheck.cs|constant|ReDefinition.Engineer.BurnCheck.MaxLoss	41df0a4fd983f2eb	e3b0c44298fc1c14
 src/Engineer/Planner/BurnCheck.cs|constant|ReDefinition.Engineer.BurnCheck.WarnLoss	a649ba40343c2fdc	8add3107076d2bf4
@@ -5863,7 +5863,7 @@ src/Engineer/Planner/BurnCheck.cs|method|ReDefinition.Engineer.BurnCheck.Seconds
 src/Engineer/Planner/BurnCheck.cs|property|ReDefinition.Engineer.Burn.Loss	d7526048f133e1b7	4dc241fb3701a9fd
 src/Engineer/Planner/BurnCheck.cs|property|ReDefinition.Engineer.Burn.Share	e867e7d688d9c3be	8eeea327b6f14b2d
 src/Engineer/Planner/BurnCheck.cs|property|ReDefinition.Engineer.BurnStage.Seconds	4a339564c1c1f0fe	1149bccc3fad661c
-src/Engineer/Planner/ClampedLaunch.cs|class|ReDefinition.Engineer.ClampedLaunch	ee6edf4565bfb6f1	df2f18df825f9abf
+src/Engineer/Planner/ClampedLaunch.cs|class|ReDefinition.Engineer.ClampedLaunch	ee6edf4565bfb6f1	491b93b91ab941f7
 src/Engineer/Planner/ClampedLaunch.cs|method|ReDefinition.Engineer.ClampedLaunch.Burns(PartFacts,int)	555865501aa3ab94	d121423d787561bb
 src/Engineer/Planner/ClampedLaunch.cs|method|ReDefinition.Engineer.ClampedLaunch.Decouples(IList<PartFacts>,int,bool)	9e537e4436f66f20	73b1f8c821260b1d
 src/Engineer/Planner/ClampedLaunch.cs|method|ReDefinition.Engineer.ClampedLaunch.Exhaust(StageRow)	53e2fcf72a35e6dc	b356400bcb391907
@@ -6385,7 +6385,7 @@ src/Engineer/Planner/PlannerWidgets.cs|property|ReDefinition.Engineer.Dropdown.O
 src/Engineer/Planner/RoutePlanner.cs|class|ReDefinition.Engineer.Leg	4103c100dfcd5f70	484110e4a028ae60
 src/Engineer/Planner/RoutePlanner.cs|class|ReDefinition.Engineer.LegLine	3dff51dd123acc3b	a823d1d6f0e7b541
 src/Engineer/Planner/RoutePlanner.cs|class|ReDefinition.Engineer.PlannerBody	3aad9ef2e0c9bd6a	f049958f4af62d83
-src/Engineer/Planner/RoutePlanner.cs|class|ReDefinition.Engineer.RoutePlanner	2f43f31eb55860f5	e5ed6f86ccffe33d
+src/Engineer/Planner/RoutePlanner.cs|class|ReDefinition.Engineer.RoutePlanner	2f43f31eb55860f5	3fee32e53876a8e2
 src/Engineer/Planner/RoutePlanner.cs|class|ReDefinition.Engineer.RouteStop	d57811ddacb6b483	8dd766deef0dbc18
 src/Engineer/Planner/RoutePlanner.cs|constant|ReDefinition.Engineer.RoutePlanner.AerobrakeDepth	e74e062d584984c2	11d8dba22fd61879
 src/Engineer/Planner/RoutePlanner.cs|constant|ReDefinition.Engineer.RoutePlanner.AerobrakeShare	dbbcb4b5ac45edb1	d24419be01eb94dd
@@ -6457,7 +6457,7 @@ src/Engineer/Planner/RoutePlanner.cs|property|ReDefinition.Engineer.PlannerBody.
 src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.GoneSection	a1563413e363d988	5fe3a2544bd1b94a
 src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.RouteSection	29a2b98a24f178b3	8eecd7506bcf7c3c
 src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.RouteStep	94881d8fb30ec2c9	c74b0dd9f1124685
-src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.RouteSteps	7c53e81c888cd6f1	ae2655a02c6d4332
+src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.RouteSteps	7c53e81c888cd6f1	2ca23cb2a533c50a
 src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.RouteSteps.SectionState	2fd7c8b4c738ccfe	993eec3b33ce8370
 src/Engineer/Planner/RouteSteps.cs|class|ReDefinition.Engineer.RouteSteps.Walk	9e142c4ea0e42419	e03acd6e9b9c60af
 src/Engineer/Planner/RouteSteps.cs|constant|ReDefinition.Engineer.RouteSteps.Rendezvous	f8fdbb6f10ace551	e5e7a689792bbb74
@@ -6558,7 +6558,7 @@ src/Engineer/Planner/SectionRcs.cs|method|ReDefinition.Engineer.SectionRcs.Of(IL
 src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.BudgetStage	b895294255a95eb8	7cc4b5790b967857
 src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.BudgetStep	6bcb9f7925203970	b83fda04df1a806b
 src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.GoneGroup	c1a250acf2855561	66bb7b3787e51af3
-src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.StageBudget	2bc46762b486b796	2a7a840d0c20a94a
+src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.StageBudget	2bc46762b486b796	05abb6c99c872750
 src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.StageBudget.Result	38feb7a473afed3c	20542d5e9e50a433
 src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.StageBudget.Run	c95bf825a345d0e5	d4038f29ad0a079b
 src/Engineer/Planner/StageBudget.cs|class|ReDefinition.Engineer.StageBudget.StageUse	d7ccb489b2a429a5	652d3eb2dd6841d4
@@ -6669,11 +6669,11 @@ src/Engineer/Planner/StageBudget.cs|property|ReDefinition.Engineer.StageBudget.R
 src/Engineer/Planner/StageBudget.cs|property|ReDefinition.Engineer.StageBudget.Result.TotalShort	87a0dfeaa34136d4	7f1e4835bd049132
 src/Engineer/Planner/StageBudget.cs|property|ReDefinition.Engineer.StagePlan.Empty	78ee1e4e442535a4	f7cadf0531b14be5
 src/Engineer/Planner/StageBudget.cs|property|ReDefinition.Engineer.VesselSplit.Groups	08f9e5c1424cb006	bc62b4167ca0e566
-src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.AirLaunch	753305c6c8cf40eb	42642f2d07e06f3e
+src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.AirLaunch	753305c6c8cf40eb	0e42e0eabdc7f8be
 src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.SimEngine	e1629b04efba8074	f73cacafce1421f1
 src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.SimPart	7946fc4e9b0230c7	858226d50e7cffd9
 src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.SimPropellant	4716614e00d51314	dcf3faab59822824
-src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.StageSim	40775a60f40f4e26	240eca7abaaca436
+src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.StageSim	40775a60f40f4e26	6075f13827f9d4ef
 src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.StageSim.Draw	9cc44dbf0ec98e91	3ba010d7594c9255
 src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.StageSim.Dry	0f41ba04fba4a4bb	6674a05ba24b070c
 src/Engineer/Planner/StageSim.cs|class|ReDefinition.Engineer.StageSim.Result	38feb7a473afed3c	33a599eedac1c820
@@ -6764,7 +6764,7 @@ src/Engineer/Planner/Turning.cs|method|ReDefinition.Engineer.Turning.Time(double
 src/Engineer/Planner/Turning.cs|struct|ReDefinition.Engineer.Nozzle	2741f012c8db6961	f001b7b1128fe4f1
 src/Engineer/Planner/VesselShape.cs|class|ReDefinition.Engineer.PartFacts	bedb0054c77bd537	e29fffdfd62f6fa4
 src/Engineer/Planner/VesselShape.cs|class|ReDefinition.Engineer.PartGroupChoice	40562c1607cf4bcb	c44387ac64c2f2be
-src/Engineer/Planner/VesselShape.cs|class|ReDefinition.Engineer.VesselShape	961a96904c6ad92c	e57daf4f99fb9ecd
+src/Engineer/Planner/VesselShape.cs|class|ReDefinition.Engineer.VesselShape	961a96904c6ad92c	828f6f2076dbd3f9
 src/Engineer/Planner/VesselShape.cs|enum member|ReDefinition.Engineer.Separation.Anchored	1329c910d883cb37	e3b0c44298fc1c14
 src/Engineer/Planner/VesselShape.cs|enum member|ReDefinition.Engineer.Separation.Decoupler	13278d05cc87f2fb	e3b0c44298fc1c14
 src/Engineer/Planner/VesselShape.cs|enum member|ReDefinition.Engineer.Separation.DockingPort	1ef8ffe8b3f07b82	e3b0c44298fc1c14
@@ -7871,9 +7871,9 @@ src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Dialogs	296fbf7f
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.FlightUi	85cb442f661a424b	b0c3f574765bce46
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.FrameGeneration	6705d8cae07e793f	476fa6fea8631516
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Hotkeys	d09de046649f9f5b	5a1e19e2f8753e7f
-src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Latency	9c6e661b3f97ebb0	5ba92a15d4a0d792
+src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Latency	9c6e661b3f97ebb0	623831157d7edb07
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.MainMenuScene	ca725151ea2df7de	654e6fa0ea17eff1
-src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Raytracing	a93b55e98edfc386	a725659a8ceec04b
+src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Raytracing	a93b55e98edfc386	1c69e04330f8fad2
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.ReEntry	ac77708c0f800424	51f67b8c581e9bff
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.Scaling	8377b1273d2326f1	f794b112fa0d7f94
 src/Modules/OurModules.cs|field|ReDefinition.Modules.OurModules.SpaceCentre	3cbac74f41799f0d	cdef2d7948f550b3
@@ -8048,7 +8048,7 @@ src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.j
 src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.mipmapBias	b09ff2062fb0fe76	e3b0c44298fc1c14
 src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.nextSettingsCheck	0cb53dd2d4fbb089	e3b0c44298fc1c14
 src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.pauseWhileOpen	5109bca468aecd31	c1f4f44e84707290
-src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.quality	38e863a8747dbe1d	661ac46ab8623e55
+src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.quality	38e863a8747dbe1d	0d1e1c78483ed2e3
 src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.raytracing	65fcc0c866434a59	075e697ced73d56c
 src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.raytracingBounces	55f65c73305bde2f	e3b0c44298fc1c14
 src/Modules/ReDefinitionAddon.Settings.cs|field|ReDefinition.ReDefinitionAddon.reactiveMask	6fda6d2244f4448e	e3b0c44298fc1c14
@@ -8498,7 +8498,7 @@ src/Probe/ShaderInventory.cs|method|ReDefinition.Probe.ShaderInventory.F(float)	
 src/Probe/ShaderInventory.cs|method|ReDefinition.Probe.ShaderInventory.Kind(Renderer)	2e0f73646302e3ed	5547d94ee22cd73e
 src/Probe/ShaderInventory.cs|method|ReDefinition.Probe.ShaderInventory.Start	97efd85f41a27c98	1ba2e44df28e6171
 src/Probe/ShaderInventory.cs|method|ReDefinition.Probe.ShaderInventory.Write(GameScenes)	55b60737a2e6ca63	cf0c508ebf24f520
-src/Probe/ShotVariant.cs|class|ReDefinition.Probe.ShotVariant	e46f6cef96c6b4f3	b6a1fbbf18b0d80d
+src/Probe/ShotVariant.cs|class|ReDefinition.Probe.ShotVariant	e46f6cef96c6b4f3	7113cc14499d6a3a
 src/Probe/ShotVariant.cs|field|ReDefinition.Probe.ShotVariant.heldDistance	7892390491e984b5	68bc35ebf050a0dd
 src/Probe/ShotVariant.cs|method|ReDefinition.Probe.ShotVariant.Apply	ce98d2d394536711	98ebe280188e81ff
 src/Probe/ShotVariant.cs|method|ReDefinition.Probe.ShotVariant.Change(string)	7e9583e2670008c3	499661efc4d31528
@@ -8621,7 +8621,7 @@ src/Proxy/AmdUpscalerBridge.cs|method|ReDefinition.Proxy.AmdUpscalerBridge.WhyNo
 src/Proxy/AmdUpscalerBridge.cs|property|ReDefinition.Proxy.AmdUpscalerBridge.Link	f11a23369892ec0d	2da4729e387c5623
 src/Proxy/AmdUpscalerBridge.cs|property|ReDefinition.Proxy.AmdUpscalerBridge.Offered	5b4a2cac8ed509d7	ca5074df9499aebf
 src/Proxy/AmdUpscalerBridge.cs|struct|ReDefinition.Proxy.AmdUpscalerBridge.AmdPacket	d5bd00130ce17908	7b89e9080aa8982e
-src/Proxy/D3d12Bridge.cs|class|ReDefinition.Proxy.D3d12Bridge	25f01206d3d7540d	e53f0dc31723535c
+src/Proxy/D3d12Bridge.cs|class|ReDefinition.Proxy.D3d12Bridge	25f01206d3d7540d	925fb0b9d9c315f3
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.BytecodeCapacity	594efaef3c406739	8d15c96b99d92d6b
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.Compiled	83673bbe9cf5de97	05ebf82dd35b3049
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.CompilerErrors	eb46c5dcee37074a	e3b0c44298fc1c14
@@ -9484,7 +9484,7 @@ src/Raytracing/Ksp/RtKsp.cs|enum member|ReDefinition.Raytracing.RaytracingMode.L
 src/Raytracing/Ksp/RtKsp.cs|enum member|ReDefinition.Raytracing.RaytracingMode.Off	62f7de530425dfa9	52ca451cf7217d9f
 src/Raytracing/Ksp/RtKsp.cs|enum member|ReDefinition.Raytracing.RaytracingMode.Shadows	0782d7ecda209230	da077ec333decf53
 src/Raytracing/Ksp/RtKsp.cs|enum|ReDefinition.Raytracing.RaytracingLightColour	49a824ced9871790	35d33f6196f53280
-src/Raytracing/Ksp/RtKsp.cs|enum|ReDefinition.Raytracing.RaytracingMode	8c3bab2e0331b189	d9d9731a3b6a5f68
+src/Raytracing/Ksp/RtKsp.cs|enum|ReDefinition.Raytracing.RaytracingMode	8c3bab2e0331b189	e8a21d2ecd2b5b25
 src/Raytracing/Ksp/RtKsp.cs|field|ReDefinition.Raytracing.RtKsp.DefaultLightColour	a2c7de5d31e6e4b0	0662418d2624f6d1
 src/Raytracing/Ksp/RtKsp.cs|field|ReDefinition.Raytracing.RtKsp.attached	d25de3fb5ca4477c	e3b0c44298fc1c14
 src/Raytracing/Ksp/RtKsp.cs|field|ReDefinition.Raytracing.RtKsp.attachedTo	ab16500d57b7b440	e3b0c44298fc1c14
@@ -9519,7 +9519,7 @@ src/Raytracing/Ksp/RtKsp.cs|method|ReDefinition.Raytracing.RtKsp.SettingsFor(Ray
 src/Raytracing/Ksp/RtKsp.cs|method|ReDefinition.Raytracing.RtKsp.Shift(Vector3d)	f5bf64fd69124985	52065feb4e304567
 src/Raytracing/Ksp/RtKsp.cs|method|ReDefinition.Raytracing.RtKsp.Update(Camera)	edcee32acf88bd11	1110aab367f4ddf3
 src/Raytracing/Ksp/RtKsp.cs|property|ReDefinition.Raytracing.RtKsp.Mode	3d816e3802bc0c57	cf38914889120fb0
-src/Raytracing/Ksp/RtKspMods.cs|class|ReDefinition.Raytracing.RtKspMods	87c0d0861b777ee0	a063bcf6bde29c15
+src/Raytracing/Ksp/RtKspMods.cs|class|ReDefinition.Raytracing.RtKspMods	87c0d0861b777ee0	90d635031737025a
 src/Raytracing/Ksp/RtKspMods.cs|field|ReDefinition.Raytracing.RtKspMods.brightest	e61956d05d43384e	7ae74ea326f90530
 src/Raytracing/Ksp/RtKspMods.cs|field|ReDefinition.Raytracing.RtKspMods.brightestAt	6f8f586ea6e9371b	e3b0c44298fc1c14
 src/Raytracing/Ksp/RtKspMods.cs|field|ReDefinition.Raytracing.RtKspMods.brightestFound	24cd7494d7ed2b9a	e3b0c44298fc1c14
@@ -9684,7 +9684,7 @@ src/Raytracing/Ksp/RtKspSources.cs|property|ReDefinition.Raytracing.RtScenerySou
 src/Raytracing/Ksp/RtKspSources.cs|property|ReDefinition.Raytracing.RtScenerySource.Renderers	b90faea098f5165f	1de65de465aafdb0
 src/Raytracing/Ksp/RtKspSources.cs|property|ReDefinition.Raytracing.RtTerrainSource.Quads	fd2f00c56df413c8	e6af44683c36d6c6
 src/Raytracing/Ksp/RtKspSources.cs|property|ReDefinition.Raytracing.RtVesselSource.Parts	4272274b0cc29f12	215db17adee4845b
-src/Raytracing/Ksp/RtReflectors.cs|class|ReDefinition.Raytracing.RtReflectors	f9f48cdc273430d3	a59df1ed28b2c0ef
+src/Raytracing/Ksp/RtReflectors.cs|class|ReDefinition.Raytracing.RtReflectors	f9f48cdc273430d3	b32a2c25b5a29a8f
 src/Raytracing/Ksp/RtReflectors.cs|field|ReDefinition.Raytracing.RtReflectors.Candidate.Body	a30bc908cb5bdfa1	e3b0c44298fc1c14
 src/Raytracing/Ksp/RtReflectors.cs|field|ReDefinition.Raytracing.RtReflectors.Candidate.Colour	eb4848dfe571c37d	e3b0c44298fc1c14
 src/Raytracing/Ksp/RtReflectors.cs|field|ReDefinition.Raytracing.RtReflectors.Candidate.Luminance	4f20a97e5792f908	e3b0c44298fc1c14
@@ -9744,7 +9744,7 @@ src/Raytracing/Ksp/SeaHighlights.cs|method|ReDefinition.Raytracing.SeaHighlights
 src/Raytracing/Ksp/SeaHighlights.cs|method|ReDefinition.Raytracing.SeaHighlights.SetScattererGlint	319cec934c0a735e	c4ffb54b49e4b059
 src/Raytracing/Ksp/SeaHighlights.cs|method|ReDefinition.Raytracing.SeaHighlights.Start	a92cd5a7d6f28f45	93ee69229079cb51
 src/Raytracing/Ksp/SeaHighlights.cs|method|ReDefinition.Raytracing.SeaHighlights.StockSea(bool)	2819c2950a926da1	9d3ea280230a28eb
-src/Raytracing/RtCamera.cs|class|ReDefinition.Raytracing.RtCamera	6cf19fd599b27ef3	cbdadfba350a5c94
+src/Raytracing/RtCamera.cs|class|ReDefinition.Raytracing.RtCamera	6cf19fd599b27ef3	062266a5e29cd437
 src/Raytracing/RtCamera.cs|class|ReDefinition.Raytracing.RtCamera.CountRead	b4fc2833ddaf51da	4e5b9213fdcaa464
 src/Raytracing/RtCamera.cs|class|ReDefinition.Raytracing.RtLateTrace	a059f3f4be01ec89	53eaf6e2c89fcc7d
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.MeadowPass	324cb45db54632ad	e3b0c44298fc1c14
@@ -9752,7 +9752,7 @@ src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.MeadowShade
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.OceanDiscsEvent	6ae6ba68c020e063	c4a2df31edd642ab
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.OceanDiscsPass	9f9b52372bf44617	e3b0c44298fc1c14
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.OceanEvent	5681ac666685baa2	f9b8428b9a7661a7
-src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.RaytracedCascades	830971f8144c39cd	f3daaf5406be9c29
+src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.RaytracedCascades	830971f8144c39cd	221f58975bbedc21
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.RelightPass	ec9d9a7bd9ec0e3c	43e15cbc0ec2f27c
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.ShadowFadePass	51e6e69a4147d912	6da2d2c198f73d14
 src/Raytracing/RtCamera.cs|constant|ReDefinition.Raytracing.RtCamera.SurfacePass	2e709b0a6ccc8e95	d92a3401d61f564a
@@ -9997,7 +9997,7 @@ src/Raytracing/RtForwardHighlight.cs|class|ReDefinition.Raytracing.RtForwardHigh
 src/Raytracing/RtForwardHighlight.cs|constant|ReDefinition.Raytracing.RtForwardHighlight.DielectricGamma	c4bd8b718e086316	e61956881609e9b7
 src/Raytracing/RtForwardHighlight.cs|constant|ReDefinition.Raytracing.RtForwardHighlight.DielectricLinear	533f2a4527798dfc	e3b0c44298fc1c14
 src/Raytracing/RtForwardHighlight.cs|method|ReDefinition.Raytracing.RtForwardHighlight.Of(Material,bool)	3420e6429c254391	254472525febe62b
-src/Raytracing/RtLighting.cs|class|ReDefinition.Raytracing.RtLighting	cb9cae25c0fb7b41	8b7b030617cff0bb
+src/Raytracing/RtLighting.cs|class|ReDefinition.Raytracing.RtLighting	cb9cae25c0fb7b41	354d50137091805e
 src/Raytracing/RtLighting.cs|constant|ReDefinition.Raytracing.RtLighting.DeferredReflectionsName	bbb682a772962ded	3779b745e4c636d8
 src/Raytracing/RtLighting.cs|field|ReDefinition.Raytracing.RtLighting.installed	16477c1a2e041d00	9a78f9034cd82b8d
 src/Raytracing/RtLighting.cs|field|ReDefinition.Raytracing.RtLighting.ownReflections	4daf081e858971f0	e3b0c44298fc1c14
@@ -10055,7 +10055,7 @@ src/Raytracing/RtMaterialIntent.cs|method|ReDefinition.Raytracing.RtMaterialInte
 src/Raytracing/RtMaterialIntent.cs|method|ReDefinition.Raytracing.RtMaterialIntent.Release(Material)	b1a3ef0b131982eb	1ada03840067bec5
 src/Raytracing/RtMaterialIntent.cs|property|ReDefinition.Raytracing.RtMaterialIntent.LawnAsTerrain	994f2dce4f1323e4	c3d580e7f31dc5b9
 src/Raytracing/RtMaterialIntent.cs|struct|ReDefinition.Raytracing.RtMaterialIntent	7571ed00202e3753	4fd63a35d21ef18c
-src/Raytracing/RtReflectorLight.cs|class|ReDefinition.Raytracing.RtReflectorLight	517e1c26da7c1305	11abc23ea00a104b
+src/Raytracing/RtReflectorLight.cs|class|ReDefinition.Raytracing.RtReflectorLight	517e1c26da7c1305	2b02f40127da4e0b
 src/Raytracing/RtReflectorLight.cs|constant|ReDefinition.Raytracing.RtReflectorLight.Boost	3930fb21bd5937d1	7a11f8683bdc45f6
 src/Raytracing/RtReflectorLight.cs|constant|ReDefinition.Raytracing.RtReflectorLight.Ceiling	bf8f57459b7254bb	e3b0c44298fc1c14
 src/Raytracing/RtReflectorLight.cs|method|ReDefinition.Raytracing.RtReflectorLight.Brightness(double,double)	9327ac33233b0349	1ff291dff0ffb87c
@@ -10370,7 +10370,7 @@ src/Scaling/ScalingAddon.cs|method|ReDefinition.Scaling.ManeuverGizmos.OpenSize(
 src/Scaling/ScalingAddon.cs|method|ReDefinition.Scaling.ScalingAddon.Awake	30b65b45c64557f5	b9c53b7cb9741d90
 src/Scaling/ScalingAddon.cs|method|ReDefinition.Scaling.ScalingAddon.Install(string,string,Action)	ffc988a7eb7336e7	5dc73567021bc440
 src/Scaling/ScalingAddon.cs|method|ReDefinition.Scaling.TrackingStationScaling.LateUpdate	01e1b8af28eb8af3	1c666a9b7277f17a
-src/Scaling/ScalingHooks.cs|class|ReDefinition.Scaling.ScalingHooks	96e3104916d69744	fab549608ec2dae4
+src/Scaling/ScalingHooks.cs|class|ReDefinition.Scaling.ScalingHooks	96e3104916d69744	df85ecceb2178142
 src/Scaling/ScalingHooks.cs|constant|ReDefinition.Scaling.ScalingHooks.Any	b959ae77c1175c40	121fdc9bc776e660
 src/Scaling/ScalingHooks.cs|constant|ReDefinition.Scaling.ScalingHooks.HarmonyId	c2bd1f6745098144	fb3c5f3ed66aff44
 src/Scaling/ScalingHooks.cs|constant|ReDefinition.Scaling.ScalingHooks.OrbitLine	fe8a279352c3b8ae	2db2f8b1645fb791
@@ -10406,7 +10406,7 @@ src/Scaling/SpaceCentreScaling.cs|method|ReDefinition.Scaling.SpaceCentreScaling
 src/Scaling/SpaceCentreScaling.cs|method|ReDefinition.Scaling.SpaceCentreScaling.OpenTree(RDController)	828fddbdf867f049	9a20522a5603a09d
 src/Scaling/SpaceCentreScaling.cs|method|ReDefinition.Scaling.SpaceCentreScaling.ScaleTiles(Transform)	c6768182b4e07993	2973fc11f01e589e
 src/Scaling/SpaceCentreScaling.cs|method|ReDefinition.Scaling.SpaceCentreScaling.WidenTiles(RDController)	1564aa612ff68e1d	9cf910cfa82e8271
-src/Scaling/UiScaling.cs|class|ReDefinition.Scaling.UiScaling	b0ae18880c78188a	35b16858b9230a06
+src/Scaling/UiScaling.cs|class|ReDefinition.Scaling.UiScaling	b0ae18880c78188a	6df05b7dbb29dc3e
 src/Scaling/UiScaling.cs|constant|ReDefinition.Scaling.UiScaling.FourkSpMap	4253062868d57ce0	ef4d8c3626a872ca
 src/Scaling/UiScaling.cs|constant|ReDefinition.Scaling.UiScaling.FourkSpRnD	5f414e2eebdba2e0	e3b0c44298fc1c14
 src/Scaling/UiScaling.cs|constant|ReDefinition.Scaling.UiScaling.FourkSpWindows	b5efa0aa6cf40d9d	e3b0c44298fc1c14
@@ -11137,7 +11137,7 @@ src/Settings/BundledSettingsAddon.cs|method|ReDefinition.Settings.BundledSetting
 src/Settings/BundledSettingsAddon.cs|method|ReDefinition.Settings.BundledSettingsAddon.RunAtEndOfFrame	0efce567e159ffa5	ba1db1aad2fb1004
 src/Settings/BundledSettingsAddon.cs|method|ReDefinition.Settings.BundledSettingsAddon.Schedule	4f772ff3f5f4f375	97d963f8dda2a8b1
 src/Settings/BundledSettingsAddon.cs|method|ReDefinition.Settings.BundledSettingsAddon.Update	07e309df158170c1	180ef070492bfdff
-src/Settings/BundledStore.cs|class|ReDefinition.Settings.BundledStore	bb0a764779d59f8c	73855cabb84afd9c
+src/Settings/BundledStore.cs|class|ReDefinition.Settings.BundledStore	bb0a764779d59f8c	4f62b19d824dc646
 src/Settings/BundledStore.cs|constructor|ReDefinition.Settings.BundledStore.BundledStore(IStoreHost)	ab935ffad2ab6153	71d08dc079367365
 src/Settings/BundledStore.cs|field|ReDefinition.Settings.BundledStore.host	32c662ce58826a91	431152d9253082b1
 src/Settings/BundledStore.cs|field|ReDefinition.Settings.BundledStore.ledger	d3850b303eaffb74	e3b0c44298fc1c14
@@ -11963,7 +11963,7 @@ src/Upscaler/Compatibility/HostStack.Tufx.cs|method|ReDefinition.Upscaler.HostSt
 src/Upscaler/Compatibility/HostStack.Tufx.cs|method|ReDefinition.Upscaler.HostStack.TufxProfile(Type)	f0f534f8f1f8ac98	05bfdbd53ccb645e
 src/Upscaler/Compatibility/HostStack.Tufx.cs|method|ReDefinition.Upscaler.HostStack.TufxSaveAfter(object,int,Exception)	3e5acf571520b98b	d646e80bf22980b2
 src/Upscaler/Compatibility/HostStack.Tufx.cs|method|ReDefinition.Upscaler.HostStack.TufxSaveBefore(object,int)	3d00913b07e25702	f3048904b4998ea2
-src/Upscaler/Compatibility/HostStack.cs|class|ReDefinition.Upscaler.HostStack	a98a06d2dd2aedd4	e6801fa5019d989f
+src/Upscaler/Compatibility/HostStack.cs|class|ReDefinition.Upscaler.HostStack	a98a06d2dd2aedd4	46aed8790edb98b6
 src/Upscaler/Compatibility/HostStack.cs|class|ReDefinition.Upscaler.HostStack.TaaBackup	27f1e5e74a907713	741c1aab2220ec5f
 src/Upscaler/Compatibility/HostStack.cs|class|ReDefinition.Upscaler.HostStack.TufxBackup	fe052e62191a073f	1e248bc30a79aa71
 src/Upscaler/Compatibility/HostStack.cs|constant|ReDefinition.Upscaler.HostStack.Any	69009c055dc7db17	090529d0643f3600
@@ -12527,7 +12527,7 @@ src/Upscaler/MotionVectors/SceneMotion.cs|method|ReDefinition.Upscaler.SceneMoti
 src/Upscaler/MotionVectors/SceneMotion.cs|method|ReDefinition.Upscaler.SceneMotion.Conjugate(Quaternion)	aa8ab466cd40e427	735010464bf7fe06
 src/Upscaler/MotionVectors/SceneMotion.cs|method|ReDefinition.Upscaler.SceneMotion.Placement(Quaternion,Vector3)	3b62ffc3d4434e2e	895e2b421b85a21c
 src/Upscaler/MotionVectors/SceneMotion.cs|method|ReDefinition.Upscaler.SceneMotion.Rotate(Quaternion,Vector3d)	133a65a1db6ebb9b	675a44270018c018
-src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|class|ReDefinition.Upscaler.SkinnedMotionVectors	aee5d848b9a29459	4408b1f5cee7ee55
+src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|class|ReDefinition.Upscaler.SkinnedMotionVectors	aee5d848b9a29459	b6a5f6eb6f225e42
 src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|class|ReDefinition.Upscaler.SkinnedMotionVectors.Original	cc45aa84c90f263c	c628ccbf876d9d19
 src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|constant|ReDefinition.Upscaler.SkinnedMotionVectors.FollowUpSeconds	0fca8a2a0dbf50d5	e3b0c44298fc1c14
 src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|constant|ReDefinition.Upscaler.SkinnedMotionVectors.MinEventSeconds	921cc7b8449449df	e3b0c44298fc1c14
@@ -12554,7 +12554,7 @@ src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|method|ReDefinition.Upscaler.
 src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|method|ReDefinition.Upscaler.SkinnedMotionVectors.Subscribe	f83420ed1d881687	35a52b76df423ab4
 src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|method|ReDefinition.Upscaler.SkinnedMotionVectors.Sweep	20f4b15cd3cf876f	ab6a4cc4f999a302
 src/Upscaler/MotionVectors/SkinnedMotionVectors.cs|method|ReDefinition.Upscaler.SkinnedMotionVectors.Unsubscribe	5cd2a28dac09ba63	9da8d47176cc406e
-src/Upscaler/MotionVectors/UnityMotionRepair.cs|class|ReDefinition.Upscaler.UnityMotionRepair	6334437d15ccfdc1	f9d80c08248867dd
+src/Upscaler/MotionVectors/UnityMotionRepair.cs|class|ReDefinition.Upscaler.UnityMotionRepair	6334437d15ccfdc1	6bb34723f61ef3cf
 src/Upscaler/MotionVectors/UnityMotionRepair.cs|constant|ReDefinition.Upscaler.UnityMotionRepair.CheckEvery	342c28165a4f7292	e3b0c44298fc1c14
 src/Upscaler/MotionVectors/UnityMotionRepair.cs|constant|ReDefinition.Upscaler.UnityMotionRepair.FarFromOrigin	87901ab7797a6b0a	08272c8f8e430ba0
 src/Upscaler/MotionVectors/UnityMotionRepair.cs|constant|ReDefinition.Upscaler.UnityMotionRepair.PreciseFrom	ccac5870a3c317df	e5ecc00750194584
@@ -12690,7 +12690,7 @@ src/Upscaler/MotionVectors/VesselMotionVectors.cs|method|ReDefinition.Upscaler.V
 src/Upscaler/MotionVectors/VesselMotionVectors.cs|method|ReDefinition.Upscaler.VesselMotionVectors.Report	ae9fe141c5442314	d2b7f12c2e5348e8
 src/Upscaler/MotionVectors/VesselMotionVectors.cs|method|ReDefinition.Upscaler.VesselMotionVectors.SetCommon(CommandBuffer,RenderTexture,RenderTexture)	a81a7b804c51207e	2afa976a4be98bea
 src/Upscaler/MotionVectors/VesselMotionVectors.cs|struct|ReDefinition.Upscaler.VesselMotionVectors.Drawn	63cfab42758e5a6a	c1e80f82151c9ff2
-src/Upscaler/Rig/CameraRedirect.cs|class|ReDefinition.Upscaler.CameraRedirect	5d03e9e45e0e2e03	6d254362f9322b49
+src/Upscaler/Rig/CameraRedirect.cs|class|ReDefinition.Upscaler.CameraRedirect	5d03e9e45e0e2e03	f15229d0f6105f31
 src/Upscaler/Rig/CameraRedirect.cs|field|ReDefinition.Upscaler.CameraRedirect.JitterActive	9c2a5acbe50d64e7	e3b0c44298fc1c14
 src/Upscaler/Rig/CameraRedirect.cs|field|ReDefinition.Upscaler.CameraRedirect.JitterNdc	ec4cc5014644fd70	2517ecaec849a5ae
 src/Upscaler/Rig/CameraRedirect.cs|field|ReDefinition.Upscaler.CameraRedirect.cam	d526fa2c33763d0e	4b68a29379605b65
@@ -12909,7 +12909,7 @@ src/Upscaler/Rig/UpscalerInputs.cs|method|ReDefinition.Upscaler.UpscalerInputs.D
 src/Upscaler/Rig/UpscalerInputs.cs|method|ReDefinition.Upscaler.UpscalerInputs.Record(Camera,UpscalerTextures,UpscalerRig.DepthSource,Vector2Int,bool,bool,bool)	a3563d19b256fbd9	33e8a6aea6f37554
 src/Upscaler/Rig/UpscalerInputs.cs|method|ReDefinition.Upscaler.UpscalerInputs.ReleaseCapture	6481bf19dbca948d	d8d011cedad94d51
 src/Upscaler/Rig/UpscalerInputs.cs|property|ReDefinition.Upscaler.UpscalerInputs.Capture	568170419b359823	96689823e1da4f8a
-src/Upscaler/Rig/UpscalerMasks.cs|class|ReDefinition.Upscaler.UpscalerMasks	311f4aea4ac834a3	ed9b947b4c0e52cf
+src/Upscaler/Rig/UpscalerMasks.cs|class|ReDefinition.Upscaler.UpscalerMasks	311f4aea4ac834a3	1438c4f6ae0cbba7
 src/Upscaler/Rig/UpscalerMasks.cs|class|ReDefinition.Upscaler.UpscalerMasks.Ids	ba8b2c9d4edd2ab2	b84fede38bce72b7
 src/Upscaler/Rig/UpscalerMasks.cs|class|ReDefinition.Upscaler.UpscalerMasks.MaskCopy	c4bc4d1928b206b4	8102a3759cc0e158
 src/Upscaler/Rig/UpscalerMasks.cs|constant|ReDefinition.Upscaler.UpscalerMasks.FullScanInterval	b9f7d9a9cec7ca4f	f05b3c6467dae0bf
@@ -13132,7 +13132,7 @@ src/Upscaler/Rig/UpscalerRig.Preview.cs|method|ReDefinition.Upscaler.UpscalerRig
 src/Upscaler/Rig/UpscalerRig.Preview.cs|method|ReDefinition.Upscaler.UpscalerRig.GetPreview(PreviewMode)	d1ae6e90b4d9701f	e433319a15e7728f
 src/Upscaler/Rig/UpscalerRig.Preview.cs|method|ReDefinition.Upscaler.UpscalerRig.ReactiveTexture	338ecde7e192c1f4	2466f17e6575a2ce
 src/Upscaler/Rig/UpscalerRig.Preview.cs|property|ReDefinition.Upscaler.UpscalerRig.PreviewGain	35b2cbfa2189794e	4c0376a8ab640a83
-src/Upscaler/Rig/UpscalerRig.Reconstruction.cs|class|ReDefinition.Upscaler.UpscalerRig	9007419b7d3f8409	2ea097c1ec18d344
+src/Upscaler/Rig/UpscalerRig.Reconstruction.cs|class|ReDefinition.Upscaler.UpscalerRig	9007419b7d3f8409	f54245679ca38d44
 src/Upscaler/Rig/UpscalerRig.Reconstruction.cs|constant|ReDefinition.Upscaler.UpscalerRig.ReconstructionGiveUpSeconds	b564c1e877bbedd9	cde1b7da69a2e34f
 src/Upscaler/Rig/UpscalerRig.Reconstruction.cs|constant|ReDefinition.Upscaler.UpscalerRig.ReconstructionRetrySeconds	2fd48847ee9eef43	e3b0c44298fc1c14
 src/Upscaler/Rig/UpscalerRig.Reconstruction.cs|field|ReDefinition.Upscaler.UpscalerRig.ReconstructionPreset	2a878f99825ee0b9	67043164ca5aa268
@@ -13170,7 +13170,7 @@ src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.Backend	
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.Bypass	3ea32f2cf4c81cdf	69b476203a4df741
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.CompensateLodBias	288064e88ed2ba5d	57186c2679575db3
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.DebugView	c42a8826afb05831	d88618beddb1484d
-src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.Depth	cae3e28465726c38	e0dc589912f632f6
+src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.Depth	cae3e28465726c38	4e09484d5e9cb99d
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.DisableMsaa	1fd2ea74bef74e06	e3b0c44298fc1c14
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.DlssPreset	d0c097b2b180d601	e3b0c44298fc1c14
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.EnableJitter	6ee82536a9ff35a1	7dd67201463d4612
@@ -13224,7 +13224,7 @@ src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.tufx	fbd
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.vesselMotion	f933ab3cecd93b6d	e3b0c44298fc1c14
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.vesselShadow	bbe91c774d029777	e3b0c44298fc1c14
 src/Upscaler/Rig/UpscalerRig.cs|field|ReDefinition.Upscaler.UpscalerRig.viewToClip	31253747e69de399	d5a14a1e0e883002
-src/Upscaler/Rig/UpscalerRig.cs|method|ReDefinition.Upscaler.UpscalerRig.AcrossOriginShift(Matrix4x4)	3ca643b56cf91ef9	062d90263e446a46
+src/Upscaler/Rig/UpscalerRig.cs|method|ReDefinition.Upscaler.UpscalerRig.AcrossOriginShift(Matrix4x4)	3ca643b56cf91ef9	d3320b1bffcf9db8
 src/Upscaler/Rig/UpscalerRig.cs|method|ReDefinition.Upscaler.UpscalerRig.ApplyMipmapBias	859bca1be9bacb26	a43297193cee4eb8
 src/Upscaler/Rig/UpscalerRig.cs|method|ReDefinition.Upscaler.UpscalerRig.AskedForMotionVectors(Camera)	49876d5020167f83	9e6388fe974cb0c9
 src/Upscaler/Rig/UpscalerRig.cs|method|ReDefinition.Upscaler.UpscalerRig.Awake	447ee36f6e74c164	b4acd00574fb0bdc
@@ -14671,7 +14671,7 @@ tests/DxgiProxy/RaytracingOmmHarness.cpp|struct|Probe	d8d65b1189fdccef	7041463b9
 tests/DxgiProxy/RaytracingOmmHarness.cpp|variable|bake	86811ab84de10552	7a15a02671afedae
 tests/DxgiProxy/RaytracingOmmHarness.cpp|variable|failures	274fe6ecea274408	85caa287182c0b98
 tests/DxgiProxy/RaytracingOmmHarness.cpp|variable|nv	2042dfb526fc79db	0b8a5390dd313ff4
-tests/RaytracingPlayer/Assets/Editor/BuildPlayer.cs|class|ReDefinition.RaytracingPlayer.BuildPlayer	5465272322455e4d	2bbaf510bf6a5463
+tests/RaytracingPlayer/Assets/Editor/BuildPlayer.cs|class|ReDefinition.RaytracingPlayer.BuildPlayer	5465272322455e4d	679f9f957e568bcf
 tests/RaytracingPlayer/Assets/Editor/BuildPlayer.cs|method|ReDefinition.RaytracingPlayer.BuildPlayer.Argument(string)	bcbc30c32cb10f49	bc8efe5b0e292005
 tests/RaytracingPlayer/Assets/Editor/BuildPlayer.cs|method|ReDefinition.RaytracingPlayer.BuildPlayer.Build	537696e14908d47e	b10d778aab747258
 tests/RaytracingPlayer/Assets/Runner/DeferredStub.cs|class|Deferred.Deferred	63bca6df87d8cb74	425967a5cb548250
@@ -14691,7 +14691,7 @@ tests/RaytracingPlayer/Assets/Runner/Resources/ReDefinitionTestReadSsr.shader|pa
 tests/RaytracingPlayer/Assets/Runner/Resources/ReDefinitionTestReadSsr.shader|shader|Hidden/ReDefinitionTest/ReadSsr	f36855cbb2c9c6c2	26540a70791cead1
 tests/RaytracingPlayer/Assets/Runner/Resources/ReDefinitionTestReadSsr.shader|variable|ssrOutput	a7172cb12c1392f0	e59e84fa84d156e3
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|class|ReDefinition.RaytracingPlayer.RtGpuBoxes	f40674182cd68978	d56cf0ac89081983
-tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|class|ReDefinition.RaytracingPlayer.RtPlayerRunner	ca52f94382d2a5a0	27a0beab6194b4e9
+tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|class|ReDefinition.RaytracingPlayer.RtPlayerRunner	ca52f94382d2a5a0	ca7310da9c95e6f2
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|class|ReDefinition.RaytracingPlayer.RtUnitySource	2dcb59293076a1b6	02c4f62a2d40c839
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|field|ReDefinition.RaytracingPlayer.RtGpuBoxes.Material	6f23f45bbfbd36f5	e3b0c44298fc1c14
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|field|ReDefinition.RaytracingPlayer.RtGpuBoxes.Mesh	6288f7a9e8e42b83	e3b0c44298fc1c14
@@ -14713,7 +14713,7 @@ tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.Raytr
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Argument(string)	b60f62fd9a3eea55	bc8efe5b0e292005
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Box(Vector3,Vector3,Material)	6780c8ada678c6aa	08743c4675070913
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Brightness(Texture2D,Vector3,int)	681632a46a43aae5	65a33b0c1460621e
-tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Budget	02fc64faf146c1a2	45e3cddf1eed9bac
+tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Budget	02fc64faf146c1a2	796125175e8329d9
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.BuildScene	af8301f462fb04a5	6d23058fa7bbe757
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Capture(Action<Texture2D>,string)	2564dd2071d1ea00	b471ca725f9451c2
 tests/RaytracingPlayer/Assets/Runner/RtPlayerRunner.cs|method|ReDefinition.RaytracingPlayer.RtPlayerRunner.Census(RenderTexture)	f8f648c678debe1d	8f3c76735f8efe2b
@@ -15621,7 +15621,7 @@ tests/ReDefinition.Tests/SettingsEditTests.cs|method|ReDefinition.Tests.Settings
 tests/ReDefinition.Tests/SettingsEditTests.cs|method|ReDefinition.Tests.SettingsEditTests.Setting(string)	d85974593c4f4a9b	a59def983ff2424f
 tests/ReDefinition.Tests/SettingsEditTests.cs|method|ReDefinition.Tests.SettingsEditTests.TheResetLeavesADirectRowWithoutAValueAlone	9266eb3a6e17d14f	25a25b07a50f959e
 tests/ReDefinition.Tests/SettingsEditTests.cs|method|ReDefinition.Tests.SettingsEditTests.TheStatusLineSaysWhatTheRowsHold	45d82cf855e4487e	a3e9c5bfaf51606a
-tests/ReDefinition.Tests/SharedFoundationTests.cs|class|ReDefinition.Tests.SharedFoundationTests	4d9153a311321c5e	f179dce6affc6d85
+tests/ReDefinition.Tests/SharedFoundationTests.cs|class|ReDefinition.Tests.SharedFoundationTests	4d9153a311321c5e	924a5ccb6cf2a285
 tests/ReDefinition.Tests/SharedFoundationTests.cs|method|ReDefinition.Tests.SharedFoundationTests.ACutAndARequestInOneFrameAreOneReset	ecafc616da52f994	6fdd17176034dd20
 tests/ReDefinition.Tests/SharedFoundationTests.cs|method|ReDefinition.Tests.SharedFoundationTests.ACutBeforeTheFrameResetsEveryone	b6c49b7d7dbcf6e5	4609c4cf8aa80a07
 tests/ReDefinition.Tests/SharedFoundationTests.cs|method|ReDefinition.Tests.SharedFoundationTests.AHandlerThatThrowsIsRemovedAndTheOthersRun	72f2aa53470db137	8cb53ec489eab3af
@@ -16213,7 +16213,7 @@ tools/build_rt_player.py|function|main	c6bab1d80f650fa3	5d386bc4817b6fa1
 tools/build_rt_player.py|function|run	41cbf266ae116717	2f72650cfdce1c0d
 tools/build_rt_player.py|function|turn	fb8a143edf42427b	a63bcb576ecb286e
 tools/build_rt_player.py|function|upscale	cd3c59ace9bf55b4	d5d959eff9318af5
-tools/build_rt_player.py|module|tools/build_rt_player.py	120970d812836f19	aa8822f666cd41da
+tools/build_rt_player.py|module|tools/build_rt_player.py	120970d812836f19	3a317d3df04cd473
 tools/checks/audit_ffx_fields.py|function|assigned	f534634ab86a63ba	8ef1e404a03955cf
 tools/checks/audit_ffx_fields.py|function|fields_of	78b727e1b7c7972b	ed0d5fa342b0b7ad
 tools/checks/audit_ffx_fields.py|function|main	d40de125b3a9c092	2a24f270234785bb
@@ -16282,7 +16282,7 @@ tools/export_rt_scene.py|function|mesh_arrays	1f47bdd559815933	f7b0544c608c1c3c
 tools/export_rt_scene.py|function|multiply	12a5dd97494c71e3	54a0cadd985c92c1
 tools/export_rt_scene.py|function|objects_of	18fa6496cef48a16	652467af7846bd16
 tools/export_rt_scene.py|function|quaternion_matrix	b6f48a0e22adf0cc	c131b40cfec797b1
-tools/export_rt_scene.py|module|tools/export_rt_scene.py	120970d812836f19	1bf7e5e1292ab98e
+tools/export_rt_scene.py|module|tools/export_rt_scene.py	120970d812836f19	4c51f6b6a525f956
 tools/fetch_amd_runtime.py|function|fetch	1cd9a7c452c6fd8d	e122417214318f3a
 tools/fetch_amd_runtime.py|function|main	0f96f07703923714	2767b274b6d68c43
 tools/fetch_amd_runtime.py|function|sha256	44054b2c3a100150	aa29a2ca298c6703
@@ -16747,7 +16747,7 @@ unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|functio
 unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|function|vert(float4 vertex POSITION)	e72fba5d7a589209	0cd960ebaced26d9
 unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|pass|Pass 0	648e0b936c00d150	091970d0e4bebd6b
 unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|pass|Pass 1	ff8c8f691db26590	c29027236a85403e
-unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|shader|ReDefinition/Internal-DeferredReflections	abb1b8f9bec6fa77	d363f56182cfe103
+unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|shader|ReDefinition/Internal-DeferredReflections	abb1b8f9bec6fa77	c7fe8e69555db42e
 unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|struct|v2f	6003ec57e6f103a3	7460fbc7b244fad7
 unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|variable|_CameraGBufferTexture0	90f489ae223f3cfc	a9d3d002abcacb2e
 unity/Assets/ReDefinition/Shaders/ReDefinitionDeferredReflections.shader|variable|_CameraGBufferTexture1	a62254e0587e2a87	e3b0c44298fc1c14
@@ -17016,7 +17016,7 @@ unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|pass|Pass 1	
 unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|pass|Pass 2	4acaa1ef23d6db72	da42b20df9110492
 unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|pass|Pass 3	81b6c3d61bdf1d2c	6d85c3dcd2615b4a
 unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|pass|Pass 4	eaf4dc966161b9f2	86652fc67d32f893
-unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|shader|Hidden/ReDefinition/RtForwardLight	c45a09b334e8dacb	3389f2405f49db3d
+unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|shader|Hidden/ReDefinition/RtForwardLight	c45a09b334e8dacb	a22e2cded931f7a4
 unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|struct|v2f	6003ec57e6f103a3	4cfe5822207ad9fa
 unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|variable|_CameraDepthTexture	eef34a56a90222f3	80ab8ea1c184f7ca
 unity/Assets/ReDefinition/Shaders/ReDefinitionRtForwardLight.shader|variable|_ReDefinitionRtForward	41f3d498ffb44805	e3b0c44298fc1c14

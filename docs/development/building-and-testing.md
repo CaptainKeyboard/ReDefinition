@@ -284,7 +284,7 @@ These variables change a run without naming a folder:
 | `REDEFINITION_DLSSG_MODE` | `on` or `dynamic` | starts DLSS frame generation in that mode (`dlssgMode`). The harness asks Dynamic for a target of 8000 frames a second, since its own thousand frames a second are far above the display's |
 | `REDEFINITION_XESS_FG_WAITABLE` | `auto`, `0` or `1` | `xessFgOwnWaitable` for the run; the waits on the frame latency waitable object are counted |
 | `REDEFINITION_HARNESS_FOCUS` | any | DLSS frame generation generates nothing while the harness window is out of the foreground. The taskbar takes the foreground for a moment and the window gets it back: 1.00 presents per frame out of it, and more in it |
-| `REDEFINITION_LATENCY_TEST` | `1` | compares what lowers the latency most on this GPU: nothing, the brake, and AMD Anti-Lag 2 on either device, measured alike under a Direct3D 11 compute load that holds the frames back ([low-latency.md](low-latency.md)) |
+| `REDEFINITION_LATENCY_TEST` | `1` | compares what lowers the latency most on this GPU: nothing, the brake, and AMD Anti-Lag 2 on either device, measured alike under a Direct3D 11 compute load that holds the frames back ([low-latency.md](../../src/DxgiProxy/Latency/README.md)) |
 | `REDEFINITION_ADAPTER_VENDOR` | a PCI vendor id in hex: `1002` AMD, `10DE` NVIDIA, `8086` Intel | runs on the adapter of that vendor rather than the default one |
 | `REDEFINITION_HARNESS_CHECKER` | any | AMD's upscaler gets a frame time in seconds rather than milliseconds, so that its debug checker (`vendorDiagnostics=1`) reports it into the log |
 
@@ -296,7 +296,7 @@ that ran, or one `FAIL` line.
 The raytracing harness loads the proxy the same way and needs a GPU with DirectX
 Raytracing tier 1.1. It rasterises a G-buffer in Unity's layout, hands the proxy meshes and
 instances, and checks every raytracing pass against the CPU
-([raytracing.md](raytracing.md), "Testing without the game").
+([raytracing.md](flow-raytracing.md), "Testing without the game").
 
 ```
 build\DxgiProxy\Release\RaytracingHarness.exe
@@ -319,7 +319,7 @@ One argument narrows the run to the opacity micromaps:
 | `--omm-none` | the same, with the driver's capability simulated as none (`REDEFINITION_OMM_CAPS=none`) |
 
 The full run has both, and a run of its own with the capability simulated as none.
-[raytracing.md](raytracing.md#testing-without-the-game) lists what each phase checks.
+[raytracing.md](flow-raytracing.md) lists what each phase checks.
 
 ## Run the raytracing test player
 

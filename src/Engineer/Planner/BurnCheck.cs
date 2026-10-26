@@ -55,7 +55,7 @@ namespace ReDefinition.Engineer
     }
 
     // How long a step's burns in orbit take with the stages that fly them
-    // (docs/development/planner.md). The stages burn in their order, each at its
+    // (src/Engineer/README.md). The stages burn in their order, each at its
     // thrust in vacuum and its exhaust speed. A stage gives the delta-v over the log of
     // its start and end mass. The burns take the step's delta-v in their order, the
     // margin left over. Free of Unity, tested.

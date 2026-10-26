@@ -10,7 +10,7 @@ namespace ReDefinition.Probe
     // -redefinitionProbeShotVariant <name>: the probe's flight with one thing changed,
     // from 5 s into it. Its shot (-redefinitionProbeShot) is compared with one
     // without the change, "none", at the same place and moment
-    // (docs/development/performance-findings.md). The change is only for that run.
+    // (measured 2026-10). The change is only for that run.
     // The variant cascades2 has two shadow cascades instead of the quality level's.
     // The variant cascades1Low has one cascade at low resolution, the shadow distance kept.
     // The variant distanceHalf halves the shadow distance.

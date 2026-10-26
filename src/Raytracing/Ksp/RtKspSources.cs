@@ -5,7 +5,7 @@ using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
 {
-    // What the rays see in KSP (docs/development/raytracing.md, "What the rays see").
+    // What the rays see in KSP (docs/development/flow-raytracing.md, "What the rays see").
     // Each source keeps its renderers and hands those in range over every frame.
 
     // Opaque, drawn, on a layer the scene camera draws, and not hung on a camera.

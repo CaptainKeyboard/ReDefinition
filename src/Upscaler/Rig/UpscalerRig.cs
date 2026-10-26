@@ -81,7 +81,7 @@ namespace ReDefinition.Upscaler
 
         // ResolvedDepth: in KSP's deferred path the only source that holds depth;
         // _CameraDepthTexture stays empty despite depthTextureMode
-        // (docs/development/upscaler.md).
+        // (docs/development/flow-frame.md).
         public DepthSource Depth = DepthSource.ResolvedDepth;
 
         // FSR's own debug view: the output replaced with panels of the dilated mask
@@ -192,7 +192,7 @@ namespace ReDefinition.Upscaler
 
         // The frame before's view-projection in this frame's world: KSP's floating
         // origin moved the camera and the vessel by minus OriginShift, so a point now
-        // at p lay at p + OriginShift (docs/development/shared-foundation.md).
+        // at p lay at p + OriginShift (docs/development/flow-mod-interface.md).
         private static Matrix4x4 AcrossOriginShift(Matrix4x4 previous)
         {
             return SharedFrame.Shifted ? previous * Matrix4x4.Translate((Vector3)SharedFrame.OriginShift) : previous;

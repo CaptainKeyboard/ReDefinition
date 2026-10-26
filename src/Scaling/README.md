@@ -27,7 +27,7 @@ scaling of the same things, turned off.
 
 The area is a stop on [The features on screen](../../docs/development/flow-game-ui.md). What each
 piece scales, and how KSP sizes it, is in
-[UI scaling of what KSP leaves unscaled](../../docs/development/ui-scaling.md).
+[UI scaling of what KSP leaves unscaled](../../src/Scaling/README.md).
 
 ## What it uses and what uses it
 

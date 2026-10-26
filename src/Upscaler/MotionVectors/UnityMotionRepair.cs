@@ -16,7 +16,7 @@ namespace ReDefinition.Upscaler
     // the ground then carries the same vectors frame after frame, whatever the camera
     // does. Measured in the recordings' frame generation inputs after zooming out to the
     // farthest and back, and from the start of other flights at 97 to 100% of the
-    // pixels. What stops Unity is not known (docs/development/upscaler.md).
+    // pixels. What stops Unity is not known (docs/development/flow-frame.md).
     //
     // At the end of the camera's frame the buffer is cleared to Missing. At
     // BeforeImageEffectsOpaque of the next, after Unity writes its motion vectors and

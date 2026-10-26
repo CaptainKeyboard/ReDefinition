@@ -1,4 +1,4 @@
-// The raytracing harness (docs/development/raytracing.md, "Testing without the game").
+// The raytracing harness (docs/development/flow-raytracing.md, "Testing without the game").
 //
 // It loads the proxy as Unity does, rasterises a G-buffer in Unity's layout with its
 // own Direct3D 11 shaders, hands meshes, materials and instances to the proxy's

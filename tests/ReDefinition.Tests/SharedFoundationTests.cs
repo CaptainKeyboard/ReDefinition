@@ -7,7 +7,7 @@ using ReDefinition.Proxy;
 
 namespace ReDefinition.Tests
 {
-    // The shared foundation for mods (docs/development/shared-foundation.md): the
+    // The shared foundation for mods (docs/development/flow-mod-interface.md): the
     // history reset's rules, the hooks' guarding, the Direct3D 12 packets as the proxy
     // lays them out, and the wrapper mods copy against the interface.
     [TestClass]

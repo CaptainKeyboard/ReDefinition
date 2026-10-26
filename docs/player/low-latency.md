@@ -56,7 +56,7 @@ GPU is still fed in time, so the frame rate stays.
 On an RTX A4500 at the Medium profile with raytracing on *Full*, the brake took 9 to
 14.5 ms off a latency of 58 to 72 ms. The frame rate stayed within one percent. Without
 raytracing it takes under 1 ms off, because little queues
-([development/low-latency.md](../development/low-latency.md#measured)).
+([src/DxgiProxy/Latency/README.md](../../src/DxgiProxy/Latency/README.md)).
 
 The brake is on, with a target of 4 ms of waiting left in each frame. A lower target
 lowers the latency further, and costs some frame rate where the CPU, not the GPU, limits it.

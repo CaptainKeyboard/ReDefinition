@@ -1,4 +1,4 @@
-// AMD FSR Ray Regeneration 1.2 for the raytraced frame (docs/development/raytracing.md,
+// AMD FSR Ray Regeneration 1.2 for the raytraced frame (docs/development/flow-raytracing.md,
 // "Denoising"): the diffuse light and the reflections through AMD's denoiser where its
 // DLL runs, a Radeon RX 9000 or newer (denoising.md, "Requirements"); the sun's
 // visibility stays with ReDefinition's own denoiser, whose output keeps the view depth

@@ -52,5 +52,5 @@ Upscaler use it.
 member to its answer.
 
 For the contract in full see [Shared foundation](../../docs/modders/shared-foundation.md) for
-mod authors and [Shared foundation](../../docs/development/shared-foundation.md) for the
+mod authors and [Shared foundation](../../docs/development/flow-mod-interface.md) for the
 internals.

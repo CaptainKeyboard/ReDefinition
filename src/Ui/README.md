@@ -30,7 +30,7 @@ screen, shielded from clicks through them, and given tooltips.
 The conventions every control follows are in
 [The features on screen](../../docs/development/flow-game-ui.md). The scale `ScreenFit` works
 against is explained in
-[UI scaling of what KSP leaves unscaled](../../docs/development/ui-scaling.md).
+[UI scaling of what KSP leaves unscaled](../../src/Scaling/README.md).
 
 ## What it uses and what uses it
 

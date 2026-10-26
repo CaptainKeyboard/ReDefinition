@@ -12,7 +12,7 @@ namespace ReDefinition.Proxy
     // render events on Unity's render thread, the status read from the main thread.
     // Dispatches go through a ring, within a cap per frame (MaxDispatchesPerFrame). A mod may send any number of creates,
     // destroys and releases in one frame, each in memory of its
-    // own, freed once the render thread is past it. docs/development/shared-foundation.md,
+    // own, freed once the render thread is past it. docs/development/flow-mod-interface.md,
     // "Stage 2".
     internal static class D3d12Bridge
     {

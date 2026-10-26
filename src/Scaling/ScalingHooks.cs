@@ -11,7 +11,7 @@ using Vectrosity;
 namespace ReDefinition.Scaling
 {
     // What KSP sizes once, as it makes it, at a fixed number of pixels
-    // (docs/development/ui-scaling.md; decompiled).
+    // (src/Scaling/README.md; decompiled).
     // The editor's move and rotate gizmos have ScreenSpaceObjectScaling.screenSize,
     // from the prefab, over Screen.height, as the maneuver gizmo.
     // The orbit lines are 5 px (OrbitRendererBase.MakeLine), the target's orbit 5 px

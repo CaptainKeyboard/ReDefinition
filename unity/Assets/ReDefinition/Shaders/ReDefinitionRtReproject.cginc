@@ -1,5 +1,5 @@
 // Where a point of this frame's world was in the raytraced frame before
-// (src/Raytracing/RtCamera.cs, docs/development/raytracing.md, "How the frame goes").
+// (src/Raytracing/RtCamera.cs, docs/development/flow-raytracing.md, "How the frame goes").
 //
 // KSP moves its world between two frames in two ways: the floating origin shifts
 // everything near the vessel, and Krakensbane moves the bodies and what stands on them

@@ -155,7 +155,7 @@ namespace ReDefinition.Engineer
     }
 
     // Which of the vessel's stages pays for which step of the route
-    // (docs/development/planner.md). Worked out on the mass the stages push, so
+    // (src/Engineer/README.md). Worked out on the mass the stages push, so
     // that a stage burning over several steps, or a lander that lands, returns and
     // is carried on to the next body, counts with what it weighs at that moment.
     //

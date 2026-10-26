@@ -32,7 +32,7 @@ that Unity gets in place of its own.
   (`SwapChainProxy::CreateMeasuring`).
 
 See [The proxy's present path](../../../docs/development/flow-proxy-present.md) for one frame's
-route, and [Frame generation](../../../docs/development/frame-generation.md), "Pacing and V-Sync".
+route, and [Frame generation](../../../docs/development/flow-proxy-present.md), "Pacing and V-Sync".
 
 ## What it uses and what uses it
 

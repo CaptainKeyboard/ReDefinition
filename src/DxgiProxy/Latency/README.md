@@ -27,9 +27,9 @@ the latency brake. It also holds the measures that say where a frame's time goes
   load. It does so once a second on a thread of its own and hands them to the mod.
 - `CpuSampler` samples where the main thread spends its time in native code and writes a file.
 
-See [Low latency](../../../docs/development/low-latency.md),
+See [Low latency](../../../src/DxgiProxy/Latency/README.md),
 [The proxy's present path](../../../docs/development/flow-proxy-present.md) and
-[Measure where the frame's time goes](../../../docs/development/profiling.md).
+[Measure where the frame's time goes](../../../src/Probe/README.md).
 
 ## What it uses and what uses it
 

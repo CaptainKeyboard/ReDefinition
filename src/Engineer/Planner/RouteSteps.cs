@@ -150,7 +150,7 @@ namespace ReDefinition.Engineer
         public bool Waiting;
     }
 
-    // The steps of a route (docs/development/planner.md). Between two destinations
+    // The steps of a route (src/Engineer/README.md). Between two destinations
     // come the steps the way needs, each flown by the whole vessel, one of its
     // sections alone, or the vessel leaving a section behind. A section alone takes the
     // sections that are part of it along. Where the whole vessel flies the step after

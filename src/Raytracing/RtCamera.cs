@@ -35,7 +35,7 @@ namespace ReDefinition.Raytracing
         }
     }
 
-    // The raytracing of one camera (docs/development/raytracing.md, "How the frame
+    // The raytracing of one camera (docs/development/flow-raytracing.md, "How the frame
     // goes"). On the scene camera, OnPreCull hands over the scene's instances of this frame.
     // In the game (TraceBeforeLighting) the depth and G-buffer are copied in the camera's own
     // command stream before its lighting, and the raytracing starts on the proxy there.
@@ -1038,7 +1038,7 @@ namespace ReDefinition.Raytracing
         // Scatterer's godrays and caustics, EVE's cloud shadows and the vessel's
         // shadow for frame generation use them too. Two cascades in place of four took 1.4 ms of the
         // GPU's frame off at the pad, with the 3D scene unchanged against two shots
-        // without a change (docs/development/performance-findings.md). The distance and
+        // without a change (measured 2026-10-19). The distance and
         // the resolution stay Scatterer's.
         private const int RaytracedCascades = 2;
         // The count the cascades had before they were held at RaytracedCascades; -1 for none held. They are set back

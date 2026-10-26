@@ -98,7 +98,7 @@ How a value lasts is the mod's `saving`:
 | history reset | The signal that the upscaler has to forget its previous frames. A camera cut causes one, and so does a mod that asks for one. |
 | HUD-less copy | The frame without the interface, which frame generation needs so the interface is not warped into generated frames. |
 | hook | A place where a mod takes part in ReDefinition's rendering: motion vectors into the capture, drawing after upscaling, or an overlay. |
-| surface intent | How a surface is meant to shine for the rays, worked out from its material: for example dry, with KSP's legacy highlight, or water ([development/raytracing.md](development/raytracing.md)). |
+| surface intent | How a surface is meant to shine for the rays, worked out from its material: for example dry, with KSP's legacy highlight, or water ([development/flow-raytracing.md](development/flow-raytracing.md)). |
 | raytracing slot | What one raytracing job sends to the GPU, in the proxy: its command list, constants, descriptors and timestamps. The proxy reuses a slot once the GPU is done with it. |
 | the GPU profiler | ReDefinition's markers in Unity's render stream, with a D3D11 timestamp at each, which name the GPU's time by camera, pass and mod (`-redefinitionGpuProfile`). |
 | the perf monitor | ReDefinition's timing of the main thread's script methods (`-redefinitionPerfMonitor`). |

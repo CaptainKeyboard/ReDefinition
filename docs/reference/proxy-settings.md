@@ -22,7 +22,7 @@ saved. *start* means when KSP creates its swapchain, which is at the start of th
 | `measureOnly` | 0 | start | 1 substitutes nothing and times the Present, for a comparison with the proxy |
 | `frameGeneration` | 1 | start | 0: no frame generation. The proxy presents only. If NVIDIA's Streamline is there and the GPU runs DLSS Ray Reconstruction, it presents through Streamline |
 | `frameGenerationTechnique` | auto | start | which frame generation the swapchain is made for: `auto`, `dlss`, `xess` or `fsr`. `auto` takes DLSS where it runs, XeSS on an Intel GPU where its DLLs are there, and FSR otherwise. FSR takes over where the one asked for does not run |
-| `rrPath` | auto | start | how DLSS Ray Reconstruction runs. `streamline` runs it through Streamline's swapchain, `ngx` through NVIDIA's NGX directly, and `auto` takes Streamline's where its swapchain presents and NGX's otherwise. It needs `nvngx_dlssd.dll` next to the Streamline DLLs and an NVIDIA RTX GPU. The routes: [development/raytracing.md](../development/raytracing.md#denoising) |
+| `rrPath` | auto | start | how DLSS Ray Reconstruction runs. `streamline` runs it through Streamline's swapchain, `ngx` through NVIDIA's NGX directly, and `auto` takes Streamline's where its swapchain presents and NGX's otherwise. It needs `nvngx_dlssd.dll` next to the Streamline DLLs and an NVIDIA RTX GPU. The routes: [development/flow-raytracing.md](../development/flow-raytracing.md) |
 | `allowTearing` | 1 | start | 1 lets the swapchain tear as KSP asks, so that without V-Sync a frame is shown at once |
 | `reportSeconds` | 10 | live | how often frame times, the latency and the brake go into `ReDefinitionProxy.log` |
 
@@ -91,7 +91,7 @@ What each lowers, and where: [player/low-latency.md](../player/low-latency.md).
 ## Raytracing
 
 The raytracing's own pages: [player/raytracing.md](../player/raytracing.md) and
-[development/raytracing.md](../development/raytracing.md).
+[development/flow-raytracing.md](../development/flow-raytracing.md).
 
 | Setting | Default | Read | Does |
 |---|---|---|---|
@@ -115,7 +115,7 @@ The raytracing's own pages: [player/raytracing.md](../player/raytracing.md) and
 
 The keys for measuring the raytracing, `rtCutoutTest`, `rtSunUnfiltered`,
 `rtSunAtrousSteps`, `rtSunHistory` and `rtFoliageTransmission`, are in
-[development/raytracing.md](../development/raytracing.md#measuring-keys).
+[development/flow-raytracing.md](../development/flow-raytracing.md).
 
 ## DLL folders
 

@@ -29,7 +29,7 @@ render thread runs for the proxy, and Direct3D 12 compute passes for mods.
 The mod's side is `src/Proxy`. More:
 
 - [The four channels to native code](../../../docs/development/flow-native-channels.md)
-- [The shared foundation for mods](../../../docs/development/shared-foundation.md), "Stage 2:
+- [The shared foundation for mods](../../../docs/development/flow-mod-interface.md), "Stage 2:
   Direct3D 12"
 
 ## What it uses and what uses it

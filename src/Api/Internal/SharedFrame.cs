@@ -13,7 +13,7 @@ namespace ReDefinition.Api.Internal
     // generation run, the render and display size, the jitter, the history reset and
     // the floating origin's shifts, as properties and as shader globals. The hooks
     // other mods register live here too, and the rig calls them.
-    // docs/development/shared-foundation.md.
+    // docs/development/flow-mod-interface.md.
     internal static class SharedFrame
     {
         // The version of the interface other mods read (ApiInfo.Version), also the fourth value of _ReDefinition_Frame.

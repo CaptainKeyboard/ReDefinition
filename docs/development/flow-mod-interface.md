@@ -11,7 +11,7 @@ run compute passes on its Direct3D 12 device. They do it through `ReDefinition.A
 of six static classes in `src/Api/`. The facade keeps almost nothing itself. It forwards to
 `src/Api/Internal/` and to the rest of the mod. Read this page to see where an answer comes
 from. The author's side is in [modders/shared-foundation.md](../modders/shared-foundation.md),
-and the design in [shared-foundation.md](shared-foundation.md).
+and the design in [shared-foundation.md](flow-mod-interface.md).
 
 ## What the facade forwards to
 

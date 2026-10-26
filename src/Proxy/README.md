@@ -57,6 +57,6 @@ Vendor and Window use it. The proxy itself is native code in `src/DxgiProxy`.
 
 For what the native side does, see:
 
-- [Frame generation](../../docs/development/frame-generation.md)
-- [Low latency](../../docs/development/low-latency.md)
-- [Raytracing](../../docs/development/raytracing.md)
+- [Frame generation](../../docs/development/flow-proxy-present.md)
+- [Low latency](../../src/DxgiProxy/Latency/README.md)
+- [Raytracing](../../docs/development/flow-raytracing.md)
