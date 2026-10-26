@@ -127,13 +127,34 @@ If your button is made through ToolbarControl, write `toolbarControl = MyMod` in
 place of `button`.
 
 ReDefinition then hides your toolbar button while your settings are bundled, and puts
-an *Advanced* button for your window into the tab `tab` names. Your window gets a close
-button while its own button is hidden. With the bundling switched off, your button
-comes back and nothing is hidden.
+an *Advanced* button for your window into the tab `tab` names. If `tab` names `Effects`,
+`Planets` or `ShadowsAndReflections`, the button is in that group of the *Detail* tab.
+Your window gets a close button while its own button is hidden. With the bundling
+switched off, your button comes back and nothing is hidden.
 
 All of `window`, `tab` and one of the two button keys are needed. ReDefinition opens
 your window through your own toolbar button, so it shows the *Advanced* button only in
 the scenes where that button is on KSP's toolbar, and only in the tab `tab` names.
+
+## Open a dialog of your own from a row
+
+If your mod has something to show that a setting cannot hold, such as a list or a preview,
+a `DIALOG` block puts a row with a button into the window. The method you name fills the
+dialog:
+
+```
+DIALOG
+{
+    name = presets
+    title = Presets
+    content = MyMod.PresetDialog.Content
+    row = Effects
+}
+```
+
+`content` is a method without parameters that returns a `DialogGUIBase` or a sequence of
+them. A dialog holds no value, so profiles and *Reset* leave it alone. Its other keys
+are in [registration-reference.md](registration-reference.md#dialog).
 
 ## Ship different defaults for different builds
 
@@ -196,8 +217,8 @@ public static class SettingsBridge
 ```
 
 ReDefinition finds those members by name, so your mod still needs no reference to it.
-Only `Read` and `Write` are needed. `Save`, `Ready`, `Choices` and `Version` are
-optional, and the whole contract is in
+Only `Read` and `Write` are needed. `Save`, `Ready`, `Choices`, `Default` and `Version`
+are optional, and the whole contract is in
 [registration-reference.md](registration-reference.md). A working one is
 `SettingsBridge.cs` in [examples/ReDefinitionExample](examples/ReDefinitionExample).
 
@@ -214,8 +235,8 @@ A pack edits a registration with ModuleManager rather than shipping a second one
 
 `:HAS[~build[]]` picks the block that counts for every build, and
 `:HAS[#build[volumetric]]` the one for a named build. To replace a whole registration
-instead, ship a `MOD_SETTINGS` with the same `name` from your own folder. It takes precedence
-over ReDefinition's, and the log names the file that won.
+instead, ship a `MOD_SETTINGS` with the same `name` from your own folder. It takes
+precedence over ReDefinition's, and the log names the file that won.
 
 ## Find out why something is missing
 

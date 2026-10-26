@@ -32,7 +32,9 @@ jump, and keeps two settings of its own in ReDefinition's window.
 
 To try it, clone ReDefinition's repository, build its solution, and copy
 `ReDefinitionExample.dll` and `ExampleEffect.hlsl` from
-`build/examples/ReDefinitionExample` into `GameData/ReDefinitionExample`.
+`build/examples/ReDefinitionExample` into `GameData/ReDefinitionExample`. Copy
+`ReDefinitionExample.cfg` from `docs/modders/examples/ReDefinitionExample` there as well.
+It registers the two settings and the key binding.
 
 ## Read the frame's state
 
@@ -42,7 +44,7 @@ Read it from rendering code: camera callbacks, command buffers, `OnRenderImage`.
 | `Frame.` | Shader global | Holds |
 |---|---|---|
 | `UpscalerActive`, `FrameGenerationActive` | `_ReDefinition_Frame.x`, `.y` | whether the upscaler reconstructs this frame, and whether frame generation receives it |
-| `Technique` | | `"FSR 3"`, `"DLSS"` or `"AMD FSR (DLL)"` while the upscaler is active |
+| `Technique` | | `"FSR 3"`, `"DLSS"`, `"AMD FSR (DLL)"` or `"XeSS (DLL)"` while the upscaler is active, else null |
 | `HistoryReset`, `HistoryResetReason` | `_ReDefinition_Frame.z` | whether temporal history is to be dropped this frame, and why |
 | | `_ReDefinition_Frame.w` | the interface version |
 | `RenderSize`, `DisplaySize` | `_ReDefinition_RenderSize`, `_ReDefinition_DisplaySize` | width, height, 1/width and 1/height of the 3D cameras' target and of the image shown. Both are the screen without the upscaler |
@@ -142,7 +144,7 @@ called with, which tells you whether yours should have been called.
 Unity writes no motion vectors for geometry a vertex shader moves, or for content that
 writes no depth. Your handler is called as the scene camera culls, with the frame's
 state decided. It adds commands to that camera's capture, which runs at its
-`BeforeImageEffects`, after Unity's motion vectors are written:
+`BeforeImageEffects`, after Unity's motion vectors and EVE's clouds are written:
 
 ```csharp
 ReDefinitionApi.RegisterMotionVectors((buffer, motionVectors, depth, scene) =>
@@ -210,10 +212,11 @@ holds no scene depth. The camera exists only while a handler is registered.
 `medium`, `high`, `ultra` or `max`. It is null while none is chosen, which is when the
 upscaler and frame generation are off.
 
-`Profiles.RegisterChanged(Action<string>)` is called with the new name when it changes.
+`Profiles.RegisterChanged(Action<string>)` is called with the new name, or null, when it
+changes. `Profiles.UnregisterChanged` takes the handler off again.
 
-Through the wrapper these two are `ReDefinitionApi.Profile` and
-`RegisterProfileChanged`.
+Through the wrapper these are `ReDefinitionApi.Profile`, `RegisterProfileChanged` and
+`UnregisterProfileChanged`.
 
 To put your own settings into the window and into the profiles:
 [registering-a-mod.md](registering-a-mod.md).
@@ -235,8 +238,8 @@ example `mymod.window`. Through the wrapper the four are `ReDefinitionApi.Bindin
 `KeyPressed`, `KeyHeld` and `KeyReleased`.
 
 Another modifier held means another binding is meant, so `F10` does not answer while
-`Alt+F10` is pressed. While the player is setting a binding in the window, none of them
-answers.
+`Alt+F10` is pressed. While the player is setting a binding in the window, or typing in a
+text field, none of them answers.
 
 ## Run a compute pass on Direct3D 12
 
@@ -354,7 +357,7 @@ Direct3D 12 requires. `fxc` makes DXBC.
 | Rule | What it means |
 |---|---|
 | Building | Each `CreateComputePass` method returns a handle above 0, and the pipeline is built on the render thread. `ComputePassState(pass, out status)` answers 1 for built, 0 for not yet, and -1 for failed, with the reason |
-| Where to dispatch | `Dispatch` executes at once. A render event that reads a texture Unity drew this frame sees this frame's content when it is issued through `Graphics.ExecuteCommandBuffer` from `OnRenderImage`, and the previous frame's when issued from a camera's own command buffer |
+| Where to dispatch | `Dispatch` executes at once. Call it from `OnRenderImage`, or from a camera's own command buffer after the textures it reads are drawn: both see this frame's content. A texture with multisampling is resolved only at the camera's end, so read it after that |
 | `DispatchInto` | It records the dispatch into a buffer you execute yourself, once, in the frame you recorded it in. A later dispatch reuses the packet the recorded event points at |
 | Timing | With `nextFrame` false, the write textures hold the result when `Dispatch` returns, in Unity's command order: Direct3D 11 waits for the pass. With `nextFrame` true they get it at the pass's next dispatch, and the pass runs beside the rest of the frame |
 | Textures | Up to 8 read and 8 write, none in both and none written twice. Use created `RenderTexture`s without mipmaps, arrays or multisampling, in a colour format a texture can be shared and bound for unordered access in. Depth formats do not work. An sRGB texture arrives as its bytes, not converted. Write textures are copied in before the pass as well, so a pass may change part of one |

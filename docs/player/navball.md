@@ -15,14 +15,15 @@ the speed and heading, and the delta-v gauge.
 3. Let go where you want the navball.
 
 A click without dragging still shows and hides the navball. The navball stays between
-the flight mode buttons on the left and the crew portraits on the right. Where either
+the flight mode buttons on the left and the crew portraits on the right. When either
 grows, because you choose another mode or add a portrait slot, the navball moves aside,
-and back to where you put it once there is room. The same holds while the burn gauge of a
-maneuver shows beside the navball. The stage list does not push it aside: the navball is
-drawn over it. It keeps its place when you hide and show
-it, in the map view and in every other flight mode. The SAS modes stand on its left, as in
-KSP. Under them, *V* and *H* give the vessel's vertical and horizontal speed over the
-surface.
+and back to where you put it once there is room. [open] Whether a maneuver's burn gauge
+beside the navball makes it move aside as well; only the game can tell.
+
+The stage list does not push the navball aside: the navball is drawn over it. It keeps its
+place when you hide and show it, in the map view and in every other flight mode. The SAS
+modes stand on its left, as in KSP. Under them, *V* and *H* give the vessel's vertical and
+horizontal speed over the surface.
 
 ReDefinition keeps the place for the next flight and the next game start.
 
@@ -46,7 +47,7 @@ panel picks its profile. The gauge keeps your choice.
 | *BURN*, burning | delta-v left | 0 to the maneuver's delta-v as the burn started | amber in the last tenth | |
 | *IMPACT* | time until the vessel's path meets the ground | 0 to 10 min, logarithmic | the tick: the time left at the last moment to brake; red below it, amber a third above it | coming down |
 | *CLOSING* | how fast the vessel closes on its target, or on the target's port | 0 to 100 m/s, logarithmic | the tick: a safe speed for the distance, a hundredth of it per second, at least 0.2 m/s; amber to one and a half times it, red beyond | docking; on the way to a target without a maneuver |
-| *AOA* | angle of attack, either way | 0 to 40° | red past the angle where wings lift the most (30°), amber from four fifths of it | flying with wings |
+| *AOA* | angle of attack, either way | 0 to 40° | red past the angle where wings lift the most, read from KSP's lift curve and 30° where that fails, amber from four fifths of it | flying with wings |
 
 The gauge takes the place of KSP's vertical speed dial, so it needs the vertical speed
 under the navball's SAS modes: *Round gauge* under *Gameplay*, *Flight* is greyed out

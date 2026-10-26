@@ -3,13 +3,15 @@
 **For:** players choosing a profile.
 **You need:** ReDefinition installed, and the settings window open on its *Graphics*
 tab.
-**You get:** what each of the five tiers sets, for KSP and for every bundled mod.
+**You get:** what each of the five tiers sets, for KSP, for every bundled mod and for
+ReDefinition's own upscaler, frame generation and raytracing.
 
-Five profiles, Low, Medium, High, Ultra and Max, set the quality of KSP's own graphics
-and of every bundled mod together. Choosing one also makes ReDefinition active: the
-upscaler runs at *AA only*, and while it runs the other mods' antialiasing is switched
-off for it ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)).
-*Reset* chooses High.
+Five profiles, Low, Medium, High, Ultra and Max, set the quality of KSP's own graphics,
+of every bundled mod and of ReDefinition's own features together. Choosing one also
+makes ReDefinition active: the upscaler turns on, and while it runs the other mods'
+antialiasing is switched off for it
+([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)). *Reset* chooses
+High.
 
 ## What a profile sets
 
@@ -20,9 +22,10 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 * It starts from the defaults of the installed builds, and changes quality settings
   from there.
-* **High is those defaults.** Beyond what every
-  profile sets, it deviates only in KSP's own settings, listed below. With Volumetric
-  Clouds installed, its author's values are the defaults, so High follows them.
+* **High is those defaults.** For the mods it sets nothing beyond them. It deviates in
+  KSP's own settings, listed below, and sets ReDefinition's own settings like every
+  tier. With Volumetric Clouds installed, its author's values are the defaults, so High
+  follows them.
 * Below High, a profile lowers only settings that are documented to cost frame time.
   Above High, it raises the settings the mods' own higher presets raise.
 * A value is set the way a row set by hand is. Each mod saves it as its own window
@@ -34,9 +37,9 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
   occlusion. Low sets terrain detail *Low*, and *High* where Parallax is installed.
 * No profile changes the antialiasing settings of KSP or the mods. While the upscaler
   runs, ReDefinition switches that antialiasing off itself, because the upscaler does
-  the antialiasing. With the upscaler off, each keeps its own. With Volumetric Clouds
-  installed, every profile sets TUFX's *Blackrack_TUFX* profile in every scene, the one
-  Volumetric Clouds is made with.
+  the antialiasing. With the upscaler and frame generation off, each keeps its own.
+  With Volumetric Clouds installed, every profile sets TUFX's *Blackrack_TUFX* profile
+  in every scene, the one Volumetric Clouds is made with.
 * A setting another mod holds is left to that mod. Firefly holds KSP's aerodynamic FX,
   Deferred KSP's reflection refresh and resolution, and Kopernicus the terrain shader
   quality where its config enforces a level or warns about one.
@@ -54,16 +57,47 @@ reason, is in [reference/mod-defaults.md](../reference/mod-defaults.md).
 | Low | every visual mod on, at its lowest useful level |
 | Medium | clouds, ocean and scatter a step below the mods' defaults |
 | **High** | every mod as its authors ship it |
-| Ultra | Scatterer's High preset, finer clouds, tessellation and scatter, and DLSS's model L |
-| Max | Scatterer's Very High preset, the finest detail everywhere, and DLSS's model L |
-
-Low, Medium and High leave the DLSS model to NVIDIA's own choice for each mode.
+| Ultra | Scatterer's High preset, finer clouds, tessellation and scatter |
+| Max | Scatterer's Very High preset, the finest detail everywhere |
 
 **Which tier a graphics card holds is not said here, because it has not been measured.**
 Start with High, the mods' own defaults. If the frame rate does not hold, take the tier
-below it, or switch the upscaler from *AA only* to a smaller mode
+below it, or set the upscaler's *Mode* to a smaller render size
 ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)). A larger screen
 costs more: 4K has 2.25 times the pixels of 1440p, 1080p 0.56 times.
+
+## What each tier sets in ReDefinition
+
+"·" is the same as the column before. *Auto* stands for what fits your graphics card and
+your screen.
+
+| Setting | Low | Med | High | Ultra | Max |
+|---|---|---|---|---|---|
+| Upscaler | Auto | · | · | · | · |
+| Render height the mode aims for | 720 lines | 960 | 960 | 1200 | 1440 |
+| DLSS model | RTX 20 and 30: K, other cards: Default | · | · | RTX 20 and 30: K, other cards: L | · |
+| Frame generation | Off | Auto | · | · | · |
+| Frame generation multiplier | none | Dynamic on RTX 20, 30 and 50, 2x on other cards | · | · | · |
+| Low latency | Auto | · | · | · | · |
+| Raytracing | Off | Off | Shadows | Shadows and light | Full |
+| Ray Reconstruction | Auto | · | · | · | · |
+| Light bounces | 2 | · | · | · | · |
+
+* *Upscaler* set to *Auto* picks DLSS on an RTX GPU, FSR 4 on a Radeon RX 7000 or
+  RX 9000 and XeSS on an Intel GPU, each where its files are in place. Otherwise it picks
+  FSR 3.
+* *Mode* is *Auto*. It picks the mode whose render height on your screen is nearest the
+  tier's. On a screen 1440 lines high that is *2.0x* for Low, *1.5x* for Medium and High,
+  *1.2x* for Ultra and *AA only* for Max. DLSS has no *1.2x*, so it takes the nearest of
+  the others.
+* The window has no row for the DLSS model. Preset K is the transformer model before M
+  and L and costs the least. Preset L gives the sharpest image at the most GPU time.
+  *Default* is the model NVIDIA's DLSS library chooses for each mode.
+* *Dynamic* is DLSS frame generation's own multiplier choice
+  ([details](upscaler-and-frame-generation.md#choose-how-many-frames)).
+* *Ray Reconstruction* set to *Auto* runs with DLSS. On an RTX 40 or RTX 50 it runs with
+  every raytracing mode, on an RTX 20 or RTX 30 with *Full* only.
+* *Sharpness* and the hotkeys are your own choice, and no profile sets them.
 
 The tiers differ in the work the graphics card does: volumetric clouds, terrain detail,
 long-distance shadows, ground scatter and reflections. What the processor does, the

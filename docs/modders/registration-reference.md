@@ -40,8 +40,8 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 | `saving` | no | `InModFiles` with `save`, else `AtEveryStart` | `InModFiles`: your mod saves the value. `PerSave`: your mod keeps it per save, and ReDefinition sets its choice into every save as it loads. `AtEveryStart`: your mod keeps nothing, and ReDefinition sets the value at every start. |
 | `behaviour` | no | -- | Code that answers for settings a member path cannot reach: a type of your own with its namespace, or one of ReDefinition's own names. See [Behaviours](#behaviours). |
 | `window` | no | -- | `Namespace.Type.Method` that draws your IMGUI settings window. It gets a close button while your toolbar button is hidden. |
-| `button` | no | -- | The name of the assembly your toolbar button's click handler lives in. ReDefinition hides that button while your settings are bundled, and opens your window through it. Only together with `window`. |
-| `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window`. |
+| `button` | no | -- | The name of the assembly your toolbar button's click handler lives in. ReDefinition hides that button while your settings are bundled, and opens your window through it. Only together with `window` or a [`DIALOG`](#dialog). |
+| `toolbarControl` | no | -- | The namespace your button registers with in ToolbarControl, where you make it that way. Like `button`, only together with `window` or a `DIALOG`. |
 | `tab` | no | no *Advanced* button | Where your *Advanced* button goes. Where your settings go is each setting's own `row`: `Gameplay`, `Audio`, `Display`, `General` (the upscaling section of *Display*), `Detail`, `Keys` (titled *Controls*), `Axes` or `Devices`; `ShadowsAndReflections`, `Planets` and `Effects` are groups of *Detail*. `Keys` is taken too but draws no *Advanced* row, and any other name is reported and ignored. A tab without rows gets no *Advanced* row either. |
 | `direct` | no | `False` | `True`: while the player has the bundling off, your rows are set straight into your mod, as your own window sets them, instead of being locked. KSP's registration says so, since ReDefinition's window can stand in for KSP's own screen. |
 
@@ -49,13 +49,13 @@ mod's `#LOC_...`. The window shows them in the player's language, through KSP's
 
 | Key | Needed | Left out | What it does |
 |---|---|---|---|
-| `name` | yes | -- | The second part of the setting's key. Never change it once released. |
+| `name` | yes | -- | The second part of the setting's key: letters, digits, `_` and `.`. Never change it once released. |
 | `member` | yes, unless `leftOut` or a `behaviour` answers for it | -- | Where the value lives: a [member path](#member-paths). |
 | `default` | recommended, and needed for a setting with no `member` that your own behaviour answers for | the reset and the profiles leave the setting as it is; a setting your own behaviour answers for gets no row, and the log says so | The value your release ships, as a config file writes it: `True`, `0.5`, `High`. *Reset* sets it, and the profiles start from it. |
 | `title` | no | `name` | The row's name. |
 | `tooltip` | no | -- | What the setting does. `\n` starts a new line. |
 | `kind` | no | `Other` | `Quality`: it costs frame time, and the profiles set it. `Taste`: how the game looks, which no profile touches. `Other`: interface, debugging, compatibility. |
-| `row` | no | not shown | The tab its row is in: `Gameplay`, `Audio`, `Display`, `General` (the upscaling section of *Display*), `Detail`, `Keys` (titled *Controls*), `Axes` or `Devices`; `ShadowsAndReflections`, `Planets` and `Effects` are groups of *Detail*. |
+| `row` | no | not shown | The tab its row is in: `Gameplay`, `Audio`, `Display`, `General` (the upscaling section of *Display*), `Detail` (its *Quality* group), `Keys` (titled *Controls*), `Axes` or `Devices`; `ShadowsAndReflections` (*Shadows / Reflections*), `Planets` and `Effects` are groups of *Detail*. |
 | `section` | no | -- | A heading the row stands under within its tab. A heading is drawn before the first row of each run of rows with the same `section`. |
 | `order` | no | after the numbered rows | A number placing the row among its tab's rows, those of other mods included. Rows of the same order stand by their mods' titles, and within one mod in the order its registration lists them. |
 | `takesEffect` | no | `NextScene` | `Live`, `NextScene` or `Restart`. The window tells the player. |
@@ -115,6 +115,27 @@ Which default to give a binding: [registering-a-mod.md](registering-a-mod.md).
 No graphics profile sets a binding. *Reset* puts it back to `default`, and
 *Restore settings from before ReDefinition* to what your mod had.
 
+## DIALOG
+
+A row with a button that opens a dialog of your mod's, in ReDefinition's window. Your
+method fills the dialog, and ReDefinition draws the frame around it. A dialog holds no
+value, so no profile, *Reset*, store or restore touches it.
+
+| Key | Needed | Left out | What it does |
+|---|---|---|---|
+| `name` | yes | -- | As a setting's: the second part of the row's key. A setting of your mod with the same name leaves the dialog out. |
+| `content` | yes | -- | A [member path](#member-paths) to a method without parameters that returns a `DialogGUIBase` or a sequence of them. |
+| `row` | yes | -- | The tab its row is in, as for a setting. Only the row opens the dialog, so without it the dialog is left out. |
+| `title` | no | `name` | The row's name. |
+| `heading` | no | `title` | The heading of the dialog. |
+| `button` | no | `Open ...` | The label of the row's button. |
+| `tooltip` | no | -- | What the dialog is for. `\n` starts a new line. |
+| `width` | no | `360` | The dialog's width, a number from 200 to 1200. Any other value is reported and `360` is taken. |
+| `order`, `section`, `optional`, `rowUnless` | no | -- | As for a setting. |
+
+If your mod has a `DIALOG` and no `window`, `button` or `toolbarControl` still hides
+your toolbar button, because the dialog takes the place of what the button opened.
+
 ## Member paths
 
 A member path is written as in C#, from the full name of a type:
@@ -131,8 +152,8 @@ A member path is written as in C#, from the full name of a type:
 The type is the longest leading part of the path that names a loaded type. Names are
 looked up only in assemblies from your mod's folder, the folder under `GameData` that
 `detect` was loaded from. A `detect` type outside such a folder reaches its own
-assembly only. The same holds for `window`, `needs`, a `BUILD`'s `has` and a
-`behaviour` of your own. Public and non-public members both work.
+assembly only. The same holds for `window`, `needs`, a `BUILD`'s `has`, a `DIALOG`'s
+`content` and a `behaviour` of your own. Public and non-public members both work.
 
 ## BUILD and DEFAULTS
 
@@ -290,10 +311,10 @@ Every setting without a `member` goes through it, by its `name`. A setting with 
 keep.
 
 **One of ReDefinition's own names**, without a dot: `Tufx`, `Scatterer`, `Eve`, `Ksp`,
-`DistantObject`, `Firefly`, `ParallaxScatter`. These are the behaviours ReDefinition
-brings for the mods it ships registrations for. A name ReDefinition does not have leaves
-the mod out as a whole where the mod names it, and leaves out that setting alone where a
-setting names it.
+`DistantObject`, `Firefly`, `ParallaxKeywords`, `ParallaxScatter`. These are the
+behaviours ReDefinition brings for the mods it ships registrations for. A name ReDefinition
+does not have leaves the mod out as a whole where the mod names it, and leaves out that
+setting alone where a setting names it.
 
 ## What is reported
 
@@ -311,6 +332,9 @@ Your mod is left out as a whole where one of these is missing: a `required` sett
 member, one of `needs`, the `save` method, the `ready` member, `detect` while your mod's
 assembly is loaded, or the type or name the mod's own `behaviour` gives. A registration
 without `name` or `detect` is skipped.
+
+ReDefinition leaves a dialog out where it has no `name`, `content` or usable `row`, or
+where its `content` method is not there or returns something else.
 
 A key given twice counts with its last value, and that is reported: it is usually a
 patch that meant to change the first.

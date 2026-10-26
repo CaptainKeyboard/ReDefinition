@@ -59,8 +59,8 @@ All of this is **[src]**, from ReDefinition's own code:
 | **KSPCommunityFixes** | MIT; the KSPModdingLibs | Many patches, none temporal. | None. | The section in KSP's settings dialog follows its pattern. |
 
 Kerbals and flags are skinned renderers. ReDefinition makes them draw their own motion
-vectors while the upscaler or frame generation runs. The diagnostics window's switch *Skinned
-motion vectors* is on by default.
+vectors while the upscaler or frame generation runs. The diagnostics window's *Skinned motion
+vectors* is *Forced* by default.
 
 ### Read from source, not installed
 

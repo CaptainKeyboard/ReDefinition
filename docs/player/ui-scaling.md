@@ -48,7 +48,7 @@ that nothing grows twice. The rest of the mod works as before:
 |---|---|
 | 4kSP or 4kSP Expanded | the map's icons and labels, and its toolbar button for them |
 | 4kSP Expanded's R&D part | the tech tree, its larger parts list and its toolbar window |
-| 4kSP Expanded's window part | other mods' windows |
+| 4kSP Expanded's window part | other mods' windows, while *Other mods' windows* is on |
 | Maneuver Node Evolved | the maneuver gizmo's size and its own size settings; *Force Maneuver Node Open*, snapping and input stay |
 
 Mods that size their own windows keep their size and their own setting for it: MechJeb,

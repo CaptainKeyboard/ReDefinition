@@ -59,15 +59,15 @@ What the keys say about your mod:
 * `detect` names a type that exists only with your mod. If it is not loaded, your
   file does nothing.
 * `member` is where your value lives, written as in C#.
-* `row` puts it in the *Effects* tab. A setting without `row` is kept and reset, but has
-  no row in the window.
+* `row` puts it in the *Effects* group of the *Detail* tab. A setting without `row` is
+  kept and reset, but has no row in the window.
 * `default` is the value your release ships. *Reset* sets it, and the
   profiles start from it.
 
 ## 3. See it in the game
 
-Start KSP, open ReDefinition from the toolbar, and go to the *Effects* tab. Your row
-is there, with your mod's name beside it.
+Start KSP, open ReDefinition from the toolbar, and go to the *Detail* tab under
+*Graphics*. Open the *Effects* group. Your row is there, with your mod's name beside it.
 
 Change it and press *Accept*. ReDefinition writes the value into your field.
 
@@ -132,8 +132,8 @@ If you need more, *Find out why something is missing* in
 
 ## Where to go from here
 
-* Key bindings, your own window, per-save values, builds that differ, requirements:
-  [registering-a-mod.md](registering-a-mod.md).
+* Key bindings, your own window and dialogs, per-save values, builds that differ,
+  requirements: [registering-a-mod.md](registering-a-mod.md).
 * Every key of the format: [registration-reference.md](registration-reference.md).
 * A registration to copy:
   [examples/registration-template.cfg](examples/registration-template.cfg). A real one,

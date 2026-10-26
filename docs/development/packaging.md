@@ -24,7 +24,8 @@ Named here is what bears on a package's layout, not every file they hold:
 
 **The KSP-AVC version file [src]**, from TUFX's and KSPCommunityFixes' own, is JSON with
 `NAME`, `VERSION`, `KSP_VERSION`, `KSP_VERSION_MIN` and `KSP_VERSION_MAX`. A mod with a
-public home adds three more keys:
+public home adds more keys. Both files carry `URL` and `DOWNLOAD`, and TUFX's also carries
+`CHANGE_LOG_URL`:
 
 | Key | What it holds |
 |---|---|
@@ -53,7 +54,7 @@ project's version. It copies that file, the DLL, `ReDefinition.xml` and the iCUE
 `ksp-dashboard.icuewidget` into the game. It copies the repository's static `GameData`
 files too: the profiles, the registrations, the patches, the icons and the dashboard's pages.
 
-The version file carries the three keys above. `URL` is the copy on the repository's
+The version file carries all three keys above. `URL` is the copy on the repository's
 `main` branch, `DOWNLOAD` is the latest GitHub release, and `CHANGE_LOG_URL` is
 `CHANGELOG.md` on `main`.
 
@@ -86,7 +87,7 @@ GameData/ReDefinition/
     Shaders/redefinition.shaders
     Profiles/ReDefinition-Profiles.cfg
     Mods/*.cfg                the registrations of the bundled mods
-    Patches/*.cfg             ModuleManager patches: grip for landing legs, room for Parallax's grass
+    Patches/*.cfg             ModuleManager patches: landing leg grip, Parallax grass room
     Icons/*.png               the toolbar button, the HUD's and the planner's pictures
     Dashboard/                the dashboard's pages
     ksp-dashboard.icuewidget  the same pages as an iCUE widget
@@ -100,7 +101,7 @@ GameData/ReDefinition/
                               dashboard's QR code follows
     SOURCE.md                 where the source is
     CREDITS.md                docs/credits-and-licences.md
-    README.md
+    README.md                 the folder's own note, GameData/ReDefinition/README.md
     ReDefinitionProxy.ini     template for the proxy's settings, see below
 dxgi.dll                      the proxy
 dxgi_LICENSE-NVIDIA.txt       the MIT notices of NVIDIA's Streamline and NVAPI
@@ -141,8 +142,9 @@ and one left from an earlier build is removed:
 * one of AMD's runtimes is missing, or does not match its pinned SHA-256 in
   `third_party/amd`, which `python tools/fetch_amd_runtime.py` fetches;
 * the shader bundle is missing;
-* any shader source, include or editor script under `unity/Assets/ReDefinition` is newer
-  than the bundle. The Unity project builds the bundle directly into the game's
+* any shader source under `unity/Assets/ReDefinition/Shaders`, include under
+  `unity/Assets/ReDefinition/Include` or editor script under `unity/Assets/ReDefinition/Editor`
+  is newer than the bundle. The Unity project builds the bundle directly into the game's
   `GameData` (`unity/Assets/ReDefinition/Editor/BundleBuilder.cs`), and the package takes
   it from there;
 * git is not on the path, so the source that goes with the package cannot be made;
@@ -155,63 +157,68 @@ and one left from an earlier build is removed:
 * A `ReDefinitionProxy.ini` in the game folder. One there holds the player's settings,
   which an update must not overwrite, and CKAN would refuse to install over it. The proxy
   writes the file itself, as the [settings file](#the-proxys-settings-file) describes. The
-  copy in `GameData/ReDefinition` is the same template, for reading.
+  copy in `GameData/ReDefinition` is the same template, for reading. The same goes for
+  `ReDefinitionProxy.defaults`, which the proxy keeps beside the ini.
 * **NVIDIA's DLLs.** These are `nvngx_dlss.dll` for DLSS, and `sl.interposer.dll`,
   `sl.common.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll` and `nvngx_dlssg.dll`
   for DLSS frame generation, and `sl.dlss_d.dll` and `nvngx_dlssd.dll` for DLSS Ray
-  Reconstruction. The player downloads them from NVIDIA's release of the
-  Streamline SDK 2.14.16 on GitHub, with *NVIDIA DLSS files* in the settings window, after
-  accepting NVIDIA's licences there (`src/Vendor/NvidiaFiles.cs` and
+  Reconstruction. The player downloads them from NVIDIA's release of the Streamline SDK
+  2.14.16 on GitHub. The settings window offers them in its *NVIDIA's DLSS files* dialog,
+  where the player accepts NVIDIA's licences (`src/Vendor/NvidiaFiles.cs` and
   `src/Vendor/NvidiaDownloader.cs`). Every file's SHA-256 is pinned.
 * **AMD's upscaler DLL**, `amd_fidelityfx_upscaler_dx12.dll`. The player brings their own
   copy.
 * **Intel's DLLs**, `libxess.dll` for XeSS, and `libxess_fg.dll` and `libxell.dll` for
   XeSS frame generation. The player downloads them from Intel's release of the XeSS SDK
-  3.0.2 on GitHub, with *Intel XeSS files* in the settings window, after accepting Intel's
-  licence there (`src/Vendor/IntelFiles.cs` and `src/Vendor/IntelDownloader.cs`). Every
-  file's SHA-256 is pinned. `NvidiaFiles` does the checking and placing. Only the MIT
-  headers of the SDK are compiled into the proxy.
-* **dlssg_for_sm86**, which runs DLSS frame generation on RTX 30 and RTX 20. The player
-  downloads its release zip, and the settings window installs it from there.
+  3.0.2 on GitHub. The settings window offers them in its *Intel's XeSS files* dialog, where
+  the player accepts Intel's licence (`src/Vendor/IntelFiles.cs` and
+  `src/Vendor/IntelDownloader.cs`). Every file's SHA-256 is pinned. `NvidiaFiles` does the
+  checking and placing. Only the MIT headers of the SDK are compiled into the proxy.
+* **dlssg_for_sm86**, which runs DLSS frame generation on RTX 30 and RTX 20. ReDefinition
+  neither ships nor downloads it. The player gets the release zip from the project's page and
+  puts it into the game folder, and the settings window installs the files from the zip
+  (`src/Vendor/AmperePackage.cs`).
 
-## The files for the game folder
+## Licences and hosts behind the game-folder files
 
-* **AMD's licence [src]**, from `Kits/FidelityFX/docs/license.md` of the release, verbatim
-  in `licenses/AMD-FidelityFX-SDK-license.md`. It allows redistribution "in binary form
-  only", reproducing AMD's copyright notice, the permission notice and the disclaimers, and
-  forbids reverse engineering, decompilation and disassembly. The package puts the licence
-  next to the DLL. * **AMD's runtime [src]** comes from FSR SDK v2.3.0 of 2026-06-24. Its
-  frame generation header says 4.0.1, the version the proxy is built against. The package
-  takes the release's `signedbin` DLL, SHA-256 `02297bee...`. Only this one AMD DLL is
-  needed for FSR frame generation: the proxy harness passes with nothing else beside it. The
-  raytracing's AMD FSR Ray Regeneration is the same release's signed
+* **AMD's licence [src]** is the release's `Kits/FidelityFX/docs/license.md`, verbatim in
+  `licenses/AMD-FidelityFX-SDK-license.md`. It allows redistribution "in binary form only",
+  reproducing AMD's copyright notice, the permission notice and the disclaimers. It forbids
+  reverse engineering, decompilation and disassembly. The package puts the licence next to
+  each DLL.
+* **AMD's runtimes [src]** come from FSR SDK v2.3.0 of 2026-06-24. Its frame generation
+  header says 4.0.1, the version the proxy is built against. The package takes the release's
+  `signedbin` DLL, SHA-256 `02297bee...`. Only this one AMD DLL is needed for FSR frame
+  generation: the proxy harness passes with nothing else beside it [open: not run again for
+  this page]. The raytracing's AMD FSR Ray Regeneration is the same release's signed
   `amd_fidelityfx_denoiser_dx12.dll`, file version 1.2.0.2740, built against its 1.2.0
-  header. The pins, the source and the signatures are in `third_party/amd/README.md`. *
-  **The headers' notices [src]:** `licenses/NVIDIA-MIT.txt` holds, verbatim, the MIT notices
+  header. The pins, the source and the signatures are in `third_party/amd/README.md`.
+* **The headers' notices [src]:** `licenses/NVIDIA-MIT.txt` holds, verbatim, the MIT notices
   of the Streamline 2.14.16 headers in `src/DxgiProxy/extern/Streamline/include`, the
   signature check in `sl_security.h` among them. It also holds the notice of the NVAPI
   headers whose function ids and structures `src/DxgiProxy/Upscalers/NvidiaGpu.cpp`
-  declares. `licenses/AMD-FidelityFX-API-MIT.txt` holds the MIT notice of AMD's FidelityFX
-  API headers in `src/DxgiProxy/extern/FidelityFX`, the loader `ffx_api_loader.h` among
-  them. `licenses/AMD-AntiLag2-MIT.txt` holds that of AMD's Anti-Lag 2 headers in
-  `src/DxgiProxy/extern/AntiLag2`, and `licenses/Intel-XeSS-MIT.txt` that of Intel's headers
-  in `src/DxgiProxy/extern/XeSS`. `licenses/AMD-Capsaicin-MIT.txt` holds that of the code
-  adapted in `src/DxgiProxy/Raytracing/Shaders/RadianceCache.hlsli`. The package puts them
-  all next to `dxgi.dll`. * **CKAN [src]:** its spec allows `install_to: GameRoot` for KSP
-  1, which it says "should be used sparingly, if at all". Advanced Fly-By-Wire's NetKAN
-  installs `SDL2.dll` and `XInputInterface.dll` with their licences there. CKAN never
-  overwrites a file it did not install (`Core/IO/ModuleInstaller.cs`: "We don't allow for
-  the overwriting of files."). A player who already has another tool's `dxgi.dll` has to
-  move it away first, ReShade's for instance. The same holds for an AMD runtime from
-  OptiScaler next to `KSP_x64.exe`. That is also why the ini is not installed there.
-  `license` takes a list, and for mixed assets the spec asks for the most restrictive of the
-  licences the package carries. AMD's allows redistribution in binary form only, which is
-  CKAN's `unrestricted`. * **CurseForge [src]:** its app is dropping KSP. Its App Release
-  Notes 1.277 say "CurseForge App support for KSP is going to be deprecated. Existing KSP
-  mods will remain accessible on the website." Players download the zip there and extract it
-  by hand, which the layout above is made for. Its moderation policy asks for a licence or
-  permission, with credit, for third-party content. AMD's licence and notices, and NVIDIA's
-  notices, are in the zip.
+  declares.
+* **The other notices [src]:** `licenses/AMD-FidelityFX-API-MIT.txt` holds the MIT notice of
+  AMD's FidelityFX API headers in `src/DxgiProxy/extern/FidelityFX`, the loader
+  `ffx_api_loader.h` among them. `licenses/AMD-AntiLag2-MIT.txt` holds that of AMD's Anti-Lag 2
+  headers in `src/DxgiProxy/extern/AntiLag2`, and `licenses/Intel-XeSS-MIT.txt` that of
+  Intel's headers in `src/DxgiProxy/extern/XeSS`. `licenses/AMD-Capsaicin-MIT.txt` holds that
+  of the code adapted in `src/DxgiProxy/Raytracing/Shaders/RadianceCache.hlsli`. The package
+  puts all of them next to `dxgi.dll`.
+* **CKAN [src]:** its spec allows `install_to: GameRoot` for KSP 1, which it says "should be
+  used sparingly, if at all". Advanced Fly-By-Wire's NetKAN installs `SDL2.dll` and
+  `XInputInterface.dll` with their licences there. CKAN never overwrites a file it did not
+  install (`Core/IO/ModuleInstaller.cs`: "We don't allow for the overwriting of files.").
+  A player who already has another tool's `dxgi.dll` has to move it away first, ReShade's for
+  instance. The same holds for an AMD runtime from OptiScaler next to `KSP_x64.exe`. That is
+  also why the ini is not installed there. `license` takes a list, and for mixed assets the
+  spec asks for the most restrictive of the licences the package carries. AMD's allows
+  redistribution in binary form only, which is CKAN's `unrestricted`.
+* **CurseForge [src]:** its app is dropping KSP. Its App Release Notes 1.277 say "CurseForge
+  App support for KSP is going to be deprecated. Existing KSP mods will remain accessible on
+  the website." Players download the zip there and extract it by hand, which the layout above
+  is made for. Its moderation policy asks for a licence or permission, with credit, for
+  third-party content. AMD's licence and notices, and NVIDIA's notices, are in the zip.
 
 Sources: https://github.com/KSP-CKAN/CKAN/blob/master/Spec.md,
 https://github.com/KSP-CKAN/NetKAN/blob/master/NetKAN/AdvancedFlyByWire.netkan,

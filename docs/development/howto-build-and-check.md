@@ -1,11 +1,12 @@
 # Build and check everything
 
 **For:** a developer who is about to commit a change to ReDefinition.
-**You need:** the repository, the .NET SDK, KSP 1.12.5 with HarmonyKSP, Visual Studio Build
+**You need:** the repository, the .NET SDK 10, KSP 1.12.5 with HarmonyKSP, Visual Studio Build
 Tools with CMake, Python 3, and a GPU for the harnesses.
 **You get:** every command to run before a commit, in order, and what each one needs.
 
-Run every command from the repository root. Skip a step only when your change cannot reach it.
+Run every command from the repository root. Skip a step only when your change cannot reach
+it.
 Each step links to the section of [Building and testing](building-and-testing.md) that
 explains it: what the step needs, what it puts where, and what its options do. KSP must not
 run while you build the proxy, because the game holds `dxgi.dll`.
@@ -13,14 +14,15 @@ run while you build the proxy, because the game holds `dxgi.dll`.
 ## The list, in order
 
 1. Build the mod. It also deploys into the game, and it writes `build/ReDefinition.dll`,
-   which the check scripts in step 8 load ([Build the mod](building-and-testing.md#build-the-mod)).
+   which the check scripts in step 8 load
+   ([Build the mod](building-and-testing.md#build-the-mod)).
 
    ```
    dotnet build ReDefinition.sln
    ```
 
-2. Build the proxy. It makes `dxgi.dll` and both harnesses
-   ([Build the proxy](building-and-testing.md#build-the-proxy)).
+2. Build the proxy. It makes `dxgi.dll` and both harnesses, and it copies `dxgi.dll` into the
+   game folder ([Build the proxy](building-and-testing.md#build-the-proxy)).
 
    ```
    cmake -S src/DxgiProxy -B build/DxgiProxy -G "Visual Studio 17 2022" -A x64
@@ -42,8 +44,8 @@ run while you build the proxy, because the game holds `dxgi.dll`.
    dotnet test tests/ReDefinition.Tests
    ```
 
-   `DeveloperDocumentationTests.EveryCommentNamesOnlyWhatExists` runs the DocLock check
-   from step 7 as part of this.
+   The tests run the DocLock check from step 7 as well
+   ([the test that does it](building-and-testing.md#run-the-unit-tests)).
 
 5. Run the proxy harness. It prints a `PASS` line for each part that ran, or a `FAIL` line.
    Its variables are in [Run the proxy harness](building-and-testing.md#run-the-proxy-harness).
@@ -59,9 +61,9 @@ run while you build the proxy, because the game holds `dxgi.dll`.
    build\DxgiProxy\Release\RaytracingHarness.exe
    ```
 
-7. Check the comments with DocLock. `check` fails on a broken reference or a new lint finding. `lint` counts the
-   findings. [Writing code comments](writing-code-comments.md) says what to do with a
-   finding.
+7. Check the comments with DocLock. `check` fails on a broken reference or a new lint
+   finding. `lint` counts the findings. [Writing code comments](writing-code-comments.md)
+   says what to do with a finding.
 
    ```
    dotnet run --project tools/DocLock -c Release -- check
@@ -101,15 +103,6 @@ run while you build the proxy, because the game holds `dxgi.dll`.
   ([Run the raytracing test player](building-and-testing.md#run-the-raytracing-test-player)).
 * A release: [Build the release package](building-and-testing.md#build-the-release-package),
   on a committed tree. [Packaging](packaging.md) says what goes in.
-
-## The raytracing test player
-
-The player is a Unity project in `tests/RaytracingPlayer`. `tools/build_rt_player.py` copies
-the raytracing sources from `src` into `Assets/Linked`, and they compile against the stubs in
-`tests/RaytracingPlayer/Assets/Runner`: `GameStubs.cs`, `UpscalerRigStub.cs` and
-`DeferredStub.cs`. Building it needs Unity 2019.4.18f1 and a built proxy. The unit tests do not
-build it. `RaytracingPlayerStubTests.TheStubHasTheRigsMaximumSharpness` only holds one stub
-value to the rig's.
 
 ## What can go wrong
 

@@ -32,9 +32,10 @@ run together.
 
 ## See what runs
 
-The *Low latency* row under *Display* in the settings window says what lowers the
-latency, for example *NVIDIA Reflex, low latency mode; latency brake on*. The row is
-there once the proxy runs.
+The *Low latency* row under *Display* in the settings window, in the *Frame generation*
+group, has two buttons, *Auto* and *Off*. *Auto* names what lowers the latency, for example
+*Auto (Reflex)*, *Auto (Anti-Lag 2)* or *Auto (XeLL)*. *Off* switches Reflex, XeLL and the
+brake off, and Anti-Lag 2 as well. The row works once the proxy runs.
 
 The diagnostics window's strip names Reflex, Anti-Lag 2 or XeLL beside the upscaler and
 the frame generation. It also shows the measured latency, its median and its 90th

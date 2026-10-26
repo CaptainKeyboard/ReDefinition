@@ -75,17 +75,17 @@ the flight, and in the main menu, the space centre and the editors.
 |---|---|
 | *Gameplay* | KSP's gameplay settings in groups: *General*, *Flight*, *Part highlighting*, *Camera*, *Navball*, *EVA*, *Map view*, *System* -- confirmations, debris, physics and logging -- and *Making History* where it is installed. The mods' settings that change how you play, not how it looks: Distant Object's flares and their names and Persistent Rotation under *Flight*, and there ReDefinition's own switches for the HUD, the staging and the world buttons ([below](#switch-redefinitions-flight-features)); Parallax's scatter collisions and Scatterer's waves that move vessels under *Physics* |
 | *Audio* | KSP's volumes and its sound normalizer; EVE's cloud ambience and thunder volumes |
-| *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale; Upscaler, Technique, Mode, DLSS model, Sharpness, Frame generation; the raytracing rows ([raytracing.md](raytracing.md)); *Low latency*, *NVIDIA DLSS files* and *DLSS-G on RTX 30/20* where the GPU can use them, and *Intel XeSS files* where the proxy runs XeSS ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)); ambient light boosts |
 | *Graphics* | a status line, and one button per graphics profile with a sentence about it; its tooltip says what it sets |
-| *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*, with *Grass on the lawns* under *Space centre*; *Effects* -- the graphics mods' features and KSP's own |
+| *Graphics*, *Display* | KSP's screen resolution, full screen, V-Sync, frame limit and UI scale. Under *Upscaling*: *Upscaler*, *Mode*, *Sharpness* and *One antialiasing per camera*. Under *Frame generation*: *Frame generation*, *Multiplier*, *Low latency*, and *DLSS-G preset* once the RTX 30 package is in place ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md)). Under *Raytracing*: the raytracing rows ([raytracing.md](raytracing.md)). Then the ambient light boosts |
+| *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*, with the lawns of the space centre under *Space centre*; *Effects* -- the graphics mods' features and KSP's own, with Firefly's under *Re-entry*; *Raytracing* -- the light of the moons and the sun, and the night light |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
-| *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device |
+| *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device; under *Dashboard*, whether phones and tablets may open the dashboard, and *Connect*, which shows the QR code |
 | *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, under *Scaling* whether other mods' windows follow the UI scale ([ui-scaling.md](ui-scaling.md)), and under *Main menu* the fireworks and the flight to the space centre ([below](#the-main-menu-and-the-space-centre)) |
 
-*Detail* is indented under *Graphics*, and *Axes* and *Devices* under *Controls*. They
-are shown only while their parent or one of its tabs is open. A line sets *Mods / Toolbar* and
-*Diagnostics* apart.
+*Display* and *Detail* are indented under *Graphics*, and *Axes* and *Devices* under
+*Controls*. They are shown only while their parent or one of its tabs is open. A line
+sets *Mods / Toolbar* and *Diagnostics* apart.
 
 The search field above the tabs searches every setting by its name and its mod. Each
 word is looked for on its own, in any order: *wobble camera* finds *Camera wobble
@@ -99,6 +99,7 @@ row's name marks a value other than the chosen profile's; its tooltip then ends 
 
 In *Gameplay*, *Detail*, *Axes* and *Devices* the rows are in groups that open and fold,
 as the sections of *Controls* do. The first group of each tab is open at first.
+*Display* shows its groups under headings and does not fold them.
 
 The status line on *Graphics* names the chosen profile, shows *Custom* where rows were
 changed since, and says what still waits for *Accept*.
@@ -149,9 +150,14 @@ Under *Mods / Toolbar*, *Main menu*:
 | *Fireworks* | small fireworks on Kerbin's night side behind the main menu |
 | *Zoom to the space centre* | from the main menu to the space centre as one camera flight: in to Kerbin, then down to the space centre, with the sun where your save has it. A click or a key on the way down ends it at KSP's own view |
 
-Under *Graphics*, *Detail*, *Planets*, *Space centre*, *Grass on the lawns* grows
-Parallax's grass on the space centre's lawns as well, where Parallax grows it under
-them. The row needs Parallax.
+Under *Graphics*, *Detail*, *Planets*, *Space centre*, two rows need Parallax. *Grass on
+the lawns* grows Parallax's grass on the space centre's lawns as well, where Parallax
+grows it under them. *Lawns like the terrain* draws the lawns with Parallax's terrain
+textures and colours, so that they look like the terrain beside them.
+
+Under *Graphics*, *Detail*, *Effects*, *Re-entry*, *Skip unseen re-entry effects* leaves
+out Firefly's effects while they are too weak to be seen, which saves GPU time. The row
+needs Firefly.
 
 ## Replace KSP's settings screen
 
@@ -286,16 +292,17 @@ KSP's own *Reset* sets them, its keys and axes included, with these exceptions:
 The question *Reset* asks names each of KSP's settings it sets to something other than
 what KSP ships.
 
-ReDefinition's own settings go back to their defaults, with frame generation off. A few
-stay as they are, since they are your hardware's or your choice rather than a quality:
-the upscaling technique, the raytracing mode, its light bounces and Ray Reconstruction,
-*Replace original settings*, the window's pause button, the navball's place, the
-diagnostics window's pins, and whether the upscaler is on once a profile is chosen.
+ReDefinition's own settings go back to their defaults. A few stay as they are, since
+they are your choice rather than a quality: *Replace original settings*, the window's
+pause button, the navball's place, the diagnostics window's pins, page and place, and the
+dashboard's key.
 
-After a reset, High is chosen: the upscaler runs at *AA only*, frame generation is
-off, and KSP's settings are as above, except where High and the installed mods ask for
-more: full textures, the highest terrain detail and shaders, and reflections at Low.
-Every default and its source:
+After a reset, High is chosen. The upscaler turns on, with *Auto* for the technique and
+the mode. Frame generation is *Auto*, low latency *Auto* and raytracing *Shadows*
+([graphics-profiles.md](graphics-profiles.md#what-each-tier-sets-in-redefinition)).
+KSP's settings are as above, except where High and the installed mods ask for more: full
+textures, the highest terrain detail and shaders, and reflections at Low. Every default
+and its source:
 [reference/mod-defaults.md](../reference/mod-defaults.md).
 
 ## Put the mods back as they were
@@ -312,9 +319,10 @@ When you choose another profile, a setting the previous profile set and the new 
 does not goes back to its value from before ReDefinition, unless you changed it since.
 
 *Bundle other mods here*, under *Mods / Toolbar*, switched off gives the mods back
-their toolbar buttons, lets each mod's own window decide again, and clears the profile.
-What was saved in the mods stays. What only ReDefinition kept is dropped: the choices
-for every save, and Deferred's and Waterfall's settings.
+their toolbar buttons and lets each mod's own window decide again. The profile stays
+chosen, and with it the upscaler and frame generation. What was saved in the mods stays.
+What only ReDefinition kept is dropped: the choices for every save, and Deferred's and
+Waterfall's settings.
 
 ### Which mods keep their toolbar button
 
@@ -350,11 +358,18 @@ with the source of each:
 
 ## KSP's own graphics settings
 
-The rows are: render quality, texture quality, V-Sync, frame limit, shadow cascades,
-terrain detail, and aerodynamic FX while Firefly is not installed. The profiles also
-set KSP's antialiasing off, and its pixel light count, terrain shader quality and
-reflections. *Reset* sets those and its terrain scatter, planet shadows,
-scatter density and surface FX.
+The rows are in two places:
+
+* *Display* holds the screen resolution, full screen, V-Sync, frame limit and UI scale.
+* *Detail* holds render quality, texture quality, pixel light count, anti-aliasing,
+  shadow cascades, planet shadows, reflection refresh and resolution, terrain detail,
+  terrain shader quality, terrain scatter and its density, surface FX, and aerodynamic
+  FX while Firefly is not installed.
+
+The profiles set render quality, texture quality, pixel light count, shadow cascades,
+terrain detail, terrain shader quality, aerodynamic FX and the two reflection settings.
+They set no antialiasing: while the upscaler runs, ReDefinition holds KSP's MSAA off
+itself. *Reset* sets every one of them to its default.
 
 Some of them another mod holds for itself:
 
@@ -367,10 +382,12 @@ Some of them another mod holds for itself:
 
 ## The section in KSP's settings dialog
 
-It holds Upscaler, Technique, Mode with all six modes and their scale factors, DLSS
-model, Sharpness and Frame generation. What the dialog shows is a copy, set on *Apply*
-or *Accept*, as KSP's own graphics settings are. The dialog and the settings window use
-the same settings file. The main menu's settings screen has no ReDefinition section.
+It holds *Upscaler*, *Mode* with *Auto*, all six modes and their scale factors, *Sharpness*,
+*One antialiasing per camera*, *Frame generation*, *Multiplier*, *Low latency*,
+*Raytracing* and *Ray Reconstruction*, and the raytracing's single settings. What the
+dialog shows is a copy, set on *Apply* or *Accept*, as KSP's own graphics settings are.
+The dialog and the settings window use the same settings file. The main menu's settings
+screen has no ReDefinition section.
 
 ## The diagnostics window
 

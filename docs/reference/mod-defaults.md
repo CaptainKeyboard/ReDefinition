@@ -234,6 +234,8 @@ ReDefinition drops the row and names it in the log.
 | `m_fourierGridSize` | quality | 128 | **256** |
 | `oceanMeshResolution` | quality | 6 | 6 |
 | `useLowResolutionAtmosphere` | other | False | False |
+| `guiKey1` | other | LeftAlt+F10 | LeftAlt+F10 |
+| `guiKey2` | other | RightAlt+F11 | RightAlt+F11 |
 
 The SMAA and TAA rows are Scatterer's antialiasing. No profile sets them: while the
 upscaler runs, ReDefinition switches their components off at run time, whatever the
@@ -301,9 +303,7 @@ file says.
 | `ambientTint` | taste | 0.7 |
 | `useDitheredTransparency` | taste | False |
 | `useSmaaInEditors` | other | True |
-| `guiModifierKey1` | other | LeftControl |
-| `guiModifierKey2` | other | LeftAlt |
-| `guiKey` | other | D |
+| `guiKey` | other | LeftControl+LeftAlt+D |
 | `capReflectionProbeRefreshRate` | other | True |
 | `capReflectionProbeResolution` | other | True |
 

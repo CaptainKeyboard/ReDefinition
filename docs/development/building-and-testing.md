@@ -7,9 +7,12 @@ the tool each section names.
 
 ## Build the mod
 
-You need the .NET SDK 8. You do not need the .NET Framework developer pack: the reference
-assemblies come as a NuGet package. The repository brings its own `NuGet.config`, because
-the global one has no package sources on some machines.
+You need the .NET SDK 10, because `tools/DocLock` targets `net10.0` and the unit tests run
+it. The mod and the tests target .NET Framework 4.8, and the repository pins no SDK version
+(there is no `global.json`). Only SDK 10.0 has been tried [open]. You do not need the .NET
+Framework developer pack: the reference assemblies come as a NuGet package. The repository
+brings its own `NuGet.config`, because the global one has no package sources on some
+machines.
 
 KSP 1.12.5 and HarmonyKSP have to be installed. The build references the game's
 assemblies and Harmony, and stops with a message where either is missing.
@@ -36,12 +39,13 @@ What the build ships is removed from the game first (`Profiles/ReDefinition-*.cf
 `Mods/*.cfg` and `Patches/*.cfg`), so a file dropped from the repository leaves the game
 too. `PluginData` is never touched.
 
-The solution builds the example mod as well
-(`docs/modders/examples/ReDefinitionExample`), into `build/examples/ReDefinitionExample`
+The solution builds the unit tests and the example mod as well. The example mod is
+`docs/modders/examples/ReDefinitionExample`. It goes into `build/examples/ReDefinitionExample`
 and never into the game.
 
 `-p:DeployToGameData=false` builds without deploying. In Rider, open `ReDefinition.sln`
-and choose the .NET SDK's MSBuild, not *Auto*, which may pick Build Tools without the SDK.
+and choose the .NET SDK's MSBuild, not *Auto*, which may pick Build Tools without the SDK
+[open: only Rider shows it].
 
 ## Run the unit tests
 
@@ -49,7 +53,10 @@ and choose the .NET SDK's MSBuild, not *Auto*, which may pick Build Tools withou
 dotnet test tests/ReDefinition.Tests
 ```
 
-These run on .NET Framework 4.8 without the game running. They cover, among other things:
+These run on .NET Framework 4.8 without the game running. Building them builds the mod and
+deploys it as any build does. `DeveloperDocumentationTests.EveryCommentNamesOnlyWhatExists`
+runs `dotnet run --project tools/DocLock -c Release -- check` and fails with DocLock's list
+of elements to fix. They cover, among other things:
 
 * the store, `bundled.cfg` and the settings window's edit model;
 * ReDefinition's modules and the registrations;
@@ -71,13 +78,9 @@ run in Windows PowerShell 5.1 and in PowerShell 7, and take the game's path from
 `KspRoot` as the build does. They load `build/ReDefinition.dll`, so build the mod first.
 `check_docs.ps1` reads only the pages and needs neither.
 
-```
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_bundled_mods.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_profile_parser.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_key_bindings.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_foreign_code.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\checks\check_docs.ps1
-```
+The commands, in the order to run them, are in step 8 and step 10 of
+[Build and check everything](howto-build-and-check.md#the-list-in-order). The scripts are in
+`tools/checks`.
 
 `check_docs.ps1` checks the pages under `docs/` rather than the game. With `-Strict` the
 style findings fail the run as well. [writing-these-pages.md](writing-these-pages.md)
@@ -220,11 +223,12 @@ red block over a white ground under a light with soft shadows:
   them.
 
 In all three the pass must find more than 90% of the ground in the block's shadow. It must
-take less than 2% more from lit ground. Where the shadow stands on the screen, the mean
-weight must keep it in place (above 0.8). After the composition, the shadowed ground must
-reach 93 to 107% of its brightness in the same frame rendered without the block's shadow.
-The lit ground stays unchanged. Where only the camera moves, the weight must leave the
-shadow to the motion vectors (below 0.2).
+take no more than 2% of the shadow's size from lit ground. In the first and the third case
+the shadow stands on the screen, and the mean weight must keep it in place (above 0.8).
+After the composition, the shadowed ground must reach 93 to 107% of its brightness in the
+same frame rendered without the block's shadow. The lit ground changes by no more than 0.01
+on average. In the second case only the camera moves, and the weight must leave the shadow
+to the motion vectors (below 0.2).
 
 One case checks the far ground (`SceneMotion`). It has a camera 150 km from the origin with
 KSP's near and far plane, a sphere 150 km ahead, and a move of 10 m sideways and 6 m up.
@@ -249,7 +253,7 @@ You need MSVC with the C++ workload and a Windows 10 SDK. The CMake that comes w
 Studio Build Tools is enough. If it is not on the path, it is here:
 
 ```
-...\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe
+C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe
 ```
 
 ```
@@ -258,7 +262,8 @@ cmake --build build/DxgiProxy --config Release
 ```
 
 It makes `dxgi.dll`, `ProxyHarness.exe` and `RaytracingHarness.exe` in
-`build/DxgiProxy/Release`. The build copies `dxgi.dll` next to `KSP_x64.exe`. Use
+`build/DxgiProxy/Release`. The harness sources are in `tests/DxgiProxy`. The build copies
+`dxgi.dll` next to `KSP_x64.exe`. Use
 `-DKSP_DIR=...` for another game folder. Do not build while KSP runs, because it holds the
 file. `ReDefinitionProxy.ini` is copied only where none is there yet. The proxy writes and
 completes the file itself from the template built into it
@@ -291,7 +296,7 @@ to it. Environment variables add what the player brings:
 | `REDEFINITION_AMD_UPSCALER_DIR` | `amd_fidelityfx_upscaler_dx12.dll` | AMD's upscaler |
 | `REDEFINITION_XESS_DIR` | `libxess.dll` | the XeSS upscaler |
 
-The XeSS folders can be the ones *Intel XeSS files* fills: `xessDirectory` and
+The XeSS folders can be the ones the dialog *Intel's XeSS files* fills: `xessDirectory` and
 `xessFgDirectory` of an install's ini, or its game folder. `REDEFINITION_XESS_DIR` and
 `REDEFINITION_XESS_FG_DIR` can also name a copy from the same release. The benchmark
 runner's `--xess-dll-dir` and `--xess-fg-dll-dir` take them too
@@ -311,8 +316,7 @@ These variables change a run without naming a folder:
 | `REDEFINITION_LATENCY_TEST` | `1` | compares what lowers the latency most on this GPU: nothing, the brake, and AMD Anti-Lag 2 on either device, measured alike under a Direct3D 11 compute load that holds the frames back ([the latency README](../../src/DxgiProxy/Latency/README.md)) |
 | `REDEFINITION_HARNESS_BRAKE_ONLY` | anything but `0` | runs only the latency brake's controller, which needs no GPU, for a machine whose GPU is busy |
 | `REDEFINITION_HARNESS_FG_OFF_FIRST` | anything but `0` | starts the frames with frame generation off and switches it on after them, as a game does that starts with the switch off |
-| `REDEFINITION_HARNESS_REPLAY` | a folder of dumped frames | plays it through frame generation in place of the normal run ([below](#replay-the-games-frames-through-frame-generation)); `tools
-eplay_fg.ps1` sets it |
+| `REDEFINITION_HARNESS_REPLAY` | a folder of dumped frames | plays it through frame generation in place of the normal run ([below](#replay-the-games-frames-through-frame-generation)); `tools\replay_fg.ps1` sets it |
 | `REDEFINITION_ADAPTER_VENDOR` | a PCI vendor id in hex: `1002` AMD, `10DE` NVIDIA, `8086` Intel | runs on the adapter of that vendor rather than the default one |
 | `REDEFINITION_HARNESS_CHECKER` | anything but `0` | AMD's upscaler gets a frame time in seconds rather than milliseconds, so that its debug checker (`vendorDiagnostics=1`) reports it into the log |
 
@@ -370,6 +374,13 @@ proxy; `--unity` and `--ksp` name other places, `--no-build` runs the last build
 `--only ocean` or `--only glow` runs one check alone, in the run with Deferred's lighting.
 The script prints each run's `PASS` and `FAIL` lines and exits 0 when all of them passed.
 The images of each run are in `build\RaytracingPlayer\<run>`.
+
+The game's code does not run in the player. The script copies the raytracing sources from
+`src` into `tests/RaytracingPlayer/Assets/Linked`, and they compile against the stubs in
+`tests/RaytracingPlayer/Assets/Runner`: `GameStubs.cs`, `UpscalerRigStub.cs` and
+`DeferredStub.cs`. The unit tests do not build the player.
+`RaytracingPlayerStubTests.TheStubHasTheRigsMaximumSharpness` only holds one stub value to
+the rig's.
 
 With `REDEFINITION_D3D12_DEBUG=1` set, the proxy turns on Direct3D 12's debug layer in
 either harness and the test player, and writes its messages into its log.

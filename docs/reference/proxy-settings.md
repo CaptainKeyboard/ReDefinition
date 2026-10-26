@@ -50,7 +50,7 @@ saved. *start* means when KSP creates its swapchain, which is at the start of th
 | `dlssgUiThreshold` | 2 | live | the greatest difference, in levels of 255, that still counts as no UI |
 | `fgObjectSeparationMetres` | 0 | live | the smallest depth difference, in metres, at which DLSS frame generation tells two surfaces apart. 0 keeps Streamline's default |
 
-ReDefinition's *Frame generation* row sets the multiplier at every start. `dlssgMode` and
+ReDefinition's *Multiplier* row sets the multiplier at every start. `dlssgMode` and
 `dlssgFrames` apply where the mod asks for nothing.
 
 ## XeSS frame generation
@@ -60,7 +60,7 @@ or newer.
 
 | Setting | Default | Read | Does |
 |---|---|---|---|
-| `xessFgFrames` | 1 | start | the most generated frames per rendered frame. More than 1 only on an Intel GPU, as many as it supports. The *Frame generation* row chooses fewer while the game runs |
+| `xessFgFrames` | 1 | start | the most generated frames per rendered frame. More than 1 only on an Intel GPU, as many as it supports. The *Multiplier* row chooses fewer while the game runs |
 | `xessFgUiComposition` | 0 | live | 0 interpolates the UI with the scene, as Intel recommends. 1 lays the UI onto the generated frames from the HUD-less copy and the back buffer instead |
 | `xessFgUiMode` | auto | start | the UI mode that composition takes: `auto`, `none`, `backbuffer_uitexture`, `hudless_uitexture`, `backbuffer_hudless` or `backbuffer_hudless_uitexture`. The proxy hands over no UI texture, only the HUD-less copy |
 | `xessFgSceneChangeThreshold` | 0.7 | live | 0 to 1. How readily it takes a frame for a scene change and interpolates none there |
@@ -129,5 +129,6 @@ Each setting names a folder. Empty means next to `KSP_x64.exe`.
 | `streamlineDirectory` | start | `sl.interposer.dll` with its `sl.*.dll` plugins, `nvngx_dlssg.dll` and `nvngx_dlssd.dll`. Only Streamline 2.14.16, signed by NVIDIA, is loaded |
 | `xessFgDirectory` | start | `libxess_fg.dll` and `libxell.dll` |
 
-The downloads *NVIDIA DLSS files* and *Intel XeSS files* in the settings window place their
-files in these folders, and next to `KSP_x64.exe` where a setting is empty.
+The dialogs *NVIDIA's DLSS files* and *Intel's XeSS files* open when you choose a technique
+whose files are missing. They place the files in these folders, and next to `KSP_x64.exe`
+where a setting is empty.

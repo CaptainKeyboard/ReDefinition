@@ -24,6 +24,7 @@ path reaches needs a behaviour, for the whole mod or for that setting alone.
 | Firefly | `SettingsManager.SaveModSettings` | in its file | `InModFiles` |
 | TUFX | the main menu's profile in its `defaultConfiguration`, `SaveConfigs`; every other scene's in `TUFXGameSettings` of the loaded save | per save, but the main menu's profile, which counts for the game as a whole. ReDefinition keeps the per-save choice and sets it into every save as it loads | `PerSave` |
 | Distant Object | `Settings.Save` | per save, as TUFX | `PerSave` |
+| Persistent Rotation | `Interface.SaveGUI` for its window; `Data.Save` at every game save for the default reference body | in its file, `PluginData/Config.cfg`; the reference body per save, by the mod | `InModFiles` |
 | Deferred, Waterfall | no save routine of their own | ReDefinition keeps the value and sets it at every start | `AtEveryStart` |
 
 Values are saved once after a batch of changes, not one by one.

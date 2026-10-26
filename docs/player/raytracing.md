@@ -13,14 +13,13 @@ own.
 
 ## The settings
 
-The rows are under *Display* in the settings window, below the upscaler's.
+*Raytracing* and *Ray Reconstruction* are under *Display* in the settings window, below the
+upscaler's. The other rows are under *Detail*, in the *Raytracing* group.
 
 | Setting | Does |
 |---|---|
 | Raytracing | *Off*; *Shadows*: the sun's shadows from rays, as far as the scene reaches; *Shadows and light*: also the light bouncing off surfaces and the sky, which darkens corners and colours what stands beside something bright; *Full*: also reflections |
-| Light bounces | how often the traced light bounces between surfaces, from 1 to 4. More bounces light shadowed sides and rooms more fully, at more GPU time. Only with *Shadows and light* or *Full* |
-| Ray Reconstruction | on at first. With DLSS as the upscaler, NVIDIA's DLSS Ray Reconstruction removes the noise of the traced light and upscales in one step ([below](#with-dlss)). Off, ReDefinition's own denoiser and DLSS Super Resolution do it. Only with DLSS and raytracing on |
-| Ray Reconstruction from | the least raytracing mode that uses it: *Shadows*, *Light* or *Full*. *Shadows* is the factory value, Ray Reconstruction in every mode. Below the chosen mode ReDefinition's own denoiser and DLSS Super Resolution do the work. On an RTX A4500 at DLSS *Quality* Ray Reconstruction takes 8.7 to 9.0 ms of the GPU in every mode; with *Full* in this setting the frames a second were 58.5 against 42.0 in *Shadows* and 48.9 against 38.5 in *Light*, with a different look |
+| Ray Reconstruction | *Auto* at first, or *Off* or *On*. With DLSS as the upscaler, NVIDIA's DLSS Ray Reconstruction removes the noise of the traced light and upscales in one step ([below](#with-dlss)). *Auto* turns it on with an RTX 40 or 50 in every mode, and with an RTX 20 or 30 in *Full* only. *On* runs it in every mode. Otherwise ReDefinition's own denoiser and DLSS Super Resolution do the work. Only with DLSS and raytracing on |
 | Moonlight | how brightly the moons light the scene, from 0 to 300 %, in a cool colour, as the eye sees moonlight at night. Their light falls only where the moon is in the sky, with shadows. Only with *Shadows and light* or *Full* |
 | Moon reflection | how strongly water mirrors the moons, from 0 to 500 %. 100 % is the moon as bright in the water as the eye sees it at night. It lights nothing. Only with *Full* |
 | Moon glow | the moons' discs a little brighter in the night sky, with a soft glow round them, the more the darker the sky. It lights nothing, and works without raytracing too |
@@ -28,8 +27,10 @@ The rows are under *Display* in the settings window, below the upscaler's.
 | Night light | how much of KSP's own night light stays, from 0 to 100 %: the least light anything gets where neither the sun nor a moon reaches it. Lower makes the night darker, and the moonlight's shadows show more clearly. Only with *Shadows and light* or *Full* |
 | Light colour | the colour of the light from the sky and the surroundings; its strength is the rays' either way. *Raytraced*: the sky's own, blue by day, orange at dusk. *As without raytracing*: the colour of the ambient light the game has without it. *Neutral*, the default: grey, so that grass and ground in shadow keep their own colour. Only with *Shadows and light* or *Full*, and only with Deferred, in whose lighting the colour is set |
 
-A profile never switches raytracing on: it needs a GPU with raytracing, and it costs what
-you decide to spend.
+The profiles set the mode: Low and Medium leave raytracing *Off*, High sets *Shadows*, Ultra
+*Shadows and light* and Max *Full*. They set two light bounces, which no row changes. More
+bounces light shadowed sides more fully, at more GPU time. On a GPU without raytracing,
+nothing runs, whatever the profile says.
 
 ## What changes on screen
 
@@ -78,11 +79,13 @@ generation it runs through NVIDIA's NGX directly. `rrPath` in `ReDefinitionProxy
 next to `KSP_x64.exe` chooses the way
 ([reference/proxy-settings.md](../reference/proxy-settings.md#loading-and-the-techniques)).
 
-*Ray Reconstruction from* sets the lowest raytracing mode that uses it.
+On an RTX A4500 at DLSS *Quality*, Ray Reconstruction takes about 9 ms of the GPU in every
+mode. ReDefinition's own denoiser and DLSS Super Resolution take 2.2 ms with *Shadows*,
+4.2 ms with *Shadows and light* and 5.2 ms with *Full*.
 
-The download beside *NVIDIA DLSS files* brings its files
-([installing.md](installing.md)). Without them, ReDefinition's own denoiser removes the
-noise, and DLSS upscales as usual.
+Choosing DLSS in the *Upscaler* row offers to download its files
+([installing.md](installing.md#get-the-files-for-dlss-xess-and-amds-upscaler)). Without
+them, ReDefinition's own denoiser removes the noise, and DLSS upscales as usual.
 
 ## With a Radeon RX 9000
 
@@ -110,7 +113,7 @@ RTX A4500 at the Medium profile with raytracing on *Full* and FSR 3, from the be
 |---|---|---|
 | `rtOpacityMicromaps=1` | lets the GPU decide most hits on grass and ferns without testing their textures. In hardware on RTX 40 and newer; an RTX 30 emulates it | 4 to 10 % fewer frames a second on the RTX A4500, an Ampere GPU that emulates them: 40.5 against 45.0 in the standing comparison, 43.1 and 42.3 against 44.8 in a run of its own. Taking every cut-out test away gives 7.6 % more frames a second there, 48.2 against 44.8, which is the most micromaps could save. The gain on an RTX 40 is open |
 | `rtRadianceCache=1` | keeps the indirect light in a grid over the world, so that fewer rays are traced a frame. The light follows a change some frames late | 45.4 against 45.0 frames a second, 1 % more |
-| `rtMegaGeometry=1` | builds new meshes' structures from RTX Mega Geometry's clusters of up to 256 triangles. Works on every RTX GPU | not in the benchmark. In the raytracing harness the trace took 2.54 ms against 1.24 ms with 15 003 instances, and a vessel's meshes took no less to build |
+| `rtMegaGeometry=1` | builds new meshes' structures from RTX Mega Geometry's clusters of up to 256 triangles. Works on every RTX GPU | 36.9 against 46.0 frames a second, 20 % fewer: the build is cheaper, and the rays take longer through the clusters |
 
 `rtBlasBatch`, `rtBlasPool`, `rtBlasBudget` and `rtBlasCompaction` set how the meshes of
 a vessel are built when they appear. With the defaults, the frame that builds the meshes

@@ -92,4 +92,4 @@ Each of these has a switch under *Gameplay*, *Flight* in the settings window
   orbit; the window is when the phase angle reaches it. Where the target goes round
   another body than the vessel, such as a planet from Kerbin's orbit, both are taken
   round the Sun.
-* The closest approach looks one turn of the orbit ahead, ten days at most.
+* The closest approach looks one turn of the orbit ahead, ten of KSP's six-hour days at most.

@@ -47,7 +47,10 @@ every value. R8 passes every value while XeLL's low latency mode is off.
 * A per-save value is corrected in the loaded save only, unless a choice for every save
   is kept.
 * Requirements are enforced while *Bundle other mods here* is on. With it off, the mods
-  hold their settings themselves again.
+  hold their settings themselves again. R6 to R8 are the exception.
+* R6 to R8 hold only while the technique runs. Then Unity's V-Sync count is held at the
+  allowed value and KSP's V-Sync setting stays as you set it, with the bundling on or off.
+  When the technique stops, the count goes back to your setting. The tooltip says so.
 * *Restore settings from before ReDefinition* puts back what was there before, even
   where a requirement forbids it. The next scene load applies the requirement again
   while the bundling is on.

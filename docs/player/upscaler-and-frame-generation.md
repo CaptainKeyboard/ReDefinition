@@ -21,11 +21,17 @@ from it. The interface is drawn on top at full resolution and stays sharp.
 
 | Setting | Does |
 |---|---|
-| Upscaler | on or off |
-| Technique | *FSR 3*, *DLSS*, *AMD FSR (DLL)* or *XeSS (DLL)*. If the chosen one cannot run, FSR 3 runs in its place, and the diagnostics window says why |
-| Mode | *AA only*, at the right end, renders at full resolution and uses the upscaler as temporal antialiasing. This is what the profiles choose. Further left, the scene renders smaller by the factor shown and is reconstructed. DLSS renders at the size it asks for in each mode, and *1.2x*, which DLSS does not have, runs as DLSS's *Quality* |
-| DLSS model | DLSS only, in every mode. *Default* is the model NVIDIA's DLSS library chooses for each mode. *Preset K* is the transformer model before M and L. *Preset M* is close to L in quality and close to K in speed. *Preset L* gives the sharpest, most stable image with the least ghosting, at the most GPU time. Low, Medium and High take *Default*, Ultra and Max *Preset L* |
-| Sharpness | how hard the image is sharpened after the upscaler, for every technique, from 0 to 1.2. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
+| *Upscaler* | *Off*, *Auto*, *FSR 3*, *DLSS*, *FSR 4* or *XeSS*. *Auto* picks the technique that fits your GPU, where its files are in place. A technique your GPU cannot run is greyed out, and its tooltip says why. If the chosen one cannot run, FSR 3 runs in its place, and the diagnostics window says why |
+| *Mode* | *Auto*, which picks the mode nearest the render height the chosen profile aims for ([graphics-profiles.md](graphics-profiles.md#what-each-tier-sets-in-redefinition)). *AA only*, at the right end, renders at full resolution and uses the upscaler as temporal antialiasing. Further left, the scene renders smaller by the factor shown and is reconstructed. DLSS renders at the size it asks for in each mode, and *1.2x*, which DLSS does not have, runs as DLSS's *Quality* |
+| *Sharpness* | how hard the image is sharpened after the upscaler, for every technique, from 0 to 1.2. 0 switches it off. Above 1.0 goes past what the sharpening was made for, and AMD's DLL stops at 1.0 |
+| *One antialiasing per camera* | with the upscaler and frame generation off, where Scatterer's TAA smooths a camera, TUFX's antialiasing is not run on it as well |
+
+The window has no row for the DLSS model. The profile chooses it by your GPU
+([graphics-profiles.md](graphics-profiles.md#what-each-tier-sets-in-redefinition)).
+*Default* is the model NVIDIA's DLSS library chooses for each mode. *Preset K* is the
+transformer model before M and L. *Preset M* is close to L in quality and close to K in
+speed. *Preset L* gives the sharpest, most stable image with the least ghosting, at the
+most GPU time.
 
 The six modes, and how much smaller the scene renders in each:
 
@@ -48,12 +54,18 @@ of the diagnostics window.
 |---|---|---|
 | FSR 3 | every GPU | nothing: it is part of ReDefinition |
 | DLSS | NVIDIA RTX 20 and newer | the proxy, and `nvngx_dlss.dll` |
-| AMD FSR (DLL) | GPUs with Direct3D 12. FSR 4 on a Radeon RX 7000 or RX 9000 where the DLL has it, otherwise the FSR 3.1 in the DLL | the proxy, and `amd_fidelityfx_upscaler_dx12.dll` from a game that ships it |
-| XeSS (DLL) | Intel Arc, and any other GPU with Shader Model 6.4 and DP4a | the proxy, and `libxess.dll` from Intel's XeSS SDK, which *Intel XeSS files* downloads |
+| FSR 4, AMD's DLL | Radeon RX 7000 and RX 9000. FSR 4 where the DLL has it, otherwise the FSR 3.1 in the DLL | the proxy, and `amd_fidelityfx_upscaler_dx12.dll` from a game that ships it |
+| XeSS | Intel Arc, and any other GPU with Shader Model 6.4 and DP4a | the proxy, and `libxess.dll` from Intel's XeSS SDK, which the download in [installing.md](installing.md#get-the-files-for-dlss-xess-and-amds-upscaler) fetches |
 
 DLSS, AMD's DLL and XeSS run inside the proxy.
 
-Once the technique runs, the *Technique* row names what runs. For AMD's DLL that is the
+If a technique's files are missing, choosing it opens what fetches them. For DLSS and
+XeSS a dialog names the files, their size and the licence, and *Accept and download*
+fetches them. For AMD's DLL a dialog says where to get the file and where it goes. The
+technique is chosen once the files are in place. A grey line under the *Upscaler* row
+shows how a download goes.
+
+Once the technique runs, the *Upscaler* row names what runs. For AMD's DLL that is the
 FSR it runs, such as *FSR 4.1.1*. On a GPU without FSR 4, the DLL runs the FSR 3.1 it
 carries instead. The row says *FSR 3.1.5 fallback*, and the log gives the reason. For
 XeSS the row names its version, such as *XeSS 2.0.2*.
@@ -67,7 +79,8 @@ technique again.
 
 While the upscaler runs, ReDefinition switches off what KSP and other mods bring for
 antialiasing. A second temporal filter in front of the upscaler would average the image
-twice:
+twice. The same holds with the upscaler *Off* and frame generation on: the upscaler then
+runs at full resolution, as *AA only*, and is the one antialiasing.
 
 * KSP's own MSAA;
 * Scatterer's TAA and SMAA;
@@ -75,8 +88,8 @@ twice:
 * Deferred's SMAA in the editors;
 * Kerbal Frame Generator's frame blend, where it is installed.
 
-With the upscaler off, frame generation alone included, each gets back what it had,
-unless it was changed since. Their own settings stay as they are.
+With the upscaler and frame generation both off, each gets back what it had, unless it
+was changed since. Their own settings stay as they are.
 
 While the upscaler runs, ReDefinition also keeps EVE's clouds, kerbals and flags from
 smearing, draws TUFX's bloom, colour grading, depth of field, motion blur and grain
@@ -117,22 +130,28 @@ Without that file there is no frame generation.
 | XeSS | Intel Arc and Core Ultra, and any other GPU with Shader Model 6.4 | `libxess_fg.dll` and `libxell.dll` from Intel's XeSS SDK 2.1 or newer, next to `KSP_x64.exe` | one generated frame, 2x. On an Intel GPU `xessFgFrames` allows more |
 | FSR 3 | GPUs with Direct3D 12 | `amd_fidelityfx_framegeneration_dx12.dll`, which comes with ReDefinition | one between every two rendered frames, 2x |
 
-Which one runs is the proxy's `frameGenerationTechnique` setting, read when KSP starts.
-*auto*, the default, takes DLSS where it runs, XeSS on an Intel GPU where its DLLs are
-there, and FSR 3 otherwise. *dlss*, *xess* and *fsr* ask for that one, and FSR 3 takes
-over where the one asked for does not run. The log says why.
+Which one runs is the *Frame generation* row under *Display*: *Off*, *Auto*, *DLSS*,
+*FSR 3* or *XeSS*. It writes the proxy's `frameGenerationTechnique` setting, which the
+proxy reads when KSP starts. *Off* and the technique that runs now take effect at once.
+Another technique takes effect at the next start, and the window offers to restart.
 
-With the upscaler off, frame generation runs on its own. The scene is still captured at
-full resolution for it, without the upscaler's antialiasing.
+*Auto* takes DLSS where it runs, XeSS on an Intel GPU where its DLLs are there, and FSR 3
+otherwise. FSR 3 also takes over where the technique asked for does not run. The log
+says why. A technique whose files are missing offers to fetch them when you choose it,
+as the upscalers do.
+
+With the upscaler *Off*, frame generation still has the scene captured at full
+resolution. The upscaler runs there as *AA only*
+([above](#what-redefinition-changes-for-it)).
 
 Frame generation pays where the rendered frame rate is low: large vessels, many parts,
 re-entry. Input responds at the rendered frame rate.
 
 ### Choose how many frames
 
-The *Frame generation* row under *Display* is *Off*, *2x* to *6x*, or *Dynamic*. A
-multiplier is the number of frames shown for each rendered frame. A change applies at
-once.
+The *Multiplier* row under *Display* is *Dynamic*, or *2x* to *6x*. A multiplier is the
+number of frames shown for each rendered frame. A change applies at once. The row is
+greyed out while frame generation is off.
 
 * *Dynamic* is for DLSS. It lets DLSS frame generation choose the multiplier that
   brings the output to the display's refresh rate. It needs an NVIDIA driver 595.41 or
@@ -146,11 +165,12 @@ once.
   supports. DLSS generates what the GPU, the driver and, on RTX 30 and RTX 20, the package's
   multiplier allow. Raising the package's multiplier needs a restart of KSP.
 
-A grey note under the row names what generates, such as *Running: DLSS 3x*, and says
-which steps are not offered and why.
+A step the technique does not allow has grey text, and its tooltip says why. The
+*Running now* part of the diagnostics window's *Frame generation & latency* page names
+what generates.
 
-Without the proxy the row is greyed out, unless frame generation is on, so that you can
-always switch it off.
+Without the proxy the *Frame generation* row is greyed out, unless frame generation is
+on, so that you can always switch it off.
 
 ### DLSS frame generation needs the window in front
 
@@ -161,33 +181,33 @@ window in front when you test or record frame generation.
 
 ### DLSS frame generation on RTX 30 and RTX 20
 
-The *DLSS-G on RTX 30/20* row is under *Display* on an RTX GPU without DLSS frame generation of
-its own, and stays once the package is in place. It runs DLSS frame generation through
-dlssg_for_sm86, a community project by sdli1995. The project is neither NVIDIA's nor
-ReDefinition's, and ReDefinition neither ships nor downloads it.
+On an RTX 30 or RTX 20, DLSS frame generation runs through dlssg_for_sm86, a community
+project by sdli1995. The project is neither NVIDIA's nor ReDefinition's, and ReDefinition
+neither ships nor downloads it. The steps start when you choose *DLSS* in the *Frame
+generation* row and the package is not in place. *Auto* takes FSR 3 until it is.
 
-1. *Download manually ...* opens a window with the steps and the project's pages.
-   Download `dlssg-release-<version>-x64.zip`.
-2. Put the zip, as it is, into KSP's folder.
+1. A window opens with links to the project's *Release page* and *Project page*.
+   Download `dlssg-release-<version>-x64.zip` there.
+2. Put the zip, as it is, into KSP's folder. The window shows whether it found the zip.
 3. *Install from zip* takes `version.dll`, `dlssg_sm86.ini` and the `dlssg_sm86` folder
    out of it and places them next to `KSP_x64.exe`. A file already there is kept,
    renamed to end in `.old`. A first install raises the package's multiplier from
    its factory 4X to 6X and sets preset *C*. A reinstall puts your choices from the
    old file back.
-4. Restart KSP. If NVIDIA's files for frame generation are missing, *NVIDIA DLSS
-   files* offers them.
+4. Restart KSP. If NVIDIA's files for frame generation are missing, a dialog offers
+   them, before or after the package.
 
-The install raises the package's multiplier from its factory 4X to 6X, so that the *Frame
-generation* row has room. Four more rows set the package's `dlssg_sm86.ini` in place. The
-package reads the file when KSP starts, so a change applies after a restart, and the row
-says so.
+The install raises the package's multiplier from its factory 4X to 6X, so that the
+*Multiplier* row has room. The *Multiplier* row chooses within it at once. Only a higher
+ceiling needs a restart.
+
+Once the package is in place, the *DLSS-G preset* row appears under the *Frame
+generation* row. The package reads its `dlssg_sm86.ini` when KSP starts, so a change
+applies after a restart, and the window says so.
 
 | Row | Choices | Does |
 |---|---|---|
-| *DLSS-G preset* | *Auto*, *A*, *B*, *C (Lite)* | *C* is NVIDIA's lighter frame blending. It costs less GPU time, and in KSP the HUD and the scene come out the same as with *Auto*. Installing the package from the settings window sets *C* where the package's file still has *Auto*. *A* and *B* force the package's interface recomposition off and on |
-| *DLSS-G multiplier* | *2X* to *6X* | the most frames shown per rendered frame that the package allows. Installing the package from the settings window sets *6X*. The *Frame generation* row chooses within it, at once; only a higher ceiling needs a restart |
-| *DLSS super resolution* | *Off*, *On* | runs DLSS's presets L and M with the package's INT8 kernels on RTX 30 and RTX 20. It needs files of about 180 MB, which *Install SR files* takes out of the zip. It does nothing while Ray Reconstruction runs |
-| *DLSS-G frame timing* | *Off*, *On* | the package writes the GPU time of each frame generation to `frames_<pid>.jsonl` in `dlssg_sm86\logs` |
+| *DLSS-G preset* | *Auto*, *A*, *B*, *C (Lite)* | *C* is NVIDIA's lighter frame blending. It costs less GPU time, and in KSP the HUD and the scene come out the same as with *Auto*. Installing the package from the settings window sets *C* where the package's file still has *Auto*. [open] what *A* and *B* do, which only the package's own documentation says |
 
 Measured on an RTX A4500 at the Medium profile, preset *C* gave 4 to 8 % more rendered
 frames a second than *Auto*. Without raytracing that is 71.1 against 66.1, with it 41.8
@@ -199,8 +219,8 @@ rendered frames'. Along the HUD's edges *C* scored 1 to 3 dB below *Auto*
 
 XeSS frame generation needs two DLLs from Intel's XeSS SDK, 2.1 or newer:
 `libxess_fg.dll` and `libxell.dll`. They go next to `KSP_x64.exe`, or into the folder
-named by `xessFgDirectory`. *Download ...* beside *Intel XeSS files* fetches both from
-Intel's XeSS SDK 3.0.2
+named by `xessFgDirectory`. Choosing *XeSS* in the *Frame generation* row fetches both
+from Intel's XeSS SDK 3.0.2, after you accept Intel's licence
 ([installing.md](installing.md#get-the-files-for-dlss-xess-and-amds-upscaler)). A
 `libxess_fg.dll` older than 1.2.2 is refused and FSR 3 runs instead, unless
 `xessFgAllowOld` is 1.
@@ -260,7 +280,7 @@ for as long as V-Sync is on; a monitor of 120 Hz or more lets it run.
 | Feature | GPU | Besides |
 |---|---|---|
 | DLSS | NVIDIA RTX 20 and newer | `nvngx_dlss.dll` |
-| DLSS frame generation | NVIDIA RTX 40 and newer; RTX 30 and RTX 20 with dlssg_for_sm86 | Windows 10 20H1 or newer, hardware-accelerated GPU scheduling, the Streamline 2.14.16 DLLs |
+| DLSS frame generation | NVIDIA RTX 40 and newer; RTX 30 and RTX 20 with dlssg_for_sm86 | Windows 10 20H1 or newer [open: the code confirms Windows 10 only], hardware-accelerated GPU scheduling, the Streamline 2.14.16 DLLs |
 | *Dynamic* frame generation | NVIDIA, with multi frame generation | NVIDIA driver 595.41 or newer |
 | FSR 3 frame generation | any GPU with Direct3D 12 | nothing |
 | FSR 4 | Radeon RX 7000 and RX 9000 | `amd_fidelityfx_upscaler_dx12.dll` |

@@ -64,50 +64,45 @@ CKAN does not replace a `dxgi.dll` it did not install, so move another one away 
 
 ## Get the files for DLSS, XeSS and AMD's upscaler
 
-DLSS, XeSS, frame generation other than FSR 3 and AMD's newer upscaler run from DLLs by
-NVIDIA, Intel and AMD. They go next to `KSP_x64.exe`, or into the folders the proxy's ini
-names ([reference/proxy-settings.md](../reference/proxy-settings.md#dll-folders)).
+DLSS, XeSS, DLSS frame generation and AMD's FSR 4 run from DLLs by NVIDIA, Intel and AMD.
+FSR 3 and its frame generation need none of them. The DLLs go next to `KSP_x64.exe`, or into
+the folders the proxy's ini names
+([reference/proxy-settings.md](../reference/proxy-settings.md#dll-folders)).
 
-| For | Files | Where from |
+You do not fetch them first. Choose the technique under *Display*, in the *Upscaler* or the
+*Frame generation* row. If its files are missing, a dialog opens before the choice takes
+effect. If you cancel the dialog, the choice stays as it was.
+
+| You choose | Files it needs | The dialog |
 |---|---|---|
-| DLSS | `nvngx_dlss.dll` | *Download ...* beside *NVIDIA DLSS files*, under *Display* |
-| DLSS Ray Reconstruction, with raytracing | `sl.interposer.dll`, `sl.common.dll`, `sl.pcl.dll`, `sl.dlss_d.dll`, `nvngx_dlssd.dll`, from NVIDIA Streamline 2.14.16 | *Download ...* beside *NVIDIA DLSS files*, under *Display* |
-| DLSS frame generation | the files above, and `sl.dlss_g.dll`, `sl.reflex.dll`, `nvngx_dlssg.dll` | the same download, on RTX 40 and newer |
-| DLSS frame generation on RTX 30 and RTX 20 | the Streamline files above, and `version.dll`, `dlssg_sm86.ini` and the `dlssg_sm86` folder of dlssg_for_sm86 | the same download, and *Download manually ...* beside *DLSS-G on RTX 30/20*; the steps are in [upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#dlss-frame-generation-on-rtx-30-and-rtx-20) |
-| AMD FSR as a DLL, FSR 4 where the GPU has it | `amd_fidelityfx_upscaler_dx12.dll` | a game that ships it |
-| XeSS | `libxess.dll` | *Download ...* beside *Intel XeSS files*, under *Display*, or Intel's XeSS SDK by hand |
-| XeSS frame generation | `libxess_fg.dll` and `libxell.dll`, from XeSS SDK 2.1 or newer | the same download; what it needs is in [upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#xess-frame-generation) |
+| *Upscaler*: *DLSS* | `nvngx_dlss.dll`, and for Ray Reconstruction `sl.interposer.dll`, `sl.common.dll`, `sl.pcl.dll`, `sl.dlss_d.dll`, `nvngx_dlssd.dll`, from NVIDIA Streamline 2.14.16 | NVIDIA's download |
+| *Frame generation*: *DLSS* on RTX 40 and newer | the files above, and `sl.dlss_g.dll`, `sl.reflex.dll`, `nvngx_dlssg.dll` | the same download |
+| *Frame generation*: *DLSS* on RTX 30 and RTX 20 | the files above, and `version.dll`, `dlssg_sm86.ini` and the `dlssg_sm86` folder of dlssg_for_sm86 | first the steps for the package ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#dlss-frame-generation-on-rtx-30-and-rtx-20)), then NVIDIA's download |
+| *Upscaler*: *FSR 4* | `amd_fidelityfx_upscaler_dx12.dll`, which runs on a Radeon RX 7000 or RX 9000 | where to get it, from the signed binaries of AMD's FidelityFX SDK; you put it there and choose again |
+| *Upscaler*: *XeSS* | `libxess.dll` | Intel's download |
+| *Frame generation*: *XeSS* | `libxess_fg.dll` and `libxell.dll`, from XeSS SDK 2.1 or newer ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#xess-frame-generation)) | Intel's download |
 
-*NVIDIA DLSS files* is under *Display* in the settings window. It is shown on an
-NVIDIA GPU that can use DLSS, which is RTX 20 and newer, or DLSS frame generation,
-which is RTX 40 and newer. It is there while those files are missing, and until you
-have read how the download went.
+NVIDIA's dialog names the files, their size and the folders they go to. It links NVIDIA's
+licences. *Accept and download* fetches the files from NVIDIA's release of the Streamline SDK
+2.14.16 on GitHub, and places NVIDIA's licence texts beside the DLLs.
 
-The row names the files, their size and NVIDIA's licences. Its *Download ...* button
-fetches them from NVIDIA's release of the Streamline SDK 2.14.16 on GitHub, once you
-accept the licences. NVIDIA's licence texts are placed beside the DLLs.
-
-Every file is checked against that release before any is placed, and either all are
-placed or none. A different file already there is renamed to end in `.old`. DLSS uses
-`nvngx_dlss.dll` at once. DLSS frame generation starts with the next start of KSP.
+Every file is checked against that release before any is placed, and either all are placed or
+none. A different file already there is renamed to end in `.old`. DLSS uses `nvngx_dlss.dll`
+at once. DLSS frame generation and Ray Reconstruction start with the next start of KSP.
 
 The proxy loads Streamline 2.14.16 only. Streamline files of another version count as
-missing, and the row offers the download again.
+missing, and the dialog offers the download again.
 
 You can also copy the same files by hand: `nvngx_dlss.dll` from a game that has it, and
 the Streamline DLLs from `bin\x64` of NVIDIA's Streamline SDK 2.14.16.
 
-*Intel XeSS files* is under *Display* too. It is shown when the proxy runs XeSS, and it
-is there while Intel's files are missing. Once they are in place it names them and their
-versions, such as *libxess.dll 2.0.2.68, libxess_fg.dll 1.3.1.78, libxell.dll 1.3.2.10*.
-
-The *Download ...* button fetches `libxess.dll`, `libxess_fg.dll` and `libxell.dll` from
-Intel's release of the XeSS SDK 3.0.2 on GitHub, about 73 MB, of which `libxess.dll` is
-60 MB. First a dialog names the files, their sizes and the folders they go to. It links
-Intel's licence, the *Intel Simplified Software License (Version October 2022)*. If you
-accept it, the download starts. The licence text is placed beside the DLLs as
-`xess.license.txt`. If you need only one of the two uses, the dialog also has a button for
-XeSS super resolution alone and one for XeSS frame generation alone.
+Intel's dialog fetches `libxess.dll`, `libxess_fg.dll` and `libxell.dll` from Intel's release
+of the XeSS SDK 3.0.2 on GitHub, about 70 MB, of which `libxess.dll` is 57 MB. It names the
+files, their sizes and the folders they go to. It links Intel's licence, the *Intel Simplified
+Software License (Version October 2022)*, and the release. *Accept and download* fetches
+the files, and places the licence text beside the DLLs as `xess.license.txt`. If you need
+only one of the two uses, the dialog also has *Accept, super resolution only* and *Accept,
+frame generation only*.
 
 The files go where the proxy loads them from: `libxess.dll` into the folder named by
 `xessDirectory`, `libxess_fg.dll` and `libxell.dll` into the folder named by
@@ -117,9 +112,11 @@ have there stays and is not offered again. The exception is a `libxess_fg.dll` o
 `.old`.
 
 Every file is checked against Intel's release before any is placed, and either all are
-placed or none. If the connection fails, the row says which file failed and nothing is
-changed. XeSS super resolution uses `libxess.dll` at once. XeSS frame generation starts
-with the next start of KSP.
+placed or none. If the connection fails, nothing is changed. XeSS super resolution uses
+`libxess.dll` at once. XeSS frame generation starts with the next start of KSP.
+
+The status of a download shows in grey under the *Upscaler* or *Frame generation* row, and
+in a message at the top of the screen when it ends.
 
 DLSS frame generation also needs Windows 10 20H1 or newer, with *Hardware-accelerated
 GPU scheduling* switched on in Windows' graphics settings.

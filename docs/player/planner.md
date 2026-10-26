@@ -39,7 +39,7 @@ parts folds out right after:
 | *Lander* | what lands while the rest waits | none: whether it docks again or flies on alone, the step after it says |
 | *Satellite* | what stays at a destination | *Deployed at*: the destination where it stays; the rest flies on without it |
 
-A vessel can have several of each, such as two landers or three satellites; they are
+A vessel can have up to six sections, such as two landers or three satellites; they are
 numbered then. Capsules come first, then the others in the order you added them. The parts
 in a section's list are what a decoupler or a docking port separates, named after their
 command part or engine, with their number of parts. While the pointer is on an entry, its
@@ -48,11 +48,12 @@ lander, but two sections cannot share some parts. The cross removes a section.
 
 The planner adds three sections by itself, shown as *Automatic* with what it found:
 
-* On a crewed vessel, the capsule: the smallest part with a crewed command part and
-  parachutes, else the smallest crewed one.
-* On an uncrewed vessel, the satellite, where one part with a probe core and no landing
-  legs leaves the launch stage behind. With several, you add them yourself.
-* The lander: the smallest part with a command part, engines and landing legs whose
+* On a crewed vessel, the capsule: the lightest part with a crewed command part and
+  parachutes, else the lightest crewed one.
+* On an uncrewed vessel, the satellite, where exactly one innermost part with a command
+  part and no landing legs leaves the launch stage's engines behind. With several, you add
+  them yourself.
+* The lander: the lightest part with a command part, engines and landing legs whose
   engines do not fire at launch, such as the Kerbal X's upper stage. A booster with legs
   that lands by itself is none, and a lander gives way to the sections you set. A second
   lander you add yourself.
@@ -72,7 +73,7 @@ At the top of *Route* are two settings:
 
 | Setting | Does |
 |---|---|
-| *Fuel margin* | adds a share to every step, for steering, corrections and a late burn. 10 % is a common choice |
+| *Fuel margin* | a slider from 0 to 50 %, at 10 % at first. It adds a share to every step, for steering, corrections and a late burn |
 | *Plane changes* | adds the burn that matches the tilt of the target's orbit, such as 6° for Minmus. On at first; switch it off if you launch into the right plane or correct on the way |
 
 A new vessel starts with two stops: *A* on the surface of Kerbin, and *B*, whose body
@@ -220,16 +221,19 @@ KSP's own delta-v readout gives engines that breathe air nothing: it counts them
 vacuum. The planner counts them on the launch. Where the route starts on the surface of
 a body whose air holds oxygen, such as Kerbin or Laythe, the jets lit first fly the first
 part of the launch, shown as the stage *Air*. Its share of the launch's delta-v is the
-share of the orbital speed they reach: about 1,350 m/s for the Whiplash, 1,550 m/s for a
-RAPIER, 850 m/s for the Panther, and the speed of sound for the others. From Kerbin that
-is about 2,200 m/s of the launch for the Whiplash and 2,550 m/s for a RAPIER. The fuel
-they burn for it is taken from the tanks they reach, and the stages burn what is left. A
-RAPIER counts as a rocket after that.
+share of the orbital speed they reach.
+
+The planner reads that speed from each engine's thrust over Mach. It takes the Mach number
+where the thrust, past its peak, falls to half of it. An engine whose thrust peaks below
+Mach 1.5 counts to Mach 1 at most. The speed of sound is the one high up, where the air
+has thinned to a twentieth of its sea level pressure. [open] The speeds and shares this
+gives for the Whiplash, the RAPIER and the Panther on Kerbin: only the game's engine
+curves tell. The fuel they burn for it is taken from the tanks they reach, and the stages
+burn what is left. A RAPIER counts as a rocket after that.
 
 A vessel with wings and landing gear lifts off along the runway, so the TWR does not count
-there. Jets
-lit later, and jets on a later launch, such as from Laythe after a trip, are not
-counted.
+there. Jets lit later, and jets on a later launch, such as from Laythe after a trip, are
+not counted.
 
 ## Keep a stage for later, or drop it
 
