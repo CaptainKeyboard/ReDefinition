@@ -6,7 +6,7 @@ Written by tools/DocLock (`report`). 594 files.
 
 | | elements | documented | coverage | dirty |
 |---|---:|---:|---:|---:|
-| all | 17129 | 17129 | 100.0 % | 0 |
+| all | 17133 | 17133 | 100.0 % | 0 |
 
 ## By area
 
@@ -44,7 +44,7 @@ Written by tools/DocLock (`report`). 594 files.
 | tests/DxgiProxy | 378 | 378 | 100.0 % | 0 |
 | tests/RaytracingPlayer | 169 | 169 | 100.0 % | 0 |
 | tests/ReDefinition.Tests | 921 | 921 | 100.0 % | 0 |
-| tools | 790 | 790 | 100.0 % | 0 |
+| tools | 794 | 794 | 100.0 % | 0 |
 | unity/Assets | 577 | 577 | 100.0 % | 0 |
 
 ## By language
@@ -53,7 +53,7 @@ Written by tools/DocLock (`report`). 594 files.
 |---|---:|---:|---:|---:|
 | cfg | 345 | 345 | 100.0 % | 0 |
 | cpp | 4138 | 4138 | 100.0 % | 0 |
-| cs | 10973 | 10973 | 100.0 % | 0 |
+| cs | 10977 | 10977 | 100.0 % | 0 |
 | hlsl | 429 | 429 | 100.0 % | 0 |
 | ini | 83 | 83 | 100.0 % | 0 |
 | js | 200 | 200 | 100.0 % | 0 |
@@ -74,13 +74,13 @@ Written by tools/DocLock (`report`). 594 files.
 | enum | 46 | 46 | 100.0 % | 0 |
 | enum member | 194 | 194 | 100.0 % | 0 |
 | event | 4 | 4 | 100.0 % | 0 |
-| field | 6164 | 6164 | 100.0 % | 0 |
+| field | 6166 | 6166 | 100.0 % | 0 |
 | function | 2370 | 2370 | 100.0 % | 0 |
 | indexer | 3 | 3 | 100.0 % | 0 |
 | interface | 6 | 6 | 100.0 % | 0 |
 | key | 81 | 81 | 100.0 % | 0 |
 | macro | 261 | 261 | 100.0 % | 0 |
-| method | 4443 | 4443 | 100.0 % | 0 |
+| method | 4445 | 4445 | 100.0 % | 0 |
 | module | 30 | 30 | 100.0 % | 0 |
 | node | 332 | 332 | 100.0 % | 0 |
 | pass | 51 | 51 | 100.0 % | 0 |

@@ -14,7 +14,6 @@ namespace redefinition
 
     // A shared copy of a Unity texture not used for this long is released.
     inline constexpr ULONGLONG kUnusedMs = 10000;
-    // Start, after the build, after each pass.
     // The frame's start, the end of its scene build, each pass's end; then, past them,
     // the build's parts: the meshes built, the material textures uploaded.
     inline constexpr UINT kTimestampTraceEnd = 1 + kRtPassTimings;

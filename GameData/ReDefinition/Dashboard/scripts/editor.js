@@ -178,7 +178,8 @@
 			s.warnings.map((w) => '<div class="epwarn">' + rich(w) + "</div>").join("") + "</div>").join("") || '<div class="snote">No steps.</div>';
 	}
 
-	// The thrust part: each step that burns, with what it needs and has; its stages, burns, notes.
+	// The thrust part: each step that burns, with what it needs and has and how fast it turns; its stages,
+	// RCS, burns, notes and body.
 	function thrustHtml(t) {
 		if (!t) return '<div class="snote">Pick a destination to check the thrust.</div>';
 		const heads = "<tr><th>Stage</th><th>Mass</th><th>Isp</th><th>Start</th><th>End</th><th>In air</th><th>Thrust</th><th>Burns</th></tr>";

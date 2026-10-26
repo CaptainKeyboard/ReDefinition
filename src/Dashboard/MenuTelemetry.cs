@@ -88,8 +88,8 @@ namespace ReDefinition.Dashboard
             };
         }
 
-        // As KSP's loading screen counts it: the loaders done by their weight, and the share of the
-        // first one not done.
+        // As KSP's loading screen counts it: the loaders done before the first one not done, and that
+        // one's share, by their weights over the weight of all of them.
         internal static double LoadFraction(float[] weights, bool[] ready, float currentFraction)
         {
             double total = 0, done = 0;

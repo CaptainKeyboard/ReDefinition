@@ -20,7 +20,7 @@ namespace ReDefinition.Settings
         Check,
     }
 
-    // One setting of a registered mod, as its SETTING node gives it.
+    // One setting of a registered mod, as its SETTING node gives it, or its KEY node for a binding.
     internal sealed class SettingRegistration
     {
         // Its key, unique within the mod; the member path the value lives at (null: the behaviour answers, or
@@ -217,7 +217,7 @@ namespace ReDefinition.Settings
         }
     }
 
-    // What a mod needs of another setting while it is installed.
+    // What a mod needs of a setting, in force while the mod and the one `WhenInstalled` names are loaded.
     internal sealed class RequirementRegistration
     {
         // The key of the setting it tests (mod and name, as BundledSettings finds it) and how it tests it.

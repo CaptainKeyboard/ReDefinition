@@ -1,8 +1,8 @@
 // The scene pages' shared helpers, published as window.Pages for menu.js, ksc.js and editor.js.
 (function () {
 	"use strict";
-	// What the scene pages (menu.js, ksc.js) share: their hold buttons, how they write numbers and
-	// times, and text made safe for their HTML.
+	// What the scene pages (menu.js, ksc.js, editor.js) share: their hold buttons, how they write
+	// numbers and times, and text made safe for their HTML.
 	const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 	// A finite number as it is, anything else (missing, NaN, text) as null.
 	const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
@@ -56,7 +56,7 @@
 	const countdown = (ut, now, calendar) => (num(ut) === null || num(now) === null ? "-" : (ut >= now ? "T- " : "T+ ") + span(ut - now, calendar));
 
 	// KSP's rich text, as the mod's own panels write it (the planner's rows), as HTML: its colours,
-	// bold and underline; a <pos=..> column as a gap; sizes and alignment dropped. Everything else
+	// bold, italic and underline; a <pos=..> column as a gap; sizes and alignment dropped. Everything else
 	// stays text.
 	function rich(text) {
 		return esc(text == null ? "" : text)

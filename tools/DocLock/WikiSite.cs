@@ -25,6 +25,9 @@ namespace DocLock
         // The hand-written pages under docs/development that go into the wiki, by file stem.
         private readonly Dictionary<string, string> hand = new Dictionary<string, string>(StringComparer.Ordinal);
 
+        // The headings of the hand-written pages, by page name, for the sidebar.
+        private readonly Dictionary<string, string> titles = new Dictionary<string, string>(StringComparer.Ordinal);
+
         // The pages written, by name, with the lines the sidebar and the footer need.
         private readonly List<string> written = new List<string>();
 
@@ -68,6 +71,8 @@ namespace DocLock
                               || stem.StartsWith("flow-", StringComparison.Ordinal) || stem.StartsWith("howto-", StringComparison.Ordinal);
                 if (!wanted) continue;
                 hand[stem] = File.ReadAllText(file);
+                Match heading = Regex.Match(hand[stem], @"^# (.+?)?$", RegexOptions.Multiline);
+                if (heading.Success) titles[stem == "start-here" ? "Home" : Title(stem)] = heading.Groups[1].Value;
             }
         }
 
@@ -129,6 +134,8 @@ namespace DocLock
         private void Save(string name, string text)
         {
             File.WriteAllText(Path.Combine(folder, name + ".md"), text.Replace("\r\n", "\n"), new UTF8Encoding(false));
+            Match heading = Regex.Match(text, @"^# (.+?)\r?$", RegexOptions.Multiline);
+            if (heading.Success && !titles.ContainsKey(name)) titles[name] = heading.Groups[1].Value;
             written.Add(name);
         }
 
@@ -159,8 +166,9 @@ namespace DocLock
             var uses = AreaEdges();
             foreach (IGrouping<string, Element> area in scan.Elements.GroupBy(e => e.Area).OrderBy(g => g.Key, StringComparer.Ordinal))
             {
-                var text = new StringBuilder("# ").Append(area.Key).Append("\n\n");
                 string readme = Path.Combine(root, area.Key.Replace('/', Path.DirectorySeparatorChar), "README.md");
+                // The README brings its own heading; without one the page names its area.
+                var text = new StringBuilder(File.Exists(readme) ? "" : "# " + area.Key + "\n\n");
                 if (File.Exists(readme)) text.Append(Convert(File.ReadAllText(readme), "").TrimEnd()).Append("\n\n");
                 var files = area.GroupBy(e => e.Path).OrderBy(g => g.Key, StringComparer.Ordinal).ToList();
                 int documented = area.Count(Rules.Documented);
@@ -462,21 +470,42 @@ namespace DocLock
             Section(side, "Do", n => n.StartsWith("Howto-", StringComparison.Ordinal) || n == "Tools-index" || n == "Writing-code-comments");
             Section(side, "Look up", n => n.StartsWith("Index-", StringComparison.Ordinal) || n == "Glossary");
             side.Append("**Code by area**\n\n");
-            foreach (string name in written.Where(n => n.StartsWith("src-", StringComparison.Ordinal) && n.Count(c => c == '-') == 1).OrderBy(n => n, StringComparer.Ordinal))
+            side.Append("- [The add-on](src)\n");
+            foreach (string name in written.Where(n => n.StartsWith("src-", StringComparison.Ordinal) && n.Count(c => c == '-') == 1 && !n.Contains(".")).OrderBy(n => n, StringComparer.Ordinal))
+            {
                 side.Append("- [").Append(name.Substring(4)).Append("](").Append(name).Append(")\n");
+                if (name != "src-DxgiProxy") continue;
+                foreach (string sub in written.Where(n => n.StartsWith("src-DxgiProxy-", StringComparison.Ordinal) && n.Count(c => c == '-') == 2 && !n.Contains(".")).OrderBy(n => n, StringComparer.Ordinal))
+                    side.Append("  - [").Append(sub.Substring(14)).Append("](").Append(sub).Append(")\n");
+            }
             foreach (string name in written.Where(n => (n.StartsWith("tests-", StringComparison.Ordinal) || n.StartsWith("tools", StringComparison.Ordinal) || n.StartsWith("unity-", StringComparison.Ordinal)
                                                        || n.StartsWith("GameData-", StringComparison.Ordinal)) && !n.Contains(".")).OrderBy(n => n, StringComparer.Ordinal))
                 side.Append("- [").Append(name).Append("](").Append(name).Append(")\n");
             Save("_Sidebar", side.ToString());
         }
 
+        // The order of the pages the sidebar lists first: the flows in the order to read them.
+        private static readonly string[] ReadingOrder =
+        {
+            "Architecture", "Flow-startup", "Flow-setting", "Flow-game-ui", "Flow-frame", "Flow-native-channels", "Flow-mod-interface",
+            "Flow-proxy-present", "Flow-raytracing", "Flow-shaders", "Flow-dashboard",
+            "Howto-add-a-setting", "Howto-add-a-proxy-feature", "Howto-build-and-check", "Tools-index", "Writing-code-comments",
+        };
+
+        // A page's place in the reading order; the pages that are not in it come after, by name.
+        private static int Rank(string name)
+        {
+            int at = Array.IndexOf(ReadingOrder, name);
+            return at >= 0 ? at : ReadingOrder.Length;
+        }
+
         // A sidebar section: a heading and a link to each page that fits.
         private void Section(StringBuilder side, string heading, Func<string, bool> fits)
         {
-            var pages = written.Where(fits).OrderBy(n => n, StringComparer.Ordinal).ToList();
+            var pages = written.Where(fits).OrderBy(n => Rank(n)).ThenBy(n => n, StringComparer.Ordinal).ToList();
             if (pages.Count == 0) return;
             side.Append("**").Append(heading).Append("**\n\n");
-            foreach (string name in pages) side.Append("- [").Append(name.Replace('-', ' ')).Append("](").Append(name).Append(")\n");
+            foreach (string name in pages) side.Append("- [").Append(titles.TryGetValue(name, out string title) ? title : name.Replace('-', ' ')).Append("](").Append(name).Append(")\n");
             side.Append('\n');
         }
 

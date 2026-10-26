@@ -418,7 +418,7 @@
 		putText("nodestate", nodeDv === null ? "· NO NODE" : "");
 		put("nodedv", nodeDv === null ? "-" : lcd(nodeDv.toFixed(1), "m/s"));
 		putStyle(el("dvfill"), "dvfill", "width", nodeDv !== null && nodeTotal ? Math.min(100, (nodeDv / nodeTotal) * 100).toFixed(1) + "%" : "0");
-		// Countdowns read "T- hh:mm:ss" as at apoapsis and periapsis, and "T+" once passed.
+		// Countdowns read "T- [d] hh:mm:ss" as at apoapsis and periapsis, and "T+" once passed.
 		const tsigned = (t) => (num(t) === null ? "-" : (t < 0 ? "T+ " : "T- ") + clock(Math.abs(t)));
 		putText("nodet", tsigned(d["o.nodeTime"]));
 		putText("nodeburn", num(d["o.nodeBurnTime"]) === null ? (nodeDv === null ? "-" : "N/A") : clock(d["o.nodeBurnTime"]));
@@ -696,8 +696,8 @@
 	// The dot product of two 3-vectors.
 	const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 
-	// The roll as the readout shows it (against the horizon), and the top that gives a roll at a nose.
-	// Straight up or down the roll has no meaning, and the turned top is kept as it is.
+	// The roll as the readout shows it, against the horizon. Straight up or down it has no meaning;
+	// topForRoll then keeps the turned top as it is.
 	const rollOf = (T, U) => Math.atan2(cross(U, T)[2], U[2]);
 	// The top that gives a roll at the nose T; straight up or down, fallback.
 	function topForRoll(T, roll, fallback) {
@@ -765,8 +765,8 @@
 		return to.concat(steerPrefs.rollLock ? topForRoll(to, rollOf(d.base.nose, d.base.top), top) : top);
 	}
 
-	// Sets the target's roll (as the readout shows it) to what `to` makes of it: snapped to the nearest
-	// multiple of 45 degrees, or 0; without a target the vessel's attitude is the one turned.
+	// Sets the target's roll (as the readout shows it) to what `to` makes of the present one, in radians
+	// (snapRoll and levelRoll pass theirs); without a target the vessel's attitude is the one turned.
 	function setRoll(to) {
 		const has = Array.isArray(data["n.steerTarget"]) && Array.isArray(data["n.steerTargetTop"]);
 		const T = has ? data["n.steerTarget"] : data["n.nose"], U = has ? data["n.steerTargetTop"] : data["n.top"];

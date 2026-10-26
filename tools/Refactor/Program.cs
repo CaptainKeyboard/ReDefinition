@@ -24,7 +24,7 @@ namespace Refactor
     // "dotnet format style --diagnostics IDE0005".
     public static class Program
     {
-        // Runs the manifest; 0 for success, 2 for a wrong call or a manifest line it cannot read.
+        // Runs the manifest; 0 for success, 2 for a wrong call, a manifest line it cannot read, or a start outside the repository.
         public static int Main(string[] args)
         {
             if (args.Length < 2 || args[0] != "apply")

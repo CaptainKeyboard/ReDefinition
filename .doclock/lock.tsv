@@ -27,7 +27,7 @@ GameData/ReDefinition/Dashboard/scripts/editor.js|function|speed	e10c71ea33f3f21
 GameData/ReDefinition/Dashboard/scripts/editor.js|function|stat	cf76a526a3f8dfce	5a8abfb193d7edd7
 GameData/ReDefinition/Dashboard/scripts/editor.js|function|step	10ac0e9d9f9e403e	8bcaf2bc0dcea8bc
 GameData/ReDefinition/Dashboard/scripts/editor.js|function|stepHtml	96c7dff4c7f812b4	8f6ec2144fe87834
-GameData/ReDefinition/Dashboard/scripts/editor.js|function|thrustHtml	c8d6961ba3c2bcb9	0220131310f7ee8a
+GameData/ReDefinition/Dashboard/scripts/editor.js|function|thrustHtml	c8d6961ba3c2bcb9	5415de83f1cfc975
 GameData/ReDefinition/Dashboard/scripts/editor.js|function|tonnes	6703259b67589a65	cf43f93476f0a8c5
 GameData/ReDefinition/Dashboard/scripts/editor.js|script|GameData/ReDefinition/Dashboard/scripts/editor.js	21a0270b7f66a1e4	c90869621cf5d654
 GameData/ReDefinition/Dashboard/scripts/ksc.js|function|build	689b40a68ad08313	059860e3a0ad720a
@@ -85,12 +85,12 @@ GameData/ReDefinition/Dashboard/scripts/navball.js|function|valid	35fa0334354121
 GameData/ReDefinition/Dashboard/scripts/navball.js|script|GameData/ReDefinition/Dashboard/scripts/navball.js	21a0270b7f66a1e4	41726b9932b68457
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|ago	2878a2ec41d925d5	6e221cba3de83660
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|countdown	c116ed2af9746ae7	ca68c6316b810954
-GameData/ReDefinition/Dashboard/scripts/pages.js|function|esc	fdc1d7a230262548	ca74246caa8ec17e
+GameData/ReDefinition/Dashboard/scripts/pages.js|function|esc	fdc1d7a230262548	63b204f4f0cb252f
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|hold	a982158b3d49800f	7b865cd497630ab7
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|holdButton	fa55382d28173729	24d40689a5932d68
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|minutes	863513455012593c	ecae7069d1410987
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|num	d5aa08f9501a7900	f51080926266e1a0
-GameData/ReDefinition/Dashboard/scripts/pages.js|function|rich	21da4e61861b931f	e16eda67ac592d0f
+GameData/ReDefinition/Dashboard/scripts/pages.js|function|rich	21da4e61861b931f	298beeee8616efac
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|span	1a81d3d066a716b8	48a991943dc55ca4
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|stop	6db437bf35d02914	ca73941c5f4a8bf9
 GameData/ReDefinition/Dashboard/scripts/pages.js|function|tick	bc7639250c7eebe5	b1413b7257cee467
@@ -163,7 +163,7 @@ GameData/ReDefinition/Dashboard/scripts/widget.js|function|render	9e5e3a467428e2
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|renderBall	c0a3d9b27362c431	6e7408e0cb213a6b
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|renderSteerButtons	f4d97deaee7a8897	bf77153e93247000
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|resubscribe	5fa0927c8de3850a	4196c03188a81f97
-GameData/ReDefinition/Dashboard/scripts/widget.js|function|rollOf	b09902f5a5f5ac98	bf2c3eed81073fce
+GameData/ReDefinition/Dashboard/scripts/widget.js|function|rollOf	b09902f5a5f5ac98	88bdc035d65443fb
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|rowWidth	6c87c59164f6db46	3eec9e9597eed4e5
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|run	76ab4d3ac5912d62	c75764cab8e4ae5a
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|saveLayout	be246b028a9d9b3a	89823bbbfe6fe31f
@@ -171,7 +171,7 @@ GameData/ReDefinition/Dashboard/scripts/widget.js|function|saveSteerPrefs	9a287b
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|scenePage	f2e80d82c0f41be2	050a0f2d299367b1
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|screen	0ef2e576647b74f4	19bf369234c050d9
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|send	9ab363f4fd050071	6d7c4980c46c631c
-GameData/ReDefinition/Dashboard/scripts/widget.js|function|setRoll	4e63b9320c48581f	8bbb2b99cb2fd27c
+GameData/ReDefinition/Dashboard/scripts/widget.js|function|setRoll	4e63b9320c48581f	31542499071693d2
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|setThrottleView	e67261689d23d517	730812f7bf9fdba7
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|setupAltitude	af6824e4cd816245	22202f841ec3b8f4
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|setupSteering	ce62fe0929340b24	0683727a64c823df
@@ -192,7 +192,7 @@ GameData/ReDefinition/Dashboard/scripts/widget.js|function|throttleLever	f150e6e
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|tick	c0d16002f34857a1	bbfa2eeba6583068
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|topForRoll	32094477d9f96c16	82b2fcea3b0ff637
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|truthy	ec30615515c631e5	0d5b0b7080dbe7f1
-GameData/ReDefinition/Dashboard/scripts/widget.js|function|tsigned	69fa787d16c28f9f	fe6d34f08812686b
+GameData/ReDefinition/Dashboard/scripts/widget.js|function|tsigned	69fa787d16c28f9f	07a5fea855f7ad6b
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|turnTarget	80f583164444f3f0	99541c4efaad1f1d
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|turnTowards	00cd0b886b7eeb47	14ee27ce310ecb30
 GameData/ReDefinition/Dashboard/scripts/widget.js|function|two	4472f9da6e02d566	611cbcda9f4a55e9
@@ -978,7 +978,7 @@ src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SetArmed(bool
 src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SetCurve(Curve)	c345b9a17f4fffea	d8f2f5084494efc5
 src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SetCurve(string)	b63778d7fcfaecda	772208ff038b74da
 src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SetSCurve(bool)	79de7963c692f005	b7f306a85a407968
-src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.Steer(FlightCtrlState)	cb1f42b89d480ce1	e91b799b69799338
+src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.Steer(FlightCtrlState)	cb1f42b89d480ce1	87467c42daff9612
 src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SteerLetGo	2998e62112608d11	fe52f6c927fee936
 src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SteerRoll(double)	1c9855915a44285b	16afc18bfb96f116
 src/Dashboard/FlyByWire.cs|method|ReDefinition.Dashboard.FlyByWire.SteerTo(Vector3d,Vector3d)	ad6ee5299b90674b	5c19e2abc31573e4
@@ -1034,7 +1034,7 @@ src/Dashboard/Json.cs|method|ReDefinition.Dashboard.Json.SkipWs(string,int)	50e4
 src/Dashboard/Json.cs|method|ReDefinition.Dashboard.Json.Value(object)	160028a8089eb4c7	ff5f96d58e558583
 src/Dashboard/Json.cs|method|ReDefinition.Dashboard.Json.WriteNumber(StringBuilder,double)	1d8f36000b751e34	824e62c85e24a783
 src/Dashboard/Json.cs|method|ReDefinition.Dashboard.Json.WriteString(StringBuilder,string)	5bd135c85cb39f86	d1f10443b60f12ad
-src/Dashboard/Json.cs|method|ReDefinition.Dashboard.Json.WriteValue(StringBuilder,object)	cdb5bae932af2c66	9afd3ce79f393a62
+src/Dashboard/Json.cs|method|ReDefinition.Dashboard.Json.WriteValue(StringBuilder,object)	cdb5bae932af2c66	8c32a1fa38415503
 src/Dashboard/KscTelemetry.cs|class|ReDefinition.Dashboard.KscTelemetry	80aa985d31dc6f6e	2d44535b7f279b38
 src/Dashboard/KscTelemetry.cs|constant|ReDefinition.Dashboard.KscTelemetry.AlarmsShown	c2d61e11cd1594a9	c4267bb68cfe7acc
 src/Dashboard/KscTelemetry.cs|constant|ReDefinition.Dashboard.KscTelemetry.ListsEvery	4f4b8eaf047fda16	c74756a5357835af
@@ -1074,7 +1074,7 @@ src/Dashboard/MenuTelemetry.cs|field|ReDefinition.Dashboard.MenuTelemetry.savesS
 src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.Date(double)	757d7a35b0218845	80d8144dba5c5f1e
 src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.Entry(string,DateTime,string,string,Func<double,string>)	60be872e0a6e16bf	4b294009822f7752
 src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.Load(string[])	e23255c071c9e4f0	18bd384ae31ebdf7
-src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.LoadFraction(float[],bool[],float)	5cec823363a66da7	88b3ead5d4cc55b6
+src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.LoadFraction(float[],bool[],float)	5cec823363a66da7	4a7b5eeb7c897002
 src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.Loading	394419bc42422bf3	9049ee95036c7547
 src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.LogLine(string)	75c1716ab637f94b	bce7f4fb0c74cea4
 src/Dashboard/MenuTelemetry.cs|method|ReDefinition.Dashboard.MenuTelemetry.Number(ConfigNode,string,double)	b16308fbd7713f0d	f22f2a0b19e0d209
@@ -1878,7 +1878,7 @@ src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGenerat
 src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::flipUnavailable	4bce021038d06953	e3b0c44298fc1c14
 src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::flippedLastCopy	0af4f27015f1fdc6	e3b0c44298fc1c14
 src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::frameId	6844ee672f7b06ea	e3b0c44298fc1c14
-src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::generatedLastPresent	2ef6beb38c32d505	8971f8c9190c469d
+src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::generatedLastPresent	2ef6beb38c32d505	29d063ebe23ed0e3
 src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::heldByCap	b0671bc73f16bea4	e3b0c44298fc1c14
 src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::hudLess	cd61c6710ef9873f	e3b0c44298fc1c14
 src/DxgiProxy/FrameGeneration/FrameGeneration.h|field|redefinition::FrameGeneration::hudLessCaptures	b3b4a96c18781f5b	e3b0c44298fc1c14
@@ -3909,7 +3909,7 @@ src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampM
 src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampRrEnd	91866e539159d9f8	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampRrGuides	d9720b6ce44c6d4c	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampRrStart	3c5d8f4d099d246e	f28499b5561f5137
-src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampTraceEnd	6d24b881453193d6	e6be7759548fc0ee
+src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampTraceEnd	6d24b881453193d6	4a34fc6cb2ab6c04
 src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kTimestampsPerSlot	d1f687cd1e992f7a	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/RaytracingInternal.h|variable|redefinition::kUnusedMs	d938af47836a6bd2	f0814a3b112f500c
 src/DxgiProxy/Raytracing/RaytracingMegaGeometry.cpp|function|redefinition::ClusterBlasInputs(uint32_t clusterCount)	c48bd7aa1654f828	71668496a4e505ca
@@ -4808,11 +4808,11 @@ src/DxgiProxy/Raytracing/Shaders/RtContract.h|macro|RT_SURFACE_UNITY_LEGACY	65d4
 src/DxgiProxy/Raytracing/Shaders/RtContract.h|macro|RT_SURFACE_WATER	60807a07c83c8ff4	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/Shaders/RtContract.h|macro|RT_WATER_HIT_LIMIT	761a8e6d843ca316	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/Shaders/RtContract.h|macro|RT_WATER_SKY	2de8df26fbe45346	e3b0c44298fc1c14
-src/DxgiProxy/ReDefinitionProxy.ini|config|src/DxgiProxy/ReDefinitionProxy.ini	b79606fb3afea5bd	b66dced67b3af641
+src/DxgiProxy/ReDefinitionProxy.ini|config|src/DxgiProxy/ReDefinitionProxy.ini	b79606fb3afea5bd	616382f87e519e4e
 src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.allowTearing	a20a1986e91eb84d	13d2e74919b318c1
 src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.amdUpscalerDirectory	367237d7e22a9e95	66841a7f68937202
 src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.antiLag2	6bdbeac1ae6f5e16	549c09954668b3cd
-src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.dlssDirectory	452e6eb77cd5a67d	13898c7a01e30880
+src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.dlssDirectory	452e6eb77cd5a67d	c26cea04ab8c8078
 src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.dlssgDynamicTargetFps	54567a85d86ab84e	bcf2ff3bf45d37ec
 src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.dlssgFrames	ed4213e1c888bc25	c800ebd8ca12ba16
 src/DxgiProxy/ReDefinitionProxy.ini|key|Proxy.dlssgMode	53fe260c348f5d5a	5681ccf81a6e4237
@@ -5736,7 +5736,7 @@ src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.dashbo
 src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.editor	235fc9ad977eb849	394c7994b9f1723e
 src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.imagesOfCargo, imagesOfButton	5ccd359f6bdad242	bb40c1a1d71626bc
 src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.locked	d59adc11726e8449	fe125ac85bd76ff2
-src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.madeFrom	27ae280933469774	cf08c90863f30687
+src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.madeFrom	27ae280933469774	bedee80a77f3a0e3
 src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.madeTiles	81e32dbd919c6ab1	38b708be19539a10
 src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.measured	c77d221598d4a1f3	e3b0c44298fc1c14
 src/Engineer/EditorEngineer.cs|field|ReDefinition.Engineer.EditorEngineer.modes	f041f3b28a38581e	95fac2bbdf3afe12
@@ -10392,7 +10392,7 @@ src/Scaling/SpaceCentreScaling.cs|constant|ReDefinition.Scaling.RnDNodeHooks.Har
 src/Scaling/SpaceCentreScaling.cs|constant|ReDefinition.Scaling.SpaceCentreScaling.NodeShare	cda15902685c1a54	1f3c5dafb8cdf8e8
 src/Scaling/SpaceCentreScaling.cs|constant|ReDefinition.Scaling.SpaceCentreScaling.TileScale	04ca945a80c95938	51b530faca322c64
 src/Scaling/SpaceCentreScaling.cs|constant|ReDefinition.Scaling.SpaceCentreScaling.ZoomMax	66e23f2879a83da5	e3b0c44298fc1c14
-src/Scaling/SpaceCentreScaling.cs|constant|ReDefinition.Scaling.SpaceCentreScaling.ZoomOpen	5f76ad692cbc7043	2f759a5e43215528
+src/Scaling/SpaceCentreScaling.cs|constant|ReDefinition.Scaling.SpaceCentreScaling.ZoomOpen	5f76ad692cbc7043	7014c65f56e36077
 src/Scaling/SpaceCentreScaling.cs|field|ReDefinition.Scaling.RnDNodeHooks.Installed	b5273438c31a7e5a	414bc4b4f8f8e94d
 src/Scaling/SpaceCentreScaling.cs|field|ReDefinition.Scaling.SpaceCentreScaling.ZoomTo	e0a334a977063496	e3b0c44298fc1c14
 src/Scaling/SpaceCentreScaling.cs|field|ReDefinition.Scaling.SpaceCentreScaling.noted	67098df99e0f05bf	e3b0c44298fc1c14
@@ -10928,7 +10928,7 @@ src/Settings/BundledFile.cs|method|ReDefinition.Settings.BundledFile.ReadBackups
 src/Settings/BundledFile.cs|method|ReDefinition.Settings.BundledFile.SetAside(string,IStoreHost)	23abf3280286794f	2921822126861e79
 src/Settings/BundledFile.cs|method|ReDefinition.Settings.BundledFile.Write(string,BundledLedger,BundledState,IStoreHost)	e931d87fd5c4c5b0	f3c44aa9333739d4
 src/Settings/BundledFile.cs|method|ReDefinition.Settings.BundledFile.WriteBackups(ConfigNode,Dictionary<string,BundledLedger.Backup>)	8039df6b5dfba5f5	1dc5763d055cb923
-src/Settings/BundledFile.cs|method|ReDefinition.Settings.IStoreHost.Adjust(BundledSetting,string)	3715281eea4489ee	4ba1adaac6f98140
+src/Settings/BundledFile.cs|method|ReDefinition.Settings.IStoreHost.Adjust(BundledSetting,string)	3715281eea4489ee	0cd86d07949a8dc0
 src/Settings/BundledFile.cs|method|ReDefinition.Settings.IStoreHost.Allows(BundledSetting,string)	67ec2e16d0c60676	24d449487c4fb89a
 src/Settings/BundledFile.cs|method|ReDefinition.Settings.IStoreHost.Find(string)	d98be13847c0c80d	8c7b1552d676721c
 src/Settings/BundledFile.cs|method|ReDefinition.Settings.IStoreHost.Info(string)	f81bdce515569f2b	1588801a5ba5bb45
@@ -11350,8 +11350,8 @@ src/Settings/ModRegistration.cs|class|ReDefinition.Settings.DefaultsRegistration
 src/Settings/ModRegistration.cs|class|ReDefinition.Settings.DialogRegistration	c4b56ae401ae1e70	0320ad688dd60f26
 src/Settings/ModRegistration.cs|class|ReDefinition.Settings.ModRegistration	1a571ccba6c45c3e	2d03683573053ff0
 src/Settings/ModRegistration.cs|class|ReDefinition.Settings.ProfileRegistration	d9b7fb02ff397d70	6d9a103fe3082276
-src/Settings/ModRegistration.cs|class|ReDefinition.Settings.RequirementRegistration	0374dd61ba32592e	b2918c4dccdd847e
-src/Settings/ModRegistration.cs|class|ReDefinition.Settings.SettingRegistration	a24835c1b21ab485	792d8ab8aa9df712
+src/Settings/ModRegistration.cs|class|ReDefinition.Settings.RequirementRegistration	0374dd61ba32592e	31ecf226afe98e0e
+src/Settings/ModRegistration.cs|class|ReDefinition.Settings.SettingRegistration	a24835c1b21ab485	e66854ad6def3b67
 src/Settings/ModRegistration.cs|class|ReDefinition.Settings.ValueBlock	5e6d332ac60b97a9	049a25278450cf33
 src/Settings/ModRegistration.cs|constant|ReDefinition.Settings.DialogRegistration.DefaultWidth	4048f54907fd077c	ba08ae350314b0d0
 src/Settings/ModRegistration.cs|constant|ReDefinition.Settings.ModRegistration.AllProfilesNodeName	d96a197436d25de6	e3b0c44298fc1c14
@@ -13757,7 +13757,7 @@ src/Window/KspSettingsSection.cs|constant|ReDefinition.Window.KspSettingsSection
 src/Window/KspSettingsSection.cs|constant|ReDefinition.Window.KspSettingsSection.ValueWidth	9f3ee70a6902a27a	e3b0c44298fc1c14
 src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.DialogLayout	ddc2b6530360e64e	5b9e7b66779367e8
 src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.Edit.After	097740d8073d68c2	e3b0c44298fc1c14
-src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.Edit.Before	744354fb5a7ae132	e6148fc0923bde7d
+src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.Edit.Before	744354fb5a7ae132	2f8886c0a32948fa
 src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.Edit.ProfileChosen	89eadbe1447a5770	46ea9f8bf1dee220
 src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.Edits	eda316c061948f6c	eec651746969051f
 src/Window/KspSettingsSection.cs|field|ReDefinition.Window.KspSettingsSection.Layout.Control	18744233ee153b21	e3b0c44298fc1c14
@@ -14029,7 +14029,7 @@ src/Window/SettingsWindow/SettingsWindow.Keys.cs|method|ReDefinition.Window.Sett
 src/Window/SettingsWindow/SettingsWindow.Keys.cs|method|ReDefinition.Window.SettingsWindow.Write(KspKeyBindings.Binding,bool)	8d2cd85dbe0bb090	ddcd76d47c0a5a57
 src/Window/SettingsWindow/SettingsWindow.Keys.cs|struct|ReDefinition.Window.SettingsWindow.Shown	830e810d48af425a	4a1ccf1a1d129166
 src/Window/SettingsWindow/SettingsWindow.Layout.cs|class|ReDefinition.Window.SettingsWindow	133bca9dbc717f64	1348d20aaabeaec5
-src/Window/SettingsWindow/SettingsWindow.Layout.cs|field|ReDefinition.Window.SettingsWindow.detectedLayout	f76056b78f8a954c	81243adc6dceedc6
+src/Window/SettingsWindow/SettingsWindow.Layout.cs|field|ReDefinition.Window.SettingsWindow.detectedLayout	f76056b78f8a954c	ea3e70415a3d13e5
 src/Window/SettingsWindow/SettingsWindow.Layout.cs|field|ReDefinition.Window.SettingsWindow.layoutPending	c736473b621d9868	d47915ec5466365f
 src/Window/SettingsWindow/SettingsWindow.Layout.cs|field|ReDefinition.Window.SettingsWindow.rebindPending	f6021bb607b4b39b	e3b0c44298fc1c14
 src/Window/SettingsWindow/SettingsWindow.Layout.cs|method|ReDefinition.Window.SettingsWindow.ApplyLayout	cccb1eb3d12a67ea	e44c4a948fa05e4a
@@ -15850,7 +15850,7 @@ tools/DocLock/Element.cs|class|DocLock.Rules	efe1ba4b21966df6	192af9d2f103b399
 tools/DocLock/Element.cs|constant|DocLock.Rules.LeastWords	d12f468bf7b1ca85	e2f1c5286af550e0
 tools/DocLock/Element.cs|field|DocLock.Element.Code	c1378cbc2b77e822	56bc225fd7bea7da
 tools/DocLock/Element.cs|field|DocLock.Element.Doc	c4db6ac4f477c41c	09aa9724cd646027
-tools/DocLock/Element.cs|field|DocLock.Element.DocumentedElsewhere	f1f1662403b4db64	82a820e2b02a973e
+tools/DocLock/Element.cs|field|DocLock.Element.DocumentedElsewhere	f1f1662403b4db64	5e4a04b0144290bd
 tools/DocLock/Element.cs|field|DocLock.Element.Kind	7d753145e0fb0a8b	0d395e8e6c4d4bc2
 tools/DocLock/Element.cs|field|DocLock.Element.Language	f032ba299628b54b	097217a5c822a07e
 tools/DocLock/Element.cs|field|DocLock.Element.Line	c8271bb81afb592f	b39ceba5fc00cf5f
@@ -15924,7 +15924,8 @@ tools/DocLock/Program.cs|field|DocLock.Sources.Extensions	618f0341754af403	319ca
 tools/DocLock/Program.cs|method|DocLock.Program.Check(string,Scan,Lock)	262a8807f6f9709f	0dc19473e214b60c
 tools/DocLock/Program.cs|method|DocLock.Program.LintReport(Scan,Lock,string)	d534275e4c7d6b61	6942902565b0ae0a
 tools/DocLock/Program.cs|method|DocLock.Program.List(Scan,Lock,string)	d9a7d4bcd8f37156	bf38afee790a12cd
-tools/DocLock/Program.cs|method|DocLock.Program.Main(string[])	eecf0539e8e3a063	f68e515bdfaf9ed1
+tools/DocLock/Program.cs|method|DocLock.Program.Main(string[])	ce344d8799abe43c	f68e515bdfaf9ed1
+tools/DocLock/Program.cs|method|DocLock.Program.Sample(string,Scan,string[])	412c03c1be8f0f62	ef98b035ce82df5e
 tools/DocLock/Program.cs|method|DocLock.References.Check(Scan,CSharpIndex,HashSet<string>,string)	af06251e2cf7af37	8b134fe5410d30e6
 tools/DocLock/Program.cs|method|DocLock.Scan.Last(string,int)	0ae31addf01e6d25	ac0b58bb9276b437
 tools/DocLock/Program.cs|method|DocLock.Scan.Run(string)	cc9e70b1bbad4ae2	36c5f105b3340ae7
@@ -15957,12 +15958,14 @@ tools/DocLock/ScriptScanner.cs|method|DocLock.ScriptScanner.StripStrings(string)
 tools/DocLock/ScriptScanner.cs|method|DocLock.ScriptScanner.TripleQuoted(string[],int)	74075e99f9786b26	468e446f2509da4f
 tools/DocLock/WikiSite.cs|class|DocLock.WikiSite	3ec88ff348633487	9c0e3f334cdd6e3f
 tools/DocLock/WikiSite.cs|constructor|DocLock.WikiSite.WikiSite(string,string,Scan,Lock,string)	a1672f06c09e45de	02afc19dc57366a3
+tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.ReadingOrder	f46c74389dd8ee7c	4a0d53aa59b6fe5a
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.blob	513679e59f2d52c2	e3b0c44298fc1c14
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.folder	c75ae5cd9b9d611a	e3b0c44298fc1c14
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.hand	1b77bf93aa77b64f	306443f81ab07197
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.lockFile	856871b344fe94e1	e3b0c44298fc1c14
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.root	ec17e02cfa6e8973	d79d8f6f3a5005d4
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.scan	0b1a2102f6a1caa6	e3b0c44298fc1c14
+tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.titles	55f4977112fe50f5	f9e9bebd5662f24c
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.tree	c17bba0f151b0fbb	e3b0c44298fc1c14
 tools/DocLock/WikiSite.cs|field|DocLock.WikiSite.written	729a23f39feac3dd	f8a08a615761907f
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.AppendElement(StringBuilder,Element,string)	52c8bed49620803e	c162c28dd72cf01c
@@ -15982,24 +15985,25 @@ tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.IsType(Element)	543d560798e4c9
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Lines(string)	ab5ee59af573812e	0adc703b1b94b416
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Link(string,int)	79a23cae894601a8	4521e85335228442
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Page(string)	f6dde63d1f035ec2	d27b6da26eb622ce
-tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.ReadHandPages	1899deee4ab31d48	58f99a30aba66b89
+tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Rank(string)	367230a290f58f18	51f04e88597118fa
+tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.ReadHandPages	8b51b98d2678dc41	58f99a30aba66b89
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Registrations	a05930c6f045c117	af69d9dae709658e
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Repo(string)	e38460ec5201eb3b	9fcf40a9df4c5f67
-tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Save(string,string)	519e3fadd555fcc3	de32b3646f2dd282
+tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Save(string,string)	be2119d02684d88d	de32b3646f2dd282
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.SaveFilePage(string,List<Element>)	c8dcedac842fc3ad	4550e9d9f79d058f
-tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Section(StringBuilder,string,Func<string,bool>)	d2ba9aee81e0f3e0	01ae48feaf0b44dc
+tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Section(StringBuilder,string,Func<string,bool>)	05e3a28d22631cdd	01ae48feaf0b44dc
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Simple(string)	cf0d5086d85af276	f5697e7804d27bbc
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Stem(string)	f9cb7c9c6b857ce3	41b4ff0c2774a21e
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Switches	99c792b49c58fddd	bdb4c4e04d3a568c
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Title(string)	29f368efe97a4f1c	e26244dfa4830119
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Types	38e94fe32a401031	ffd8a7090e747625
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.Write	3c8f92eb6cf2a14a	0d66524d4cf661de
-tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteAreaAndFilePages	01188d0550aff799	1fece7361081e932
+tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteAreaAndFilePages	7867c33456109b44	1fece7361081e932
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteFooter	f4c45b8416f275c9	b4ada3875c75ec74
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteHandPages	f229cc8e01af5dd7	91f953c9d86df933
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteHome	8cd71d395ef4c395	7a9b2a0595de4328
 tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteIndexes	200a9636220b8583	909b5fe7e7c44a3e
-tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteSidebar	b50e931c3d399e4b	7ffdd48d3f00129a
+tools/DocLock/WikiSite.cs|method|DocLock.WikiSite.WriteSidebar	9863353eed0edc82	7ffdd48d3f00129a
 tools/Refactor/Program.cs|class|Refactor.Operation	4df3a42ad41ce910	40d63d264cf9b64e
 tools/Refactor/Program.cs|class|Refactor.Plan	52371437ea333e6e	097be34032709104
 tools/Refactor/Program.cs|class|Refactor.Program	4663f02de8d2a1e9	7cbc13604986be2f
@@ -16021,7 +16025,7 @@ tools/Refactor/Program.cs|method|Refactor.Operation.Read(string)	0269925dc592930
 tools/Refactor/Program.cs|method|Refactor.Plan.Move(string,string,string)	c83583b4ce7ce3f9	558518921cf23836
 tools/Refactor/Program.cs|method|Refactor.Plan.MoveDir(string,string,string)	ebac757ef7d3ee33	ff0c05f6cc96cd97
 tools/Refactor/Program.cs|method|Refactor.Plan.Run	7e052f73116ceed0	03398437e5462620
-tools/Refactor/Program.cs|method|Refactor.Program.Main(string[])	33202d8165363600	ce388367a47c3015
+tools/Refactor/Program.cs|method|Refactor.Program.Main(string[])	33202d8165363600	f439ee631a675f2f
 tools/Refactor/Program.cs|method|Refactor.Repo.Files(string)	ce13604dd03744cc	fc5191c945936462
 tools/Refactor/Program.cs|method|Refactor.Repo.Git(string,string[])	ae638db7db2e1713	606b96d937b52435
 tools/Refactor/Program.cs|method|Refactor.Repo.IsRewritable(string)	000d1764579533ac	3d487b300a04b14e
@@ -16202,7 +16206,7 @@ tools/benchmark_matrix.py|function|summary_table	c85bd0dcf6bd6f44	735ca323b0c6b2
 tools/benchmark_matrix.py|function|tables_of	0e06266ec1e91a26	2ef736b94d336c1b
 tools/benchmark_matrix.py|function|vendor_of	018fb987b47023b9	bc63ffe635341793
 tools/benchmark_matrix.py|function|write_results	100a2e67503e7df1	7cf3cb966809e3bc
-tools/benchmark_matrix.py|module|tools/benchmark_matrix.py	120970d812836f19	256712a30c148fb3
+tools/benchmark_matrix.py|module|tools/benchmark_matrix.py	120970d812836f19	f85ad87ff5550998
 tools/build_rt_player.py|function|build	d3703524dadadd3f	b718336a38846be7
 tools/build_rt_player.py|function|copy_in	e3df07f460fab7cf	c7e9b199151bbf09
 tools/build_rt_player.py|function|main	c6bab1d80f650fa3	5d386bc4817b6fa1

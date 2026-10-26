@@ -66,6 +66,9 @@ namespace DocLock
                 case "lint":
                     LintReport(scan, lockFile, argument);
                     return 0;
+                case "sample":
+                    Sample(root, scan, args);
+                    return 0;
                 case "lint-baseline":
                     LintBaseline.Write(root, Lint.All(scan.Elements.Where(Rules.Documented)));
                     Console.WriteLine("Baseline written.");
@@ -74,7 +77,7 @@ namespace DocLock
                     Wiki.Write(argument ?? Path.Combine(root, ".doclock", "wiki"), scan, lockFile, Sources.Browse(root));
                     return 0;
                 default:
-                    Console.Error.WriteLine("Commands: report, check, update, confirm, list, refs, wiki, lint, lint-baseline.");
+                    Console.Error.WriteLine("Commands: report, check, update, confirm, list, refs, wiki, lint, lint-baseline, sample.");
                     return 2;
             }
         }
@@ -101,6 +104,31 @@ namespace DocLock
             if (!ok)
                 Console.WriteLine("Document what is undocumented; fix or confirm (doclock confirm <id>) what is dirty; then doclock update.");
             return ok ? 0 : 1;
+        }
+
+        // A random sample of documented elements for a review, one per line: file:line, kind, name. The arguments are the
+        // count, the seed, and the first commit to compare with: half the sample comes from the files changed since that
+        // commit, where the comments were rewritten, and half from the other files.
+        private static void Sample(string root, Scan scan, string[] args)
+        {
+            int count = args.Length > 1 ? int.Parse(args[1]) : 100;
+            var random = new Random(args.Length > 2 ? int.Parse(args[2]) : 1);
+            var changed = new HashSet<string>(StringComparer.Ordinal);
+            if (args.Length > 3)
+            {
+                var info = new ProcessStartInfo("git", "diff --name-only " + args[3]) { WorkingDirectory = root, RedirectStandardOutput = true, UseShellExecute = false };
+                using (Process git = Process.Start(info))
+                {
+                    string line;
+                    while ((line = git.StandardOutput.ReadLine()) != null) changed.Add(line.Replace('\\', '/'));
+                    git.WaitForExit();
+                }
+            }
+            var pool = scan.Elements.Where(e => e.Doc.Length > 0 && !e.SharesDoc && e.Kind != "enum member").ToList();
+            var rewritten = pool.Where(e => changed.Contains(e.Path)).OrderBy(e => random.Next()).Take(count / 2);
+            var rest = pool.Where(e => !changed.Contains(e.Path)).OrderBy(e => random.Next()).Take(count - count / 2);
+            foreach (Element e in rewritten.Concat(rest).OrderBy(e => e.Path, StringComparer.Ordinal).ThenBy(e => e.Line))
+                Console.WriteLine(e.Path + ":" + e.Line + "	" + e.Kind + "	" + e.Name + (e.Signature.Length > 0 ? "(" + e.Signature + ")" : ""));
         }
 
         // The command lint [rule]: the comments the contract finds fault with, the count per rule and, given a rule, each

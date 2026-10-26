@@ -168,7 +168,7 @@ namespace ReDefinition.Window
             return true;
         }
 
-        // The layout KSP detected, asked for once per window.
+        // The layout KSP detected, asked for once per window build and again after Cancel or Reset.
         private static string detectedLayout;
 
         // Forgets what the layout rows wait for, and the detected layout.

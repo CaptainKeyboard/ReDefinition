@@ -684,7 +684,8 @@ namespace redefinition
         // discontinuity FSR has to be told about; see PrepareForPresentLocked.
         bool configuredOn = false;
 
-        // Whether PrepareForPresentLocked last prepared a frame for generation.
+        // Whether the last Present was prepared for generation, by PrepareForPresentLocked,
+        // PrepareStreamlineLocked or PrepareXessLocked.
         bool generatedLastPresent = false;
         bool loggedOffFailure = false;
 

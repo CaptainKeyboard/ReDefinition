@@ -20,7 +20,7 @@ namespace ReDefinition.Scaling
     {
         // The zoom the tree opens at, and the furthest it zooms in.
         // KSP opens the tree at UIGridArea.zoom 1 and zooms in no further (zoomMax 1).
-        // Here the tree zooms out to KSP's 0.6.
+        // ReDefinition opens it at ZoomOpen and lets it zoom in to ZoomMax; the zoom-out limit stays KSP's.
         private const float ZoomOpen = 1.5f;
         private const float ZoomMax = 2.5f;
         // A node's share of the tree against KSP's at a UI scale and zoom of 1.

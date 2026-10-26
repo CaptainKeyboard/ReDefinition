@@ -47,8 +47,8 @@ namespace ReDefinition.Dashboard
             return sb.ToString();
         }
 
-        // Writes null, Raw, bools, strings, numbers, objects and any enumerable as an array; anything else as its
-        // ToString in quotes.
+        // Writes null, Raw, bools, strings, doubles, floats, ints, longs, string-keyed dictionaries as objects and any
+        // other enumerable as an array; anything else, other number types included, as its ToString in quotes.
         private static void WriteValue(StringBuilder sb, object v)
         {
             switch (v)

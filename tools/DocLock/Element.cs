@@ -20,7 +20,7 @@ namespace DocLock
         public string Code = "";     // the code that the documentation describes, comments and spacing left out
         // Documented by the comment of the run of fields or members it stands in (the scanners' Group).
         public bool SharesDoc;
-        // Documented elsewhere: a partial type's other part, a C++ function's declaration or definition.
+        // Documented elsewhere: a partial type's other part, a C++ function's declaration or definition, the one top-level node of a config file that its file comment describes.
         public bool DocumentedElsewhere;
 
         // The element's key in the lock: its file, kind, qualified name and signature.

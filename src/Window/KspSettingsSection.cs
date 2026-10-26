@@ -66,7 +66,7 @@ namespace ReDefinition.Window
         // Also the settings window's (SettingsWindow), which edits the same way.
         internal sealed class Edit
         {
-            // The settings as the dialog opened, and the copy the controls edit.
+            // The settings as the dialog opened or as last applied, and the copy the controls edit.
             public OwnSettings Before;
             public OwnSettings After;
 

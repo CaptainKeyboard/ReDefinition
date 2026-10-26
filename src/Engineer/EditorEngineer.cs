@@ -358,7 +358,8 @@ namespace ReDefinition.Engineer
         // The copy's tiles, made from the cargo button's tiles as they are: KSP's
         // own, or a UI theme's (ModeButtonTiles). Made again if the cargo
         // button's tile changes, as when a theme sets its own after the editor
-        // starts. The drawn tiles stand in where one cannot be made.
+        // starts. The drawn tiles stand in where one cannot be made. madeFrom is the cargo
+        // button's sprite they were made from; null makes them again.
         private Sprite madeFrom;
 
         // A UI theme may have swapped the cargo button's pixels as the scene's UI got ready: the tiles are made again.

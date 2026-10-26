@@ -331,8 +331,8 @@ namespace ReDefinition.Dashboard
             top = new Vector3d(Vector3d.Dot(t, north), Vector3d.Dot(t, east), Vector3d.Dot(t, up));
         }
 
-        // One step of the turn to the target: rolls the target while a roll button holds, gives the target up
-        // where the player steers, and otherwise sets pitch, yaw and roll from Inputs.
+        // One step of the turn to the target: rolls the target while a roll button holds; unless paused, it gives
+        // the target up where the player steers and otherwise sets pitch, yaw and roll from Inputs.
         private static void Steer(FlightCtrlState s)
         {
             Vessel v = attached;

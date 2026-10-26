@@ -3,7 +3,7 @@
 Runs the scene probe's flight (the launch pad, or a field of grass) once per KSP start of a
 scenario matrix (tools/benchmark_matrix.json). It sets the proxy's live keys in turn inside
 each start and reads the frame rate and the latency of each phase from the logs. It writes the
-run to docs/development/benchmarks/<date>.json and the tables in docs/development/benchmarks.md.
+run to docs/development/benchmarks/<date-time>.json and the tables in docs/development/benchmarks.md.
 The matrix is split into groups: the main matrix runs by default, the others (raytracing
 modes, frame generation steps, DLSS-G presets, latency brake targets, build variants, a
 grass scene) each by --group NAME.
@@ -61,7 +61,7 @@ PROFILE_START_SECONDS = 60.0
 FOREGROUND_SECONDS = 2.0
 FOREGROUND_RETRY_SECONDS = 15.0
 
-# What the snapshot keeps: every settings file of the install (snapshot.py).
+# What the snapshot keeps: every settings file of the install (build/settings-snapshots/snapshot.py).
 SNAP_EXT = (".cfg", ".xml", ".json", ".txt", ".ini", ".settings")
 SNAP_SKIP = ("Logs", "saves", "ReDefinitionCaptures", "Screenshots")
 

@@ -46,7 +46,7 @@ namespace ReDefinition.Settings
         // The save a per-save mod keeps its values for now; empty outside a save.
         string LoadedSave();
 
-        // What installed mods require of a setting (Requirements).
+        // The value the installed mods' requirements allow for the setting: `value` itself where it passes (Requirements).
         string Adjust(BundledSetting setting, string value);
         // Whether their requirements allow the value.
         bool Allows(BundledSetting setting, string value);
