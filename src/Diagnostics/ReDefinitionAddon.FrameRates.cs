@@ -1,5 +1,5 @@
 using System.Text;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Upscaler;
 using UnityEngine;
 

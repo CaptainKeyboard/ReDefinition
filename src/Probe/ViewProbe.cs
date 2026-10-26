@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using ReDefinition.Core;
 using ReDefinition.Modules;
+using ReDefinition.Proxy;
 using UnityEngine;
 
 namespace ReDefinition.Probe
@@ -141,7 +142,7 @@ namespace ReDefinition.Probe
                 foreach (string pair in iniSets[n].Split(','))
                 {
                     int equals = pair.IndexOf('=');
-                    if (equals > 0) Settings.ProxyIni.Set(pair.Substring(0, equals).Trim(), pair.Substring(equals + 1).Trim());
+                    if (equals > 0) ProxyIni.Set(pair.Substring(0, equals).Trim(), pair.Substring(equals + 1).Trim());
                 }
                 if (iniSets[n].Length > 0)
                 {
@@ -238,7 +239,7 @@ namespace ReDefinition.Probe
             while (Time.realtimeSinceStartup < until)
             {
                 yield return null;
-                Raytracing.RtNative.KspRtPassTimings(passes, passes.Length);
+                RtNative.KspRtPassTimings(passes, passes.Length);
                 for (int p = 0; p < passes.Length; p++) sum[p] += passes[p];
                 frames++;
                 seconds += Time.unscaledDeltaTime;

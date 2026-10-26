@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // A packet a ring sends: copied into the one boxed copy the ring keeps of its type
     // (PacketRing.Issue), as this = packet. Marshal.StructureToPtr takes an object, and

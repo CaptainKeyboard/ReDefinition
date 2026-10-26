@@ -5,7 +5,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // Direct3D 12 for other mods (ReDefinition.Api.D3D12): the dxgi.dll proxy's
     // D3d12Compute, reached like the upscalers there (NativeUpscalerLink) -- packets for
@@ -17,7 +17,7 @@ namespace ReDefinition.Bridges
     internal static class D3d12Bridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // The proxy's render events: a pass created, destroyed, dispatched, a texture's shared copy released.
         internal const int CreateEvent = 20;

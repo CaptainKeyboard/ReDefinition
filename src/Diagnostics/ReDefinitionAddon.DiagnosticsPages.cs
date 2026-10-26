@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using FidelityFX.FSR3;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Diagnostics;
 using ReDefinition.Upscaler;
 using ReDefinition.Window;

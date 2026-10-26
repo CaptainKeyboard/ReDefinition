@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The camera matrices DLSS frame generation takes from the frame packet
     // (FrameGeneration.h, FramePacket), in the form Streamline's common constants

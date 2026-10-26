@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The managed half of AMD's upscaler; the native half is AmdUpscaler.h in the
     // dxgi.dll proxy, which runs AMD's DLL on its D3D12 device and copies the result
@@ -15,7 +15,7 @@ namespace ReDefinition.Bridges
     internal static class AmdUpscalerBridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // Field order and types as AmdUpscalerPacket in AmdUpscaler.h.
         [StructLayout(LayoutKind.Sequential)]

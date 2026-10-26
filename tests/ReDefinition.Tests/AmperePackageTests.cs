@@ -3,7 +3,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Vendor;
 
 namespace ReDefinition.Tests

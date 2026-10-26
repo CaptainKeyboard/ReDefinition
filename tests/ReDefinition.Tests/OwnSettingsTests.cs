@@ -33,7 +33,7 @@ namespace ReDefinition.Tests
         {
             OwnSettings settings = new OwnSettings();
             Assert.IsTrue(settings.SetValue("technique", "Dlss"));
-            Assert.AreEqual(Bridges.UpscalerBackend.Dlss, settings.Backend);
+            Assert.AreEqual(UpscalerBackend.Dlss, settings.Backend);
             Assert.IsTrue(settings.SetValue("raytracing", "Full"));
             Assert.AreEqual("Full", settings.ValueOf("raytracing"));
             Assert.IsTrue(settings.SetValue("rayReconstruction", "false"));

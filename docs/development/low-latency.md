@@ -2,7 +2,7 @@
 
 **For:** anyone changing ReDefinition's latency code.
 **You need:** the repository. The code is in `src/DxgiProxy/LowLatency.cpp` and
-`src/Bridges/ReflexFrames.cs`.
+`src/Proxy/ReflexFrames.cs`.
 **You get:** what lowers the latency on each GPU, why a brake in the proxy works where
 Reflex does not, how the latency is measured, and what was measured.
 

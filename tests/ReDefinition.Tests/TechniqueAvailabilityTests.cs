@@ -1,5 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Modules;
 using ReDefinition.Upscaler;
 using ReDefinition.Vendor;

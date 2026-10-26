@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The managed half of XeSS; the native half is XessUpscaler.h in the dxgi.dll
     // proxy, which runs Intel's libxess.dll on its D3D12 device and copies the result
@@ -16,7 +16,7 @@ namespace ReDefinition.Bridges
     internal static class XessUpscalerBridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // The proxy's magic for a XeSS packet, which tells it from one for AMD's upscaler.
         private const uint PacketMagic = 0x4B535058;   // 'KSPX'

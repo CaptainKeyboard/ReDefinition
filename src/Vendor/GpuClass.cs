@@ -1,6 +1,6 @@
 using System;
 using UnityEngine;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 
 namespace ReDefinition.Vendor
 {

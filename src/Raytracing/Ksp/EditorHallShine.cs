@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
 {

@@ -15,7 +15,7 @@ ReDefinition is six things in one repository.
 2. **The upscaler.** FSR 3 in Unity, on KSP's camera stack, in C# (`src/Upscaler`,
    `src/Fsr3`). Its compute shaders come as an AssetBundle that the Unity project in
    `unity/` builds. DLSS, AMD's upscaler DLL and XeSS run in the proxy on the same inputs
-   (`src/Bridges`).
+   (`src/Proxy`).
 3. **The raytracing.** Sun shadows, diffuse light and reflections traced on the proxy's
    Direct3D 12 device, fed from KSP's scene and written back into Unity's lighting
    (`src/Raytracing`, the proxy's `Raytracing*.cpp`).
@@ -48,7 +48,7 @@ scatter materials for the mipmap bias from `RtKspMods` and the vessel's parts fr
 | 1 | `src/Core` | `ReDefinition.Core` | the log tag, warnings logged a few times at most, types and members looked up by name, the `PluginData` folder |
 | 2 | `src/Settings` | `ReDefinition.Settings` | registrations, the bundled mods' settings, profiles, defaults, requirements, key combinations, the settings window's edit model |
 | 3 | `src/Upscaler`, `src/Fsr3` | `ReDefinition.Upscaler`, `FidelityFX.FSR3`, `FidelityFX` | the upscaler on KSP's camera stack |
-| 3 | `src/Bridges` | `ReDefinition.Bridges` | the managed side of the proxy |
+| 3 | `src/Proxy` | `ReDefinition.Proxy` | the managed side of the proxy |
 | 3 | `src/Shared` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
 | 3 | `src/Raytracing` | `ReDefinition.Raytracing` | the raytracing's managed side, free of KSP's types |
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
@@ -230,7 +230,7 @@ The rules the store follows: [settings-store.md](settings-store.md).
 
 How a frame goes through all of it: [upscaler.md](upscaler.md).
 
-## The proxy's managed side, `src/Bridges`
+## The proxy's managed side, `src/Proxy`
 
 | File | Role |
 |---|---|
@@ -291,7 +291,7 @@ The reference for mod authors: [modders/shared-foundation.md](../modders/shared-
 | `ModWindowsAddon.cs` | when: the close buttons installed, the toolbar looked at, the open settings window following a change made in another window |
 | `UnityMouseEvents.cs` | Unity's mouse events on redirected cameras, and clicks on ReDefinition's windows kept from the scene |
 | `NvidiaDownloader.cs` | the download of NVIDIA's DLLs from NVIDIA's Streamline release after licence consent |
-| `IntelDownloader.cs` | the same for Intel's XeSS DLLs, from Intel's XeSS SDK release (`IntelFiles` in `src/Bridges` holds the table) |
+| `IntelDownloader.cs` | the same for Intel's XeSS DLLs, from Intel's XeSS SDK release (`IntelFiles` in `src/Proxy` holds the table) |
 | `AmpereFrameGeneration.cs`, `SettingsWindow.Ampere.cs` | the *DLSS-G on RTX 30/20* row: the dialog with the steps, the install from the zip, and the package's choices |
 | `DebugOptions.cs` | the diagnostics window's options, their search, *Changed* and reset, the pins, and the ring of frame times; free of Unity |
 | `DiagnosticsStyles.cs` | the diagnostics window's styles, copied from KSP's skin |
@@ -444,7 +444,7 @@ compiles it on its own ([raytracing.md](raytracing.md)):
 
 | File | What |
 |---|---|
-| `src/Raytracing/RtNative.cs` | the proxy's raytracing exports and packets |
+| `src/Proxy/RtNative.cs` | the proxy's raytracing exports and packets |
 | `src/Raytracing/RtScene.cs` | meshes, materials, material textures and each frame's instances handed to the proxy; the sources of the scene |
 | `src/Raytracing/RtMaterial.cs` | what a ray takes of a material: albedo, specular colour, smoothness, emission, as Unity's standard shaders and Deferred shade them |
 | `src/Raytracing/RtMaterialIntent.cs` | how a material's shine is meant, by its shader's family and values, for the surfaces written back into the G-buffer |

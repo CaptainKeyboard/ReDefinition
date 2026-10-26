@@ -1,4 +1,4 @@
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Shared;
 using UnityEngine.Rendering;

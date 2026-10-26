@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using KSP.Localization;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using ReDefinition.Window;

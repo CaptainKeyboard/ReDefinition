@@ -5,7 +5,7 @@ using FidelityFX.FSR3;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // NGX's render preset hints as the proxy passes them on (Dlss.h): Default lets
     // the DLSS library choose for each mode. The numbers are NGX's; NGX's own log
@@ -80,7 +80,7 @@ namespace ReDefinition.Bridges
     internal static class DlssBridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // Field order and types as DlssPacket in Dlss.h; size and magic are checked
         // on both sides.

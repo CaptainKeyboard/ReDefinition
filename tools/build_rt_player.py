@@ -35,7 +35,7 @@ except (OSError, subprocess.CalledProcessError):
 PROXY = os.path.join(ROOT, 'build', 'DxgiProxy', 'Release', 'dxgi.dll')
 
 SOURCES = [
-    'src/Raytracing/RtNative.cs',
+    'src/Proxy/RtNative.cs',
     'src/Raytracing/RtScene.cs',
     'src/Raytracing/RtMaterial.cs',
     'src/Raytracing/RtMaterialIntent.cs',
@@ -50,12 +50,12 @@ SOURCES = [
     'src/Core/ForeignAssumptions.cs',
     'src/Core/TypeLookup.cs',
     'src/Raytracing/RtCamera.cs',
-    'src/Bridges/PacketRing.cs',
-    'src/Bridges/StreamlineCamera.cs',
+    'src/Proxy/PacketRing.cs',
+    'src/Proxy/StreamlineCamera.cs',
     # The upscalers, for the turn through each (RtTurnUpscale.cs).
-    'src/Bridges/NativeUpscalerLink.cs',
-    'src/Bridges/DlssBridge.cs',
-    'src/Bridges/AmdUpscalerBridge.cs',
+    'src/Proxy/NativeUpscalerLink.cs',
+    'src/Proxy/DlssBridge.cs',
+    'src/Proxy/AmdUpscalerBridge.cs',
     'src/Fsr3/Fsr3Constants.cs',
     'src/Fsr3/Fsr3ShaderIDs.cs',
     'src/Fsr3/Fsr3Upscaler.cs',

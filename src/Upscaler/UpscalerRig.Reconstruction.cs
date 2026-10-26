@@ -1,7 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Raytracing;
 using UnityEngine;

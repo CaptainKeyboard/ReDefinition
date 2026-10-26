@@ -4,7 +4,7 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The technique that upscales, in the order the settings row steps through them (Next).
     internal enum UpscalerBackend
@@ -87,7 +87,7 @@ namespace ReDefinition.Bridges
         internal const uint FlagReset = 1u << 3;
 
         // The proxy's file name, as the DllImport below resolves it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // The proxy's render event callback, shared by every technique and frame generation.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]

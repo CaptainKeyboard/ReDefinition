@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using FidelityFX;
 using FidelityFX.FSR3;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using UnityEngine;
 using UnityEngine.Rendering;
 

@@ -5,7 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
@@ -427,7 +427,7 @@ namespace ReDefinition.Probe
     {
         // The proxy's CPU sampler (src/DxgiProxy/CpuSampler.h): the main thread sampled for seconds into path; 1
         // started, 0 not.
-        [System.Runtime.InteropServices.DllImport("dxgi.dll", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl,
+        [System.Runtime.InteropServices.DllImport(ReDefinition.Proxy.ProxyDll.Name, CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl,
                                                    CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
         private static extern int KspCpuSample(int seconds, string path);
 

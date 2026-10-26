@@ -1,5 +1,5 @@
 using FidelityFX.FSR3;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;

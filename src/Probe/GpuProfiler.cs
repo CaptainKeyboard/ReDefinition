@@ -33,7 +33,7 @@ namespace ReDefinition.Probe
         // The switch; the proxy the markers go to; the name of the profiler's marker buffers; seconds between two
         // reports; the most markers read back of one frame.
         internal const string Argument = "-redefinitionGpuProfile";
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ReDefinition.Proxy.ProxyDll.Name;
         private const string OwnBufferName = "ReDefinition GPU profiler";
         private const float Period = 10f;
         private const int Capacity = 2048;

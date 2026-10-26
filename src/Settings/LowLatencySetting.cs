@@ -1,3 +1,5 @@
+using ReDefinition.Proxy;
+
 namespace ReDefinition.Settings
 {
     // The low latency row: Auto, or Off. Auto is what the proxy does by default -- the

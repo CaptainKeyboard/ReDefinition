@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
+using ReDefinition.Proxy;
 
 namespace ReDefinition.Raytracing
 {

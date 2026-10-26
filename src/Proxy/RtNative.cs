@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace ReDefinition.Raytracing
+namespace ReDefinition.Proxy
 {
     // The proxy's raytracing service (src/DxgiProxy/Raytracing.h), as the managed
     // side reaches it: exports called from the main thread, and packets for the
@@ -19,7 +19,7 @@ namespace ReDefinition.Raytracing
     internal static class RtNative
     {
         // The proxy the exports are in, the game's dxgi.dll next to KSP_x64.exe.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // The render events' ids for RenderEvent: a frame, Ray Reconstruction, and the two releases.
         internal const int FrameEvent = 30;
@@ -191,7 +191,7 @@ namespace ReDefinition.Raytracing
         // Event 30's packet, as RtFramePacket in Raytracing.h, which says each field's meaning in full: a frame to
         // trace. Matrices rows first, for column vectors and camera-relative positions.
         [StructLayout(LayoutKind.Sequential)]
-        internal struct FramePacket : Bridges.IRingPacket<FramePacket>
+        internal struct FramePacket : IRingPacket<FramePacket>
         {
             // Its size in bytes and FrameMagic, the frame's index (the instances' and groups' frameIndex), its
             // flags (Flag*), the size in pixels it is traced at, the signals it traces (Signal*); Reserved 0.
@@ -254,7 +254,7 @@ namespace ReDefinition.Raytracing
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
             // PacketRing's copy into its one boxed packet: the arrays by reference, which marshalling then copies.
-            void Bridges.IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
+            void IRingPacket<FramePacket>.CopyFrom(ref FramePacket packet)
             {
                 this = packet;
             }
@@ -301,7 +301,7 @@ namespace ReDefinition.Raytracing
         // Event 31's packet, as RtReconstructPacket in Raytracing.h: DLSS Ray
         // Reconstruction for the frame whose raytracing made its guides.
         [StructLayout(LayoutKind.Sequential)]
-        internal struct ReconstructPacket : Bridges.IRingPacket<ReconstructPacket>
+        internal struct ReconstructPacket : IRingPacket<ReconstructPacket>
         {
             // Its size in bytes and ReconstructMagic, the FrameIndex of the raytraced frame whose guides it takes,
             // FlagReset and FlagLegacySmoothness, the render and output sizes in pixels, sl::DLSSMode's and
@@ -351,7 +351,7 @@ namespace ReDefinition.Raytracing
             public IntPtr Output;
 
             // PacketRing's copy into its one boxed packet: the arrays by reference, which marshalling then copies.
-            void Bridges.IRingPacket<ReconstructPacket>.CopyFrom(ref ReconstructPacket packet)
+            void IRingPacket<ReconstructPacket>.CopyFrom(ref ReconstructPacket packet)
             {
                 this = packet;
             }

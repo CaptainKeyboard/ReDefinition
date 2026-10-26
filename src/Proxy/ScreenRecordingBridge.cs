@@ -2,7 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The proxy's screen recording (ScreenRecorder.h): what the monitor shows, frame by
     // frame, the frames frame generation makes included, into ReDefinitionCaptures beside
@@ -10,7 +10,7 @@ namespace ReDefinition.Bridges
     internal static class ScreenRecordingBridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // Starts a recording of that many frames, with dumps not 0 the input dump too; 0 where one already runs.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]

@@ -4,7 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using FidelityFX.FSR3;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Diagnostics;
 using ReDefinition.Raytracing;

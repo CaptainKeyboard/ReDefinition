@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Proxy;
 using ReDefinition.Raytracing;
 
 namespace ReDefinition.Tests

@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Proxy;
 using ReDefinition.Raytracing;
 
 namespace ReDefinition.Tests

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using ReDefinition.Proxy;
 using ReDefinition.Raytracing;
 using UnityEngine;
 using UnityEngine.Rendering;

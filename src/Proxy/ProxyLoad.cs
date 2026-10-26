@@ -6,7 +6,7 @@ using Microsoft.Win32;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // Whether the dxgi.dll next to KSP_x64.exe is the one the game loaded. Windows
     // may refuse it: Smart App Control and other code integrity policies block a DLL
@@ -56,13 +56,13 @@ namespace ReDefinition.Bridges
         private static string Ask()
         {
             string game = Path.GetDirectoryName(Path.GetFullPath(Application.dataPath));
-            string beside = Path.Combine(game ?? "", "dxgi.dll");
+            string beside = Path.Combine(game ?? "", ProxyDll.Name);
             if (!File.Exists(beside)) return null;
             // By its full path: the proxy loads System32's dxgi.dll itself, and with two
             // modules of one name loaded, which the name alone gives is not defined
             // (GetModuleHandle's documentation).
             if (GetModuleHandle(Path.GetFullPath(beside)) != IntPtr.Zero) return null;
-            IntPtr module = GetModuleHandle("dxgi.dll");
+            IntPtr module = GetModuleHandle(ProxyDll.Name);
             if (module == IntPtr.Zero) return null;
             StringBuilder name = new StringBuilder(1024);
             if (GetModuleFileName(module, name, name.Capacity) == 0) return null;

@@ -1,7 +1,7 @@
 # Frame generation
 
 **For:** anyone changing ReDefinition's frame generation.
-**You need:** the repository. The code is in `src/DxgiProxy/` and `src/Bridges/`.
+**You need:** the repository. The code is in `src/DxgiProxy/` and `src/Proxy/`.
 **You get:** how generated frames are made in a game that renders in Direct3D 11, what
 each runtime asks for, and what it costs.
 

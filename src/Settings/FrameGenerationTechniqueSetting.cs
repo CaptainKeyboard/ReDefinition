@@ -1,3 +1,5 @@
+using ReDefinition.Proxy;
+
 namespace ReDefinition.Settings
 {
     // The frame generation row's technique: Off, or the technique the proxy makes its swapchain for --

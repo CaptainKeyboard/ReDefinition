@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using FidelityFX.FSR3;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using ReDefinition.Vendor;
@@ -531,7 +531,7 @@ namespace ReDefinition.Modules
             if (raytracingAskedAt != float.MinValue && now - raytracingAskedAt < 1f) return raytracingOffered;
             raytracingAskedAt = now;
             string why;
-            raytracingOffered = ReDefinition.Raytracing.RtNative.Ready(out why);
+            raytracingOffered = RtNative.Ready(out why);
             return raytracingOffered;
         }
 

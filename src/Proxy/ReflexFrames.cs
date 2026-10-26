@@ -7,7 +7,7 @@ using UnityEngine.LowLevel;
 using UnityEngine.Rendering;
 using UnityEngine;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // NVIDIA Reflex and PC latency for the game's frames, which DLSS frame
     // generation requires ("It is required for sl.reflex to be integrated",
@@ -32,7 +32,7 @@ namespace ReDefinition.Bridges
     internal static class ReflexFrames
     {
         // The proxy's file name, and the render event that carries a frame's index to its Present.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
         private const int FrameEvent = 40;
 
         // Reflex's sleep and the frame's simulation start; the frame's index, or 0 where nothing marks frames.

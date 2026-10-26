@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using UnityEngine;
 using UnityEngine.Rendering;
 

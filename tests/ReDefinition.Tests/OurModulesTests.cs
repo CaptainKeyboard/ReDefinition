@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using FidelityFX.FSR3;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
 using ReDefinition.Vendor;
@@ -171,7 +171,7 @@ namespace ReDefinition.Tests
             OwnSettings now = new OwnSettings
             {
                 Enabled = true,
-                Backend = Bridges.UpscalerBackend.Dlss,
+                Backend = UpscalerBackend.Dlss,
                 BackendAuto = false,
                 Raytracing = Raytracing.RaytracingMode.Full,
                 RaytracingBounces = 3,

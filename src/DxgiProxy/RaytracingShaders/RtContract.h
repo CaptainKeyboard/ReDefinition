@@ -1,4 +1,4 @@
-// The contract between the managed side (src/Raytracing/RtNative.cs), the proxy
+// The contract between the managed side (src/Proxy/RtNative.cs), the proxy
 // (Raytracing.h) and the raytracing shaders (RtCommon.hlsli): the values and layouts all
 // three read, in one place. Plain #defines, so that C++ and HLSL include it alike;
 // tests/ReDefinition.Tests (RtContractTests) reads it and holds RtNative's constants and

@@ -1,7 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using UnityEngine;
 

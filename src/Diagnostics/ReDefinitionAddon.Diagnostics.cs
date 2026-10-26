@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Diagnostics;
 using ReDefinition.Ui;

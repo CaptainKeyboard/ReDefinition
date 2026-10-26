@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The frame generation row's choices -- Off, 2x to 6x, Dynamic -- and which of them the
     // technique that runs allows (what the proxy reports through FrameGenerationBridge.Limits).

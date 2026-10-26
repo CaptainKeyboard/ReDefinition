@@ -33,7 +33,7 @@ namespace ReDefinition.Probe
         private const float Measure = 5f;
 
         // The proxy's load monitor: the main thread's, the render thread's and the GPU's load in per cent, overall and this process's.
-        [DllImport("dxgi.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport(ReDefinition.Proxy.ProxyDll.Name, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspPerfLoad(out float mainThread, out float renderThread, out float gpu, out float gpuThisProcess);
 
         // One thing switched off and on: a mod, or a setting of KSP's.

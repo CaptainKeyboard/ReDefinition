@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 
-namespace ReDefinition.Settings
+namespace ReDefinition.Proxy
 {
     // ReDefinitionProxy.ini beside KSP_x64.exe, whose [Proxy] section the proxy reads: at
     // the start for some keys, within a second of the file being saved for the others

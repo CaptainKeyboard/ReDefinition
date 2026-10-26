@@ -1,5 +1,5 @@
 using System.Collections;
-using ReDefinition.Bridges;
+using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using UnityEngine;

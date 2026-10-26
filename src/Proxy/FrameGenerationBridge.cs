@@ -5,7 +5,7 @@ using ReDefinition.Core;
 using UnityEngine.Rendering;
 using UnityEngine;
 
-namespace ReDefinition.Bridges
+namespace ReDefinition.Proxy
 {
     // The managed half of frame generation.
     //
@@ -19,7 +19,7 @@ namespace ReDefinition.Bridges
     internal static class FrameGenerationBridge
     {
         // The proxy's file name, as the DllImports below resolve it in this process.
-        private const string Proxy = "dxgi.dll";
+        private const string Proxy = ProxyDll.Name;
 
         // Everything about one frame besides the textures. Field order and
         // types match FramePacket in FrameGeneration.h; size and magic are

@@ -1,7 +1,7 @@
 # The shared foundation for mods
 
 **For:** anyone working on the interface ReDefinition offers other mods.
-**You need:** `src/Api`, `src/Shared`, `src/Bridges` and `src/DxgiProxy/D3d12Compute.cpp`
+**You need:** `src/Api`, `src/Shared`, `src/Proxy` and `src/DxgiProxy/D3d12Compute.cpp`
 to hand.
 **You get:** why each part exists only once, what ReDefinition offers instead, and what
 has been verified.
@@ -179,7 +179,7 @@ not to be used.
   copies into a shared copy only once the queue is past every list that used it.
 * **The code.** `src/DxgiProxy/D3d12Compute.h` and `src/DxgiProxy/D3d12Compute.cpp` in the
   proxy, with render events 20 to 23 and the `KspD3d12*` exports
-  (`src/DxgiProxy/ManagedBridge.cpp`); `src/Bridges/D3d12Bridge.cs` and `src/Api/D3D12.cs`
+  (`src/DxgiProxy/ManagedBridge.cpp`); `src/Proxy/D3d12Bridge.cs` and `src/Api/D3D12.cs`
   in the mod.
 
 ### Limits
