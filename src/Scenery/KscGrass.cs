@@ -241,8 +241,10 @@ namespace ReDefinition.Scenery
             KscGrass grass = current;
             if (grass == null || !grass.ready || !Enabled()) return 0;
             int buffers = 0;
+            // Not the farthest level of detail: its blades are the picture's terrain look, and the rays would
+            // shade the lawns with them as a dark mottled patch (RtKspMods.ParallaxScatter).
             foreach (Kind kind in grass.kinds)
-                for (int lod = 0; lod < 3; lod++)
+                for (int lod = 0; lod < 2; lod++)
                 {
                     if (kind.Lifted[lod] == null || !kind.Lifted[lod].IsValid() || kind.Meshes[lod] == null) continue;
                     into.Add(new Raytracing.RtGpuItem
