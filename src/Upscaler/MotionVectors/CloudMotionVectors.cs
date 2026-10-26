@@ -1,6 +1,6 @@
+using ReDefinition.Api.Internal;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
-using ReDefinition.Shared;
 using UnityEngine.Rendering;
 using UnityEngine;
 

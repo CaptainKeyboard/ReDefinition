@@ -30,7 +30,7 @@ namespace ReDefinition.Engineer
             Texture2D mask = null;
             try
             {
-                mask = Shared.TexturePixels.ReadableCopy(GameDatabase.Instance.GetTexture(GlyphPath + "Fill", false));
+                mask = TexturePixels.ReadableCopy(GameDatabase.Instance.GetTexture(GlyphPath + "Fill", false));
                 int width = (int)source.rect.width;
                 int height = (int)source.rect.height;
                 if (mask == null) return null;
@@ -115,7 +115,7 @@ namespace ReDefinition.Engineer
         // (textureRect at textureRectOffset), the rest clear.
         private static Color32[] ReadSprite(Sprite source, int width, int height)
         {
-            Color32[] all = Shared.TexturePixels.Of(source.texture);
+            Color32[] all = TexturePixels.Of(source.texture);
             Color32[] pixels = new Color32[width * height];
             if (all == null) throw new InvalidOperationException("the texture cannot be read");
             Rect packed = source.textureRect;

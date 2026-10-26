@@ -24,11 +24,11 @@ ReDefinition is six things in one repository.
    with XeSS, the DLSS, AMD and XeSS upscalers, the latency brake and Reflex, XeLL and
    Anti-Lag 2, the raytracing, and the compute passes other mods ask for.
 5. **The interface for mods.** The frame's state, history resets, hooks, key bindings, the
-   chosen profile and Direct3D 12 compute passes (`src/Api`, `src/Shared`). Why it exists:
+   chosen profile and Direct3D 12 compute passes (`src/Api`, `src/Api/Internal`). Why it exists:
    [shared-foundation.md](shared-foundation.md).
 6. **KSP's own interface and scenery.** The flight HUD and the flight panel, the staging
    details, the planner in the editors, the UI scaling of what KSP leaves at a fixed
-   size, and the main menu and space centre scenery (`src/Flight`, `src/Engineer`,
+   size, and the main menu and space centre scenery (`src/Hud`, `src/Engineer`,
    `src/Scaling`, `src/Menu`, `src/Scenery`).
 
 The C# mod targets .NET Framework 4.8 with C# 7.3, the profile KSP 1.12.5's Mono runs.
@@ -37,7 +37,7 @@ Harmony is a requirement (`src/KspAssemblyInfo.cs`).
 ## The layers
 
 Each folder is one namespace, but for `src/Fsr3`, which keeps FSR3Unity's two, and the
-subfolders of `src/Flight` and `src/Raytracing`. A folder uses its own layer and the
+subfolders of `src/Hud` and `src/Raytracing`. A folder uses its own layer and the
 layers below it. The upscaler alone reaches up: it reads the add-on's debug mode
 (`ReDefinitionAddon.DebugMode`, *Measurements into the log*), and takes Parallax's
 scatter materials for the mipmap bias from `RtKspMods` and the vessel's parts from
@@ -49,14 +49,14 @@ scatter materials for the mipmap bias from `RtKspMods` and the vessel's parts fr
 | 2 | `src/Settings` | `ReDefinition.Settings` | registrations, the bundled mods' settings, profiles, defaults, requirements, key combinations, the settings window's edit model |
 | 3 | `src/Upscaler`, `src/Fsr3` | `ReDefinition.Upscaler`, `FidelityFX.FSR3`, `FidelityFX` | the upscaler on KSP's camera stack |
 | 3 | `src/Proxy` | `ReDefinition.Proxy` | the managed side of the proxy |
-| 3 | `src/Shared` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
+| 3 | `src/Api/Internal` | `ReDefinition.Shared` | the frame's state and hooks behind the interface for mods |
 | 3 | `src/Raytracing` | `ReDefinition.Raytracing` | the raytracing's managed side, free of KSP's types |
 | 4 | `src/` | `ReDefinition` | the add-on, ReDefinition's own settings and modules |
 | 4 | `src/Window` | `ReDefinition.Window` | the settings window, the *Controls* tab, the toolbar, KSP's settings dialog and pause menu, the other mods' windows |
 | 4 | `src/Api` | `ReDefinition.Api` | the public interface for mods |
 | 5 | `src/Raytracing/Ksp` | `ReDefinition.Raytracing` | the raytracing fed from KSP and the mods, with the player's settings |
 | 5 | `src/Engineer` | `ReDefinition.Engineer` | the planner in the VAB and the SPH |
-| 5 | `src/Flight` | `ReDefinition.Flight`, `.Panel`, `.Readouts` | the flight HUD, the flight panel, the staging details, the world buttons, the leg grip |
+| 5 | `src/Hud` | `ReDefinition.Hud`, `.Panel`, `.Readouts` | the flight HUD, the flight panel, the staging details, the world buttons, the leg grip |
 | 5 | `src/Scaling` | `ReDefinition.Scaling` | the UI scale for what KSP draws at a fixed size, and other mods' windows |
 | 5 | `src/Menu`, `src/Scenery` | `ReDefinition.Menu`, `ReDefinition.Scenery` | the main menu's fireworks and the flight to the space centre; the space centre's grass and runway lights, KSP's reflection probe, Firefly at rest |
 | 6 | `src/Probe` | `ReDefinition.Probe` | measurements started from KSP's command line |
@@ -246,7 +246,7 @@ How a frame goes through all of it: [upscaler.md](upscaler.md).
 | `ProxyLoad.cs` | whether the `dxgi.dll` next to `KSP_x64.exe` is the one the game loaded, or Windows refused it |
 | `ScreenRecordingBridge.cs` | the proxy's screen recording for the diagnostics window |
 
-## The interface for mods, `src/Api` and `src/Shared`
+## The interface for mods, `src/Api` and `src/Api/Internal`
 
 | File | Role |
 |---|---|
@@ -332,7 +332,7 @@ KSP's UI textures by name, themes it with the rest of KSP's dialogs.
 
 How the planner sits in KSP's editor: [engineer.md](engineer.md).
 
-## The flight UI, `src/Flight`
+## The flight UI, `src/Hud`
 
 | File | Role |
 |---|---|

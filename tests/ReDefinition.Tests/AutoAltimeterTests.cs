@@ -1,5 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Flight;
+using ReDefinition.Hud;
 
 namespace ReDefinition.Tests
 {

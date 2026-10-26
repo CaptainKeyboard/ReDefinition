@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Flight;
-using ReDefinition.Flight.Readouts;
+using ReDefinition.Hud;
+using ReDefinition.Hud.Readouts;
 
 namespace ReDefinition.Tests
 {

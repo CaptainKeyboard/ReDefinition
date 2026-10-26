@@ -1,6 +1,6 @@
 using System.Globalization;
+using ReDefinition.Api.Internal;
 using ReDefinition.Core;
-using ReDefinition.Shared;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;

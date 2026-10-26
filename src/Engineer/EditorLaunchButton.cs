@@ -1,6 +1,6 @@
 using System.Collections;
 using ReDefinition.Core;
-using ReDefinition.Flight;
+using ReDefinition.Hud;
 using UnityEngine;
 
 namespace ReDefinition.Engineer

@@ -1,4 +1,4 @@
-using ReDefinition.Shared;
+using ReDefinition.Api.Internal;
 
 namespace ReDefinition.Api
 {

@@ -22,17 +22,17 @@ namespace Refactor
         // The repository path of the file that declares it.
         public string File;
 
-        // The same type with the manifest's namespace renames applied to both namespaces.
+        // The same type with the manifest's namespace renames applied to the namespace it is in now: it still
+        // counts as moved, and the using it needs names the renamed namespace.
         public MovedType Renamed(List<Operation> renames)
         {
-            string old = OldNs, now = NewNs;
+            string now = NewNs;
             foreach (Operation o in renames)
             {
                 var pattern = new Regex(@"(?<![\w.])" + Regex.Escape(o.A) + @"(?!\w)");
-                old = pattern.Replace(old ?? "", m => o.B);
                 now = pattern.Replace(now ?? "", m => o.B);
             }
-            return new MovedType { Name = Name, OldNs = old, NewNs = now, File = File };
+            return new MovedType { Name = Name, OldNs = OldNs, NewNs = now, File = File };
         }
     }
 

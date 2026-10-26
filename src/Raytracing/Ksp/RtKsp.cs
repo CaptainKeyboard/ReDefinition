@@ -1,8 +1,8 @@
 using System.Text;
+using ReDefinition.Api.Internal;
 using ReDefinition.Core;
 using ReDefinition.Modules;
 using ReDefinition.Proxy;
-using ReDefinition.Shared;
 using ReDefinition.Upscaler;
 using UnityEngine;
 

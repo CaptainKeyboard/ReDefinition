@@ -127,7 +127,7 @@ namespace ReDefinition.Window
             // Better Time Warp's button is hidden for ReDefinition's own reason (its
             // window opens from the time warp row), bundled or not
             // (OwnSettings.TimeWarpToolbarButton).
-            bool timeWarp = Flight.TimeWarpButton.Installed && edit != null;
+            bool timeWarp = Hud.TimeWarpButton.Installed && edit != null;
             if (mods.Count == 0 && !timeWarp) return rows;
             Func<bool> allHidden = () => (mods.Count == 0 || AllButtonsHidden(mods)) && (!timeWarp || TimeWarpHidden);
 

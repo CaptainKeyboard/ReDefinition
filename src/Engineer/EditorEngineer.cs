@@ -6,7 +6,7 @@ using KSP.UI.Screens;
 using KSP.UI.Screens.Editor;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
-using ReDefinition.Window;
+using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -452,7 +452,7 @@ namespace ReDefinition.Engineer
         // One of the planner button's own drawn tiles, by its state.
         private static Sprite Tile(string state)
         {
-            return Shared.IconSprites.Load(TilePath + state);
+            return IconSprites.Load(TilePath + state);
         }
 
         // While a panel slides in or out, no mode button can be clicked. KSP

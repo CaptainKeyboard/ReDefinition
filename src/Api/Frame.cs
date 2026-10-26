@@ -1,5 +1,5 @@
 using System;
-using ReDefinition.Shared;
+using ReDefinition.Api.Internal;
 using UnityEngine;
 
 namespace ReDefinition.Api

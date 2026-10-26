@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Flight.Readouts;
+using ReDefinition.Hud.Readouts;
 
 namespace ReDefinition.Tests
 {
@@ -125,9 +125,9 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void ShippedProfilesOnePerSituation()
         {
-            List<ReDefinition.Flight.Panel.FlightProfile> profiles = ReDefinition.Flight.Panel.FlightProfiles.Defaults();
-            HashSet<ReDefinition.Flight.Panel.PanelSituation> situations = new HashSet<ReDefinition.Flight.Panel.PanelSituation>();
-            foreach (ReDefinition.Flight.Panel.FlightProfile profile in profiles)
+            List<ReDefinition.Hud.Panel.FlightProfile> profiles = ReDefinition.Hud.Panel.FlightProfiles.Defaults();
+            HashSet<ReDefinition.Hud.Panel.PanelSituation> situations = new HashSet<ReDefinition.Hud.Panel.PanelSituation>();
+            foreach (ReDefinition.Hud.Panel.FlightProfile profile in profiles)
             {
                 Assert.IsTrue(profile.Builtin, profile.Name);
                 Assert.IsTrue(situations.Add(profile.Situation), profile.Name);
@@ -139,7 +139,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void DefaultProfilesNameKnownReadouts()
         {
-            foreach (ReDefinition.Flight.Panel.FlightProfile profile in ReDefinition.Flight.Panel.FlightProfiles.Defaults())
+            foreach (ReDefinition.Hud.Panel.FlightProfile profile in ReDefinition.Hud.Panel.FlightProfiles.Defaults())
                 foreach (string key in profile.Keys)
                     Assert.IsNotNull(ReadoutCatalog.Find(key), profile.Name + ": " + key);
         }

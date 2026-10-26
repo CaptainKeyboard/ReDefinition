@@ -867,7 +867,7 @@ namespace ReDefinition.Modules
                 Tooltip = "With Better Time Warp installed, its button stands at the end of the time panel's warp row instead "
                           + "of where the mod draws it. From the next scene.",
                 // Only with the mod, as its toolbar switch (SettingsWindow.ButtonRows).
-                Present = () => ReDefinition.Flight.TimeWarpButton.Installed,
+                Present = () => ReDefinition.Hud.TimeWarpButton.Installed,
                 Read = settings => SettingValues.Text(settings.TimeWarpPanelButton),
                 Write = (settings, value) => settings.TimeWarpPanelButton = bool.Parse(value),
             });

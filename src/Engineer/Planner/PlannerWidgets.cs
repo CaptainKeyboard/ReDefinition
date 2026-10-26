@@ -18,7 +18,7 @@ namespace ReDefinition.Engineer
         // The symbol of that name; null where it is not loaded.
         internal static Sprite Get(string name)
         {
-            return Shared.IconSprites.Load(Path + name);
+            return IconSprites.Load(Path + name);
         }
     }
 

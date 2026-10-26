@@ -1,6 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Flight;
-using ReDefinition.Flight.Panel;
+using ReDefinition.Hud;
+using ReDefinition.Hud.Panel;
 
 namespace ReDefinition.Tests
 {

@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using ReDefinition.Core;
-using ReDefinition.Shared;
 using ReDefinition.Upscaler;
 using Unity.Collections;
 using Unity.Jobs;

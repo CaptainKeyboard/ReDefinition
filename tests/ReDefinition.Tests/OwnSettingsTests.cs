@@ -2,6 +2,7 @@ using System;
 using System.Reflection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Modules;
+using ReDefinition.Proxy;
 
 namespace ReDefinition.Tests
 {

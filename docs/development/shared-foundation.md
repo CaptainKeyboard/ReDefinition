@@ -1,7 +1,7 @@
 # The shared foundation for mods
 
 **For:** anyone working on the interface ReDefinition offers other mods.
-**You need:** `src/Api`, `src/Shared`, `src/Proxy` and `src/DxgiProxy/D3d12Compute.cpp`
+**You need:** `src/Api`, `src/Api/Internal`, `src/Proxy` and `src/DxgiProxy/D3d12Compute.cpp`
 to hand.
 **You get:** why each part exists only once, what ReDefinition offers instead, and what
 has been verified.
@@ -53,7 +53,7 @@ Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]*
 The state is set before the first scene camera of a frame culls. That is
 `Camera.onPreCull` for a camera of the 3D stack, or, where none culled, the moment the rig
 presents. It arrives as shader globals and as properties of `ReDefinition.Api.Frame`
-(`src/Shared/SharedFrame.cs`).
+(`src/Api/Internal/SharedFrame.cs`).
 
 | Global | Contents | Without a rig |
 |---|---|---|
@@ -94,14 +94,14 @@ reports its own cut with `Frame.RequestHistoryReset(reason)`.
 A reset decided before the frame's first scene camera reaches every mod in that frame. One
 found while the frame renders resets the upscaler and frame generation in that frame, and
 reaches the mods in the next, without a second reset of the upscaler
-(`src/Shared/HistoryResets.cs`, `src/Shared/CameraCuts.cs`). Handlers registered with
+(`src/Api/Internal/HistoryResets.cs`, `src/Api/Internal/CameraCuts.cs`). Handlers registered with
 `Frame.RegisterHistoryReset` are called when a reset is decided.
 
 ### Hooks
 
 Each hook takes a `System.Action` of Unity types, so a wrapper reaches it by reflection. A
 handler that throws is removed and logged once, and the others run on
-(`src/Shared/HookList.cs`). The rig calls them (`src/Upscaler/Rig/UpscalerRig.Hooks.cs`).
+(`src/Api/Internal/HookList.cs`). The rig calls them (`src/Upscaler/Rig/UpscalerRig.Hooks.cs`).
 
 | Hook | Called | Draws |
 |---|---|---|

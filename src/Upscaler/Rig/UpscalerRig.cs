@@ -2,9 +2,9 @@ using System.Collections.Generic;
 using System;
 using FidelityFX.FSR3;
 using FidelityFX;
+using ReDefinition.Api.Internal;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
-using ReDefinition.Shared;
 using UnityEngine.Rendering;
 using UnityEngine;
 

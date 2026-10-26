@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Api.Internal;
 using ReDefinition.Proxy;
-using ReDefinition.Shared;
 
 namespace ReDefinition.Tests
 {

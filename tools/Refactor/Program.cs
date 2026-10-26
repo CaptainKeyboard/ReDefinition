@@ -16,6 +16,7 @@ namespace Refactor
     //   namespace <old> <new>                 renames a namespace in every text file
     //   rename    <old> <new>                 renames an identifier: its tokens in C#, its words elsewhere
     //   text      <old> <new>                 replaces a string in every text file (paths, names)
+    //   usings    <namespace> -               adds the using of that namespace to every file naming one of its types
     //
     //   dotnet <Refactor.dll> apply <manifest> [--dry-run]
     //
@@ -76,7 +77,7 @@ namespace Refactor
                 string line = raw.TrimEnd();
                 if (line.Length == 0 || line.TrimStart().StartsWith("#")) continue;
                 string[] f = line.Split('\t');
-                bool known = f[0] == "move" || f[0] == "movedir" || f[0] == "namespace" || f[0] == "rename" || f[0] == "text";
+                bool known = f[0] == "move" || f[0] == "movedir" || f[0] == "namespace" || f[0] == "rename" || f[0] == "text" || f[0] == "usings";
                 if (!known || f.Length < 3) throw new FormatException(path + ":" + number + ": cannot read '" + line + "'");
                 result.Add(new Operation { Verb = f[0], A = f[1], B = f[2], C = f.Length > 3 ? f[3] : null });
             }
@@ -232,6 +233,12 @@ namespace Refactor
             {
                 types[i] = types[i].Renamed(operations.Where(o => o.Verb == "namespace").ToList());
             }
+            // The `usings` operation: every type a namespace declares counts as moved into it, so that each file
+            // naming one of them without importing the namespace gets the using.
+            foreach (Operation o in operations.Where(o => o.Verb == "usings"))
+                foreach (string cs in files.Where(f => f.EndsWith(".cs", StringComparison.Ordinal)))
+                    foreach (MovedType t in Namespaces.Set(root, cs, null, changed).Where(t => t.NewNs == o.A))
+                        types.Add(new MovedType { Name = t.Name, OldNs = "(elsewhere)", NewNs = o.A, File = t.File });
             int added = Usings.Add(root, files.Where(f => f.EndsWith(".cs", StringComparison.Ordinal)).ToList(), types, changed);
             Console.WriteLine(added + " usings added.");
             File.WriteAllLines(Path.Combine(root, "build", "refactor-changed.txt"), changed.OrderBy(c => c, StringComparer.Ordinal));
