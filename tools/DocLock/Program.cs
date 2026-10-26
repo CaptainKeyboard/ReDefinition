@@ -17,12 +17,14 @@ namespace DocLock
     //   dotnet build tools/DocLock -c Release, then: dotnet <its DocLock.dll> <command> [options]
     //
     //   report               coverage per area, language and kind, to the console and .doclock/coverage.md
-    //   check                fails (exit 1) on undocumented, dirty or unlocked elements and broken references
+    //   check                fails (exit 1) on undocumented, dirty or unlocked elements, broken references and new lint findings
     //   update               records every documented element that is not dirty; dirty ones stay dirty
     //   confirm <part of id> confirms the dirty elements whose id contains it ("*" for all): the documentation
     //                        still holds for the changed code
     //   list [area|path]     the undocumented, dirty and unlocked elements, file:line
     //   refs                 the comments' references that name nothing that exists
+    //   lint [rule]          the comments the contract finds fault with: counts per rule, or the findings of one rule
+    //   lint-baseline        accepts the findings of the comments as they stand (.doclock/lint-baseline.tsv)
     //   wiki <folder>        the documentation as Markdown pages, one per file, with an index per area
     //
     // What is left out, and why, is in Sources.Excluded.
@@ -48,7 +50,7 @@ namespace DocLock
                     Report.Write(root, scan, lockFile);
                     return 0;
                 case "check":
-                    return Check(scan, lockFile);
+                    return Check(root, scan, lockFile);
                 case "update":
                     Lock.Update(root, scan, lockFile);
                     return 0;
@@ -63,34 +65,59 @@ namespace DocLock
                     foreach (string broken in scan.BrokenReferences) Console.WriteLine(broken);
                     Console.WriteLine(scan.BrokenReferences.Count + " broken references.");
                     return 0;
+                case "lint":
+                    LintReport(scan, lockFile, argument);
+                    return 0;
+                case "lint-baseline":
+                    LintBaseline.Write(root, Lint.All(scan.Elements.Where(Rules.Documented)));
+                    Console.WriteLine("Baseline written.");
+                    return 0;
                 case "wiki":
                     Wiki.Write(argument ?? Path.Combine(root, ".doclock", "wiki"), scan, lockFile, Sources.Browse(root));
                     return 0;
                 default:
-                    Console.Error.WriteLine("Commands: report, check, update, confirm, list, refs, wiki.");
+                    Console.Error.WriteLine("Commands: report, check, update, confirm, list, refs, wiki, lint, lint-baseline.");
                     return 2;
             }
         }
 
         // The check: counts, the first offenders of each kind, and 1 where anything is undocumented, dirty, unlocked,
         // stale or broken.
-        private static int Check(Scan scan, Lock lockFile)
+        private static int Check(string root, Scan scan, Lock lockFile)
         {
             List<Element> undocumented = scan.Elements.Where(e => !Rules.Documented(e)).ToList();
             List<Element> dirty = scan.Elements.Where(e => Rules.Documented(e) && lockFile.IsDirty(e)).ToList();
             List<Element> unlocked = scan.Elements.Where(e => Rules.Documented(e) && !lockFile.IsDirty(e) && !lockFile.Holds(e)).ToList();
             int stale = lockFile.Ids.Count(id => !scan.ById.ContainsKey(id));
+            var baseline = new LintBaseline(root);
+            var fresh = Lint.All(scan.Elements.Where(Rules.Documented)).Where(f => !baseline.Knows(f.element, f.finding)).ToList();
             Console.WriteLine(scan.Elements.Count + " elements: " + undocumented.Count + " undocumented, " + dirty.Count + " dirty, "
                               + unlocked.Count + " not in the lock, " + stale + " gone from the code but in the lock, "
-                              + scan.BrokenReferences.Count + " broken references.");
+                              + scan.BrokenReferences.Count + " broken references, " + fresh.Count + " new comment lint findings.");
             foreach (Element e in undocumented.Take(40)) Console.WriteLine("  undocumented  " + e.Path + ":" + e.Line + "  " + e.Kind + " " + e.Name);
             foreach (Element e in dirty.Take(40)) Console.WriteLine("  dirty         " + e.Path + ":" + e.Line + "  " + e.Kind + " " + e.Name);
             foreach (Element e in unlocked.Take(20)) Console.WriteLine("  not locked    " + e.Path + ":" + e.Line + "  " + e.Kind + " " + e.Name);
             foreach (string r in scan.BrokenReferences.Take(20)) Console.WriteLine("  reference     " + r);
-            bool ok = undocumented.Count == 0 && dirty.Count == 0 && unlocked.Count == 0 && stale == 0 && scan.BrokenReferences.Count == 0;
+            foreach (var f in fresh.Take(20)) Console.WriteLine("  lint          " + f.element.Path + ":" + f.element.Line + "  " + f.element.Kind + " " + f.element.Name + "  (" + f.finding.Rule + ": " + f.finding.Detail + ")");
+            bool ok = undocumented.Count == 0 && dirty.Count == 0 && unlocked.Count == 0 && stale == 0 && scan.BrokenReferences.Count == 0 && fresh.Count == 0;
             if (!ok)
                 Console.WriteLine("Document what is undocumented; fix or confirm (doclock confirm <id>) what is dirty; then doclock update.");
             return ok ? 0 : 1;
+        }
+
+        // The comment lint's findings: the count per rule and, given a rule, each of its findings with the file and line.
+        private static void LintReport(Scan scan, Lock lockFile, string rule)
+        {
+            var findings = Lint.All(scan.Elements.Where(Rules.Documented));
+            if (rule == null)
+            {
+                foreach (var group in findings.GroupBy(f => f.finding.Rule).OrderByDescending(g => g.Count()))
+                    Console.WriteLine(group.Count().ToString().PadLeft(6) + "  " + group.Key);
+                Console.WriteLine(findings.Select(f => f.element.Id).Distinct().Count() + " elements of " + scan.Elements.Count + " with a finding.");
+                return;
+            }
+            foreach (var f in findings.Where(f => f.finding.Rule == rule))
+                Console.WriteLine(f.element.Path + ":" + f.element.Line + "\t" + f.element.Kind + " " + f.element.Name + "\t" + f.finding.Detail);
         }
 
         // The elements that need attention, under a path prefix or in an area, one per line: file:line, state, kind,
