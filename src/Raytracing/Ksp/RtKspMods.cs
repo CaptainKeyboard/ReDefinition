@@ -246,10 +246,20 @@ namespace ReDefinition.Raytracing
             {
                 IList renderers = Scenery.ParallaxScatterFields.Renderers();
                 if (renderers == null) return 0;
+                // At the space centre Parallax fills its grass buffers (up to 82 000 places in a player's log) and
+                // draws none of it. The rays would take them as grass: a patch of blade shadows on the terrain,
+                // where the camera looks, which turns off with the raytracing (2026-10-26). The lifted clumps of
+                // the lawns (Scenery.KscGrass.CollectGpu) are the space centre's grass the rays do take.
+                bool spaceCentre = HighLogic.LoadedScene == GameScenes.SPACECENTER;
                 for (int r = 0; r < renderers.Count; r++)
                 {
                     object renderer = renderers[r];
                     if (renderer == null) continue;
+                    if (spaceCentre)
+                    {
+                        string name = Scenery.ParallaxScatterFields.ScatterName(renderer);
+                        if (name != null && name.IndexOf("Grass", StringComparison.OrdinalIgnoreCase) >= 0) continue;
+                    }
                     for (int lod = 0; lod < 3; lod++)
                     {
                         // Where the space centre's grass is lifted, its clumps under the
