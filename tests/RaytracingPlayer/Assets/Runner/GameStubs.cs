@@ -34,19 +34,6 @@ namespace ReDefinition.Proxy
     }
 }
 
-namespace ReDefinition.Probe
-{
-    // The scene probe's command-line reader, which RtCamera asks for the meadow's probe values: the test player has no
-    // scene probe, so none of its switches is given.
-    internal static class SceneProbe
-    {
-        // The value after a switch on the command line; none, as the player is not started with the probe's switches.
-        internal static string ArgumentAfter(string name)
-        {
-            return null;
-        }
-    }
-}
 
 namespace ReDefinition.Scenery
 {

@@ -20,10 +20,10 @@ namespace ReDefinition.Proxy
         private const string Proxy = ProxyDll.Name;
 
         // The proxy's render events: a pass created, destroyed, dispatched, a texture's shared copy released.
-        internal const int CreateEvent = 20;
-        internal const int DestroyEvent = 21;
-        internal const int DispatchEvent = 22;
-        internal const int ReleaseEvent = 23;
+        internal const int CreateEvent = ProxyEvents.D3d12CreatePass;
+        internal const int DestroyEvent = ProxyEvents.D3d12DestroyPass;
+        internal const int DispatchEvent = ProxyEvents.D3d12Dispatch;
+        internal const int ReleaseEvent = ProxyEvents.D3d12ReleaseTexture;
 
         // A dispatch's most read and write textures each, and bytes of constants (b0): kD3d12MaxTextures and
         // kD3d12MaxConstants.

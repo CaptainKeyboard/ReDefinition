@@ -36,6 +36,7 @@ PROXY = os.path.join(ROOT, 'build', 'DxgiProxy', 'Release', 'dxgi.dll')
 
 SOURCES = [
     'src/Proxy/ProxyDll.cs',
+    'src/Proxy/ProxyEvents.cs',
     'src/Proxy/RtNative.cs',
     'src/Raytracing/RtScene.cs',
     'src/Raytracing/RtMaterial.cs',
@@ -46,6 +47,7 @@ SOURCES = [
     'src/Raytracing/RtDeferredLook.cs',
     'src/Raytracing/RtLighting.cs',
     # RtLighting asks ForeignAssumptions before it takes Deferred's shader.
+    'src/Core/CommandLine.cs',
     'src/Core/ForeignCode.cs',
     'src/Core/ForeignAssumption.cs',
     'src/Core/ForeignAssumptions.cs',

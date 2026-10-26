@@ -78,7 +78,7 @@ namespace ReDefinition.Proxy
         // KspXessUpscalerReady and KspXessUpscalerVersion.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("XeSS",
             typeof(AmdUpscalerBridge.AmdPacket), () => KspXessUpscalerPacketSize(),
-            (buffer, size) => KspXessUpscalerStatus(buffer, size), 7, 8,
+            (buffer, size) => KspXessUpscalerStatus(buffer, size), ProxyEvents.XessFrame, ProxyEvents.XessRelease,
             () =>
             {
                 KspXessUpscalerReady();

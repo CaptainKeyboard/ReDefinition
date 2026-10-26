@@ -94,6 +94,7 @@ add_library(ReDefinitionProxy SHARED
     Common/Config.h
     Managed/D3d12Compute.cpp
     Managed/D3d12Compute.h
+    Managed/ProxyContract.h
     Common/D3d12Util.h
     Upscalers/Dlss.cpp
     Upscalers/Dlss.h

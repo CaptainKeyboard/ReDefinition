@@ -77,7 +77,7 @@ namespace ReDefinition.Proxy
 
         // The proxy's kFramePacketMagic; the render event the proxy reads the packet in; the ring of its slots.
         private const uint PacketMagic = 0x4B535046;   // 'KSPF'
-        private const int PacketEvent = 1;
+        private const int PacketEvent = ProxyEvents.FramePacket;
         private static PacketRing packetRing;
 
         // The three input textures (RegisterInputs); renamed with every change of its arguments.

@@ -140,7 +140,7 @@ namespace ReDefinition.Proxy
         // The link to the proxy's DLSS: render events 2 (a frame) and 3 (the rig gone), probed through
         // KspDlssRenderSizes2 so a proxy of another layout is not sent anything.
         private static readonly NativeUpscalerLink link = new NativeUpscalerLink("DLSS", typeof(DlssPacket),
-            () => KspDlssPacketSize(), (buffer, size) => KspDlssStatus(buffer, size), 2, 3,
+            () => KspDlssPacketSize(), (buffer, size) => KspDlssStatus(buffer, size), ProxyEvents.DlssFrame, ProxyEvents.DlssRelease,
             () => KspDlssRenderSizes(0, 0, 0, null, null, null));
 
         // The link, for the rig's state and teardown.
@@ -169,7 +169,7 @@ namespace ReDefinition.Proxy
 
         // The query's magic and the render event the proxy answers it in (Dlss::OnSizeQuery).
         private const uint SizeQueryMagic = 0x4B535051;   // 'KSPQ'
-        private const int SizeQueryEvent = 6;
+        private const int SizeQueryEvent = ProxyEvents.DlssSizeQuery;
 
         // Whether to offer DLSS: the proxy has it, and KSP renders on an NVIDIA GPU.
         // Whether that GPU is an RTX one, and whether a player's nvngx_dlss.dll is

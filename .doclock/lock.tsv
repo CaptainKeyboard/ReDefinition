@@ -2925,7 +2925,7 @@ src/DxgiProxy/Managed/D3d12Compute.h|variable|redefinition::kD3d12DispatchNextFr
 src/DxgiProxy/Managed/D3d12Compute.h|variable|redefinition::kD3d12HandleMagic	6b36ec41946b6775	e996dc5c8bb44f39
 src/DxgiProxy/Managed/D3d12Compute.h|variable|redefinition::kD3d12MaxConstants	7553eabffc8a2c25	e3b0c44298fc1c14
 src/DxgiProxy/Managed/D3d12Compute.h|variable|redefinition::kD3d12MaxTextures	b1d501c347eabc5e	15926dad803b1055
-src/DxgiProxy/Managed/ManagedBridge.cpp|function|DispatchRenderEvent(int eventId ,void * data)	3402ef2db29435ef	9b85bc32a288be7d
+src/DxgiProxy/Managed/ManagedBridge.cpp|function|DispatchRenderEvent(int eventId ,void * data)	171e5b583808dee4	9b85bc32a288be7d
 src/DxgiProxy/Managed/ManagedBridge.cpp|function|OnProfilerMarker(int id)	e77970d9635adbb0	76674cc442a54287
 src/DxgiProxy/Managed/ManagedBridge.cpp|function|OnRenderEvent(int eventId ,void * data)	bae8d926c217201f	3cf2afa6ccd3ceb1
 src/DxgiProxy/Managed/ManagedBridge.cpp|function|__declspec(dllexport#10)	bcafb7e34deb350b	93066803d0553e62
@@ -2997,6 +2997,19 @@ src/DxgiProxy/Managed/ManagedBridge.cpp|function|__declspec(dllexport#8)	a23a16d
 src/DxgiProxy/Managed/ManagedBridge.cpp|function|__declspec(dllexport#9)	e779bcf32643bec6	abe4602c9d45c3f9
 src/DxgiProxy/Managed/ManagedBridge.cpp|function|__declspec(dllexport)	aac9159b8e5def2f	7901eb0735f3baf9
 src/DxgiProxy/Managed/ManagedBridge.cpp|macro|UNITY_INTERFACE_API	7b22ef9c0ac60265	ab60b164e398ec68
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_AMD_FRAME	c7e81a459ac87c7f	fa833c72f1ea3a5c
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_AMD_RELEASE	a818ce843dc4808e	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_D3D12_CREATE_PASS	c764ce7ccba28172	bf2ab5ff84c7e14d
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_D3D12_DESTROY_PASS	30d87f76da65c35f	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_D3D12_DISPATCH	3461588c0e2f7e60	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_D3D12_RELEASE_TEXTURE	8821156e6691e501	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_DLSS_FRAME	1e778b06678e6445	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_DLSS_RELEASE	d4cf01322efb13c9	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_DLSS_SIZE_QUERY	488fd400c3d6eed5	e3b0c44298fc1c14
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_FRAME_PACKET	792ab9d193d75409	e54f13af16699d59
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_REFLEX_FRAME	a000a47af934af7a	fae55448257dd6a3
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_XESS_FRAME	d8562b1b69a17610	043aa3c39687c10b
+src/DxgiProxy/Managed/ProxyContract.h|macro|PX_EVENT_XESS_RELEASE	b1f9c04ac66bf6f3	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/Raytracing.cpp|function|redefinition::Raytracing::Attach(const void * newOwner ,ID3D11Device5 * newDevice11 ,ID3D11DeviceContext4 * newContext11 ,ID3D12Device * newDevice12 ,ID3D12CommandQueue * newQueue)	7f7dd413472fdb8b	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/Raytracing.cpp|function|redefinition::Raytracing::Available(char * buffer ,int size)	71c19ffb794f104b	e3b0c44298fc1c14
 src/DxgiProxy/Raytracing/Raytracing.cpp|function|redefinition::Raytracing::BeginListLocked(FrameWork & frame)	0e0df854f27ad283	e3b0c44298fc1c14
@@ -8590,7 +8603,7 @@ src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.AmdPac
 src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.AmdPacket.Size	91e0de8fd8bf0956	7a762c4200fef9ad
 src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.AmdPacket.TransparencyAndComposition	9d0722f86e2b4d90	e3b0c44298fc1c14
 src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.AmdPacket.VerticalFovRadians	a26eb6141e52c7da	e3b0c44298fc1c14
-src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.link	97e83544893a6308	5dbe644793b3a451
+src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.link	219a0adbec08411b	5dbe644793b3a451
 src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.providerBuffer	56d271f95ad41db6	338265485b8f176a
 src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.providerMissing	a9dfff7721e6c326	11de18e135d7fae1
 src/Proxy/AmdUpscalerBridge.cs|field|ReDefinition.Proxy.AmdUpscalerBridge.shownKind	ff3099cb6d22fde5	8ea37ab8be1e9cd2
@@ -8612,10 +8625,10 @@ src/Proxy/D3d12Bridge.cs|class|ReDefinition.Proxy.D3d12Bridge	25f01206d3d7540d	3
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.BytecodeCapacity	594efaef3c406739	8d15c96b99d92d6b
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.Compiled	83673bbe9cf5de97	05ebf82dd35b3049
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.CompilerErrors	eb46c5dcee37074a	e3b0c44298fc1c14
-src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.CreateEvent	ba2f34a80d5bd63e	ae288f816fdb157d
+src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.CreateEvent	5193285df9ac7267	ae288f816fdb157d
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.CreateMagic	2f8204ad419c803a	fe37c71346c48886
-src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.DestroyEvent	dabbf6da9a8c0dc3	e3b0c44298fc1c14
-src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.DispatchEvent	fd2deb8b65bd3fb0	e3b0c44298fc1c14
+src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.DestroyEvent	26f16fb293f27be4	e3b0c44298fc1c14
+src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.DispatchEvent	59911caffbfec752	e3b0c44298fc1c14
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.DispatchMagic	26d8e53be911354d	21aba07bd733f8bf
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.FlagNextFrame	0b2358ae16be185b	e3b0c44298fc1c14
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.FramesBehind	eea62eda6465ddc5	fc72921abdb7d3b4
@@ -8626,7 +8639,7 @@ src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.MaxTextures	303
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.MessagesCapacity	04ff43d1a3c977d9	e3b0c44298fc1c14
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.NotCompiled	70004a1a4ed2e481	e3b0c44298fc1c14
 src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.Proxy	aaeb272e5c5a880d	709895e7c64e0d40
-src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.ReleaseEvent	74558b0ab68a26d3	e3b0c44298fc1c14
+src/Proxy/D3d12Bridge.cs|constant|ReDefinition.Proxy.D3d12Bridge.ReleaseEvent	12bbfdd9e32a66c5	e3b0c44298fc1c14
 src/Proxy/D3d12Bridge.cs|field|ReDefinition.Proxy.D3d12Bridge.Capabilities.FeatureLevel	e4404a4370bd39e4	cde8b64722b08c99
 src/Proxy/D3d12Bridge.cs|field|ReDefinition.Proxy.D3d12Bridge.Capabilities.MeshShaderTier	b9d5e550c91813da	e3b0c44298fc1c14
 src/Proxy/D3d12Bridge.cs|field|ReDefinition.Proxy.D3d12Bridge.Capabilities.RaytracingTier	e9cbe7ac8e6b771b	e3b0c44298fc1c14
@@ -8698,7 +8711,7 @@ src/Proxy/DlssBridge.cs|class|ReDefinition.Proxy.DlssBridge	d0e478bcab8e317c	765
 src/Proxy/DlssBridge.cs|class|ReDefinition.Proxy.DlssModels	472b140af65a6ba1	d4e8600783660e29
 src/Proxy/DlssBridge.cs|constant|ReDefinition.Proxy.DlssBridge.PacketMagic	17a77dbc8af2aec3	ef1c70d4dc0087ec
 src/Proxy/DlssBridge.cs|constant|ReDefinition.Proxy.DlssBridge.Proxy	aaeb272e5c5a880d	709895e7c64e0d40
-src/Proxy/DlssBridge.cs|constant|ReDefinition.Proxy.DlssBridge.SizeQueryEvent	5190eac594d00d6e	e3b0c44298fc1c14
+src/Proxy/DlssBridge.cs|constant|ReDefinition.Proxy.DlssBridge.SizeQueryEvent	36adedbe7d9e4530	e3b0c44298fc1c14
 src/Proxy/DlssBridge.cs|constant|ReDefinition.Proxy.DlssBridge.SizeQueryMagic	7620500c081ebe0f	271b030a9fd9c2a0
 src/Proxy/DlssBridge.cs|enum member|ReDefinition.Proxy.DlssModel.Default	f12bc6eadcd3ed66	2c306f8d57de0547
 src/Proxy/DlssBridge.cs|enum member|ReDefinition.Proxy.DlssModel.K	ee942a2f14822a29	d48358528d2635f8
@@ -8733,7 +8746,7 @@ src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssBridge.SizeQuery.OutputHeig
 src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssBridge.SizeQuery.OutputWidth	129d2f3c67f7ba66	e3b0c44298fc1c14
 src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssBridge.SizeQuery.Size	91e0de8fd8bf0956	9a8aedd2ec2fea00
 src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssBridge.SizeQuery.Texture	c107b7dab5e78ac4	e3b0c44298fc1c14
-src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssBridge.link	4a01f03774f604c2	be66abbaa334a516
+src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssBridge.link	25a31fa7ae49af67	be66abbaa334a516
 src/Proxy/DlssBridge.cs|field|ReDefinition.Proxy.DlssModels.probePreset	62e043eca7453062	01c15e48a564ba05
 src/Proxy/DlssBridge.cs|method|ReDefinition.Proxy.DlssBridge.DlssPacket.CopyFrom(DlssPacket)	1b61e2f8e7dc89a5	e7e8c5ef3e3872b2
 src/Proxy/DlssBridge.cs|method|ReDefinition.Proxy.DlssBridge.KspDlssPacketSize	9088eb4de6ef49b2	0cb19ebea857482b
@@ -8755,7 +8768,7 @@ src/Proxy/DlssBridge.cs|struct|ReDefinition.Proxy.DlssBridge.SizeQuery	f59f5ca29
 src/Proxy/FrameGenerationBridge.cs|class|ReDefinition.Proxy.FrameGenerationBridge	02bf27a49d6665e1	303b77357ce48446
 src/Proxy/FrameGenerationBridge.cs|constant|ReDefinition.Proxy.FrameGenerationBridge.ContextFine	721bfd4ad3e1410b	fc3a5a3840469726
 src/Proxy/FrameGenerationBridge.cs|constant|ReDefinition.Proxy.FrameGenerationBridge.ContextStands	30fe46fa1f865b3e	e3b0c44298fc1c14
-src/Proxy/FrameGenerationBridge.cs|constant|ReDefinition.Proxy.FrameGenerationBridge.PacketEvent	07c93ecd02da637c	e3b0c44298fc1c14
+src/Proxy/FrameGenerationBridge.cs|constant|ReDefinition.Proxy.FrameGenerationBridge.PacketEvent	9a35bfecf91c325f	e3b0c44298fc1c14
 src/Proxy/FrameGenerationBridge.cs|constant|ReDefinition.Proxy.FrameGenerationBridge.PacketMagic	19b3e474ac03da95	35251868bdbf7cb3
 src/Proxy/FrameGenerationBridge.cs|constant|ReDefinition.Proxy.FrameGenerationBridge.Proxy	aaeb272e5c5a880d	709895e7c64e0d40
 src/Proxy/FrameGenerationBridge.cs|enum member|ReDefinition.Proxy.FrameGenerationBridge.LoadState.Measured	aa7845bc8696ad87	9ad5611e5315aaf0
@@ -8940,6 +8953,20 @@ src/Proxy/PacketRing.cs|method|ReDefinition.Proxy.PacketRing.Issue(CommandBuffer
 src/Proxy/PacketRing.cs|property|ReDefinition.Proxy.PacketRing.PacketSize	df064525268c555b	78b85d46e6be81ef
 src/Proxy/ProxyDll.cs|class|ReDefinition.Proxy.ProxyDll	00d4445e49d2fd22	0b49087bc64ccb1d
 src/Proxy/ProxyDll.cs|constant|ReDefinition.Proxy.ProxyDll.Name	f4bcca3168a5ba3d	2de599b230f0c4cf
+src/Proxy/ProxyEvents.cs|class|ReDefinition.Proxy.ProxyEvents	0245512e7ba44913	38d8db6d119405d7
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.AmdFrame	6bc5634308e3b6ec	fa833c72f1ea3a5c
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.AmdRelease	847773c2af0164ce	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.D3d12CreatePass	198d59b4d1f744cc	bf2ab5ff84c7e14d
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.D3d12DestroyPass	bb6ece582c289db5	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.D3d12Dispatch	f3f7d7468bc23c3f	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.D3d12ReleaseTexture	30ff6e7e514fe75f	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.DlssFrame	849a3c3742891e7c	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.DlssRelease	0ac17ee6519576b3	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.DlssSizeQuery	7a2075406ba62d87	e3b0c44298fc1c14
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.FramePacket	da6cdf128e5f984b	e54f13af16699d59
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.ReflexFrame	cb2edd09d3bebfcd	fae55448257dd6a3
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.XessFrame	04c4a51404e5dde4	043aa3c39687c10b
+src/Proxy/ProxyEvents.cs|constant|ReDefinition.Proxy.ProxyEvents.XessRelease	c88766936f5f5d77	e3b0c44298fc1c14
 src/Proxy/ProxyIni.cs|class|ReDefinition.Proxy.ProxyIni	61207d2c4bffdb7f	7548b6fcf514fa82
 src/Proxy/ProxyIni.cs|constant|ReDefinition.Proxy.ProxyIni.Section	a2fdc443dc5f8f0d	ce238f1bbaba5833
 src/Proxy/ProxyIni.cs|method|ReDefinition.Proxy.ProxyIni.Get(string)	54e91ef62598fc39	ff8cb874b1bf5f51
@@ -8956,7 +8983,7 @@ src/Proxy/ProxyLoad.cs|method|ReDefinition.Proxy.ProxyLoad.GetModuleHandle(strin
 src/Proxy/ProxyLoad.cs|method|ReDefinition.Proxy.ProxyLoad.SmartAppControlOn	857ae08ce2effe74	b6328d76fb36eb94
 src/Proxy/ProxyLoad.cs|property|ReDefinition.Proxy.ProxyLoad.Refused	f6e2b919d44aa076	b5f56976253ec475
 src/Proxy/ReflexFrames.cs|class|ReDefinition.Proxy.ReflexFrames	23c90f18c295b86a	3911bac1fdf88851
-src/Proxy/ReflexFrames.cs|constant|ReDefinition.Proxy.ReflexFrames.FrameEvent	3c8196484c648c14	e3b0c44298fc1c14
+src/Proxy/ReflexFrames.cs|constant|ReDefinition.Proxy.ReflexFrames.FrameEvent	880f8d28097156fa	e3b0c44298fc1c14
 src/Proxy/ReflexFrames.cs|constant|ReDefinition.Proxy.ReflexFrames.Proxy	aaeb272e5c5a880d	6793b9ec87c7f601
 src/Proxy/ReflexFrames.cs|field|ReDefinition.Proxy.ReflexFrames.buffer	6edaee59cb448402	e3b0c44298fc1c14
 src/Proxy/ReflexFrames.cs|field|ReDefinition.Proxy.ReflexFrames.frame	0601f525631c20f2	e3b0c44298fc1c14
@@ -9198,7 +9225,7 @@ src/Proxy/StreamlineCamera.cs|method|ReDefinition.Proxy.StreamlineCamera.WriteRo
 src/Proxy/XessUpscalerBridge.cs|class|ReDefinition.Proxy.XessUpscalerBridge	7b5909f47bbb889a	f1e3699daf9ead5f
 src/Proxy/XessUpscalerBridge.cs|constant|ReDefinition.Proxy.XessUpscalerBridge.PacketMagic	258cbbaaae7cc99a	16f72e5c70b33b2d
 src/Proxy/XessUpscalerBridge.cs|constant|ReDefinition.Proxy.XessUpscalerBridge.Proxy	aaeb272e5c5a880d	709895e7c64e0d40
-src/Proxy/XessUpscalerBridge.cs|field|ReDefinition.Proxy.XessUpscalerBridge.link	68679689b7bdba59	2f1bc5f298283bb3
+src/Proxy/XessUpscalerBridge.cs|field|ReDefinition.Proxy.XessUpscalerBridge.link	ac3abcdd9ee8df7b	2f1bc5f298283bb3
 src/Proxy/XessUpscalerBridge.cs|field|ReDefinition.Proxy.XessUpscalerBridge.shownName	6b6e23ea006910c2	8ea37ab8be1e9cd2
 src/Proxy/XessUpscalerBridge.cs|field|ReDefinition.Proxy.XessUpscalerBridge.versionBuffer	68901b5389ac84ff	0c6b6ab29313a753
 src/Proxy/XessUpscalerBridge.cs|method|ReDefinition.Proxy.XessUpscalerBridge.KspXessUpscalerPacketSize	5738e964a2cb031d	3c56df1e7faeb463
@@ -14388,10 +14415,10 @@ tests/DxgiProxy/ProxyHarness.cpp|type|StatusFn	05a780423c72273e	e3b0c44298fc1c14
 tests/DxgiProxy/ProxyHarness.cpp|variable|kAmdEvent	c50614cf4721df81	de255a0d3c516a18
 tests/DxgiProxy/ProxyHarness.cpp|variable|kAmdMagic	d50ba23accfd32ca	8748c19dd0160cb7
 tests/DxgiProxy/ProxyHarness.cpp|variable|kAmdReleaseEvent	854ac1f6782ee0d8	e3b0c44298fc1c14
-tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12CreateEvent	2bf9703c5654f084	4183fb05707ef3c6
+tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12CreateEvent	45851bb6a6c2dd6f	4183fb05707ef3c6
 tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12CreateMagic	af276201e6ce8e3b	7fa26d20dee56a22
-tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12DestroyEvent	1e7d1a071a693b10	e3b0c44298fc1c14
-tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12DispatchEvent	43a7c1efde3ab969	e3b0c44298fc1c14
+tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12DestroyEvent	b400e4cedc6406bd	e3b0c44298fc1c14
+tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12DispatchEvent	35ad4bc8f56d7df8	e3b0c44298fc1c14
 tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12DispatchMagic	e2a265edb25c87c7	e3b0c44298fc1c14
 tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12HandleMagic	6b36ec41946b6775	e3b0c44298fc1c14
 tests/DxgiProxy/ProxyHarness.cpp|variable|kD3d12NextFrame	2d94081633b2d495	e3b0c44298fc1c14
@@ -14411,7 +14438,7 @@ tests/DxgiProxy/ProxyHarness.cpp|variable|kHeight	f46285377700b55c	e3b0c44298fc1
 tests/DxgiProxy/ProxyHarness.cpp|variable|kNotGeneratingAtMost	e9eb635c65aeac61	e3b0c44298fc1c14
 tests/DxgiProxy/ProxyHarness.cpp|variable|kPacketEvent	1c4373306c5a3b05	074afb0abb1af652
 tests/DxgiProxy/ProxyHarness.cpp|variable|kPacketMagic	813dfb400504cccb	a1c01fe31cb8176e
-tests/DxgiProxy/ProxyHarness.cpp|variable|kReflexFrameEvent	6308656cf71c2d1a	d19ebc84afa8ada1
+tests/DxgiProxy/ProxyHarness.cpp|variable|kReflexFrameEvent	1a7162077b29152a	d19ebc84afa8ada1
 tests/DxgiProxy/ProxyHarness.cpp|variable|kResizedHeight	287a52f58c7a7813	e3b0c44298fc1c14
 tests/DxgiProxy/ProxyHarness.cpp|variable|kResizedWidth	08da49d14a100bc6	6085be487376d600
 tests/DxgiProxy/ProxyHarness.cpp|variable|kUiHeight	fe3d0023520e5c99	e3b0c44298fc1c14
@@ -14649,13 +14676,11 @@ tests/RaytracingPlayer/Assets/Editor/BuildPlayer.cs|method|ReDefinition.Raytraci
 tests/RaytracingPlayer/Assets/Editor/BuildPlayer.cs|method|ReDefinition.RaytracingPlayer.BuildPlayer.Build	537696e14908d47e	b10d778aab747258
 tests/RaytracingPlayer/Assets/Runner/DeferredStub.cs|class|Deferred.Deferred	63bca6df87d8cb74	425967a5cb548250
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|class|ReDefinition.Probe.GpuProfiler	bbe08c08b39adb61	5a519bab7c4051b1
-tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|class|ReDefinition.Probe.SceneProbe	def15f8a7c76088b	ba2fbd59a850e113
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|class|ReDefinition.Proxy.ProxyLoad	681b686134b58bd8	9de67ec164471a3c
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|class|ReDefinition.Raytracing.RtKspMods	87c0d0861b777ee0	1c3f1cf8a1afb572
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|class|ReDefinition.Scenery.KscGround	5936daec9337b525	542943317460fff6
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|field|ReDefinition.Scenery.KscGround.LawnColour	d69502398af1ffeb	f1f735e7c215fbdb
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|method|ReDefinition.Probe.GpuProfiler.Mark(CommandBuffer,string)	554d158b8ec887b0	0ead4f2b5e56b48d
-tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|method|ReDefinition.Probe.SceneProbe.ArgumentAfter(string)	abe3a83853b687ec	c184ca0b3b8d26cc
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|method|ReDefinition.Raytracing.RtKspMods.ParallaxGrassRange(float)	0106ef02d8e4fc1b	b4c2be23ed93c802
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|method|ReDefinition.Raytracing.RtKspMods.ParallaxVessel(UnityEngine.Vector3)	577507c34ff6df50	81c82b6afe30574c
 tests/RaytracingPlayer/Assets/Runner/GameStubs.cs|method|ReDefinition.Scenery.KscGround.Draws(UnityEngine.Material)	cd0cca3f459ee457	7d3166f1004014f7
@@ -15490,6 +15515,11 @@ tests/ReDefinition.Tests/ProvidedSettingsTests.cs|method|ReDefinition.Tests.Stat
 tests/ReDefinition.Tests/ProvidedSettingsTests.cs|method|ReDefinition.Tests.StaticProviderFake.Write(string,string)	d056f433525a3453	55b42e873ea04283
 tests/ReDefinition.Tests/ProvidedSettingsTests.cs|property|ReDefinition.Tests.ProviderFake.Ready	6a580eb493e3ab94	75e8f45989442450
 tests/ReDefinition.Tests/ProvidedSettingsTests.cs|property|ReDefinition.Tests.ProviderFake.Version	d68025bd6e8650af	43c5d5c2fc8f70fe
+tests/ReDefinition.Tests/ProxyContractTests.cs|class|ReDefinition.Tests.ProxyContractTests	151228149cefb439	e5634cb7cde74bbb
+tests/ReDefinition.Tests/ProxyContractTests.cs|method|ReDefinition.Tests.ProxyContractTests.Contract	4e5f73829d952b20	81c5c7a397ef170a
+tests/ReDefinition.Tests/ProxyContractTests.cs|method|ReDefinition.Tests.ProxyContractTests.EveryEventIsTheContracts	20a2614866083cbf	ffcf77b6968f26da
+tests/ReDefinition.Tests/ProxyContractTests.cs|method|ReDefinition.Tests.ProxyContractTests.NoTwoEventsShareAnId	972bcf72c23b042c	f66bef3d4f94a24b
+tests/ReDefinition.Tests/ProxyContractTests.cs|method|ReDefinition.Tests.ProxyContractTests.Snake(string)	14126fcc0c95f66b	cd356bd94dad435e
 tests/ReDefinition.Tests/RaytracingPlayerStubTests.cs|class|ReDefinition.Tests.RaytracingPlayerStubTests	0fdf9f3cb69c8f7a	28a1e9d3f458b117
 tests/ReDefinition.Tests/RaytracingPlayerStubTests.cs|method|ReDefinition.Tests.RaytracingPlayerStubTests.TheStubHasTheRigsMaximumSharpness	d8f2b44b19759762	1a8d8306c3dcc2b6
 tests/ReDefinition.Tests/ReadoutMathTests.cs|class|ReDefinition.Tests.ReadoutCatalogTests	86a51baa0fc67c18	77e0ee9d69cc9430

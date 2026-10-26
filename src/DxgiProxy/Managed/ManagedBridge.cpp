@@ -19,6 +19,7 @@
 #include "LoadMonitor.h"
 #include "Log.h"
 #include "NvidiaGpu.h"
+#include "ProxyContract.h"
 #include "Raytracing.h"
 #include "ScreenRecorder.h"
 #include "FileUtil.h"
@@ -351,29 +352,29 @@ extern "C"
     //    before the frame's first Direct3D call (Streamline::OnGameFrameRendered).
     static void DispatchRenderEvent(int eventId, void* data)
     {
-        if (eventId == 1)
+        if (eventId == PX_EVENT_FRAME_PACKET)
             redefinition::FrameGeneration::Get().OnFramePacket(data);
-        else if (eventId == 2)
+        else if (eventId == PX_EVENT_DLSS_FRAME)
             redefinition::Dlss::Get().OnPacket(data);
-        else if (eventId == 3)
+        else if (eventId == PX_EVENT_DLSS_RELEASE)
             redefinition::Dlss::Get().OnRelease();
-        else if (eventId == 4)
+        else if (eventId == PX_EVENT_AMD_FRAME)
             redefinition::AmdUpscaler::Get().OnPacket(data);
-        else if (eventId == 5)
+        else if (eventId == PX_EVENT_AMD_RELEASE)
             redefinition::AmdUpscaler::Get().OnRelease();
-        else if (eventId == 6)
+        else if (eventId == PX_EVENT_DLSS_SIZE_QUERY)
             redefinition::Dlss::Get().OnSizeQuery(data);
-        else if (eventId == 7)
+        else if (eventId == PX_EVENT_XESS_FRAME)
             redefinition::XessUpscaler::Get().OnPacket(data);
-        else if (eventId == 8)
+        else if (eventId == PX_EVENT_XESS_RELEASE)
             redefinition::XessUpscaler::Get().OnRelease();
-        else if (eventId == 20)
+        else if (eventId == PX_EVENT_D3D12_CREATE_PASS)
             redefinition::D3d12Compute::Get().OnCreatePass(data);
-        else if (eventId == 21)
+        else if (eventId == PX_EVENT_D3D12_DESTROY_PASS)
             redefinition::D3d12Compute::Get().OnDestroyPass(data);
-        else if (eventId == 22)
+        else if (eventId == PX_EVENT_D3D12_DISPATCH)
             redefinition::D3d12Compute::Get().OnDispatch(data);
-        else if (eventId == 23)
+        else if (eventId == PX_EVENT_D3D12_RELEASE_TEXTURE)
             redefinition::D3d12Compute::Get().OnReleaseTexture(data);
         else if (eventId == RT_FRAME_EVENT)
             redefinition::Raytracing::Get().OnFrame(data);
@@ -383,7 +384,7 @@ extern "C"
             redefinition::Raytracing::Get().OnReconstructRelease();
         else if (eventId == RT_RELEASE_EVENT)
             redefinition::Raytracing::Get().OnRelease();
-        else if (eventId == 40)
+        else if (eventId == PX_EVENT_REFLEX_FRAME)
         {
             const uint32_t frame = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data));
             redefinition::Streamline::Get().OnGameFrameRendered(frame);

@@ -41,6 +41,7 @@
 #include "D3d12Util.h"
 #include "Dlss.h"
 #include "FileUtil.h"
+#include "ProxyContract.h"
 
 #include <windows.h>
 #include <dbghelp.h>
@@ -119,7 +120,7 @@ namespace
     // The render event of frame generation's per-frame packet.
     constexpr int kPacketEvent = 1;
     // The game's frame index for Reflex (ManagedBridge.cpp, render event 40).
-    constexpr int kReflexFrameEvent = 40;
+    constexpr int kReflexFrameEvent = PX_EVENT_REFLEX_FRAME;
 
     // The per-frame packet, laid out as FrameGeneration.h declares it; the sizes and
     // offsets are the ones FrameGeneration.h asserts for its own.
@@ -189,9 +190,9 @@ namespace
 
     // Direct3D 12 for mods, laid out as D3d12Compute.h declares it, with the sizes and
     // offsets it asserts.
-    constexpr int kD3d12CreateEvent = 20;
-    constexpr int kD3d12DestroyEvent = 21;
-    constexpr int kD3d12DispatchEvent = 22;
+    constexpr int kD3d12CreateEvent = PX_EVENT_D3D12_CREATE_PASS;
+    constexpr int kD3d12DestroyEvent = PX_EVENT_D3D12_DESTROY_PASS;
+    constexpr int kD3d12DispatchEvent = PX_EVENT_D3D12_DISPATCH;
     constexpr int kD3d12ReleaseEvent = 23;
     // Event 20: a compute pass from bytecode.
     struct D3d12CreatePacket

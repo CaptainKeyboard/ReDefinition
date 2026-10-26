@@ -33,7 +33,7 @@ namespace ReDefinition.Proxy
     {
         // The proxy's file name, and the render event that carries a frame's index to its Present.
         private const string Proxy = ProxyDll.Name;
-        private const int FrameEvent = 40;
+        private const int FrameEvent = ProxyEvents.ReflexFrame;
 
         // Reflex's sleep and the frame's simulation start; the frame's index, or 0 where nothing marks frames.
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
