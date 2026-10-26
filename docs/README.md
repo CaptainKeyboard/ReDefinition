@@ -46,6 +46,11 @@ editors, the main menu and the space centre.
 | where each bundled mod keeps its settings | [reference/how-each-mod-keeps-its-settings.md](reference/how-each-mod-keeps-its-settings.md) |
 | a setting of the proxy's ini, with its default | [reference/proxy-settings.md](reference/proxy-settings.md) |
 | what a graphics mod does to the frame, and how it meets the upscaler | [reference/graphics-mod-compatibility.md](reference/graphics-mod-compatibility.md) |
+| what Parallax puts on screen, and what the rays must know of it | [reference/render-contract-parallax.md](reference/render-contract-parallax.md) |
+| what Scatterer puts on screen, and what the rays must know of it | [reference/render-contract-scatterer.md](reference/render-contract-scatterer.md) |
+| what EVE puts on screen, and what the rays must know of it | [reference/render-contract-eve.md](reference/render-contract-eve.md) |
+| what Deferred puts on screen, and what the rays must know of it | [reference/render-contract-deferred.md](reference/render-contract-deferred.md) |
+| what Kopernicus puts on screen, and what the rays must know of it | [reference/render-contract-kopernicus.md](reference/render-contract-kopernicus.md) |
 | a word this documentation uses | [glossary.md](glossary.md) |
 
 ## Working on ReDefinition
