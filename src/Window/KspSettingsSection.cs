@@ -6,7 +6,9 @@ using System;
 using FidelityFX.FSR3;
 using KSP.Localization;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window

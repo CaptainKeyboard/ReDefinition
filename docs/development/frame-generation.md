@@ -48,7 +48,7 @@ scheduling on. Streamline itself decides the support: `slIsFeatureSupported` for
 and the same for Reflex, which DLSS-G requires **[doc]**. NVAPI reports the GPU's
 architecture (`src/DxgiProxy/NvidiaGpu.cpp`), and the mod offers NVIDIA's frame generation
 files from Ada on, Streamline's core and Ray Reconstruction's from Turing on
-(`src/Bridges/NvidiaFiles.cs`). The proxy loads Streamline 2.14.16 only; a file of
+(`src/Vendor/NvidiaFiles.cs`). The proxy loads Streamline 2.14.16 only; a file of
 another version counts as missing there.
 
 **XeSS.** The proxy makes Intel's swapchain on an Intel adapter with `auto`, and for any
@@ -239,7 +239,7 @@ nothing. The mod asks at every start.
 DLSS frame generation runs on Ada and newer. dlssg_for_sm86, a community project by
 sdli1995, runs it on RTX 30 and RTX 20 as well. Its `version.dll` next to `KSP_x64.exe`
 answers Streamline's queries with a newer GPU and has NVIDIA's runtime run on kernels
-rebuilt for these GPUs **[src]** (`src/Bridges/AmperePackage.cs`). Streamline is
+rebuilt for these GPUs **[src]** (`src/Vendor/AmperePackage.cs`). Streamline is
 unchanged: the proxy sees DLSS-G, and makes Streamline's swapchain. ReDefinition neither
 ships nor downloads the package.
 

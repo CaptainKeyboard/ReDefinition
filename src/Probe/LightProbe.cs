@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Reflection;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Raytracing;
 using UnityEngine;
 using UnityEngine.Rendering;

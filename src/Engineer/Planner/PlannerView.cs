@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System;
 using UnityEngine;
+using ReDefinition.Ui;
 
 namespace ReDefinition.Engineer
 {
@@ -166,7 +167,7 @@ namespace ReDefinition.Engineer
                     InputLockManager.RemoveControlLock(TypingLock);
                     // The field is still selected: Space or Return would open it
                     // again.
-                    ReDefinition.Window.UiHygiene.Release(panel);
+                    UiHygiene.Release(panel);
                 }
             }
             highlight.Refresh();

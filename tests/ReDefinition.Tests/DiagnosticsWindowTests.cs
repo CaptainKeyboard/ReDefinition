@@ -1,6 +1,8 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Api;
+using ReDefinition.Diagnostics;
+using ReDefinition.Modules;
 using ReDefinition.Window;
 using UnityEngine;
 

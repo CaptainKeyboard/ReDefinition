@@ -2,8 +2,8 @@ using System.Collections;
 using System.Reflection;
 using System;
 using KSP.UI.Screens;
-using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Settings;
 using ReDefinition.Settings.Behaviours;
+using ReDefinition.Ui;
 
 namespace ReDefinition.Tests
 {
@@ -118,13 +119,13 @@ namespace ReDefinition.Tests
         public void ATooltipLineLongerThanTheUpscalersFirstIsBrokenAtASpace()
         {
             string upscaler = "The upscaler on the 3D scene, FSR 3 or the chosen technique: temporal antialiasing,";
-            Assert.AreEqual(ReDefinition.Window.TooltipText.MaxLine, upscaler.Length);
-            Assert.AreEqual(upscaler, ReDefinition.Window.TooltipText.Wrap(upscaler), "a line of the length stays");
+            Assert.AreEqual(TooltipText.MaxLine, upscaler.Length);
+            Assert.AreEqual(upscaler, TooltipText.Wrap(upscaler), "a line of the length stays");
 
             string longer = upscaler + " and in every mode but AA only also upscaling.";
-            string wrapped = ReDefinition.Window.TooltipText.Wrap(longer + "\nShort.");
+            string wrapped = TooltipText.Wrap(longer + "\nShort.");
             foreach (string line in wrapped.Split('\n'))
-                Assert.IsTrue(line.Length <= ReDefinition.Window.TooltipText.MaxLine, line);
+                Assert.IsTrue(line.Length <= TooltipText.MaxLine, line);
             Assert.AreEqual(longer.Replace("antialiasing, and", "antialiasing,\nand") + "\nShort.", wrapped);
         }
 

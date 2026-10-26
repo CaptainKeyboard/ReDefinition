@@ -1,9 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using KSP.UI;
-using KSP.UI.Screens;
 using ReDefinition.Core;
-using ReDefinition.Window;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Flight

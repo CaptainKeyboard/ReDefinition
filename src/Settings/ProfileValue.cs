@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Bridges;
+using ReDefinition.Vendor;
 
 namespace ReDefinition.Settings
 {

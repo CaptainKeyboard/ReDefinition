@@ -2,7 +2,10 @@ using System;
 using System.Collections;
 using System.IO;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
+using ReDefinition.Vendor;
 using ReDefinition.Window;
 using TMPro;
 using UnityEngine;
@@ -51,9 +54,9 @@ namespace ReDefinition.Probe
             if (addon == null) return;
             OwnSettings now = addon.Current();
             Debug.Log(Log.Tag + " Probe: buttons " + when + ": frame generation's Auto stands for "
-                      + ReDefinition.Upscaler.AutoSettings.FrameGenerationTechnique(FrameGenerationTechniqueSetting.Auto,
-                          ReDefinition.Upscaler.TechniqueAvailability.Current())
-                      + ", the upscaler's for " + ReDefinition.Upscaler.AutoSettings.ResolvedBackend + ".");
+                      + AutoSettings.FrameGenerationTechnique(FrameGenerationTechniqueSetting.Auto,
+                          TechniqueAvailability.Current())
+                      + ", the upscaler's for " + AutoSettings.ResolvedBackend + ".");
             foreach (ModuleSetting row in rows)
                 foreach (string choice in row.Choices)
                 {

@@ -4,9 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
-using ReDefinition.Flight.Panel;
 using ReDefinition.Flight.Readouts;
+using ReDefinition.Ui;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -204,10 +203,10 @@ namespace ReDefinition.Flight
             tint.colorMultiplier = 1f;
             tint.fadeDuration = 0.1f;
             button.colors = tint;
-            ReDefinition.Window.UiHygiene.MouseOnly(button);
+            UiHygiene.MouseOnly(button);
             button.onClick.AddListener(() => Step(1));
             // What the gauge shows, by name, as KSP's HUD names its parts.
-            tooltip = ReDefinition.Window.UiHygiene.Tooltip(click, Name(mode == GaugeMode.Auto ? GaugeMode.Stage : mode));
+            tooltip = UiHygiene.Tooltip(click, Name(mode == GaugeMode.Auto ? GaugeMode.Stage : mode));
             if (tooltip != null) tooltip.continuousUpdate = true;
             click.GetComponent<GaugeRightClick>().Pressed = () => Step(-1);
             Sprite read = picture.sprite;
@@ -294,7 +293,7 @@ namespace ReDefinition.Flight
         // fill starts at the bottom; the ring is turned by an eighth).
         private Image Ring(Transform parent, string name, Vector2 middle)
         {
-            GameObject ring = ReDefinition.Window.UiHygiene.Child(name, parent, typeof(RectTransform), typeof(Image));
+            GameObject ring = UiHygiene.Child(name, parent, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)ring.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(2f * radius, 2f * radius);
@@ -327,7 +326,7 @@ namespace ReDefinition.Flight
         // A limit's tick across the arc.
         private Image Tick(Transform parent)
         {
-            GameObject tick = ReDefinition.Window.UiHygiene.Child("ReDefinitionGaugeMark", parent, typeof(RectTransform), typeof(Image));
+            GameObject tick = UiHygiene.Child("ReDefinitionGaugeMark", parent, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)tick.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(1.5f, ArcWidth + 3f);
@@ -349,7 +348,7 @@ namespace ReDefinition.Flight
         // The dot at the arc's tip.
         private Image Dot(Transform parent)
         {
-            GameObject dot = ReDefinition.Window.UiHygiene.Child("ReDefinitionGaugeTip", parent, typeof(RectTransform), typeof(Image));
+            GameObject dot = UiHygiene.Child("ReDefinitionGaugeTip", parent, typeof(RectTransform), typeof(Image));
             RectTransform rect = (RectTransform)dot.transform;
             rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = new Vector2(ArcWidth + 2f, ArcWidth + 2f);

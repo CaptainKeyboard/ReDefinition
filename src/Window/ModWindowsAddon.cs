@@ -1,5 +1,6 @@
 using System;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window

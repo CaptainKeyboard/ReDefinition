@@ -158,7 +158,7 @@ The files the player needs, and where they go: [player/installing.md](../player/
   Vectrosity's lines and the mods' GL lines need. `pixelWidth`, `pixelHeight` and
   `pixelRect` stay the texture's, since Scatterer, EVE, TUFX and KSP's highlighting size
   their render targets by them. Unity's mouse event pass sees the cameras with the screen
-  as their target (`src/Window/UnityMouseEvents.cs`). `-redefinitionProbeScreenCheck`
+  as their target (`src/Ui/UnityMouseEvents.cs`). `-redefinitionProbeScreenCheck`
   (`src/Probe/ScreenCheck.cs`) compares the parts' screen points, the part under the
   cursor and the map markers against their viewport points in one flight.
 * **The jitter puts back the projection it found.** Once a script assigns a camera's

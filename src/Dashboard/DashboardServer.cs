@@ -5,6 +5,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using UnityEngine;
 
 namespace ReDefinition.Dashboard

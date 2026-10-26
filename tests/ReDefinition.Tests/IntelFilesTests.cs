@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Bridges;
+using ReDefinition.Vendor;
 
 namespace ReDefinition.Tests
 {

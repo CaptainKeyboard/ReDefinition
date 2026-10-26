@@ -1,6 +1,7 @@
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Bridges;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
 
 namespace ReDefinition.Tests

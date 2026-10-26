@@ -1,4 +1,5 @@
 using UnityEngine;
+using ReDefinition.Modules;
 
 namespace ReDefinition.Dashboard
 {

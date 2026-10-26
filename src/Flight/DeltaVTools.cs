@@ -4,6 +4,7 @@ using System.Reflection;
 using KSP.UI;
 using KSP.UI.Screens;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -320,7 +321,7 @@ namespace ReDefinition.Flight
                 return false;
             }
 
-            GameObject holder = ReDefinition.Window.UiHygiene.Child("ReDefinitionDeltaVTools", total.parent, typeof(RectTransform));
+            GameObject holder = UiHygiene.Child("ReDefinitionDeltaVTools", total.parent, typeof(RectTransform));
             box = (RectTransform)holder.transform;
             box.SetSiblingIndex(total.GetSiblingIndex());
             boxLayout = holder.AddComponent<LayoutElement>();
@@ -346,7 +347,7 @@ namespace ReDefinition.Flight
             situation.transform.SetParent(appFrame.scrollList.transform, false);
             Compact(situation.transform);
             TMP_Dropdown body = situation.GetComponentInChildren<TMP_Dropdown>(true);
-            if (body != null) ReDefinition.Window.UiHygiene.Tooltip(body.gameObject, "Celestial Body");
+            if (body != null) UiHygiene.Tooltip(body.gameObject, "Celestial Body");
             typedIn = situation;
             holder.SetActive(false);
             Debug.Log(Log.Tag + " Delta-v tools built into the staging stack.");

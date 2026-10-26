@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Collections;
-using System.Text;
 using System;
 using FidelityFX.FSR3;
 using ReDefinition.Bridges;
@@ -8,6 +7,7 @@ using ReDefinition.Core;
 using ReDefinition.Settings.Behaviours;
 using ReDefinition.Settings;
 using ReDefinition.Shared;
+using ReDefinition.Ui;
 using ReDefinition.Upscaler;
 using ReDefinition.Window;
 using UnityEngine;

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
 using ReDefinition.Flight.Readouts;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Flight.Panel
@@ -53,7 +54,7 @@ namespace ReDefinition.Flight.Panel
         internal static void Tick()
         {
             // The name field, still selected after its edit: Return would open it again.
-            if (shown != null) ReDefinition.Window.UiHygiene.ReleaseEnded(shown.gameObject);
+            if (shown != null) UiHygiene.ReleaseEnded(shown.gameObject);
             if (shown == null && InputLockManager.GetControlLock(Lock) != ControlTypes.None) InputLockManager.RemoveControlLock(Lock);
         }
 
@@ -142,10 +143,10 @@ namespace ReDefinition.Flight.Panel
             PlannerWidgets.Settle(list);
             // The wheel over a button scrolls the list, and no control takes the
             // keyboard's selection (UiHygiene).
-            ReDefinition.Window.ScrollThrough.Apply(shown.gameObject);
-            ReDefinition.Window.UiHygiene.MouseOnly(shown.gameObject);
+            ScrollThrough.Apply(shown.gameObject);
+            UiHygiene.MouseOnly(shown.gameObject);
             // Escape in the name field ends the typing, not the window.
-            ReDefinition.Window.EscapeGuard.Own(shown);
+            EscapeGuard.Own(shown);
             if (place != null && shown.RTrf != null) shown.RTrf.position = place.Value;
             UnityEngine.UI.ScrollRect after = shown.GetComponentInChildren<UnityEngine.UI.ScrollRect>();
             if (scrolled > 0f && after != null && after.content != null)

@@ -3,7 +3,7 @@ using System.Reflection;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Core;
-using ReDefinition.Window;
+using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.UI;
 

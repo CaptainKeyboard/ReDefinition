@@ -1,7 +1,7 @@
 using KSP.UI;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
-using ReDefinition.Window;
+using ReDefinition.Ui;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;

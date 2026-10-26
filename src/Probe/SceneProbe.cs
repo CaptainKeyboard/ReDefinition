@@ -7,7 +7,9 @@ using System.Text;
 using System.Threading;
 using ReDefinition.Bridges;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -744,7 +746,7 @@ namespace ReDefinition.Probe
                     // -redefinitionProbeSettingsWindowScroll <0 to 1>: the page scrolled, 1 the top, 0 the bottom.
                     float scrollAt;
                     string scrollArgument = SceneProbe.ArgumentAfter("-redefinitionProbeSettingsWindowScroll");
-                    ReDefinition.Window.TabScrollList.ProbePosition =
+                    TabScrollList.ProbePosition =
                         scrollArgument != null && float.TryParse(scrollArgument, NumberStyles.Float, CultureInfo.InvariantCulture, out scrollAt)
                             ? scrollAt : (float?)null;
                     ReDefinition.Window.SettingsWindow.OpenOn(windowTab);

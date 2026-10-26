@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using UnityEngine;
 
 namespace ReDefinition.Raytracing

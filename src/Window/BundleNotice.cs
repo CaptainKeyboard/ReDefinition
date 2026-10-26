@@ -1,7 +1,9 @@
 using System.Collections.Generic;
 using System.Collections;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window

@@ -238,7 +238,7 @@ the GPU, such as Parallax's terrain, is not there.
   line.
 * The example mod: built with the solution, without warnings.
 * **[meas]** The three hooks in flight, 2026-09-20, with *Hook probe, into the log* in
-  the diagnostics window's *Capture & log* page (`src/HookProbe.cs`): each one is called on
+  the diagnostics window's *Capture & log* page (`src/Diagnostics/HookProbe.cs`): each one is called on
   `Camera 00` with the capture buffer, the motion vectors as `RGHalf` and the depth as
   `RFloat` at render size, and the upscaled image as `ARGBHalf` at display size. The
   frame's state a handler reads is the frame's: the motion vector hook and the one after

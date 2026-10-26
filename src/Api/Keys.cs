@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using ReDefinition.Window;
 
 namespace ReDefinition.Api

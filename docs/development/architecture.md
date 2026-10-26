@@ -107,7 +107,7 @@ one.
 | `PluginData.cs` | files in `GameData/ReDefinition/PluginData` |
 | `CaptureFolder.cs` | `ReDefinitionCaptures` beside `KSP_x64.exe`, where the probes, tests and dumps write |
 
-`src/ForeignAssumptionReport.cs` writes what came of each assumption into `KSP.log` and
+`src/Diagnostics/ForeignAssumptionReport.cs` writes what came of each assumption into `KSP.log` and
 the diagnostics window's *Other mods* page; `tools/check_foreign_code.ps1` checks the
 catalogue outside the game
 ([building-and-testing.md](building-and-testing.md#run-the-check-scripts)).

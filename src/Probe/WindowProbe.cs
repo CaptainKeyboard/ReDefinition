@@ -5,6 +5,7 @@ using System.IO;
 using System.Runtime.InteropServices;
 using ReDefinition.Core;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using ReDefinition.Window;
 using TMPro;
 using UnityEngine;

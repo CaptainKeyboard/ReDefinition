@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
 
 namespace ReDefinition.Tests

@@ -2,11 +2,9 @@ using System.Collections;
 using System.IO;
 using KSP.UI;
 using KSP.UI.Screens;
-using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
-using ReDefinition.Window;
+using ReDefinition.Ui;
 using UnityEngine;
-using UnityEngine.UI;
 
 namespace ReDefinition.Flight
 {

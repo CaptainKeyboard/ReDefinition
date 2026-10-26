@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Bridges;
+using ReDefinition.Ui;
+using ReDefinition.Vendor;
 
 namespace ReDefinition.Tests
 {
@@ -244,8 +246,8 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(option.Values.Length, option.Labels.Length, option.Key);
                 CollectionAssert.Contains(option.Values, option.Default, option.Key);
                 // The window breaks the lines (TooltipText.Wrap): none is longer than KSP's tooltip takes.
-                foreach (string line in ReDefinition.Window.TooltipText.Wrap(option.Tooltip).Split('\n'))
-                    Assert.IsTrue(line.Length <= ReDefinition.Window.TooltipText.MaxLine, option.Key + ": " + line);
+                foreach (string line in TooltipText.Wrap(option.Tooltip).Split('\n'))
+                    Assert.IsTrue(line.Length <= TooltipText.MaxLine, option.Key + ": " + line);
             }
         }
     }

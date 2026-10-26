@@ -3,7 +3,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Bridges;
+using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Vendor;
 
 namespace ReDefinition.Tests
 {

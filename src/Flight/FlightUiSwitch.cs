@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Modules;
 
 namespace ReDefinition.Flight
 {

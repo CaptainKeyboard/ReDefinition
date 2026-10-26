@@ -3,6 +3,7 @@ using System.Reflection;
 using System;
 using KSP.Localization;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window

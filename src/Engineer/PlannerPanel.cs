@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using System;
 using KSP.UI;
 using KSP.UI.Screens;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -109,9 +109,9 @@ namespace ReDefinition.Engineer
             view = new PlannerView(owner, width);
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.AddRange(view.Rows());
-            ReDefinition.Window.TooltipText.WrapAll(rows);
+            TooltipText.WrapAll(rows);
             // Rows hidden while their buttons' conditions turn keep them (UiHygiene).
-            ReDefinition.Window.UiHygiene.DeferInteractable(rows);
+            UiHygiene.DeferInteractable(rows);
             DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(width, -1f, 0f, new RectOffset(0, 0, 0, 12),
                 TextAnchor.UpperLeft, rows.ToArray());
             DialogGUIScrollList list = new DialogGUIScrollList(new Vector2(listWidth, Mathf.Max(200f, content.rect.height)), false,
@@ -120,7 +120,7 @@ namespace ReDefinition.Engineer
             Stack<Transform> layouts = new Stack<Transform>();
             layouts.Push(content);
             root.Create(ref layouts, skin);
-            ReDefinition.Window.DialogTooltips.Attach(new DialogGUIBase[] { root });
+            DialogTooltips.Attach(new DialogGUIBase[] { root });
             RectTransform scroll = root.uiItem != null ? root.uiItem.transform as RectTransform : null;
             if (scroll != null)
             {
@@ -146,8 +146,8 @@ namespace ReDefinition.Engineer
             view.Finish();
             // The wheel over a button or a text field scrolls the list, and no
             // control here takes the keyboard's selection (UiHygiene).
-            ReDefinition.Window.ScrollThrough.Apply(root.uiItem);
-            ReDefinition.Window.UiHygiene.MouseOnly(root.uiItem);
+            ScrollThrough.Apply(root.uiItem);
+            UiHygiene.MouseOnly(root.uiItem);
             Debug.Log(Log.Tag + " Planner made from the crew panel: " + frame.sizeDelta.x.ToString("0") + " wide, rows "
                       + width.ToString("0") + " wide.");
             return true;

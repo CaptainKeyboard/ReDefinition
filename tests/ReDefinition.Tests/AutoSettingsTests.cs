@@ -1,8 +1,10 @@
 using FidelityFX.FSR3;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Bridges;
+using ReDefinition.Modules;
 using ReDefinition.Raytracing;
 using ReDefinition.Upscaler;
+using ReDefinition.Vendor;
 
 namespace ReDefinition.Tests
 {

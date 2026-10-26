@@ -1,6 +1,7 @@
 using System.Collections;
 using ReDefinition.Bridges;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window

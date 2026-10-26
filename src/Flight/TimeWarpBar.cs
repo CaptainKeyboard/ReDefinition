@@ -4,6 +4,7 @@ using System.Reflection;
 using KSP.UI;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -248,7 +249,7 @@ namespace ReDefinition.Flight
             Button button = copy.GetComponent<Button>();
             button.onClick = new Button.ButtonClickedEvent();
             button.onClick.AddListener(Press);
-            ReDefinition.Window.UiHygiene.MouseOnly(button);
+            UiHygiene.MouseOnly(button);
             Image face = copy.GetComponent<Image>();
             RectTransform faceRect = (RectTransform)copy.transform;
             Vector2 metSize = ((RectTransform)met).rect.size;

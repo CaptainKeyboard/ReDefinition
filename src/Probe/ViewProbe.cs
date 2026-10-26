@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using UnityEngine;
 
 namespace ReDefinition.Probe

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using KSP.UI;
 using ReDefinition.Core;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Flight.Panel
@@ -149,7 +150,7 @@ namespace ReDefinition.Flight.Panel
         // The prefab of a profile's tab, the `index`th of FlightProfiles.Current.
         private static ProfileTab Template(FlightProfile profile, int index)
         {
-            GameObject template = ReDefinition.Window.UiHygiene.Child("ReDefinitionProfile_" + profile.Name, holder.transform, typeof(RectTransform));
+            GameObject template = UiHygiene.Child("ReDefinitionProfile_" + profile.Name, holder.transform, typeof(RectTransform));
             ProfileTab tab = template.AddComponent<ProfileTab>();
             tab.Profile = index;
             tab.tabPosition = orbitTab.tabPosition;
@@ -219,7 +220,7 @@ namespace ReDefinition.Flight.Panel
             click.transition = transition;
             click.spriteState = sprites;
             click.colors = colours;
-            ReDefinition.Window.UiHygiene.MouseOnly(click);
+            UiHygiene.MouseOnly(click);
             click.onClick.AddListener(() => FlightPanelEditor.Open(Shown(manager)));
             pencil.transform.SetParent(row, false);
             pencil.transform.localPosition = Vector3.zero;

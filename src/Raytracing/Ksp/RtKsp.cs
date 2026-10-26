@@ -1,6 +1,6 @@
-using System.Collections.Generic;
 using System.Text;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Shared;
 using ReDefinition.Upscaler;
 using UnityEngine;

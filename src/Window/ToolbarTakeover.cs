@@ -5,6 +5,7 @@ using System;
 using KSP.UI.Screens;
 using ReDefinition.Core;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window
