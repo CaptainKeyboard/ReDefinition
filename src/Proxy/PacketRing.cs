@@ -43,7 +43,7 @@ namespace ReDefinition.Proxy
         internal bool Issue<T>(CommandBuffer buffer, IntPtr renderEvent, int eventId, ref T packet)
             where T : struct, IRingPacket<T>
         {
-            if (Marshal.SizeOf<T>() > PacketSize) return false;
+            if (Boxed<T>.Size > PacketSize) return false;
             IntPtr slot = new IntPtr(memory.ToInt64() + (long)next * PacketSize);
             next = (next + 1) % slots;
             object boxed = Boxed<T>.Value;
@@ -59,6 +59,9 @@ namespace ReDefinition.Proxy
         {
             // The one boxed copy of the type, made at its first packet.
             internal static object Value;
+
+            // The type's marshalled size in bytes, worked out once: Issue checks it with every packet.
+            internal static readonly int Size = Marshal.SizeOf<T>();
         }
     }
 }

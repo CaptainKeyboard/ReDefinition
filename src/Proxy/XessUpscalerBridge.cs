@@ -59,19 +59,8 @@ namespace ReDefinition.Proxy
                 return null;
             }
             if (known == 0 || versionBuffer.Length == 0) return null;
-            if (shownName == null || !Same(versionBuffer, shownName)) shownName = versionBuffer.ToString();
+            NativeText.Refresh(versionBuffer, ref shownName);
             return shownName;
-        }
-
-        // Whether the builder holds the same text, compared without making a string of it.
-        private static bool Same(StringBuilder text, string other)
-        {
-            if (text.Length != other.Length) return false;
-            for (int i = 0; i < other.Length; i++)
-            {
-                if (text[i] != other[i]) return false;
-            }
-            return true;
         }
 
         // The link to the proxy's XeSS: render events 7 (a frame) and 8 (the rig gone), probed through

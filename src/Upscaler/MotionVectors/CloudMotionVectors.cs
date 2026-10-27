@@ -65,8 +65,7 @@ namespace ReDefinition.Upscaler
         private string reconstructionVerdict;
         private RenderTexture clouds;
         private RenderTexture unityMotion;
-        private CommandBuffer buffer;
-        private Camera bufferCamera;
+        private readonly AttachedBuffer attached = new AttachedBuffer("ReDefinition.CloudMotion", CameraEvent.AfterForwardAlpha);
         // Whether the clouds take their motion from the shell (pass 4) rather
         // than from Scatterer's reconstruction, as judged last. Each pixel's ray meets the
         // cloud layer's shell around the main body (EveCloudMotion.Shell) where it
@@ -111,13 +110,7 @@ namespace ReDefinition.Upscaler
                 return;
             }
 
-            if (buffer == null || bufferCamera != camera)
-            {
-                Detach();
-                buffer = new CommandBuffer { name = "ReDefinition.CloudMotion" };
-                camera.AddCommandBuffer(CameraEvent.AfterForwardAlpha, buffer);
-                bufferCamera = camera;
-            }
+            CommandBuffer buffer = attached.IsOn(camera) ? attached.Buffer : attached.AttachTo(camera);
             buffer.Clear();
             buffer.SetGlobalVector(TexelId, new Vector4(1f / size.x, 1f / size.y, size.x, size.y));
             buffer.SetGlobalFloat(FadeId, EveCloudMotion.Fade());
@@ -159,7 +152,7 @@ namespace ReDefinition.Upscaler
             bool ready = havePrevious && previousBody == body && previousFrame == Time.frameCount - 1
                          && SharedFrame.RigResetReason == null;
             Matrix4x4 viewToPrevious = ready
-                ? SceneMotion.ClipToPreviousClip(Matrix4x4.identity, previousProjection, position, rotation,
+                ? SceneMotion.ClipToPreviousClipWithInverse(Matrix4x4.identity, previousProjection, position, rotation,
                     previousPosition, previousRotation)
                 : Matrix4x4.identity;
             Shader.SetGlobalMatrix(ProjectionId, projection);
@@ -280,11 +273,7 @@ namespace ReDefinition.Upscaler
         private void Detach()
         {
             Active = false;
-            if (buffer == null) return;
-            if (bufferCamera != null) bufferCamera.RemoveCommandBuffer(CameraEvent.AfterForwardAlpha, buffer);
-            buffer.Release();
-            buffer = null;
-            bufferCamera = null;
+            attached.Detach();
         }
     }
 }

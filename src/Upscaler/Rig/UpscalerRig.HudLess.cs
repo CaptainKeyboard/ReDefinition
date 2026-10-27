@@ -15,7 +15,10 @@ namespace ReDefinition.Upscaler
         // AttachHudLessCapture.
         private CommandBuffer hudLessBuffer;
         private readonly List<Camera> hudLessCameras = new List<Camera>();
-        private float hudLessRecheckTime = float.MaxValue;
+        private float hudLessRecheckTime = NotScheduled;
+
+        // How long after attaching the capture takes its one second look at the cameras.
+        private const float HudLessRecheckDelaySeconds = 5f;
         private bool hudLessComposed;
         private bool hudLessCopyLogged;
 
@@ -54,7 +57,7 @@ namespace ReDefinition.Upscaler
 
             // One more look a few seconds in: effect cameras can be created after
             // the rig, and the survey then shows the stack as it really runs.
-            hudLessRecheckTime = recheckLater ? Time.unscaledTime + 5f : float.MaxValue;
+            hudLessRecheckTime = recheckLater ? Time.unscaledTime + HudLessRecheckDelaySeconds : NotScheduled;
 
             LogHudLessCapture();
         }
@@ -111,7 +114,7 @@ namespace ReDefinition.Upscaler
         // same ones logged again, and the camera survey written.
         private void RecheckHudLessCapture()
         {
-            hudLessRecheckTime = float.MaxValue;
+            hudLessRecheckTime = NotScheduled;
 
             Camera presenterCam = cameras.Presenter;
             if (presenterCam == null)
@@ -145,7 +148,7 @@ namespace ReDefinition.Upscaler
             hudLessCopyLogged = false;
 
             hudLessCameras.Clear();
-            hudLessRecheckTime = float.MaxValue;
+            hudLessRecheckTime = NotScheduled;
         }
 
         // Which cameras the snapshot follows, and what is drawn onto the

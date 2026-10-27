@@ -54,13 +54,25 @@ namespace ReDefinition.Upscaler
         // agree and it does not show. The upscalers then blend in the wrong history at those edges, which flickers.
         internal static bool RepairEnabled = true;
 
-        // A renderer drawn with the shader, the index of its part in parts, and how many of its submeshes are drawn.
-        private struct Drawn
+        // A renderer drawn with the shader, the index of its part in parts, how many of its submeshes are drawn, and
+        // what Begin read of it for this frame. Every pass of the frame reads the entry rather than the engine, which
+        // answered the same four questions in each of them.
+        private struct Entry
         {
             // The renderer, its part's index (the audit's tally slot), and the submeshes that have a material.
             internal Renderer Renderer;
             internal int Part;
             internal int Submeshes;
+            // A skinned renderer is drawn for the depth only: its previous pose is not at hand.
+            internal bool Skinned;
+            // This frame's: whether the renderer is enabled and active, whether it is there to read (Current holds its
+            // matrix), and its matrix.
+            internal bool Live;
+            internal bool Read;
+            internal Matrix4x4 Current;
+            // The matrix End stored the frame before, if it did; kept across Choose for the renderers that stay.
+            internal bool HasPrevious;
+            internal Matrix4x4 Previous;
         }
 
         // One part's audit over the report window.
@@ -72,13 +84,17 @@ namespace ReDefinition.Upscaler
             internal uint LargestSixteenths;
         }
 
-        // The mesh renderers whose motion is repaired and audited: opaque, not skinned.
-        private readonly List<Drawn> drawn = new List<Drawn>();
-        // Every opaque renderer of the vessel, skinned ones too: their depth needs no
-        // previous pose.
-        private readonly List<Drawn> depthDrawn = new List<Drawn>();
+        // Every opaque renderer of the vessels, skinned ones too (their depth needs no previous pose); the mesh
+        // renderers among them, opaque and not skinned, are the ones whose motion is repaired and audited.
+        private Entry[] entries = new Entry[64];
+        private int entryCount;
         private readonly List<Part> parts = new List<Part>();
-        private readonly Dictionary<Renderer, Matrix4x4> previousModel = new Dictionary<Renderer, Matrix4x4>();
+        // Choose's scratch: the parts of all the vessels, a part's renderers by kind, and the previous matrices of the
+        // renderers that stay.
+        private readonly List<Part> chosenParts = new List<Part>();
+        private readonly List<SkinnedMeshRenderer> skinnedScratch = new List<SkinnedMeshRenderer>();
+        private readonly List<MeshRenderer> meshScratch = new List<MeshRenderer>();
+        private readonly Dictionary<Renderer, Matrix4x4> carried = new Dictionary<Renderer, Matrix4x4>();
         private readonly PartTally[] tallies = new PartTally[MaxParts];
         private readonly uint[] zeros = new uint[MaxParts * 4];
         private Vessel drawnFor;
@@ -153,6 +169,7 @@ namespace ReDefinition.Upscaler
 
             int signature = LoadedSignature(vessel);
             if (vessel != drawnFor || signature != partCount) Choose(vessel, signature);
+            ReadEntries();
 
             stepped = physicsSteps != stepsAtPreviousFrame;
             stepsAtPreviousFrame = physicsSteps;
@@ -170,10 +187,10 @@ namespace ReDefinition.Upscaler
             if (!active || !RepairEnabled || depth == null) return;
             capture.SetRenderTarget(depth);
             capture.SetGlobalMatrix(RasterId, raster);
-            foreach (Drawn d in depthDrawn)
+            for (int i = 0; i < entryCount; i++)
             {
-                if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy) continue;
-                for (int s = 0; s < d.Submeshes; s++) capture.DrawRenderer(d.Renderer, material, s, DepthPass);
+                if (!entries[i].Live) continue;
+                for (int s = 0; s < entries[i].Submeshes; s++) capture.DrawRenderer(entries[i].Renderer, material, s, DepthPass);
             }
         }
 
@@ -238,14 +255,28 @@ namespace ReDefinition.Upscaler
         // Frames in the report window the repair was left out because nothing of the vessels moved.
         private int standing;
 
+        // What the frame's passes ask of every renderer, read once: whether it is enabled and active (Live), and for the
+        // mesh renderers its matrix. These are the engine's calls the passes made again and again: the depth, the
+        // movement test, the drawing and the storing at the end each asked.
+        private void ReadEntries()
+        {
+            for (int i = 0; i < entryCount; i++)
+            {
+                Renderer renderer = entries[i].Renderer;
+                bool there = renderer != null;
+                entries[i].Live = there && renderer.enabled && renderer.gameObject.activeInHierarchy;
+                entries[i].Read = there && !entries[i].Skinned;
+                if (entries[i].Read) entries[i].Current = renderer.localToWorldMatrix;
+            }
+        }
+
         // Whether any drawn renderer's matrix differs from the frame before's, or has none from it.
         private bool AnyMoved()
         {
-            foreach (Drawn d in drawn)
+            for (int i = 0; i < entryCount; i++)
             {
-                Matrix4x4 before;
-                if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy) continue;
-                if (!previousModel.TryGetValue(d.Renderer, out before) || d.Renderer.localToWorldMatrix != before) return true;
+                if (entries[i].Skinned || !entries[i].Live) continue;
+                if (!entries[i].HasPrevious || entries[i].Current != entries[i].Previous) return true;
             }
             return false;
         }
@@ -254,8 +285,12 @@ namespace ReDefinition.Upscaler
         internal void End()
         {
             if (!active) return;
-            foreach (Drawn d in drawn)
-                if (d.Renderer != null) previousModel[d.Renderer] = d.Renderer.localToWorldMatrix;
+            for (int i = 0; i < entryCount; i++)
+            {
+                if (!entries[i].Read) continue;
+                entries[i].Previous = entries[i].Current;
+                entries[i].HasPrevious = true;
+            }
             previousViewProjection = viewProjection;
             previousFrame = Time.frameCount;
             if (Time.unscaledTime - windowStart >= ReportSeconds) Report();
@@ -272,22 +307,19 @@ namespace ReDefinition.Upscaler
             capture.SetGlobalTexture(DepthId, depth);
         }
 
-        // Every visible renderer of drawn with its previous matrix in that pass, and its part's index for the audit;
+        // Every visible mesh renderer of the entries with its previous matrix in that pass, and its part's index for the audit;
         // a renderer without a matrix from the frame before is left out. Where a renderer's depth is the captured
         // depth (the surface the camera saw) the shader computes the motion vector Unity writes for an object.
         // That is this frame's position against the previous frame's through the renderer's previous matrix and the
         // previous view-projection.
         private void Draw(CommandBuffer capture, int pass, bool withPart)
         {
-            foreach (Drawn d in drawn)
+            for (int i = 0; i < entryCount; i++)
             {
-                Matrix4x4 before;
-                if (d.Renderer == null || !d.Renderer.enabled || !d.Renderer.gameObject.activeInHierarchy
-                    || !previousModel.TryGetValue(d.Renderer, out before))
-                    continue;
-                capture.SetGlobalMatrix(PreviousModelId, before);
-                if (withPart) capture.SetGlobalFloat(PartId, d.Part);
-                for (int s = 0; s < d.Submeshes; s++) capture.DrawRenderer(d.Renderer, material, s, pass);
+                if (entries[i].Skinned || !entries[i].Live || !entries[i].HasPrevious) continue;
+                capture.SetGlobalMatrix(PreviousModelId, entries[i].Previous);
+                if (withPart) capture.SetGlobalFloat(PartId, entries[i].Part);
+                for (int s = 0; s < entries[i].Submeshes; s++) capture.DrawRenderer(entries[i].Renderer, material, s, pass);
             }
         }
 
@@ -366,55 +398,68 @@ namespace ReDefinition.Upscaler
         {
             drawnFor = vessel;
             partCount = signature;
-            drawn.Clear();
-            depthDrawn.Clear();
-            parts.Clear();
             // The previous matrices kept: a renderer that was drawn the frame before -- a booster that has just
             // become a vessel of its own -- has its motion from it in this frame too. Without, the frame the vessel
-            // parts carried the ground's motion on every part, a ghost in the frames generated from it.
-            Near(vessel);
-            List<Part> all = new List<Part>();
-            foreach (Vessel v in near) all.AddRange(v.parts);
-            for (int p = 0; p < all.Count && p < MaxParts; p++)
+            // parts carried the ground's motion on every part, a ghost in the frames generated from it. Those of
+            // renderers no longer drawn are let go with the old entries.
+            carried.Clear();
+            for (int i = 0; i < entryCount; i++)
+                if (entries[i].HasPrevious && !entries[i].Skinned && entries[i].Renderer != null)
+                    carried[entries[i].Renderer] = entries[i].Previous;
+            entryCount = 0;
+            parts.Clear();
+            // The vessels near the active one are those LoadedSignature just listed in this same call from Begin.
+            chosenParts.Clear();
+            foreach (Vessel v in near) chosenParts.AddRange(v.parts);
+            for (int p = 0; p < chosenParts.Count && p < MaxParts; p++)
             {
-                Part part = all[p];
+                Part part = chosenParts[p];
                 parts.Add(part);
                 if (part == null) continue;
-                foreach (SkinnedMeshRenderer skinned in part.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                part.GetComponentsInChildren(true, skinnedScratch);
+                foreach (SkinnedMeshRenderer skinned in skinnedScratch)
                 {
                     if (skinned == null || skinned.sharedMesh == null || !Opaque(skinned.sharedMaterials)) continue;
-                    depthDrawn.Add(new Drawn
+                    AddEntry(new Entry
                     {
                         Renderer = skinned,
                         Part = p,
                         Submeshes = Mathf.Min(skinned.sharedMaterials.Length, skinned.sharedMesh.subMeshCount),
+                        Skinned = true,
                     });
                 }
-                foreach (MeshRenderer renderer in part.GetComponentsInChildren<MeshRenderer>(true))
+                part.GetComponentsInChildren(true, meshScratch);
+                foreach (MeshRenderer renderer in meshScratch)
                 {
                     if (renderer == null) continue;
                     MeshFilter filter = renderer.GetComponent<MeshFilter>();
                     if (filter == null || filter.sharedMesh == null) continue;
                     Material[] materials = renderer.sharedMaterials;
                     if (!Opaque(materials)) continue;
-                    Drawn entry = new Drawn
+                    Entry entry = new Entry
                     {
                         Renderer = renderer,
                         Part = p,
                         Submeshes = Mathf.Min(materials.Length, filter.sharedMesh.subMeshCount),
                     };
-                    drawn.Add(entry);
-                    depthDrawn.Add(entry);
+                    Matrix4x4 before;
+                    entry.HasPrevious = carried.TryGetValue(renderer, out before);
+                    if (entry.HasPrevious) entry.Previous = before;
+                    AddEntry(entry);
                 }
             }
+            skinnedScratch.Clear();
+            meshScratch.Clear();
+            chosenParts.Clear();
+            carried.Clear();
             for (int i = 0; i < tallies.Length; i++) tallies[i] = null;
-            // Those of renderers no longer drawn let go.
-            HashSet<Renderer> kept = new HashSet<Renderer>();
-            foreach (Drawn d in drawn) kept.Add(d.Renderer);
-            List<Renderer> gone = new List<Renderer>();
-            foreach (Renderer r in previousModel.Keys)
-                if (r == null || !kept.Contains(r)) gone.Add(r);
-            foreach (Renderer r in gone) previousModel.Remove(r);
+        }
+
+        // Appends an entry, the array grown where it is full.
+        private void AddEntry(Entry entry)
+        {
+            if (entryCount == entries.Length) System.Array.Resize(ref entries, entries.Length * 2);
+            entries[entryCount++] = entry;
         }
 
         // Materials that write depth and motion vectors: none above queue 2500.

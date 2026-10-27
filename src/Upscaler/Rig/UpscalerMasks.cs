@@ -144,10 +144,10 @@ namespace ReDefinition.Upscaler
         private RenderTexture reactive;
         private RenderTexture opaqueOnly;
         private RenderTexture postAlpha;
-        private CommandBuffer maskBuffer;
-        private Camera maskCamera;
-        private CommandBuffer opaqueBuffer;
-        private Camera opaqueCamera;
+        private readonly AttachedBuffer maskAttached = new AttachedBuffer("ReDefinition.Masks", CameraEvent.AfterForwardAlpha);
+        private readonly AttachedBuffer opaqueAttached = new AttachedBuffer("ReDefinition.OpaqueOnly", CameraEvent.BeforeForwardAlpha);
+        private CommandBuffer maskBuffer { get { return maskAttached.Buffer; } }
+        private CommandBuffer opaqueBuffer { get { return opaqueAttached.Buffer; } }
 
         // The transparency-and-composition mask, null while it is not asked for.
         internal RenderTexture TransparencyTexture { get { return transparency; } }
@@ -316,12 +316,8 @@ namespace ReDefinition.Upscaler
                 DetachOpaqueCopy();
                 return;
             }
-            if (!created && opaqueBuffer != null && opaqueCamera == camera) return;
-            DetachOpaqueCopy();
-            opaqueBuffer = new CommandBuffer { name = "ReDefinition.OpaqueOnly" };
-            opaqueBuffer.Blit(BuiltinRenderTextureType.CameraTarget, opaqueOnly);
-            camera.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, opaqueBuffer);
-            opaqueCamera = camera;
+            if (!created && opaqueAttached.IsOn(camera)) return;
+            opaqueAttached.AttachTo(camera).Blit(BuiltinRenderTextureType.CameraTarget, opaqueOnly);
         }
 
         // Makes the fullscreen mask material from the shader bundle; false, with Problem set and warned once, if it
@@ -543,31 +539,20 @@ namespace ReDefinition.Upscaler
         // it at the same event draws into the camera's colour, depth-tested (measured).
         private void AttachMaskBuffer(Camera camera)
         {
-            if (maskBuffer != null && maskCamera == camera) return;
-            DetachMaskBuffer();
-            maskBuffer = new CommandBuffer { name = "ReDefinition.Masks" };
-            camera.AddCommandBuffer(CameraEvent.AfterForwardAlpha, maskBuffer);
-            maskCamera = camera;
+            if (maskAttached.IsOn(camera)) return;
+            maskAttached.AttachTo(camera);
         }
 
         // Takes the masks' command buffer off its camera and releases it.
         private void DetachMaskBuffer()
         {
-            if (maskBuffer == null) return;
-            if (maskCamera != null) maskCamera.RemoveCommandBuffer(CameraEvent.AfterForwardAlpha, maskBuffer);
-            maskBuffer.Release();
-            maskBuffer = null;
-            maskCamera = null;
+            maskAttached.Detach();
         }
 
         // Takes the opaque-only copy's command buffer off its camera and releases it.
         private void DetachOpaqueCopy()
         {
-            if (opaqueBuffer == null) return;
-            if (opaqueCamera != null) opaqueCamera.RemoveCommandBuffer(CameraEvent.BeforeForwardAlpha, opaqueBuffer);
-            opaqueBuffer.Release();
-            opaqueBuffer = null;
-            opaqueCamera = null;
+            opaqueAttached.Detach();
         }
     }
 }

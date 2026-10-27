@@ -94,11 +94,18 @@ namespace ReDefinition.Upscaler
         private static FieldInfo settingsEnabled;
         private static FieldInfo parameterValue;
         private static MethodInfo settingsIsEnabled;
-        // The public members called every frame, through compiled calls as well:
-        // MethodInfo.Invoke takes an argument array and boxes value types. The
-        // private and internal ones -- SetupContext, TextureLerper, uberSheet,
-        // m_SettingsUpdateNeeded -- stay reflection calls.
+        // The members called every frame, through compiled calls as well: MethodInfo.Invoke
+        // takes an argument array and boxes value types. The private and internal ones --
+        // SetupContext, TextureLerper, m_SettingsUpdateNeeded -- compile like the public ones,
+        // since a compiled lambda skips the visibility checks, as the internal setters of the
+        // context below already rely on. Where a build refuses one, Compiled keeps the
+        // reflection call. Only uberSheet, read once per dithering pass, stays a FieldInfo.
         private static Action<object> resetContext;
+        private static Action<object, object> setupContext;
+        private static Func<object> lerperOf;
+        private static Action<object, object> beginLerp;
+        private static Action<object> endLerp;
+        private static Action<object> requestSettingsUpdate;
         private static Action<object, Camera> setContextCamera;
         private static Action<object, CommandBuffer> setContextCommand;
         private static Action<object, RenderTargetIdentifier> setContextSource;
@@ -128,6 +135,12 @@ namespace ReDefinition.Upscaler
         // which a redirected layer carrying the profile was last split, and whether
         // each one so far was the scene camera's.
         private static readonly HashSet<Camera> redirectedCameras = new HashSet<Camera>();
+
+        // The layer found on each redirected camera, so that the frame's pass does not search the camera's components
+        // for it every time. A layer that was destroyed is searched for again; the cache is dropped when the split
+        // stops, and when it holds more than any scene has cameras.
+        private static readonly Dictionary<Camera, Behaviour> layerOnCamera = new Dictionary<Camera, Behaviour>();
+        private const int MostCachedLayers = 32;
         private static Camera sceneCamera;
         private static Component ownLayer;
         private static int splitFrame = -1;
@@ -202,7 +215,7 @@ namespace ReDefinition.Upscaler
                 Camera camera = redirect != null ? redirect.Camera : null;
                 if (camera == null) continue;
                 redirectedCameras.Add(camera);
-                Behaviour candidate = camera.GetComponent(layerType) as Behaviour;
+                Behaviour candidate = LayerOn(camera);
                 if (candidate == null || !candidate.isActiveAndEnabled) continue;
                 // TUFX gives its profile to the final camera only (volumeLayer 1); the
                 // other cameras' layers carry antialiasing alone, which HostStack
@@ -265,18 +278,17 @@ namespace ReDefinition.Upscaler
                 setContextCamera(context, ownCamera);
                 RenderTexture sourceTexture = source as RenderTexture;
                 setContextSourceFormat(context, sourceTexture != null ? sourceTexture.format : RenderTextureFormat.DefaultHDR);
-                one[0] = context;
-                layerSetupContext.Invoke(layer, one);
+                setupContext(layer, context);
                 setContextCommand(context, buffer);
-                object lerper = lerperInstance.GetValue(null, null);
-                lerperBeginFrame.Invoke(lerper, one);
+                object lerper = lerperOf();
+                beginLerp(lerper, context);
                 updateVolumeSystem(layer, ownCamera, buffer);
 
                 if (!AnyAfterEffectOn())
                 {
                     // As Render ends a frame, so the next one blends again.
-                    lerperEndFrame.Invoke(lerper, null);
-                    layerSettingsUpdateNeeded.SetValue(layer, True);
+                    endLerp(lerper);
+                    requestSettingsUpdate(layer);
                     return false;
                 }
 
@@ -346,9 +358,22 @@ namespace ReDefinition.Upscaler
                 ownLayer = null;
                 sceneCamera = null;
                 redirectedCameras.Clear();
+                layerOnCamera.Clear();
             }
             ReleaseTextures();
             DestroyHost();
+        }
+
+        // The PostProcessLayer on a camera, from the cache where the one found before is still there; null without one.
+        private static Behaviour LayerOn(Camera camera)
+        {
+            Behaviour found;
+            if (layerOnCamera.TryGetValue(camera, out found) && found != null) return found;
+            found = camera.GetComponent(layerType) as Behaviour;
+            if (found == null) return null;
+            if (layerOnCamera.Count >= MostCachedLayers) layerOnCamera.Clear();
+            layerOnCamera[camera] = found;
+            return found;
         }
 
         // ReDefinition's layer on its own camera, made once TUFX has loaded its resources, and its output texture at
@@ -368,14 +393,8 @@ namespace ReDefinition.Upscaler
                 // Inactive while it is put together: the layer sets itself up as it is
                 // enabled, on its camera, with its resources.
                 host.SetActive(false);
-                ownCamera = host.AddComponent<Camera>();
+                ownCamera = HelperCamera.AddTo(host, true);
                 ownCamera.enabled = false;
-                ownCamera.cullingMask = 0;
-                ownCamera.clearFlags = CameraClearFlags.Nothing;
-                ownCamera.allowHDR = true;
-                ownCamera.allowMSAA = false;
-                ownCamera.useOcclusionCulling = false;
-                ownCamera.depthTextureMode = DepthTextureMode.None;
                 layer = host.AddComponent(layerType);
                 one[0] = resources;
                 layerInit.Invoke(layer, one);
@@ -569,6 +588,29 @@ namespace ReDefinition.Upscaler
                 renderLayer = Expression.Lambda<Action<object, object>>(
                     Expression.Call(Expression.Convert(target, layerType), layerRender, Expression.Convert(argument, contextType)),
                     target, argument).Compile();
+                MethodInfo setupMethod = layerSetupContext;
+                setupContext = Compiled(() => Expression.Lambda<Action<object, object>>(
+                        Expression.Call(Expression.Convert(target, layerType), setupMethod, Expression.Convert(argument, contextType)),
+                        target, argument).Compile(),
+                    (layerObject, contextObject) => setupMethod.Invoke(layerObject, new[] { contextObject }));
+                PropertyInfo lerperProperty = lerperInstance;
+                lerperOf = Compiled(() => Expression.Lambda<Func<object>>(
+                        Expression.Convert(Expression.Property(null, lerperProperty), typeof(object))).Compile(),
+                    () => lerperProperty.GetValue(null, null));
+                MethodInfo beginMethod = lerperBeginFrame;
+                beginLerp = Compiled(() => Expression.Lambda<Action<object, object>>(
+                        Expression.Call(Expression.Convert(target, lerper), beginMethod, Expression.Convert(argument, contextType)),
+                        target, argument).Compile(),
+                    (lerperObject, contextObject) => beginMethod.Invoke(lerperObject, new[] { contextObject }));
+                MethodInfo endMethod = lerperEndFrame;
+                endLerp = Compiled(() => Expression.Lambda<Action<object>>(
+                        Expression.Call(Expression.Convert(target, lerper), endMethod), target).Compile(),
+                    lerperObject => endMethod.Invoke(lerperObject, null));
+                FieldInfo updateNeeded = layerSettingsUpdateNeeded;
+                requestSettingsUpdate = Compiled(() => Expression.Lambda<Action<object>>(
+                        Expression.Assign(Expression.Field(Expression.Convert(target, layerType), updateNeeded),
+                            Expression.Constant(true)), target).Compile(),
+                    layerObject => updateNeeded.SetValue(layerObject, True));
                 ParameterExpression typeArgument = Expression.Parameter(typeof(Type), "type");
                 bundleOf = Expression.Lambda<Func<object, Type, object>>(
                     Expression.Convert(Expression.Call(Expression.Convert(target, layerType), layerGetBundle, typeArgument), typeof(object)),
@@ -788,6 +830,22 @@ namespace ReDefinition.Upscaler
             PropertyInfo property = type.GetProperty(name, flags);
             if (property == null) throw new MissingMemberException(type.Name, name);
             return property;
+        }
+
+        // The compiled form of a call made every frame, or the reflection call where this build
+        // cannot compile it: the split keeps working, with the cost it had.
+        private static T Compiled<T>(Func<T> compile, T reflection) where T : class
+        {
+            try
+            {
+                return compile();
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn("tufx-post-compile", "A call of TUFX's post-processing stays a reflection call ("
+                                                           + CompatibilityLog.Reason(e) + ").");
+                return reflection;
+            }
         }
 
         // A compiled call of the property's setter on an object of its declaring type.

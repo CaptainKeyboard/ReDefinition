@@ -194,6 +194,7 @@ namespace FidelityFX.FSR3
             Fsr3UpscalerResources.CreateAliasableResources(commandBuffer, _contextDescription, dispatchParams);
             
             SetupConstants(dispatchParams, resetAccumulation);
+            _upscalerConstantsBuffer.Upload();
             
             // Reactive mask bias
             const int threadGroupWorkRegionDim = 8;
@@ -229,6 +230,7 @@ namespace FidelityFX.FSR3
             
             // Auto exposure
             SetupSpdConstants(dispatchParams, out var dispatchThreadGroupCount);
+            _spdConstantsBuffer.Upload();
             
             // Initialize constant buffers data
 
@@ -253,6 +255,7 @@ namespace FidelityFX.FSR3
             {
                 // Compute the constants
                 SetupRcasConstants(dispatchParams);
+                _rcasConstantsBuffer.Upload();
                 
                 // Dispatch RCAS
                 const int threadGroupWorkRegionDimRcas = 16;
@@ -286,6 +289,7 @@ namespace FidelityFX.FSR3
             TcrAutoGenConsts.autoTcScale = dispatchParams.AutoTcScale;
             TcrAutoGenConsts.autoReactiveScale = dispatchParams.AutoReactiveScale;
             TcrAutoGenConsts.autoReactiveMax = dispatchParams.AutoReactiveMax;
+            _tcrAutogenerateConstantsBuffer.Upload();
             
             _tcrAutogeneratePass.ScheduleDispatch(commandBuffer, dispatchParams, frameIndex, dispatchSrcX, dispatchSrcY);
         }

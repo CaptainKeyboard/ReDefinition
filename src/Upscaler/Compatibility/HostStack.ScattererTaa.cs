@@ -181,20 +181,20 @@ namespace ReDefinition.Upscaler
         // another mod's choice and stands.
         private static int ReleaseMotionVectorModes(bool activeVesselOnly)
         {
-            List<Renderer> renderers;
+            List<Renderer> renderers = renderScratch;
+            renderers.Clear();
             if (activeVesselOnly)
             {
                 Vessel vessel = ActiveVessel();
                 if (vessel == null) return 0;
-                renderers = VesselRenderers(vessel);
+                VesselRenderers(vessel, renderers);
             }
             else
             {
-                renderers = new List<Renderer>();
                 List<Vessel> loaded = FlightGlobals.fetch != null ? FlightGlobals.VesselsLoaded : null;
                 if (loaded != null)
                     foreach (Vessel vessel in loaded)
-                        if (vessel != null) renderers.AddRange(VesselRenderers(vessel));
+                        if (vessel != null) AddVesselRenderers(vessel, renderers);
             }
 
             int freed = 0;
@@ -209,15 +209,33 @@ namespace ReDefinition.Upscaler
             return freed;
         }
 
-        // A vessel's renderers. In flight its parts are not children of its
+        // The renderers the sweeps and the report list, and one part's, both kept between passes so
+        // that each makes no list or array. One user at a time: the passes run on the main thread and none nests.
+        private static readonly List<Renderer> renderScratch = new List<Renderer>();
+        private static readonly List<Renderer> partRenderers = new List<Renderer>();
+
+        // The scattered TAA components, kept for the same reason; a caller reads the list before the next fills it.
+        private static readonly List<Component> taaScratch = new List<Component>();
+
+        // Fills `into` (emptied first) with a vessel's renderers. In flight its parts are not children of its
         // transform: GetComponentsInChildren on the vessel finds the root part's
         // alone (17 of 382 renderers on a Kerbal X).
-        private static List<Renderer> VesselRenderers(Vessel vessel)
+        private static void VesselRenderers(Vessel vessel, List<Renderer> into)
         {
-            List<Renderer> renderers = new List<Renderer>();
+            into.Clear();
+            AddVesselRenderers(vessel, into);
+        }
+
+        // Appends a vessel's renderers to `into`.
+        private static void AddVesselRenderers(Vessel vessel, List<Renderer> into)
+        {
             foreach (Part part in vessel.parts)
-                if (part != null) renderers.AddRange(part.GetComponentsInChildren<Renderer>(true));
-            return renderers;
+            {
+                if (part == null) continue;
+                part.GetComponentsInChildren(true, partRenderers);
+                into.AddRange(partRenderers);
+            }
+            partRenderers.Clear();
         }
 
         // BuiltinMotionVectorShader's cache, null until first asked.
@@ -253,14 +271,11 @@ namespace ReDefinition.Upscaler
             return false;
         }
 
-        // Scatterer's TAA components on the cameras (OnCameras); none without Scatterer.
-        private static List<Component> ScattererTaaComponents()
+        // Fills `found` (emptied first) with Scatterer's TAA components on the cameras (OnCameras); none without
+        // Scatterer. Returns it.
+        private static List<Component> ScattererTaaComponents(List<Component> found)
         {
-            List<Component> found = new List<Component>();
-            Type type = TypeLookup.Find(ScattererTaaTypeName);
-            if (type == null) return found;
-
-            found.AddRange(OnCameras(type));
+            OnCameras(TypeLookup.Find(ScattererTaaTypeName), found);
             return found;
         }
     }

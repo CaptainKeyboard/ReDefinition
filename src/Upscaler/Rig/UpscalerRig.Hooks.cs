@@ -18,8 +18,11 @@ namespace ReDefinition.Upscaler
         // handlers fill as it culls.
         private GameObject overlayObject;
         private Camera overlayCamera;
-        private CommandBuffer overlayBuffer;
+        private readonly AttachedBuffer overlayAttached = new AttachedBuffer("ReDefinition.OverlayHooks", CameraEvent.AfterEverything);
+        private CommandBuffer overlayBuffer { get { return overlayAttached.Buffer; } }
         private float overlayDepthCheck;
+        // How often the overlay camera's depth is looked at again, as effect cameras can come later.
+        private const float OverlayDepthCheckSeconds = 1f;
 
         // Cached, so the hooks' calls allocate nothing per frame.
         private Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> callMotionVectorHook;
@@ -125,22 +128,10 @@ namespace ReDefinition.Upscaler
             if (overlayObject == null)
             {
                 // One destroyed from outside leaves its buffer.
-                if (overlayBuffer != null)
-                {
-                    overlayBuffer.Release();
-                    overlayBuffer = null;
-                }
+                overlayAttached.Detach();
                 overlayObject = new GameObject("ReDefinitionOverlay");
-                overlayCamera = overlayObject.AddComponent<Camera>();
-                overlayCamera.cullingMask = 0;
-                overlayCamera.clearFlags = CameraClearFlags.Nothing;
-                overlayCamera.targetTexture = null;
-                overlayCamera.allowHDR = false;
-                overlayCamera.allowMSAA = false;
-                overlayCamera.useOcclusionCulling = false;
-                overlayCamera.depthTextureMode = DepthTextureMode.None;
-                overlayBuffer = new CommandBuffer { name = "ReDefinition.OverlayHooks" };
-                overlayCamera.AddCommandBuffer(CameraEvent.AfterEverything, overlayBuffer);
+                overlayCamera = HelperCamera.AddTo(overlayObject, false);
+                overlayAttached.AttachTo(overlayCamera);
                 overlayObject.AddComponent<UpscalerOverlay>().Rig = this;
                 overlayDepthCheck = 0f;
             }
@@ -150,7 +141,7 @@ namespace ReDefinition.Upscaler
             // cameras can come later.
             if (Time.unscaledTime >= overlayDepthCheck)
             {
-                overlayDepthCheck = Time.unscaledTime + 1f;
+                overlayDepthCheck = Time.unscaledTime + OverlayDepthCheckSeconds;
                 float depth = float.MinValue;
                 foreach (Camera carrier in HudLessCarriers(cameras.Presenter))
                     if (carrier != null) depth = Mathf.Max(depth, carrier.depth);
@@ -171,12 +162,7 @@ namespace ReDefinition.Upscaler
         // Takes the overlay camera down with its buffer, while no handler is registered or with the rig.
         private void DestroyOverlay()
         {
-            if (overlayBuffer != null)
-            {
-                if (overlayCamera != null) overlayCamera.RemoveCommandBuffer(CameraEvent.AfterEverything, overlayBuffer);
-                overlayBuffer.Release();
-                overlayBuffer = null;
-            }
+            overlayAttached.Detach();
             if (overlayObject != null) Destroy(overlayObject);
             overlayObject = null;
             overlayCamera = null;

@@ -77,10 +77,9 @@ namespace ReDefinition.Proxy
                 return null;
             }
             if (latencyBuffer.Length == 0) return null;
-            if (kind != shownLatencyKind || shownLatencySource == null || !Same(latencyBuffer, shownLatencySource))
+            if (NativeText.Refresh(latencyBuffer, ref shownLatencySource) || kind != shownLatencyKind)
             {
                 shownLatencyKind = kind;
-                shownLatencySource = latencyBuffer.ToString();
                 shownLatency = char.ToUpperInvariant(shownLatencySource[0]) + shownLatencySource.Substring(1);
             }
             return shownLatency;
@@ -126,17 +125,6 @@ namespace ReDefinition.Proxy
                 measureMissing = true;
                 return 0;
             }
-        }
-
-        // Whether the builder holds the same text, compared without making a string of it.
-        private static bool Same(StringBuilder text, string other)
-        {
-            if (text.Length != other.Length) return false;
-            for (int i = 0; i < other.Length; i++)
-            {
-                if (text[i] != other[i]) return false;
-            }
-            return true;
         }
 
         // The loop tells systems apart by type; Unity's profiler shows the names.

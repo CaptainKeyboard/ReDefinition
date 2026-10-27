@@ -194,7 +194,7 @@ namespace ReDefinition.Upscaler
             }
 
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
-            List<Component> taa = ScattererTaaComponents();
+            List<Component> taa = ScattererTaaComponents(taaScratch);
             // Switched off counts as off: FindObjectsOfType finds disabled ones too,
             // among them the ones Apply switched off.
             int switchedOff = taa.RemoveAll(component => !IsEnabled(component));
@@ -266,7 +266,8 @@ namespace ReDefinition.Upscaler
             if (vessel != null)
             {
                 int frozen = 0;
-                List<Renderer> renderers = VesselRenderers(vessel);
+                List<Renderer> renderers = renderScratch;
+                VesselRenderers(vessel, renderers);
                 for (int i = 0; i < renderers.Count; i++)
                     if (renderers[i] != null
                         && renderers[i].motionVectorGenerationMode == MotionVectorGenerationMode.ForceNoMotion)
@@ -342,7 +343,7 @@ namespace ReDefinition.Upscaler
             StringBuilder report = new StringBuilder();
 
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
-            List<Component> taa = ScattererTaaComponents();
+            List<Component> taa = ScattererTaaComponents(taaScratch);
             HookScattererTaa(taaType);
 
             // Unconditionally, not only when components are found.
@@ -576,12 +577,17 @@ namespace ReDefinition.Upscaler
         private static GameScenes searchedScene = GameScenes.LOADING;
         private static float sceneSeenAt;
 
-        // The components of `type` on the cameras: the whole scene searched in the first ten seconds, then the enabled
-        // cameras asked.
-        internal static List<Component> OnCameras(Type type)
+        // The enabled cameras, as Camera.allCameras lists them, and one camera's components of a type: kept between
+        // the once-a-second passes so that each makes no array.
+        private static Camera[] cameraScratch = new Camera[8];
+        private static readonly List<Component> componentScratch = new List<Component>();
+
+        // Fills `found` (emptied first) with the components of `type` on the cameras: the whole scene searched in
+        // the first ten seconds, then the enabled cameras asked.
+        internal static void OnCameras(Type type, List<Component> found)
         {
-            var found = new List<Component>();
-            if (type == null) return found;
+            found.Clear();
+            if (type == null) return;
             if (searchedScene != HighLogic.LoadedScene)
             {
                 searchedScene = HighLogic.LoadedScene;
@@ -591,13 +597,26 @@ namespace ReDefinition.Upscaler
             {
                 foreach (UnityEngine.Object o in UnityEngine.Object.FindObjectsOfType(type))
                     if (o is Component c) found.Add(c);
-                return found;
+                return;
             }
-            foreach (Camera camera in Camera.allCameras)
-                if (camera != null)
-                    foreach (Component c in camera.GetComponents(type))
-                        if (c != null && !found.Contains(c)) found.Add(c);
-            return found;
+            int count = EnabledCameras();
+            for (int i = 0; i < count; i++)
+            {
+                Camera camera = cameraScratch[i];
+                if (camera == null) continue;
+                camera.GetComponents(type, componentScratch);
+                foreach (Component c in componentScratch)
+                    if (c != null && !found.Contains(c)) found.Add(c);
+            }
+            componentScratch.Clear();
+        }
+
+        // The enabled cameras into cameraScratch, in the order of Camera.allCameras; how many there are.
+        private static int EnabledCameras()
+        {
+            int count = Camera.allCamerasCount;
+            if (cameraScratch.Length < count) cameraScratch = new Camera[count];
+            return Camera.GetAllCameras(cameraScratch);
         }
 
         // Scatterer rebuilds its TAA components in Init on every scene change,
@@ -618,7 +637,7 @@ namespace ReDefinition.Upscaler
             Type taaType = TypeLookup.Find(ScattererTaaTypeName);
             if (taaType != null)
             {
-                List<Component> taa = ScattererTaaComponents();
+                List<Component> taa = ScattererTaaComponents(taaScratch);
                 for (int i = 0; i < taa.Count; i++)
                 {
                     if (!IsEnabled(taa[i])) continue;
@@ -642,12 +661,65 @@ namespace ReDefinition.Upscaler
         // Reflection plumbing
         // ------------------------------------------------------------------
 
+        // A member looked up by type, name and binding flags.
+        private struct MemberKey : IEquatable<MemberKey>
+        {
+            private readonly Type type;
+            private readonly string name;
+            private readonly BindingFlags flags;
+
+            internal MemberKey(Type type, string name, BindingFlags flags)
+            {
+                this.type = type;
+                this.name = name;
+                this.flags = flags;
+            }
+
+            public bool Equals(MemberKey other)
+            {
+                return type == other.type && flags == other.flags && name == other.name;
+            }
+
+            public override bool Equals(object other)
+            {
+                return other is MemberKey && Equals((MemberKey)other);
+            }
+
+            public override int GetHashCode()
+            {
+                return (type.GetHashCode() * 31 + name.GetHashCode()) * 31 + (int)flags;
+            }
+        }
+
+        // The fields and properties the lookups below found, kept so that the once-a-second passes do not ask
+        // reflection for the same names again. A name a type lacks is kept as null: a loaded type does not change.
+        private static readonly Dictionary<MemberKey, FieldInfo> fieldCache = new Dictionary<MemberKey, FieldInfo>();
+        private static readonly Dictionary<MemberKey, PropertyInfo> propertyCache = new Dictionary<MemberKey, PropertyInfo>();
+
+        // The type's field of that name under those flags, or null.
+        private static FieldInfo FieldOf(Type type, string name, BindingFlags flags)
+        {
+            MemberKey key = new MemberKey(type, name, flags);
+            FieldInfo field;
+            if (!fieldCache.TryGetValue(key, out field)) fieldCache[key] = field = type.GetField(name, flags);
+            return field;
+        }
+
+        // The type's property of that name under Any, or null.
+        private static PropertyInfo PropertyOf(Type type, string name)
+        {
+            MemberKey key = new MemberKey(type, name, Any);
+            PropertyInfo property;
+            if (!propertyCache.TryGetValue(key, out property)) propertyCache[key] = property = type.GetProperty(name, Any);
+            return property;
+        }
+
         // Reads a field or readable property by name; false when the type has neither.
         private static bool TryGet(object target, Type type, string name, out object value)
         {
-            FieldInfo field = type.GetField(name, Any);
+            FieldInfo field = FieldOf(type, name, Any);
             if (field != null) { value = field.GetValue(target); return true; }
-            PropertyInfo property = type.GetProperty(name, Any);
+            PropertyInfo property = PropertyOf(type, name);
             if (property != null && property.CanRead) { value = property.GetValue(target, null); return true; }
             value = null;
             return false;
@@ -656,18 +728,21 @@ namespace ReDefinition.Upscaler
         // Writes a field or writable property by name; false when the type has neither.
         private static bool TrySet(object target, Type type, string name, object value)
         {
-            FieldInfo field = type.GetField(name, Any);
+            FieldInfo field = FieldOf(type, name, Any);
             if (field != null) { field.SetValue(target, value); return true; }
-            PropertyInfo property = type.GetProperty(name, Any);
+            PropertyInfo property = PropertyOf(type, name);
             if (property != null && property.CanWrite) { property.SetValue(target, value, null); return true; }
             return false;
         }
+
+        // The flags of the static lookups.
+        private const BindingFlags StaticOnly = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
 
         // Static fields only: a lookup that could also find an instance member
         // would throw on the null target. The type is checked before writing.
         private static bool TryGetStatic(Type type, string name, out object value)
         {
-            FieldInfo field = type.GetField(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            FieldInfo field = FieldOf(type, name, StaticOnly);
             if (field != null) { value = field.GetValue(null); return true; }
             value = null;
             return false;
@@ -676,7 +751,7 @@ namespace ReDefinition.Upscaler
         // Writes a static field by name, only with a value of the field's type.
         private static bool TrySetStatic(Type type, string name, object value)
         {
-            FieldInfo field = type.GetField(name, BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            FieldInfo field = FieldOf(type, name, StaticOnly);
             if (field == null || value == null || !field.FieldType.IsInstanceOfType(value)) return false;
             field.SetValue(null, value);
             return true;

@@ -9,11 +9,15 @@ namespace ReDefinition.Upscaler
         // The size of the tinted previews, whatever the render size; the source is read back scaled to it.
         public const int PreviewWidth = 320;
         public const int PreviewHeight = 180;
+        // How often the preview is read back: four times a second.
+        private const float PreviewIntervalSeconds = 0.25f;
 
         // The tinted preview and its pixels, the time it is next read back, and the scale it was tinted by.
         private Texture2D preview;
         private Color[] previewPixels;
         private float nextPreview;
+        // The motion preview's magnitudes, one per pixel, kept between readbacks.
+        private float[] previewMagnitudes;
         private float previewGain = 1f;
 
         // The scale of the last tinted preview: the 99th percentile of motion in pixels, the nearest depth, or 1.
@@ -55,7 +59,7 @@ namespace ReDefinition.Upscaler
 
             // Four times a second: every readback stalls the frame briefly.
             if (preview != null && Time.unscaledTime < nextPreview) return preview;
-            nextPreview = Time.unscaledTime + 0.25f;
+            nextPreview = Time.unscaledTime + PreviewIntervalSeconds;
 
             Color[] pixels = ReadBack(source);
             if (preview == null)
@@ -64,6 +68,7 @@ namespace ReDefinition.Upscaler
                 preview.filterMode = FilterMode.Point;
                 preview.wrapMode = TextureWrapMode.Clamp;
                 previewPixels = new Color[pixels.Length];
+                previewMagnitudes = new float[pixels.Length];
             }
 
             if (mode == PreviewMode.Depth) ColourDepth(pixels);
@@ -75,20 +80,23 @@ namespace ReDefinition.Upscaler
             return preview;
         }
 
+        // A motion vector pixel's length in pixels at render size: the vectors are in UV units,
+        // and the render resolution turns them into pixels.
+        private float MotionMagnitude(Color pixel)
+        {
+            float dx = pixel.r * renderSize.x;
+            float dy = pixel.g * renderSize.y;
+            return Mathf.Sqrt(dx * dx + dy * dy);
+        }
+
         // Red is motion to the right, green upwards, grey is still.
         private void ColourMotion(Color[] pixels)
         {
-            float[] magnitudes = new float[pixels.Length];
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                float dx = pixels[i].r * renderSize.x;
-                float dy = pixels[i].g * renderSize.y;
-                magnitudes[i] = Mathf.Sqrt(dx * dx + dy * dy);
-            }
-
-            float[] sorted = (float[])magnitudes.Clone();
-            System.Array.Sort(sorted);
-            previewGain = Mathf.Max(sorted[(int)(sorted.Length * 0.99f)], 0.5f);
+            // Sorted in place: only the 99th percentile is wanted from them.
+            float[] magnitudes = previewMagnitudes;
+            for (int i = 0; i < pixels.Length; i++) magnitudes[i] = MotionMagnitude(pixels[i]);
+            System.Array.Sort(magnitudes);
+            previewGain = Mathf.Max(magnitudes[(int)(magnitudes.Length * 0.99f)], 0.5f);
 
             float sx = renderSize.x / previewGain;
             float sy = renderSize.y / previewGain;

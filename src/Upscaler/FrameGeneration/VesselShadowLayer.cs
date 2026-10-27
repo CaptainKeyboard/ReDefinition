@@ -99,6 +99,8 @@ namespace ReDefinition.Upscaler
         // and the vessel and part count the casters were chosen for, to choose them again when either changes.
         private readonly List<Caster> casters = new List<Caster>();
         private readonly List<int> opaque = new List<int>();
+        // One part's renderers while ChooseCasters goes through them.
+        private readonly List<Renderer> partRenderers = new List<Renderer>();
         private readonly Dictionary<Renderer, Matrix4x4> previousModel = new Dictionary<Renderer, Matrix4x4>();
         private Vessel castersOf;
         private int castersPartCount;
@@ -126,8 +128,9 @@ namespace ReDefinition.Upscaler
         private Matrix4x4 viewProjection;
         private Matrix4x4 rasterInverse;
         private Matrix4x4 previousViewProjection;
-        // This frame's origin shift, and where the surface lay before against the vessel.
+        // This frame's origin shift, whether there was one, and where the surface lay before against the vessel.
         private Vector3 originShift;
+        private bool shifted;
         private Vector3 receiverShift;
         private int previousFrame = -10;
         private Vector2Int size;
@@ -204,7 +207,8 @@ namespace ReDefinition.Upscaler
             continuous = previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
             if (!continuous) previousViewProjection = thisViewProjection;
             // A point the shift moved lay at its position now plus the shift.
-            originShift = SharedFrame.Shifted ? (Vector3)SharedFrame.OriginShift : Vector3.zero;
+            shifted = SharedFrame.Shifted;
+            originShift = shifted ? (Vector3)SharedFrame.OriginShift : Vector3.zero;
             receiverShift = SharedFrame.Shifted ? (Vector3)(SharedFrame.BodyShift - SharedFrame.OriginShift) : Vector3.zero;
             if (continuous && SharedFrame.Shifted)
                 previousViewProjection = previousViewProjection * Matrix4x4.Translate(originShift);
@@ -267,7 +271,9 @@ namespace ReDefinition.Upscaler
             capture.ClearRenderTarget(true, true, new Color(0f, 0f, 0f, 1e9f));
             capture.SetGlobalMatrix(LightRasterId, lightRaster);
             capture.SetGlobalVector(LightId, lightVector);
-            Vector3 anchor = vessel.transform.position;
+            // The previous matrices carried into this frame's coordinates by the origin shift; without a shift the
+            // shift matrix is the identity, which is not multiplied in.
+            Matrix4x4 unshift = shifted ? Matrix4x4.Translate(-originShift) : Matrix4x4.identity;
             for (int i = 0; i < casters.Count; i++)
             {
                 // The ones CastersBounds took this frame.
@@ -275,7 +281,9 @@ namespace ReDefinition.Upscaler
                 Caster c = casters[i];
                 Matrix4x4 before;
                 if (previousModel.TryGetValue(c.Renderer, out before))
-                    before = Matrix4x4.Translate(-originShift) * before;
+                {
+                    if (shifted) before = unshift * before;
+                }
                 else
                     before = c.Renderer.localToWorldMatrix;
                 capture.SetGlobalMatrix(PreviousModelId, before);
@@ -396,7 +404,8 @@ namespace ReDefinition.Upscaler
             foreach (Part part in vessel.parts)
             {
                 if (part == null) continue;
-                foreach (Renderer renderer in part.GetComponentsInChildren<Renderer>(true))
+                part.GetComponentsInChildren(true, partRenderers);
+                foreach (Renderer renderer in partRenderers)
                 {
                     Mesh mesh = null;
                     MeshRenderer meshRenderer = renderer as MeshRenderer;
@@ -423,6 +432,7 @@ namespace ReDefinition.Upscaler
                     });
                 }
             }
+            partRenderers.Clear();
         }
 
         // The light that casts the local scenery's shadows, looked for every few seconds and

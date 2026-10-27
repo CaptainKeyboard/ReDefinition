@@ -1,6 +1,7 @@
 using System.Globalization;
 using ReDefinition.Api.Internal;
 using ReDefinition.Core;
+using ReDefinition.Proxy;
 using Unity.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -45,6 +46,8 @@ namespace ReDefinition.Upscaler
         // move by the camera's travel against the body. Beyond it, such a vessel is at
         // least that far from the camera and a few pixels large.
         private const float PreciseFrom = 500f;
+        // The view depth the shader is given instead of PreciseFrom while the camera is near the origin: no depth is that far.
+        private const float NoPreciseRange = float.MaxValue;
         // Unity's motion vectors are noise farther from the world's origin than this, worked out in single
         // precision from world positions that far out.
         private const float FarFromOrigin = 20000f;
@@ -268,19 +271,21 @@ namespace ReDefinition.Upscaler
 
             bool ready = havePrevious && previousBody == body
                          && previousFrame == Time.frameCount - 1 && SharedFrame.RigResetReason == null;
+            // Both matrices go through the one projection, which is inverted once.
+            Matrix4x4 inverseProjection = ready ? StreamlineCamera.Invert(projection) : Matrix4x4.identity;
             Matrix4x4 clipToPrevious = ready
-                ? SceneMotion.ClipToPreviousClip(projection, previousProjection, position, rotation,
+                ? SceneMotion.ClipToPreviousClipWithInverse(inverseProjection, previousProjection, position, rotation,
                     previousPosition, previousRotation)
                 : Matrix4x4.identity;
             Matrix4x4 skyToPrevious = ready
-                ? SceneMotion.ClipToPreviousClip(projection, previousProjection, Vector3d.zero, worldRotation,
+                ? SceneMotion.ClipToPreviousClipWithInverse(inverseProjection, previousProjection, Vector3d.zero, worldRotation,
                     Vector3d.zero, previousWorldRotation)
                 : Matrix4x4.identity;
             bool far = cam.transform.position.magnitude > FarFromOrigin;
             Shader.SetGlobalMatrix(SceneClipToPrevClipId, clipToPrevious);
             Shader.SetGlobalMatrix(SkyClipToPrevClipId, skyToPrevious);
             Shader.SetGlobalVector(SceneRangeId, new Vector4(cam.nearClipPlane, cam.farClipPlane,
-                far ? PreciseFrom : float.MaxValue, ready ? 1f : 0f));
+                far ? PreciseFrom : NoPreciseRange, ready ? 1f : 0f));
 
             previousProjection = projection;
             previousPosition = position;
