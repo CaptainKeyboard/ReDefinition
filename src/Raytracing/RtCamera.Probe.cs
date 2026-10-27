@@ -45,7 +45,13 @@ namespace ReDefinition.Raytracing
             int w = parity.width, h = parity.height;
             float[] data = request.GetData<float>().ToArray();
             RtParity.Result result = RtParity.Analyse(data, w, h, Scene.IsTerrain);
-            if (parityLabel != null) Debug.Log(Core.Log.Tag + " Raytracing parity of view " + parityLabel + ":");
+            if (parityLabel != null)
+            {
+                Light sun = SunLight != null ? SunLight() : null;
+                Debug.Log(Core.Log.Tag + " Raytracing parity of view " + parityLabel + ": the sun's light " + (sun != null ? sun.color + " x " + sun.intensity : "none")
+                          + ", the rays' sun " + SunColor() + ", the rays' sky " + SkyColor() + ", Unity's ambient sky " + RenderSettings.ambientSkyColor + " equator "
+                          + RenderSettings.ambientEquatorColor + " ground " + RenderSettings.ambientGroundColor + " flat " + RenderSettings.ambientLight + ".");
+            }
             parityLabel = null;
             Debug.Log(Core.Log.Tag + " " + RtParity.Report(result, Scene.Describe, 12));
             float[] rays = ReadFloats(parityRays), raster = ReadFloats(parityRaster);
