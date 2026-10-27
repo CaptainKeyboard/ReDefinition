@@ -9,6 +9,20 @@ namespace ReDefinition.Tests
     [TestClass]
     public class FrameGenerationTechniqueTests
     {
+        // The proxy's numbers for a technique by name: a resolved choice that is neither FSR 3 nor DLSS counts as
+        // XeSS, and a value that is no technique has none.
+        [TestMethod]
+        public void TheProxysNumbersFollowTheTechniqueNames()
+        {
+            Assert.AreEqual(1, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOf("Fsr"));
+            Assert.AreEqual(2, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOf("Dlss"));
+            Assert.AreEqual(3, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOf("Xess"));
+            Assert.AreEqual(3, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOf("Auto"));
+            Assert.AreEqual(3, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOfNamed("Xess"));
+            Assert.AreEqual(0, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOfNamed("Auto"));
+            Assert.AreEqual(0, ReDefinition.Settings.FrameGenerationTechniqueSetting.KindOfNamed("Off"));
+        }
+
         // FSR's frame generation is named FSR 3, with no multiplier whatever the proxy reports.
         [TestMethod]
         public void FsrIsNamedWithoutAMultiplier()

@@ -213,5 +213,20 @@ namespace ReDefinition.Tests
             Assert.AreEqual("720", settings.ValueOf("renderTargetHeight"));
             Assert.AreEqual("False", settings.ValueOf("qualityAuto"));
         }
+
+        // The add-on compares what Auto was resolved for with what it is now every frame: two equal inputs are
+        // equal, and a change of any one of the five is a different input.
+        [TestMethod]
+        public void TheInputsAutoWasResolvedForCompareByValue()
+        {
+            AutoSettings.ResolvedFor a = new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1440, true, false, true);
+            Assert.IsTrue(a.Equals(new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1440, true, false, true)));
+            Assert.AreEqual(a.GetHashCode(), new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1440, true, false, true).GetHashCode());
+            Assert.IsFalse(a.Equals(new AutoSettings.ResolvedFor(GpuClass.Rtx40, 1440, true, false, true)));
+            Assert.IsFalse(a.Equals(new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1080, true, false, true)));
+            Assert.IsFalse(a.Equals(new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1440, false, false, true)));
+            Assert.IsFalse(a.Equals(new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1440, true, true, true)));
+            Assert.IsFalse(a.Equals(new AutoSettings.ResolvedFor(GpuClass.Rtx30, 1440, true, false, false)));
+        }
     }
 }

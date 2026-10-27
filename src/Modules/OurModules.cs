@@ -1104,7 +1104,7 @@ namespace ReDefinition.Modules
             // Auto names the technique it stands for here (the technique only: the multiplier row says how many
             // frames).
             string technique = AutoSettings.FrameGenerationTechnique(value, TechniqueAvailability.Current());
-            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1 : technique == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            int kind = FrameGenerationTechniqueSetting.KindOf(technique);
             string name = FrameGenerationTechniqueSetting.Label(technique)
                           + (limits.Known && limits.Technique != kind ? ", after a restart" : "");
             return value == FrameGenerationTechniqueSetting.Auto ? "Auto (" + name + ")"
@@ -1118,7 +1118,7 @@ namespace ReDefinition.Modules
         {
             if (after == FrameGenerationTechniqueSetting.Off || !FrameGenerationBridge.Available) return ApplyWindow.Live;
             string technique = AutoSettings.FrameGenerationTechnique(after, TechniqueAvailability.Current());
-            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1 : technique == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            int kind = FrameGenerationTechniqueSetting.KindOf(technique);
             return FrameGenerationBridge.Limits().Technique == kind ? ApplyWindow.Live : ApplyWindow.Restart;
         }
 

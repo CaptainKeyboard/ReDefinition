@@ -79,6 +79,7 @@ namespace ReDefinition
         // delegate each time.
         private Action enforceProfileStep;
         private Action syncHostStackStep;
+        private Action autoStep;
         private static readonly Action ReassertHostStackStep = HostStack.Reassert;
 
         // Setup attempts that may fail without switching the upscaler off: a rig
@@ -108,6 +109,7 @@ namespace ReDefinition
             windowId = GetInstanceID();
             enforceProfileStep = EnforceProfile;
             syncHostStackStep = SyncHostStack;
+            autoStep = ResolveAutoOnNewScreen;
             // What KSP's V-Sync row allows while DLSS frame generation runs (KSP.cfg).
             KspBehaviour.DlssFrameGenerationRuns = () => frameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
@@ -204,7 +206,7 @@ namespace ReDefinition
             Guarded("profile", enforceProfileStep);
             Guarded("host-stack", syncHostStackStep);
             Guarded("host-stack-reassert", ReassertHostStackStep);
-            Guarded("auto", ResolveAutoOnNewScreen);
+            Guarded("auto", autoStep);
             SaveSettingsIfChanged();
             SharedFrame.PollProfile();
 
