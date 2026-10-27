@@ -5,6 +5,7 @@
 #include "FileUtil.h"
 #include "Log.h"
 #include "RuntimeLoader.h"
+#include "UpscalerRig.h"
 
 #include <cmath>
 #include <cstdio>
@@ -23,51 +24,6 @@ namespace redefinition
         {
             const std::wstring directory = XessDirectory();
             return directory.empty() ? ExecutableDirectory() : directory;
-        }
-
-        // The folder and the stamp of libxess.dll in it: a stop for -2 stands while this stays the same.
-        std::wstring RuntimeSignature()
-        {
-            const std::wstring folder = RuntimeFolder();
-            return folder + L"|" + FileStamp(folder + L"\\" + kRuntimeName);
-        }
-
-        // One barrier on the list for the resource from one state to the other.
-        void Transition(ID3D12GraphicsCommandList* commandList, ID3D12Resource* resource,
-                        D3D12_RESOURCE_STATES from, D3D12_RESOURCE_STATES to)
-        {
-            const D3D12_RESOURCE_BARRIER barrier = TransitionBarrier(resource, from, to);
-            commandList->ResourceBarrier(1, &barrier);
-        }
-
-        // The description of a D3D11 resource that is a 2D texture; false for anything else.
-        bool TextureDesc(void* texture, D3D11_TEXTURE2D_DESC& desc)
-        {
-            ComPtr<ID3D11Texture2D> texture2d;
-            if (texture == nullptr
-                || FAILED(static_cast<ID3D11Resource*>(texture)->QueryInterface(IID_PPV_ARGS(&texture2d))))
-                return false;
-            texture2d->GetDesc(&desc);
-            return true;
-        }
-
-        // Whether a context made for a can take b: the same sizes and the same creation flags.
-        bool SameContext(const XessUpscalerPacket& a, const XessUpscalerPacket& b)
-        {
-            const uint32_t creationFlags = kAmdUpscalerHdr | kAmdUpscalerDepthInverted | kAmdUpscalerAutoExposure;
-            return a.renderWidth == b.renderWidth && a.renderHeight == b.renderHeight
-                && a.outputWidth == b.outputWidth && a.outputHeight == b.outputHeight
-                && (a.flags & creationFlags) == (b.flags & creationFlags);
-        }
-
-        // The shared texture made again unless it already has the size and the typed format of desc.
-        bool Match(SharedTexture& shared, ID3D11Device* device11, ID3D12Device* device12,
-                   const D3D11_TEXTURE2D_DESC& desc)
-        {
-            const DXGI_FORMAT format = TypedFormat(desc.Format);
-            if (shared.Valid() && shared.width == desc.Width && shared.height == desc.Height && shared.format == format)
-                return true;
-            return shared.Create(device11, device12, desc.Width, desc.Height, format);
         }
 
         // The preset whose scale the frame's comes nearest. The scales are "ULTRA_PERFORMANCE: 3.0,
@@ -114,42 +70,17 @@ namespace redefinition
         }
     }
 
+    // The folder and the stamp of libxess.dll in it: a stop for -2 stands while this stays the same.
+    std::wstring XessUpscaler::RuntimeSignature() const
+    {
+        const std::wstring folder = RuntimeFolder();
+        return folder + L"|" + FileStamp(folder + L"\\" + kRuntimeName);
+    }
+
     XessUpscaler& XessUpscaler::Get()
     {
         static XessUpscaler* instance = new XessUpscaler();
         return *instance;
-    }
-
-    void XessUpscaler::SetStatus(int newState, const std::string& text)
-    {
-        renderState = newState;
-        bool changed = false;
-        {
-            std::lock_guard<std::mutex> lock(statusLock);
-            changed = state != newState || statusText != text;
-            state = newState;
-            statusText = text;
-            stableSignature = newState == -2 ? runtimeSignature : std::wstring();
-        }
-        if (changed && newState < 0)
-            LogLine("XeSS: " + text);
-    }
-
-    int XessUpscaler::Status(char* buffer, int size) const
-    {
-        int reported = 0;
-        std::wstring stood;
-        {
-            std::lock_guard<std::mutex> lock(statusLock);
-            if (buffer != nullptr && size > 0)
-                strncpy_s(buffer, static_cast<size_t>(size), statusText.c_str(), _TRUNCATE);
-            reported = state;
-            if (reported == -2)
-                stood = stableSignature;
-        }
-        if (reported == -2 && RuntimeSignature() != stood)
-            reported = -1;
-        return reported;
     }
 
     int XessUpscaler::Version(char* buffer, int size) const
@@ -158,43 +89,6 @@ namespace redefinition
         if (buffer != nullptr && size > 0)
             strncpy_s(buffer, static_cast<size_t>(size), shownVersion.c_str(), _TRUNCATE);
         return shownVersion.empty() ? 0 : 1;
-    }
-
-    void XessUpscaler::Attach(const void* newOwner, ID3D11Device5* newDevice11, ID3D11DeviceContext4* newContext11,
-                              ID3D12Device* newDevice12, ID3D12CommandQueue* newQueue)
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        ReleaseLocked();
-        fence12.Reset();
-        fence11.Reset();
-        for (auto& allocator : allocators)
-            allocator.Reset();
-        list.Reset();
-        owner = newOwner;
-        device11 = newDevice11;
-        context11 = newContext11;
-        device12 = newDevice12;
-        queue = newQueue;
-        attached = newDevice12 != nullptr && newQueue != nullptr;
-    }
-
-    void XessUpscaler::Detach(const void* detaching)
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (detaching != owner)
-            return;
-        ReleaseLocked();
-        fence12.Reset();
-        fence11.Reset();
-        for (auto& allocator : allocators)
-            allocator.Reset();
-        list.Reset();
-        queue.Reset();
-        device12.Reset();
-        context11.Reset();
-        device11.Reset();
-        owner = nullptr;
-        attached = false;
     }
 
     void XessUpscaler::OnPacket(const void* data)
@@ -240,18 +134,8 @@ namespace redefinition
     {
         if (createContext != nullptr)
             return true;
-        if (runtimeTried)
-        {
-            const ULONGLONG now = GetTickCount64();
-            if (now < nextRuntimeCheck)
-                return false;
-            nextRuntimeCheck = now + 1000;
-        }
-        const std::wstring signature = RuntimeSignature();
-        if (runtimeTried && signature == runtimeSignature)
+        if (!RuntimeDueLocked())
             return false;
-        runtimeTried = true;
-        runtimeSignature = signature;
 
         const RuntimeModule loaded = LoadRuntimeModule(RuntimeFolder(), kRuntimeName, "Intel's XeSS SDK has it");
         const std::wstring& path = loaded.path;
@@ -293,60 +177,6 @@ namespace redefinition
             shownVersion = versionName;
         }
         LogLine("XeSS: " + Narrow(path) + " " + FileVersion(path) + ", " + versionName);
-        return true;
-    }
-
-    bool XessUpscaler::EnsureFenceLocked()
-    {
-        if (list != nullptr)
-            return true;
-        HRESULT hr = SharedFence(device11.Get(), device12.Get(), fence12, fence11);
-        for (UINT i = 0; SUCCEEDED(hr) && i < kLists; ++i)
-            hr = device12->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&allocators[i]));
-        if (SUCCEEDED(hr))
-            hr = device12->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, allocators[0].Get(), nullptr,
-                                             IID_PPV_ARGS(&list));
-        if (FAILED(hr))
-        {
-            SetStatus(-1, "the shared fence or command list could not be made (" + Hr(hr) + ")");
-            list.Reset();
-            return false;
-        }
-        list->Close();
-        if (fenceEvent == nullptr)
-            fenceEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-        fenceValue = 0;
-        for (UINT64& done : listDone)
-            done = 0;
-        return true;
-    }
-
-    bool XessUpscaler::EnsureTexturesLocked(const XessUpscalerPacket& packet)
-    {
-        D3D11_TEXTURE2D_DESC colourDesc = {}, depthDesc = {}, motionDesc = {}, outputDesc = {};
-        if (!TextureDesc(packet.colour, colourDesc) || !TextureDesc(packet.depth, depthDesc)
-            || !TextureDesc(packet.motionVectors, motionDesc) || !TextureDesc(packet.output, outputDesc))
-        {
-            SetStatus(-1, "a texture of the frame is not a 2D texture");
-            return false;
-        }
-        const auto matches = [](const SharedTexture& shared, const D3D11_TEXTURE2D_DESC& desc) {
-            return shared.Valid() && shared.width == desc.Width && shared.height == desc.Height
-                   && shared.format == TypedFormat(desc.Format);
-        };
-        if (matches(colour, colourDesc) && matches(output, outputDesc) && matches(depth, depthDesc)
-            && matches(motion, motionDesc))
-            return true;
-
-        WaitForListsLocked();
-        if (!Match(colour, device11.Get(), device12.Get(), colourDesc)
-            || !Match(depth, device11.Get(), device12.Get(), depthDesc)
-            || !Match(motion, device11.Get(), device12.Get(), motionDesc)
-            || !Match(output, device11.Get(), device12.Get(), outputDesc))
-        {
-            SetStatus(-1, "the textures shared with D3D12 could not be made");
-            return false;
-        }
         return true;
     }
 
@@ -409,12 +239,12 @@ namespace redefinition
                 range = ", outside every preset's input range";
         }
 
-        const bool hdr = (packet.flags & kAmdUpscalerHdr) != 0;
+        const bool hdr = (packet.flags & kUpscalerHdr) != 0;
         xess_d3d12_init_params_t params = {};
         params.outputResolution = { packet.outputWidth, packet.outputHeight };
         params.qualitySetting = preset;
-        params.initFlags = ((packet.flags & kAmdUpscalerDepthInverted) != 0 ? XESS_INIT_FLAG_INVERTED_DEPTH : 0u)
-                         | ((packet.flags & kAmdUpscalerAutoExposure) != 0 ? XESS_INIT_FLAG_ENABLE_AUTOEXPOSURE : 0u)
+        params.initFlags = ((packet.flags & kUpscalerDepthInverted) != 0 ? XESS_INIT_FLAG_INVERTED_DEPTH : 0u)
+                         | ((packet.flags & kUpscalerAutoExposure) != 0 ? XESS_INIT_FLAG_ENABLE_AUTOEXPOSURE : 0u)
                          // KSP's 8-bit sRGB target in LDR: "XESS_INIT_FLAG_LDR_INPUT_COLOR" (xess.h).
                          | (hdr ? 0u : XESS_INIT_FLAG_LDR_INPUT_COLOR);
         const xess_result_t initialised = init(context, &params);
@@ -446,32 +276,21 @@ namespace redefinition
         context11->CopyResource(colour.d3d11.Get(), static_cast<ID3D11Resource*>(packet.colour));
         context11->CopyResource(depth.d3d11.Get(), static_cast<ID3D11Resource*>(packet.depth));
         context11->CopyResource(motion.d3d11.Get(), static_cast<ID3D11Resource*>(packet.motionVectors));
-        const UINT64 inputsCopied = ++fenceValue;
-        context11->Signal(fence11.Get(), inputsCopied);
-        context11->Flush();
-        queue->Wait(fence12.Get(), inputsCopied);
+        SignalInputsLocked();
 
-        const UINT index = listIndex;
-        listIndex = (listIndex + 1) % kLists;
-        if (listDone[index] != 0 && fence12->GetCompletedValue() < listDone[index]
-            && SUCCEEDED(fence12->SetEventOnCompletion(listDone[index], fenceEvent)))
-            WaitForSingleObject(fenceEvent, INFINITE);
-        HRESULT hr = allocators[index]->Reset();
-        if (SUCCEEDED(hr))
-            hr = list->Reset(allocators[index].Get(), nullptr);
-        if (FAILED(hr))
-        {
-            SetStatus(-1, "the command list could not be reset (" + Hr(hr) + ")");
+        UINT index = 0;
+        if (!BeginListLocked(index))
             return false;
-        }
 
         // "Must be in NON_PIXEL_SHADER_RESOURCE state" for the inputs, "UNORDERED_ACCESS"
         // for the output (xess_d3d12.h).
         const D3D12_RESOURCE_STATES read = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-        Transition(list.Get(), colour.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
-        Transition(list.Get(), depth.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
-        Transition(list.Get(), motion.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
-        Transition(list.Get(), output.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        BarrierBatch before;
+        before.Add(colour.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
+        before.Add(depth.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
+        before.Add(motion.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, read);
+        before.Add(output.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        before.Record(list.Get());
 
         // The motion vectors in pixels, as FSR's scale makes them.
         if (packet.motionVectorScaleX != velocityScaleX || packet.motionVectorScaleY != velocityScaleY)
@@ -489,30 +308,19 @@ namespace redefinition
         params.jitterOffsetX = packet.jitterX;
         params.jitterOffsetY = packet.jitterY;
         params.exposureScale = 1.0f;
-        params.resetHistory = (packet.flags & kAmdUpscalerReset) != 0 ? 1u : 0u;
+        params.resetHistory = (packet.flags & kUpscalerReset) != 0 ? 1u : 0u;
         params.inputWidth = packet.renderWidth;
         params.inputHeight = packet.renderHeight;
         const xess_result_t result = execute(context, list.Get(), &params);
 
-        Transition(list.Get(), output.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON);
-        Transition(list.Get(), motion.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
-        Transition(list.Get(), depth.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
-        Transition(list.Get(), colour.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
-        hr = list->Close();
-        if (SUCCEEDED(hr))
-        {
-            ID3D12CommandList* lists[] = { list.Get() };
-            queue->ExecuteCommandLists(1, lists);
-        }
-        const UINT64 finished = ++fenceValue;
-        queue->Signal(fence12.Get(), finished);
-        listDone[index] = finished;
-        context11->Wait(fence11.Get(), finished);
-        if (FAILED(hr))
-        {
-            SetStatus(-1, "the command list could not be closed (" + Hr(hr) + ")");
+        BarrierBatch after;
+        after.Add(output.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON);
+        after.Add(motion.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
+        after.Add(depth.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
+        after.Add(colour.d3d12.Get(), read, D3D12_RESOURCE_STATE_COMMON);
+        after.Record(list.Get());
+        if (!FinishListLocked(index))
             return false;
-        }
         if (result != XESS_RESULT_SUCCESS)
         {
             SetStatus(-1, versionName + " failed, " + ResultText(result));
@@ -529,16 +337,6 @@ namespace redefinition
         return true;
     }
 
-    void XessUpscaler::WaitForListsLocked()
-    {
-        if (fence12 == nullptr || fenceEvent == nullptr || fenceValue == 0)
-            return;
-        if (fence12->GetCompletedValue() >= fenceValue)
-            return;
-        if (SUCCEEDED(fence12->SetEventOnCompletion(fenceValue, fenceEvent)))
-            WaitForSingleObject(fenceEvent, INFINITE);
-    }
-
     void XessUpscaler::ReleaseLocked()
     {
         WaitForListsLocked();
@@ -548,9 +346,6 @@ namespace redefinition
             context = nullptr;
         }
         created = XessUpscalerPacket{};
-        colour.Reset();
-        depth.Reset();
-        motion.Reset();
-        output.Reset();
+        ReleaseTexturesLocked();
     }
 }

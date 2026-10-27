@@ -88,6 +88,8 @@ endif()
 add_library(ReDefinitionProxy SHARED
     Upscalers/AmdUpscaler.cpp
     Upscalers/AmdUpscaler.h
+    Upscalers/UpscalerRig.cpp
+    Upscalers/UpscalerRig.h
     Common/Log.cpp
     Common/Log.h
     Common/RuntimeLoader.cpp
