@@ -6,6 +6,10 @@
 #include <windows.h>
 
 #include <algorithm>
+#include <atomic>
+#include <climits>
+#include <cstring>
+#include <initializer_list>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -37,6 +41,14 @@ namespace redefinition
             // A missing file gives the default everywhere: without an ini the proxy
             // runs on its defaults.
             return GetPrivateProfileIntW(L"Proxy", key, fallback ? 1 : 0, file.c_str()) != 0;
+        }
+
+        // A [Proxy] key as a whole number, held to lowest..highest; fallback where the file or the
+        // key is missing.
+        int ReadInt(const wchar_t* key, const std::wstring& file, int fallback, int lowest = INT_MIN, int highest = INT_MAX)
+        {
+            return std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", key, fallback, file.c_str())), lowest,
+                              highest);
         }
 
         // GetPrivateProfileInt cannot read a fraction, and the pacing values are
@@ -349,38 +361,41 @@ namespace redefinition
                    : technique == kFgTechniqueXess ? "xess" : "auto";
         }
 
+        // A [Proxy] key that is one of a few words, in any case: the value whose name nameOf gives is
+        // the one the text names. Anything else is fallback, and said with the words that are none of
+        // it. options is those words for the log line.
+        template <typename NameOf>
+        int ReadChoice(const char* key, const wchar_t* defaultText, const std::wstring& file,
+                       std::initializer_list<int> values, NameOf nameOf, const char* options, int fallback)
+        {
+            const std::wstring wideKey(key, key + std::strlen(key));
+            wchar_t buffer[64] = {};
+            GetPrivateProfileStringW(L"Proxy", wideKey.c_str(), defaultText, buffer, ARRAYSIZE(buffer), file.c_str());
+            const std::string text = Narrow(buffer);
+            for (int value : values)
+                if (_stricmp(text.c_str(), nameOf(value)) == 0)
+                    return value;
+            LogLine(std::string("Config: ") + key + "=" + text + " is none of " + options + " -- " + nameOf(fallback));
+            return fallback;
+        }
+
         // frameGenerationTechnique: auto, fsr, dlss or xess, in any case; anything else
         // is auto, and said.
         int ReadTechnique(const std::wstring& file)
         {
-            wchar_t buffer[32] = {};
-            GetPrivateProfileStringW(L"Proxy", L"frameGenerationTechnique", L"auto", buffer, ARRAYSIZE(buffer),
-                                     file.c_str());
-            for (int technique : { kFgTechniqueAuto, kFgTechniqueFsr, kFgTechniqueDlss, kFgTechniqueXess })
-            {
-                const std::string name = TechniqueName(technique);
-                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
-                    return technique;
-            }
-            LogLine("Config: frameGenerationTechnique=" + Narrow(buffer) + " is none of auto, fsr, dlss, xess -- auto");
-            return kFgTechniqueAuto;
+            return ReadChoice("frameGenerationTechnique", L"auto", file,
+                              { kFgTechniqueAuto, kFgTechniqueFsr, kFgTechniqueDlss, kFgTechniqueXess }, TechniqueName,
+                              "auto, fsr, dlss, xess", kFgTechniqueAuto);
         }
 
         // xessFgUiMode: one of XessUiModeName's names, in any case; anything else is
         // auto, and said.
         int ReadXessUiMode(const std::wstring& file)
         {
-            wchar_t buffer[64] = {};
-            GetPrivateProfileStringW(L"Proxy", L"xessFgUiMode", L"auto", buffer, ARRAYSIZE(buffer), file.c_str());
-            for (int mode = 0; mode < kXessUiModeCount; ++mode)
-            {
-                const std::string name = XessUiModeName(mode);
-                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
-                    return mode;
-            }
-            LogLine("Config: xessFgUiMode=" + Narrow(buffer) + " is none of auto, none, backbuffer_uitexture,"
-                    " hudless_uitexture, backbuffer_hudless, backbuffer_hudless_uitexture -- auto");
-            return kXessUiModeAuto;
+            return ReadChoice("xessFgUiMode", L"auto", file, { 0, 1, 2, 3, 4, 5 }, XessUiModeName,
+                              "auto, none, backbuffer_uitexture, hudless_uitexture, backbuffer_hudless,"
+                              " backbuffer_hudless_uitexture",
+                              kXessUiModeAuto);
         }
 
         // xessFgOwnWaitable: auto, 0 or 1; anything else is auto, and said.
@@ -400,61 +415,29 @@ namespace redefinition
         // xessFgBadConstants: skip, fix or pass, in any case; anything else is skip, and said.
         int ReadXessBadConstants(const std::wstring& file)
         {
-            wchar_t buffer[32] = {};
-            GetPrivateProfileStringW(L"Proxy", L"xessFgBadConstants", L"skip", buffer, ARRAYSIZE(buffer), file.c_str());
-            for (int mode : { kXessBadSkip, kXessBadFix, kXessBadPass })
-            {
-                const std::string name = XessBadConstantsName(mode);
-                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
-                    return mode;
-            }
-            LogLine("Config: xessFgBadConstants=" + Narrow(buffer) + " is none of skip, fix, pass -- skip");
-            return kXessBadSkip;
+            return ReadChoice("xessFgBadConstants", L"skip", file, { kXessBadSkip, kXessBadFix, kXessBadPass },
+                              XessBadConstantsName, "skip, fix, pass", kXessBadSkip);
         }
 
         // dlssgMode: on or dynamic, in any case; anything else is on, and said.
         int ReadDlssgMode(const std::wstring& file)
         {
-            wchar_t buffer[32] = {};
-            GetPrivateProfileStringW(L"Proxy", L"dlssgMode", L"on", buffer, ARRAYSIZE(buffer), file.c_str());
-            for (int mode : { kDlssgModeOn, kDlssgModeDynamic })
-            {
-                const std::string name = DlssgModeName(mode);
-                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
-                    return mode;
-            }
-            LogLine("Config: dlssgMode=" + Narrow(buffer) + " is none of on, dynamic -- on");
-            return kDlssgModeOn;
+            return ReadChoice("dlssgMode", L"on", file, { kDlssgModeOn, kDlssgModeDynamic }, DlssgModeName,
+                              "on, dynamic", kDlssgModeOn);
         }
 
         // dlssgUiAlpha: binary or minimal, in any case; anything else is binary, and said.
         int ReadDlssgUiAlpha(const std::wstring& file)
         {
-            wchar_t buffer[32] = {};
-            GetPrivateProfileStringW(L"Proxy", L"dlssgUiAlpha", L"binary", buffer, ARRAYSIZE(buffer), file.c_str());
-            for (int alpha : { kDlssgUiAlphaBinary, kDlssgUiAlphaMinimal })
-            {
-                const std::string name = DlssgUiAlphaName(alpha);
-                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
-                    return alpha;
-            }
-            LogLine("Config: dlssgUiAlpha=" + Narrow(buffer) + " is none of binary, minimal -- binary");
-            return kDlssgUiAlphaBinary;
+            return ReadChoice("dlssgUiAlpha", L"binary", file, { kDlssgUiAlphaBinary, kDlssgUiAlphaMinimal },
+                              DlssgUiAlphaName, "binary, minimal", kDlssgUiAlphaBinary);
         }
 
         // rrPath: auto, streamline or ngx, in any case; anything else is auto, and said.
         int ReadRrPath(const std::wstring& file)
         {
-            wchar_t buffer[32] = {};
-            GetPrivateProfileStringW(L"Proxy", L"rrPath", L"auto", buffer, ARRAYSIZE(buffer), file.c_str());
-            for (int path : { kRrPathAuto, kRrPathStreamline, kRrPathNgx })
-            {
-                const std::string name = RrPathName(path);
-                if (_wcsicmp(buffer, std::wstring(name.begin(), name.end()).c_str()) == 0)
-                    return path;
-            }
-            LogLine("Config: rrPath=" + Narrow(buffer) + " is none of auto, streamline, ngx -- auto");
-            return kRrPathAuto;
+            return ReadChoice("rrPath", L"auto", file, { kRrPathAuto, kRrPathStreamline, kRrPathNgx }, RrPathName,
+                              "auto, streamline, ngx", kRrPathAuto);
         }
 
         std::string Describe(const ProxyConfig& c)
@@ -567,19 +550,13 @@ namespace redefinition
             target.fgHalfRefreshLimit = ReadFlag(L"fgHalfRefreshLimit", file, false);
             target.fgAsyncWorkloads = ReadFlag(L"fgAsyncWorkloads", file, false);
 
-            target.reportSeconds =
-                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"reportSeconds", 10, file.c_str()));
-
-            // Zero would mean the report interval never elapses and the frame
+            // At least one: zero would mean the report interval never elapses and the frame
             // time buffer grows for the whole session.
-            if (target.reportSeconds < 1)
-                target.reportSeconds = 1;
+            target.reportSeconds = ReadInt(L"reportSeconds", file, 10, 1);
 
             target.fgObjectSeparationMetres = ReadFloat(L"fgObjectSeparationMetres", file, 0.0f);
             target.dlssgMode = ReadDlssgMode(file);
-            target.dlssgFrames = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"dlssgFrames", 0, file.c_str()));
-            if (target.dlssgFrames < 0)
-                target.dlssgFrames = 0;
+            target.dlssgFrames = ReadInt(L"dlssgFrames", file, 0, 0);
             target.dlssgDynamicTargetFps = ReadFloat(L"dlssgDynamicTargetFps", file, 0.0f);
             if (target.dlssgDynamicTargetFps < 0.0f)
                 target.dlssgDynamicTargetFps = 0.0f;
@@ -591,80 +568,61 @@ namespace redefinition
             target.fgPacingSafetyMarginMs = ReadFloat(L"fgPacingSafetyMarginMs", file, 0.1f);
             target.fgPacingVarianceFactor = ReadFloat(L"fgPacingVarianceFactor", file, 0.1f);
             target.fgPacingHybridSpin = ReadFlag(L"fgPacingHybridSpin", file, false);
-            target.fgPacingHybridSpinTime = static_cast<int>(
-                GetPrivateProfileIntW(L"Proxy", L"fgPacingHybridSpinTime", 2, file.c_str()));
             // Handed to FSR unsigned: a negative value would be a spin of years.
-            if (target.fgPacingHybridSpinTime < 0)
-                target.fgPacingHybridSpinTime = 0;
+            target.fgPacingHybridSpinTime = ReadInt(L"fgPacingHybridSpinTime", file, 2, 0);
             target.fgPacingWaitOnFence = ReadFlag(L"fgPacingWaitOnFence", file, false);
             target.fgMinimumFps = ReadFloat(L"fgMinimumFps", file, -1.0f);
             target.lowLatency = ReadFlag(L"lowLatency", file, true);
             target.latencyBrake = ReadFlag(L"latencyBrake", file, true);
-            target.antiLag2 = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"antiLag2", 0, file.c_str()));
+            target.antiLag2 = ReadInt(L"antiLag2", file, 0);
             target.latencyBrakeTargetMs = ReadFloat(L"latencyBrakeTargetMs", file, 4.0f);
-            target.latencyBrakeWaits = static_cast<int>(
-                GetPrivateProfileIntW(L"Proxy", L"latencyBrakeWaits", 1, file.c_str()));
+            target.latencyBrakeWaits = ReadInt(L"latencyBrakeWaits", file, 1);
             target.latencyBrakeWithDlssg = ReadFlag(L"latencyBrakeWithDlssg", file, true);
-            target.logInputsSeconds = static_cast<int>(
-                GetPrivateProfileIntW(L"Proxy", L"logInputsSeconds", 0, file.c_str()));
+            target.logInputsSeconds = ReadInt(L"logInputsSeconds", file, 0, 0);
             target.vendorDiagnostics = ReadFlag(L"vendorDiagnostics", file, false);
             target.streamlineImgui = ReadFlag(L"streamlineImgui", file, false);
             target.fgShowOnlyGenerated = ReadFlag(L"fgShowOnlyGenerated", file, false);
             target.xessFgUiComposition = ReadFlag(L"xessFgUiComposition", file, false);
             target.xessFgUiMode = ReadXessUiMode(file);
-            target.xessFgFrames = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"xessFgFrames", 1, file.c_str()));
             // "The number of interpolated frames must be between 1 and the maximum"
             // (xefgSwapChainSetNumInterpolatedFrames, xefg_swapchain.h).
-            if (target.xessFgFrames < 1)
-                target.xessFgFrames = 1;
+            target.xessFgFrames = ReadInt(L"xessFgFrames", file, 1, 1);
             target.xessFgSceneChangeThreshold = ReadFloat(L"xessFgSceneChangeThreshold", file, 0.7f);
             // "The threshold value range is from 0 to 1".
             target.xessFgSceneChangeThreshold = std::min(1.0f, std::max(0.0f, target.xessFgSceneChangeThreshold));
             target.xessFgTagInterpolatedFrames = ReadFlag(L"xessFgTagInterpolatedFrames", file, false);
             target.xessFgPresentFailedInterpolation = ReadFlag(L"xessFgPresentFailedInterpolation", file, false);
             target.xessFgOwnWaitable = ReadXessOwnWaitable(file);
-            target.xessFgGraceFrames = std::clamp(
-                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"xessFgGraceFrames", 3, file.c_str())), 0, 600);
+            target.xessFgGraceFrames = ReadInt(L"xessFgGraceFrames", file, 3, 0, 600);
             target.xessFgBadConstants = ReadXessBadConstants(file);
             target.xessFgAllowOld = ReadFlag(L"xessFgAllowOld", file, false);
             target.xessFgResetOnChange = ReadFlag(L"xessFgResetOnChange", file, false);
-            target.xessFgResetDebounce = std::clamp(
-                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"xessFgResetDebounce", 0, file.c_str())), 0, 600);
+            target.xessFgResetDebounce = ReadInt(L"xessFgResetDebounce", file, 0, 0, 600);
             target.xellLimitLive = ReadFlag(L"xellLimitLive", file, true);
             target.xell = ReadFlag(L"xell", file, true);
             target.xellLowLatencyBoost = ReadFlag(L"xellLowLatencyBoost", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
-            target.rtCutoutTest = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtCutoutTest", 0, file.c_str()));
-            target.rtOpacityMicromaps =
-                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtOpacityMicromaps", 0, file.c_str())), 0, 1);
-            target.rtOmmMaxSubdivision =
-                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtOmmMaxSubdivision", 6, file.c_str())), 2, 8);
-            target.rtSunUnfiltered = GetPrivateProfileIntW(L"Proxy", L"rtSunUnfiltered", 0, file.c_str()) != 0;
-            target.rtSunAtrousSteps = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunAtrousSteps", 0, file.c_str()));
-            target.rtSunHistory = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtSunHistory", 4, file.c_str()));
+            target.rtCutoutTest = ReadInt(L"rtCutoutTest", file, 0);
+            target.rtOpacityMicromaps = ReadInt(L"rtOpacityMicromaps", file, 0, 0, 1);
+            target.rtOmmMaxSubdivision = ReadInt(L"rtOmmMaxSubdivision", file, 6, 2, 8);
+            target.rtSunUnfiltered = ReadFlag(L"rtSunUnfiltered", file, false);
+            target.rtSunAtrousSteps = ReadInt(L"rtSunAtrousSteps", file, 0);
+            target.rtSunHistory = ReadInt(L"rtSunHistory", file, 4);
             target.rtFoliageTransmission = ReadFloat(L"rtFoliageTransmission", file, 0.5f);
             target.rtRadianceCache = ReadFlag(L"rtRadianceCache", file, false);
-            target.rtRadianceCacheEntries = std::clamp(
-                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheEntries", 20, file.c_str())), 16, 22);
+            target.rtRadianceCacheEntries = ReadInt(L"rtRadianceCacheEntries", file, 20, 16, 22);
             target.rtRadianceCacheCellPixels = std::clamp(ReadFloat(L"rtRadianceCacheCellPixels", file, 8.0f), 1.0f, 256.0f);
             target.rtRadianceCacheMinCell = std::clamp(ReadFloat(L"rtRadianceCacheMinCell", file, 0.125f), 1.0f / 64.0f, 64.0f);
-            target.rtRadianceCacheSamples = std::clamp(
-                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheSamples", 256, file.c_str())), 1, 65536);
-            target.rtRadianceCacheMaxAge = std::clamp(
-                static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheMaxAge", 50, file.c_str())), 1, 100000);
-            target.rtRadianceCacheDebug = static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtRadianceCacheDebug", 0, file.c_str()));
+            target.rtRadianceCacheSamples = ReadInt(L"rtRadianceCacheSamples", file, 256, 1, 65536);
+            target.rtRadianceCacheMaxAge = ReadInt(L"rtRadianceCacheMaxAge", file, 50, 1, 100000);
+            target.rtRadianceCacheDebug = ReadInt(L"rtRadianceCacheDebug", file, 0);
             target.rtBlasBatch = ReadFlag(L"rtBlasBatch", file, true);
             target.rtBlasPool = ReadFlag(L"rtBlasPool", file, true);
-            target.rtBlasBudget = std::max(0, static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasBudget", 0, file.c_str())));
-            target.rtBlasCompaction =
-                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasCompaction", 2, file.c_str())), 0, 2);
-            target.rtBlasRefineBudget =
-                std::max(1, static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtBlasRefineBudget", 65536, file.c_str())));
+            target.rtBlasBudget = ReadInt(L"rtBlasBudget", file, 0, 0);
+            target.rtBlasCompaction = ReadInt(L"rtBlasCompaction", file, 2, 0, 2);
+            target.rtBlasRefineBudget = ReadInt(L"rtBlasRefineBudget", file, 65536, 1);
             target.rtTlasFastTrace = ReadFlag(L"rtTlasFastTrace", file, false);
-            target.rtMegaGeometry =
-                std::clamp(static_cast<int>(GetPrivateProfileIntW(L"Proxy", L"rtMegaGeometry", 0, file.c_str())), 0, 1);
-            if (target.logInputsSeconds < 0)
-                target.logInputsSeconds = 0;
+            target.rtMegaGeometry = ReadInt(L"rtMegaGeometry", file, 0, 0, 1);
 
             GetPrivateProfileStringW(L"Proxy", L"dlssDirectory", L"", target.dlssDirectory,
                                      ARRAYSIZE(target.dlssDirectory), file.c_str());
@@ -792,9 +750,78 @@ namespace redefinition
         return std::wstring(buffer);
     }
 
+    namespace
+    {
+        // The reload's worker: the ini is read on a thread of its own, as reading it takes the
+        // profile functions about a hundred passes over the file. It reads into
+        // g_reloaded; the present path takes the result over, and publishes it, at its next call.
+        // g_reloading is set from the Present that starts the worker until it takes the result.
+        struct ReloadJob
+        {
+            std::wstring file;
+            ProxyConfig fresh;
+            // The proxy's module, held for the worker.
+            HMODULE module;
+        };
+        std::atomic<bool> g_reloading{ false };
+        std::atomic<bool> g_reloaded{ false };
+        ProxyConfig g_reloadedConfig;
+
+        DWORD WINAPI ReloadWorker(LPVOID parameter)
+        {
+            ReloadJob* job = static_cast<ReloadJob*>(parameter);
+            ReadInto(job->fresh, job->file);
+            g_reloadedConfig = job->fresh;
+            const HMODULE module = job->module;
+            delete job;
+            // The result stands before the flag does.
+            g_reloaded.store(true, std::memory_order_release);
+            // The proxy stays loaded until the worker is out of its code.
+            FreeLibraryAndExitThread(module, 0);
+        }
+
+        // The settings read, with what a running game cannot take back kept as it is, published
+        // and said. rebuild is set where the frame generation context has to be made anew.
+        void PublishReloaded(ProxyConfig fresh, bool& rebuild)
+        {
+            // Not live: a swapchain cannot be exchanged underneath a running game.
+            fresh.enabled = g_config.enabled;
+            fresh.frameGeneration = g_config.frameGeneration;
+            fresh.measureOnly = g_config.measureOnly;
+            fresh.allowTearing = g_config.allowTearing;
+
+            // The settings that change how the context was built.
+            const bool needsRebuild = fresh.fgDepthInverted != g_config.fgDepthInverted
+                                      || fresh.fgAsyncWorkloads != g_config.fgAsyncWorkloads;
+
+            {
+                std::lock_guard<std::mutex> lock(g_writeLock);
+                g_config = fresh;
+            }
+            LogLine("Config reloaded: " + Describe(g_config)
+                    + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
+                    + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
+                      " the folders, rtOwnQueue, streamlineImgui, vendorDiagnostics, xell, xellLowLatencyBoost,"
+                      " xessFgUiMode, xessFgOwnWaitable, xessFgAllowOld, rrPath and the most xessFgFrames apply when"
+                      " what they serve starts)");
+
+            rebuild = needsRebuild;
+        }
+    }
+
     bool ReloadConfigIfChanged(bool& rebuild)
     {
         rebuild = false;
+        // A reading finished since the last Present is published first, whatever the clock says.
+        if (g_reloaded.load(std::memory_order_acquire))
+        {
+            const ProxyConfig fresh = g_reloadedConfig;
+            g_reloaded.store(false);
+            g_reloading.store(false);
+            PublishReloaded(fresh, rebuild);
+            return true;
+        }
+
         // At most once a second: this runs from the present path, and a file
         // system query per frame would land in the frame times the proxy measures.
         const ULONGLONG now = GetTickCount64();
@@ -802,6 +829,11 @@ namespace redefinition
             return false;
 
         g_lastCheckTicks = now;
+
+        // A change that comes while the worker reads waits for it: its write time is not
+        // taken over until the worker starts again on it.
+        if (g_reloading.load())
+            return false;
 
         const std::wstring file = IniPath();
         FILETIME written = {};
@@ -813,31 +845,24 @@ namespace redefinition
 
         g_lastWrite = written;
 
-        ProxyConfig fresh = g_config;
-        ReadInto(fresh, file);
-
-        // Not live: a swapchain cannot be exchanged underneath a running game.
-        fresh.enabled = g_config.enabled;
-        fresh.frameGeneration = g_config.frameGeneration;
-        fresh.measureOnly = g_config.measureOnly;
-        fresh.allowTearing = g_config.allowTearing;
-
-        // The settings that change how the context was built.
-        const bool needsRebuild = fresh.fgDepthInverted != g_config.fgDepthInverted
-                                  || fresh.fgAsyncWorkloads != g_config.fgAsyncWorkloads;
-
+        // The module is held for the worker, which lets it go as it ends.
+        HMODULE self = nullptr;
+        const bool held = GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+                                             reinterpret_cast<LPCWSTR>(&ReloadWorker), &self);
+        ReloadJob* job = new ReloadJob{ file, g_config, self };
+        HANDLE thread = held ? CreateThread(nullptr, 0, ReloadWorker, job, 0, nullptr) : nullptr;
+        if (thread != nullptr)
         {
-            std::lock_guard<std::mutex> lock(g_writeLock);
-            g_config = fresh;
+            g_reloading.store(true);
+            CloseHandle(thread);
+            return false;
         }
-        LogLine("Config reloaded: " + Describe(g_config)
-                + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
-                + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
-                  " the folders, rtOwnQueue, streamlineImgui, vendorDiagnostics, xell, xellLowLatencyBoost,"
-                  " xessFgUiMode, xessFgOwnWaitable, xessFgAllowOld, rrPath and the most xessFgFrames apply when"
-                  " what they serve starts)");
-
-        rebuild = needsRebuild;
+        // No thread: read here, as it was before the worker.
+        if (held)
+            FreeLibrary(self);
+        ReadInto(job->fresh, file);
+        PublishReloaded(job->fresh, rebuild);
+        delete job;
         return true;
     }
 }
