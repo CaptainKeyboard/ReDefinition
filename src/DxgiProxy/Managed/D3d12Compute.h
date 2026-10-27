@@ -246,6 +246,16 @@ namespace redefinition
         std::map<int, Pass> passes;
         std::unordered_map<void*, Shared> textures;
         ULONGLONG nextEviction = 0;
+        // What the device says of a format (D3D12_FEATURE_DATA_FORMAT_SUPPORT): asked once per format and device.
+        // Whether the format is usable for a read or a write is decided from these bits at each dispatch.
+        struct FormatBits
+        {
+            // Whether the query succeeded, and its Support1 and Support2.
+            bool answered = false;
+            UINT support1 = 0;
+            UINT support2 = 0;
+        };
+        std::map<DXGI_FORMAT, FormatBits> formatSupport;
 
         // Under its own lock, read from the main thread: the capabilities and the statuses below.
         mutable std::mutex statusLock;

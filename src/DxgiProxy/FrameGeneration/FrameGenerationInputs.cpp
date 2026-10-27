@@ -305,15 +305,8 @@ namespace redefinition
     void FrameGeneration::CheckMotionSize(UINT& width, UINT& height) const
     {
         std::lock_guard<std::mutex> lock(mutex);
-        width = 0;
-        height = 0;
-        if (!checkMotion)
-            return;
-
-        D3D11_TEXTURE2D_DESC desc = {};
-        checkMotion->GetDesc(&desc);
-        width = desc.Width;
-        height = desc.Height;
+        width = checkMotionWidth;
+        height = checkMotionHeight;
     }
 
     void FrameGeneration::RegisterInputs(ID3D11Resource* newDepth, ID3D11Resource* newMotion,

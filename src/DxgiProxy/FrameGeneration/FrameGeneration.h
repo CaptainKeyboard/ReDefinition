@@ -294,9 +294,9 @@ namespace redefinition
         // Replaced inputs still waiting for the GPU, for the status line.
         size_t RetiredCount() const;
 
-        // The size of the check's motion vector staging texture, 0 x 0 while
-        // there is none -- for the status line, where the harness sees that it
-        // follows the inputs.
+        // The size of the check's motion vector staging texture as the last check made it, 0 x 0 until
+        // one is made and after the inputs they were made for changed -- for the status line, where the
+        // harness sees that it follows the inputs.
         void CheckMotionSize(UINT& width, UINT& height) const;
 
         // Whether presentation should be paced by VSync: for as long as frame generation is on and has
@@ -620,7 +620,12 @@ namespace redefinition
         // The check's staging textures at the backbuffer's size, depth and motion vectors where their formats are
         // the rig's; false, with the check off, for a backbuffer it cannot compare.
         bool CreateCheckTexturesLocked();
-        // The check's staging textures released, and a check in progress dropped.
+        // The check's staging textures released, and a check in progress dropped. A check that has been
+        // evaluated releases them the same way, and the next makes them anew; they are not kept for the seconds
+        // in between.
+        void ReleaseCheckTexturesLocked();
+        // As ReleaseCheckTexturesLocked, and the size CheckMotionSize reports forgotten with them: the inputs
+        // they were made for are gone.
         void ReleaseCheckLocked();
         // Sizes are those of the staging textures that were mapped, never the
         // inputs': a mode change replaces the inputs, and reading a mapping by
@@ -682,6 +687,9 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D11Texture2D> checkPrevious;
         Microsoft::WRL::ComPtr<ID3D11Texture2D> checkDepth;
         Microsoft::WRL::ComPtr<ID3D11Texture2D> checkMotion;
+        // The size of the motion vectors' staging texture as last made, 0 where there is none yet (CheckMotionSize).
+        UINT checkMotionWidth = 0;
+        UINT checkMotionHeight = 0;
         // The check spans two frames: the HUD-less copy of one, then the copy,
         // backbuffer, depth and motion vectors of the next, so the motion
         // vectors can be tested by reprojecting one onto the other.

@@ -139,8 +139,8 @@ namespace redefinition
                 context11->Unmap(checkDepth.Get(), 0);
             context11->Unmap(checkSnapshot.Get(), 0);
             context11->Unmap(checkPresented.Get(), 0);
-            checkPending = false;
-            checkHavePrevious = false;
+            // Evaluated: the staging textures go, a check makes them anew when it starts.
+            ReleaseCheckTexturesLocked();
             return;
         }
 
@@ -149,8 +149,7 @@ namespace redefinition
         // begun, as above. Without a context no pair could be completed: while
         // one waits for its next attempt, copies are made once a second at most.
         const ProxyConfig& cfg = Config();
-        if (!copied || !(contextCreated || streamline || xess) || !cfg.hudLessColour || !inputsCopied || !packetFresh
-            || (checkPresented == nullptr && !CreateCheckTexturesLocked()))
+        if (!copied || !(contextCreated || streamline || xess) || !cfg.hudLessColour || !inputsCopied || !packetFresh)
         {
             checkHavePrevious = false;
             return;
@@ -184,7 +183,13 @@ namespace redefinition
             && now - lastCheckTicks < static_cast<ULONGLONG>(cfg.reportSeconds) * 1000ull)
             return;
 
-        // First frame of a check: the HUD-less copy, kept for the reprojection.
+        // First frame of a check: the staging textures made, and the HUD-less copy kept in one
+        // for the reprojection.
+        if (checkPresented == nullptr && !CreateCheckTexturesLocked())
+        {
+            checkHavePrevious = false;
+            return;
+        }
         context11->CopyResource(checkPrevious.Get(), S(hudLess).d3d11.Get());
         checkHavePrevious = true;
         lastCheckTicks = now;
@@ -415,12 +420,17 @@ namespace redefinition
             motionDesc = StagingDesc(motionDesc);
             if (FAILED(device11->CreateTexture2D(&motionDesc, nullptr, &checkMotion)))
                 checkMotion.Reset();
+            else
+            {
+                checkMotionWidth = motionDesc.Width;
+                checkMotionHeight = motionDesc.Height;
+            }
         }
 
         return true;
     }
 
-    void FrameGeneration::ReleaseCheckLocked()
+    void FrameGeneration::ReleaseCheckTexturesLocked()
     {
         checkPresented.Reset();
         checkSnapshot.Reset();
@@ -429,6 +439,13 @@ namespace redefinition
         checkMotion.Reset();
         checkPending = false;
         checkHavePrevious = false;
+    }
+
+    void FrameGeneration::ReleaseCheckLocked()
+    {
+        ReleaseCheckTexturesLocked();
+        checkMotionWidth = 0;
+        checkMotionHeight = 0;
     }
 
     // What FSR will treat as UI: every pixel where the presented frame and the
