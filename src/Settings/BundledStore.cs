@@ -33,6 +33,8 @@ namespace ReDefinition.Settings
         // Trajectories before its first flight: asked again on the add-on's tick in
         // every scene until they can.
         private readonly HashSet<IBundledMod> waiting = new HashSet<IBundledMod>();
+        // The backups Prepare recorded that no write has taken up yet, by save and setting key.
+        private readonly HashSet<Tuple<string, string>> prepared = new HashSet<Tuple<string, string>>();
 
         // A store reading and writing through the host; nothing is read before the first ask.
         public BundledStore(IStoreHost host)
@@ -241,6 +243,54 @@ namespace ReDefinition.Settings
                 taken = true;
             }
             return !taken || Save();
+        }
+
+        // Before a batch of Set calls: the values from before ReDefinition of all the settings the batch is
+        // about to change, written to bundled.cfg once.
+        // Every Set would write the file itself for its own backup, which makes a first profile one write per setting.
+        // This records exactly the backups those Set calls would, with their filters: the setting can take the value
+        // now, the row offers it, its save is known, and the mod holds another value.
+        // As in WriteToMod, the file is written before any mod gets a new value, and nothing is kept for a setting
+        // that would be refused. The Set calls then find their backup and write nothing.
+        // A batch ends with EndPrepare.
+        public void Prepare(IEnumerable<KeyValuePair<BundledSetting, string>> coming)
+        {
+            Load();
+            if (!state.Enabled) return;
+            bool needsSave = false;
+            foreach (KeyValuePair<BundledSetting, string> pair in coming)
+            {
+                BundledSetting setting = pair.Key;
+                if (setting == null || pair.Value == null) continue;
+                try
+                {
+                    string value = host.Adjust(setting, pair.Value);
+                    if (!SafeApplicable(setting) || !Offers(setting, value)) continue;
+                    string context = Context(setting);
+                    BundledLedger.Backup kept;
+                    if (context == null || ledger.TryBackup(context, setting.Key, out kept)) continue;
+                    string before = SafeRead(setting);
+                    if (before == null || SettingValues.Same(before, value)) continue;
+
+                    ledger.SetBackup(context, setting.Key, before);
+                    prepared.Add(Tuple.Create(context, setting.Key));
+                    if (setting.Owner.Saving != SettingsSaving.AtEveryStart) needsSave = true;
+                }
+                catch (Exception)
+                {
+                    // The Set call for this setting meets the same failure and reports it.
+                }
+            }
+            if (needsSave && !Save()) EndPrepare();
+        }
+
+        // The batch is over: a backup Prepare recorded that no write took up -- the batch changed its mind about the
+        // setting -- is dropped again, as a refused write drops its own. Where bundled.cfg could not be written,
+        // that is all of them, and each Set tries the file itself.
+        public void EndPrepare()
+        {
+            foreach (Tuple<string, string> unused in prepared) ledger.RemoveBackup(unused.Item1, unused.Item2);
+            prepared.Clear();
         }
 
         // A setting a newly chosen profile leaves alone while it still holds the
@@ -734,15 +784,26 @@ namespace ReDefinition.Settings
             // keeps the new one in no file of its own: its backup goes into
             // bundled.cfg with the next save.
             BundledLedger.Backup kept;
-            bool newBackup = remember && !ledger.TryBackup(context, setting.Key, out kept)
-                             && !SettingValues.Same(before, value);
-            if (newBackup)
+            bool newBackup;
+            if (remember && prepared.Remove(Tuple.Create(context, setting.Key)) && ledger.TryBackup(context, setting.Key, out kept))
             {
-                ledger.SetBackup(context, setting.Key, before);
-                if (setting.Owner.Saving != SettingsSaving.AtEveryStart && !Save())
+                // Prepare recorded it and wrote bundled.cfg for the whole batch. Where this write finds the
+                // value unchanged after all -- a requirement adjusted it since -- the backup goes again.
+                newBackup = !SettingValues.Same(before, value);
+                if (!newBackup) ledger.RemoveBackup(context, setting.Key);
+            }
+            else
+            {
+                newBackup = remember && !ledger.TryBackup(context, setting.Key, out kept)
+                            && !SettingValues.Same(before, value);
+                if (newBackup)
                 {
-                    ledger.RemoveBackup(context, setting.Key);
-                    return false;
+                    ledger.SetBackup(context, setting.Key, before);
+                    if (setting.Owner.Saving != SettingsSaving.AtEveryStart && !Save())
+                    {
+                        ledger.RemoveBackup(context, setting.Key);
+                        return false;
+                    }
                 }
             }
 

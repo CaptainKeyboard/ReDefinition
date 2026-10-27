@@ -176,28 +176,64 @@ namespace ReDefinition.Settings
             return count;
         }
 
+        // Whether a profile's value still has to be set: what a setting holds already is not set again.
+        private static bool NeedsSetting(BundledSetting setting, string value)
+        {
+            return !SettingValues.Same(value, BundledSettings.Current(setting)) || !BundledSettings.Holds(setting, value);
+        }
+
+        // The values from before ReDefinition of the settings `values` will set, in bundled.cfg once
+        // (BundledSettings.Prepare); `released` are the ones handed back, which are not set. The caller ends
+        // the batch with BundledSettings.EndPrepare.
+        private static void PrepareBackups(Dictionary<BundledSetting, string> values, ICollection<BundledSetting> released)
+        {
+            List<KeyValuePair<BundledSetting, string>> coming = new List<KeyValuePair<BundledSetting, string>>();
+            foreach (KeyValuePair<BundledSetting, string> pair in values)
+            {
+                if (released != null && released.Contains(pair.Key)) continue;
+                try
+                {
+                    if (NeedsSetting(pair.Key, pair.Value)) coming.Add(pair);
+                }
+                catch (Exception)
+                {
+                    // Set meets the same failure and reports it.
+                }
+            }
+            BundledSettings.Prepare(coming);
+        }
+
         // The registered mods' part right away, without the window
         // (ModuleProfiles.ApplyNow). Bundling must be on already.
         public static void ApplyNow(GraphicsProfile profile, IList<GraphicsProfile> all, List<string> problems)
         {
             HashSet<BundledSetting> released = new HashSet<BundledSetting>();
-            foreach (KeyValuePair<BundledSetting, string> pair in FullValues(profile, all, problems, released))
+            Dictionary<BundledSetting, string> full = FullValues(profile, all, problems, released);
+            // Their values from before go into bundled.cfg once, not once for each.
+            PrepareBackups(full, released);
+            try
             {
-                BundledSetting setting = pair.Key;
-                try
+                foreach (KeyValuePair<BundledSetting, string> pair in full)
                 {
-                    // As the window's Apply: what a setting holds already is not
-                    // set again, and what is handed back is released.
-                    if (released.Contains(setting)) BundledSettings.Release(setting);
-                    else if (!SettingValues.Same(pair.Value, BundledSettings.Current(setting))
-                             || !BundledSettings.Holds(setting, pair.Value))
-                        BundledSettings.Set(setting, pair.Value, false);
+                    BundledSetting setting = pair.Key;
+                    try
+                    {
+                        // As the window's Apply: what a setting holds already is not
+                        // set again, and what is handed back is released.
+                        if (released.Contains(setting)) BundledSettings.Release(setting);
+                        else if (NeedsSetting(setting, pair.Value))
+                            BundledSettings.Set(setting, pair.Value, false);
+                    }
+                    catch (Exception e)
+                    {
+                        problems.Add("Profile '" + profile.Name + "', " + setting.Owner.ModName + ", " + setting.Title
+                                     + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
+                    }
                 }
-                catch (Exception e)
-                {
-                    problems.Add("Profile '" + profile.Name + "', " + setting.Owner.ModName + ", " + setting.Title
-                                 + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
-                }
+            }
+            finally
+            {
+                BundledSettings.EndPrepare();
             }
             BundledSettings.ProfileName = profile.Name;
             BundledSettings.SaveNow();
@@ -225,22 +261,32 @@ namespace ReDefinition.Settings
 
             HashSet<string> ids = new HashSet<string>(fresh);
             List<string> touched = new List<string>();
-            foreach (KeyValuePair<BundledSetting, string> pair in Values(profile, problems))
+            Dictionary<BundledSetting, string> values = Values(profile, problems);
+            Dictionary<BundledSetting, string> ofFresh = new Dictionary<BundledSetting, string>();
+            foreach (KeyValuePair<BundledSetting, string> pair in values)
+                if (pair.Key.Owner != null && ids.Contains(pair.Key.Owner.Id)) ofFresh[pair.Key] = pair.Value;
+            PrepareBackups(ofFresh, null);
+            try
             {
-                BundledSetting setting = pair.Key;
-                if (setting.Owner == null || !ids.Contains(setting.Owner.Id)) continue;
-                try
+                foreach (KeyValuePair<BundledSetting, string> pair in ofFresh)
                 {
-                    if (SettingValues.Same(pair.Value, BundledSettings.Current(setting))
-                        && BundledSettings.Holds(setting, pair.Value)) continue;
-                    BundledSettings.Set(setting, pair.Value, false);
-                    if (!touched.Contains(setting.Owner.ModName)) touched.Add(setting.Owner.ModName);
+                    BundledSetting setting = pair.Key;
+                    try
+                    {
+                        if (!NeedsSetting(setting, pair.Value)) continue;
+                        BundledSettings.Set(setting, pair.Value, false);
+                        if (!touched.Contains(setting.Owner.ModName)) touched.Add(setting.Owner.ModName);
+                    }
+                    catch (Exception e)
+                    {
+                        problems.Add("Profile '" + profile.Name + "', " + setting.Owner.ModName + ", " + setting.Title
+                                     + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
+                    }
                 }
-                catch (Exception e)
-                {
-                    problems.Add("Profile '" + profile.Name + "', " + setting.Owner.ModName + ", " + setting.Title
-                                 + ": could not be set (" + CompatibilityLog.Reason(e) + ").");
-                }
+            }
+            finally
+            {
+                BundledSettings.EndPrepare();
             }
 
             BundledSettings.NoteProfileApplied();
