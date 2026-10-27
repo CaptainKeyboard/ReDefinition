@@ -86,7 +86,7 @@ namespace ReDefinition.Modules
         public float RaytracingNightAmbient = 0f;
         // The colour of the raytraced light from the sky and the surroundings
         // (Raytracing/Ksp/RtKsp, RaytracingLightColour).
-        public RaytracingLightColour RaytracingLightColour = RaytracingLightColour.Neutral;
+        public RaytracingLightColour RaytracingLightColour = RaytracingLightColour.AsWithout;
 
         // Whether phones and tablets on the network may open the dashboard (Dashboard/DashboardServer),
         // and the key such a device needs, random where the file has none (the phone's address carries it).

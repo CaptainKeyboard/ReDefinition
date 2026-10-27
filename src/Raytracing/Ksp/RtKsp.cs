@@ -28,6 +28,9 @@ namespace ReDefinition.Raytracing
     // 2026-10-19 at the launch pad, against the frame without the raytracing: the
     // vegetation's chromaticity is off by 13 / 14 thousandths by day, 14 / 19 in the evening
     // and 25 / 21 at night with its own. With grey it is off by at most 6.
+    // Measured 2026-10-27 over whole pictures from twelve poses at the pad: red over green moves by 0.07 to 0.12
+    // with grey and by 0.00 to 0.03 as without. On Duna the ground, red-brown without the raytracing, turns
+    // blue-grey with grey and stays red-brown as without. The default is As without.
     internal enum RaytracingLightColour
     {
         // The rays' own colour.

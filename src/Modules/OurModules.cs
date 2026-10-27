@@ -436,7 +436,7 @@ namespace ReDefinition.Modules
                 {
                     ReDefinition.Raytracing.RaytracingLightColour colour;
                     settings.RaytracingLightColour = EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.TryParse(value, out colour)
-                        ? colour : ReDefinition.Raytracing.RaytracingLightColour.Neutral;
+                        ? colour : ReDefinition.Raytracing.RaytracingLightColour.AsWithout;
                 },
                 // Set in Deferred's reflections pass, through ReDefinition's copy of its shader
                 // (RtLighting); without Deferred the raytraced light goes in as it is.
