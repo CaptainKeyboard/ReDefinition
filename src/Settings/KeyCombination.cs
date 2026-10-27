@@ -42,18 +42,37 @@ namespace ReDefinition.Settings
         public KeyCombination(KeyCode key, KeyCode firstModifier, KeyCode secondModifier)
         {
             Key = key;
-            FirstModifier = KeyCode.None;
-            SecondModifier = KeyCode.None;
             // In the written order, so that Alt+Shift+F1 and Shift+Alt+F1 are one
-            // combination.
-            List<KeyCode> modifiers = new List<KeyCode>(2);
-            foreach (KeyCode modifier in ModifierOrder)
+            // combination. A key that is no modifier counts as none.
+            int a = ModifierIndex(firstModifier);
+            int b = ModifierIndex(secondModifier);
+            if (a < 0)
             {
-                if ((firstModifier == modifier || secondModifier == modifier) && !modifiers.Contains(modifier))
-                    modifiers.Add(modifier);
+                a = b;
+                b = -1;
             }
-            if (modifiers.Count > 0) FirstModifier = modifiers[0];
-            if (modifiers.Count > 1) SecondModifier = modifiers[1];
+            else if (b == a)
+            {
+                b = -1;
+            }
+            else if (b >= 0 && b < a)
+            {
+                int swap = a;
+                a = b;
+                b = swap;
+            }
+            FirstModifier = a >= 0 ? ModifierOrder[a] : KeyCode.None;
+            SecondModifier = b >= 0 ? ModifierOrder[b] : KeyCode.None;
+        }
+
+        // Where the key stands among the modifiers in their written order; -1 for a key that is none of them.
+        private static int ModifierIndex(KeyCode key)
+        {
+            for (int i = 0; i < ModifierOrder.Length; i++)
+            {
+                if (ModifierOrder[i] == key) return i;
+            }
+            return -1;
         }
 
         // No key and no modifier.
@@ -131,11 +150,21 @@ namespace ReDefinition.Settings
         public override string ToString()
         {
             if (!IsBound) return NoneText;
-            string text = string.Empty;
+            // Kept by combination: the Keys tab and every read of a binding ask for the text, and building
+            // it boxes the key codes and joins four strings.
+            string text;
+            if (WrittenAs.TryGetValue(this, out text)) return text;
+            text = string.Empty;
             if (FirstModifier != KeyCode.None) text += FirstModifier + "+";
             if (SecondModifier != KeyCode.None) text += SecondModifier + "+";
-            return text + Key;
+            text += Key;
+            if (WrittenAs.Count > 512) WrittenAs.Clear();
+            WrittenAs[this] = text;
+            return text;
         }
+
+        // ToString's results by combination, emptied once it holds more than 512.
+        private static readonly Dictionary<KeyCombination, string> WrittenAs = new Dictionary<KeyCombination, string>();
 
         // Takes what the mods and KSP write: a key on its own, modifiers before it
         // separated by "+", and "None" or nothing for unbound. False for anything
@@ -225,21 +254,35 @@ namespace ReDefinition.Settings
         private static bool TryParseKey(string text, out KeyCode key)
         {
             key = KeyCode.None;
-            try
+            if (text == null) return false;
+            // Kept by text, the failures too: Enum.Parse finds a name by reflection, and throws for one that
+            // is none. The Keys tab asks for every binding several times a frame.
+            KeyCode? known;
+            if (!ParsedKeys.TryGetValue(text, out known))
             {
-                object parsed = Enum.Parse(typeof(KeyCode), text, true);
-                key = (KeyCode)parsed;
-                return true;
+                try
+                {
+                    known = (KeyCode)Enum.Parse(typeof(KeyCode), text, true);
+                }
+                catch (ArgumentException)
+                {
+                    known = null;
+                }
+                catch (OverflowException)
+                {
+                    known = null;
+                }
+                if (ParsedKeys.Count > 1024) ParsedKeys.Clear();
+                ParsedKeys[text] = known;
             }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-            catch (OverflowException)
-            {
-                return false;
-            }
+            if (known == null) return false;
+            key = known.Value;
+            return true;
         }
+
+        // TryParseKey's results by text, null for a text that names no key; emptied once it holds more than 1024.
+        private static readonly Dictionary<string, KeyCode?> ParsedKeys =
+            new Dictionary<string, KeyCode?>(StringComparer.Ordinal);
 
         // The same key and the same modifiers.
         public bool Equals(KeyCombination other)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Settings;
 using UnityEngine;
@@ -150,6 +151,49 @@ namespace ReDefinition.Tests
             Assert.IsFalse(KeyCombination.Parse("None").IsBound);
             // Scatterer keeps its keys as KeyCode names.
             Assert.AreEqual(KeyCode.F10, KeyCombination.Parse("F10").Key);
+        }
+
+        // The modifiers a combination holds, sorted into their written order with one given twice kept once and
+        // anything that is no modifier left out: the reference is the straightforward list.
+        [TestMethod]
+        public void TheModifiersAreSortedAndDeduplicated()
+        {
+            var candidates = new List<KeyCode>(KeyCombination.Modifiers) { KeyCode.None, KeyCode.A, KeyCode.F1 };
+            foreach (KeyCode first in candidates)
+            {
+                foreach (KeyCode second in candidates)
+                {
+                    var expected = new List<KeyCode>();
+                    foreach (KeyCode modifier in KeyCombination.Modifiers)
+                        if ((first == modifier || second == modifier) && !expected.Contains(modifier)) expected.Add(modifier);
+                    var combination = new KeyCombination(KeyCode.G, first, second);
+                    Assert.AreEqual(expected.Count > 0 ? expected[0] : KeyCode.None, combination.FirstModifier, first + "," + second);
+                    Assert.AreEqual(expected.Count > 1 ? expected[1] : KeyCode.None, combination.SecondModifier, first + "," + second);
+                    Assert.AreEqual(KeyCode.G, combination.Key);
+                }
+            }
+        }
+
+        // Written and read again, in any order the modifiers were given; a name that is no key stays refused, asked
+        // twice.
+        [TestMethod]
+        public void TextAndKeysSurviveBeingAskedRepeatedly()
+        {
+            for (int round = 0; round < 2; round++)
+            {
+                Assert.AreEqual("LeftControl+RightShift+F5", new KeyCombination(KeyCode.F5, KeyCode.RightShift, KeyCode.LeftControl).ToString());
+                Assert.AreEqual("F5", new KeyCombination(KeyCode.F5, KeyCode.None, KeyCode.None).ToString());
+                Assert.AreEqual("None", new KeyCombination(KeyCode.None, KeyCode.LeftAlt, KeyCode.None).ToString());
+                KeyCombination combination;
+                Assert.IsFalse(KeyCombination.TryParse("Hyper+F1", out combination));
+                Assert.IsFalse(KeyCombination.TryParse("LeftAlt+Nonsense", out combination));
+                Assert.AreEqual(KeyCode.LeftAlt, KeyCombination.ParseModifier("leftalt"));
+                Assert.AreEqual(KeyCode.None, KeyCombination.ParseModifier("F1"));
+                Assert.AreEqual(KeyCode.None, KeyCombination.ParseModifier("Nonsense"));
+                Assert.AreEqual(KeyCode.None, KeyCombination.ParseModifier(null));
+                Assert.IsTrue(KeyCombination.TryParse("rightcontrol+f12", out combination));
+                Assert.AreEqual("RightControl+F12", combination.ToString());
+            }
         }
     }
 }
