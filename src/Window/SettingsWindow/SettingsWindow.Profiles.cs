@@ -89,9 +89,8 @@ namespace ReDefinition.Window
                 choose.tooltipText = shown.Description + "\nAccept sets it; a row changed afterwards makes it"
                                      + " Custom.";
                 string beside = (shown.Summary.Length > 0 ? shown.Summary : shown.Title)
-                                + (shown.Hardware.Length > 0 ? "\n<color=#9a9a9a>" + shown.Hardware + "</color>" : "");
-                rows.Add(new DialogGUIHorizontalLayout(0f, 36f, 8f, new RectOffset(), TextAnchor.MiddleLeft,
-                    choose, new DialogGUILabel(beside, true)));
+                                + (shown.Hardware.Length > 0 ? "\n" + RichText.Grey(shown.Hardware) : "");
+                rows.Add(DialogRows.Row(36f, 8f, choose, new DialogGUILabel(beside, true)));
             }
 
             return rows.ToArray();

@@ -29,9 +29,9 @@ namespace ReDefinition.Window
         private static DialogGUIBase[] AxisRows()
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(new DialogGUILabel("<color=#9a9a9a>Click an axis's button and move the stick, trigger or wheel to"
-                                        + " bind it; Escape cancels, x clears it. Sensitivity and deadzone as in KSP's"
-                                        + " own input screen.</color>", true));
+            rows.Add(new DialogGUILabel(RichText.Grey("Click an axis's button and move the stick, trigger or wheel to"
+                                                      + " bind it; Escape cancels, x clears it. Sensitivity and deadzone as"
+                                                      + " in KSP's own input screen."), true));
             string group = null;
             List<DialogGUIBase> members = new List<DialogGUIBase>();
             bool first = true;
@@ -46,12 +46,12 @@ namespace ReDefinition.Window
                         members = new List<DialogGUIBase>();
                     }
                     group = axis.Group;
-                    members.Add(Searchable(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                    members.Add(Searchable(DialogRows.Row(RowHeight,
                         new DialogGUISpace(AxisSideWidth),
-                        new DialogGUILabel("<color=#9a9a9a>Axis</color>", AxisButtonWidth + 26f),
-                        new DialogGUILabel("<color=#9a9a9a>Invert</color>", 56f),
-                        new DialogGUILabel("<color=#9a9a9a>Sensitivity</color>", AxisSliderWidth + AxisValueWidth),
-                        new DialogGUILabel("<color=#9a9a9a>Deadzone</color>", AxisSliderWidth + AxisValueWidth)),
+                        new DialogGUILabel(RichText.Grey("Axis"), AxisButtonWidth + 26f),
+                        new DialogGUILabel(RichText.Grey("Invert"), 56f),
+                        new DialogGUILabel(RichText.Grey("Sensitivity"), AxisSliderWidth + AxisValueWidth),
+                        new DialogGUILabel(RichText.Grey("Deadzone"), AxisSliderWidth + AxisValueWidth)),
                         GroupAxisTitles(group)));
                 }
                 string text = axis.Title + " " + axis.Group + " axis";
@@ -208,7 +208,7 @@ namespace ReDefinition.Window
 
             TwoDecimals sensitivityText = new TwoDecimals();
             TwoDecimals deadzoneText = new TwoDecimals();
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            return DialogRows.Row(RowHeight + 4f,
                 new DialogGUILabel(RichText.Grey(secondary ? "Secondary" : "Primary"), AxisSideWidth),
                 bind, new DialogGUISpace(2f), clear, new DialogGUISpace(6f), invert, new DialogGUISpace(6f),
                 sensitivity, new DialogGUILabel(() => sensitivityText.Of(SensitivityShown(ShownSide(shown, secondary))),

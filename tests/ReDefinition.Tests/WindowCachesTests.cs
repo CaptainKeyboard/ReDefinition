@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Settings;
 using ReDefinition.Ui;
 using ReDefinition.Window;
 
@@ -88,6 +90,49 @@ namespace ReDefinition.Tests
                     Assert.IsTrue(comparison.Of(live, copy));
                 }
             }
+        }
+
+        // The switch for all is on while every button is hidden, sets all of them from a click, and a click that
+        // only repeats what the switches say sets nothing.
+        [TestMethod]
+        public void AToolbarChoiceHidesAllOrNone()
+        {
+            IBundledMod one = new FakeMod("one", SettingsSaving.InModFiles);
+            IBundledMod two = new FakeMod("two", SettingsSaving.InModFiles);
+            Dictionary<string, bool> hidden = new Dictionary<string, bool> { { "one", false }, { "two", false } };
+            int sets = 0;
+            ToolbarChoice choice = new ToolbarChoice(new[] { one, two }, mod => hidden[mod.Id],
+                (mod, hide) => { hidden[mod.Id] = hide; sets++; });
+            Assert.AreEqual(2, choice.Count);
+            Assert.IsFalse(choice.AllHidden());
+
+            Assert.IsTrue(choice.SetAll(true));
+            Assert.IsTrue(choice.AllHidden());
+            Assert.AreEqual(2, sets);
+            Assert.IsFalse(choice.SetAll(true));
+            Assert.AreEqual(2, sets);
+
+            choice.Set(two, false);
+            Assert.IsFalse(choice.AllHidden());
+            // The switch for all follows the others in every frame, and that must not switch the first one off.
+            Assert.IsFalse(choice.SetAll(false));
+            Assert.IsTrue(hidden["one"]);
+        }
+
+        [TestMethod]
+        public void AToolbarChoiceCountsItsExtraEntry()
+        {
+            bool extra = false;
+            ToolbarChoice choice = new ToolbarChoice(new IBundledMod[0], mod => false, (mod, hide) => { },
+                () => extra, hide => extra = hide);
+            Assert.AreEqual(1, choice.Count);
+            Assert.IsFalse(choice.Empty);
+            Assert.IsFalse(choice.AllHidden());
+            Assert.IsTrue(choice.SetAll(true));
+            Assert.IsTrue(extra);
+            Assert.IsTrue(choice.AllHidden());
+
+            Assert.IsTrue(new ToolbarChoice(new IBundledMod[0], mod => false, (mod, hide) => { }).Empty);
         }
 
         [TestMethod]

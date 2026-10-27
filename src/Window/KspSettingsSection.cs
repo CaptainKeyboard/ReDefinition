@@ -264,8 +264,7 @@ namespace ReDefinition.Window
             DialogGUIBase[] withHeader = new DialogGUIBase[rows.Length + 2];
             withHeader[0] = new DialogGUIBox("ReDefinition", -1f, RowHeight, null);
             Array.Copy(rows, 0, withHeader, 1, rows.Length);
-            withHeader[rows.Length + 1] = new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(),
-                TextAnchor.MiddleLeft, new DialogGUISpace(NameWidth), all);
+            withHeader[rows.Length + 1] = DialogRows.Row(RowHeight + 6f, new DialogGUISpace(NameWidth), all);
             return withHeader;
         }
 
@@ -295,7 +294,19 @@ namespace ReDefinition.Window
         // Gameplay, the scaling under Mods / Toolbar.
         internal static DialogGUIBase[] Rows(Edit edit, Layout layout, SettingCategory tab, bool detail = false)
         {
-            List<DialogGUIBase> rows = new List<DialogGUIBase>();
+            List<KeyValuePair<ModuleSetting, DialogGUIBase>> pairs = SettingRows(edit, layout, tab, detail);
+            DialogGUIBase[] rows = new DialogGUIBase[pairs.Count];
+            for (int i = 0; i < rows.Length; i++) rows[i] = pairs[i].Value;
+            return rows;
+        }
+
+        // The same rows, each beside the setting it is for, in the order they stand.
+        // A caller that names or searches the rows by their setting takes the setting from here, not from a list
+        // of its own that happens to run alongside.
+        internal static List<KeyValuePair<ModuleSetting, DialogGUIBase>> SettingRows(Edit edit, Layout layout,
+            SettingCategory tab, bool detail = false)
+        {
+            List<KeyValuePair<ModuleSetting, DialogGUIBase>> rows = new List<KeyValuePair<ModuleSetting, DialogGUIBase>>();
             foreach (ModuleSetting setting in OurModules.Rows(tab, detail))
             {
                 ModuleSetting shown = setting;
@@ -308,14 +319,15 @@ namespace ReDefinition.Window
                         defaultOf != null && defaultOf(shown, edit.After) != null));
                 if (shown.Radio)
                 {
-                    rows.Add(RadioRow(edit, layout, shown, name));
+                    rows.Add(new KeyValuePair<ModuleSetting, DialogGUIBase>(shown, RadioRow(edit, layout, shown, name)));
                     continue;
                 }
                 DialogGUIBase control = Control(edit, shown, layout.Control);
                 if (defaultOf != null) SettingsWindow.DefaultTooltip(control, () => defaultOf(shown, edit.After));
-                rows.Add(Row(layout, shown.Title, control, value, name));
+                rows.Add(new KeyValuePair<ModuleSetting, DialogGUIBase>(shown,
+                    Row(layout, shown.Title, control, value, name)));
             }
-            return rows.ToArray();
+            return rows;
         }
 
         // A choice as a row of buttons under its name, one lit (a technique to pick, not a step to move
@@ -378,10 +390,10 @@ namespace ReDefinition.Window
                 new DialogGUILabel(() => Shown(edit, setting), layout.Control + layout.ValueGap + layout.Value),
             };
             if (layout.Source != null)
-                head.Add(new DialogGUILabel("<color=#9a9a9a>" + layout.Source + "</color>", layout.SourceWidth));
+                head.Add(new DialogGUILabel(RichText.Grey(layout.Source), layout.SourceWidth));
             return new DialogGUIVerticalLayout(0f, -1f, 2f, new RectOffset(), TextAnchor.UpperLeft,
-                new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft, head.ToArray()),
-                new DialogGUIHorizontalLayout(0f, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft, buttons.ToArray()));
+                DialogRows.Row(RowHeight, head.ToArray()),
+                DialogRows.Row(RowHeight + 2f, buttons.ToArray()));
         }
 
         // Read from and written into edit.After, which an Apply replaces without
@@ -494,19 +506,18 @@ namespace ReDefinition.Window
             // not, so that the source lines up under the other rows' sources.
             if (layout.Source != null)
             {
-                return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(),
-                    TextAnchor.MiddleLeft, label, control,
+                return DialogRows.Row(RowHeight,
+                    label, control,
                     new DialogGUISpace(layout.ValueGap), new DialogGUILabel(value ?? NoValue, layout.Value),
-                    new DialogGUILabel("<color=#9a9a9a>" + layout.Source + "</color>", layout.SourceWidth));
+                    new DialogGUILabel(RichText.Grey(layout.Source), layout.SourceWidth));
             }
             if (value == null)
             {
-                return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(),
-                    TextAnchor.MiddleLeft, label, control);
+                return DialogRows.Row(RowHeight, label, control);
             }
 
-            return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(),
-                TextAnchor.MiddleLeft, label, control,
+            return DialogRows.Row(RowHeight,
+                label, control,
                 new DialogGUISpace(layout.ValueGap), new DialogGUILabel(value, layout.Value));
         }
 

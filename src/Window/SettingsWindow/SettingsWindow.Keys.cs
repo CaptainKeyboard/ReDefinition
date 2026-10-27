@@ -3,6 +3,7 @@ using System;
 using ReDefinition.Core;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -297,15 +298,13 @@ namespace ReDefinition.Window
         private static DialogGUIBase GroupHeader(string group, int count)
         {
             string title = group;
-            string folded = "+  " + title;
-            string open = "-  " + title;
-            DialogGUIButton header = new DialogGUIButton(() => GroupOpen(title) ? open : folded, () =>
+            DialogGUIButton header = DialogRows.FoldHeader(title, () => GroupOpen(title), () =>
             {
                 if (!openGroups.Remove(title)) openGroups.Add(title);
-            }, PageWidth - 60f, RowHeight + 6f, false);
+            }, PageWidth - 60f, RowHeight + 6f,
+                "Opens or folds the " + title + " bindings. A search shows its matches in every section.");
             header.OptionEnabledCondition = () => GroupShown(title);
             header.OptionInteractableCondition = () => keySearch.Length == 0;
-            header.tooltipText = "Opens or folds the " + title + " bindings. A search shows its matches in every section.";
             return header;
         }
 
@@ -348,13 +347,12 @@ namespace ReDefinition.Window
             DialogGUIBase second = KspBindingControl(shown, true);
             // Asked in every frame.
             string primaryKey = "ksp." + shown.Name + ".primary", secondaryKey = "ksp." + shown.Name + ".secondary";
-            DialogGUIBase row = new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(),
-                TextAnchor.MiddleLeft,
+            DialogGUIBase row = DialogRows.Row(RowHeight + 4f,
                 new DialogGUILabel(() => Marked(shown.Title, kspPending.ContainsKey(primaryKey)
                                                              || kspPending.ContainsKey(secondaryKey)),
                     KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
-                new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
+                new DialogGUILabel(RichText.Grey("KSP"), KeySourceWidth));
             row.OptionEnabledCondition = SearchFilter(shown.Title, "KSP");
             return row;
         }
@@ -392,8 +390,7 @@ namespace ReDefinition.Window
                 KeysChanged();
             }, BindingButtonWidth, RowHeight + 4f, false);
 
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                take, new DialogGUISpace(4f), clear);
+            return DialogRows.Row(RowHeight + 4f, take, new DialogGUISpace(4f), clear);
         }
 
         // On Apply: into GameSettings; true where one was written, for KSP's save
@@ -561,9 +558,8 @@ namespace ReDefinition.Window
                     maxModifiers));
             }
             row.Add(new DialogGUISpace(4f));
-            row.Add(new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", KeySourceWidth));
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                row.ToArray());
+            row.Add(new DialogGUILabel(RichText.Grey(owner), KeySourceWidth));
+            return DialogRows.Row(RowHeight + 4f, row.ToArray());
         }
 
         // One modifier, clicked through off, left and right. Grey where the binding

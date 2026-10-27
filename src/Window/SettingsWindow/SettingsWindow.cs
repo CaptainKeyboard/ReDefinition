@@ -71,14 +71,18 @@ namespace ReDefinition.Window
         // Whether something in the window waits for Accept.
         internal static bool HasUnapplied { get { return dialog != null && Unapplied(); } }
 
+        // Lets go of a text field of this window that ended its input and is still selected: the search field, left
+        // selected after Return, which Space or Return would open again. Asked before TextFieldFocused.
+        internal static void ReleaseEndedField()
+        {
+            if (dialog != null) UiHygiene.ReleaseEnded(dialog.gameObject);
+        }
+
         // Whether a text field of this window -- the Keys tab's search -- has the
         // keyboard (KeyCapture keeps the game's keys from it meanwhile).
         internal static bool TextFieldFocused()
         {
             if (dialog == null) return false;
-            // The search field, left selected after Return: Space or Return would
-            // open it again.
-            UiHygiene.ReleaseEnded(dialog.gameObject);
             UnityEngine.EventSystems.EventSystem events = UnityEngine.EventSystems.EventSystem.current;
             GameObject selected = events != null ? events.currentSelectedGameObject : null;
             if (selected == null || !selected.transform.IsChildOf(dialog.transform)) return false;
@@ -490,10 +494,8 @@ namespace ReDefinition.Window
             if (edit == null || category == SettingCategory.General || category == SettingCategory.Interface
                 || category == SettingCategory.Keys)
                 return bySection;
-            List<ModuleSetting> settings = OurModules.Rows(category);
-            DialogGUIBase[] rows = settings.Count == 0 ? new DialogGUIBase[0] : KspSettingsSection.Rows(edit, OwnLayout(), category);
-            for (int i = 0; i < rows.Length && i < settings.Count; i++)
-                AddOwn(bySection, settings[i].Section ?? Title(category), rows[i], settings[i].Title);
+            foreach (KeyValuePair<ModuleSetting, DialogGUIBase> own in KspSettingsSection.SettingRows(edit, OwnLayout(), category))
+                AddOwn(bySection, own.Key.Section ?? Title(category), own.Value, own.Key.Title);
             // The dialogs' buttons after the settings of their section.
             foreach (ModuleDialog dialog in OurModules.DialogRows(category))
                 AddOwn(bySection, dialog.Section ?? Title(category), OwnDialogRow(dialog), dialog.Title);
@@ -515,10 +517,10 @@ namespace ReDefinition.Window
             DialogGUIButton open = new DialogGUIButton(dialog.Button, () => OpenOwnDialog(dialog), ControlWidth,
                 RowHeight + 6f, false);
             open.tooltipText = dialog.Tooltip;
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            return DialogRows.Row(RowHeight + 6f,
                 new DialogGUILabel(dialog.Title, NameWidth), open, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
-                new DialogGUILabel("<color=#9a9a9a>ReDefinition</color>", SourceWidth));
+                new DialogGUILabel(RichText.Grey("ReDefinition"), SourceWidth));
         }
 
         // Opens one of ReDefinition's own dialogs over the window; a dialog whose content throws is logged and not opened.
@@ -565,23 +567,21 @@ namespace ReDefinition.Window
         // Then come the rows other mods register as General.
         private static void AddUpscaling(List<DialogGUIBase> rows)
         {
-            DialogGUIBase[] own = KspSettingsSection.Rows(edit, OwnLayout());
-            // One row per module setting, in the same order (KspSettingsSection.Rows).
-            List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows(SettingCategory.General, false));
             string section = null;
             JoinedLines upscalerLines = new JoinedLines();
             JoinedLines frameGenerationLines = new JoinedLines();
-            for (int i = 0; i < own.Length; i++)
+            foreach (KeyValuePair<ModuleSetting, DialogGUIBase> own in
+                     KspSettingsSection.SettingRows(edit, OwnLayout(), SettingCategory.General))
             {
-                ModuleSetting setting = i < titles.Count ? titles[i] : null;
-                string group = setting != null && setting.Section != null ? setting.Section : "Upscaling";
+                ModuleSetting setting = own.Key;
+                string group = setting.Section != null ? setting.Section : "Upscaling";
                 if (group != section)
                 {
                     rows.Add(SectionHeading(group));
                     section = group;
                 }
-                rows.Add(Searchable(own[i], (setting != null ? setting.Title : "Upscaler") + " " + group + " ReDefinition"));
-                if (setting == null || setting.Key != "technique") continue;
+                rows.Add(Searchable(own.Value, setting.Title + " " + group + " ReDefinition"));
+                if (setting.Key != "technique") continue;
                 // Under the technique row: what a download that was chosen came to, while it runs and after.
                 if (setting.Title == "Upscaler")
                     AddHint(rows, StatusLine(() => upscalerLines.Of(NvidiaStatus(), IntelStatus())),
@@ -647,10 +647,9 @@ namespace ReDefinition.Window
                 // under Effects. The Quality group's own rows are drawn by the tab's own rows.
                 if (edit != null && group.Key != SettingCategory.Detail)
                 {
-                    List<ModuleSetting> ownGroup = OurModules.Rows(group.Key);
-                    DialogGUIBase[] ownGroupRows = ownGroup.Count == 0 ? new DialogGUIBase[0] : KspSettingsSection.Rows(edit, OwnLayout(), group.Key);
-                    for (int i = 0; i < ownGroupRows.Length && i < ownGroup.Count; i++)
-                        members.Add(Searchable(ownGroupRows[i], ownGroup[i].Title + " " + group.Value));
+                    foreach (KeyValuePair<ModuleSetting, DialogGUIBase> ownRow in
+                             KspSettingsSection.SettingRows(edit, OwnLayout(), group.Key))
+                        members.Add(Searchable(ownRow.Value, ownRow.Key.Title + " " + group.Value));
                 }
                 if (members.Count == 0) continue;
                 DialogGUIBase advanced = OwnWindowRow(group.Key);
@@ -661,12 +660,12 @@ namespace ReDefinition.Window
 
             // ReDefinition's own single settings of the raytracing.
             if (edit == null) return;
-            List<ModuleSetting> own = OurModules.Rows(SettingCategory.General, true);
+            List<KeyValuePair<ModuleSetting, DialogGUIBase>> own =
+                KspSettingsSection.SettingRows(edit, OwnLayout(), SettingCategory.General, true);
             if (own.Count == 0) return;
-            DialogGUIBase[] ownRows = KspSettingsSection.Rows(edit, OwnLayout(), SettingCategory.General, true);
             List<DialogGUIBase> raytracing = new List<DialogGUIBase>();
-            for (int i = 0; i < ownRows.Length && i < own.Count; i++)
-                raytracing.Add(Searchable(ownRows[i], own[i].Title + " Raytracing ReDefinition"));
+            foreach (KeyValuePair<ModuleSetting, DialogGUIBase> pair in own)
+                raytracing.Add(Searchable(pair.Value, pair.Key.Title + " Raytracing ReDefinition"));
             AddFold(rows, SettingCategory.Detail, "Raytracing", raytracing, first);
         }
 
@@ -752,7 +751,7 @@ namespace ReDefinition.Window
                                    + "A change made there shows here; one made here shows there once applied.";
                 items.Add(open);
             }
-            return new DialogGUIHorizontalLayout(0f, 24f, 4f, new RectOffset(), TextAnchor.MiddleLeft, items.ToArray());
+            return DialogRows.Row(24f, 4f, items.ToArray());
         }
 
         // Opens the mod's own window through its toolbar button; a screen message where it has none in this scene.
@@ -784,11 +783,11 @@ namespace ReDefinition.Window
             {
                 foreach (IBundledMod mod in BundledSettings.Installed())
                 {
-                    // The rows, and every setting of a mod where the rest of them
-                    // can change: while its own window is open, however it was
-                    // opened, and KSP's once its own settings screen has applied.
-                    // All of some 180 settings read by reflection four times a second
-                    // would cost frame time.
+                    // Every setting with a row is read, and those of the tabs not shown too: all tabs are built as
+                    // the window opens. Where the rest of a mod's settings can change as well, every setting of
+                    // that mod is read, those without a row included: while its own window is open, however it was
+                    // opened, and KSP's once its own settings screen has applied. Reading the ones without a row
+                    // four times a second all the time would cost reflection for nothing.
                     bool whole = ModWindowClose.RecentlyOpen(mod) || dueMods.Remove(mod.Id);
                     foreach (BundledSetting setting in mod.Settings)
                     {

@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Reflection;
 using System;
 using KSP.UI.Screens;
 using ReDefinition.Core;
@@ -114,9 +113,7 @@ namespace ReDefinition.Window
                 ApplicationLauncher launcher = ApplicationLauncher.Instance;
                 if (launcher == null) return;
 
-                FieldInfo field = typeof(ApplicationLauncher).GetField("appListMod",
-                    BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                IList list = field != null ? field.GetValue(launcher) as IList : null;
+                IList list = ToolbarTakeover.ModList(launcher);
                 if (list == null || list.Count < 2) return;
 
                 int at = list.IndexOf(button);

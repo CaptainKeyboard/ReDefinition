@@ -260,10 +260,10 @@ namespace ReDefinition.Window
             control.OptionInteractableCondition = () => (model.Bundled || SetDirectly(setting, false))
                                                         && model.HasPending(key) && !Requirements.Locked(setting);
 
-            return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            return DialogRows.Row(RowHeight,
                 new DialogGUILabel(() => MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
                 new DialogGUILabel(value, ValueWidth),
-                new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
+                new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
         }
 
         // A mod's dialog (DIALOG): its button where a row's control stands, usable
@@ -275,10 +275,10 @@ namespace ReDefinition.Window
                 RowHeight + 6f, false);
             open.tooltipText = setting.Tooltip;
             open.OptionInteractableCondition = () => SafeApplicable(setting);
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            return DialogRows.Row(RowHeight + 6f,
                 new DialogGUILabel(setting.Title, NameWidth), open, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
-                new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
+                new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
         }
 
         // Whether the mod's dialog can be opened now; false where asking throws.

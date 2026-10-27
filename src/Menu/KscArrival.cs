@@ -454,6 +454,12 @@ namespace ReDefinition.Menu
         // The light that stands for the sun, by MenuFireworks' rank.
         internal readonly Light Sun;
 
+        // The tie-break of the arrival's sun: the one named PlanetLight, which is what Scatterer and Parallax take.
+        private static bool NamedPlanetLight(Light light, Light sun)
+        {
+            return light.name.Contains("PlanetLight") && !sun.name.Contains("PlanetLight");
+        }
+
         // Gathers the active directional lights and picks the sun among them.
         internal MenuSun()
         {
@@ -464,10 +470,7 @@ namespace ReDefinition.Menu
                     // The sun as Scatterer and Parallax take it in the menu: PlanetLight; in
                     // KSP's own Mun scene "Directional light", not the brighter BackLight
                     // that only rims Kerbin (MenuFireworks.Rank).
-                    if (Sun == null || MenuFireworks.Rank(light) > MenuFireworks.Rank(Sun)
-                        || (MenuFireworks.Rank(light) == MenuFireworks.Rank(Sun) && light.name.Contains("PlanetLight")
-                            && !Sun.name.Contains("PlanetLight")))
-                        Sun = light;
+                    Sun = MenuFireworks.Better(Sun, light, NamedPlanetLight);
                 }
         }
 
