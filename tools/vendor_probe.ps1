@@ -17,7 +17,7 @@
 #                          [-ShowOnlyGenerated]
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
-    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
+    [string]$Ksp,
     # Beside the main checkout, also from a git worktree of it: References holds the vendors' SDKs.
     [string]$Development = (Join-Path (Split-Path -Parent (Split-Path -Parent (git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir))) 'References\KspUpscaler\streamline-sdk-v2.14.1\bin\x64\development'),
     [switch]$ShowOnlyGenerated,
@@ -35,6 +35,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $PSBoundParameters.ContainsKey('Ksp')) { $Ksp = Get-KspRoot }
 $ini = Join-Path $Ksp 'ReDefinitionProxy.ini'
 $backup = "$ini.vendor-probe-backup"
 $json = Join-Path $Ksp 'ngxdlssg.json'
@@ -42,7 +44,6 @@ if (-not (Test-Path (Join-Path $Development 'sl.imgui.dll'))) { throw "no develo
 
 Copy-Item $ini $backup -Force
 try {
-    $lines = Get-Content $ini
     $set = @{
         'streamlineDirectory' = $Development
         'dlssDirectory' = $Development
@@ -54,14 +55,7 @@ try {
         'fgMinimumFps' = '0'
         'fgShowOnlyGenerated' = $(if ($ShowOnlyGenerated) { '1' } else { '0' })
     }
-    foreach ($key in $set.Keys) {
-        $found = $false
-        $lines = $lines | ForEach-Object {
-            if ($_ -match "^$key=") { $found = $true; "$key=$($set[$key])" } else { $_ }
-        }
-        if (-not $found) { $lines += "$key=$($set[$key])" }
-    }
-    Set-Content -Path $ini -Value $lines -Encoding ASCII
+    Set-IniKeys $ini $ini $set
     # NGX's DLSS-G debug settings: the detailed indicator text, default hotkeys
     # (DLSS-FG Programming Guide, JSON Configuration).
     Set-Content -Path $json -Encoding ASCII -Value '{ "text_indicator_level": 2 }'

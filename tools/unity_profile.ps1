@@ -14,12 +14,15 @@
 #
 #   tools\unity_profile.ps1 [-Ksp <KSP folder>] [-Unity <Unity editor folder>] [-TimeoutSeconds 600]
 param(
-    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
+    # By default KspRoot, as the build takes it, or the Steam location.
+    [string]$Ksp,
     [string]$Unity = 'C:\Program Files\Unity\Editor',
     [int]$TimeoutSeconds = 600
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $PSBoundParameters.ContainsKey('Ksp')) { $Ksp = Get-KspRoot }
 if (Get-Process KSP_x64 -ErrorAction SilentlyContinue) { throw 'KSP is running' }
 $variation = Join-Path $Unity 'Data\PlaybackEngines\windowsstandalonesupport\Variations\win64_development_mono'
 $development = Join-Path $variation 'UnityPlayer.dll'

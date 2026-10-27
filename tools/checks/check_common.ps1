@@ -6,7 +6,8 @@
 #   . ([IO.Path]::Combine($PSScriptRoot, 'check_common.ps1'))
 
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
+. ([IO.Path]::Combine($PSScriptRoot, '..', 'common.ps1'))
+$kspRoot = Get-KspRoot
 $managed = [IO.Path]::Combine($kspRoot, 'KSP_x64_Data\Managed')
 $gameData = [IO.Path]::Combine($kspRoot, 'GameData')
 

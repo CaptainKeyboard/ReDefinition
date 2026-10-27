@@ -12,7 +12,7 @@
 #   tools\flip_probe.ps1 [-Ksp <KSP folder>] [-Fsr] [-TimeoutSeconds 420]
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
-    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
+    [string]$Ksp,
     # FSR's frame generation in place of DLSS-G.
     [switch]$Fsr,
     # Unity's -monitor (1 = the first display): the desktop recording needs the game
@@ -23,22 +23,14 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $PSBoundParameters.ContainsKey('Ksp')) { $Ksp = Get-KspRoot }
 $ini = Join-Path $Ksp 'ReDefinitionProxy.ini'
 $backup = "$ini.flip-probe-backup"
 $log = Join-Path $Ksp 'KSP.log'
 
 # Writes the proxy's ini as the backup with the given keys set: replaced where they stand, appended where not.
-function Set-Ini([hashtable]$set) {
-    $lines = Get-Content $backup
-    foreach ($key in $set.Keys) {
-        $found = $false
-        $lines = $lines | ForEach-Object {
-            if ($_ -match "^$key=") { $found = $true; "$key=$($set[$key])" } else { $_ }
-        }
-        if (-not $found) { $lines += "$key=$($set[$key])" }
-    }
-    Set-Content -Path $ini -Value $lines -Encoding ASCII
-}
+function Set-Ini([hashtable]$set) { Set-IniKeys $backup $ini $set }
 
 $monitorArguments = @()
 if ($Monitor -gt 0) { $monitorArguments = @('-monitor', "$Monitor") }

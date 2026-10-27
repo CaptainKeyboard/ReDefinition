@@ -18,9 +18,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
-$settings = Join-Path $kspRoot 'GameData\ReDefinition\PluginData\settings.cfg'
-$save = Join-Path $kspRoot 'saves\ReDefinitionProbe\persistent.sfs'
+. (Join-Path $PSScriptRoot 'common.ps1')
+$kspRoot = Get-KspRoot
 $log = Join-Path $kspRoot 'KSP.log'
 $exe = Join-Path $kspRoot 'KSP_x64.exe'
 
@@ -42,15 +41,13 @@ $viewInFront = 1.0
 $viewTiles = 6.0
 
 if (Get-Process KSP_x64 -ErrorAction SilentlyContinue) { throw 'KSP is running; close it first.' }
-$settingsBefore = [IO.File]::ReadAllText($settings)
-$saveBefore = [IO.File]::ReadAllText($save)
+$files = Backup-ProbeFiles $kspRoot
 $failed = 0
 try {
     # Raytracing on, and the game's time at a fixed hour: the first UT line of the save is the universe's.
-    $light = [regex]::Replace($settingsBefore, '(?m)^(\s*raytracing\s*=\s*).*$', '${1}Light')
-    [IO.File]::WriteAllText($settings, $light)
-    $timed = [regex]::Replace($saveBefore, '(?m)^(\t\tUT = )[0-9.]+', '${1}1638120', 1)
-    [IO.File]::WriteAllText($save, $timed)
+    Set-RaytracingLight $files
+    $timed = [regex]::Replace($files.SaveBefore, '(?m)^(\t\tUT = )[0-9.]+', '${1}1638120', 1)
+    [IO.File]::WriteAllText($files.Save, $timed)
 
     $scenes = if ($Scene -eq 'Both') { @('Ksc', 'Flight', 'Views') } elseif ($Scene -eq 'Views') { @('Views') } else { @($Scene) }
     foreach ($name in $scenes) {
@@ -120,7 +117,6 @@ try {
     }
 }
 finally {
-    [IO.File]::WriteAllText($settings, $settingsBefore)
-    [IO.File]::WriteAllText($save, $saveBefore)
+    Restore-ProbeFiles $files
 }
 if ($failed -gt 0) { exit 1 }
