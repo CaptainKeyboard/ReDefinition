@@ -92,5 +92,41 @@ namespace ReDefinition.Tests
             live.ChangeLive(before, after);
             Assert.AreEqual(ReDefinition.Raytracing.RaytracingLightColour.Raytraced, live.RaytracingLightColour);
         }
+
+        // The bounces read from a number as written, "2.0" included. NaN and the infinities in a hand-edited file
+        // leave the default, where a cast to int would turn them into the smallest integer.
+        [TestMethod]
+        public void TheBouncesReadAFiniteNumberOnly()
+        {
+            var settings = new OwnSettings();
+            Assert.IsTrue(settings.SetValue("raytracingBounces", "3"));
+            Assert.AreEqual(3, settings.RaytracingBounces);
+            Assert.IsTrue(settings.SetValue("raytracingBounces", "4.0"));
+            Assert.AreEqual(4, settings.RaytracingBounces);
+            foreach (string text in new[] { "NaN", "Infinity", "-Infinity", "many" })
+            {
+                Assert.IsFalse(settings.SetValue("raytracingBounces", text), text);
+                Assert.AreEqual(4, settings.RaytracingBounces, text + " leaves the value");
+            }
+        }
+
+        // A text setting takes what its validation allows and keeps its value for anything else; those without
+        // validation take any text, a missing one as empty.
+        [TestMethod]
+        public void TextSettingsTakeOnlyWhatTheyAllow()
+        {
+            var settings = new OwnSettings();
+            Assert.IsTrue(settings.SetValue("lowLatency", "Off"));
+            Assert.AreEqual("Off", settings.LowLatency);
+            Assert.IsFalse(settings.SetValue("lowLatency", "Sometimes"));
+            Assert.AreEqual("Off", settings.LowLatency);
+            Assert.IsTrue(settings.SetValue("frameGenerationTechnique", "Dlss"));
+            Assert.IsFalse(settings.SetValue("frameGenerationTechnique", "Off"));
+            Assert.AreEqual("Dlss", settings.FrameGenerationTechnique);
+            Assert.IsTrue(settings.SetValue("diagnosticsPins", "a,b"));
+            Assert.AreEqual("a,b", settings.DiagnosticsPins);
+            Assert.IsTrue(settings.SetValue("navballScreen", "1920x1080"));
+            Assert.AreEqual("1920x1080", settings.NavballScreen);
+        }
     }
 }

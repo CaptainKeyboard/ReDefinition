@@ -317,24 +317,10 @@ namespace ReDefinition.Settings
             switch (setting.Control)
             {
                 case SettingControl.Toggle:
-                    bool on;
-                    return bool.TryParse(value, out on) ? null : "not True or False";
+                    return ValueChecks.Toggle(value);
 
                 case SettingControl.Slider:
-                    double number;
-                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number))
-                        return "not a number";
-                    // TryParse takes "NaN" and "Infinity", and NaN passes every
-                    // comparison below.
-                    if (double.IsNaN(number) || double.IsInfinity(number)) return "not a finite number";
-                    if (number < setting.Min - 1e-6 || number > setting.Max + 1e-6)
-                        return "outside " + setting.Min.ToString(CultureInfo.InvariantCulture) + " .. "
-                               + setting.Max.ToString(CultureInfo.InvariantCulture);
-                    // The slider would round it on its first frame, and the row
-                    // turn Custom by itself.
-                    if (setting.WholeNumbers && Math.Abs(number - Math.Round(number)) > 1e-6)
-                        return "not a whole number";
-                    return null;
+                    return ValueChecks.Slider(value, setting.Min, setting.Max, setting.WholeNumbers, "not a finite number");
 
                 case SettingControl.Value:
                     if (setting.ValueType == null) return null;

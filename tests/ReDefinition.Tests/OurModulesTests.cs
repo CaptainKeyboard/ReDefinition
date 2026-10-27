@@ -257,5 +257,99 @@ namespace ReDefinition.Tests
                     Assert.AreEqual(other == row ? bool.FalseString : bool.TrueString, other.Read(settings), row.Key + " leaves " + other.Key);
             }
         }
+
+        // The switches and percentage sliders of ReDefinition's own modules, by module and key, with the key
+        // each is saved under in settings.cfg.
+        private static readonly string[][] OwnToggles =
+        {
+            new[] { "upscaler", "oneAntialiasing", "oneAntialiasing" },
+            new[] { "raytracing", "moonGlow", "moonGlow" },
+            new[] { "flightUi", "flightPanelAuto", "flightPanelAuto" },
+            new[] { "flightUi", "autoAltimeter", "autoAltimeter" },
+            new[] { "flightUi", "flightStartsInManeuverMode", "flightStartsInManeuverMode" },
+            new[] { "flightUi", "worldButtons", "worldButtons" },
+            new[] { "flightUi", "roundGauge", "roundGauge" },
+            new[] { "flightUi", "navballSpeeds", "navballSpeeds" },
+            new[] { "flightUi", "navballDockingMarker", "navballDockingMarker" },
+            new[] { "flightUi", "navballDrag", "navballDrag" },
+            new[] { "flightUi", "flightPanel", "flightPanel" },
+            new[] { "flightUi", "stageDetailColumns", "stageDetailColumns" },
+            new[] { "flightUi", "stageTwrRange", "stageTwrRange" },
+            new[] { "flightUi", "deltaVTools", "deltaVTools" },
+            new[] { "flightUi", "hudTooltips", "hudTooltips" },
+            new[] { "flightUi", "stagingResetAsks", "stagingResetAsks" },
+            new[] { "flightUi", "crewSlotButtons", "crewSlotButtons" },
+            new[] { "flightUi", "timeWarpPanelButton", "timeWarpPanelButton" },
+            new[] { "uiScaling", "scaleModWindows", "scaleModWindows" },
+            new[] { "mainMenu", "menuFireworks", "menuFireworks" },
+            new[] { "mainMenu", "menuKscZoom", "menuKscZoom" },
+            new[] { "spaceCentre", "kscGrass", "kscGrass" },
+            new[] { "spaceCentre", "kscLawnTerrain", "kscLawnTerrain" },
+            new[] { "reEntry", "fireflyIdle", "fireflyIdle" },
+            new[] { "dashboard", "dashboardNetwork", "dashboardNetwork" },
+        };
+
+        private static readonly string[][] OwnPercentages =
+        {
+            new[] { "raytracing", "moonlight", "raytracingMoonlight" },
+            new[] { "raytracing", "moonReflection", "raytracingMoonReflection" },
+            new[] { "raytracing", "sunReflection", "sunReflection" },
+            new[] { "raytracing", "nightAmbient", "raytracingNightAmbient" },
+        };
+
+        // Each switch of the own modules reads and writes the setting of its file key and no other, in the text the
+        // file holds; a text that is no True or False is refused with an exception.
+        [TestMethod]
+        public void EachSwitchOfTheOwnModulesMapsToItsFileKey()
+        {
+            foreach (string[] toggle in OwnToggles)
+            {
+                ModuleSetting row = OurModules.Find(toggle[0]).Setting(toggle[1]);
+                Assert.IsNotNull(row, toggle[0] + "." + toggle[1]);
+                Assert.AreEqual(SettingControl.Toggle, row.Control, toggle[1]);
+                foreach (bool on in new[] { false, true })
+                {
+                    OwnSettings settings = new OwnSettings();
+                    OwnSettings others = new OwnSettings();
+                    row.Write(settings, on ? "True" : "False");
+                    Assert.AreEqual(on ? "True" : "False", settings.ValueOf(toggle[2]), toggle[1] + " in the file");
+                    Assert.AreEqual(on ? "True" : "False", row.Read(settings), toggle[1] + " read back");
+                    foreach (string[] other in OwnToggles)
+                        if (other[2] != toggle[2])
+                            Assert.AreEqual(others.ValueOf(other[2]), settings.ValueOf(other[2]), toggle[1] + " leaves " + other[1]);
+                }
+                OwnSettings refused = new OwnSettings();
+                try
+                {
+                    row.Write(refused, "yes");
+                    Assert.Fail(toggle[1] + " took 'yes'");
+                }
+                catch (System.FormatException)
+                {
+                }
+            }
+        }
+
+        // The percentage sliders likewise: the value as a whole number, in the file's key.
+        [TestMethod]
+        public void EachPercentageSliderOfTheOwnModulesMapsToItsFileKey()
+        {
+            foreach (string[] slider in OwnPercentages)
+            {
+                ModuleSetting row = OurModules.Find(slider[0]).Setting(slider[1]);
+                Assert.IsNotNull(row, slider[0] + "." + slider[1]);
+                Assert.AreEqual(SettingControl.Slider, row.Control, slider[1]);
+                OwnSettings settings = new OwnSettings();
+                row.Write(settings, "42");
+                Assert.AreEqual("42", settings.ValueOf(slider[2]), slider[1] + " in the file");
+                Assert.AreEqual("42", row.Read(settings), slider[1] + " read back");
+                row.Write(settings, "7.6");
+                Assert.AreEqual("8", row.Read(settings), slider[1] + " shows whole percentages");
+                Assert.AreEqual(row.Read(settings), settings.ValueOf(slider[2]), slider[1] + " as the file writes it");
+                foreach (string[] other in OwnPercentages)
+                    if (other[2] != slider[2])
+                        Assert.AreEqual(new OwnSettings().ValueOf(other[2]), settings.ValueOf(other[2]), slider[1] + " leaves " + other[1]);
+            }
+        }
     }
 }

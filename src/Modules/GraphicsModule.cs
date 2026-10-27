@@ -155,22 +155,13 @@ namespace ReDefinition.Modules
             switch (Control)
             {
                 case SettingControl.Toggle:
-                    bool on;
-                    return bool.TryParse(value, out on) ? null : "not True or False";
+                    return ValueChecks.Toggle(value);
 
                 case SettingControl.Binding:
                     return KeyCombination.IsText(value) ? null : "not a key binding";
 
                 case SettingControl.Slider:
-                    double number;
-                    if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out number)
-                        || double.IsNaN(number) || double.IsInfinity(number))
-                        return "not a number";
-                    if (number < Min - 1e-6 || number > Max + 1e-6)
-                        return "outside " + Min.ToString(CultureInfo.InvariantCulture) + " .. "
-                               + Max.ToString(CultureInfo.InvariantCulture);
-                    if (WholeNumbers && Math.Abs(number - Math.Round(number)) > 1e-6) return "not a whole number";
-                    return null;
+                    return ValueChecks.Slider(value, Min, Max, WholeNumbers, "not a number");
 
                 default:
                     return Choice(value) != null ? null : "not one of " + string.Join(", ", Choices ?? new string[0]);

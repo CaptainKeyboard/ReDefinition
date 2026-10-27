@@ -291,6 +291,52 @@ namespace ReDefinition.Modules
             };
         }
 
+        // A text setting. `valid` says which texts the setting takes, and a text it refuses leaves the default;
+        // without it every text is taken and a missing one is empty.
+        private static Field<string> Text(string key, Func<OwnSettings, string> get, Action<OwnSettings, string> set,
+                                          Func<string, bool> valid = null, bool live = false)
+        {
+            return new Field<string>
+            {
+                Key = key, Get = get, Set = set, Live = live, Format = v => v,
+                Parse = (string text, out string v) =>
+                {
+                    v = valid == null ? text ?? "" : valid(text) ? text : null;
+                    return v != null;
+                },
+            };
+        }
+
+        // The getter and setter of the True/False setting the file holds under that key, for a row that reads and
+        // writes it (OurModules).
+        internal static void BoolMember(string key, out Func<OwnSettings, bool> get, out Action<OwnSettings, bool> set)
+        {
+            Field<bool> field = Find<bool>(key);
+            get = field.Get;
+            set = field.Set;
+        }
+
+        // The same for a number setting.
+        internal static void FloatMember(string key, out Func<OwnSettings, float> get, out Action<OwnSettings, float> set)
+        {
+            Field<float> field = Find<float>(key);
+            get = field.Get;
+            set = field.Set;
+        }
+
+        // The field of that key and type; a key or type the file has none of is a mistake in the caller.
+        private static Field<T> Find<T>(string key)
+        {
+            foreach (Field field in Fields)
+                if (field.Key == key)
+                {
+                    Field<T> typed = field as Field<T>;
+                    if (typed == null) throw new ArgumentException("The setting '" + key + "' is not a " + typeof(T).Name + ".");
+                    return typed;
+                }
+            throw new ArgumentException("No setting '" + key + "' in the settings file.");
+        }
+
         // A key combination the file holds; what is no binding leaves the default.
         private static Field<string> Binding(string key, Func<OwnSettings, string> get, Action<OwnSettings, string> set)
         {
@@ -325,16 +371,8 @@ namespace ReDefinition.Modules
             Bool("transparencyMask", x => x.TransparencyMask, (x, v) => x.TransparencyMask = v),
             Enum("reactiveMask", x => x.ReactiveMask, (x, v) => x.ReactiveMask = v),
             Bool("frameGeneration", x => x.FrameGeneration, (x, v) => x.FrameGeneration = v),
-            new Field<string>
-            {
-                Key = "frameGenerationMultiplier", Get = x => x.FrameGenerationMultiplier,
-                Set = (x, v) => x.FrameGenerationMultiplier = v, Format = v => v,
-                Parse = (string text, out string v) =>
-                {
-                    v = FrameGenerationChoice.Valid(text) ? text : null;
-                    return v != null;
-                },
-            },
+            Text("frameGenerationMultiplier", x => x.FrameGenerationMultiplier, (x, v) => x.FrameGenerationMultiplier = v,
+                 FrameGenerationChoice.Valid),
             Enum("technique", x => x.Backend, (x, v) => x.Backend = v),
             Enum("dlssModel", x => x.DlssModel, (x, v) => x.DlssModel = v),
             Binding("upscalerKey", x => x.UpscalerKey, (x, v) => x.UpscalerKey = v),
@@ -343,16 +381,8 @@ namespace ReDefinition.Modules
             Binding("settingsWindowKey", x => x.SettingsWindowKey, (x, v) => x.SettingsWindowKey = v),
             // The navball's place is the add-on's own (ReDefinitionAddon.NavballOffset).
             Float("navballOffset", "0", x => x.NavballOffset, (x, v) => x.NavballOffset = v),
-            new Field<string>
-            {
-                Key = "navballScreen", Get = x => x.NavballScreen, Set = (x, v) => x.NavballScreen = v, Format = v => v,
-                Parse = (string text, out string v) => { v = text ?? ""; return true; },
-            },
-            new Field<string>
-            {
-                Key = "diagnosticsPins", Get = x => x.DiagnosticsPins, Set = (x, v) => x.DiagnosticsPins = v, Live = true,
-                Format = v => v, Parse = (string text, out string v) => { v = text ?? ""; return true; },
-            },
+            Text("navballScreen", x => x.NavballScreen, (x, v) => x.NavballScreen = v),
+            Text("diagnosticsPins", x => x.DiagnosticsPins, (x, v) => x.DiagnosticsPins = v, live: true),
             Enum("diagnosticsPage", x => x.DiagnosticsPage, (x, v) => x.DiagnosticsPage = v, true),
             Float("diagnosticsX", "0", x => x.DiagnosticsX, (x, v) => x.DiagnosticsX = v, true),
             Float("diagnosticsY", "0", x => x.DiagnosticsY, (x, v) => x.DiagnosticsY = v, true),
@@ -390,35 +420,21 @@ namespace ReDefinition.Modules
                 Parse = (string text, out int v) => int.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out v)
                                                     && v >= 240 && v <= 4320,
             },
-            new Field<string>
-            {
-                Key = "frameGenerationTechnique", Get = x => x.FrameGenerationTechnique,
-                Set = (x, v) => x.FrameGenerationTechnique = v, Live = true, Format = v => v,
-                Parse = (string text, out string v) =>
-                {
-                    v = FrameGenerationTechniqueSetting.Valid(text) ? text : null;
-                    return v != null;
-                },
-            },
-            new Field<string>
-            {
-                Key = "lowLatency", Get = x => x.LowLatency, Set = (x, v) => x.LowLatency = v, Live = true, Format = v => v,
-                Parse = (string text, out string v) =>
-                {
-                    v = LowLatencySetting.Valid(text) ? text : null;
-                    return v != null;
-                },
-            },
+            Text("frameGenerationTechnique", x => x.FrameGenerationTechnique, (x, v) => x.FrameGenerationTechnique = v,
+                 FrameGenerationTechniqueSetting.Valid, true),
+            Text("lowLatency", x => x.LowLatency, (x, v) => x.LowLatency = v, LowLatencySetting.Valid, true),
             Enum("raytracing", x => x.Raytracing, (x, v) => x.Raytracing = v),
             new Field<int>
             {
                 Key = "raytracingBounces", Get = x => x.RaytracingBounces, Set = (x, v) => x.RaytracingBounces = v,
                 Format = v => v.ToString(CultureInfo.InvariantCulture),
+                // Through a float, so that "2.0" reads; NaN and the infinities do not, which (int) would turn into
+                // the smallest integer.
                 Parse = (string text, out int v) =>
                 {
                     float f;
-                    bool ok = float.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out f);
-                    v = (int)f;
+                    bool ok = ParseFloat(text, out f);
+                    v = ok ? (int)f : 0;
                     return ok;
                 },
             },
@@ -432,11 +448,7 @@ namespace ReDefinition.Modules
             Enum("raytracingLightColour", x => x.RaytracingLightColour, (x, v) => x.RaytracingLightColour = v, true),
             Bool("dashboardNetwork", x => x.DashboardNetwork, (x, v) => x.DashboardNetwork = v, true),
             // Live, so that the window's Apply, which copies only what it changed, never takes it back.
-            new Field<string>
-            {
-                Key = "dashboardKey", Get = x => x.DashboardKey, Set = (x, v) => x.DashboardKey = v, Live = true,
-                Format = v => v, Parse = (string text, out string v) => { v = text ?? ""; return true; },
-            },
+            Text("dashboardKey", x => x.DashboardKey, (x, v) => x.DashboardKey = v, live: true),
         };
 
         // The settings from the file; defaults where the file or its node is missing, and per key where one is.
