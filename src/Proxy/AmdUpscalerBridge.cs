@@ -110,24 +110,12 @@ namespace ReDefinition.Proxy
                 return null;
             }
             if (kind == 0 || providerBuffer.Length == 0) return null;
-            if (kind != shownKind || shownSource == null || !Same(providerBuffer, shownSource))
+            if (NativeText.Refresh(providerBuffer, ref shownSource) || kind != shownKind)
             {
                 shownKind = kind;
-                shownSource = providerBuffer.ToString();
                 shownName = kind == 2 ? shownSource + " fallback" : shownSource;
             }
             return shownName;
-        }
-
-        // Whether the builder holds the same text, compared without making a string of it.
-        private static bool Same(StringBuilder text, string other)
-        {
-            if (text.Length != other.Length) return false;
-            for (int i = 0; i < other.Length; i++)
-            {
-                if (text[i] != other[i]) return false;
-            }
-            return true;
         }
 
         // The link to the proxy's AMD upscaler: render events 4 (a frame) and 5 (the rig gone), probed through
