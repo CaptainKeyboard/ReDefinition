@@ -12,6 +12,16 @@ namespace ReDefinition.Tests
         // The simulated time step, a physics frame's 0.02 s, and one degree in radians.
         private const double Dt = 0.02, Degree = Math.PI / 180;
 
+        // On the launch pad the turn to a target is spread from the vessel's own attitude, so the target may be set before the altitude.
+        [TestMethod]
+        public void OnTheGroundTheSpreadTurnStartsFromTheVessel()
+        {
+            Assert.IsFalse(FlyByWire.StartsFromAim(true, true, true));
+            Assert.IsTrue(FlyByWire.StartsFromAim(true, true, false));
+            Assert.IsFalse(FlyByWire.StartsFromAim(true, false, false));
+            Assert.IsFalse(FlyByWire.StartsFromAim(false, true, false));
+        }
+
         // The target 60 degrees away with its top rolled 90 degrees further: the nose goes the
         // shortest way there while the vessel rolls, not off to the side.
         [TestMethod]

@@ -122,12 +122,20 @@ namespace ReDefinition.Dashboard
             if (curve == Curve.Auto && v != null && !altitudeSet) AutoAltitude(v);
             if (!altitudeSet || v == null || Math.Abs(targetAltitude - v.altitude) <= 1) { spreading = false; autoTurnStart = double.NaN; return; }
             Vector3d nose, top;
-            if (steering && armed) Aim(v, out nose, out top); // with the turn as it is, before it starts again
+            if (StartsFromAim(steering, armed, v.LandedOrSplashed || v.situation == Vessel.Situations.PRELAUNCH)) Aim(v, out nose, out top); // with the turn as it is, before it starts again
             else Present(v, out nose, out top);
             autoTurnStart = double.NaN;
             startAttitude = Quaternion.LookRotation((Vector3)nose, (Vector3)top);
             startAltitude = v.altitude;
             spreading = true;
+        }
+
+        // Whether the spread turn starts from what the steering points at, not from the vessel's own attitude.
+        // On the ground the vessel cannot follow the steering, so a target set before the altitude would
+        // otherwise be the start and the turn would not be spread at all.
+        internal static bool StartsFromAim(bool steering, bool armed, bool onGround)
+        {
+            return steering && armed && !onGround;
         }
 
         // What the steering points at now (north, east, up): the target, or with a target altitude the
