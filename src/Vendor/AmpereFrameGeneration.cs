@@ -192,9 +192,9 @@ namespace ReDefinition.Vendor
             if (zipText == null || found != zipShownFor)
             {
                 zipShownFor = found;
-                zipText = "<color=#9a9a9a>" + (found != null
+                zipText = RichText.Grey(found != null
                     ? "Found in KSP's folder: " + Path.GetFileName(found)
-                    : "No " + AmperePackage.ZipPattern + " in KSP's folder yet") + "</color>";
+                    : "No " + AmperePackage.ZipPattern + " in KSP's folder yet");
             }
             return zipText;
         }
@@ -252,30 +252,18 @@ namespace ReDefinition.Vendor
         }
 
         // The install's progress or outcome, grey, made anew only when it changes.
-        private static string shownStatus;
-        private static string shownStatusText = "";
+        private static readonly GreyText greyStatus = new GreyText();
 
         // The install's status, grey; empty before one.
         public static string StatusText()
         {
-            if (status != shownStatus)
-            {
-                shownStatus = status;
-                shownStatusText = status == null ? "" : "<color=#9a9a9a>" + status + "</color>";
-            }
-            return shownStatusText;
+            return greyStatus.Of(status);
         }
 
         // Installs the package from the zip.
         public static void Start()
         {
             Start(AmperePackage.Part.Package);
-        }
-
-        // The super-resolution files alone, about 180 MB, for the ini's [SuperResolution] Mode.
-        public static void StartSuperResolution()
-        {
-            Start(AmperePackage.Part.SuperResolution);
         }
 
         // Starts the install of a part as a coroutine on the add-on, where the zip is there and none runs.
