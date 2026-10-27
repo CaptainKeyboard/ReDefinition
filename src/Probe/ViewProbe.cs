@@ -85,6 +85,12 @@ namespace ReDefinition.Probe
         public static IEnumerator Run(string folder, string shot, string views)
         {
             if (FlightCamera.fetch == null || ReDefinitionAddon.Instance == null) yield break;
+            // -redefinitionProbeLand: the sun's height at the pod; quit where the first run is to be made again (LandProbe).
+            if (LandProbe.Report())
+            {
+                Application.Quit();
+                yield break;
+            }
             // -redefinitionProbeViewTarget <part of a name>: the views about the renderer so named nearest the
             // vessel (the space centre's flag) instead of the vessel.
             string targetName = SceneProbe.ArgumentAfter("-redefinitionProbeViewTarget");

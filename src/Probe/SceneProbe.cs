@@ -200,6 +200,18 @@ namespace ReDefinition.Probe
                 }
                 index = capsule;
             }
+            if (SceneProbe.VesselName == null && LandProbe.BodyName != null)
+            {
+                int capsule = LandProbe.Capsule(game);
+                if (capsule < 0)
+                {
+                    // On the pad, every shot would be of the wrong body.
+                    Debug.LogError(Log.Tag + " Probe: the capsule could not be put on " + LandProbe.BodyName + "; quitting.");
+                    Application.Quit();
+                    yield break;
+                }
+                index = capsule;
+            }
             HighLogic.SaveFolder = SceneProbe.SaveFolder;
             HighLogic.CurrentGame = game;
             // -redefinitionProbeLaunch <craft>: a new launch of that craft instead (StagingProbe), from the space
