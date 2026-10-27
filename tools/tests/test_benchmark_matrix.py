@@ -1322,7 +1322,7 @@ class OptionsRecordTest(unittest.TestCase):
     # The mod has the frameGenerationMultiplier setting, and the probe sets the mod's settings by mod.<key> keys.
     def test_the_mods_multiplier_is_a_setting_the_probe_sets_by_key(self):
         settings = read_source("src", "Modules", "OwnSettings.cs")
-        self.assertIn('Key = "frameGenerationMultiplier"', settings)
+        self.assertIn('Text("frameGenerationMultiplier"', settings)
         probe = read_source("src", "Probe", "SceneProbeRunner.Shots.cs")
         self.assertIn('key.StartsWith("mod."', probe)
         self.assertIn("wanted.SetValue(modKey, text)", probe)
