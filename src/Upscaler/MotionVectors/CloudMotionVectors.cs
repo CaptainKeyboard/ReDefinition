@@ -159,7 +159,7 @@ namespace ReDefinition.Upscaler
             bool ready = havePrevious && previousBody == body && previousFrame == Time.frameCount - 1
                          && SharedFrame.RigResetReason == null;
             Matrix4x4 viewToPrevious = ready
-                ? SceneMotion.ClipToPreviousClip(Matrix4x4.identity, previousProjection, position, rotation,
+                ? SceneMotion.ClipToPreviousClipWithInverse(Matrix4x4.identity, previousProjection, position, rotation,
                     previousPosition, previousRotation)
                 : Matrix4x4.identity;
             Shader.SetGlobalMatrix(ProjectionId, projection);

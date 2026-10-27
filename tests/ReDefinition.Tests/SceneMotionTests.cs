@@ -121,5 +121,41 @@ namespace ReDefinition.Tests
             Assert.AreEqual(f * Mathf.Tan(0.1f * Mathf.Deg2Rad) * 0.5f, Mathf.Abs(motion.x), 1e-6f);
             Assert.AreEqual(0f, motion.y, 1e-7f);
         }
+
+        // Two matrices are equal bit for bit.
+        private static void AssertSame(Matrix4x4 expected, Matrix4x4 actual)
+        {
+            for (int row = 0; row < 4; row++)
+                for (int column = 0; column < 4; column++)
+                    Assert.AreEqual(expected[row, column], actual[row, column], 0f, "[" + row + "," + column + "]");
+        }
+
+        // A caller that holds the projection's inverse gets the very matrix the projection itself gives.
+        [TestMethod]
+        public void TheGivenInverseGivesTheSameMatrixBitForBit()
+        {
+            Quaternion before = Turn(20f, 0f, 1f, 0f);
+            Quaternion now = Turn(20.1f, 0.3f, 1f, 0f);
+            Vector3d from = new Vector3d(1000.0, 200000.0, -30000.0);
+            Vector3d to = from + new Vector3d(3.0, -2.0, 11.0);
+
+            Matrix4x4 direct = SceneMotion.ClipToPreviousClip(Projection(), Projection(), to, now, from, before);
+            Matrix4x4 reused = SceneMotion.ClipToPreviousClipWithInverse(
+                ReDefinition.Proxy.StreamlineCamera.Invert(Projection()), Projection(), to, now, from, before);
+
+            AssertSame(direct, reused);
+        }
+
+        // The cloud shader's view-to-previous-view move takes the identity as its projection and its inverse alike.
+        [TestMethod]
+        public void TheIdentityIsItsOwnInverseExactly()
+        {
+            AssertSame(Matrix4x4.identity, ReDefinition.Proxy.StreamlineCamera.Invert(Matrix4x4.identity));
+            Quaternion turn = Turn(35f, 1f, 2f, 3f);
+            Vector3d at = new Vector3d(5.0, 6.0, 7.0);
+
+            AssertSame(SceneMotion.ClipToPreviousClip(Matrix4x4.identity, Projection(), at, turn, Vector3d.zero, turn),
+                       SceneMotion.ClipToPreviousClipWithInverse(Matrix4x4.identity, Projection(), at, turn, Vector3d.zero, turn));
+        }
     }
 }

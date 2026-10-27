@@ -30,6 +30,17 @@ namespace ReDefinition.Upscaler
                                                      Vector3d position, Quaternion rotation,
                                                      Vector3d previousPosition, Quaternion previousRotation)
         {
+            return ClipToPreviousClipWithInverse(StreamlineCamera.Invert(projection), previousProjection,
+                                                 position, rotation, previousPosition, previousRotation);
+        }
+
+        // The same with the inverse of `projection` given, for callers that move two cameras
+        // through one projection or have it already (the inverse of the identity is the
+        // identity, exactly).
+        internal static Matrix4x4 ClipToPreviousClipWithInverse(Matrix4x4 inverseProjection, Matrix4x4 previousProjection,
+                                                                Vector3d position, Quaternion rotation,
+                                                                Vector3d previousPosition, Quaternion previousRotation)
+        {
             // A point in this frame's camera space into the frame before's: Unity's
             // camera space looks down -z (worldToCameraMatrix is a flip of z times
             // the inverse of the camera's placement), so the move is taken
@@ -40,7 +51,7 @@ namespace ReDefinition.Upscaler
             Matrix4x4 move = Placement(back * rotation, translation);
             Matrix4x4 flip = StreamlineCamera.FlipZ();
             Matrix4x4 cameraToPrevious = flip * move * flip;
-            return previousProjection * cameraToPrevious * StreamlineCamera.Invert(projection);
+            return previousProjection * cameraToPrevious * inverseProjection;
         }
 
         // The inverse of a turn: Quaternion.Inverse is native code.
