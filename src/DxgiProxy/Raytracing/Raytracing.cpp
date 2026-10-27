@@ -320,18 +320,34 @@ namespace redefinition
             pendingMeshes.erase(id);
             pendingReleases.push_back(id);
         }
-        for (auto& entry : taken.meshes)
-        {
-            pendingReleases.erase(std::remove(pendingReleases.begin(), pendingReleases.end(), entry.first),
+        // The meshes handed over again leave the releases in one pass over them, not one
+        // pass for each mesh.
+        if (!taken.meshes.empty() && !pendingReleases.empty())
+            pendingReleases.erase(std::remove_if(pendingReleases.begin(), pendingReleases.end(),
+                                                 [&](int32_t id) { return taken.meshes.count(id) != 0; }),
                                   pendingReleases.end());
+        for (auto& entry : taken.meshes)
             pendingMeshes[entry.first] = std::move(entry.second);
-        }
         for (const auto& entry : taken.materials)
         {
+            // A change to the table the scene's materials are made from (materialVersion): a
+            // material new, gone, or with other values.
+            const auto known = materialData.find(entry.first);
             if (entry.second.first)
-                materialData[entry.first] = entry.second.second;
-            else
-                materialData.erase(entry.first);
+            {
+                if (known == materialData.end())
+                    materialData.emplace(entry.first, entry.second.second);
+                else if (memcmp(&known->second, &entry.second.second, sizeof(MaterialData)) != 0)
+                    known->second = entry.second.second;
+                else
+                    continue;
+                ++materialVersion;
+            }
+            else if (known != materialData.end())
+            {
+                materialData.erase(known);
+                ++materialVersion;
+            }
         }
         for (auto& entry : taken.textures)
         {
@@ -345,6 +361,7 @@ namespace redefinition
                 into.instances = std::move(scene.instances);
             if (scene.groupsSet)
                 into.groups = std::move(scene.groups);
+            into.revision = ++sceneRevision;
         }
         taken.releases.clear();
         taken.meshes.clear();
@@ -778,23 +795,23 @@ namespace redefinition
         guides.fromFrame = false;
         if (frame.denoising || (packet.flags & kRtFrameGuides) == 0)
             return;
-        auto pipeline = denoisePipelines.find("RT_FrameGuides");
-        if (pipeline == denoisePipelines.end() || !EnsureGuidesLocked(frame.slot->held, packet.width, packet.height))
+        ID3D12PipelineState* pipeline = AuxPipeline(RtAux::FrameGuides);
+        if (pipeline == nullptr || !EnsureGuidesLocked(frame.slot->held, packet.width, packet.height))
             return;
         const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
         list->ResourceBarrier(1, &written);
-        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-            UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        UseLocked({ &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance },
+                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         UINT used = kFrameGuidesTable;
         const View reads[8] = {};
         const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
                                  Of(&guides.hitDistance) };
         BindTablesLocked(TableLocked(frame.slotNumber, used, reads, writes));
-        list->SetPipelineState(pipeline->second.Get());
+        list->SetPipelineState(pipeline);
         list->Dispatch((packet.width + 7) / 8, (packet.height + 7) / 8, 1);
         // Streamline takes them in the state it is given.
-        for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-            UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        UseLocked({ &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance },
+                  D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         guides.fromFrame = true;
         guides.frame = packet.frameIndex;
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampGuidesEnd);

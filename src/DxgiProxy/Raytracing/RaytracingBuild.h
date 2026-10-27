@@ -12,6 +12,7 @@
 #include <wrl/client.h>
 
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <vector>
 
@@ -85,14 +86,15 @@ namespace redefinition
         void ReleaseIdle(ULONGLONG now);
 
         // Setup's values; the chunks; the ranges freed with their fence values, waiting for
-        // Reclaim; the bytes reserved and used (Reserved, Used).
+        // Reclaim, oldest first as the fence values only grow; the bytes reserved and used
+        // (Reserved, Used).
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE;
         D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
         UINT64 granularity = 256;
         UINT64 chunkSize = 0;
         const wchar_t* name = L"";
         std::vector<Chunk> chunks;
-        std::vector<std::pair<RtPoolRange, UINT64>> retired;
+        std::deque<std::pair<RtPoolRange, UINT64>> retired;
         UINT64 reserved = 0;
         UINT64 used = 0;
     };

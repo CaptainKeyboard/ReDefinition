@@ -120,15 +120,11 @@ namespace redefinition
 
     void RtBufferPool::Reclaim(UINT64 completed)
     {
-        for (auto it = retired.begin(); it != retired.end();)
+        // Freed with the next fence value each time, so the oldest are in front.
+        while (!retired.empty() && retired.front().second <= completed)
         {
-            if (it->second <= completed)
-            {
-                Release(it->first);
-                it = retired.erase(it);
-            }
-            else
-                ++it;
+            Release(retired.front().first);
+            retired.pop_front();
         }
         ReleaseIdle(GetTickCount64());
     }

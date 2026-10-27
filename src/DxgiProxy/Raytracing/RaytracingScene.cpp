@@ -41,17 +41,16 @@ namespace redefinition
 
     bool Raytracing::TakeDescriptorSlotLocked(uint32_t& slot)
     {
-        // Slots retired by lists the queue is past come back first.
-        const UINT64 completed = fence12 != nullptr ? fence12->GetCompletedValue() : 0;
-        for (auto it = retiredSlots.begin(); it != retiredSlots.end();)
+        // Slots retired by lists the queue is past come back first, the oldest first; the
+        // fence is asked only where some are waiting.
+        if (!retiredSlots.empty())
         {
-            if (it->second <= completed)
+            const UINT64 completed = fence12 != nullptr ? fence12->GetCompletedValue() : 0;
+            while (!retiredSlots.empty() && retiredSlots.front().second <= completed)
             {
-                freeSlots.push_back(it->first);
-                it = retiredSlots.erase(it);
+                freeSlots.push_back(retiredSlots.front().first);
+                retiredSlots.pop_front();
             }
-            else
-                ++it;
         }
         if (freeSlots.empty())
             return false;
@@ -112,13 +111,37 @@ namespace redefinition
         clusterSupport = -1;
         getRequirements = execute = nullptr;
         clusterBlasSizes.clear();
+        clusterScratch = ClusterScratch{};
         setUp = false;
     }
 
-    bool Raytracing::IsCutoutLocked(int32_t material) const
+    void Raytracing::UpdateMaterialTableLocked()
     {
-        const auto found = materialData.find(material);
-        return found != materialData.end() && found->second.albedo[3] > 0.0f;
+        if (materialTableVersion == materialVersion)
+            return;
+        // Index 0 is a plain grey for instances whose material is unknown.
+        materialList.clear();
+        materialLookup.clear();
+        MaterialData grey = {};
+        grey.albedo[0] = grey.albedo[1] = grey.albedo[2] = 0.5f;
+        grey.albedo[3] = 0.0f;
+        grey.specular[0] = grey.specular[1] = grey.specular[2] = 0.04f;
+        grey.smoothness = 0.2f;
+        grey.texture = -1;
+        materialList.push_back(grey);
+        for (const auto& entry : materialData)
+        {
+            // A texture cuts a surface out where its albedo's alpha is above 0.
+            materialLookup[entry.first] = { static_cast<uint32_t>(materialList.size()), entry.second.albedo[3] > 0.0f };
+            materialList.push_back(entry.second);
+        }
+        materialTableVersion = materialVersion;
+    }
+
+    Raytracing::MaterialEntry Raytracing::MaterialEntryLocked(int32_t material) const
+    {
+        const auto found = materialLookup.find(material);
+        return found != materialLookup.end() ? found->second : MaterialEntry{};
     }
 
     namespace
@@ -1086,55 +1109,86 @@ namespace redefinition
         device->CreateShaderResourceView(materialTextures.Get(), &srv, view);
     }
 
-    bool Raytracing::BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances,
-                                      UINT& instanceCount)
+    bool Raytracing::PrepareSceneBuffersLocked(Slot& slot, const std::vector<RtInstance>& instances)
     {
-        // This frame's scene, or the newest where it sent none of its own.
-        static const FrameScene none;
-        const FrameScene* scene = frameScenes.empty() ? &none : &frameScenes.back();
-        for (const FrameScene& candidate : frameScenes)
-            if (candidate.frameIndex == frameIndex)
-                scene = &candidate;
-        const std::vector<RtInstance>& instances = scene->instances;
-
-        // Materials: index 0 is a plain grey for instances whose material is unknown.
-        std::unordered_map<int32_t, uint32_t> materialIndex;
-        std::vector<MaterialData> materialList;
-        MaterialData grey = {};
-        grey.albedo[0] = grey.albedo[1] = grey.albedo[2] = 0.5f;
-        grey.albedo[3] = 0.0f;
-        grey.specular[0] = grey.specular[1] = grey.specular[2] = 0.04f;
-        grey.smoothness = 0.2f;
-        grey.texture = -1;
-        materialList.push_back(grey);
-        for (const auto& entry : materialData)
+        // Room for the instances. The buffers grow by the instances whose meshes are built, so
+        // they are counted where the frame may hold more than the buffers do.
+        if (std::max<size_t>(instances.size(), 1) > slot.instanceCapacity)
         {
-            materialIndex[entry.first] = static_cast<uint32_t>(materialList.size());
-            materialList.push_back(entry.second);
+            size_t builtInstances = 0;
+            for (const RtInstance& instance : instances)
+            {
+                const auto mesh = meshes.find(instance.mesh);
+                if (mesh != meshes.end() && mesh->second.built)
+                    ++builtInstances;
+            }
+            // InstanceID has 24 bits.
+            const UINT capacity = std::max<UINT>(static_cast<UINT>(std::min<size_t>(builtInstances, 0xFFFFFFu)), 1);
+            if (slot.instanceCapacity < capacity)
+            {
+                UINT grown = std::max<UINT>(capacity, slot.instanceCapacity * 2);
+                grown = std::max<UINT>(grown, 256);
+                if (!EnsureUploadBuffer(slot.instanceDescs, static_cast<UINT64>(grown) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC))
+                    || !EnsureUploadBuffer(slot.instanceData, static_cast<UINT64>(grown) * sizeof(InstanceData)))
+                {
+                    SetProblem("the instance buffers could not be made");
+                    return false;
+                }
+                slot.instanceCapacity = grown;
+            }
         }
+        const UINT materialCount = static_cast<UINT>(materialList.size());
+        if (slot.materialCapacity < materialCount)
+        {
+            const UINT grown = std::max<UINT>(std::max<UINT>(materialCount, slot.materialCapacity * 2), 64);
+            // The new buffer holds nothing yet.
+            slot.materialsVersion = 0;
+            if (!EnsureUploadBuffer(slot.materials, static_cast<UINT64>(grown) * sizeof(MaterialData)))
+            {
+                SetProblem("the material buffer could not be made");
+                return false;
+            }
+            slot.materialCapacity = grown;
+        }
+        return true;
+    }
 
-        std::vector<D3D12_RAYTRACING_INSTANCE_DESC> descs;
-        std::vector<InstanceData> data;
-        descs.reserve(instances.size());
-        data.reserve(instances.size());
+    bool Raytracing::WriteSceneInstancesLocked(Slot& slot, const std::vector<RtInstance>& instances, UINT& instanceCount)
+    {
+        // The instances straight into the slot's upload buffers, which are only written, in
+        // order: reading write-combined memory back is slow.
+        const D3D12_RANGE nothing = { 0, 0 };
+        D3D12_RAYTRACING_INSTANCE_DESC* descs = nullptr;
+        InstanceData* data = nullptr;
+        if (!instances.empty()
+            && (FAILED(slot.instanceDescs->Map(0, &nothing, reinterpret_cast<void**>(&descs)))
+                || FAILED(slot.instanceData->Map(0, &nothing, reinterpret_cast<void**>(&data)))))
+        {
+            if (descs != nullptr)
+                slot.instanceDescs->Unmap(0, nullptr);
+            SetProblem("the instance buffers could not be mapped");
+            return false;
+        }
+        UINT written = 0;
         for (const RtInstance& instance : instances)
         {
             auto mesh = meshes.find(instance.mesh);
             if (mesh == meshes.end() || !mesh->second.built)
                 continue;
             // InstanceID has 24 bits.
-            if (descs.size() >= 0xFFFFFFu)
+            if (written >= 0xFFFFFFu)
             {
                 SetProblem("more instances than a scene's 16 777 215; the rest are left out");
                 break;
             }
+            const MaterialEntry material = MaterialEntryLocked(instance.material);
             D3D12_RAYTRACING_INSTANCE_DESC desc = {};
             memcpy(desc.Transform, instance.transform, sizeof(desc.Transform));
-            desc.InstanceID = static_cast<UINT>(data.size()) & 0xFFFFFFu;
+            desc.InstanceID = written & 0xFFFFFFu;
             desc.InstanceMask = instance.mask & 0xFFu;
             desc.InstanceContributionToHitGroupIndex = 0;
             // Terrain and cut-out surfaces go through the passes' candidate test.
-            const bool cutout = IsCutoutLocked(instance.material);
+            const bool cutout = material.cutout;
             UINT instanceFlags = D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE
                                  | ((instance.flags & kRtInstanceTerrain) != 0 || cutout
                                         ? D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE : 0);
@@ -1151,74 +1205,42 @@ namespace redefinition
             }
             desc.Flags = instanceFlags;
             desc.AccelerationStructure = mesh->second.blas.address;
-            descs.push_back(desc);
+            descs[written] = desc;
 
             InstanceData item = {};
             item.meshSlot = mesh->second.slot;
-            auto material = materialIndex.find(instance.material);
-            item.material = material != materialIndex.end() ? material->second : 0u;
+            item.material = material.index;
             item.flags = instance.flags | (cutout ? kRtInstanceCutout : 0u);
             NormalMatrix(instance.transform, item.normalRows);
-            data.push_back(item);
+            data[written] = item;
+            ++written;
         }
-        instanceCount = static_cast<UINT>(descs.size());
-
-        const UINT capacity = std::max<UINT>(instanceCount, 1);
-        if (slot.instanceCapacity < capacity)
-        {
-            UINT grown = std::max<UINT>(capacity, slot.instanceCapacity * 2);
-            grown = std::max<UINT>(grown, 256);
-            if (!EnsureUploadBuffer(slot.instanceDescs, static_cast<UINT64>(grown) * sizeof(D3D12_RAYTRACING_INSTANCE_DESC))
-                || !EnsureUploadBuffer(slot.instanceData, static_cast<UINT64>(grown) * sizeof(InstanceData)))
-            {
-                SetProblem("the instance buffers could not be made");
-                return false;
-            }
-            slot.instanceCapacity = grown;
-        }
-        const UINT materialCount = static_cast<UINT>(materialList.size());
-        if (slot.materialCapacity < materialCount)
-        {
-            const UINT grown = std::max<UINT>(std::max<UINT>(materialCount, slot.materialCapacity * 2), 64);
-            if (!EnsureUploadBuffer(slot.materials, static_cast<UINT64>(grown) * sizeof(MaterialData)))
-            {
-                SetProblem("the material buffer could not be made");
-                return false;
-            }
-            slot.materialCapacity = grown;
-        }
-
-        const D3D12_RANGE nothing = { 0, 0 };
-        void* mapped = nullptr;
-        if (instanceCount > 0 && SUCCEEDED(slot.instanceDescs->Map(0, &nothing, &mapped)))
-        {
-            memcpy(mapped, descs.data(), descs.size() * sizeof(D3D12_RAYTRACING_INSTANCE_DESC));
+        if (descs != nullptr)
             slot.instanceDescs->Unmap(0, nullptr);
-        }
-        if (instanceCount > 0 && SUCCEEDED(slot.instanceData->Map(0, &nothing, &mapped)))
-        {
-            memcpy(mapped, data.data(), data.size() * sizeof(InstanceData));
+        if (data != nullptr)
             slot.instanceData->Unmap(0, nullptr);
-        }
-        if (SUCCEEDED(slot.materials->Map(0, &nothing, &mapped)))
-        {
-            memcpy(mapped, materialList.data(), materialList.size() * sizeof(MaterialData));
-            slot.materials->Unmap(0, nullptr);
-        }
+        instanceCount = written;
+        return true;
+    }
 
-        // The GPU's instances after these, where the frame has any.
-        D3D12_GPU_VIRTUAL_ADDRESS descsAddress = slot.instanceDescs->GetGPUVirtualAddress();
-        slot.instanceDataAddress = slot.instanceData->GetGPUVirtualAddress();
-        UINT total = instanceCount;
-        if (!scene->groups.empty() && gpuInstances != nullptr
-            && AddGpuInstancesLocked(slot, slotNumber, gpuInstances, scene->groups, materialIndex, instanceCount, total)
-            && total > instanceCount)
+    void Raytracing::WriteMaterialsLocked(Slot& slot)
+    {
+        const D3D12_RANGE nothing = { 0, 0 };
+        // The materials, once for each version of them the slot's buffer has not seen.
+        if (slot.materialsVersion != materialTableVersion)
         {
-            descsAddress = slot.sceneDescs->GetGPUVirtualAddress();
-            slot.instanceDataAddress = slot.sceneData->GetGPUVirtualAddress();
-            instanceCount = total;
+            void* mapped = nullptr;
+            if (SUCCEEDED(slot.materials->Map(0, &nothing, &mapped)))
+            {
+                memcpy(mapped, materialList.data(), materialList.size() * sizeof(MaterialData));
+                slot.materials->Unmap(0, nullptr);
+                slot.materialsVersion = materialTableVersion;
+            }
         }
+    }
 
+    bool Raytracing::BuildTlasLocked(Slot& slot, D3D12_GPU_VIRTUAL_ADDRESS descsAddress, UINT instanceCount)
+    {
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
         inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
         // rtTlasFastTrace: NVIDIA's "For TLAS, consider the PREFER_FAST_TRACE flag and
@@ -1271,6 +1293,39 @@ namespace redefinition
         return true;
     }
 
+    bool Raytracing::BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances,
+                                      UINT& instanceCount)
+    {
+        // This frame's scene, or the newest where it sent none of its own.
+        static const FrameScene none;
+        const FrameScene* scene = frameScenes.empty() ? &none : &frameScenes.back();
+        for (const FrameScene& candidate : frameScenes)
+            if (candidate.frameIndex == frameIndex)
+                scene = &candidate;
+        const std::vector<RtInstance>& instances = scene->instances;
+
+        // The materials' table, made anew only where a material changed.
+        UpdateMaterialTableLocked();
+        if (!PrepareSceneBuffersLocked(slot, instances) || !WriteSceneInstancesLocked(slot, instances, instanceCount))
+            return false;
+        WriteMaterialsLocked(slot);
+
+        // The GPU's instances after these, where the frame has any.
+        D3D12_GPU_VIRTUAL_ADDRESS descsAddress = slot.instanceDescs->GetGPUVirtualAddress();
+        slot.instanceDataAddress = slot.instanceData->GetGPUVirtualAddress();
+        UINT total = instanceCount;
+        if (!scene->groups.empty() && gpuInstances != nullptr
+            && AddGpuInstancesLocked(slot, slotNumber, gpuInstances, scene->groups, instanceCount, total)
+            && total > instanceCount)
+        {
+            descsAddress = slot.sceneDescs->GetGPUVirtualAddress();
+            slot.instanceDataAddress = slot.sceneData->GetGPUVirtualAddress();
+            instanceCount = total;
+        }
+
+        return BuildTlasLocked(slot, descsAddress, instanceCount);
+    }
+
     // A group as the GPU pass reads it (Raytracing/Shaders/GpuInstances.hlsl).
     struct GpuGroup
     {
@@ -1289,11 +1344,10 @@ namespace redefinition
     };
 
     bool Raytracing::AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances,
-                                           const std::vector<RtGpuInstanceGroup>& given,
-                                           const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total)
+                                           const std::vector<RtGpuInstanceGroup>& given, UINT cpuCount, UINT& total)
     {
-        auto pipeline = denoisePipelines.find("RT_GpuInstances");
-        if (pipeline == denoisePipelines.end())
+        ID3D12PipelineState* pipeline = AuxPipeline(RtAux::GpuInstances);
+        if (pipeline == nullptr)
             return false;
         // What each group is on the device; the ones whose mesh is not built are left out,
         // and the ones past InstanceID's 24 bits.
@@ -1313,13 +1367,13 @@ namespace redefinition
                 continue;
             }
             const D3D12_GPU_VIRTUAL_ADDRESS blas = mesh->second.blas.address;
-            auto material = materialIndex.find(group.material);
-            const bool cutout = IsCutoutLocked(group.material);
+            const MaterialEntry material = MaterialEntryLocked(group.material);
+            const bool cutout = material.cutout;
             GpuGroup item = {};
             item.blasLow = static_cast<uint32_t>(blas & 0xFFFFFFFFu);
             item.blasHigh = static_cast<uint32_t>(blas >> 32);
             item.meshSlot = mesh->second.slot;
-            item.material = material != materialIndex.end() ? material->second : 0u;
+            item.material = material.index;
             item.first = group.first;
             item.count = group.count;
             item.start = gpuCount;
@@ -1458,7 +1512,7 @@ namespace redefinition
         BindTablesLocked(gpu);
         const UINT values[4] = { groupCount, gpuCount, cpuCount, 0 };
         list->SetComputeRoot32BitConstants(9, 4, values, 0);
-        list->SetPipelineState(pipeline->second.Get());
+        list->SetPipelineState(pipeline);
         list->Dispatch((gpuCount + 63) / 64, 1, 1);
 
         barriers.clear();

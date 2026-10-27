@@ -247,27 +247,27 @@ namespace redefinition
         if (!prepared)
         {
             // The pipeline first: the guides' states are recorded only for a list that runs.
-            auto pipeline = denoisePipelines.find("RT_ReconstructGuides");
-            if (pipeline == denoisePipelines.end())
+            ID3D12PipelineState* pipeline = AuxPipeline(RtAux::ReconstructGuides);
+            if (pipeline == nullptr)
             {
                 SetProblem("this build has no Ray Reconstruction guide pass");
                 list->Close();
                 return;
             }
-            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-                UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            UseLocked({ &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance },
+                      D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             UINT used = 0;
             const View reads[8] = { Of(specular) };
             const View writes[4] = { Of(&guides.albedo), Of(&guides.specularAlbedo), Of(&guides.normalRoughness),
                                      Of(&guides.hitDistance) };
             const D3D12_GPU_DESCRIPTOR_HANDLE guideTable = TableLocked(slotNumber, used, reads, writes);
-            list->SetPipelineState(pipeline->second.Get());
+            list->SetPipelineState(pipeline);
             BindTablesLocked(guideTable);
             list->Dispatch((width + 7) / 8, (height + 7) / 8, 1);
             // Streamline takes every resource in the state it is given and leaves it so;
             // NGX takes its inputs in this one.
-            for (DenoiseTarget* target : { &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance })
-                UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            UseLocked({ &guides.albedo, &guides.specularAlbedo, &guides.normalRoughness, &guides.hitDistance },
+                      D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
 
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrGuides);

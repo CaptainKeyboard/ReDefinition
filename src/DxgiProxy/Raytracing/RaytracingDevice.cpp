@@ -321,10 +321,10 @@ namespace redefinition
             }
             pipelines[pass.signal] = pipeline;
         }
-        for (const wchar_t* entry : kRtDenoiseEntries)
+        for (size_t entryIndex = 0; entryIndex < kRtAuxCount; ++entryIndex)
         {
             char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
+            WideCharToMultiByte(CP_UTF8, 0, kRtDenoiseEntries[entryIndex], -1, name, sizeof(name), nullptr, nullptr);
             const auto code = shaders.find(name);
             if (code == shaders.end())
                 continue;
@@ -339,7 +339,7 @@ namespace redefinition
                 SetProblem(std::string("the denoiser's pass ") + name + " could not be built (" + Hr(hr) + ")");
                 return false;
             }
-            denoisePipelines[name] = pipeline;
+            denoisePipelines[entryIndex] = pipeline;
         }
         return true;
     }
@@ -596,6 +596,7 @@ namespace redefinition
         pendingMeshes.clear();
         pendingReleases.clear();
         materialData.clear();
+        ++materialVersion;
         pendingTextures.clear();
         {
             // The same of what the main thread handed over since; its scenes stay, as the
@@ -621,7 +622,7 @@ namespace redefinition
         meshSlotsFull = false;
         textures.clear();
         pipelines.clear();
-        denoisePipelines.clear();
+        ResetAuxPipelines();
         denoise = DenoiseTargets{};
         guides = GuideTargets{};
         rootSignature.Reset();

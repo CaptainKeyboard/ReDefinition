@@ -99,12 +99,30 @@ namespace redefinition
         const uint32_t clusterCount = (triangles + kClusterTriangles - 1) / kClusterTriangles;
         if (clusterCount == 0 || clusterCount > (1u << 24))
             return false;
-        std::vector<uint32_t> firstVertex(clusterCount + 1, 0);
-        std::vector<uint32_t> vertices;
+        // The five working arrays are the BlasMemory's, kept from mesh to mesh; one made for a
+        // very large mesh is let go of as this returns.
+        BlasMemory::ClusterScratch& scratch = blasMemory.clusterScratch;
+        struct ScratchRelease
+        {
+            BlasMemory::ClusterScratch& scratch;
+            ~ScratchRelease()
+            {
+                constexpr size_t kKeep = 1u << 20;
+                if (scratch.seenIn.capacity() > kKeep || scratch.localIndices.capacity() > kKeep)
+                    scratch = BlasMemory::ClusterScratch{};
+            }
+        } release = { scratch };
+        std::vector<uint32_t>& firstVertex = scratch.firstVertex;
+        std::vector<uint32_t>& vertices = scratch.vertices;
+        std::vector<uint8_t>& localIndices = scratch.localIndices;
+        std::vector<uint32_t>& seenIn = scratch.seenIn;
+        std::vector<uint8_t>& localOf = scratch.localOf;
+        firstVertex.assign(clusterCount + 1, 0);
+        vertices.clear();
         vertices.reserve(pending.vertexCount + clusterCount * 16);
-        std::vector<uint8_t> localIndices(pending.indices.size());
-        std::vector<uint32_t> seenIn(pending.vertexCount, UINT32_MAX);
-        std::vector<uint8_t> localOf(pending.vertexCount, 0);
+        localIndices.assign(pending.indices.size(), 0);
+        seenIn.assign(pending.vertexCount, UINT32_MAX);
+        localOf.assign(pending.vertexCount, 0);
         for (uint32_t c = 0; c < clusterCount; ++c)
         {
             firstVertex[c] = static_cast<uint32_t>(vertices.size());

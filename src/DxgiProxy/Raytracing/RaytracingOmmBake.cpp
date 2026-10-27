@@ -287,6 +287,34 @@ namespace redefinition
 
         }
 
+        namespace
+        {
+            // A triangle's coordinates as the key of the triangles that share an OMM: equal where
+            // their bytes are, so that 0 and -0 differ, and hashed over them without a string.
+            struct UvKey
+            {
+                // The coordinates, 24 bytes with no padding.
+                TriangleUv uv;
+                bool operator==(const UvKey& other) const { return memcmp(&uv, &other.uv, sizeof(uv)) == 0; }
+            };
+            static_assert(sizeof(TriangleUv) == 6 * sizeof(float), "a TriangleUv has no padding");
+
+            // The hash of a UvKey, over its bytes.
+            struct UvKeyHash
+            {
+                // FNV-1a, 64 bits, taken as a size_t.
+                size_t operator()(const UvKey& key) const
+                {
+                    // FNV-1a over the bytes.
+                    uint64_t hash = 14695981039346656037ull;
+                    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&key.uv);
+                    for (size_t i = 0; i < sizeof(key.uv); ++i)
+                        hash = (hash ^ bytes[i]) * 1099511628211ull;
+                    return static_cast<size_t>(hash);
+                }
+            };
+        }
+
         void Bake(const TriangleUv* triangles, size_t count, const uint8_t* alpha, const Settings& settings, Baked& out)
         {
             out = Baked();
@@ -294,14 +322,16 @@ namespace redefinition
             const uint32_t finest = std::min<uint32_t>(settings.maxLevel, 8);
             // Triangles with the same texture coordinates share an OMM; OMMs with the same
             // states share their bytes.
-            std::unordered_map<std::string, int32_t> seenTriangles;
-            std::unordered_map<std::string, int32_t> seenBlocks;
+            std::unordered_map<UvKey, int32_t, UvKeyHash> seenTriangles;
+            // The OMMs made, per level by the bytes of their states.
+            std::unordered_map<std::string, int32_t> seenBlocks[kTableLevels];
+            std::vector<uint8_t> states;
             uint64_t budget = settings.maxMicroTriangles;
             const double toTexels = static_cast<double>(kTextureSize);
             for (size_t t = 0; t < count; ++t)
             {
                 const TriangleUv& tri = triangles[t];
-                const std::string key(reinterpret_cast<const char*>(&tri), sizeof(tri));
+                const UvKey key = { tri };
                 const auto seen = seenTriangles.find(key);
                 if (seen != seenTriangles.end())
                 {
@@ -353,7 +383,7 @@ namespace redefinition
                 const Level& table = LevelOf(level);
                 const double side = static_cast<double>(table.side);
                 const uint32_t cells = MicroTriangleCount(level);
-                std::vector<uint8_t> states(cells);
+                states.resize(cells);
                 uint32_t counts[4] = {};
                 for (uint32_t k = 0; k < cells; ++k)
                 {
@@ -380,9 +410,9 @@ namespace redefinition
                 std::string block(OmmBytes(level), '\0');
                 for (uint32_t k = 0; k < cells; ++k)
                     block[(k * 2) / 8] = static_cast<char>(block[(k * 2) / 8] | (states[k] << ((k * 2) % 8)));
-                const std::string blockKey = std::string(1, static_cast<char>(level)) + block;
-                const auto known = seenBlocks.find(blockKey);
-                if (known != seenBlocks.end())
+                std::unordered_map<std::string, int32_t>& seenAtLevel = seenBlocks[level];
+                const auto known = seenAtLevel.find(block);
+                if (known != seenAtLevel.end())
                 {
                     remember(known->second);
                     continue;
@@ -399,7 +429,7 @@ namespace redefinition
                 for (int s = 0; s < 4; ++s)
                     out.microTriangles[s] += counts[s];
                 budget -= std::min<uint64_t>(budget, cells);
-                seenBlocks.emplace(blockKey, index);
+                seenAtLevel.emplace(block, index);
                 remember(index);
             }
             // The data ends at a multiple of the alignment, so that what follows it does too.
