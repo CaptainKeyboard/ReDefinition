@@ -38,6 +38,9 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 # KSP's own sea's mean square slope (RtCommon.hlsli): 24 sine waves of slope
 # kStockWaveSlope, half its square each, and kRippleOctaves octaves of kRippleSlope.
 STOCK_M2 = 24 * 0.5 * 0.0254 ** 2 + 6 * 0.055 ** 2
@@ -91,11 +94,6 @@ def specular(n, v, l, m):
     d = np.exp(-(1.0 - nh * nh) / (nh * nh * m2)) / (math.pi * m2 * nh ** 4)
     out = d * g1(nv, m) * g1(nl, m) / (4.0 * np.maximum(nv, 1e-4))
     return np.where((nl > 0) & (nv > 0), out, 0.0)
-
-
-def luminance(c):
-    """Rec. 709 luminance of linear RGB."""
-    return c[..., 0] * 0.2126 + c[..., 1] * 0.7152 + c[..., 2] * 0.0722
 
 
 def traced_sun_colours(log):
@@ -201,11 +199,11 @@ def analyse(folder, name, sun_colours=None, picture=None):
     for _, l, _, irradiance in sources:
         model += specular(normal, v, np.broadcast_to(l, normal.shape), m)[..., None] * irradiance
     model[~hit] = 0.0
-    main = max(sources, key=lambda s: float(luminance(np.asarray(s[3]))))
+    main = max(sources, key=lambda s: float(imaging.luminance(np.asarray(s[3]))))
     l = main[1]
 
-    measured = luminance(traced.astype(float))
-    expected = luminance(model)
+    measured = imaging.luminance(traced.astype(float))
+    expected = imaging.luminance(model)
     measured[~hit] = np.nan
     expected[~hit] = np.nan
 

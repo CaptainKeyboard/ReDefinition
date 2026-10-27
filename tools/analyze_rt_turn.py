@@ -19,6 +19,9 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 try:
     from PIL import Image
 except ImportError:
@@ -54,8 +57,7 @@ def load(folder, name, frame, what, channels, dtype):
 
 def luminance(colour):
     """Rec. 709 luminance, tone-mapped by y / (1 + y), so bright pixels do not dominate the error."""
-    y = colour[..., 0] * 0.2126 + colour[..., 1] * 0.7152 + colour[..., 2] * 0.0722
-    y = np.maximum(y, 0.0)
+    y = np.maximum(imaging.luminance(colour), 0.0)
     return y / (1.0 + y)
 
 

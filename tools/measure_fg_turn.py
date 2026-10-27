@@ -18,17 +18,15 @@ import sys
 import numpy as np
 from PIL import Image
 
-
-def grey(image):
-    """An 8-bit image as grey (RGB mean), as floats."""
-    return image[..., :3].astype(np.float32).mean(axis=2)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
 
 
 def reference(turn, name, w, h):
     """A turn frame as the dump encodes it (rows flipped, gamma 2.2, 8 bits), grey, averaged down to half size."""
     raw = np.fromfile(os.path.join(turn, name + '_colour.bin'), dtype=np.float16).reshape(h, w, 4).astype(np.float32)
     encoded = (np.clip(raw[::-1, :, :3], 0.0, 1.0) ** (1.0 / 2.2) * 255.0 + 0.5).astype(np.uint8).astype(np.float32)
-    g = encoded.mean(axis=2)
+    g = imaging.grey(encoded)
     return g.reshape(h // 2, 2, w // 2, 2).mean(axis=(1, 3))
 
 
@@ -77,8 +75,8 @@ def main():
             continue
         w, h = sizes[name]
         truth = reference(turn, name, w, h)
-        generated = grey(np.array(Image.open(f)))
-        copy = grey(np.array(Image.open(files[i + 1])))
+        generated = imaging.grey(np.array(Image.open(f)))
+        copy = imaging.grey(np.array(Image.open(files[i + 1])))
         if generated.shape != truth.shape:
             print('sizes differ: %s against %s' % (generated.shape, truth.shape))
             return

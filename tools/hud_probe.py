@@ -29,6 +29,7 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import benchmark_matrix as bm  # noqa: E402
+import imaging  # noqa: E402
 
 DEFAULT_PACKAGE = os.path.join(os.path.dirname(HERE), ".local", "dlssg_x")
 MOD_REL = os.path.join("GameData", "ReDefinition", "Plugins", "ReDefinition.dll")
@@ -278,15 +279,10 @@ def parse_regions(text, width, height):
     return regions
 
 
-def grey(a):
-    """An RGB image as grey (channel mean)."""
-    return a.mean(axis=2)
-
-
 def gradient(a):
     """The magnitude of the grey image's forward differences, one pixel smaller each way."""
     import numpy as np
-    g = grey(a)
+    g = imaging.grey(a)
     gx = np.abs(np.diff(g, axis=1))[:-1, :]
     gy = np.abs(np.diff(g, axis=0))[:, :-1]
     return np.sqrt(gx * gx + gy * gy)
@@ -297,7 +293,7 @@ def static_mask(reals, box, threshold):
     turns: the HUD where it is opaque (the scene behind it moves, and a pixel of it does not)."""
     import numpy as np
     x0, y0, x1, y1 = box
-    stack = np.stack([grey(f["image"][y0:y1, x0:x1]) for f in reals])
+    stack = np.stack([imaging.grey(f["image"][y0:y1, x0:x1]) for f in reals])
     return stack.std(axis=0) < threshold
 
 
