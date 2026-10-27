@@ -34,8 +34,21 @@ namespace ReDefinition.Dashboard
         // g.scene: the scene KSP has loaded, by its GameScenes name (MAINMENU, SPACECENTER, FLIGHT ...).
         internal static string Scene
         {
-            get { return HighLogic.LoadedScene.ToString(); }
+            get
+            {
+                GameScenes scene = HighLogic.LoadedScene;
+                if (sceneName == null || scene != sceneNamed)
+                {
+                    sceneNamed = scene;
+                    sceneName = scene.ToString();
+                }
+                return sceneName;
+            }
         }
+
+        // The scene whose name was last made, and that name, so that the per-frame read does not format the enum each time.
+        private static GameScenes sceneNamed;
+        private static string sceneName;
 
         // As a save's summary writes it: 1.12.5.
         private static string KspVersion

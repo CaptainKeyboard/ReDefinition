@@ -34,7 +34,14 @@ namespace ReDefinition.Dashboard
             public float IntervalSeconds = 0.5f;
             public float NextSend;
             // What each key was last sent as: a key goes out again only when that changes.
-            public readonly Dictionary<string, string> Sent = new Dictionary<string, string>();
+            public readonly Dictionary<string, SentValue> Sent = new Dictionary<string, SentValue>();
+        }
+
+        // What a key was last sent as: its JSON text and the rounded value that text was made of.
+        private sealed class SentValue
+        {
+            public string Text;
+            public object Value;
         }
 
         // A message from a network thread, waiting for Update: the client that sent it and its text.
@@ -53,6 +60,11 @@ namespace ReDefinition.Dashboard
         private string listensWithKey;
         private Telemetry telemetry;
         private readonly ConcurrentQueue<Incoming> incoming = new ConcurrentQueue<Incoming>();
+        // What Collect works in, reused by every client's update: it runs on the main thread and its result is sent before the next call.
+        private readonly Dictionary<string, object> collected = new Dictionary<string, object>();
+        private readonly List<string> unknownKeys = new List<string>();
+        private readonly List<string> readKeys = new List<string>();
+        private readonly HashSet<string> readOnce = new HashSet<string>();
 
         // The folder the dashboard's pages, scripts and pictures are served from.
         private static string WebRoot
@@ -161,13 +173,20 @@ namespace ReDefinition.Dashboard
 
         // One update for a client: its subscribed keys whose value changed since the last send, its one-shot
         // reads whatever their value, and under "unknown" the keys the telemetry has no reader for.
+        // The result is the server's scratch dictionary, emptied by the next call.
         private Dictionary<string, object> Collect(Subscriptions subs)
         {
-            var result = new Dictionary<string, object>();
-            var unknown = new List<string>();
-            var keys = new List<string>(subs.Keys);
-            var oneShot = new HashSet<string>(subs.OneShot);
+            var result = collected;
+            var unknown = unknownKeys;
+            var keys = readKeys;
+            var oneShot = readOnce;
+            result.Clear();
+            unknown.Clear();
+            keys.Clear();
+            oneShot.Clear();
+            keys.AddRange(subs.Keys);
             keys.AddRange(subs.OneShot);
+            foreach (string once in subs.OneShot) oneShot.Add(once);
             subs.OneShot.Clear();
             foreach (string key in keys)
             {
@@ -176,9 +195,19 @@ namespace ReDefinition.Dashboard
                     object value;
                     if (telemetry.TryRead(key, out value))
                     {
-                        string text = Json.Value(Telemetry.Round(key, value)), last;
-                        if (!oneShot.Contains(key) && subs.Sent.TryGetValue(key, out last) && last == text) continue;
-                        if (subs.Keys.Contains(key)) subs.Sent[key] = text;
+                        object rounded = telemetry.RoundRead(key, value);
+                        SentValue last;
+                        bool sent = subs.Sent.TryGetValue(key, out last);
+                        bool again = sent && !oneShot.Contains(key);
+                        // The same scalar as last time gives the same text, which is not worth writing out to find that.
+                        if (again && Same(last.Value, rounded)) continue;
+                        string text = Json.Value(rounded);
+                        if (again && last.Text == text) { last.Value = rounded; continue; }
+                        if (subs.Keys.Contains(key))
+                        {
+                            if (sent) { last.Text = text; last.Value = rounded; }
+                            else subs.Sent[key] = new SentValue { Text = text, Value = rounded };
+                        }
                         result[key] = new Json.Raw(text);
                     }
                     else if (!telemetry.IsKnown(key)) unknown.Add(key);
@@ -192,6 +221,18 @@ namespace ReDefinition.Dashboard
             }
             if (unknown.Count > 0) result["unknown"] = unknown;
             return result;
+        }
+
+        // Whether two rounded values certainly write the same JSON: both null, the same number to the bit, the same
+        // bool, an equal string, or one Json.Raw. Anything else (a list, a dictionary) is compared by its text.
+        internal static bool Same(object a, object b)
+        {
+            if (a == null || b == null) return a == null && b == null;
+            if (a is double) return b is double && BitConverter.DoubleToInt64Bits((double)a) == BitConverter.DoubleToInt64Bits((double)b);
+            if (a is bool) return b is bool && (bool)a == (bool)b;
+            string text = a as string;
+            if (text != null) return text == b as string;
+            return a is Json.Raw && ReferenceEquals(a, b);
         }
 
         // One message from a client, a JSON object: "+" and "-" add and remove subscribed keys, "run" lists
