@@ -13,27 +13,23 @@ namespace ReDefinition.Tests
     // the ini's folders, and an archive entry laid out as Intel's release has it
     // (streamed: a data descriptor, no sizes in the local header).
     [TestClass]
-    public class IntelFilesTests
+    public class IntelFilesTests : TempFolderTests
     {
-        // The test's folder, and IntelFiles' version reader as it was before a test replaced it.
-        private string folder;
+        // IntelFiles' version reader as it was before a test replaced it.
         private Func<string, Version> readVersion;
 
-        // A fresh folder of the test's own, and the version reader kept for the clean-up.
+        // The version reader kept for the clean-up.
         [TestInitialize]
-        public void MakeFolder()
+        public void KeepVersionReader()
         {
-            folder = Path.Combine(Path.GetTempPath(), "ReDefinitionIntelFilesTests-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
             readVersion = IntelFiles.ReadVersion;
         }
 
-        // Puts the version reader back and deletes the test's folder.
+        // Puts the version reader back.
         [TestCleanup]
-        public void RemoveFolder()
+        public void RestoreVersionReader()
         {
             IntelFiles.ReadVersion = readVersion;
-            Directory.Delete(folder, true);
         }
 
         // Folders for both uses pointing at the test's folder.

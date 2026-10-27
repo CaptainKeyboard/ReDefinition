@@ -13,6 +13,7 @@ repository to what they share.
 | `tests/ReDefinition.Tests/RtContractTests.cs` | The raytracing constants and packet layouts against the contract |
 | `tests/ReDefinition.Tests/DeveloperDocumentationTests.cs` | The comment check of `tools/DocLock` |
 | `tests/ReDefinition.Tests/Fakes.cs` | A fake mod and host for the settings store |
+| `tests/ReDefinition.Tests/TestFolders.cs` | `RepoRoot`, which finds the repository, and `TempFolderTests`, the base of tests that write files |
 
 ## What it does
 
@@ -21,6 +22,9 @@ Run it from the repository, with KSP 1.12.5 and HarmonyKSP installed:
 ```
 dotnet test tests/ReDefinition.Tests
 ```
+
+`DeveloperDocumentationTests` builds and runs `tools/DocLock`, which makes it the slowest test. It is in the
+category Docs, so `dotnet test tests/ReDefinition.Tests --filter "TestCategory!=Docs"` leaves it out.
 
 - The tests run without the game. KSP's `ConfigNode` and Unity's types come from the game's
   assemblies, which the build copies beside the tests. Types of the test assembly take the place

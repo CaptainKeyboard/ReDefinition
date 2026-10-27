@@ -16,12 +16,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheStubHasTheRigsMaximumSharpness()
         {
-            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "tests", "RaytracingPlayer")))
-                directory = directory.Parent;
-            Assert.IsNotNull(directory, "tests/RaytracingPlayer was not found above the test's folder");
-            string stub = File.ReadAllText(Path.Combine(directory.FullName, "tests", "RaytracingPlayer", "Assets", "Runner",
-                                                        "UpscalerRigStub.cs"));
+            string stub = File.ReadAllText(RepoRoot.Locate("tests", "RaytracingPlayer", "Assets", "Runner", "UpscalerRigStub.cs"));
             Match value = Regex.Match(stub, @"MaximumSharpness\s*=\s*([0-9.]+)f");
             Assert.IsTrue(value.Success, "MaximumSharpness not found in the stub");
             Assert.AreEqual(UpscalerRig.MaximumSharpness, float.Parse(value.Groups[1].Value, CultureInfo.InvariantCulture));

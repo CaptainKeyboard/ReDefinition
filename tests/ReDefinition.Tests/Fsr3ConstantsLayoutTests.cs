@@ -53,11 +53,7 @@ namespace ReDefinition.Tests
         // The repository's root, found as the first folder above the test's that holds unity/Assets/ReDefinition.
         private static string Repository()
         {
-            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "unity", "Assets", "ReDefinition")))
-                directory = directory.Parent;
-            Assert.IsNotNull(directory, "the repository's unity folder was not found above the test's folder");
-            return directory.FullName;
+            return RepoRoot.Root("unity", "Assets", "ReDefinition");
         }
     }
 }

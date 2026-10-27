@@ -11,25 +11,8 @@ namespace ReDefinition.Tests
     // dlssg_for_sm86's release zip as the install finds and takes it apart
     // (AmperePackage): a zip made here the way the project's release is laid out.
     [TestClass]
-    public class AmperePackageTests
+    public class AmperePackageTests : TempFolderTests
     {
-        // The folder the test's zips and game folders stand in.
-        private string folder;
-
-        // A fresh folder of the test's own in the temporary folder.
-        [TestInitialize]
-        public void MakeFolder()
-        {
-            folder = Path.Combine(Path.GetTempPath(), "ReDefinitionAmperePackageTests-" + System.Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
-        }
-
-        // Deletes the test's folder and everything in it.
-        [TestCleanup]
-        public void RemoveFolder()
-        {
-            Directory.Delete(folder, true);
-        }
 
         // A zip of that name with the entries given, compressed as usual.
         private string MakeZip(string name, params string[] entries)

@@ -11,10 +11,9 @@ namespace ReDefinition.Tests
     // The choices of dlssg_for_sm86's dlssg_sm86.ini as the settings window reads and writes
     // them (AmpereOptions): a file laid out like the package's, with its comments.
     [TestClass]
-    public class AmpereOptionsTests
+    public class AmpereOptionsTests : TempFolderTests
     {
-        // The test's folder and the ini in it.
-        private string folder;
+        // The ini in the test's folder.
         private string ini;
 
         // dlssg_sm86.ini as the package ships it, with comments and a value written in one.
@@ -39,21 +38,12 @@ namespace ReDefinition.Tests
             + "[SuperResolution]\r\n"
             + "Mode=Off\r\n";
 
-        // A fresh folder with the package's ini in it, for each test.
+        // The package's ini in the test's folder, for each test.
         [TestInitialize]
-        public void MakeFolder()
+        public void MakeIni()
         {
-            folder = Path.Combine(Path.GetTempPath(), "ReDefinitionAmpereOptionsTests-" + System.Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
             ini = Path.Combine(folder, "dlssg_sm86.ini");
             File.WriteAllText(ini, Package, new UTF8Encoding(false));
-        }
-
-        // Deletes the test's folder and everything in it.
-        [TestCleanup]
-        public void RemoveFolder()
-        {
-            Directory.Delete(folder, true);
         }
 
         // A value is read from its own section, the comments' look-alikes not counted.
