@@ -388,9 +388,23 @@ def main():
     if os.path.isdir(dst_root):
         remove_ported(dst_root)
 
-    # 1. Take over headers and HLSL. The FSR2 passes stay out, only FSR3 is
-    #    needed -- but the shared ffx_core headers are required.
-    copied = 0
+    pending = collect_headers(src_root, dst_root)
+    copied = len(pending)
+    port_callbacks(pending)
+    port_other_headers(pending)
+
+    write(os.path.join(dst_root, "ffx_fsr_unity_common.cginc"),
+          read(os.path.join(src_root, "ffx_fsr_unity_common.cginc")))
+    copied += 1
+
+    baked = bake_computes(src_root, dst_root)
+
+    print("\n%d headers/HLSL copied, %d compute shaders baked." % (copied, baked))
+
+
+def collect_headers(src_root, dst_root):
+    """The headers and HLSL to take over, as (source path, target path, file name). The FSR2 passes stay out, only
+    FSR3 is needed -- but the shared ffx_core headers are required."""
     pending = []
     for folder, _dirs, files in os.walk(os.path.join(src_root, "shaders")):
         if os.path.basename(folder) == "fsr2":
@@ -402,11 +416,13 @@ def main():
             if name.startswith("ffx_fsr2_"):
                 continue
             pending.append((os.path.join(folder, name), os.path.join(dst_root, rel_dir, name), name))
-            copied += 1
+    return pending
 
-    # The header with the cbuffer blocks first: it establishes the accesses that
-    # are then needed in the pass files too -- the TCR autogen pass for instance
-    # reads fReactiveScale directly.
+
+def port_callbacks(pending):
+    """Writes the callbacks header with FSR 3.1.4's constants and its cbuffers turned into StructuredBuffers. It
+    comes first: it establishes the accesses that are then needed in the pass files too -- the TCR autogen pass
+    for instance reads fReactiveScale directly."""
     for source_path, target_path, name in pending:
         if name != "ffx_fsr3upscaler_callbacks_hlsl.h":
             continue
@@ -415,6 +431,10 @@ def main():
         print("  FSR 3.1.4 constants: " + ", ".join(BACKPORTED_CONSTANTS))
         write(target_path, text)
 
+
+def port_other_headers(pending):
+    """Writes every other header with the accesses to the constants redirected (and the prepare reactivity pass
+    with the backported accumulation constants), naming the files that have shadowing locals."""
     for source_path, target_path, name in pending:
         if name == "ffx_fsr3upscaler_callbacks_hlsl.h":
             continue
@@ -426,11 +446,10 @@ def main():
             print("  %-52s %d use(s) of shadowing locals kept" % (name, shadowed))
         write(target_path, chr(10).join(lines))
 
-    write(os.path.join(dst_root, "ffx_fsr_unity_common.cginc"),
-          read(os.path.join(src_root, "ffx_fsr_unity_common.cginc")))
-    copied += 1
 
-    # 2. Compute shaders with the fixed keyword combination.
+def bake_computes(src_root, dst_root):
+    """Writes the compute shaders with the fixed keyword combination, one file per HDR and sharpening variant;
+    returns the number written."""
     baked = 0
     for name in sorted(os.listdir(src_root)):
         if not name.endswith(".compute") or not name.startswith("ffx_fsr3upscaler_"):
@@ -456,8 +475,7 @@ def main():
 
         print("  %-52s %d pragma(s) replaced, %d variant(s)"
               % (name, dropped, 2 * len(sharpen_options)))
-
-    print("\n%d headers/HLSL copied, %d compute shaders baked." % (copied, baked))
+    return baked
 
 
 if __name__ == "__main__":

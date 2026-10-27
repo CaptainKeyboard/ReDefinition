@@ -17,6 +17,7 @@ import os
 import sys
 from collections import Counter
 from ctypes import wintypes
+from functools import partial
 
 # dbghelp.dll and symsrv.dll, which it loads from its own folder: copied together into
 # the cache from where they are found (RenderDoc brings a dbghelp, Visual Studio's
@@ -59,6 +60,20 @@ def main():
     """Read the samples and modules, name the addresses with dbghelp, and write the report by module and function."""
     source = sys.argv[1]
     out = open(sys.argv[2], 'w', encoding='utf-8') if len(sys.argv) > 2 else sys.stdout
+    modules, samples = read_samples(source)
+    os.makedirs(CACHE, exist_ok=True)
+    dbghelp = load_dbghelp()
+    process = open_symbols(dbghelp, modules, samples)
+    names = {}
+    by_module, by_self, by_inclusive = count_samples(samples, partial(name_of, modules=modules, dbghelp=dbghelp,
+                                                                       process=process, names=names))
+    write_report(out, len(samples), by_module, by_self, by_inclusive)
+    dbghelp.SymCleanup(process)
+
+
+def read_samples(source):
+    """The sampler's file as (modules, samples): the modules as (base, size, path) sorted by base, and each sample
+    as the list of its addresses, the instruction pointer first."""
     modules = []
     samples = []
     for line in open(source, encoding='utf-8', errors='replace'):
@@ -68,15 +83,20 @@ def main():
         elif line.startswith('S'):
             samples.append([int(a, 16) for a in line.split()[1:]])
     modules.sort()
+    return modules, samples
 
-    def module_of(address):
-        for base, size, path in modules:
-            if base <= address < base + size:
-                return base, path
-        return None, None
 
-    os.makedirs(CACHE, exist_ok=True)
-    dbghelp = load_dbghelp()
+def module_of(modules, address):
+    """The (base, path) of the module that holds the address, or (None, None) for code of no module."""
+    for base, size, path in modules:
+        if base <= address < base + size:
+            return base, path
+    return None, None
+
+
+def open_symbols(dbghelp, modules, samples):
+    """Starts a dbghelp session and loads the symbols of each module that a sample has an address in; returns the
+    session's process handle."""
     dbghelp.SymSetOptions(0x00000002 | 0x00000004 | 0x00000200)  # UNDNAME, DEFERRED_LOADS, FAIL_CRITICAL_ERRORS
     process = wintypes.HANDLE(0x5EED)
     dbghelp.SymInitializeW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR, wintypes.BOOL]
@@ -89,57 +109,67 @@ def main():
     used = set()
     for sample in samples:
         for address in sample:
-            base, _ = module_of(address)
+            base, _ = module_of(modules, address)
             if base is not None:
                 used.add(base)
     for base, size, path in modules:
         if base in used:
             dbghelp.SymLoadModuleExW(process, None, path, None, base, size, None, 0)
+    return process
 
-    names = {}
 
-    def name_of(address):
-        if address in names:
-            return names[address]
-        base, path = module_of(address)
-        if base is None:
-            names[address] = '(compiled C#, no module)'
-            return names[address]
-        module = os.path.basename(path)
-        info = SYMBOL_INFOW()
-        info.SizeOfStruct = ctypes.sizeof(SYMBOL_INFOW) - ctypes.sizeof(wintypes.WCHAR * 512) + ctypes.sizeof(wintypes.WCHAR)
-        info.MaxNameLen = 511
-        displacement = ctypes.c_uint64(0)
-        if dbghelp.SymFromAddrW(process, address, ctypes.byref(displacement), ctypes.byref(info)):
-            names[address] = module + '!' + info.Name
-        else:
-            names[address] = module + '!+%x' % (address - base)
+def name_of(address, modules, dbghelp, process, names):
+    """The address as module!function, or module!+offset where dbghelp knows no symbol, or a note for code of no
+    module; remembered in names."""
+    if address in names:
         return names[address]
+    base, path = module_of(modules, address)
+    if base is None:
+        names[address] = '(compiled C#, no module)'
+        return names[address]
+    module = os.path.basename(path)
+    info = SYMBOL_INFOW()
+    info.SizeOfStruct = ctypes.sizeof(SYMBOL_INFOW) - ctypes.sizeof(wintypes.WCHAR * 512) + ctypes.sizeof(wintypes.WCHAR)
+    info.MaxNameLen = 511
+    displacement = ctypes.c_uint64(0)
+    if dbghelp.SymFromAddrW(process, address, ctypes.byref(displacement), ctypes.byref(info)):
+        names[address] = module + '!' + info.Name
+    else:
+        names[address] = module + '!+%x' % (address - base)
+    return names[address]
 
-    total = len(samples)
+
+def count_samples(samples, name):
+    """The samples counted by module and by function where the thread was (self), and by function anywhere on
+    the sample's stack (inclusive); `name` turns an address into its name."""
     by_module = Counter()
     by_self = Counter()
     by_inclusive = Counter()
     for sample in samples:
-        leaf = name_of(sample[0])
+        leaf = name(sample[0])
         by_self[leaf] += 1
         by_module[leaf.split('!')[0]] += 1
         seen = set()
         for address in sample:
-            seen.add(name_of(address))
-        for name in seen:
-            by_inclusive[name] += 1
+            seen.add(name(address))
+        for n in seen:
+            by_inclusive[n] += 1
+    return by_module, by_self, by_inclusive
 
-    def table(title, counter, count):
-        out.write('\n== %s\n' % title)
-        for name, n in counter.most_common(count):
-            out.write('%6.1f %%  %s\n' % (100.0 * n / total, name))
 
+def write_report(out, total, by_module, by_self, by_inclusive):
+    """The three tables of the report, each as the share of the samples."""
     out.write('%d samples of the main thread\n' % total)
-    table('where the thread was, by module', by_module, 25)
-    table('where the thread was, by function (self)', by_self, 60)
-    table('anywhere on the stack, by function (inclusive, upper bound)', by_inclusive, 80)
-    dbghelp.SymCleanup(process)
+    write_table(out, total, 'where the thread was, by module', by_module, 25)
+    write_table(out, total, 'where the thread was, by function (self)', by_self, 60)
+    write_table(out, total, 'anywhere on the stack, by function (inclusive, upper bound)', by_inclusive, 80)
+
+
+def write_table(out, total, title, counter, count):
+    """The `count` most common entries of the counter as lines of share and name."""
+    out.write('\n== %s\n' % title)
+    for name, n in counter.most_common(count):
+        out.write('%6.1f %%  %s\n' % (100.0 * n / total, name))
 
 
 if __name__ == '__main__':

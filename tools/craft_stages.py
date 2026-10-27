@@ -227,69 +227,94 @@ def load_craft(game, path):
         modules = [m for m in children(cfg, 'MODULE')]
         names = [value(m, 'name') or '' for m in modules]
         craft_modules = {value(m, 'name'): m for m in children(node, 'MODULE')}
-        part.dry = number(value(cfg, 'mass'))
-        part.crossfeed = (value(cfg, 'fuelCrossFeed', 'True') or 'True').lower() == 'true'
-        toggle = craft_modules.get('ModuleToggleCrossfeed')
-        if toggle is not None and value(toggle, 'crossfeedStatus') is not None:
-            part.crossfeed = value(toggle, 'crossfeedStatus').lower() == 'true'
-        part.clamp = 'LaunchClamp' in names
-        part.decoupler = 'ModuleDecouple' in names or 'ModuleAnchoredDecoupler' in names
-        part.anchored = 'ModuleAnchoredDecoupler' in names
-        part.docking = 'ModuleDockingNode' in names
-        part.command = 'ModuleCommand' in names
-        part.crew = int(number(value(cfg, 'CrewCapacity'), 0))
-        part.parachute = 'ModuleParachute' in names
-        part.heatshield = 'ModuleAblator' in names
-        part.lift = (('ModuleLiftingSurface' in names or 'ModuleControlSurface' in names) and not part.command
-                     and not part.heatshield)
-        part.wheels = any(value(m, 'name') == 'ModuleWheelBase' and (value(m, 'wheelType') or '').upper() != 'LEG'
-                          for m in modules)
-        part.legs = any(value(m, 'name') == 'ModuleWheelBase' and (value(m, 'wheelType') or '').upper() == 'LEG'
-                        for m in modules)
-        part.engines = []
-        seen_engine = False
-        part.is_engine = False
-        part.rocket = None
-        part.air = None
-        multi = 'MultiModeEngine' in names
-        engine_modules = [m for m in modules if (value(m, 'name') or '').startswith('ModuleEngines')]
-        for m in engine_modules:
-            mname = value(m, 'name') or ''
-            engine = Engine(m, craft_modules.get(mname))
-            non_thrust = (value(m, 'nonThrustMotor', 'False') or '').lower() == 'true'
-            if not non_thrust:
-                part.is_engine = True
-            if not seen_engine:
-                seen_engine = True
-                if engine.thrust > 0 and engine.isp > 0 and not engine.air:
-                    part.engines.append(engine)
-            # The planner's own simulation: the rocket mode, and the air-breathing
-            # mode that goes furthest, of a multi-mode engine; else the first
-            # engine, as KSP.
-            if non_thrust or engine.thrust <= 0 or engine.isp <= 0:
-                continue
-            if engine.air and (multi or m is engine_modules[0]):
-                if part.air is None or engine.mach_limit() > part.air.mach_limit():
-                    part.air = engine
-            elif not engine.air and part.rocket is None and (multi or m is engine_modules[0]):
-                part.rocket = engine
-        part.crossfeed_fuel_lines = []
-        part.amount = {}
-        for r in children(node, 'RESOURCE'):
-            part.amount[value(r, 'name')] = number(value(r, 'amount'))
-        part.initial = dict(part.amount)
-        part.fuel_line_target = None
-        pdata = children(node, 'PARTDATA')
-        if pdata and value(pdata[0], 'tgt') is not None:
-            part.fuel_line_target = by_suffix.get(value(pdata[0], 'tgt'))
-        part.fuel_line_source = None
-        srf = values(node, 'srfN')
-        if srf:
-            host = srf[0].split(',', 1)[1].strip() if ',' in srf[0] else ''
-            part.srf_host = index.get(host)
-        else:
-            part.srf_host = None
+        read_part_facts(part, cfg, modules, names, craft_modules)
+        read_engines(part, modules, names, craft_modules)
+        read_resources_and_links(part, node, index, by_suffix)
         parts.append(part)
+    link_parts(parts)
+    return parts
+
+
+def read_part_facts(part, cfg, modules, names, craft_modules):
+    """Sets what the part's config and its craft entry say of its kind: dry mass, crossfeed, and whether it is a
+    clamp, decoupler, docking port, command pod, parachute, heat shield, lifting surface, wheel or leg."""
+    part.dry = number(value(cfg, 'mass'))
+    part.crossfeed = (value(cfg, 'fuelCrossFeed', 'True') or 'True').lower() == 'true'
+    toggle = craft_modules.get('ModuleToggleCrossfeed')
+    if toggle is not None and value(toggle, 'crossfeedStatus') is not None:
+        part.crossfeed = value(toggle, 'crossfeedStatus').lower() == 'true'
+    part.clamp = 'LaunchClamp' in names
+    part.decoupler = 'ModuleDecouple' in names or 'ModuleAnchoredDecoupler' in names
+    part.anchored = 'ModuleAnchoredDecoupler' in names
+    part.docking = 'ModuleDockingNode' in names
+    part.command = 'ModuleCommand' in names
+    part.crew = int(number(value(cfg, 'CrewCapacity'), 0))
+    part.parachute = 'ModuleParachute' in names
+    part.heatshield = 'ModuleAblator' in names
+    part.lift = (('ModuleLiftingSurface' in names or 'ModuleControlSurface' in names) and not part.command
+                 and not part.heatshield)
+    part.wheels = any(value(m, 'name') == 'ModuleWheelBase' and (value(m, 'wheelType') or '').upper() != 'LEG'
+                      for m in modules)
+    part.legs = any(value(m, 'name') == 'ModuleWheelBase' and (value(m, 'wheelType') or '').upper() == 'LEG'
+                    for m in modules)
+
+
+def read_engines(part, modules, names, craft_modules):
+    """Sets the part's engines (the first engine module's, when it burns), whether it is an engine at all, and
+    the rocket and air-breathing engines the planner's simulation takes."""
+    part.engines = []
+    seen_engine = False
+    part.is_engine = False
+    part.rocket = None
+    part.air = None
+    multi = 'MultiModeEngine' in names
+    engine_modules = [m for m in modules if (value(m, 'name') or '').startswith('ModuleEngines')]
+    for m in engine_modules:
+        mname = value(m, 'name') or ''
+        engine = Engine(m, craft_modules.get(mname))
+        non_thrust = (value(m, 'nonThrustMotor', 'False') or '').lower() == 'true'
+        if not non_thrust:
+            part.is_engine = True
+        if not seen_engine:
+            seen_engine = True
+            if engine.thrust > 0 and engine.isp > 0 and not engine.air:
+                part.engines.append(engine)
+        # The planner's own simulation: the rocket mode, and the air-breathing
+        # mode that goes furthest, of a multi-mode engine; else the first
+        # engine, as KSP.
+        if non_thrust or engine.thrust <= 0 or engine.isp <= 0:
+            continue
+        if engine.air and (multi or m is engine_modules[0]):
+            if part.air is None or engine.mach_limit() > part.air.mach_limit():
+                part.air = engine
+        elif not engine.air and part.rocket is None and (multi or m is engine_modules[0]):
+            part.rocket = engine
+
+
+def read_resources_and_links(part, node, index, by_suffix):
+    """Sets the resources the craft entry fills the part with, the part a fuel line leads to, and the part a
+    surface-attached part sits on."""
+    part.crossfeed_fuel_lines = []
+    part.amount = {}
+    for r in children(node, 'RESOURCE'):
+        part.amount[value(r, 'name')] = number(value(r, 'amount'))
+    part.initial = dict(part.amount)
+    part.fuel_line_target = None
+    pdata = children(node, 'PARTDATA')
+    if pdata and value(pdata[0], 'tgt') is not None:
+        part.fuel_line_target = by_suffix.get(value(pdata[0], 'tgt'))
+    part.fuel_line_source = None
+    srf = values(node, 'srfN')
+    if srf:
+        host = srf[0].split(',', 1)[1].strip() if ',' in srf[0] else ''
+        part.srf_host = index.get(host)
+    else:
+        part.srf_host = None
+
+
+def link_parts(parts):
+    """Joins the parts: each one's parent, the fuel lines' source parts, and per part the stage at which the first
+    decoupler between it and the root fires (decouple)."""
     for part in parts:
         for child in part.children:
             parts[child].parent = part.index
@@ -307,7 +332,6 @@ def load_craft(game, path):
                 stage = max(stage, parts[at].istg)
             at = parts[at].parent
         part.decouple = stage
-    return parts
 
 
 # ------------------------------------------------------------------ simulation

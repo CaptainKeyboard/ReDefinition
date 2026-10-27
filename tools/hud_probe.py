@@ -135,13 +135,7 @@ def run(args):
     snapshot = os.path.join(args.out, "snapshot")
     shutil.rmtree(snapshot, ignore_errors=True)
     print("snapshot:", install.snap(snapshot), "files")
-    # The DLLs put in place are put back as they were.
-    kept = {}
-    for rel, new in (("dxgi.dll", args.dxgi), (MOD_REL, args.mod)):
-        if new:
-            kept[rel] = os.path.join(args.out, "kept-" + os.path.basename(rel))
-            shutil.copy2(install.path(rel), kept[rel])
-            print("installed %s: %s -> %s" % (rel, sha(kept[rel])[:12], sha(new)[:12]))
+    kept = _keep_dlls(install, args)
     try:
         for rel, new in (("dxgi.dll", args.dxgi), (MOD_REL, args.mod)):
             if new:
@@ -159,62 +153,93 @@ def run(args):
         mod_settings = bm.set_cfg_values(mod_settings, {"enabled": "True", "frameGeneration": "True", "quality": "Quality"})
         root_settings = set_root_display(root_settings, args.width, args.height, False)
         for case in wanted:
-            spec = CASES[case]
-            print("case", case)
-            proxy = {"frameGeneration": "1", "frameGenerationTechnique": "dlss", "fgMinimumFps": "0", "reportSeconds": "1",
-                     "dlssFrameGeneration": "1"}
-            proxy.update(spec["proxy"])
-            proxy.update(dict(kv.split("=", 1) for kv in args.proxy_key))
-            with open(install.path(bm.SETTINGS_REL), "w", encoding="utf-8") as f:
-                f.write(mod_settings)
-            with open(install.path(ROOT_SETTINGS), "w", encoding="utf-8") as f:
-                f.write(root_settings)
-            with open(install.path(bm.PROXY_INI), "w", encoding="utf-8", newline="") as f:
-                f.write(bm.set_ini_values(ini_template, proxy))
-            launched = time.time()
-            try:
-                install.put_package(args.package, args.max_generated_frames, spec["dlssg_ini"])
-                if spec["launch"]:
-                    outcome = install.launch(spec["launch"] + ["-popupwindow"] + args.arg, 420)
-                else:
-                    outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeFlip", "-redefinitionProbeShowHud",
-                                              "-redefinitionProbeFpsCap", str(args.fps_cap), "-popupwindow"]
-                                             + spec["arguments"] + args.arg, 420)
-            finally:
-                logs = install.path(bm.PACKAGE_DIR, "logs")
-                out_case = os.path.join(args.out, case)
-                os.makedirs(out_case, exist_ok=True)
-                if os.path.isdir(logs):
-                    shutil.copytree(logs, os.path.join(out_case, "dlssg-logs"), dirs_exist_ok=True)
-                install.remove_package()
-            fresh = lambda p: os.path.exists(p) and os.path.getmtime(p) >= launched
-            for name in ("KSP.log", "ReDefinitionProxy.log"):
-                if fresh(install.path(name)):
-                    shutil.copy2(install.path(name), os.path.join(out_case, name))
-            runs = install.path("ReDefinitionCaptures")
-            shots = [os.path.join(runs, d) for d in os.listdir(runs)
-                     if d.endswith("-run") and os.path.getmtime(os.path.join(runs, d)) >= launched]
-            if shots:
-                shutil.copytree(max(shots, key=os.path.getmtime), os.path.join(out_case, "shots"), dirs_exist_ok=True)
-            recordings = [os.path.join(runs, d) for d in os.listdir(runs)
-                          if re.fullmatch(r"\d{8}-\d{6}", d) and os.path.getmtime(os.path.join(runs, d)) >= launched]
-            if recordings:
-                shutil.copytree(max(recordings, key=os.path.getmtime), os.path.join(out_case, "frames"), dirs_exist_ok=True)
-            dumps = [os.path.join(runs, d) for d in os.listdir(runs)
-                     if d.endswith("-inputs") and os.path.getmtime(os.path.join(runs, d)) >= launched]
-            if dumps:
-                shutil.copytree(max(dumps, key=os.path.getmtime), os.path.join(out_case, "inputs"), dirs_exist_ok=True)
-            with open(os.path.join(out_case, "outcome.txt"), "w") as f:
-                f.write(outcome + "\n")
-            print("  ", outcome, "->", out_case, "(%d recording)" % len(recordings))
+            _run_case(install, case, args, mod_settings, ini_template, root_settings)
     finally:
+        _put_back(install, kept, snapshot)
+
+
+def _keep_dlls(install, args):
+    """Copies the install's dxgi.dll and mod DLL aside where the run is told to use others (--dxgi, --mod), so
+    that they can be put back; returns {path in the install: the copy}."""
+    # The DLLs put in place are put back as they were.
+    kept = {}
+    for rel, new in (("dxgi.dll", args.dxgi), (MOD_REL, args.mod)):
+        if new:
+            kept[rel] = os.path.join(args.out, "kept-" + os.path.basename(rel))
+            shutil.copy2(install.path(rel), kept[rel])
+            print("installed %s: %s -> %s" % (rel, sha(kept[rel])[:12], sha(new)[:12]))
+    return kept
+
+
+def _run_case(install, case, args, mod_settings, ini_template, root_settings):
+    """One case: writes the settings and the proxy's keys, puts the package in place, runs KSP with the case's
+    arguments, and copies what the run wrote into <out>/<case>."""
+    spec = CASES[case]
+    print("case", case)
+    proxy = {"frameGeneration": "1", "frameGenerationTechnique": "dlss", "fgMinimumFps": "0", "reportSeconds": "1",
+             "dlssFrameGeneration": "1"}
+    proxy.update(spec["proxy"])
+    proxy.update(dict(kv.split("=", 1) for kv in args.proxy_key))
+    with open(install.path(bm.SETTINGS_REL), "w", encoding="utf-8") as f:
+        f.write(mod_settings)
+    with open(install.path(ROOT_SETTINGS), "w", encoding="utf-8") as f:
+        f.write(root_settings)
+    with open(install.path(bm.PROXY_INI), "w", encoding="utf-8", newline="") as f:
+        f.write(bm.set_ini_values(ini_template, proxy))
+    launched = time.time()
+    try:
+        install.put_package(args.package, args.max_generated_frames, spec["dlssg_ini"])
+        if spec["launch"]:
+            outcome = install.launch(spec["launch"] + ["-popupwindow"] + args.arg, 420)
+        else:
+            outcome = install.launch(["-redefinitionProbe", "-redefinitionProbeFlip", "-redefinitionProbeShowHud",
+                                      "-redefinitionProbeFpsCap", str(args.fps_cap), "-popupwindow"]
+                                     + spec["arguments"] + args.arg, 420)
+    finally:
+        logs = install.path(bm.PACKAGE_DIR, "logs")
+        out_case = os.path.join(args.out, case)
+        os.makedirs(out_case, exist_ok=True)
+        if os.path.isdir(logs):
+            shutil.copytree(logs, os.path.join(out_case, "dlssg-logs"), dirs_exist_ok=True)
         install.remove_package()
-        for rel, saved in kept.items():
-            shutil.copy2(saved, install.path(rel))
-        report = install.restore(snapshot)
-        print("restored:", len(report), "item(s)")
-        for rel, saved in kept.items():
-            print("  %s now %s (was %s)" % (rel, sha(install.path(rel))[:12], sha(saved)[:12]))
+    recordings = _collect_run(install, out_case, launched)
+    with open(os.path.join(out_case, "outcome.txt"), "w") as f:
+        f.write(outcome + "\n")
+    print("  ", outcome, "->", out_case, "(%d recording)" % len(recordings))
+
+
+def _collect_run(install, out_case, launched):
+    """Copies what a run that began at `launched` wrote into out_case: the logs, the probe's shots, the screen
+    recording and the frame generation inputs' dump. Returns the recordings found."""
+    fresh = lambda p: os.path.exists(p) and os.path.getmtime(p) >= launched
+    for name in ("KSP.log", "ReDefinitionProxy.log"):
+        if fresh(install.path(name)):
+            shutil.copy2(install.path(name), os.path.join(out_case, name))
+    runs = install.path("ReDefinitionCaptures")
+    shots = [os.path.join(runs, d) for d in os.listdir(runs)
+             if d.endswith("-run") and os.path.getmtime(os.path.join(runs, d)) >= launched]
+    if shots:
+        shutil.copytree(max(shots, key=os.path.getmtime), os.path.join(out_case, "shots"), dirs_exist_ok=True)
+    recordings = [os.path.join(runs, d) for d in os.listdir(runs)
+                  if re.fullmatch(r"\d{8}-\d{6}", d) and os.path.getmtime(os.path.join(runs, d)) >= launched]
+    if recordings:
+        shutil.copytree(max(recordings, key=os.path.getmtime), os.path.join(out_case, "frames"), dirs_exist_ok=True)
+    dumps = [os.path.join(runs, d) for d in os.listdir(runs)
+             if d.endswith("-inputs") and os.path.getmtime(os.path.join(runs, d)) >= launched]
+    if dumps:
+        shutil.copytree(max(dumps, key=os.path.getmtime), os.path.join(out_case, "inputs"), dirs_exist_ok=True)
+    return recordings
+
+
+def _put_back(install, kept, snapshot):
+    """Takes the package away, puts the kept DLLs and the snapshot of the settings back, and says what changed."""
+    install.remove_package()
+    for rel, saved in kept.items():
+        shutil.copy2(saved, install.path(rel))
+    report = install.restore(snapshot)
+    print("restored:", len(report), "item(s)")
+    for rel, saved in kept.items():
+        print("  %s now %s (was %s)" % (rel, sha(install.path(rel))[:12], sha(saved)[:12]))
 
 
 # ----------------------------------------------------------------------------- analysis
