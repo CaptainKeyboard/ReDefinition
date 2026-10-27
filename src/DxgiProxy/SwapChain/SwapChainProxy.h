@@ -287,9 +287,9 @@ namespace redefinition
         // The cap V-Sync sets on the frames shown, for frame generation's minimum, with the refresh rate
         // monitor started or paused as the cap needs it.
         void UpdatePresentCapLocked(UINT syncInterval, UINT xellSync, UINT streamlineSync, bool xellFollows);
-        // This Present's frame generation prepared for whichever swapchain this is: DLSS-G's constants, tags and
-        // options under the frame index it takes, XeSS-FG's tags under the game's frame, or FSR's preparation in
-        // the command list. frameIndex and streamlineGenerating are what DLSS-G's came to.
+        // This Present's frame generation prepared for whichever swapchain this is. For DLSS-G that is its constants, tags
+        // and options under the frame index it takes. For XeSS-FG it is its tags under the game's frame.
+        // FSR's preparation goes in the command list. frameIndex and streamlineGenerating are what DLSS-G's came to.
         void PrepareTechniqueLocked(UINT streamlineSync, UINT xellSync, uint32_t lowLatencyFrame,
                                     uint32_t& frameIndex, bool& streamlineGenerating);
         // The sync interval this Present goes out with: the game's, as XeLL and DLSS-G clamp it while they run, and

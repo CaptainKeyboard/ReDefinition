@@ -91,9 +91,9 @@ namespace redefinition
         // The next of the allocators, whose list has left the GPU, reset with the list; false with a status where
         // that fails.
         bool BeginListLocked(UINT& index);
-        // The list closed and executed, the queue's fence signalled for it, and D3D11 made to wait for that --
-        // also where the dispatch failed: the signal is queued either way, and a later D3D11 signal on the shared
-        // fence that ran ahead of it would set the fence back. False with a status where the list does not close.
+        // The list closed and executed, the queue's fence signalled for it, and D3D11 made to wait for that.
+        // That holds where the dispatch failed too. The signal is queued either way, and a later D3D11 signal on the
+        // shared fence that ran ahead of it would set the fence back. False with a status where the list does not close.
         bool FinishListLocked(UINT index);
 
         // The description of a D3D11 resource that is a 2D texture; false for anything else.

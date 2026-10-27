@@ -294,9 +294,9 @@ namespace redefinition
         // Replaced inputs still waiting for the GPU, for the status line.
         size_t RetiredCount() const;
 
-        // The size of the check's motion vector staging texture as the last check made it, 0 x 0 until
-        // one is made and after the inputs they were made for changed -- for the status line, where the
-        // harness sees that it follows the inputs.
+        // The size of the check's motion vector staging texture as the last check made it. It is 0 x 0 until
+        // one is made and after the inputs they were made for changed.
+        // The status line shows it, and the harness sees there that it follows the inputs.
         void CheckMotionSize(UINT& width, UINT& height) const;
 
         // Whether presentation should be paced by VSync: for as long as frame generation is on and has
