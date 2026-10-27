@@ -11,6 +11,8 @@ log, file helpers and Direct3D 12 helpers.
 | `src/DxgiProxy/Common/Config.cpp` | Reading the ini, completing it from the template, reloading it |
 | `src/DxgiProxy/Common/Log.h` | `LogLine`, `Hr` and `FormatTo` |
 | `src/DxgiProxy/Common/D3d12Util.h` | Barrier and view helpers for Direct3D 12 |
+| `src/DxgiProxy/Common/ShaderCompiler.h` | `d3dcompiler_47.dll` loaded by hand from System32, and a compute shader compiled from source |
+| `src/DxgiProxy/Common/RuntimeLoader.h` | A vendor's DLL loaded from its folder, with the reason when it did not load |
 | `src/DxgiProxy/Common/FileUtil.h` | The game's folder, file versions and stamps, UTF-8 |
 | `src/DxgiProxy/Common/ProjectIdentity.h` | What ReDefinition tells NVIDIA's libraries it is |
 
