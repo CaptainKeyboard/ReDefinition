@@ -267,7 +267,7 @@ namespace ReDefinition.Raytracing
                 instance.Mask = item.Mask != 0 ? item.Mask : 0xFFu;
                 instance.Flags = item.Flags;
                 instances[count++] = instance;
-                Sent.Add(item);
+                if (KeepSent) Sent.Add(item);
             }
             InstanceCount = count;
             RtNative.KspRtSetInstances(instances, count, frameIndex);
@@ -279,8 +279,9 @@ namespace ReDefinition.Raytracing
 
         // The items this frame handed over, in the order the rays number their instances (their ids).
         // The parity check (RtParity) names an instance by its id, from 0: the item's mesh, material and
-        // shader, or the GPU run it belongs to.
+        // shader, or the GPU run it belongs to. Filled only where that check runs (-redefinitionProbeParity).
         internal readonly List<RtItem> Sent = new List<RtItem>();
+        private static readonly bool KeepSent = Core.CommandLine.Has("-redefinitionProbeParity");
 
         // Whether the rays' instance of that id is the ground.
         internal bool IsTerrain(int id)

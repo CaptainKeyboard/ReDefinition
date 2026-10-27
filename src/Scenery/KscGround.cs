@@ -60,6 +60,7 @@ namespace ReDefinition.Scenery
         private readonly Dictionary<Material, Material> replacements = new Dictionary<Material, Material>();
         private readonly Dictionary<MeshRenderer, Material[]> originals = new Dictionary<MeshRenderer, Material[]>();
         private readonly List<Material> shared = new List<Material>();
+        private readonly List<MeshRenderer> scanned = new List<MeshRenderer>();
 
         // The lawn's mean colour as drawn, for the rays' bounces off it (Raytracing.RtStockTerrain): the
         // terrain's mean vertex colour under the space centre through Parallax's colour formula with its
@@ -147,6 +148,15 @@ namespace ReDefinition.Scenery
             return addon == null || addon.Live.KscLawnTerrain;
         }
 
+        // The space centre's city on the planet, the last one named KSC; null where there is none.
+        internal static PQSCity City()
+        {
+            PQSCity ksc = null;
+            foreach (PQSCity city in FindObjectsOfType<PQSCity>())
+                if (city.name == "KSC") ksc = city;
+            return ksc;
+        }
+
         // What Ready waits for, for the log.
         private string notReady = "not looked yet";
 
@@ -154,12 +164,14 @@ namespace ReDefinition.Scenery
         private bool Ready()
         {
             if (root == null)
-                foreach (PQSCity city in FindObjectsOfType<PQSCity>())
-                    if (city.name == "KSC")
-                    {
-                        root = city.transform;
-                        sphere = city.sphere;
-                    }
+            {
+                PQSCity city = City();
+                if (city != null)
+                {
+                    root = city.transform;
+                    sphere = city.sphere;
+                }
+            }
             notReady = "the space centre not found";
             if (root == null) return false;
             if (parallax == null) parallax = ParallaxTerrain();
@@ -419,9 +431,17 @@ namespace ReDefinition.Scenery
         // KSP's ground shader and its specular variant, whose tarmac has a normal map.
         private static bool Stock(Material material)
         {
-            return material != null && material.shader != null
-                   && (material.shader.name == StockShader || material.shader.name == StockSpecularShader);
+            if (material == null) return false;
+            Shader shader = material.shader;
+            if (shader == null) return false;
+            bool stock;
+            if (!stockShaders.TryGetValue(shader, out stock))
+                stockShaders[shader] = stock = shader.name == StockShader || shader.name == StockSpecularShader;
+            return stock;
         }
+
+        // Whether each shader seen is one of those two, so a pass over the renderers reads no shader name twice.
+        private static readonly Dictionary<Shader, bool> stockShaders = new Dictionary<Shader, bool>();
 
         // Every ground material of the space centre's renderers in its replacement's place; the replacements'
         // values from Parallax's material again, which its settings window may change.
@@ -432,19 +452,17 @@ namespace ReDefinition.Scenery
             Shader.SetGlobalMatrix(WorldToRootId, root.worldToLocalMatrix);
             foreach (Material replacement in replacements.Values) CopyParallax(replacement);
             int swapped = 0;
-            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            root.GetComponentsInChildren(true, scanned);
+            foreach (MeshRenderer renderer in scanned)
             {
                 if (renderer == null || originals.ContainsKey(renderer)) continue;
                 renderer.GetSharedMaterials(shared);
                 bool any = false;
+                for (int m = 0; m < shared.Count && !any; m++) any = Stock(shared[m]);
+                if (!any) continue;
                 var materials = shared.ToArray();
                 for (int m = 0; m < materials.Length; m++)
-                {
-                    if (!Stock(materials[m])) continue;
-                    materials[m] = Replacement(materials[m]);
-                    any = true;
-                }
-                if (!any) continue;
+                    if (Stock(materials[m])) materials[m] = Replacement(materials[m]);
                 originals[renderer] = shared.ToArray();
                 renderer.sharedMaterials = materials;
                 swapped++;

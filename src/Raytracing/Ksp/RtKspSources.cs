@@ -74,8 +74,9 @@ namespace ReDefinition.Raytracing
         // Enabled, active, on a layer of the culling mask, and not hung on a camera.
         internal static bool Drawn(Renderer renderer)
         {
-            return renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy
-                   && (CullingMask & (1 << renderer.gameObject.layer)) != 0 && !onCameras.Contains(renderer);
+            if (renderer == null || !renderer.enabled) return false;
+            GameObject owner = renderer.gameObject;
+            return owner.activeInHierarchy && (CullingMask & (1 << owner.layer)) != 0 && !onCameras.Contains(renderer);
         }
 
         // The renderer's mesh at its own transform, where it is drawn.

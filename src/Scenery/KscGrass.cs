@@ -342,9 +342,7 @@ namespace ReDefinition.Scenery
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             long mainThread = 0;
-            PQSCity ksc = null;
-            foreach (PQSCity city in FindObjectsOfType<PQSCity>())
-                if (city.name == "KSC") ksc = city;
+            PQSCity ksc = KscGround.City();
             if (ksc == null)
             {
                 Debug.Log(Log.Tag + " Space centre grass: none (the space centre not found).");
@@ -875,12 +873,27 @@ namespace ReDefinition.Scenery
             return new Vector2(uv.x * scale.x + scale.z, uv.y * scale.y + scale.w);
         }
 
+        // Whether the camera is Camera.main, which Unity finds by a search: once a frame, again only where none was found
+        // or the one found is gone.
+        private bool IsMain(Camera camera)
+        {
+            if (mainFrame != Time.frameCount || mainCamera == null)
+            {
+                mainCamera = Camera.main;
+                mainFrame = Time.frameCount;
+            }
+            return camera == mainCamera;
+        }
+
+        private Camera mainCamera;
+        private int mainFrame = -1;
+
         // Before Camera.main culls, after Parallax filled its outputs in its LateUpdate
         // (ScatterManager): its clumps over the lawns lifted and drawn for that camera, as
         // Parallax draws them (ScatterRenderer.Render).
         private void Draw(Camera camera)
         {
-            if (!ready || camera != Camera.main || root == null || !Enabled()) return;
+            if (!ready || !IsMain(camera) || root == null || !Enabled()) return;
             Matrix4x4 rootToWorld = root.localToWorldMatrix;
             lift.SetMatrix(WorldToRootId, root.worldToLocalMatrix);
             lift.SetMatrix(RootToWorldId, rootToWorld);
@@ -893,6 +906,7 @@ namespace ReDefinition.Scenery
             var bounds = new Bounds(rootToWorld.MultiplyPoint3x4(new Vector3(grid.x + lawnMap.width * 0.5f, grid.w, grid.y + lawnMap.height * 0.5f)),
                                     new Vector3(lawnMap.width, 200f, lawnMap.height) * 1.5f);
             int layer = root.gameObject.layer;
+            if (capacities.Length < kinds.Count * 3) capacities = new int[kinds.Count * 3];
             for (int i = retired.Count - 1; i >= 0; i--)
                 if (retired[i].Value < Time.frameCount - 1)
                 {
@@ -936,7 +950,6 @@ namespace ReDefinition.Scenery
                     lift.SetBuffer(liftKernel, KeptId, kind.Kept[lod]);
                     lift.SetInt(CountIndexId, slot);
                     lift.SetInt(CapacityId, source.count);
-                    if (capacities.Length < kinds.Count * 3) capacities = new int[kinds.Count * 3];
                     capacities[slot] = source.count;
                     lift.Dispatch(liftKernel, (source.count + 63) / 64, 1, 1);
                     ComputeBuffer.CopyCount(kind.Lifted[lod], kind.Arguments[lod], 4);

@@ -121,7 +121,8 @@ namespace ReDefinition.Raytracing
                 Report();
                 SelfCheck(sceneCamera);
                 // Deferred's G-buffer only: forward shading takes KSP's own values as meant.
-                if (HighLogic.LoadedSceneIsEditor && scenery != null && sceneCamera.actualRenderingPath == RenderingPath.DeferredShading)
+                if (HighLogic.LoadedSceneIsEditor && scenery != null && !hall.AppliedHere
+                    && sceneCamera.actualRenderingPath == RenderingPath.DeferredShading)
                     hall.Apply(scenery.Filters);
             }
             else if (sceneCamera != failedOn && Time.realtimeSinceStartup >= retryAt) Attach(sceneCamera);
@@ -197,9 +198,10 @@ namespace ReDefinition.Raytracing
             // The trace before the lighting of its own frame (RtCamera.TraceBeforeLighting),
             // with the upscaler's jitter applied first.
             camera.TraceBeforeLighting = true;
+            CameraRedirect redirect = null;
             camera.BeforeTrace = () =>
             {
-                CameraRedirect redirect = sceneCamera.GetComponent<CameraRedirect>();
+                if (redirect == null) redirect = sceneCamera.GetComponent<CameraRedirect>();
                 if (redirect != null) redirect.EnsureJitter();
             };
             camera.Body = () =>
