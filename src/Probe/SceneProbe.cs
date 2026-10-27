@@ -912,63 +912,6 @@ namespace ReDefinition.Probe
                               + " mask " + light.cullingMask + " at " + light.transform.position + " forward " + light.transform.forward
                               + " parent " + (light.transform.parent != null ? light.transform.parent.name : "none")
                               + (light == rt.SunLightNow ? " (the raytracing's sun)" : "") + ".");
-            // The cloud layer's check (-redefinitionProbeCloudShadow): at a grid of pixels, the
-            // ground's point by a physics ray, EVE's own prediction of the shadow there, beside
-            // what the rays wrote (the sun's visibility is the clouds' transmittance then).
-            Raytracing.RtEveClouds eve = Raytracing.RtEveClouds.Last;
-            if (eve != null && CommandLine.Has("-redefinitionProbeCloudShadow") && rt.SunTexture != null)
-            {
-                AsyncGPUReadbackRequest sunRead = AsyncGPUReadback.Request(rt.SunTexture, 0, TextureFormat.RGBAFloat);
-                while (!sunRead.done) yield return null;
-                if (!sunRead.hasError)
-                {
-                    NativeArray<Color> sunData = sunRead.GetData<Color>();
-                    int sw = rt.SunTexture.width, sh = rt.SunTexture.height;
-                    Light sunLight = rt.SunLightNow;
-                    Vector3 towards = sunLight != null ? -sunLight.transform.forward : Vector3.up;
-                    var lines = new StringBuilder();
-                    var csv = new StringBuilder("vx,vy,hit,predicted,rays\n");
-                    int pairs = 0;
-                    double sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, absDiff = 0;
-                    for (int gy = 0; gy < 24; gy++)
-                        for (int gx = 0; gx < 32; gx++)
-                        {
-                            float vx = (gx + 0.5f) / 32f, vy = (gy + 0.5f) / 24f;
-                            RaycastHit hit;
-                            if (!Physics.Raycast(rt.Camera.ViewportPointToRay(new Vector3(vx, vy, 0f)), out hit, 1e5f, ~0, QueryTriggerInteraction.Ignore)) continue;
-                            float predicted = eve.EvePrediction(hit.point, towards, new Color(2f, 2f, 2f, 1f), 1f);
-                            if (predicted < 0f) continue;
-                            // Only comparable where the traced camera's pixel is the surface the physics
-                            // ray met: run once more with -redefinitionProbeCloudValue 4, which writes the
-                            // pixel's distance, and join the two cloudcheck.csv by row (at sea 34 of 390
-                            // points: in flight KSP's cameras split the view, and the near water's pixels
-                            // hold no depth in the traced one).
-                            float ours = sunData[Mathf.Clamp((int)(vy * sh), 0, sh - 1) * sw + Mathf.Clamp((int)(vx * sw), 0, sw - 1)].r;
-                            if (pairs < 6 || pairs % 60 == 0 || CommandLine.Has("-redefinitionProbeCloudValue") && pairs < 40)
-                                Debug.Log(Log.Tag + " Probe: cloud check at " + hit.point + " (" + hit.collider.name + ", " + hit.distance.ToString("0.0") + " m, viewport " + vx.ToString("0.00")
-                                          + "," + vy.ToString("0.00") + "): EVE " + predicted.ToString("0.00") + ", rays " + ours.ToString("0.000")
-                                          + ", " + eve.EveRaw(hit.point, towards) + ".");
-                            csv.Append(vx.ToString(CultureInfo.InvariantCulture)).Append(',').Append(vy.ToString(CultureInfo.InvariantCulture)).Append(',')
-                               .Append(hit.distance.ToString(CultureInfo.InvariantCulture)).Append(',').Append(predicted.ToString(CultureInfo.InvariantCulture))
-                               .Append(',').Append(ours.ToString(CultureInfo.InvariantCulture)).Append('\n');
-                            pairs++;
-                            sx += predicted; sy += ours; sxx += predicted * predicted; syy += ours * ours; sxy += predicted * ours;
-                            absDiff += Math.Abs(predicted - ours);
-                            if (pairs <= 12) lines.Append(' ').Append(predicted.ToString("0.00", CultureInfo.InvariantCulture)).Append('/')
-                                                  .Append(ours.ToString("0.00", CultureInfo.InvariantCulture));
-                        }
-                    double n = Math.Max(pairs, 1);
-                    double correlation = (sxy / n - sx / n * sy / n)
-                                         / Math.Sqrt(Math.Max((sxx / n - sx / n * sx / n) * (syy / n - sy / n * sy / n), 1e-12));
-                    File.WriteAllText(Path.Combine(CaptureFolder.Run, "cloudcheck.csv"), csv.ToString());
-                    Debug.Log(Log.Tag + " Probe: cloud " + eve.MapCheck() + ".");
-                    Debug.Log(Log.Tag + " Probe: cloud check: " + pairs + " ground points, EVE's predicted shadow against the rays' (first: "
-                              + lines + "), means " + (sx / n).ToString("0.000", CultureInfo.InvariantCulture) + " / "
-                              + (sy / n).ToString("0.000", CultureInfo.InvariantCulture) + ", correlation "
-                              + correlation.ToString("0.000", CultureInfo.InvariantCulture) + ", mean difference "
-                              + (absDiff / n).ToString("0.000", CultureInfo.InvariantCulture) + ".");
-                }
-            }
             var directions = new[] { Vector3.up, Vector3.right, Vector3.down };
             var ambient = new Color[3];
             UnityEngine.Rendering.SphericalHarmonicsL2 probe;
@@ -1132,11 +1075,6 @@ namespace ReDefinition.Probe
                 string iniSets = SceneProbe.ArgumentAfter("-redefinitionProbeShotIni");
                 if (iniSets != null)
                     yield return IniShots(folder, shot, iniSets);
-                // -redefinitionProbeDownloads: the settings window's downloads run as the player runs
-                // them (DownloadProbe), with a shot of the question and of the window before, during
-                // and after each.
-                if (CommandLine.Has("-redefinitionProbeDownloads"))
-                    yield return DownloadProbe.Run(folder, shot);
                 // -redefinitionProbeWindow "step;...": the settings window used as the player does (WindowProbe).
                 string windowSteps = SceneProbe.ArgumentAfter("-redefinitionProbeWindow");
                 if (windowSteps != null)
@@ -1146,26 +1084,6 @@ namespace ReDefinition.Probe
                 string views = SceneProbe.ArgumentAfter(ViewProbe.ViewsArgument);
                 if (views != null)
                     yield return ViewProbe.Run(folder, shot, views);
-                // -redefinitionProbeShotRaytracing <mode,mode,...>: then the raytracing
-                // switched to each mode in turn, as in the settings window, and the same view
-                // 10 s later as <shot>-<mode>.png: several modes compared in one run.
-                string otherModes = SceneProbe.ArgumentAfter("-redefinitionProbeShotRaytracing");
-                if (otherModes != null && ReDefinitionAddon.Instance != null)
-                    foreach (string otherMode in otherModes.Split(','))
-                    {
-                        Raytracing.RaytracingMode mode;
-                        if (!Enum.TryParse(otherMode, true, out mode)) continue;
-                        OwnSettings before = ReDefinitionAddon.Instance.Current();
-                        OwnSettings after = before.Clone();
-                        after.Raytracing = mode;
-                        ReDefinitionAddon.Instance.Apply(before, after);
-                        Debug.Log(Log.Tag + " Probe: the raytracing switched from " + before.Raytracing + " to " + mode + ".");
-                        yield return new WaitForSeconds(10f);
-                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-" + mode + ".png"));
-                        Debug.Log(Log.Tag + " Probe: shot " + shot + "-" + mode + ".");
-                        if (stagesAt != null)
-                            yield return Stages(stagesAt);
-                    }
                 // -redefinitionProbeBurst <n>: n frames more, one after the other, as
                 // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
                 // ghosting).
@@ -1292,30 +1210,6 @@ namespace ReDefinition.Probe
                 Detach();
                 File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
                 Debug.Log(Log.Tag + " Probe: vendor checks done; quitting.");
-                yield return new WaitForSeconds(1f);
-                Application.Quit();
-                yield break;
-            }
-
-            // -redefinitionProbeMapToggles <n>: into the map view and out again n
-            // times, four seconds each (-redefinitionProbeMapTenths), then KSP quits -- each switch turns the
-            // upscaler, Ray Reconstruction and frame generation off and on.
-            int toggles = IntArgument("-redefinitionProbeMapToggles");
-            // -redefinitionProbeMapTenths <n>: each phase n tenths of a second, 40 if not given.
-            int tenths = IntArgument("-redefinitionProbeMapTenths");
-            float mapSeconds = (tenths > 0 ? tenths : 40) / 10f;
-            if (toggles > 0)
-            {
-                Detach();
-                for (int i = 0; i < toggles; i++)
-                {
-                    Debug.Log(Log.Tag + " Probe: map view " + (i + 1) + " of " + toggles + ".");
-                    MapView.EnterMapView();
-                    yield return new WaitForSeconds(mapSeconds);
-                    MapView.ExitMapView();
-                    yield return new WaitForSeconds(mapSeconds);
-                }
-                Debug.Log(Log.Tag + " Probe: map view toggles done; quitting.");
                 yield return new WaitForSeconds(1f);
                 Application.Quit();
                 yield break;

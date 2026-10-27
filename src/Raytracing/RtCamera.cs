@@ -79,10 +79,6 @@ namespace ReDefinition.Raytracing
         // The name of the pose a report was asked for (ParityNow), logged before the report.
         private string parityLabel;
         private uint parityFlag;
-        // -redefinitionProbeCloudShadow: the sun's visibility is the cloud layer's transmittance
-        // alone, to compare with EVE's own cloud shadow (the probe's shadow mask dump).
-        private static readonly bool CloudShadowCheck =
-            CommandLine.Has("-redefinitionProbeCloudShadow");
         // The main body's cloud layer: fills the packet's cloud constants (RtFramePacket.clouds)
         // and gives its map's native texture (RT_INPUT_CLOUDS); zero for none.
         internal Func<float[], IntPtr> Clouds = clouds =>
@@ -250,14 +246,6 @@ namespace ReDefinition.Raytracing
         // shadow only near the camera (RtCommon.hlsli, RayOrigin), it was 0.77. It goes into the ground's
         // albedo for sun and sky alike.
         private const float MeadowShade = 0.82f;
-        private static readonly float MeadowShadeProbe = CommandLine.After("-redefinitionProbeMeadowShade") != null
-            && float.TryParse(CommandLine.After("-redefinitionProbeMeadowShade"),
-                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float shadeProbe)
-            ? shadeProbe : 0f;
-        private static readonly float MeadowFrom = CommandLine.After("-redefinitionProbeMeadowFrom") != null
-            && float.TryParse(CommandLine.After("-redefinitionProbeMeadowFrom"),
-                System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float from)
-            ? from : 0f;
         private CommandBuffer fadeGrab;
         private RenderTexture fadeTexture;
         private Action<AsyncGPUReadbackRequest> fadeDone;
@@ -344,26 +332,15 @@ namespace ReDefinition.Raytracing
         // own. Up to 1, it takes that much of Deferred's limit on its ambient light's tint (its
         // ambientTint). From 1 to 2, it is more and more in the colour of Deferred's own ambient
         // light, its strength kept. From 2 to 3, it is more and more grey.
-        // -redefinitionProbeRtAmbientTint <value> sets it for a probe's run.
         // It is the player's choice (RtKsp, RaytracingLightColour).
         internal Func<float> AmbientColour = () => 0f;
-        private static readonly float probeAmbientTint = ProbeAmbientTint();
 
-        // The light colour in effect: the probe's where given, otherwise the player's, 0 to 3.
+        // The light colour in effect: the player's, 0 to 3.
         private float AmbientTintLimit
         {
-            get { return probeAmbientTint >= 0f ? probeAmbientTint : Mathf.Clamp(AmbientColour(), 0f, 3f); }
+            get { return Mathf.Clamp(AmbientColour(), 0f, 3f); }
         }
 
-        // -redefinitionProbeRtAmbientTint's value, clamped to 0 to 3; -1 where it is not given.
-        private static float ProbeAmbientTint()
-        {
-            string[] args = System.Environment.GetCommandLineArgs();
-            int at = System.Array.IndexOf(args, "-redefinitionProbeRtAmbientTint");
-            float share;
-            return at >= 0 && at + 1 < args.Length && float.TryParse(args[at + 1], System.Globalization.NumberStyles.Float,
-                       System.Globalization.CultureInfo.InvariantCulture, out share) ? Mathf.Clamp(share, 0f, 3f) : -1f;
-        }
         // The ocean's traced reflections for the deferred reflections, Scatterer's ocean's input of screen-space
         // reflections, and KSP's sea as a sphere (centre and radius; radius 0 where the sea is not KSP's).
         private static readonly int RtOcean = Shader.PropertyToID("_ReDefinitionRtOcean");
@@ -1438,16 +1415,14 @@ namespace ReDefinition.Raytracing
             // Its blades the camera sees as such end where the farthest level of detail starts: the shade takes the
             // ground from there, as it does past the range.
             if (vesselGrassRange > 0f) grassRange = RtKspMods.ParallaxGrassLodStart;
-            // -redefinitionProbeMeadowFrom <metres>: the meadow's shade from there on instead of the grass's range.
-            packet.ShadowFade[6] = (grassRange > 0f || vesselGrassRange > 0f) && MeadowFrom != 0f ? MeadowFrom : grassRange;
-            // -redefinitionProbeMeadowShade <0..1>: another shade, to see where it lies.
-            packet.ShadowFade[7] = MeadowShadeProbe > 0f ? MeadowShadeProbe : MeadowShade;
+            packet.ShadowFade[6] = grassRange;
+            packet.ShadowFade[7] = MeadowShade;
             // The grass Parallax draws about the vessel: the vessel relative to the camera, and how far.
             Vector3 vessel = vesselGrassRange > 0f ? RtKspMods.ParallaxVessel(transform.position) - transform.position : Vector3.zero;
             packet.ShadowFade[8] = vessel.x;
             packet.ShadowFade[9] = vessel.y;
             packet.ShadowFade[10] = vessel.z;
-            packet.ShadowFade[11] = MeadowFrom != 0f ? 0f : vesselGrassRange;
+            packet.ShadowFade[11] = vesselGrassRange;
             Color sky = SkyColor();
             packet.SkyColor[0] = sky.r;
             packet.SkyColor[1] = sky.g;
@@ -1564,7 +1539,7 @@ namespace ReDefinition.Raytracing
                            | (reconstruct ? RtNative.FlagGuides : 0u)
                            | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u)
                            | (SurfaceIntent(deferred) ? RtNative.FlagSurfaceIntent : 0u)
-                           | (CloudShadowCheck ? RtNative.FlagCloudShadow : 0u) | parityFlag;
+                           | parityFlag;
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;

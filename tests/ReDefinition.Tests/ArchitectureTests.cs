@@ -32,7 +32,7 @@ namespace ReDefinition.Tests
             ["Hud"] = "Core Engineer Modules Ui Window",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Modules"] = "Core Dashboard Diagnostics Hud Probe Proxy Raytracing Scenery Settings Upscaler Vendor Window",
-            ["Probe"] = "Core Modules Proxy Raytracing Scenery Settings Ui Upscaler Vendor Window",
+            ["Probe"] = "Core Modules Proxy Raytracing Scenery Settings Ui Window",
             ["Proxy"] = "Core",
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",

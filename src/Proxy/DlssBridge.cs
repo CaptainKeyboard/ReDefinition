@@ -41,10 +41,9 @@ namespace ReDefinition.Proxy
     // DlssModel as the proxy and the settings row take it.
     internal static class DlssModels
     {
-        // The preset hint the packet carries for the model; a probe's preset overrides it.
+        // The preset hint the packet carries for the model.
         internal static DlssPreset Preset(DlssModel model)
         {
-            if (probePreset.HasValue) return probePreset.Value;
             switch (model)
             {
                 case DlssModel.K: return DlssPreset.K;
@@ -52,18 +51,6 @@ namespace ReDefinition.Proxy
                 case DlssModel.L: return DlssPreset.L;
                 default: return DlssPreset.Default;
             }
-        }
-
-        // -redefinitionProbeDlssPreset J|K|L|M: that preset in every mode, for a probe's run.
-        private static readonly DlssPreset? probePreset = ProbePreset();
-
-        // The preset named after -redefinitionProbeDlssPreset on the command line; null without one.
-        private static DlssPreset? ProbePreset()
-        {
-            string[] args = System.Environment.GetCommandLineArgs();
-            int at = System.Array.IndexOf(args, "-redefinitionProbeDlssPreset");
-            DlssPreset preset;
-            return at >= 0 && at + 1 < args.Length && System.Enum.TryParse(args[at + 1], out preset) ? preset : (DlssPreset?)null;
         }
 
         // The model as the settings row and the log show it: "Default" or "Preset K".
