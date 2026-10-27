@@ -57,10 +57,7 @@ namespace ReDefinition.Raytracing
                 return;
             }
             material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-            screen = new Mesh { name = "ReDefinition moon glow" };
-            screen.vertices = new[] { new Vector3(-1f, -1f, 0f), new Vector3(-1f, 1f, 0f), new Vector3(1f, 1f, 0f), new Vector3(1f, -1f, 0f) };
-            screen.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            screen.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
+            screen = RtScreenQuad.Make("ReDefinition moon glow");
             command = new CommandBuffer { name = "ReDefinition moon glow" };
         }
 

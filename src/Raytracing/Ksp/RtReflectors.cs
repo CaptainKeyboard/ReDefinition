@@ -232,7 +232,7 @@ namespace ReDefinition.Raytracing
         }
 
         // Rec. 709 luminance of a linear colour.
-        private static float Luminance(Color c)
+        internal static float Luminance(Color c)
         {
             return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
         }

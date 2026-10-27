@@ -148,6 +148,15 @@ namespace ReDefinition.Scenery
             return addon == null || addon.Live.KscLawnTerrain;
         }
 
+        // The space centre's city on the planet, the last one named KSC; null where there is none.
+        internal static PQSCity City()
+        {
+            PQSCity ksc = null;
+            foreach (PQSCity city in FindObjectsOfType<PQSCity>())
+                if (city.name == "KSC") ksc = city;
+            return ksc;
+        }
+
         // What Ready waits for, for the log.
         private string notReady = "not looked yet";
 
@@ -155,12 +164,14 @@ namespace ReDefinition.Scenery
         private bool Ready()
         {
             if (root == null)
-                foreach (PQSCity city in FindObjectsOfType<PQSCity>())
-                    if (city.name == "KSC")
-                    {
-                        root = city.transform;
-                        sphere = city.sphere;
-                    }
+            {
+                PQSCity city = City();
+                if (city != null)
+                {
+                    root = city.transform;
+                    sphere = city.sphere;
+                }
+            }
             notReady = "the space centre not found";
             if (root == null) return false;
             if (parallax == null) parallax = ParallaxTerrain();

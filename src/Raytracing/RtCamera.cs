@@ -250,6 +250,14 @@ namespace ReDefinition.Raytracing
         // shadow only near the camera (RtCommon.hlsli, RayOrigin), it was 0.77. It goes into the ground's
         // albedo for sun and sky alike.
         private const float MeadowShade = 0.82f;
+        // Where the packet keeps what it carries beside the name of its array: Params (RtNative.FramePacket.Params), the
+        // sun's shadow strength in the sun colour's w, the waves' time in the planet's w, and the meadow's range and the
+        // range of the grass about the vessel in the shadow fade's slots 6 and 11.
+        private const int ParamOcclusion = 0, ParamBounces = 1, ParamDiffuseReach = 2, ParamSpecularReach = 3, ParamClamp = 4,
+                          ParamEnvironment = 5, ParamTextures = 6, ParamGBuffer = 7;
+        private const int SunShadowStrength = 3, PlanetWaveTime = 3, ShadowFadeMeadowRange = 6, ShadowFadeVesselRange = 11;
+        // How far the diffuse and the specular rays go, in metres.
+        private const float RayReach = 100000f;
         private static readonly float MeadowShadeProbe = CommandLine.After("-redefinitionProbeMeadowShade") != null
             && float.TryParse(CommandLine.After("-redefinitionProbeMeadowShade"),
                 System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float shadeProbe)
@@ -483,11 +491,7 @@ namespace ReDefinition.Raytracing
             // the frame after the opaque geometry's light, before the transparent and the
             // atmosphere: after the forward opaque pass, or after Unity's deferred lighting,
             // where the forward opaque pass is left out when nothing is drawn forward.
-            screenQuad = new Mesh { name = "ReDefinition raytracing screen" };
-            screenQuad.vertices = new[] { new Vector3(-1f, -1f, 0f), new Vector3(-1f, 1f, 0f), new Vector3(1f, 1f, 0f),
-                                          new Vector3(1f, -1f, 0f) };
-            screenQuad.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            screenQuad.bounds = new Bounds(Vector3.zero, Vector3.one * 1e6f);
+            screenQuad = RtScreenQuad.Make("ReDefinition raytracing screen");
             Shader forwardShader = ShaderSource("Hidden/ReDefinition/RtForwardLight");
             if (forwardShader != null)
             {
@@ -864,7 +868,8 @@ namespace ReDefinition.Raytracing
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
                 // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn lifted
                 // to the terrain's albedo, into their albedo.
-                if (packet.ShadowFade[6] != 0f || packet.ShadowFade[11] != 0f || RtMaterialIntent.LawnAsTerrain)
+                if (packet.ShadowFade[ShadowFadeMeadowRange] != 0f || packet.ShadowFade[ShadowFadeVesselRange] != 0f
+                    || RtMaterialIntent.LawnAsTerrain)
                 {
                     command.SetRenderTarget(BuiltinRenderTextureType.GBuffer0);
                     command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, MeadowPass);
@@ -950,7 +955,7 @@ namespace ReDefinition.Raytracing
             // A G-buffer where there is one: Scatterer's ocean brings its surfaces as one, KSP's
             // sea under the deferred path has Unity's; without a G-buffer the water takes its
             // normal from the depth.
-            oceanPacket.Params[7] = scatterer || packet.Params[7] > 0.5f ? 1f : 0f;
+            oceanPacket.Params[ParamGBuffer] = scatterer || packet.Params[ParamGBuffer] > 0.5f ? 1f : 0f;
             for (int i = 0; i < 8; i++) oceanPacket.Outputs[i] = IntPtr.Zero;
             if (scatterer)
             {
@@ -1350,11 +1355,9 @@ namespace ReDefinition.Raytracing
             return GL.GetGPUProjectionMatrix(renderedProjection, true) * view;
         }
 
-        // The frame packet for this frame. It holds the view and the previous one, the inputs, the sun, sky, lights,
-        // clouds, sea and settings, and which passes to run. The argument `deferred` is set where the G-buffer was
-        // copied, the others where motion vectors and the sky's cube were. It returns the frame's camera-relative
-        // world to clip.
-        private Matrix4x4 FillPacket(bool deferred, bool withMotion, bool withEnvironment)
+        // The camera: this frame's matrices and the previous ones, the camera for AMD's denoiser, the jitter and the
+        // depth range. It returns the frame's camera-relative world to clip.
+        private Matrix4x4 FillView()
         {
             Matrix4x4 worldToClip = WorldToClipRelative();
             Write(worldToClip, packet.WorldToClip);
@@ -1403,7 +1406,12 @@ namespace ReDefinition.Raytracing
             packet.Jitter[1] = jitter.y;
             packet.DepthRange[0] = cam.nearClipPlane;
             packet.DepthRange[1] = cam.farClipPlane;
+            return worldToClip;
+        }
 
+        // The sun: its direction, its colour, how much of it Unity's shadows take and how they fade out.
+        private void FillSun(bool deferred)
+        {
             Vector4 towards = Sun();
             Vector3 direction = new Vector3(towards.x, towards.y, towards.z).normalized;
             packet.SunDirection[0] = direction.x;
@@ -1418,7 +1426,7 @@ namespace ReDefinition.Raytracing
             // How much of the sun Unity's shadows take: its light's shadow strength (KSP's sun
             // 0.75), for the forward light's estimate of what Unity shaded with.
             Light sunLight = SunLight != null ? SunLight() : null;
-            packet.SunColor[3] = sunLight != null && sunLight.shadows != LightShadows.None ? sunLight.shadowStrength : 1f;
+            packet.SunColor[SunShadowStrength] = sunLight != null && sunLight.shadows != LightShadows.None ? sunLight.shadowStrength : 1f;
             // And how it fades them out towards the shadow distance, its centre turned with
             // the camera.
             bool fades = !deferred && fadeScale.x > 0f;
@@ -1429,6 +1437,16 @@ namespace ReDefinition.Raytracing
             packet.ShadowFade[3] = fades ? fadeCentre.w : 0f;
             packet.ShadowFade[4] = fades ? fadeScale.x : 0f;
             packet.ShadowFade[5] = fades ? fadeScale.y : 0f;
+        }
+
+        // The frame packet for this frame. It holds the view and the previous one, the inputs, the sun, sky, lights,
+        // clouds, sea and settings, and which passes to run. The argument `deferred` is set where the G-buffer was
+        // copied, the others where motion vectors and the sky's cube were. It returns the frame's camera-relative
+        // world to clip.
+        private Matrix4x4 FillPacket(bool deferred, bool withMotion, bool withEnvironment)
+        {
+            Matrix4x4 worldToClip = FillView();
+            FillSun(deferred);
             // The meadow's shade on the ground past Parallax's grass (RtCommon.hlsli, MeadowShade): how far
             // the grass is drawn, and how much light a meadow's own blades keep from it.
             float grassRange = RtKspMods.ParallaxGrassRange(out float vesselGrassRange);
@@ -1455,6 +1473,19 @@ namespace ReDefinition.Raytracing
             packet.SkyColor[2] = sky.b;
             packet.SkyColor[3] = Mathf.Clamp01(SkyNeutral());
             bool composite = !RtLighting.ReflectionsReplaced;
+            FillAmbient(composite);
+            FillParams(deferred, withEnvironment);
+            bool stockWater = FillLights();
+            FillBody(stockWater);
+            uint signals = FillSignals(deferred, composite);
+            FillFlags(deferred, withMotion);
+            FillInputs(deferred, withMotion, withEnvironment, signals);
+            return worldToClip;
+        }
+
+        // Unity's ambient light, as it shades by itself; none where the raytraced light replaces it.
+        private void FillAmbient(bool composite)
+        {
             for (int i = 0; i < 12; i++) packet.Ambient[i] = 0f;
             if (composite)
             {
@@ -1467,15 +1498,24 @@ namespace ReDefinition.Raytracing
                 }
                 packet.Ambient[3] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
             }
+        }
 
-            packet.Params[0] = Settings.OcclusionDistance;
-            packet.Params[1] = Settings.Bounces;
-            packet.Params[2] = 100000f;
-            packet.Params[3] = 100000f;
-            packet.Params[4] = Settings.Clamp;
-            packet.Params[5] = withEnvironment ? 1f : 0f;
-            packet.Params[6] = 1f;
-            packet.Params[7] = deferred ? 1f : 0f;
+        // The rays' settings: the occlusion, the bounces, how far the rays go, the clamp and which inputs there are.
+        private void FillParams(bool deferred, bool withEnvironment)
+        {
+            packet.Params[ParamOcclusion] = Settings.OcclusionDistance;
+            packet.Params[ParamBounces] = Settings.Bounces;
+            packet.Params[ParamDiffuseReach] = RayReach;
+            packet.Params[ParamSpecularReach] = RayReach;
+            packet.Params[ParamClamp] = Settings.Clamp;
+            packet.Params[ParamEnvironment] = withEnvironment ? 1f : 0f;
+            packet.Params[ParamTextures] = 1f;
+            packet.Params[ParamGBuffer] = deferred ? 1f : 0f;
+        }
+
+        // The bodies lit by the sun as lights, and the least light a surface gets. It returns whether the sea is KSP's own.
+        private bool FillLights()
+        {
             for (int i = 0; i < 16; i++) packet.Lights[i] = 0f;
             for (int i = 0; i < 8; i++) packet.LightSurface[i] = 0f;
             packet.LightParams[0] = Mathf.Clamp(Lights(packet.Lights, packet.LightSurface), 0, 2);
@@ -1490,6 +1530,12 @@ namespace ReDefinition.Raytracing
             packet.NightLight[0] = night.r;
             packet.NightLight[1] = night.g;
             packet.NightLight[2] = night.b;
+            return stockWater;
+        }
+
+        // The main body: its albedo, the time of its sea's waves, its sphere and the sea's frame.
+        private void FillBody(bool stockWater)
+        {
             Color planet = PlanetAlbedo();
             packet.Planet[0] = planet.r;
             packet.Planet[1] = planet.g;
@@ -1497,7 +1543,7 @@ namespace ReDefinition.Raytracing
             // The time for the waves of KSP's own sea (RtCommon.hlsli, StockWaves), within a
             // day: the waves jump where it starts again, and a float still counts 8 ms by
             // its end, a ripple's move of millimetres.
-            packet.Planet[3] = WaveTimeHeld ?? Time.time % 86400f;
+            packet.Planet[PlanetWaveTime] = WaveTimeHeld ?? Time.time % 86400f;
             Vector4 body = Body();
             // The sea's sphere for the reflections' shader, in Unity's world: none but for
             // KSP's own sea.
@@ -1520,7 +1566,11 @@ namespace ReDefinition.Raytracing
                 packet.Sea[9] = seaNorth.y;
                 packet.Sea[10] = seaNorth.z;
             }
+        }
 
+        // The passes to trace this frame; the parity check's, where it runs, among them. It returns the signals.
+        private uint FillSignals(bool deferred, bool composite)
+        {
             // The sun's pass always: its output keeps the view depth the next frame finds
             // its pixels by.
             uint signals = RtNative.SignalSun;
@@ -1551,6 +1601,12 @@ namespace ReDefinition.Raytracing
             }
             packet.Signals = signals;
             LastSignals = signals;
+            return signals;
+        }
+
+        // The frame's index and size and the flags, and the guides Ray Reconstruction asks for.
+        private void FillFlags(bool deferred, bool withMotion)
+        {
             packet.FrameIndex = frameIndex;
             packet.Width = (uint)width;
             packet.Height = (uint)height;
@@ -1572,7 +1628,11 @@ namespace ReDefinition.Raytracing
                 GuidesIndex = frameIndex;
                 Array.Copy(packet.ClipToWorld, GuidesClipToWorld, 16);
             }
+        }
 
+        // The textures the proxy reads and writes this frame.
+        private void FillInputs(bool deferred, bool withMotion, bool withEnvironment, uint signals)
+        {
             for (int i = 0; i < 8; i++)
             {
                 packet.Inputs[i] = IntPtr.Zero;
@@ -1612,7 +1672,6 @@ namespace ReDefinition.Raytracing
                 packet.Outputs[RtNative.OutputSurface] = parityRaysHandle;
                 packet.Outputs[RtNative.OutputSurfaceMode] = parityRasterHandle;
             }
-            return worldToClip;
         }
 
         // A render texture's pixels as four floats each, read at once (the probe's); null where it cannot be.

@@ -342,9 +342,7 @@ namespace ReDefinition.Scenery
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             long mainThread = 0;
-            PQSCity ksc = null;
-            foreach (PQSCity city in FindObjectsOfType<PQSCity>())
-                if (city.name == "KSC") ksc = city;
+            PQSCity ksc = KscGround.City();
             if (ksc == null)
             {
                 Debug.Log(Log.Tag + " Space centre grass: none (the space centre not found).");

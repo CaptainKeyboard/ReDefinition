@@ -170,7 +170,7 @@ namespace ReDefinition.Raytracing
             // The raytracing's moonlight, the moons' together as they light the ground; none
             // while it is off. On the clouds at CloudShare of it.
             bool lit = RtReflectors.Combined(main, out moon, out eye, out towards, out moonColour)
-                       && Luminance(moonColour) > 0f && !HeldOff;
+                       && RtReflectors.Luminance(moonColour) > 0f && !HeldOff;
             moonColour *= CloudShare;
             Light2D(lit, main, moon, moonColour);
             lastReach = 1.0;
@@ -199,7 +199,7 @@ namespace ReDefinition.Raytracing
             Vector3d up = (eye - main.position).normalized;
             double elevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(up, (Vector3d)sun))));
             double top = CloudLightBlend.Dip(main.Radius, highest);
-            float sunBrightness = Luminance(sunColour);
+            float sunBrightness = RtReflectors.Luminance(sunColour);
             Color moonLight = moonColour * sunBrightness;
 
             if (EveCloudRelight.Ready)
@@ -219,7 +219,7 @@ namespace ReDefinition.Raytracing
             }
             sunDir[0] = sun.x; sunDir[1] = sun.y; sunDir[2] = sun.z;
             moonDir[0] = towards.x; moonDir[1] = towards.y; moonDir[2] = towards.z;
-            CloudLightBlend.Direction(sunDir, sunBrightness, moonDir, Luminance(moonLight), reach, lightDir);
+            CloudLightBlend.Direction(sunDir, sunBrightness, moonDir, RtReflectors.Luminance(moonLight), reach, lightDir);
             Vector3 light = new Vector3((float)lightDir[0], (float)lightDir[1], (float)lightDir[2]);
             Color colour = sunColour * (float)reach + moonLight * (float)(1.0 - reach);
             colour.a = sunColour.a;
@@ -331,7 +331,7 @@ namespace ReDefinition.Raytracing
                 Matrix4x4 sources = Matrix4x4.zero;
                 Matrix4x4 colours = Matrix4x4.zero;
                 sources.SetRow(0, new Vector4(position.x, position.y, position.z, 1f));
-                Color light = moonColour * Luminance(material.GetColor(CloudSunColourId));
+                Color light = moonColour * RtReflectors.Luminance(material.GetColor(CloudSunColourId));
                 colours.SetRow(0, new Vector4(light.r, light.g, light.b, 1f));
                 material.SetMatrix(SourcesId, sources);
                 material.SetMatrix(ColoursId, colours);
@@ -356,12 +356,6 @@ namespace ReDefinition.Raytracing
                   : kind == 3 ? "the sun's, " + name + "'s per pixel" : kind == 4 ? "from the sun to " + name + ", per pixel giving way"
                   : name + "'s alone";
             Debug.Log(Log.Tag + " Clouds: their light " + state + ".");
-        }
-
-        // Rec. 709 luminance of a linear colour.
-        private static float Luminance(Color c)
-        {
-            return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
         }
     }
 }

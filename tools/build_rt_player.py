@@ -39,6 +39,7 @@ SOURCES = [
     'src/Proxy/ProxyEvents.cs',
     'src/Proxy/RtNative.cs',
     'src/Raytracing/RtScene.cs',
+    'src/Raytracing/RtScreenQuad.cs',
     'src/Raytracing/RtMaterial.cs',
     'src/Raytracing/RtMaterialIntent.cs',
     'src/Raytracing/RtForwardHighlight.cs',

@@ -437,15 +437,15 @@ namespace ReDefinition.Raytracing
             return Scenery.ParallaxScatterFields.Available ? Scenery.ParallaxScatterFields.CraftPosition() : camera;
         }
 
+        // The nearest distance from the camera at which the vessel-centred grass turns to its farthest level of detail,
+        // 0 for none (set by ParallaxGrassRange).
+        internal static float ParallaxGrassLodStart { get { return grassLodStart; } }
+
         // How far Parallax draws its grass, in metres. The result is the longest range of the active scatters named
         // grass that it culls about the camera. `aboutVessel` is the longest range of those it culls about the active
         // vessel (Scenery.ParallaxScatterFields.AboutVessel). Kerbin's main grass is 320 m of the vessel in
         // Parallax_StockScatterTextures, its tall grass 400 m of the camera. Each is 0 where none is (or another
         // version of Parallax). Asked once a second.
-        // The nearest distance from the camera at which the vessel-centred grass turns to its farthest level of detail,
-        // 0 for none (set by ParallaxGrassRange).
-        internal static float ParallaxGrassLodStart { get { return grassLodStart; } }
-
         internal static float ParallaxGrassRange(out float aboutVessel)
         {
             float now = Time.realtimeSinceStartup;

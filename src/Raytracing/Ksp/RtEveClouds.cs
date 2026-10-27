@@ -370,10 +370,7 @@ namespace ReDefinition.Raytracing
         // (RtCommon.hlsli, CloudTransmittance, its fades 1). It is -1 where there is no layer.
         internal float EvePrediction(Vector3 world, Vector3 towardsSun, Color colour, float strength)
         {
-            if (lastLayer == null) return -1f;
-            if (sampleCoverage == null)
-                sampleCoverage = lastLayer.GetType().GetMethod("SampleCoverage", new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
-            if (sampleCoverage == null) return -1f;
+            if (!HasSampleCoverage()) return -1f;
             Vector3 toCentre = lastCentre - world;
             float distance = toCentre.magnitude;
             if (distance > lastRadius) return -1f;
@@ -391,12 +388,18 @@ namespace ReDefinition.Raytracing
         // (CloudsRaymarchedVolume.SampleCoverage, CPU), 0 to 1; -1 where there is none.
         internal float DensityAt(Vector3 world)
         {
-            if (lastLayer == null) return -1f;
-            if (sampleCoverage == null)
-                sampleCoverage = lastLayer.GetType().GetMethod("SampleCoverage", new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
-            if (sampleCoverage == null) return -1f;
+            if (!HasSampleCoverage()) return -1f;
             object[] arguments = { world, 0f, false };
             return (float)sampleCoverage.Invoke(lastLayer, arguments);
+        }
+
+        // Whether there is a layer to sample and EVE's SampleCoverage was found on it, looked up on first use.
+        private bool HasSampleCoverage()
+        {
+            if (lastLayer == null) return false;
+            if (sampleCoverage == null)
+                sampleCoverage = lastLayer.GetType().GetMethod("SampleCoverage", new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
+            return sampleCoverage != null;
         }
 
         // The layer's shell, from the planet's centre, for the probe; false where none is filled.
@@ -449,8 +452,6 @@ namespace ReDefinition.Raytracing
             float coverageOurs = texel.r, curveOurs = texel.g;
             float densityOurs = curveOurs < 0.01f || coverageOurs < 0.01f ? 0f : curveOurs * coverageOurs;
             float trOurs = 1f / (1f + 7f * densityOurs + 26f * densityOurs * densityOurs);
-            // The camera-relative path the proxy takes: the matrix with the camera's translation.
-            Vector3 camera = Camera.main != null ? Camera.main.transform.position : Vector3.zero;
             centres += " ours on the CPU: shadow " + (1f + (1f - trOurs) * (Mathf.Clamp01(trOurs * 2f) - 1f)).ToString("0.00");
             return centres + " exit " + (at - lastCentre).magnitude.ToString("0") + " m up, uv " + u.ToString("0.000") + "," + v.ToString("0.000")
                    + ", EVE density " + density.ToString("0.000") + " coverage " + coverage + " type " + type
