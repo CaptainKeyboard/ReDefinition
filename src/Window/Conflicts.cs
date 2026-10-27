@@ -134,10 +134,14 @@ namespace ReDefinition.Window
                 shippedNow.Add(entry.Shipped != null ? Safe(entry.Shipped) : null);
             }
             sharing.Clear();
-            List<string> shared = Sharing(keysNow, textsNow, situationsNow, modesNow, shippedNow, apartNow);
+            sharedNow.Clear();
+            sharedNow.UnionWith(Sharing(keysNow, textsNow, situationsNow, modesNow, shippedNow, apartNow));
             foreach (Entry entry in entries)
-                if (shared.Contains(entry.Key)) sharing.Add(entry.Row);
+                if (sharedNow.Contains(entry.Key)) sharing.Add(entry.Row);
         }
+
+        // The keys the last count found sharing a combination, kept to look the entries up by.
+        private static readonly HashSet<string> sharedNow = new HashSet<string>();
 
         // Each binding's `apart` group at the last count.
         private static readonly List<string> apartNow = new List<string>();
@@ -166,6 +170,7 @@ namespace ReDefinition.Window
             for (int i = 0; i < keys.Count; i++) combinations[i] = KeyCombination.ParseLoose(texts[i]);
 
             List<string> shared = new List<string>();
+            HashSet<string> found = new HashSet<string>();
             for (int i = 0; i < keys.Count; i++)
             {
                 if (!combinations[i].IsBound) continue;
@@ -177,8 +182,8 @@ namespace ReDefinition.Window
                     if (kspInvolved ? combinations[j].Key != combinations[i].Key : !combinations[j].Equals(combinations[i]))
                         continue;
                     if (ShippedTogether(texts[i], shipped[i]) && ShippedTogether(texts[j], shipped[j])) continue;
-                    if (!shared.Contains(keys[i])) shared.Add(keys[i]);
-                    if (!shared.Contains(keys[j])) shared.Add(keys[j]);
+                    if (found.Add(keys[i])) shared.Add(keys[i]);
+                    if (found.Add(keys[j])) shared.Add(keys[j]);
                 }
             }
             return shared;

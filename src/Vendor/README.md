@@ -10,7 +10,8 @@ download and install of NVIDIA's, Intel's and the RTX 30 package's files.
 | `src/Vendor/TechniqueFiles.cs` | What choosing a technique with missing files does, step by step |
 | `src/Vendor/GpuClass.cs` | `GpuClass`, the classes profile values differ by, and `GpuClass.Of` |
 | `src/Vendor/NvidiaFiles.cs` | The Streamline release's entries, checksums, `NvidiaFiles.Extract` and `NvidiaFiles.PlaceAll` |
-| `src/Vendor/NvidiaDownloader.cs` | The download: ranges from the archive, a thread for the check, the dialog |
+| `src/Vendor/ArchiveDownload.cs` | The download both vendors share: ranges from the archive, a thread for the check |
+| `src/Vendor/NvidiaDownloader.cs` | NVIDIA's part of it: the dialog, the folders, what is used when |
 | `src/Vendor/AmperePackage.cs` | The dlssg_for_sm86 zip and what comes out of it |
 
 ## What it does
@@ -39,7 +40,7 @@ It uses Core, Modules, Proxy, Ui and Window. Modules, Probe, Settings and Window
   `AmperePackageTests.cs`, `AmpereOptionsTests.cs`).
 - The check and the placing run on a thread of their own. The download's thread counts the
   received bytes, and the settings row reads them on the main thread
-  (`src/Vendor/NvidiaDownloader.cs`).
+  (`src/Vendor/ArchiveDownload.cs`).
 - A new release of a vendor's SDK changes the figures in `NvidiaFiles` or `IntelFiles`. Read
   them from the release again; do not guess them.
 - `AmperePackage` pins no file, because the package's layout changes between releases. What has

@@ -29,7 +29,7 @@ namespace ReDefinition.Window
             slider.tooltipText = TooltipText.Wrap(choice.Tooltip);
             slider.OptionInteractableCondition = () => AmpereFrameGeneration.Installed();
 
-            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            rows.Add(DialogRows.Row(RowHeight, 4f,
                 new DialogGUILabel(choice.Title, NameWidth),
                 slider,
                 new DialogGUISpace(10f),

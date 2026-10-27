@@ -36,6 +36,9 @@ namespace ReDefinition
         private const float WindowHeight = 600f;
         private const float CategoryWidth = 150f;
 
+        // The pages' list's layout option, made once.
+        private static readonly GUILayoutOption CategoryOption = GUILayout.Width(CategoryWidth);
+
         // As tall as it is made, but within the screen (at 1080p 600 fits).
         private static float ShownHeight
         {
@@ -215,7 +218,7 @@ namespace ReDefinition
             DrawLiveStrip();
             GUILayout.Space(4f);
 
-            GUILayout.BeginHorizontal(GUILayout.ExpandHeight(true));
+            GUILayout.BeginHorizontal(DiagnosticsLayout.FillHeight);
             DrawCategoryList();
             GUILayout.Space(6f);
             DrawPane();
@@ -270,7 +273,7 @@ namespace ReDefinition
         // each says how many of its options pass.
         private void DrawCategoryList()
         {
-            GUILayout.BeginVertical(GUILayout.Width(CategoryWidth));
+            GUILayout.BeginVertical(CategoryOption);
             bool filtering = FilterActive;
             foreach (DebugCategory page in Pages)
             {
@@ -297,8 +300,8 @@ namespace ReDefinition
         // filters its own lines).
         private void DrawPane()
         {
-            paneScroll = GUILayout.BeginScrollView(paneScroll, false, false, GUILayout.ExpandWidth(true),
-                                                   GUILayout.ExpandHeight(true));
+            paneScroll = GUILayout.BeginScrollView(paneScroll, false, false, DiagnosticsLayout.Fill,
+                                                   DiagnosticsLayout.FillHeight);
             if (category == DebugCategory.OtherMods) DrawOtherMods();
             else if (FilterActive) DrawResults();
             else
@@ -320,13 +323,13 @@ namespace ReDefinition
         {
             List<DebugOption> pinned = Pinned();
             GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.ExpandWidth(true));
+            GUILayout.BeginVertical(DiagnosticsLayout.Fill);
             if (pinned.Count == 0)
                 GUILayout.Label("Pin an option with its star to keep it here.", styles.Dim);
             else
                 DrawPinned(pinned, WindowWidth - 110f);
             GUILayout.EndVertical();
-            if (GUILayout.Button("Close", GUILayout.Width(80f))) ToggleWindow();
+            if (GUILayout.Button("Close", DiagnosticsLayout.CloseButton)) ToggleWindow();
             GUILayout.EndHorizontal();
         }
 

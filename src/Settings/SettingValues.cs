@@ -28,6 +28,9 @@ namespace ReDefinition.Settings
 
             // A list of numbers, as Scatterer's cascade splits: item by item.
             // Text with a comma in it is no such list, and compares exactly.
+            // A text without a comma on either side cannot be a list of equal length,
+            // so the split is skipped for it.
+            if (a.IndexOf(',') < 0 || b.IndexOf(',') < 0) return false;
             string[] listA = a.Split(',');
             string[] listB = b.Split(',');
             if (listA.Length < 2 || listA.Length != listB.Length) return false;

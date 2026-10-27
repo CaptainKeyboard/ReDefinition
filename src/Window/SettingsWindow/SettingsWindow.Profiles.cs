@@ -26,6 +26,10 @@ namespace ReDefinition.Window
         // out with: a profile's differences count each of them, and no other module
         // setting.
         private static string[] statusModules;
+        // The settings object they were read from, when, and the settings a profile can set.
+        private static OwnSettings statusModulesOf;
+        private static float statusModulesAt = -10f;
+        private static List<ModuleSetting> profileSettable;
 
         // The profiles as the GameDatabase holds them -- a visual pack's patches
         // included -- with what choosing each fills in for the mods installed
@@ -56,6 +60,7 @@ namespace ReDefinition.Window
             }
             model.SetProfiles(values, releasedBy);
             defaultsOf = null;
+            profilesGeneration++;
             ProfileApplier.Report("Graphics profiles", problems);
             status = null;
         }
@@ -84,9 +89,8 @@ namespace ReDefinition.Window
                 choose.tooltipText = shown.Description + "\nAccept sets it; a row changed afterwards makes it"
                                      + " Custom.";
                 string beside = (shown.Summary.Length > 0 ? shown.Summary : shown.Title)
-                                + (shown.Hardware.Length > 0 ? "\n<color=#9a9a9a>" + shown.Hardware + "</color>" : "");
-                rows.Add(new DialogGUIHorizontalLayout(0f, 36f, 8f, new RectOffset(), TextAnchor.MiddleLeft,
-                    choose, new DialogGUILabel(beside, true)));
+                                + (shown.Hardware.Length > 0 ? "\n" + RichText.Grey(shown.Hardware) : "");
+                rows.Add(DialogRows.Row(36f, 8f, choose, new DialogGUILabel(beside, true)));
             }
 
             return rows.ToArray();
@@ -210,7 +214,11 @@ namespace ReDefinition.Window
                         5f);
                 model.Profile = "";
             }
-            if (edit != null) edit.After = OwnSettingsReset.From(edit.After, BundledSettings.ProfileChosen);
+            if (edit != null)
+            {
+                edit.After = OwnSettingsReset.From(edit.After, BundledSettings.ProfileChosen);
+                edit.Reads.Written();
+            }
             // ReDefinition's own bindings went back with the settings above, the
             // mods' go with their other settings, and KSP's are filled in here.
             ResetKeyBindings();
@@ -247,7 +255,11 @@ namespace ReDefinition.Window
             if (!model.ChooseProfile(profile.Name, setting => model.Bundled || SetDirectly(setting, false))) return;
 
             List<string> problems = new List<string>();
-            if (edit != null) ModuleProfiles.Apply(profile, edit.After, problems, BundledSettings.ProfileChosen);
+            if (edit != null)
+            {
+                ModuleProfiles.Apply(profile, edit.After, problems, BundledSettings.ProfileChosen);
+                edit.Reads.Written();
+            }
             ProfileApplier.Report("Graphics profile '" + profile.Title + "'", problems);
         }
 
@@ -280,37 +292,43 @@ namespace ReDefinition.Window
         }
 
         // Whether every setting of ReDefinition's modules a profile sets still holds the value the
-        // status line was worked out with; the values now are kept for the next
-        // frame.
+        // status line was worked out with; the values now are kept for the next look.
+        // Looked at ten times a second, as the window's own settings are compared (OwnSettingsPending): the
+        // line follows a change within a tenth of a second, and a new copy of the settings at once.
         private static bool SameModules(OwnSettings after)
         {
-            int count = 0;
-            for (int m = 0; m < OurModules.All.Count; m++)
-            {
-                IList<ModuleSetting> settings = OurModules.All[m].Settings;
-                for (int s = 0; s < settings.Count; s++)
-                    if (ModuleProfiles.CanSet(settings[s])) count++;
-            }
-            bool same = statusModules != null && statusModules.Length == count;
-            if (!same) statusModules = new string[count];
+            float now = Time.unscaledTime;
+            if (statusModules != null && after == statusModulesOf && now - statusModulesAt < 0.1f) return true;
+            statusModulesOf = after;
+            statusModulesAt = now;
 
-            int i = 0;
-            for (int m = 0; m < OurModules.All.Count; m++)
+            List<ModuleSetting> settable = ProfileSettable();
+            bool same = statusModules != null && statusModules.Length == settable.Count;
+            if (!same) statusModules = new string[settable.Count];
+
+            for (int i = 0; i < settable.Count; i++)
             {
-                IList<ModuleSetting> settings = OurModules.All[m].Settings;
-                for (int s = 0; s < settings.Count; s++)
-                {
-                    if (!ModuleProfiles.CanSet(settings[s])) continue;
-                    string value = after != null ? settings[s].Read(after) : null;
-                    if (!string.Equals(statusModules[i], value, StringComparison.Ordinal))
-                    {
-                        statusModules[i] = value;
-                        same = false;
-                    }
-                    i++;
-                }
+                string value = after != null ? settable[i].Read(after) : null;
+                if (string.Equals(statusModules[i], value, StringComparison.Ordinal)) continue;
+                statusModules[i] = value;
+                same = false;
             }
             return same;
+        }
+
+        // The settings of ReDefinition's modules a profile can set, listed once.
+        private static List<ModuleSetting> ProfileSettable()
+        {
+            if (profileSettable != null) return profileSettable;
+            List<ModuleSetting> found = new List<ModuleSetting>();
+            for (int m = 0; m < OurModules.All.Count; m++)
+            {
+                IList<ModuleSetting> settings = OurModules.All[m].Settings;
+                for (int s = 0; s < settings.Count; s++)
+                    if (ModuleProfiles.CanSet(settings[s])) found.Add(settings[s]);
+            }
+            profileSettable = found;
+            return found;
         }
 
         // The row's value as the window holds it now; null where it holds none.

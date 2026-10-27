@@ -81,22 +81,42 @@ namespace ReDefinition.Window
         {
             if (row == null) return null;
             searchTexts[row] = text;
-            List<string> texts;
-            if (!pageTexts.TryGetValue(building, out texts))
-            {
-                texts = new List<string>();
-                pageTexts[building] = texts;
-            }
-            texts.Add(text);
+            NotePageText(building, text);
             return row;
         }
 
-        // Whether the row's search text matches what is typed.
+        // Notes a text the search finds the page by.
+        private static void NotePageText(SettingCategory category, string text)
+        {
+            List<string> texts;
+            if (!pageTexts.TryGetValue(category, out texts))
+            {
+                texts = new List<string>();
+                pageTexts[category] = texts;
+            }
+            texts.Add(text);
+        }
+
+        // Whether the row's search text matches what is typed. Every row asks in every frame while something is
+        // typed, so each answer is kept until the search changes.
         private static bool RowMatches(DialogGUIBase row)
         {
+            if (!string.Equals(rowMatchesFor, keySearch, StringComparison.Ordinal))
+            {
+                rowMatchesFor = keySearch;
+                rowMatches.Clear();
+            }
+            bool matches;
+            if (rowMatches.TryGetValue(row, out matches)) return matches;
             string text;
-            return searchTexts.TryGetValue(row, out text) && MatchesSearch(text, null);
+            matches = searchTexts.TryGetValue(row, out text) && MatchesSearch(text, null);
+            rowMatches[row] = matches;
+            return matches;
         }
+
+        // The search the rows' answers were worked out for, and the answers.
+        private static string rowMatchesFor;
+        private static readonly Dictionary<DialogGUIBase, bool> rowMatches = new Dictionary<DialogGUIBase, bool>();
 
         // The search the page matches were last worked out for, and the pages that matched it.
         private static string pageMatchesFor;
@@ -278,14 +298,36 @@ namespace ReDefinition.Window
         // The profile's value of a bundled row as the row shows values, where the row holds
         // another one; null where it holds the profile's, the profile has none, or none is
         // chosen.
+        // Every row asks twice in every frame, so each answer is kept while the rows, the chosen profile and
+        // the profiles' lists are as they were: the answer depends on nothing else.
         private static string BundledDefault(BundledSetting setting)
         {
+            if (defaultKnownVersion != model.Version || defaultKnownGeneration != profilesGeneration
+                || !string.Equals(defaultKnownProfile, model.Profile, StringComparison.Ordinal))
+            {
+                bundledDefaultKnown.Clear();
+                defaultKnownVersion = model.Version;
+                defaultKnownGeneration = profilesGeneration;
+                defaultKnownProfile = model.Profile;
+            }
+            string known;
+            if (bundledDefaultKnown.TryGetValue(setting.Key, out known)) return known;
             string profileValue, now;
-            if (!DefaultsFor(model.Profile) || !bundledDefaults.TryGetValue(setting.Key, out profileValue)
-                || !model.TryGetPending(setting.Key, out now) || SettingValues.Same(now, profileValue))
-                return null;
-            return profileValue;
+            known = !DefaultsFor(model.Profile) || !bundledDefaults.TryGetValue(setting.Key, out profileValue)
+                    || !model.TryGetPending(setting.Key, out now) || SettingValues.Same(now, profileValue)
+                ? null
+                : profileValue;
+            bundledDefaultKnown[setting.Key] = known;
+            return known;
         }
+
+        // What BundledDefault answered since the rows, the chosen profile or the profiles' lists last changed, and
+        // what they were then. The generation counts LoadProfiles, which reads the lists again.
+        private static readonly Dictionary<string, string> bundledDefaultKnown = new Dictionary<string, string>();
+        private static int defaultKnownVersion = -1;
+        private static int defaultKnownGeneration = -1;
+        private static string defaultKnownProfile;
+        private static int profilesGeneration;
 
         // The profile's value of one of ReDefinition's own rows as the row shows it, where the row holds another one;
         // null otherwise.
@@ -296,13 +338,20 @@ namespace ReDefinition.Window
             // leaves it to the player.
             if (settings == null || setting.OnlyActivates || !DefaultsFor(model.Profile)
                 || !ownDefaults.TryGetValue(setting, out profileValue)
-                || SettingValues.Same(setting.Normalize(setting.Read(settings)), profileValue))
+                || SettingValues.Same(OwnNormalized(setting, settings), profileValue))
                 return null;
             // As the row shows its value (KspSettingsSection.Shown).
             if (setting.Label != null) return setting.Label(profileValue);
             bool on;
             return setting.Control == SettingControl.Toggle && bool.TryParse(profileValue, out on)
                 ? KspSettingsSection.StateText(on) : profileValue;
+        }
+
+        // One of ReDefinition's own settings in that object as ModuleSetting.Normalize spells it, read once per frame
+        // for the copy the window edits.
+        private static string OwnNormalized(ModuleSetting setting, OwnSettings settings)
+        {
+            return edit != null ? edit.Reads.Normalized(setting, settings) : setting.Normalize(setting.Read(settings));
         }
 
         // The name with the change mark before it while a change waits.
@@ -376,7 +425,7 @@ namespace ReDefinition.Window
             foreach (KspAxes.Axis axis in KspAxes.All())
             {
                 AxisBinding copy;
-                if (axisPending.TryGetValue(axis.Name, out copy) && !KspAxes.Same(axis.Get(), copy)) return true;
+                if (axisPending.TryGetValue(axis.Name, out copy) && !AxisSame(axis, copy)) return true;
             }
             return false;
         }
@@ -393,13 +442,14 @@ namespace ReDefinition.Window
             SettingCategory shown = category;
             bool child = ParentOf(shown) != null;
             float width = child ? TabWidth - TabIndent : TabWidth;
-            DialogGUIToggleButton tab = new DialogGUIToggleButton(() => current == shown, Title(shown), chosen, width, 28f);
+            // Both texts made once: the name does not change while the window stands (AnyNotShown).
+            string plain = Title(shown);
+            string withMark = plain + " <color=" + MarkColor + ">" + Mark + "</color>";
+            DialogGUIToggleButton tab = new DialogGUIToggleButton(() => current == shown, plain, chosen, width, 28f);
             string lastLabel = null;
             tab.OnUpdate = () =>
             {
-                string label = CategoryPending(shown)
-                    ? Title(shown) + " <color=" + MarkColor + ">" + Mark + "</color>"
-                    : Title(shown);
+                string label = CategoryPending(shown) ? withMark : plain;
                 if (label == lastLabel || tab.uiItem == null) return;
                 DialogGUILabel text = LabelOf(tab);
                 if (text == null) return;

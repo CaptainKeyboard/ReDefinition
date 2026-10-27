@@ -1,14 +1,10 @@
 using System.Collections.Generic;
-using System.Collections;
-using System.Globalization;
 using System.IO;
-using System.Threading;
 using System;
 using KSP.Localization;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using ReDefinition.Window;
-using UnityEngine.Networking;
 using UnityEngine;
 
 namespace ReDefinition.Vendor
@@ -27,39 +23,30 @@ namespace ReDefinition.Vendor
     // makes its swapchain.
     internal static class IntelDownloader
     {
+        // The download this class describes to the player: what it fetches and says, and the progress it shows.
+        // Nothing is fetched until the player has accepted Intel's licence (Confirm). A stalled connection ends after
+        // the file at a minute per megabyte, and not under 1800 seconds. What is in place is looked at again as the
+        // outcome is kept.
+        private static readonly ArchiveDownload download = new ArchiveDownload("Intel's", IntelFiles.ArchiveUrl,
+            "Intel's licence", "Intel's XeSS files", length => (int)Math.Max(1800L, length / (1024 * 1024) * 60), Refresh);
+
         // Whether a download, its check or its placing is under way: a second one is not started meanwhile.
-        public static bool Running { get; private set; }
+        public static bool Running
+        {
+            get { return download.Running; }
+        }
 
         // Placed this session: the row then offers nothing more.
-        public static bool Installed { get; private set; }
-
-        // The outcome for the row; whether bytes are coming in; the bytes received (from the download's thread) and those
-        // expected; and the progress text with the tenth of a megabyte it was made for.
-        private static string status;
-        private static volatile bool downloading;
-        private static long received;
-        private static long total;
-        private static long shownTenths = -1;
-        private static string shownProgress;
+        public static bool Installed
+        {
+            get { return download.Installed; }
+        }
 
         // What the settings row says below its button: the download's progress or
-        // outcome, else the DLLs in place with their versions, null for neither. The
-        // progress text is made anew only when its figure changes: the row asks
-        // every frame.
+        // outcome, else the DLLs in place with their versions, null for neither.
         public static string Status
         {
-            get
-            {
-                if (!downloading) return status ?? installedLine;
-                long tenths = Interlocked.Read(ref received) * 10 / (1024 * 1024);
-                if (tenths != shownTenths)
-                {
-                    shownTenths = tenths;
-                    shownProgress = "Downloading " + (tenths / 10.0).ToString("0.0", CultureInfo.InvariantCulture) + " of "
-                                    + NvidiaDownloader.Megabytes(total) + " MB ...";
-                }
-                return shownProgress;
-            }
+            get { return download.Status(installedLine); }
         }
 
         // What is in place, looked at when the settings window builds its rows and
@@ -130,7 +117,7 @@ namespace ReDefinition.Vendor
         public static void Confirm(List<IntelFiles.Item> items, Action installed = null)
         {
             if (Running || items.Count == 0) return;
-            onInstalled = installed;
+            download.Continuation = installed;
 
             bool superResolution;
             bool frameGeneration;
@@ -180,7 +167,7 @@ namespace ReDefinition.Vendor
                 new DialogGUIHorizontalLayout(
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Accept and download", () => Start(items), 200f, 30f, true),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { onInstalled = null; }, 120f, 30f, true),
+                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { download.Continuation = null; }, 120f, 30f, true),
                     new DialogGUIFlexibleSpace()),
             };
             // libxess.dll is four fifths of it: the player who wants only XeSS super
@@ -203,217 +190,33 @@ namespace ReDefinition.Vendor
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
 
-        // What waits for the files: called when they are in place, dropped where the player cancels.
-        private static Action onInstalled;
-
-        // Starts the download as a coroutine on the add-on, unless one runs already.
+        // Starts the download of the items, unless one runs already. libxess.dll takes effect at once; XeSS frame
+        // generation's swapchain is made when KSP starts.
         private static void Start(List<IntelFiles.Item> items)
         {
-            if (Running || ReDefinitionAddon.Instance == null) return;
-            Running = true;
-            ReDefinitionAddon.Instance.StartCoroutine(Guarded(Run(new List<IntelFiles.Item>(items))));
-        }
-
-        // The download's range files, for Guarded's clean-up.
-        private static List<string> activeRangeFiles = new List<string>();
-
-        // The download, ended with Finish whatever it throws: Unity stops a
-        // coroutine that throws without running anything after it, and the button
-        // would stay greyed out until KSP restarts.
-        private static IEnumerator Guarded(IEnumerator steps)
-        {
-            while (true)
+            List<IntelFiles.Item> fetched = new List<IntelFiles.Item>(items);
+            bool superResolution;
+            bool frameGeneration;
+            IntelFiles.Uses(fetched, out superResolution, out frameGeneration);
+            download.Start(new ArchiveDownload.Job
             {
-                object current;
-                try
+                Entries = IntelFiles.Entries(fetched),
+                Folders = () =>
                 {
-                    if (!steps.MoveNext()) yield break;
-                    current = steps.Current;
-                }
-                catch (Exception e)
+                    IntelFiles.Folders folders = Folders();
+                    return i => IntelFiles.FolderOf(fetched[i], folders, superResolution);
+                },
+                WhenUsed = WhenUsed(superResolution, frameGeneration),
+                Placed = () =>
                 {
-                    if (Running) Finish("Download failed: " + e.Message + ".", activeRangeFiles);
-                    yield break;
-                }
-                yield return current;
-            }
-        }
-
-        // Fetches every file's range from the archive, then inflates, checks and places them on a thread; any failure
-        // ends it through Finish with nothing changed.
-        private static IEnumerator Run(List<IntelFiles.Item> items)
-        {
-            Installed = false;
-            Interlocked.Exchange(ref received, 0);
-            total = IntelFiles.DownloadSize(items);
-            shownTenths = -1;
-            status = null;
-            downloading = true;
-            List<NvidiaFiles.Entry> entries = IntelFiles.Entries(items);
-
-            IntelFiles.Folders folders = default(IntelFiles.Folders);
-            List<string> rangeFiles = new List<string>();
-            activeRangeFiles = rangeFiles;
-            try
-            {
-                folders = Folders();
-                string temporary = Path.GetTempPath();
-                foreach (NvidiaFiles.Entry entry in entries)
-                    rangeFiles.Add(Path.Combine(temporary, "ReDefinition-" + entry.FileName + ".range"));
-            }
-            catch (Exception e)
-            {
-                Finish("Download failed, nothing was changed: " + e.Message + ".", rangeFiles);
-                yield break;
-            }
-            Debug.Log(Log.Tag + " Downloading " + entries.Count + " of Intel's files (" + NvidiaDownloader.Megabytes(total)
-                      + " MB) from " + IntelFiles.ArchiveUrl + ", the player having accepted Intel's licence.");
-
-            for (int i = 0; i < entries.Count; i++)
-            {
-                NvidiaFiles.Entry entry = entries[i];
-                NvidiaDownloader.RangeHandler handler;
-                try
+                    if (frameGeneration)
+                        SettingsWindow.NoteRestart("files.intel", "Intel's files for XeSS frame generation", "Intel");
+                },
+                Told = () =>
                 {
-                    handler = new NvidiaDownloader.RangeHandler(rangeFiles[i], entry.RangeLength,
-                        n => Interlocked.Add(ref received, n));
-                }
-                catch (Exception e)
-                {
-                    Finish("Download failed, nothing was changed: " + entry.FileName + ": " + e.Message + ".", rangeFiles);
-                    yield break;
-                }
-
-                // Closed on every way out, a throw included: an open range file could
-                // not be deleted.
-                try
-                {
-                    using (UnityWebRequest request = new UnityWebRequest(IntelFiles.ArchiveUrl, UnityWebRequest.kHttpVerbGET,
-                               handler, null))
-                    {
-                        request.SetRequestHeader("Range", "bytes=" + entry.RangeStart + "-" + entry.RangeEnd);
-                        // A stalled connection ends here rather than never: long enough
-                        // for the file at a minute per megabyte.
-                        request.timeout = (int)Math.Max(1800L, entry.RangeLength / (1024 * 1024) * 60);
-                        yield return request.SendWebRequest();
-
-                        handler.Close();
-                        string failure = null;
-                        if (handler.Overflow || request.responseCode == 200)
-                            failure = "the server sent more than the part of Intel's archive that was asked for";
-                        else if (handler.WriteError != null)
-                            failure = handler.WriteError;
-                        else if (request.isNetworkError || request.isHttpError)
-                            failure = request.error + (request.responseCode != 0 ? " (HTTP " + request.responseCode + ")" : "");
-                        else if (request.responseCode != 206 || handler.Length != entry.RangeLength)
-                            failure = "HTTP " + request.responseCode + ", " + handler.Length + " bytes of " + entry.RangeLength;
-                        if (failure != null)
-                        {
-                            Finish("Download failed, nothing was changed: " + entry.FileName + ": " + failure + ".", rangeFiles);
-                            yield break;
-                        }
-                    }
-                }
-                finally
-                {
-                    handler.Close();
-                }
-            }
-            downloading = false;
-
-            // Inflated, checked and placed on a thread: 78 MB of libxess.dll would
-            // otherwise hold the game for a moment.
-            status = "Checking Intel's files ...";
-            string error = null;
-            List<string> backups = null;
-            bool done = false;
-            bool superResolutionFetched;
-            bool frameGenerationFetched;
-            IntelFiles.Uses(items, out superResolutionFetched, out frameGenerationFetched);
-            Thread worker = new Thread(() =>
-            {
-                List<NvidiaFiles.Placement> placements = new List<NvidiaFiles.Placement>();
-                try
-                {
-                    for (int i = 0; i < items.Count; i++)
-                    {
-                        string target = Path.Combine(IntelFiles.FolderOf(items[i], folders, superResolutionFetched),
-                                                     items[i].Entry.FileName);
-                        NvidiaFiles.Placement placement = new NvidiaFiles.Placement
-                        {
-                            Entry = items[i].Entry,
-                            Target = target,
-                            Partial = NvidiaFiles.PartialPath(target),
-                        };
-                        placements.Add(placement);
-                        // A folder the ini names may not exist yet.
-                        Directory.CreateDirectory(Path.GetDirectoryName(target));
-                        using (FileStream range = File.OpenRead(rangeFiles[i]))
-                        using (FileStream output = File.Create(placement.Partial))
-                            NvidiaFiles.Extract(items[i].Entry, range, output);
-                    }
-                    backups = NvidiaFiles.PlaceAll(placements);
-                }
-                catch (Exception e)
-                {
-                    error = e.Message;
-                    foreach (NvidiaFiles.Placement placement in placements)
-                    {
-                        try
-                        {
-                            if (!placement.Placed && File.Exists(placement.Partial)) File.Delete(placement.Partial);
-                        }
-                        catch (Exception)
-                        {
-                        }
-                    }
-                }
-                done = true;
+                    if (superResolution && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.IntelFilesPlaced();
+                },
             });
-            worker.IsBackground = true;
-            worker.Start();
-            while (!Volatile.Read(ref done)) yield return null;
-
-            if (error != null)
-            {
-                Finish("Download failed: " + error + ".", rangeFiles);
-                yield break;
-            }
-
-            Installed = true;
-            // XeSS frame generation's swapchain is made when KSP starts.
-            if (frameGenerationFetched)
-                SettingsWindow.NoteRestart("files.intel", "Intel's files for XeSS frame generation", "Intel");
-            Finish("Installed. " + WhenUsed(superResolutionFetched, frameGenerationFetched)
-                   + (backups != null && backups.Count > 0 ? " Kept before: " + string.Join(", ", backups.ToArray()) + "." : ""),
-                   rangeFiles);
-            if (superResolutionFetched && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.IntelFilesPlaced();
-        }
-
-        // Ends the download: the range files deleted, the outcome logged, put on the screen and kept for the row, what is
-        // in place looked at again, and the continuation called where the files are in place.
-        private static void Finish(string outcome, List<string> rangeFiles)
-        {
-            foreach (string file in rangeFiles)
-            {
-                try
-                {
-                    if (File.Exists(file)) File.Delete(file);
-                }
-                catch (Exception)
-                {
-                }
-            }
-            downloading = false;
-            Running = false;
-            status = outcome;
-            Refresh();
-            if (Installed) Debug.Log(Log.Tag + " Intel's files: " + outcome);
-            else Debug.LogWarning(Log.Tag + " Intel's files: " + outcome);
-            ScreenMessages.PostScreenMessage("Intel's XeSS files: " + outcome, 8f);
-            Action finished = onInstalled;
-            onInstalled = null;
-            if (Installed && finished != null) finished();
         }
     }
 }

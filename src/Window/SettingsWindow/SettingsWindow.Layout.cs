@@ -96,12 +96,11 @@ namespace ReDefinition.Window
             {
                 system = "--";
             }
-            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("System keyboard", NameWidth), new DialogGUILabel(system, true)));
+            rows.Add(DialogRows.Row(RowHeight, new DialogGUILabel("System keyboard", NameWidth), new DialogGUILabel(system, true)));
 
             if (names.Count == 0)
             {
-                rows.Add(new DialogGUILabel("<color=#9a9a9a>KSP has no keyboard layouts to choose from here.</color>", true));
+                rows.Add(new DialogGUILabel(RichText.Grey("KSP has no keyboard layouts to choose from here."), true));
                 return rows.ToArray();
             }
 
@@ -109,14 +108,14 @@ namespace ReDefinition.Window
             DialogGUIButton next = new DialogGUIButton(">", () => StepLayout(1), 24f, RowHeight + 4f, false);
             previous.tooltipText = next.tooltipText =
                 "The layout KSP reads key names with. Change it only where the system keyboard does not match it.";
-            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            rows.Add(DialogRows.Row(RowHeight + 4f, 4f,
                 new DialogGUILabel("Keyboard layout", NameWidth - 4f), previous,
                 new DialogGUILabel(() => LayoutTitle(LayoutShown()), ControlWidth - 56f), next));
 
             DialogGUIButton rebind = new DialogGUIButton("Bind keys to this layout ...", ConfirmRebind, ControlWidth + 60f,
                 RowHeight + 6f, false);
             rebind.tooltipText = "Sets every one of KSP's keys to the chosen layout's preset at Accept.";
-            rows.Add(new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            rows.Add(DialogRows.Row(RowHeight + 6f,
                 new DialogGUISpace(NameWidth), rebind,
                 new DialogGUILabel(() => rebindPending ? "<color=#f18a24>  at Accept</color>" : "", true)));
             return rows.ToArray();

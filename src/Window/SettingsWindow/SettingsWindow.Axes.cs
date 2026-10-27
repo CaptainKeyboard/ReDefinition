@@ -3,6 +3,7 @@ using System.Globalization;
 using System;
 using ReDefinition.Core;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -28,9 +29,9 @@ namespace ReDefinition.Window
         private static DialogGUIBase[] AxisRows()
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            rows.Add(new DialogGUILabel("<color=#9a9a9a>Click an axis's button and move the stick, trigger or wheel to"
-                                        + " bind it; Escape cancels, x clears it. Sensitivity and deadzone as in KSP's"
-                                        + " own input screen.</color>", true));
+            rows.Add(new DialogGUILabel(RichText.Grey("Click an axis's button and move the stick, trigger or wheel to"
+                                                      + " bind it; Escape cancels, x clears it. Sensitivity and deadzone as"
+                                                      + " in KSP's own input screen."), true));
             string group = null;
             List<DialogGUIBase> members = new List<DialogGUIBase>();
             bool first = true;
@@ -45,12 +46,12 @@ namespace ReDefinition.Window
                         members = new List<DialogGUIBase>();
                     }
                     group = axis.Group;
-                    members.Add(Searchable(new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                    members.Add(Searchable(DialogRows.Row(RowHeight,
                         new DialogGUISpace(AxisSideWidth),
-                        new DialogGUILabel("<color=#9a9a9a>Axis</color>", AxisButtonWidth + 26f),
-                        new DialogGUILabel("<color=#9a9a9a>Invert</color>", 56f),
-                        new DialogGUILabel("<color=#9a9a9a>Sensitivity</color>", AxisSliderWidth + AxisValueWidth),
-                        new DialogGUILabel("<color=#9a9a9a>Deadzone</color>", AxisSliderWidth + AxisValueWidth)),
+                        new DialogGUILabel(RichText.Grey("Axis"), AxisButtonWidth + 26f),
+                        new DialogGUILabel(RichText.Grey("Invert"), 56f),
+                        new DialogGUILabel(RichText.Grey("Sensitivity"), AxisSliderWidth + AxisValueWidth),
+                        new DialogGUILabel(RichText.Grey("Deadzone"), AxisSliderWidth + AxisValueWidth)),
                         GroupAxisTitles(group)));
                 }
                 string text = axis.Title + " " + axis.Group + " axis";
@@ -68,7 +69,23 @@ namespace ReDefinition.Window
         private static bool AxisChanged(KspAxes.Axis axis)
         {
             AxisBinding copy;
-            return axisPending.TryGetValue(axis.Name, out copy) && !KspAxes.Same(axis.Get(), copy);
+            return axisPending.TryGetValue(axis.Name, out copy) && !AxisSame(axis, copy);
+        }
+
+        // The comparisons of the axes' copies with KSP's bindings, by axis name.
+        private static readonly Dictionary<string, KspAxes.Comparison> axisComparisons =
+            new Dictionary<string, KspAxes.Comparison>();
+
+        // Whether the copy holds what KSP's binding of the axis holds now (KspAxes.Same).
+        private static bool AxisSame(KspAxes.Axis axis, AxisBinding copy)
+        {
+            KspAxes.Comparison comparison;
+            if (!axisComparisons.TryGetValue(axis.Name, out comparison))
+            {
+                comparison = new KspAxes.Comparison();
+                axisComparisons[axis.Name] = comparison;
+            }
+            return comparison.Of(axis.Get(), copy);
         }
 
         // The column captions stand wherever an axis of their group is found.
@@ -111,11 +128,20 @@ namespace ReDefinition.Window
             KspAxes.Axis shown = axis;
             string key = "axis." + shown.Name + (secondary ? ".secondary" : ".primary");
 
+            // The label is made again only when the axis or its controller is another.
+            string labelTag = null, labelName = null, labelText = null;
             Func<string> label = () =>
             {
                 if (AxisCapture.Listening(key)) return AxisListeningText;
                 AxisBinding_Single side = ShownSide(shown, secondary);
-                return side == null || side.idTag == "None" ? "None" : side.idTag + "  " + side.name;
+                if (side == null || side.idTag == "None") return "None";
+                if (labelText == null || side.idTag != labelTag || side.name != labelName)
+                {
+                    labelTag = side.idTag;
+                    labelName = side.name;
+                    labelText = labelTag + "  " + labelName;
+                }
+                return labelText;
             };
             DialogGUIButton bind = null;
             bind = new DialogGUIButton(label, () => AxisCapture.Start(key, taken =>
@@ -180,14 +206,17 @@ namespace ReDefinition.Window
                     if (side != null) side.deadzone = Mathf.Round(f * 100f) / 100f;
                 });
 
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel("<color=#9a9a9a>" + (secondary ? "Secondary" : "Primary") + "</color>", AxisSideWidth),
+            TwoDecimals sensitivityText = new TwoDecimals();
+            TwoDecimals deadzoneText = new TwoDecimals();
+            return DialogRows.Row(RowHeight + 4f,
+                new DialogGUILabel(RichText.Grey(secondary ? "Secondary" : "Primary"), AxisSideWidth),
                 bind, new DialogGUISpace(2f), clear, new DialogGUISpace(6f), invert, new DialogGUISpace(6f),
-                sensitivity, new DialogGUILabel(() => Number(SensitivityShown(ShownSide(shown, secondary))), AxisValueWidth),
+                sensitivity, new DialogGUILabel(() => sensitivityText.Of(SensitivityShown(ShownSide(shown, secondary))),
+                    AxisValueWidth),
                 deadzone, new DialogGUILabel(() =>
                 {
                     AxisBinding_Single side = ShownSide(shown, secondary);
-                    return Number(side != null ? side.deadzone : 0f);
+                    return deadzoneText.Of(side != null ? side.deadzone : 0f);
                 }, AxisValueWidth));
         }
 
@@ -196,12 +225,6 @@ namespace ReDefinition.Window
         {
             if (side == null) return 0f;
             return 1f - Mathf.InverseLerp(GameSettings.AxisSensitivityMin, GameSettings.AxisSensitivityMax, side.sensitivity);
-        }
-
-        // A slider's value with two decimals.
-        private static string Number(float value)
-        {
-            return value.ToString("0.00", CultureInfo.InvariantCulture);
         }
 
         // The copies that differ from KSP's bindings, written into them; true where

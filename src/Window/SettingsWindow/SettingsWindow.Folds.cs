@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 
 namespace ReDefinition.Window
 {
@@ -40,16 +41,13 @@ namespace ReDefinition.Window
             string fold = category + "/" + title;
             if (knownFolds.Add(fold) && first) openFolds.Add(fold);
 
-            string folded = "+  " + title;
-            string open = "-  " + title;
             List<DialogGUIBase> group = new List<DialogGUIBase>(members);
             // While searching, a group stands open where one of its rows matches,
             // with only those rows; its button then folds nothing.
-            DialogGUIButton header = new DialogGUIButton(() => FoldOpen(fold) || Searching ? open : folded, () =>
+            DialogGUIButton header = DialogRows.FoldHeader(title, () => FoldOpen(fold) || Searching, () =>
             {
                 if (!openFolds.Remove(fold)) openFolds.Add(fold);
-            }, PageWidth - 60f, RowHeight + 6f, false);
-            header.tooltipText = "Opens or folds " + title + ".";
+            }, PageWidth - 60f, RowHeight + 6f, "Opens or folds " + title + ".");
             header.OptionEnabledCondition = () => !Searching || group.Exists(RowMatchesCall);
             header.OptionInteractableCondition = () => !Searching;
             rows.Add(header);

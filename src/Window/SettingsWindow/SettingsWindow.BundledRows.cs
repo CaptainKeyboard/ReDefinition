@@ -31,6 +31,91 @@ namespace ReDefinition.Window
         // The choice rows of the open window, by their setting's key.
         private static readonly Dictionary<string, ChoiceRow> choiceRows = new Dictionary<string, ChoiceRow>();
 
+        // What a bundled row shows of its pending value: the number its slider stands at, the position among its choices
+        // and the text in its value column.
+        // KSP runs every row's delegates in every frame, so each is worked out once for a value.
+        // It is kept until the value's text or the row's lists are another string.
+        // The model hands out the same string until the row changes, and a choice row's lists are replaced,
+        // never edited (OfferChoice).
+        private sealed class RowShown
+        {
+            // The setting, and its choice row; null for a slider.
+            private readonly BundledSetting setting;
+            private readonly ChoiceRow choice;
+            // What the answers below were worked out for.
+            private bool keyed;
+            private bool hasText;
+            private string text;
+            private string[] choices;
+            private string[] labels;
+            // The answers, and whether each is worked out for the value above.
+            private bool numberMade, indexMade, shownMade;
+            private float number, index;
+            private string shown;
+
+            // Follows that row of that setting.
+            public RowShown(BundledSetting setting, ChoiceRow choice)
+            {
+                this.setting = setting;
+                this.choice = choice;
+            }
+
+            // The slider's number: the pending value, the setting's minimum where there is none.
+            public float Number()
+            {
+                Follow();
+                if (!numberMade)
+                {
+                    number = PendingFloat(setting.Key, setting.Min);
+                    numberMade = true;
+                }
+                return number;
+            }
+
+            // The choice row's slider position; 0 where the value is none of the choices.
+            public float Index()
+            {
+                Follow();
+                if (!indexMade)
+                {
+                    index = ChoiceIndex(setting.Key, choice.Choices);
+                    indexMade = true;
+                }
+                return index;
+            }
+
+            // The value column's text.
+            public string Shown()
+            {
+                Follow();
+                if (!shownMade)
+                {
+                    shown = Display(setting, choice != null ? choice.Choices : null, choice != null ? choice.Labels : null);
+                    shownMade = true;
+                }
+                return shown;
+            }
+
+            // Forgets the answers where the pending text or a list is not the one they were worked out for.
+            private void Follow()
+            {
+                string now;
+                bool has = model.TryGetPending(setting.Key, out now);
+                string[] nowChoices = choice != null ? choice.Choices : null;
+                string[] nowLabels = choice != null ? choice.Labels : null;
+                if (keyed && has == hasText && ReferenceEquals(now, text) && nowChoices == choices && nowLabels == labels)
+                    return;
+                keyed = true;
+                hasText = has;
+                text = now;
+                choices = nowChoices;
+                labels = nowLabels;
+                numberMade = false;
+                indexMade = false;
+                shownMade = false;
+            }
+        }
+
         // A value a choice row does not list joins its list (PlaceAmong), as one
         // found as the window opened does.
         private static void OfferChoice(string key, string value)
@@ -96,16 +181,17 @@ namespace ReDefinition.Window
             }
             else if (setting.Control == SettingControl.Slider)
             {
-                control = new DialogGUISlider(() => PendingFloat(key, setting.Min), setting.Min, setting.Max,
+                RowShown sliderShown = new RowShown(setting, null);
+                control = new DialogGUISlider(sliderShown.Number, setting.Min, setting.Max,
                     setting.WholeNumbers, ControlWidth, -1f, f =>
                     {
                         // The slider is set from the row in every frame
                         // (DialogGUISlider.Update), and a value it clamps or
                         // rounds on the way is not the player moving it.
-                        if (Mirrors(f, PendingFloat(key, setting.Min), setting)) return;
+                        if (Mirrors(f, sliderShown.Number(), setting)) return;
                         model.Change(key, Format(Stepped(f, setting), setting.WholeNumbers));
                     });
-                value = () => Display(setting, null, null);
+                value = sliderShown.Shown;
             }
             else
             {
@@ -129,7 +215,8 @@ namespace ReDefinition.Window
                 // rather than being shown as another.
                 string now;
                 if (model.TryGetPending(key, out now)) OfferChoice(choice, now);
-                choice.Control = new DialogGUISlider(() => ChoiceIndex(key, choice.Choices), 0f,
+                RowShown choiceShown = new RowShown(setting, choice);
+                choice.Control = new DialogGUISlider(choiceShown.Index, 0f,
                     choice.Choices.Length - 1, true, ControlWidth, -1f,
                     f =>
                     {
@@ -138,12 +225,12 @@ namespace ReDefinition.Window
                         // choosing. A value from outside the list joins it first
                         // (OfferChoice).
                         int index = Mathf.Clamp(Mathf.RoundToInt(f), 0, choice.Choices.Length - 1);
-                        if (index == Mathf.RoundToInt(ChoiceIndex(key, choice.Choices))) return;
+                        if (index == Mathf.RoundToInt(choiceShown.Index())) return;
                         model.Change(key, choice.Choices[index]);
                     });
                 choiceRows[key] = choice;
                 control = choice.Control;
-                value = () => Display(setting, choice.Choices, choice.Labels);
+                value = choiceShown.Shown;
             }
 
             // When a change arrives, where it is not at once, is said below the
@@ -151,12 +238,21 @@ namespace ReDefinition.Window
             control.tooltipText = setting.Tooltip + Requirements.Note(setting);
             ChoiceRow shownChoice;
             choiceRows.TryGetValue(key, out shownChoice);
+            // The profile's value as the row shows it, made again only for another value: BundledDefault hands out
+            // the same string while it is the same one.
+            string defaultFor = null;
+            string defaultShown = null;
             DefaultTooltip(control, () =>
             {
                 string profileValue = BundledDefault(setting);
-                return profileValue == null ? null
-                    : DisplayValue(setting, shownChoice != null ? shownChoice.AllChoices : null,
-                                   shownChoice != null ? shownChoice.AllLabels : null, profileValue);
+                if (profileValue == null) return null;
+                if (!ReferenceEquals(profileValue, defaultFor))
+                {
+                    defaultFor = profileValue;
+                    defaultShown = DisplayValue(setting, shownChoice != null ? shownChoice.AllChoices : null,
+                        shownChoice != null ? shownChoice.AllLabels : null, profileValue);
+                }
+                return defaultShown;
             });
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
@@ -164,10 +260,10 @@ namespace ReDefinition.Window
             control.OptionInteractableCondition = () => (model.Bundled || SetDirectly(setting, false))
                                                         && model.HasPending(key) && !Requirements.Locked(setting);
 
-            return new DialogGUIHorizontalLayout(0f, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            return DialogRows.Row(RowHeight,
                 new DialogGUILabel(() => MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
                 new DialogGUILabel(value, ValueWidth),
-                new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
+                new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
         }
 
         // A mod's dialog (DIALOG): its button where a row's control stands, usable
@@ -179,10 +275,10 @@ namespace ReDefinition.Window
                 RowHeight + 6f, false);
             open.tooltipText = setting.Tooltip;
             open.OptionInteractableCondition = () => SafeApplicable(setting);
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            return DialogRows.Row(RowHeight + 6f,
                 new DialogGUILabel(setting.Title, NameWidth), open, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
-                new DialogGUILabel("<color=#9a9a9a>" + setting.Owner.ModName + "</color>", SourceWidth));
+                new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
         }
 
         // Whether the mod's dialog can be opened now; false where asking throws.

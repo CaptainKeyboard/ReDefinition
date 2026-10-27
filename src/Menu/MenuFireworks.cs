@@ -218,10 +218,8 @@ namespace ReDefinition.Menu
                 // scene, "Directional light" in the Mun's; BackLight, brighter, only rims it
                 // from behind (measured: its night side was the lit face the camera sees).
                 foreach (Light light in area.GetComponentsInChildren<Light>())
-                    if (light.type == LightType.Directional && (light.cullingMask & layer) != 0
-                        && (sun == null || Rank(light) > Rank(sun)
-                            || (Rank(light) == Rank(sun) && light.intensity > sun.intensity)))
-                        sun = light;
+                    if (light.type == LightType.Directional && (light.cullingMask & layer) != 0)
+                        sun = Better(sun, light, BrighterOne);
                 break;
             }
             if (kerbin == null || sun == null || radius <= 0f)
@@ -231,6 +229,19 @@ namespace ReDefinition.Menu
                 return false;
             }
             return true;
+        }
+
+        // Of two lights, the one that is the menu's sun by its name (Rank), and of equal rank the one `preferred` says;
+        // `sun` is null before the first. KscArrival.MenuSun picks among other lights by another tie-break.
+        internal static Light Better(Light sun, Light light, Func<Light, Light, bool> preferred)
+        {
+            return sun == null || Rank(light) > Rank(sun) || (Rank(light) == Rank(sun) && preferred(light, sun)) ? light : sun;
+        }
+
+        // The tie-break of the fireworks' light: the brighter one.
+        private static bool BrighterOne(Light light, Light sun)
+        {
+            return light.intensity > sun.intensity;
         }
 
         // How well a light's name says it is the menu's sun: PlanetLight or "Directional light" 2, a back light 0, any

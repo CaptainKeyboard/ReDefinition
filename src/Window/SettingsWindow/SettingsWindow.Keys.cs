@@ -3,6 +3,7 @@ using System;
 using ReDefinition.Core;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
+using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Window
@@ -40,17 +41,18 @@ namespace ReDefinition.Window
         private static string keySearch = "";
 
         // Counts every change to a binding in the tab: what the rows show is kept
-        // until it moves. Also moved once a second, for a value a mod's own window
-        // changed meanwhile.
+        // until it moves. Also moved, at most once a second, when a value a mod's own window
+        // changed meanwhile shows in a row (KeysVersion).
         private static int keysVersion;
         private static float keysVersionTime;
 
-        // A row's text as last read, and the version of the bindings it was read at.
+        // A row's text as last read, how to read it again, and the version of the bindings it was read at.
         private struct Shown
         {
-            // The version it was read at, and the text.
+            // The version it was read at, the text, and what reads it.
             public int Version;
             public string Text;
+            public Func<string> Read;
         }
 
         // The texts last read, by the row's key.
@@ -69,15 +71,47 @@ namespace ReDefinition.Window
             keysVersion++;
         }
 
-        // The bindings' version, moved once a second besides the changes, so that a value changed elsewhere shows.
+        // The bindings' version. Once a second every text is read again, so that a value changed elsewhere shows,
+        // and the version moves only where one of them differs: the rows and the conflicts are worked out again then
+        // and not otherwise.
         private static int KeysVersion()
         {
             if (Time.unscaledTime >= keysVersionTime)
             {
                 keysVersionTime = Time.unscaledTime + 1f;
-                keysVersion++;
+                if (ShownTextsDiffer()) keysVersion++;
             }
             return keysVersion;
+        }
+
+        // Reads every text a row showed again; true where one is another text now. The ones read at the version
+        // in force stay current, and the others are read when their row asks (CachedText).
+        private static bool ShownTextsDiffer()
+        {
+            bool differs = false;
+            foreach (string key in new List<string>(shownTexts.Keys))
+            {
+                Shown shown = shownTexts[key];
+                string text = ReadText(shown.Read);
+                if (text == shown.Text) continue;
+                differs = true;
+                shown.Text = text;
+                shownTexts[key] = shown;
+            }
+            return differs;
+        }
+
+        // A binding's text from its reader; None where it throws or gives nothing.
+        private static string ReadText(Func<string> read)
+        {
+            try
+            {
+                return read() ?? KeyCombination.NoneText;
+            }
+            catch (Exception)
+            {
+                return KeyCombination.NoneText;
+            }
         }
 
         // A row's binding as text, read again only after a change.
@@ -86,16 +120,8 @@ namespace ReDefinition.Window
             int version = KeysVersion();
             Shown shown;
             if (shownTexts.TryGetValue(key, out shown) && shown.Version == version) return shown.Text;
-            string text;
-            try
-            {
-                text = read() ?? KeyCombination.NoneText;
-            }
-            catch (Exception)
-            {
-                text = KeyCombination.NoneText;
-            }
-            shownTexts[key] = new Shown { Version = version, Text = text };
+            string text = ReadText(read);
+            shownTexts[key] = new Shown { Version = version, Text = text, Read = read };
             return text;
         }
 
@@ -113,6 +139,23 @@ namespace ReDefinition.Window
                 if (!found) return false;
             }
             return true;
+        }
+
+        // Whether a row of that name and owner stands for what is typed, as the row's enabled condition asks it in
+        // every frame: worked out again only when the search changes.
+        private static Func<bool> SearchFilter(string title, string owner)
+        {
+            string madeFor = null;
+            bool matches = true;
+            return () =>
+            {
+                if (!string.Equals(madeFor, keySearch, StringComparison.Ordinal))
+                {
+                    madeFor = keySearch;
+                    matches = MatchesSearch(title, owner);
+                }
+                return matches;
+            };
         }
 
         // The search's words, split once per search.
@@ -224,13 +267,7 @@ namespace ReDefinition.Window
                 sectionMembers[key] = names;
             }
             names.Add(new[] { title, owner });
-            List<string> texts;
-            if (!pageTexts.TryGetValue(SettingCategory.Keys, out texts))
-            {
-                texts = new List<string>();
-                pageTexts[SettingCategory.Keys] = texts;
-            }
-            texts.Add(title + " " + owner + " " + key);
+            NotePageText(SettingCategory.Keys, title + " " + owner + " " + key);
         }
 
         // A section as its header shows it: KSP's own spelling where it is one of
@@ -261,15 +298,13 @@ namespace ReDefinition.Window
         private static DialogGUIBase GroupHeader(string group, int count)
         {
             string title = group;
-            string folded = "+  " + title;
-            string open = "-  " + title;
-            DialogGUIButton header = new DialogGUIButton(() => GroupOpen(title) ? open : folded, () =>
+            DialogGUIButton header = DialogRows.FoldHeader(title, () => GroupOpen(title), () =>
             {
                 if (!openGroups.Remove(title)) openGroups.Add(title);
-            }, PageWidth - 60f, RowHeight + 6f, false);
+            }, PageWidth - 60f, RowHeight + 6f,
+                "Opens or folds the " + title + " bindings. A search shows its matches in every section.");
             header.OptionEnabledCondition = () => GroupShown(title);
             header.OptionInteractableCondition = () => keySearch.Length == 0;
-            header.tooltipText = "Opens or folds the " + title + " bindings. A search shows its matches in every section.";
             return header;
         }
 
@@ -312,14 +347,13 @@ namespace ReDefinition.Window
             DialogGUIBase second = KspBindingControl(shown, true);
             // Asked in every frame.
             string primaryKey = "ksp." + shown.Name + ".primary", secondaryKey = "ksp." + shown.Name + ".secondary";
-            DialogGUIBase row = new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(),
-                TextAnchor.MiddleLeft,
+            DialogGUIBase row = DialogRows.Row(RowHeight + 4f,
                 new DialogGUILabel(() => Marked(shown.Title, kspPending.ContainsKey(primaryKey)
                                                              || kspPending.ContainsKey(secondaryKey)),
                     KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
-                new DialogGUILabel("<color=#9a9a9a>KSP</color>", KeySourceWidth));
-            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "KSP");
+                new DialogGUILabel(RichText.Grey("KSP"), KeySourceWidth));
+            row.OptionEnabledCondition = SearchFilter(shown.Title, "KSP");
             return row;
         }
 
@@ -329,11 +363,12 @@ namespace ReDefinition.Window
         {
             KspKeyBindings.Binding shown = binding;
             string key = "ksp." + shown.Name + (second ? ".secondary" : ".primary");
-            Func<string> current = () => CachedText(key, () =>
+            Func<string> read = () =>
             {
                 string pending;
                 return kspPending.TryGetValue(key, out pending) ? pending : shown.Read(second);
-            });
+            };
+            Func<string> current = () => CachedText(key, read);
             Conflicts.Register(key, current, shown.Situations, shown.Modes, () => shown.Default(second));
 
             Func<string> label = () => KeyCapture.Listening(key) ? ListeningText : BindingLabel(key, current());
@@ -355,8 +390,7 @@ namespace ReDefinition.Window
                 KeysChanged();
             }, BindingButtonWidth, RowHeight + 4f, false);
 
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                take, new DialogGUISpace(4f), clear);
+            return DialogRows.Row(RowHeight + 4f, take, new DialogGUISpace(4f), clear);
         }
 
         // On Apply: into GameSettings; true where one was written, for KSP's save
@@ -424,10 +458,11 @@ namespace ReDefinition.Window
         {
             ModuleSetting shown = setting;
             string key = "redefinition." + shown.Key;
-            Func<string> text = () => CachedText(key, () => shown.Read(edit.After));
+            Func<string> read = () => shown.Read(edit.After);
+            Func<string> text = () => CachedText(key, read);
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, "ReDefinition", text,
-                value => shown.Write(edit.After, value), () => true, 2, KspKeyBindings.Everywhere);
-            row.OptionEnabledCondition = () => MatchesSearch(shown.Title, "ReDefinition");
+                value => edit.Write(shown, value), () => true, 2, KspKeyBindings.Everywhere);
+            row.OptionEnabledCondition = SearchFilter(shown.Title, "ReDefinition");
             return row;
         }
 
@@ -440,11 +475,12 @@ namespace ReDefinition.Window
         {
             BundledSetting shown = setting;
             string key = shown.Key;
-            Func<string> text = () => CachedText(key, () =>
+            Func<string> read = () =>
             {
                 string pending;
                 return model.TryGetPending(key, out pending) ? pending : KeyCombination.NoneText;
-            });
+            };
+            Func<string> text = () => CachedText(key, read);
             // Placed in one of KSP's groups, it counts where that group does.
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, shown.Owner.ModName, text,
                 value => model.Change(key, value),
@@ -461,7 +497,7 @@ namespace ReDefinition.Window
                         : KeyCombination.NoneText);
                 }, KspKeyBindings.SituationsOfGroup(shown.Group));
             }
-            if (inKeysTab) row.OptionEnabledCondition = () => MatchesSearch(shown.Title, shown.Owner.ModName);
+            if (inKeysTab) row.OptionEnabledCondition = SearchFilter(shown.Title, shown.Owner.ModName);
             return row;
         }
 
@@ -522,9 +558,8 @@ namespace ReDefinition.Window
                     maxModifiers));
             }
             row.Add(new DialogGUISpace(4f));
-            row.Add(new DialogGUILabel("<color=#9a9a9a>" + owner + "</color>", KeySourceWidth));
-            return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                row.ToArray());
+            row.Add(new DialogGUILabel(RichText.Grey(owner), KeySourceWidth));
+            return DialogRows.Row(RowHeight + 4f, row.ToArray());
         }
 
         // One modifier, clicked through off, left and right. Grey where the binding

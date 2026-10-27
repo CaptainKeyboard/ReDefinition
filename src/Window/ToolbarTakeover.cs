@@ -71,73 +71,58 @@ namespace ReDefinition.Window
         public static void Refresh()
         {
             if (ApplicationLauncher.Instance == null) return;
-            try
-            {
-                OwnButtons();
-            }
-            catch (Exception e)
-            {
-                CompatibilityLog.Warn("toolbar-own", "A toolbar button ReDefinition hides could not be handled ("
-                                                     + CompatibilityLog.Reason(e) + ").");
-            }
+            Guarded("toolbar-own", "A toolbar button ReDefinition hides could not be handled", OwnButtons);
             if (!BundledSettings.Enabled)
             {
                 // Showing the buttons again must not throw out of here: this is
                 // called from the main-menu notice's answer and from the tick
                 // that would then try it again every two seconds.
-                try
-                {
-                    RestoreAll();
-                }
-                catch (Exception e)
-                {
-                    CompatibilityLog.Warn("toolbar-restore", "Other mods' toolbar buttons could not be shown again ("
-                                                             + CompatibilityLog.Reason(e) + ").");
-                }
+                Guarded("toolbar-restore", "Other mods' toolbar buttons could not be shown again", RestoreAll);
                 return;
             }
 
-            try
-            {
-                // A button the player has asked to keep goes back where it was.
-                foreach (ApplicationLauncherButton button in new List<ApplicationLauncherButton>(hidden.Keys))
-                {
-                    IBundledMod owner;
-                    if (!owners.TryGetValue(button, out owner) || WouldHide(owner)) continue;
-                    Show(button);
-                }
-
-                foreach (ApplicationLauncherButton button in ModButtons())
-                {
-                    if (button == null) continue;
-                    // Hidden already -- unless the mod has set its scenes again, or
-                    // the launcher has switched it on again in a new layout.
-                    if (button.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER)
-                    {
-                        KeepOff(button);
-                        continue;
-                    }
-                    IBundledMod mod = CachedOwner(button);
-                    if (mod != null && WouldHide(mod)) Hide(button, mod);
-                }
-            }
-            catch (Exception e)
-            {
-                CompatibilityLog.Warn("toolbar-takeover", "Other mods' toolbar buttons could not be handled ("
-                                                          + CompatibilityLog.Reason(e) + ").");
-            }
-
-            try
-            {
-                HideToolbarControlButtons();
-            }
-            catch (Exception e)
-            {
-                CompatibilityLog.Warn("toolbar-takeover-tc", "ToolbarControl's buttons could not be handled ("
-                                                             + CompatibilityLog.Reason(e) + ").");
-            }
-
+            Guarded("toolbar-takeover", "Other mods' toolbar buttons could not be handled", HideModButtons);
+            Guarded("toolbar-takeover-tc", "ToolbarControl's buttons could not be handled", HideToolbarControlButtons);
             Forget();
+        }
+
+        // One step of Refresh: a failure is a warning, once per kind, and the other steps go on.
+        private static void Guarded(string key, string failure, Action step)
+        {
+            try
+            {
+                step();
+            }
+            catch (Exception e)
+            {
+                CompatibilityLog.Warn(key, failure + " (" + CompatibilityLog.Reason(e) + ").");
+            }
+        }
+
+        // Hides the launcher's buttons of the bundled mods that are to be hidden, and shows those the player keeps.
+        private static void HideModButtons()
+        {
+            // A button the player has asked to keep goes back where it was.
+            foreach (ApplicationLauncherButton button in new List<ApplicationLauncherButton>(hidden.Keys))
+            {
+                IBundledMod owner;
+                if (!owners.TryGetValue(button, out owner) || WouldHide(owner)) continue;
+                Show(button);
+            }
+
+            foreach (ApplicationLauncherButton button in ModButtons())
+            {
+                if (button == null) continue;
+                // Hidden already -- unless the mod has set its scenes again, or
+                // the launcher has switched it on again in a new layout.
+                if (button.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER)
+                {
+                    KeepOff(button);
+                    continue;
+                }
+                IBundledMod mod = CachedOwner(button);
+                if (mod != null && WouldHide(mod)) Hide(button, mod);
+            }
         }
 
         // The mod's own settings window, through its own toolbar button, hidden
@@ -226,18 +211,10 @@ namespace ReDefinition.Window
         private static ApplicationLauncherButton ButtonOf(IBundledMod mod)
         {
             if (mod == null || ApplicationLauncher.Instance == null) return null;
-            if (mod.ToolbarControlNamespace != null && ResolveToolbarControl())
+            if (mod.ToolbarControlNamespace != null)
             {
-                IEnumerable controls = tcList.GetValue(null) as IEnumerable;
-                if (controls != null)
-                {
-                    foreach (object control in controls)
-                    {
-                        if (control == null || tcNamespace.GetValue(control) as string != mod.ToolbarControlNamespace) continue;
-                        ApplicationLauncherButton stock = tcStock.GetValue(control) as ApplicationLauncherButton;
-                        if (stock != null) return stock;
-                    }
-                }
+                foreach (KeyValuePair<string, ApplicationLauncherButton> control in ControlButtons())
+                    if (control.Key == mod.ToolbarControlNamespace && control.Value != null) return control.Value;
             }
             if (mod.ButtonAssembly == null) return null;
             foreach (ApplicationLauncherButton button in ModButtons())
@@ -316,17 +293,12 @@ namespace ReDefinition.Window
         // Hides the ToolbarControl buttons of the bundled mods that are to be hidden.
         private static void HideToolbarControlButtons()
         {
-            if (!ResolveToolbarControl()) return;
-            IEnumerable controls = tcList.GetValue(null) as IEnumerable;
-            if (controls == null) return;
-
-            foreach (object control in controls)
+            foreach (KeyValuePair<string, ApplicationLauncherButton> control in ControlButtons())
             {
-                if (control == null) continue;
-                IBundledMod mod = OwnerByNamespace(tcNamespace.GetValue(control) as string);
+                IBundledMod mod = OwnerByNamespace(control.Key);
                 if (mod == null || !WouldHide(mod)) continue;
 
-                ApplicationLauncherButton stock = tcStock.GetValue(control) as ApplicationLauncherButton;
+                ApplicationLauncherButton stock = control.Value;
                 if (stock == null) continue;
                 if (stock.VisibleInScenes == ApplicationLauncher.AppScenes.NEVER) KeepOff(stock);
                 else Hide(stock, mod);
@@ -339,16 +311,13 @@ namespace ReDefinition.Window
         {
             foreach (ApplicationLauncherButton gone in new List<ApplicationLauncherButton>(ownHidden.Keys))
                 if (gone == null) ownHidden.Remove(gone);
-            if (ownButtons.Count == 0 || !ResolveToolbarControl()) return;
-            IEnumerable controls = tcList.GetValue(null) as IEnumerable;
-            if (controls == null) return;
-            foreach (object control in controls)
+            if (ownButtons.Count == 0) return;
+            foreach (KeyValuePair<string, ApplicationLauncherButton> control in ControlButtons())
             {
-                if (control == null) continue;
-                string ns = tcNamespace.GetValue(control) as string;
+                string ns = control.Key;
                 Func<bool> shown;
                 if (ns == null || !ownButtons.TryGetValue(ns, out shown)) continue;
-                ApplicationLauncherButton stock = tcStock.GetValue(control) as ApplicationLauncherButton;
+                ApplicationLauncherButton stock = control.Value;
                 if (stock == null) continue;
                 ApplicationLauncher.AppScenes scenes;
                 if (!shown())
@@ -387,6 +356,21 @@ namespace ReDefinition.Window
             foreach (IBundledMod mod in BundledSettings.Mods)
                 if (mod.IsInstalled && mod.ToolbarControlNamespace == ns) return mod;
             return null;
+        }
+
+        // Each instance ToolbarControl holds: the namespace it registered with and its stock button, either null where it
+        // has none. Nothing without ToolbarControl.
+        private static IEnumerable<KeyValuePair<string, ApplicationLauncherButton>> ControlButtons()
+        {
+            if (!ResolveToolbarControl()) yield break;
+            IEnumerable controls = tcList.GetValue(null) as IEnumerable;
+            if (controls == null) yield break;
+            foreach (object control in controls)
+            {
+                if (control == null) continue;
+                yield return new KeyValuePair<string, ApplicationLauncherButton>(
+                    tcNamespace.GetValue(control) as string, tcStock.GetValue(control) as ApplicationLauncherButton);
+            }
         }
 
         // ToolbarControl is optional; without it, or in another shape, only its
@@ -533,20 +517,31 @@ namespace ReDefinition.Window
         // one moves it from one list to the other.
         private static List<ApplicationLauncherButton> ModButtons()
         {
-            if (!resolved)
-            {
-                resolved = true;
-                modList = typeof(ApplicationLauncher).GetField("appListMod", TypeLookup.Any);
-                modListHidden = typeof(ApplicationLauncher).GetField("appListModHidden", TypeLookup.Any);
-                if (modList == null || modListHidden == null)
-                    Debug.LogWarning(Log.Tag + " KSP's launcher is not the one this mod was written against:"
-                                     + " other mods' toolbar buttons stay.");
-            }
-
+            ResolveLauncher();
             List<ApplicationLauncherButton> buttons = new List<ApplicationLauncherButton>();
             Add(buttons, modList);
             Add(buttons, modListHidden);
             return buttons;
+        }
+
+        // Looks up the launcher's lists of mod buttons, once.
+        private static void ResolveLauncher()
+        {
+            if (resolved) return;
+            resolved = true;
+            modList = typeof(ApplicationLauncher).GetField("appListMod", TypeLookup.Any);
+            modListHidden = typeof(ApplicationLauncher).GetField("appListModHidden", TypeLookup.Any);
+            if (modList == null || modListHidden == null)
+                Debug.LogWarning(Log.Tag + " KSP's launcher is not the one this mod was written against:"
+                                 + " other mods' toolbar buttons stay.");
+        }
+
+        // The launcher's list of shown mod buttons, in the order it lays them out; null where KSP's launcher has no
+        // such list.
+        internal static IList ModList(ApplicationLauncher launcher)
+        {
+            ResolveLauncher();
+            return modList != null ? modList.GetValue(launcher) as IList : null;
         }
 
         // Adds the buttons of one of the launcher's lists.

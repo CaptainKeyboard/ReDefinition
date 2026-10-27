@@ -24,6 +24,18 @@ namespace ReDefinition.Window
         private const int AxesPerDevice = 20;
         private const float Threshold = 0.5f;
 
+        // The names of the axes KSP's input manager defines, "joy<device>.<axis>", by device and axis: made once,
+        // since listening reads every one of them in every frame.
+        private static readonly string[] axisNames = MakeAxisNames();
+
+        // The names of all the devices' axes.
+        private static string[] MakeAxisNames()
+        {
+            string[] names = new string[Devices * AxesPerDevice];
+            for (int i = 0; i < names.Length; i++) names[i] = "joy" + i / AxesPerDevice + "." + i % AxesPerDevice;
+            return names;
+        }
+
         // The axis taken, as KSP's binding holds it.
         internal struct Taken
         {
@@ -113,7 +125,7 @@ namespace ReDefinition.Window
                     {
                         taken(new Taken
                         {
-                            IdTag = "joy" + device + "." + axis,
+                            IdTag = axisNames[device * AxesPerDevice + axis],
                             Device = DeviceName(device),
                             DeviceIndex = device,
                             AxisIndex = axis,
@@ -129,7 +141,7 @@ namespace ReDefinition.Window
         {
             try
             {
-                return Input.GetAxis("joy" + device + "." + axis);
+                return Input.GetAxis(axisNames[device * AxesPerDevice + axis]);
             }
             catch (Exception)
             {

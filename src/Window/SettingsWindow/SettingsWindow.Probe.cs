@@ -13,7 +13,7 @@ namespace ReDefinition.Window
             IGraphicsModule found = OurModules.Find(module);
             ModuleSetting setting = found != null ? found.Setting(key) : null;
             if (setting == null || edit == null || edit.After == null) return false;
-            setting.Write(edit.After, value);
+            edit.Write(setting, value);
             return true;
         }
 

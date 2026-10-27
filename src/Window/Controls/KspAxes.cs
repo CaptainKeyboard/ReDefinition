@@ -135,6 +135,83 @@ namespace ReDefinition.Window
             return left.ToString() == right.ToString();
         }
 
+        // The fields AxisBinding_Single.Save writes of one side: name, axis, inv, sensitivity, deadzone, scale, group
+        // (the lock mask) and modeMask (the switch state). Two sides that hold the same fields save the same node.
+        private struct Saved
+        {
+            // The fields, as the side holds them.
+            public string Name;
+            public int AxisIdx;
+            public bool Inverted;
+            public float Sensitivity;
+            public float Deadzone;
+            public float Scale;
+            public ulong LockMask;
+            public InputBindingModes SwitchState;
+
+            // The side's fields.
+            public static Saved Of(AxisBinding_Single side)
+            {
+                return new Saved
+                {
+                    Name = side.name,
+                    AxisIdx = side.axisIdx,
+                    Inverted = side.inverted,
+                    Sensitivity = side.sensitivity,
+                    Deadzone = side.deadzone,
+                    Scale = side.scale,
+                    LockMask = side.inputLockMask,
+                    SwitchState = side.switchState,
+                };
+            }
+
+            // Whether the other holds the same fields, down to the sign of a zero, which a node writes.
+            public bool Holds(Saved other)
+            {
+                return string.Equals(Name, other.Name, StringComparison.Ordinal) && AxisIdx == other.AxisIdx
+                       && Inverted == other.Inverted && Alike(Sensitivity, other.Sensitivity)
+                       && Alike(Deadzone, other.Deadzone) && Alike(Scale, other.Scale) && LockMask == other.LockMask
+                       && SwitchState == other.SwitchState;
+            }
+
+            // Whether two numbers are the same one; NaN is none, which only costs a comparison.
+            private static bool Alike(float a, float b)
+            {
+                return a == b && (a != 0f || 1f / a == 1f / b);
+            }
+        }
+
+        // Whether two bindings hold the same, as Same says.
+        // It is worked out again only when a field Save writes of either has changed.
+        // The window compares every edited axis with KSP's in every frame, and Same builds two nodes and two
+        // strings each time.
+        internal sealed class Comparison
+        {
+            // The fields of both sides of each binding as of the last comparison, and what it found.
+            private Saved liveFirst, liveSecond, copyFirst, copySecond;
+            private bool made;
+            private bool same;
+
+            // Same(live, copy).
+            public bool Of(AxisBinding live, AxisBinding copy)
+            {
+                if (live == null || copy == null) return Same(live, copy);
+                Saved a = Saved.Of(live.primary);
+                Saved b = Saved.Of(live.secondary);
+                Saved c = Saved.Of(copy.primary);
+                Saved d = Saved.Of(copy.secondary);
+                if (made && a.Holds(liveFirst) && b.Holds(liveSecond) && c.Holds(copyFirst) && d.Holds(copySecond))
+                    return same;
+                same = Same(live, copy);
+                liveFirst = a;
+                liveSecond = b;
+                copyFirst = c;
+                copySecond = d;
+                made = true;
+                return same;
+            }
+        }
+
         // The shipped bindings by axis name, read once.
         private static Dictionary<string, AxisBinding> defaults;
 

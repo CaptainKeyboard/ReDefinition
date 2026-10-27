@@ -17,6 +17,10 @@ namespace ReDefinition
         private const float SparklineHeight = 44f;
         private const int SparklineBars = 120;
 
+        // The graph's layout options, made once.
+        private static readonly GUILayoutOption SparklineWidthOption = GUILayout.Width(SparklineWidth);
+        private static readonly GUILayoutOption SparklineHeightOption = GUILayout.Height(SparklineHeight);
+
         // The last 240 frame times (ms), when the strip is next due, and the graph's top and median, set at its refresh.
         private readonly FrameTimeRing frameTimes = new FrameTimeRing(240);
         private float nextStripRefresh;
@@ -33,6 +37,8 @@ namespace ReDefinition
         private string lowLatencyDescription = "";
         private string rateRatioText = "--";
         private string recordingState = "";
+        // The frame rate with the upscaler on against off (FrameRateComparison), made with the rest.
+        private string frameRateText = "";
 
         // "FSR 3 + XeSS-FG 2x + XeLL": the upscaler that runs, the frame generation that
         // generates, what lowers the latency.
@@ -97,6 +103,7 @@ namespace ReDefinition
             lowLatencyDescription = ReflexFrames.LowLatencyText() ?? "no proxy, or it does not say";
             rateRatioText = presentedPerRendered > 0f ? presentedPerRendered.ToString("0.00") + " presented per rendered frame" : "--";
             recordingState = ScreenRecordingBridge.State();
+            frameRateText = FrameRateComparison();
         }
 
         // The strip: what runs and the frame rate, then the graph, the frame time, latency and load lines, and the filter
@@ -104,24 +111,24 @@ namespace ReDefinition
         private void DrawLiveStrip()
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label(runningText, styles.Strip, GUILayout.ExpandWidth(true));
-            GUILayout.Label(fpsText, styles.Fps, GUILayout.Width(200f));
+            GUILayout.Label(runningText, styles.Strip, DiagnosticsLayout.Fill);
+            GUILayout.Label(fpsText, styles.Fps, DiagnosticsLayout.FpsColumn);
             GUILayout.EndHorizontal();
 
             GUILayout.BeginHorizontal();
-            Rect graph = GUILayoutUtility.GetRect(SparklineWidth, SparklineHeight, GUILayout.Width(SparklineWidth),
-                                                  GUILayout.Height(SparklineHeight));
+            Rect graph = GUILayoutUtility.GetRect(SparklineWidth, SparklineHeight, SparklineWidthOption,
+                                                  SparklineHeightOption);
             DrawSparkline(graph);
             GUILayout.Space(8f);
 
-            GUILayout.BeginVertical(GUILayout.Width(268f));
+            GUILayout.BeginVertical(DiagnosticsLayout.FrameTimeColumn);
             GUILayout.Label(frameTimeText, styles.Small);
             GUILayout.Label(latencyText, styles.Small);
             GUILayout.Label(loadText, styles.Small);
             GUILayout.EndVertical();
 
             GUILayout.FlexibleSpace();
-            GUILayout.BeginVertical(GUILayout.Width(220f));
+            GUILayout.BeginVertical(DiagnosticsLayout.FilterColumn);
             DrawFilterControls();
             GUILayout.EndVertical();
             GUILayout.EndHorizontal();
@@ -131,13 +138,13 @@ namespace ReDefinition
         private void DrawFilterControls()
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label("Search", styles.Small, GUILayout.Width(44f));
+            GUILayout.Label("Search", styles.Small, DiagnosticsLayout.SearchLabel);
             GUI.SetNextControlName(SearchControl);
-            typedQuery = GUILayout.TextField(typedQuery, 40, styles.Field, GUILayout.ExpandWidth(true));
+            typedQuery = GUILayout.TextField(typedQuery, 40, styles.Field, DiagnosticsLayout.Fill);
             if (Event.current.type == EventType.Repaint) searchRect = GUILayoutUtility.GetLastRect();
             // Shown by the search in force, not by the text being typed: the controls of a
             // layout pass and of the event after it must be the same.
-            if (query.Length > 0 && GUILayout.Button(content.ClearSearch, styles.Segment, GUILayout.Width(24f)))
+            if (query.Length > 0 && GUILayout.Button(content.ClearSearch, styles.Segment, DiagnosticsLayout.ClearButton))
             {
                 typedQuery = "";
                 GUI.FocusControl("");

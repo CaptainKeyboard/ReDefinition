@@ -83,7 +83,7 @@ namespace ReDefinition
             DrawHostStackSummary();
 
             GUILayout.Space(8f);
-            GUILayout.Label(FrameRateComparison(), styles.Dim);
+            GUILayout.Label(frameRateText, styles.Dim);
         }
 
         // Every mode, as in KSP's settings dialog: the same names, and the same
@@ -158,9 +158,9 @@ namespace ReDefinition
             GUILayout.BeginHorizontal();
             GUILayout.Label("Sharpness", styles.Row);
             GUILayout.FlexibleSpace();
-            bool down = GUILayout.Button("-", styles.Segment, GUILayout.Width(30f));
-            GUILayout.Label(sharpness.ToString("0.0"), styles.Value, GUILayout.Width(50f));
-            bool up = GUILayout.Button("+", styles.Segment, GUILayout.Width(30f));
+            bool down = GUILayout.Button("-", styles.Segment, DiagnosticsLayout.StepButton);
+            GUILayout.Label(sharpness.ToString("0.0"), styles.Value, DiagnosticsLayout.ValueBox);
+            bool up = GUILayout.Button("+", styles.Segment, DiagnosticsLayout.StepButton);
             RowTail();
             GUILayout.EndHorizontal();
             if (down || up) SetSharpness(sharpness + (up ? 0.1f : -0.1f));
@@ -233,14 +233,12 @@ namespace ReDefinition
         // The page of the upscaler's inputs: its options.
         private void DrawUpscalerInputs()
         {
-            
             DrawOptions(OptionsOf(DebugCategory.UpscalerInputs));
         }
 
         // The frame generation page: its options, then what runs now and a failed context's note.
         private void DrawFrameGeneration()
         {
-            
             DrawOptions(OptionsOf(DebugCategory.FrameGeneration));
 
             Heading("Running now");
@@ -253,14 +251,12 @@ namespace ReDefinition
         // The page of the game settings the upscaler changes: its options.
         private void DrawGameSettings()
         {
-            
             DrawOptions(OptionsOf(DebugCategory.GameSettings));
         }
 
         // The capture page: its options, and the state of the last screen recording.
         private void DrawCapture()
         {
-            
             DrawOptions(OptionsOf(DebugCategory.Capture));
             GUILayout.Space(4f);
             InfoRow("Last recording", recordingState);
@@ -269,8 +265,6 @@ namespace ReDefinition
         // A preview of what the upscaler receives and what it returns.
         private void DrawPreview()
         {
-            
-
             GUILayout.BeginHorizontal();
             if (Mode("Motion", UpscalerRig.PreviewMode.MotionVectors)) previewMode = UpscalerRig.PreviewMode.MotionVectors;
             if (Mode("Depth", UpscalerRig.PreviewMode.Depth)) previewMode = UpscalerRig.PreviewMode.Depth;

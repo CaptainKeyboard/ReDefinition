@@ -106,48 +106,35 @@ namespace ReDefinition.Window
         private static List<DialogGUIBase> ToolbarRows()
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
-            List<IBundledMod> mods = new List<IBundledMod>();
-            foreach (IBundledMod mod in BundledSettings.Installed())
-                if (ToolbarTakeover.CanHide(mod)) mods.Add(mod);
-            if (mods.Count == 0) return rows;
+            ToolbarChoice choice = new ToolbarChoice(mod => BundledSettings.HidesButton(mod.Id),
+                (mod, hide) => BundledSettings.SetHidesButton(mod.Id, hide));
+            if (choice.Empty) return rows;
 
-            DialogGUIToggle all = new DialogGUIToggle(() => AllHidden(mods), "Hide all from toolbar", hide =>
+            DialogGUIToggle all = new DialogGUIToggle(choice.AllHidden, "Hide all from toolbar", hide =>
             {
                 // Set from the switches below in every frame, which fires this too.
-                if (hide == AllHidden(mods)) return;
-                foreach (IBundledMod mod in mods) BundledSettings.SetHidesButton(mod.Id, hide);
-                ToolbarTakeover.Refresh();
+                if (choice.SetAll(hide)) ToolbarTakeover.Refresh();
             }, 300f);
             all.tooltipText = TooltipText.Wrap("On: these mods' own toolbar buttons are hidden while their settings are bundled in"
                               + " ReDefinition's window, which opens each of them with its Advanced button.");
             rows.Add(all);
 
-            string folded = "+  Per mod (" + mods.Count + ")";
-            string open = "-  Per mod (" + mods.Count + ")";
-            rows.Add(new DialogGUIButton(() => perModOpen ? open : folded,
-                () => { perModOpen = !perModOpen; }, 300f, 24f, false));
+            rows.Add(DialogRows.FoldHeader("Per mod (" + choice.Count + ")", () => perModOpen,
+                () => { perModOpen = !perModOpen; }, 300f, 24f, null));
 
-            foreach (IBundledMod mod in mods)
+            foreach (IBundledMod mod in choice.Mods)
             {
                 IBundledMod shown = mod;
-                DialogGUIToggle toggle = new DialogGUIToggle(() => BundledSettings.HidesButton(shown.Id),
+                DialogGUIToggle toggle = new DialogGUIToggle(() => choice.IsHidden(shown),
                     "    " + mod.ModName, hide =>
                     {
-                        BundledSettings.SetHidesButton(shown.Id, hide);
+                        choice.Set(shown, hide);
                         ToolbarTakeover.Refresh();
                     }, 300f);
                 toggle.OptionEnabledCondition = () => perModOpen;
                 rows.Add(toggle);
             }
             return rows;
-        }
-
-        // Whether every one of those mods' buttons is to be hidden; false for none.
-        private static bool AllHidden(List<IBundledMod> mods)
-        {
-            foreach (IBundledMod mod in mods)
-                if (!BundledSettings.HidesButton(mod.Id)) return false;
-            return mods.Count > 0;
         }
 
         // One button or several: the sentence around the list follows the

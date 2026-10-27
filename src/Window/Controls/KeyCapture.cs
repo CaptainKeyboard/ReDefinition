@@ -96,6 +96,7 @@ namespace ReDefinition.Window
         internal static void Poll()
         {
             EscapeGuard.Poll();
+            SettingsWindow.ReleaseEndedField();
             if (SettingsWindow.TextFieldFocused()) typingFrame = Time.frameCount;
             // The player moved on: no key pressed now is meant for the row.
             if (listening != null && ((shown != null && !shown()) || UiHygiene.Typing))

@@ -1,15 +1,12 @@
 using System.Collections.Generic;
-using System.Collections;
 using System.Globalization;
 using System.IO;
-using System.Threading;
 using System;
 using KSP.Localization;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using ReDefinition.Window;
-using UnityEngine.Networking;
 using UnityEngine;
 
 namespace ReDefinition.Vendor
@@ -27,39 +24,29 @@ namespace ReDefinition.Vendor
     // after a restart.
     internal static class NvidiaDownloader
     {
+        // The download this class describes to the player: what it fetches and says, and the progress it shows.
+        // Nothing is fetched until the player has accepted NVIDIA's licences (Confirm). A stalled connection ends after
+        // 1800 seconds, long enough for 30 MB over a slow line.
+        private static readonly ArchiveDownload download = new ArchiveDownload("NVIDIA's", NvidiaFiles.ArchiveUrl,
+            "NVIDIA's licences", "NVIDIA's DLSS files", length => 1800, null);
+
         // Whether a download, its check or its placing is under way: a second one is not started meanwhile.
-        public static bool Running { get; private set; }
+        public static bool Running
+        {
+            get { return download.Running; }
+        }
 
         // Placed this session: until KSP is restarted, DLSS frame generation does not
         // run from them.
-        public static bool Installed { get; private set; }
+        public static bool Installed
+        {
+            get { return download.Installed; }
+        }
 
-        // The outcome for the row; whether bytes are coming in; the bytes received (from the download's thread) and those
-        // expected; and the progress text with the tenth of a megabyte it was made for.
-        private static string status;
-        private static volatile bool downloading;
-        private static long received;
-        private static long total;
-        private static long shownTenths = -1;
-        private static string shownProgress;
-
-        // What the settings row says: the download's progress or outcome, null
-        // before one. The progress text is made anew only when its figure changes:
-        // the row asks every frame.
+        // What the settings row says: the download's progress or outcome, null before one.
         public static string Status
         {
-            get
-            {
-                if (!downloading) return status;
-                long tenths = Interlocked.Read(ref received) * 10 / (1024 * 1024);
-                if (tenths != shownTenths)
-                {
-                    shownTenths = tenths;
-                    shownProgress = "Downloading " + (tenths / 10.0).ToString("0.0", CultureInfo.InvariantCulture) + " of "
-                                    + Megabytes(total) + " MB ...";
-                }
-                return shownProgress;
-            }
+            get { return download.Status(null); }
         }
 
         // KSP's folder, beside KSP_x64.exe.
@@ -159,7 +146,7 @@ namespace ReDefinition.Vendor
         public static void Confirm(List<NvidiaFiles.Entry> entries, Action installed = null)
         {
             if (Running || entries.Count == 0) return;
-            onInstalled = installed;
+            download.Continuation = installed;
 
             bool dlss;
             bool streamline;
@@ -233,7 +220,7 @@ namespace ReDefinition.Vendor
                 new DialogGUIHorizontalLayout(
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Accept and download", () => Start(entries), 200f, 30f, true),
-                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { onInstalled = null; }, 120f, 30f, true),
+                    new DialogGUIButton(Localizer.Format("#autoLOC_174783"), () => { download.Continuation = null; }, 120f, 30f, true),
                     new DialogGUIFlexibleSpace()),
             };
 
@@ -243,271 +230,35 @@ namespace ReDefinition.Vendor
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
 
-        // What waits for the files: called when they are in place, dropped where the player cancels.
-        private static Action onInstalled;
-
-        // Starts the download as a coroutine on the add-on, unless one runs already.
+        // Starts the download of the entries, unless one runs already. DLSS takes its files at once; Streamline loads its
+        // plugins when KSP starts, so Ray Reconstruction and DLSS frame generation wait for a restart.
         private static void Start(List<NvidiaFiles.Entry> entries)
         {
-            if (Running || ReDefinitionAddon.Instance == null) return;
-            Running = true;
-            ReDefinitionAddon.Instance.StartCoroutine(Guarded(Run(new List<NvidiaFiles.Entry>(entries))));
-        }
-
-        // The download's range files, for Guarded's clean-up.
-        private static List<string> activeRangeFiles = new List<string>();
-
-        // The download, ended with Finish whatever it throws: Unity stops a
-        // coroutine that throws without running anything after it, and the button
-        // would stay greyed out until KSP restarts.
-        private static IEnumerator Guarded(IEnumerator steps)
-        {
-            while (true)
+            List<NvidiaFiles.Entry> fetched = new List<NvidiaFiles.Entry>(entries);
+            bool dlss;
+            bool streamline;
+            bool frameGeneration;
+            Uses(fetched, out dlss, out streamline, out frameGeneration);
+            download.Start(new ArchiveDownload.Job
             {
-                object current;
-                try
+                Entries = fetched,
+                Folders = () =>
                 {
-                    if (!steps.MoveNext()) yield break;
-                    current = steps.Current;
-                }
-                catch (Exception e)
+                    NvidiaFiles.Folders folders = Folders();
+                    return i => NvidiaFiles.FolderOf(fetched[i], folders, dlss);
+                },
+                WhenUsed = WhenUsed(dlss, streamline, frameGeneration),
+                Placed = () =>
                 {
-                    if (Running) Finish("Download failed: " + e.Message + ".", activeRangeFiles);
-                    yield break;
-                }
-                yield return current;
-            }
-        }
-
-        // Fetches every file's range from the archive, then inflates, checks and places them on a thread; any failure
-        // ends it through Finish with nothing changed.
-        private static IEnumerator Run(List<NvidiaFiles.Entry> entries)
-        {
-            Installed = false;
-            Interlocked.Exchange(ref received, 0);
-            total = NvidiaFiles.DownloadSize(entries);
-            shownTenths = -1;
-            downloading = true;
-
-            NvidiaFiles.Folders folders = default(NvidiaFiles.Folders);
-            List<string> rangeFiles = new List<string>();
-            activeRangeFiles = rangeFiles;
-            try
-            {
-                folders = Folders();
-                string temporary = Path.GetTempPath();
-                foreach (NvidiaFiles.Entry entry in entries)
-                    rangeFiles.Add(Path.Combine(temporary, "ReDefinition-" + entry.FileName + ".range"));
-            }
-            catch (Exception e)
-            {
-                Finish("Download failed, nothing was changed: " + e.Message + ".", rangeFiles);
-                yield break;
-            }
-            Debug.Log(Log.Tag + " Downloading " + entries.Count + " of NVIDIA's files (" + Megabytes(total)
-                      + " MB) from " + NvidiaFiles.ArchiveUrl + ", the player having accepted NVIDIA's licences.");
-
-            for (int i = 0; i < entries.Count; i++)
-            {
-                NvidiaFiles.Entry entry = entries[i];
-                RangeHandler handler;
-                try
+                    if (streamline || frameGeneration)
+                        SettingsWindow.NoteRestart("files.nvidia", "NVIDIA's files for Ray Reconstruction and frame generation",
+                            "NVIDIA");
+                },
+                Told = () =>
                 {
-                    handler = new RangeHandler(rangeFiles[i], entry.RangeLength, n => Interlocked.Add(ref received, n));
-                }
-                catch (Exception e)
-                {
-                    Finish("Download failed, nothing was changed: " + entry.FileName + ": " + e.Message + ".", rangeFiles);
-                    yield break;
-                }
-
-                // Closed on every way out, a throw included: an open range file could
-                // not be deleted.
-                try
-                {
-                    using (UnityWebRequest request = new UnityWebRequest(NvidiaFiles.ArchiveUrl, UnityWebRequest.kHttpVerbGET,
-                               handler, null))
-                    {
-                        request.SetRequestHeader("Range", "bytes=" + entry.RangeStart + "-" + entry.RangeEnd);
-                        // A stalled connection ends here rather than never: long enough
-                        // for 30 MB over a slow line.
-                        request.timeout = 1800;
-                        yield return request.SendWebRequest();
-
-                        handler.Close();
-                        string failure = null;
-                        if (handler.Overflow || request.responseCode == 200)
-                            failure = "the server sent more than the part of NVIDIA's archive that was asked for";
-                        else if (handler.WriteError != null)
-                            failure = handler.WriteError;
-                        else if (request.isNetworkError || request.isHttpError)
-                            failure = request.error + (request.responseCode != 0 ? " (HTTP " + request.responseCode + ")" : "");
-                        else if (request.responseCode != 206 || handler.Length != entry.RangeLength)
-                            failure = "HTTP " + request.responseCode + ", " + handler.Length + " bytes of " + entry.RangeLength;
-                        if (failure != null)
-                        {
-                            Finish("Download failed, nothing was changed: " + entry.FileName + ": " + failure + ".", rangeFiles);
-                            yield break;
-                        }
-                    }
-                }
-                finally
-                {
-                    handler.Close();
-                }
-            }
-            downloading = false;
-
-            // Inflated, checked and placed on a thread: 59 MB of DLSS would otherwise
-            // hold the game for a moment.
-            status = "Checking NVIDIA's files ...";
-            string error = null;
-            List<string> backups = null;
-            bool done = false;
-            bool dlssFetched;
-            bool streamlineFetched;
-            bool frameGenerationFetched;
-            Uses(entries, out dlssFetched, out streamlineFetched, out frameGenerationFetched);
-            Thread worker = new Thread(() =>
-            {
-                List<NvidiaFiles.Placement> placements = new List<NvidiaFiles.Placement>();
-                try
-                {
-                    for (int i = 0; i < entries.Count; i++)
-                    {
-                        string target = Path.Combine(NvidiaFiles.FolderOf(entries[i], folders, dlssFetched),
-                                                     entries[i].FileName);
-                        NvidiaFiles.Placement placement = new NvidiaFiles.Placement
-                        {
-                            Entry = entries[i],
-                            Target = target,
-                            Partial = NvidiaFiles.PartialPath(target),
-                        };
-                        placements.Add(placement);
-                        // A folder the ini names may not exist yet.
-                        Directory.CreateDirectory(Path.GetDirectoryName(target));
-                        using (FileStream range = File.OpenRead(rangeFiles[i]))
-                        using (FileStream output = File.Create(placement.Partial))
-                            NvidiaFiles.Extract(entries[i], range, output);
-                    }
-                    backups = NvidiaFiles.PlaceAll(placements);
-                }
-                catch (Exception e)
-                {
-                    error = e.Message;
-                    foreach (NvidiaFiles.Placement placement in placements)
-                    {
-                        try
-                        {
-                            if (!placement.Placed && File.Exists(placement.Partial)) File.Delete(placement.Partial);
-                        }
-                        catch (Exception)
-                        {
-                        }
-                    }
-                }
-                done = true;
+                    if (dlss && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.NvidiaFilesPlaced();
+                },
             });
-            worker.IsBackground = true;
-            worker.Start();
-            while (!Volatile.Read(ref done)) yield return null;
-
-            if (error != null)
-            {
-                Finish("Download failed: " + error + ".", rangeFiles);
-                yield break;
-            }
-
-            Installed = true;
-            // Streamline loads its plugins when KSP starts: Ray Reconstruction and DLSS frame generation wait for it.
-            if (streamlineFetched || frameGenerationFetched)
-                SettingsWindow.NoteRestart("files.nvidia", "NVIDIA's files for Ray Reconstruction and frame generation", "NVIDIA");
-            Finish("Installed. " + WhenUsed(dlssFetched, streamlineFetched, frameGenerationFetched)
-                   + (backups != null && backups.Count > 0 ? " Kept before: " + string.Join(", ", backups.ToArray()) + "." : ""),
-                   rangeFiles);
-            if (dlssFetched && ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.NvidiaFilesPlaced();
-        }
-
-        // Ends the download: the range files deleted, the outcome logged, put on the screen and kept for the row, and the
-        // continuation called where the files are in place.
-        private static void Finish(string outcome, List<string> rangeFiles)
-        {
-            foreach (string file in rangeFiles)
-            {
-                try
-                {
-                    if (File.Exists(file)) File.Delete(file);
-                }
-                catch (Exception)
-                {
-                }
-            }
-            downloading = false;
-            Running = false;
-            status = outcome;
-            if (Installed) Debug.Log(Log.Tag + " NVIDIA's files: " + outcome);
-            else Debug.LogWarning(Log.Tag + " NVIDIA's files: " + outcome);
-            ScreenMessages.PostScreenMessage("NVIDIA's DLSS files: " + outcome, 8f);
-            Action finished = onInstalled;
-            onInstalled = null;
-            if (Installed && finished != null) finished();
-        }
-
-        // The part of the archive for one file, into a temporary file: a server that
-        // sends more than asked for -- the whole archive, having ignored the range --
-        // is stopped at once. IntelDownloader fetches the same way.
-        internal sealed class RangeHandler : DownloadHandlerScript
-        {
-            // The bytes asked for, what each piece is reported to, and the temporary file, closed once the request is done.
-            private readonly long expected;
-            private readonly Action<int> onData;
-            private FileStream file;
-
-            // onData is told how many bytes each piece held, for the download's progress.
-            public RangeHandler(string path, long expected, Action<int> onData) : base(new byte[64 * 1024])
-            {
-                this.expected = expected;
-                this.onData = onData;
-                file = File.Create(path);
-            }
-
-            // The bytes written so far.
-            public long Length { get; private set; }
-            // Whether the server sent more than asked for.
-            public bool Overflow { get; private set; }
-            // Why writing the file failed; null where it did not.
-            public string WriteError { get; private set; }
-
-            // Closes the temporary file, once.
-            public void Close()
-            {
-                if (file == null) return;
-                file.Dispose();
-                file = null;
-            }
-
-            // Writes a piece; false stops the request where it would go past the range or the write fails.
-            protected override bool ReceiveData(byte[] data, int dataLength)
-            {
-                if (data == null || dataLength <= 0) return true;
-                if (file == null || Length + dataLength > expected)
-                {
-                    Overflow = file != null;
-                    return false;
-                }
-                try
-                {
-                    file.Write(data, 0, dataLength);
-                }
-                catch (Exception e)
-                {
-                    WriteError = e.Message;
-                    return false;
-                }
-                Length += dataLength;
-                onData(dataLength);
-                return true;
-            }
         }
     }
 }
