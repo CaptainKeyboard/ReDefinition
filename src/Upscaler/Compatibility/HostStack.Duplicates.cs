@@ -78,7 +78,7 @@ namespace ReDefinition.Upscaler
             {
                 if (effectiveRole == null)
                     effectiveRole = taaType.GetMethod("EffectiveRole", Any, null, Type.EmptyTypes, null);
-                foreach (Component taa in ScattererTaaComponents())
+                foreach (Component taa in ScattererTaaComponents(taaScratch))
                 {
                     if (taa == null || !IsEnabled(taa) || effectiveRole == null) continue;
                     object role = effectiveRole.Invoke(taa, null);

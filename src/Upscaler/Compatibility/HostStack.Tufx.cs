@@ -183,25 +183,27 @@ namespace ReDefinition.Upscaler
             ForgetDestroyedLayers();
 
             int count = 0;
-            Camera[] cameras = Camera.allCameras;
-            for (int i = 0; i < cameras.Length; i++)
+            int cameraCount = EnabledCameras();
+            for (int i = 0; i < cameraCount; i++)
             {
-                Component[] components = cameras[i].GetComponents<Component>();
-                for (int j = 0; j < components.Length; j++)
+                cameraScratch[i].GetComponents(componentScratch);
+                for (int j = 0; j < componentScratch.Count; j++)
                 {
-                    Component component = components[j];
+                    Component component = componentScratch[j];
                     // Missing scripts show up as null here.
                     if (component == null) continue;
-                    if (component.GetType().Name != "PostProcessLayer") continue;
+                    Type componentType = component.GetType();
+                    if (componentType.Name != "PostProcessLayer") continue;
                     // Kept anew where the layer holds another mode than None: TUFX has
                     // handed it out since (RefreshCameras, after a change in its window).
                     object before;
-                    if (TryGet(component, component.GetType(), "antialiasingMode", out before)
+                    if (TryGet(component, componentType, "antialiasingMode", out before)
                         && (!liveAntialiasing.ContainsKey(component) || (before != null && !Equals(before, none))))
                         liveAntialiasing[component] = before;
-                    if (TrySet(component, component.GetType(), "antialiasingMode", none)) count++;
+                    if (TrySet(component, componentType, "antialiasingMode", none)) count++;
                 }
             }
+            componentScratch.Clear();
             return count;
         }
 
@@ -254,11 +256,11 @@ namespace ReDefinition.Upscaler
         {
             mode = null;
             modeType = null;
-            FieldInfo aaField = profileType.GetField(fieldName, Any);
+            FieldInfo aaField = FieldOf(profileType, fieldName, Any);
             if (aaField == null) return false;
             object aa = aaField.GetValue(profile);
             if (aa == null) return false;
-            FieldInfo modeField = aa.GetType().GetField("Mode", Any);
+            FieldInfo modeField = FieldOf(aa.GetType(), "Mode", Any);
             if (modeField == null) return false;
             mode = modeField.GetValue(aa);
             modeType = modeField.FieldType;
@@ -269,11 +271,11 @@ namespace ReDefinition.Upscaler
         private static bool TrySetAaMode(object profile, Type profileType, string fieldName, object mode)
         {
             if (mode == null) return false;
-            FieldInfo aaField = profileType.GetField(fieldName, Any);
+            FieldInfo aaField = FieldOf(profileType, fieldName, Any);
             if (aaField == null) return false;
             object aa = aaField.GetValue(profile);
             if (aa == null) return false;
-            FieldInfo modeField = aa.GetType().GetField("Mode", Any);
+            FieldInfo modeField = FieldOf(aa.GetType(), "Mode", Any);
             if (modeField == null) return false;
             modeField.SetValue(aa, mode);
             aaField.SetValue(profile, aa);

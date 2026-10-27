@@ -60,6 +60,9 @@ namespace ReDefinition.Upscaler
         // Every SMAA switched off here with its buffer taken off, for HandBackSmaa.
         private static readonly List<SmaaState> smaaStates = new List<SmaaState>();
 
+        // The SMAA components found on the cameras, kept between the once-a-second passes.
+        private static readonly List<Component> smaaScratch = new List<Component>();
+
         // Where each mod attaches: its own static SMAACameraEvent, read from the
         // mod -- AfterForwardAlpha in both, with the same comment in both:
         // "BeforeImageEffects doesn't work well".
@@ -83,7 +86,8 @@ namespace ReDefinition.Upscaler
             CameraEvent evt = SmaaEventOf(type);
             int turnedOff = 0;
             int unreadable = 0;
-            List<Component> all = OnCameras(type);
+            OnCameras(type, smaaScratch);
+            List<Component> all = smaaScratch;
             for (int i = 0; i < all.Count; i++)
             {
                 Behaviour owner = all[i] as Behaviour;
