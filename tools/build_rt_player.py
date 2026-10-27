@@ -54,6 +54,12 @@ SOURCES = [
     'src/Core/ForeignAssumptions.cs',
     'src/Core/TypeLookup.cs',
     'src/Raytracing/RtCamera.cs',
+    'src/Raytracing/RtCamera.Gpu.cs',
+    'src/Raytracing/RtCamera.LateTrace.cs',
+    'src/Raytracing/RtCamera.Ocean.cs',
+    'src/Raytracing/RtCamera.Probe.cs',
+    'src/Raytracing/RtCamera.Reflections.cs',
+    'src/Raytracing/RtCamera.Sun.cs',
     'src/Proxy/PacketRing.cs',
     'src/Proxy/StreamlineCamera.cs',
     # The upscalers, for the turn through each (RtTurnUpscale.cs).

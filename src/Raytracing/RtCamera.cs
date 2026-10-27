@@ -45,7 +45,7 @@ namespace ReDefinition.Raytracing
     // What depends on KSP comes in through the fields below: the sources of the scene,
     // the sun, the sky, how far the world moved between two frames, and the projection
     // the frame was rendered with.
-    internal sealed class RtCamera : MonoBehaviour
+    internal sealed partial class RtCamera : MonoBehaviour
     {
         // The camera's raytracing scene, filled each frame from its sources, and the passes it runs.
         internal readonly RtScene Scene = new RtScene();
@@ -310,27 +310,6 @@ namespace ReDefinition.Raytracing
         // waits for the render thread.
         private IntPtr depthHandle, gbuffer0Handle, gbuffer1Handle, gbuffer2Handle, motionHandle, environmentHandle;
         private IntPtr sunHandle, diffuseHandle, specularHandle, forwardHandle, forwardRatioHandle;
-        // The GPU's instances gathered for the proxy (ReDefinitionRtScatter.compute), and
-        // the append buffers' counts.
-        private ComputeShader gather;
-        private int gatherKernel = -1;
-        private bool gatherLooked;
-        // A read-back of the counts: the buffers it counted, in their order. Kept and
-        // used again, with its callback, so that a frame's request allocates nothing.
-        private sealed class CountRead
-        {
-            // The buffers counted in their order, how many of them, and the callback that reads the counts (CountsRead).
-            public ComputeBuffer[] Buffers = new ComputeBuffer[64];
-            public int Count;
-            public Action<AsyncGPUReadbackRequest> Done;
-        }
-
-        // The read-backs in flight, and those done.
-        private readonly List<CountRead> countReads = new List<CountRead>();
-        private readonly Stack<CountRead> idleCountReads = new Stack<CountRead>();
-        private RenderTexture gpuInstances;
-        private IntPtr gpuInstancesHandle;
-        private ComputeBuffer gpuCounts;
         private int width, height;
         private uint frameIndex;
         private bool haveHistory;
@@ -722,51 +701,6 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // Unity's reflections back for the cameras after this one.
-        private void OnPostRender()
-        {
-            HoldReflections(false);
-        }
-
-        // Unity's own reflections are taken out while this camera draws, where the raytraced
-        // reflections come into the frame without Deferred's reflections pass (the forward
-        // light): the surfaces would shine with both. They are the reflection probes', KSP's on
-        // the vessel among them, and the sky's. They are set back after this camera, for the
-        // others. The probes are looked for once a second.
-        private ReflectionProbe[] probes = new ReflectionProbe[0];
-        private float[] probeIntensities = new float[0];
-        private float probesFound = float.NegativeInfinity;
-        private float heldReflectionIntensity = -1f;
-
-        // Holds or gives back Unity's reflections as described above; a call that changes nothing does nothing.
-        private void HoldReflections(bool hold)
-        {
-            if (hold == (heldReflectionIntensity >= 0f)) return;
-            if (hold)
-            {
-                if (Time.unscaledTime - probesFound >= 1f)
-                {
-                    probesFound = Time.unscaledTime;
-                    probes = FindObjectsOfType<ReflectionProbe>();
-                    if (probeIntensities.Length < probes.Length) probeIntensities = new float[probes.Length];
-                }
-                for (int i = 0; i < probes.Length; i++)
-                {
-                    ReflectionProbe probe = probes[i];
-                    if (probe == null) continue;
-                    probeIntensities[i] = probe.intensity;
-                    probe.intensity = 0f;
-                }
-                heldReflectionIntensity = RenderSettings.reflectionIntensity;
-                RenderSettings.reflectionIntensity = 0f;
-                return;
-            }
-            for (int i = 0; i < probes.Length; i++)
-                if (probes[i] != null && probes[i].intensity == 0f) probes[i].intensity = probeIntensities[i];
-            if (RenderSettings.reflectionIntensity == 0f) RenderSettings.reflectionIntensity = heldReflectionIntensity;
-            heldReflectionIntensity = -1f;
-        }
-
         // The projection the frame renders with, after BeforeTrace jittered it, and the trace in the frame where it is
         // wanted; otherwise the trace taken off the camera.
         private void OnPreRender()
@@ -905,75 +839,6 @@ namespace ReDefinition.Raytracing
             frameIndex++;
         }
 
-        // Scatterer's ocean's reflections from the rays, in this frame. Its surface goes from
-        // its G-buffer into the shape of Unity's. It is traced as a second frame of the same
-        // camera and scene with the reflections alone, and handed to the ocean where it
-        // reads Deferred's screen-space reflections (ssrOutput). Where a reflected ray
-        // meets nothing the weight is 0, and the ocean keeps its own reflection of Scatterer's sky.
-        // KSP's own sea (`stockSea`) is traced the same way, as StockSeaTraced says.
-        private void TraceOcean(bool wanted, bool stockSea, CommandBuffer into = null)
-        {
-            StockSeaTraced = wanted && stockSea;
-            bool scatterer = wanted && !stockSea;
-            AttachOceanDiscs(scatterer && !OceanDiscsHeldOff);
-            int mode = !wanted ? 0 : stockSea ? 1 : 2;
-            if (mode != oceanMode)
-            {
-                Debug.Log("[ReDefinition] Raytracing: " + (mode == 0 ? "the sea's own reflections back."
-                                                               : mode == 1 ? "KSP's sea takes the raytraced reflections."
-                                                               : "Scatterer's ocean takes the raytraced reflections."));
-                oceanMode = mode;
-            }
-            if (scatterer != oceanAttached)
-            {
-                if (scatterer) cam.AddCommandBuffer(OceanEvent, oceanCommand);
-                else cam.RemoveCommandBuffer(OceanEvent, oceanCommand);
-                oceanAttached = scatterer;
-            }
-            if (!wanted) return;
-            if (stockSea && into == null) return;
-            EnsureOceanTargets();
-            RenderTargetIdentifier source = BuiltinRenderTextureType.CameraTarget;
-            if (scatterer)
-            {
-                into = oceanCommand;
-                // The camera's screen to world directions, its position taken out: the
-                // projection without the upscaler's jitter, as the reflections' rays go.
-                Matrix4x4 view = cam.worldToCameraMatrix;
-                view.SetColumn(3, new Vector4(0f, 0f, 0f, 1f));
-                Shader.SetGlobalMatrix(OceanScreenToWorldId, (cam.nonJitteredProjectionMatrix * view).inverse);
-                oceanCommand.Clear();
-                oceanCommand.Blit(source, oceanDepth, capture, 7);
-                oceanCommand.Blit(source, oceanSurface1, capture, 8);
-                oceanCommand.Blit(source, oceanSurface2, capture, 9);
-            }
-
-            packet.CopyTo(ref oceanPacket);
-            oceanPacket.Signals = RtNative.SignalSpecular;
-            oceanPacket.Flags = RtNative.FlagSameFrame | RtNative.FlagExtra | RtNative.FlagWater
-                                | (WaterNormalsShown ? RtNative.FlagWaterNormals : 0u);
-            // A G-buffer where there is one: Scatterer's ocean brings its surfaces as one, KSP's
-            // sea under the deferred path has Unity's; without a G-buffer the water takes its
-            // normal from the depth.
-            oceanPacket.Params[ParamGBuffer] = scatterer || packet.Params[ParamGBuffer] > 0.5f ? 1f : 0f;
-            for (int i = 0; i < 8; i++) oceanPacket.Outputs[i] = IntPtr.Zero;
-            if (scatterer)
-            {
-                oceanPacket.Inputs[RtNative.InputDepth] = oceanDepthHandle;
-                oceanPacket.Inputs[RtNative.InputGBuffer0] = oceanSurface1Handle;
-                oceanPacket.Inputs[RtNative.InputGBuffer1] = oceanSurface1Handle;
-                oceanPacket.Inputs[RtNative.InputGBuffer2] = oceanSurface2Handle;
-            }
-            oceanPacket.Inputs[RtNative.InputMotion] = IntPtr.Zero;
-            oceanPacket.Outputs[RtNative.OutputSpecular] = oceanTracedHandle;
-            ring.Issue(into, RtNative.RenderEvent, RtNative.FrameEvent, ref oceanPacket);
-
-            into.SetGlobalTexture(RtOcean, oceanTraced);
-            if (stockSea) return;
-            oceanCommand.Blit(source, oceanReflections, capture, 10);
-            oceanCommand.SetGlobalTexture(SsrOutput, OceanHandoffHeldOff ? (Texture)Texture2D.blackTexture : oceanReflections);
-        }
-
         // The surfaces' overlay over the finished picture, after the image effects
         // (ReDefinitionRtCapture.shader, fragSurfaceView).
         private void ShowSurfaces(bool wanted)
@@ -990,62 +855,6 @@ namespace ReDefinition.Raytracing
             else cam.RemoveCommandBuffer(CameraEvent.AfterImageEffects, surfaceView);
         }
 
-        // Scatterer's ocean weighs the reflections it reads (ssrOutput) down from 1 km of the
-        // camera's height and to nothing from 2 km. The discs the waves mirror go onto it
-        // once it is drawn instead, through its tonemapper (fragOceanDiscs).
-        private void AttachOceanDiscs(bool wanted)
-        {
-            if (wanted == oceanDiscsAttached) return;
-            oceanDiscsAttached = wanted;
-            if (!wanted)
-            {
-                cam.RemoveCommandBuffer(OceanDiscsEvent, oceanDiscs);
-                return;
-            }
-            oceanDiscs.Clear();
-            oceanDiscs.GetTemporaryRT(OceanFrameId, -1, -1, 0, FilterMode.Point, RenderTextureFormat.DefaultHDR);
-            oceanDiscs.Blit(BuiltinRenderTextureType.CameraTarget, OceanFrameId);
-            // Drawn as the camera's own full-screen quad, which reads the screen's textures
-            // where the camera's projection puts them (ComputeScreenPos), whatever the
-            // camera draws into.
-            oceanDiscs.SetGlobalTexture(OceanFrameId, OceanFrameId);
-            oceanDiscs.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
-            oceanDiscs.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, OceanDiscsPass);
-            oceanDiscs.ReleaseTemporaryRT(OceanFrameId);
-            cam.AddCommandBuffer(OceanDiscsEvent, oceanDiscs);
-        }
-
-        // The ocean's targets at the frame's size, made anew where the size changed or Unity lost them.
-        private void EnsureOceanTargets()
-        {
-            if (oceanDepth != null && oceanDepth.width == width && oceanDepth.height == height && oceanDepth.IsCreated()
-                && oceanTraced.IsCreated())
-                return;
-            ReleaseOceanTargets();
-            oceanDepth = Target(RenderTextureFormat.RFloat);
-            oceanSurface1 = Target(RenderTextureFormat.ARGB32);
-            oceanSurface2 = Target(RenderTextureFormat.ARGB2101010);
-            oceanTraced = Target(RenderTextureFormat.ARGBHalf);
-            oceanReflections = Target(RenderTextureFormat.ARGBFloat);
-            oceanDepthHandle = oceanDepth.GetNativeTexturePtr();
-            oceanSurface1Handle = oceanSurface1.GetNativeTexturePtr();
-            oceanSurface2Handle = oceanSurface2.GetNativeTexturePtr();
-            oceanTracedHandle = oceanTraced.GetNativeTexturePtr();
-        }
-
-        // Releases the ocean's targets and forgets their native textures.
-        private void ReleaseOceanTargets()
-        {
-            foreach (RenderTexture texture in new[] { oceanDepth, oceanSurface1, oceanSurface2, oceanTraced, oceanReflections })
-                if (texture != null)
-                {
-                    texture.Release();
-                    Destroy(texture);
-                }
-            oceanDepth = oceanSurface1 = oceanSurface2 = oceanTraced = oceanReflections = null;
-            oceanDepthHandle = oceanSurface1Handle = oceanSurface2Handle = oceanTracedHandle = IntPtr.Zero;
-        }
-
         // After this camera's scene, before its OnPostRender, where the sun's colour is
         // still the one it drew with.
         private void OnRenderObject()
@@ -1053,295 +862,6 @@ namespace ReDefinition.Raytracing
             if (Camera.current != cam) return;
             drawnSunColour = SunColor();
             drawnSunFrame = Time.frameCount;
-        }
-
-        // The mask flag on the sun's light, moved when the sun is another light now.
-        // While the raytraced visibility makes the sun's shadows, they take all of its light,
-        // as a shadow does. The traced sky light fills them (KSP's sun keeps a quarter of its
-        // light in its shadows otherwise, shadow strength 0.75). It is set back when the mask moves
-        // or the raytracing goes.
-        private void MaskSun(Light light)
-        {
-            if (light == maskedLight)
-            {
-                if (light != null && maskedStrength >= 0f)
-                {
-                    float wanted = Settings.Shadows ? 1f : maskedStrength;
-                    if (light.shadowStrength != wanted) light.shadowStrength = wanted;
-                }
-                KeepCascades(light != null && Settings.Shadows);
-                return;
-            }
-            UnmaskSun();
-            maskedLight = light;
-            Shader.SetGlobalFloat(RtSunMask, 0f);
-            if (light != null && maskOn != null)
-            {
-                light.AddCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
-                light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
-                if (fadeGrab != null) light.AddCommandBuffer(LightEvent.AfterScreenspaceMask, fadeGrab);
-                maskedStrength = light.shadowStrength;
-                if (Settings.Shadows) light.shadowStrength = 1f;
-            }
-        }
-
-        // The masked light's own shadow strength, set back by UnmaskSun; -1 for none held.
-        private float maskedStrength = -1f;
-
-        // While the rays make the sun's shadows, the shadow maps are used only where the
-        // raytraced frame did not see a point (RtShadow, ReDefinitionScreenSpaceShadows).
-        // Scatterer's godrays and caustics, EVE's cloud shadows and the vessel's
-        // shadow for frame generation use them too. Two cascades in place of four took 1.4 ms of the
-        // GPU's frame off at the pad, with the 3D scene unchanged against two shots
-        // without a change (measured 2026-10-19). The distance and
-        // the resolution stay Scatterer's.
-        private const int RaytracedCascades = 2;
-        // The count the cascades had before they were held at RaytracedCascades; -1 for none held. They are set back
-        // when the rays stop, where the value is still the one set here. A count set meanwhile, the player's shadow
-        // quality in KSP's settings (KspBehaviour.ApplyQuality), is what comes back then: more
-        // than two is held again, one stays as it is (two cannot be told from the count
-        // set here).
-        private int heldCascades = -1;
-
-        // Holds the shadow cascades at RaytracedCascades while the rays make the sun's shadows, and sets them back after.
-        private void KeepCascades(bool raytraced)
-        {
-            if (raytraced)
-            {
-                int now = QualitySettings.shadowCascades;
-                if (now == RaytracedCascades && heldCascades >= 0) return;
-                if (now <= RaytracedCascades)
-                {
-                    heldCascades = -1;
-                    return;
-                }
-                heldCascades = now;
-                QualitySettings.shadowCascades = RaytracedCascades;
-                return;
-            }
-            if (heldCascades < 0) return;
-            if (QualitySettings.shadowCascades == RaytracedCascades) QualitySettings.shadowCascades = heldCascades;
-            heldCascades = -1;
-        }
-
-        // Reads back Unity's shadow fade of the frame before, from the start of this one,
-        // where the GPU has its texels after that frame. This frame's is written in forward
-        // rendering, where Unity fades the screen-space shadows in the surfaces' own passes.
-        // Unity's deferred lighting fades them itself, and the forward light there takes
-        // the surface from the G-buffer.
-        private void GrabShadowFade()
-        {
-            if (fadeGrab == null) return;
-            if (fadeGrabbed && !fadeReading && SystemInfo.supportsAsyncGPUReadback)
-            {
-                fadeReading = true;
-                fadeReadView = fadeGrabbedView;
-                AsyncGPUReadback.Request(fadeTexture, 0, fadeDone);
-            }
-            fadeGrab.Clear();
-            fadeGrabbed = maskedLight != null && cam.actualRenderingPath != RenderingPath.DeferredShading;
-            if (!fadeGrabbed)
-            {
-                fadeScale = Vector4.zero;
-                return;
-            }
-            fadeGrab.Blit((Texture)null, fadeTexture, capture, ShadowFadePass);
-            fadeGrabbedView = cam.worldToCameraMatrix;
-        }
-
-        // _LightShadowData's scale and bias, and unity_ShadowFadeCenterAndType's centre in
-        // the camera's frame as it was then (UnityShadowLibrary.cginc).
-        private void ShadowFadeRead(AsyncGPUReadbackRequest request)
-        {
-            fadeReading = false;
-            if (request.hasError || fadeGrab == null) return;
-            Unity.Collections.NativeArray<Vector4> texels = request.GetData<Vector4>();
-            if (texels.Length < 2) return;
-            Vector4 data = texels[0], centre = texels[1];
-            Vector3 local = fadeReadView.MultiplyPoint3x4(new Vector3(centre.x, centre.y, centre.z));
-            fadeCentre = new Vector4(local.x, local.y, local.z, centre.w);
-            fadeScale = new Vector4(data.z, data.w, 0f, 0f);
-        }
-
-        // Takes the mask's flags off the sun's light and gives it back its shadow strength and cascades.
-        private void UnmaskSun()
-        {
-            KeepCascades(false);
-            if (maskedLight != null)
-            {
-                maskedLight.RemoveCommandBuffer(LightEvent.BeforeScreenspaceMask, maskOn);
-                maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, maskOff);
-                if (fadeGrab != null) maskedLight.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, fadeGrab);
-                if (maskedStrength >= 0f) maskedLight.shadowStrength = maskedStrength;
-            }
-            maskedLight = null;
-            maskedStrength = -1f;
-        }
-
-        // The trace after the frame, for the next one, through RtLateTrace's OnRenderImage.
-        // It is a component of its own, as a camera with any OnRenderImage draws into a texture
-        // of Unity's in between and copies it each frame, which the trace before the
-        // lighting, the game's, does not need.
-        private RtLateTrace lateTrace;
-
-        // Adds RtLateTrace where the trace goes after the frame, and removes it where it goes in the frame.
-        private void KeepLateTrace()
-        {
-            bool wanted = !TraceBeforeLighting && capture != null;
-            if (wanted == (lateTrace != null)) return;
-            if (wanted)
-            {
-                lateTrace = gameObject.AddComponent<RtLateTrace>();
-                lateTrace.Owner = this;
-            }
-            else
-            {
-                Destroy(lateTrace);
-                lateTrace = null;
-            }
-        }
-
-        // The trace after the frame (RtLateTrace): copies the frame's depth, motion and sky, sends the packet, and keeps
-        // this frame's view for the next one's lighting; the frame passes through unchanged.
-        internal void RenderLate(RenderTexture source, RenderTexture destination)
-        {
-            if (capture == null || source == null || TraceBeforeLighting)
-            {
-                Graphics.Blit(source, destination);
-                return;
-            }
-            EnsureTargets(source.width, source.height);
-            // The jittered projection where an upscaler set one, read once the frame is drawn.
-            if (RenderedProjection != null) renderedProjection = RenderedProjection();
-
-            command.Clear();
-            command.Blit(source, depth, capture, 0);
-            // The G-buffer was copied after it was filled; at a new size, not yet.
-            bool deferred = cam.actualRenderingPath == RenderingPath.DeferredShading && gbufferReady;
-            gbufferReady = cam.actualRenderingPath == RenderingPath.DeferredShading;
-            bool withMotion = MotionVectors && (cam.depthTextureMode & DepthTextureMode.MotionVectors) != 0;
-            if (withMotion) command.Blit(source, motion, capture, 4);
-            Texture cube = Environment();
-            if (cube != null)
-            {
-                command.SetGlobalTexture(RtCube, cube);
-                command.SetGlobalVector(RtCubeHdr, new Vector4(1f, 1f, 0f, 0f));
-                command.Blit(source, environment, capture, 5);
-            }
-
-            bool withGpu = GatherGpuInstances();
-            Matrix4x4 worldToClip = FillPacket(deferred, withMotion, cube != null);
-            if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
-            ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
-            Graphics.ExecuteCommandBuffer(command);
-            Graphics.Blit(source, destination);
-
-            previousWorldToClip = worldToClip;
-            previousPosition = position;
-            haveHistory = true;
-            frameIndex++;
-        }
-
-        // The GPU's instances of this frame into the texture the proxy reads them from,
-        // relative to the camera; false where there are none.
-        private bool GatherGpuInstances()
-        {
-            int total = Scene.GpuTotal;
-            if (total == 0) return false;
-            if (!gatherLooked)
-            {
-                // Once: a kernel that did not compile for this device throws each time.
-                gatherLooked = true;
-                gather = ComputeSource("ReDefinitionRtScatter");
-                try
-                {
-                    gatherKernel = gather != null ? gather.FindKernel("Gather") : -1;
-                }
-                catch (Exception)
-                {
-                    gatherKernel = -1;
-                }
-            }
-            if (gatherKernel < 0) return false;
-            int rows = (total + RtNative.InstancesPerRow - 1) / RtNative.InstancesPerRow;
-            if (gpuInstances == null || gpuInstances.height < rows)
-            {
-                if (gpuInstances != null)
-                {
-                    gpuInstances.Release();
-                    Destroy(gpuInstances);
-                }
-                gpuInstances = new RenderTexture(RtNative.InstancesPerRow * RtNative.InstanceTexels, Math.Max(rows, 16), 0, RenderTextureFormat.ARGBFloat,
-                                                 RenderTextureReadWrite.Linear)
-                {
-                    name = "ReDefinition raytracing GPU instances",
-                    enableRandomWrite = true,
-                    filterMode = FilterMode.Point,
-                };
-                gpuInstances.Create();
-                // Once: GetNativeTexturePtr waits for the render thread.
-                gpuInstancesHandle = gpuInstances.GetNativeTexturePtr();
-            }
-            int items = Scene.GpuItems.Count;
-            if (gpuCounts == null || gpuCounts.count < items)
-            {
-                gpuCounts?.Release();
-                gpuCounts = new ComputeBuffer(Math.Max(items, 64), 4, ComputeBufferType.Raw);
-            }
-            Vector3 eye = transform.position;
-            command.SetComputeVectorParam(gather, GatherEye, new Vector4(eye.x, eye.y, eye.z, 0f));
-            command.SetComputeTextureParam(gather, gatherKernel, GatherOut, gpuInstances);
-            command.SetComputeBufferParam(gather, gatherKernel, GatherCounts, gpuCounts);
-            // How many places each buffer took, for the next frames' reservations.
-            CountRead counted = null;
-            if (SystemInfo.supportsAsyncGPUReadback && countReads.Count < 4)
-            {
-                counted = idleCountReads.Count > 0 ? idleCountReads.Pop() : NewCountRead();
-                if (counted.Buffers.Length < items) counted.Buffers = new ComputeBuffer[items];
-                counted.Count = items;
-            }
-            for (int i = 0; i < items; i++)
-            {
-                RtGpuItem item = Scene.GpuItems[i];
-                if (counted != null) counted.Buffers[i] = item.Transforms;
-                int places = Scene.GpuPlaces[i];
-                command.CopyCounterValue(item.Transforms, gpuCounts, (uint)(i * 4));
-                command.SetComputeBufferParam(gather, gatherKernel, GatherSource, item.Transforms);
-                command.SetComputeIntParam(gather, GatherCountIndex, i);
-                command.SetComputeIntParam(gather, GatherCapacity, places);
-                command.SetComputeIntParam(gather, GatherFirst, Scene.GpuFirst[i]);
-                command.SetComputeVectorParam(gather, GatherReach, item.Reach);
-                command.DispatchCompute(gather, gatherKernel, (places + 63) / 64, 1, 1);
-            }
-            if (counted != null)
-            {
-                countReads.Add(counted);
-                command.RequestAsyncReadback(gpuCounts, items * 4, 0, counted.Done);
-            }
-            return true;
-        }
-
-        // A read-back with its own callback, made once and used again.
-        private CountRead NewCountRead()
-        {
-            var read = new CountRead();
-            read.Done = request => CountsRead(read, request);
-            return read;
-        }
-
-        // How many places each GPU buffer took, handed to the scene for the next reservations; the read-back then idle.
-        private void CountsRead(CountRead read, AsyncGPUReadbackRequest request)
-        {
-            countReads.Remove(read);
-            if (!request.hasError)
-            {
-                Unity.Collections.NativeArray<uint> taken = request.GetData<uint>();
-                for (int i = 0; i < read.Count && i < taken.Length; i++)
-                    Scene.NoteGpuTaken(read.Buffers[i], (int)taken[i]);
-            }
-            Array.Clear(read.Buffers, 0, read.Count);
-            read.Count = 0;
-            idleCountReads.Push(read);
         }
 
         // The projection as the GPU used it, into a render texture, times the camera's
@@ -1674,58 +1194,6 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // A render texture's pixels as four floats each, read at once (the probe's); null where it cannot be.
-        private static float[] ReadFloats(RenderTexture texture)
-        {
-            if (texture == null || !texture.IsCreated()) return null;
-            RenderTexture before = RenderTexture.active;
-            var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
-            try
-            {
-                RenderTexture.active = texture;
-                read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
-                return read.GetRawTextureData<float>().ToArray();
-            }
-            finally
-            {
-                RenderTexture.active = before;
-                Destroy(read);
-            }
-        }
-
-        // The primary check at the next frame, for the pose `label` (the views probe): the report follows in the log.
-        internal void ParityNow(string label)
-        {
-            parityLabel = label;
-            parityAt = float.NegativeInfinity;
-        }
-
-        // The primary check's output read back (-redefinitionProbeParity): the log says where the rays' scene and
-        // the picture disagree, and the picture of it goes into ReDefinitionCaptures.
-        private void ParityRead(AsyncGPUReadbackRequest request)
-        {
-            parityPending = false;
-            if (request.hasError || parity == null) return;
-            int w = parity.width, h = parity.height;
-            float[] data = request.GetData<float>().ToArray();
-            RtParity.Result result = RtParity.Analyse(data, w, h, Scene.IsTerrain);
-            if (parityLabel != null) Debug.Log(Core.Log.Tag + " Raytracing parity of view " + parityLabel + ":");
-            parityLabel = null;
-            Debug.Log(Core.Log.Tag + " " + RtParity.Report(result, Scene.Describe, 12));
-            float[] rays = ReadFloats(parityRays), raster = ReadFloats(parityRaster);
-            if (rays != null && raster != null)
-                Debug.Log(Core.Log.Tag + " " + RtParity.LookReport(RtParity.Looks(data, rays, raster, w, h), Scene.Describe, 12));
-            string folder = System.IO.Path.Combine(Core.CaptureFolder.Root, "parity");
-            System.IO.Directory.CreateDirectory(folder);
-            var picture = new Texture2D(w, h, TextureFormat.RGBA32, false);
-            picture.LoadRawTextureData(RtParity.Image(data, w, h, Scene.IsTerrain));
-            picture.Apply();
-            string file = System.IO.Path.Combine(folder, DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + HighLogic.LoadedScene + ".png");
-            System.IO.File.WriteAllBytes(file, picture.EncodeToPNG());
-            Destroy(picture);
-            Debug.Log(Core.Log.Tag + " Raytracing parity picture: " + file);
-        }
-
         // The surfaces as their materials mean them (RtMaterialIntent; RtCommon.hlsli,
         // SurfaceIntent): in the game, with a G-buffer and the sun's pass, which finds them.
         private bool SurfaceIntent(bool deferred)
@@ -1808,62 +1276,6 @@ namespace ReDefinition.Raytracing
             gbufferReady = false;
         }
 
-        // For the scene probe (-redefinitionProbeSurfaces). It writes this frame's G-buffer copies,
-        // the surfaces as their materials mean them with their modes and what the camera's
-        // ray met (RT_REGION_*), the raytraced diffuse and reflected light, and the sun's
-        // visibility. Each goes into <prefix>-<name>.bin in folder. A file holds the width and height as two
-        // little-endian ints, then four floats a pixel, rows from the bottom. Argument `step` keeps every
-        // step-th pixel of every step-th row. Argument `only` names the images to write, or all. It returns the names
-        // written (tools/surface_sheet.py reads them).
-        internal string WriteSurfaceImages(string folder, string prefix, int step = 1, string[] only = null)
-        {
-            step = Math.Max(1, step);
-            var written = new System.Text.StringBuilder();
-            var named = new[]
-            {
-                new KeyValuePair<string, RenderTexture>("gbuffer0", gbuffer0), new KeyValuePair<string, RenderTexture>("gbuffer1", gbuffer1),
-                new KeyValuePair<string, RenderTexture>("surface", surface), new KeyValuePair<string, RenderTexture>("surfacemode", surfaceMode),
-                new KeyValuePair<string, RenderTexture>("diffuse", diffuse), new KeyValuePair<string, RenderTexture>("sun", sun),
-                new KeyValuePair<string, RenderTexture>("specular", specular), new KeyValuePair<string, RenderTexture>("gbuffer2", gbuffer2),
-            };
-            RenderTexture before = RenderTexture.active;
-            foreach (KeyValuePair<string, RenderTexture> pair in named)
-            {
-                RenderTexture texture = pair.Value;
-                if (texture == null || !texture.IsCreated()) continue;
-                if (only != null && Array.IndexOf(only, pair.Key) < 0) continue;
-                var read = new Texture2D(texture.width, texture.height, TextureFormat.RGBAFloat, false, true);
-                try
-                {
-                    RenderTexture.active = texture;
-                    read.ReadPixels(new Rect(0, 0, texture.width, texture.height), 0, 0, false);
-                    Color[] pixels = read.GetPixels();
-                    int width = (texture.width + step - 1) / step, height = (texture.height + step - 1) / step;
-                    using (var file = new System.IO.BinaryWriter(System.IO.File.Create(System.IO.Path.Combine(folder, prefix + "-" + pair.Key + ".bin"))))
-                    {
-                        file.Write(width);
-                        file.Write(height);
-                        for (int y = 0; y < texture.height; y += step)
-                            for (int x = 0; x < texture.width; x += step)
-                            {
-                                Color c = pixels[y * texture.width + x];
-                                file.Write(c.r);
-                                file.Write(c.g);
-                                file.Write(c.b);
-                                file.Write(c.a);
-                            }
-                    }
-                    written.Append(pair.Key).Append(' ');
-                }
-                finally
-                {
-                    RenderTexture.active = before;
-                    Destroy(read);
-                }
-            }
-            return written.ToString().TrimEnd();
-        }
-
         // A linear, bilinear, clamped target of the frame's size, created.
         private RenderTexture Target(RenderTextureFormat format)
         {
@@ -1875,20 +1287,6 @@ namespace ReDefinition.Raytracing
             };
             texture.Create();
             return texture;
-        }
-
-        // Releases the GPU instances' texture and the counts' buffer.
-        private void ReleaseGpuInstances()
-        {
-            if (gpuInstances != null)
-            {
-                gpuInstances.Release();
-                Destroy(gpuInstances);
-            }
-            gpuInstances = null;
-            gpuInstancesHandle = IntPtr.Zero;
-            gpuCounts?.Release();
-            gpuCounts = null;
         }
 
         // Releases the frame's targets and forgets their native textures.
@@ -1958,20 +1356,6 @@ namespace ReDefinition.Raytracing
             RtNative.KspRtStatus(statusText, statusText.Capacity);
             RtNative.KspRtPassTimings(PassTimings, PassTimings.Length);
             return statusText.ToString();
-        }
-    }
-
-    // RtCamera's trace after the frame (RtCamera.RenderLate), on the same camera.
-    internal sealed class RtLateTrace : MonoBehaviour
-    {
-        // The camera's RtCamera, which traces.
-        internal RtCamera Owner;
-
-        // Hands the frame to the owner's RenderLate; without an owner it passes through.
-        private void OnRenderImage(RenderTexture source, RenderTexture destination)
-        {
-            if (Owner != null) Owner.RenderLate(source, destination);
-            else Graphics.Blit(source, destination);
         }
     }
 }
