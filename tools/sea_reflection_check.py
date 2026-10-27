@@ -38,6 +38,9 @@ import sys
 
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 # KSP's own sea's mean square slope (RtCommon.hlsli): 24 sine waves of slope
 # kStockWaveSlope, half its square each, and kRippleOctaves octaves of kRippleSlope.
 STOCK_M2 = 24 * 0.5 * 0.0254 ** 2 + 6 * 0.055 ** 2
@@ -93,11 +96,6 @@ def specular(n, v, l, m):
     return np.where((nl > 0) & (nv > 0), out, 0.0)
 
 
-def luminance(c):
-    """Rec. 709 luminance of linear RGB."""
-    return c[..., 0] * 0.2126 + c[..., 1] * 0.7152 + c[..., 2] * 0.0722
-
-
 def traced_sun_colours(log):
     """Per shot name, the colour the raytracing traced with, from the probe's 'Probe: light' lines in the log."""
     colours = {}
@@ -122,6 +120,70 @@ def screenshot(folder, name):
 def analyse(folder, name, sun_colours=None, picture=None):
     """The shot against the model; `picture` in place of the traced light, as the
     screenshot to measure the path as the player sees it."""
+    data, traced, alpha = _read_shot(folder, name, sun_colours, picture)
+    height, width = traced.shape[:2]
+    projection = np.array(data['projection']).reshape(4, 4)
+    rays = _pixel_rays(projection, np.array(data['cameraToWorld']).reshape(4, 4), width, height)
+    o, radius, up_eye, t, hit, normal = _sea_hits(data, rays)
+    v = -rays
+
+    if alpha is not None:
+        # Scatterer's variance per pixel is that of the waves the pixel does not show; far
+        # off, where it shows none, all of the sea's: that is the sea's slope.
+        hit &= alpha > 0
+        if not np.any(hit):
+            return name, None
+    m = _roughness(alpha, hit, height, width)
+
+    sources = _light_sources(data)
+    if not sources:
+        return name, None
+    # The brightest source, by its irradiance, is the one checked; the model sums all.
+    model = _model_light(normal, v, sources, m, hit)
+    main = max(sources, key=lambda s: float(imaging.luminance(np.asarray(s[3]))))
+    l = main[1]
+
+    measured = imaging.luminance(traced.astype(float))
+    expected = imaging.luminance(model)
+    measured[~hit] = np.nan
+    expected[~hit] = np.nan
+
+    # The body's frame: degrees below the horizontal, azimuth from the body's.
+    depression, azimuth, elevation, altitude = _body_frame(l, up_eye, rays, o, radius)
+
+    sel = hit & np.isfinite(measured)
+    if data['stockWater']:
+        measured = _without_sky(measured, expected, sel, depression)
+    di, ai, d0, a0, count, bin_m, bin_e, dep_axis, az_axis = _bin_light(depression, azimuth, measured, expected, sel)
+
+    dm, de = _describe_bins(bin_m, dep_axis, az_axis), _describe_bins(bin_e, dep_axis, az_axis)
+    if dm is None or de is None:
+        return name, None
+    core = de['smooth'] >= de['top'] / 2
+    with np.errstate(invalid='ignore'):
+        ratio = np.nansum(dm['smooth'][core] * count[core]) / np.nansum(de['smooth'][core] * count[core])
+    # The traced pixels' spread in the core, against their mean.
+    core_px = sel.copy()
+    core_px[sel] = core[di - d0, ai - a0]
+    values = measured[core_px]
+    sparkle = float(np.std(values) / max(np.mean(values), 1e-12)) if values.size else float('nan')
+    # The water a pixel covers along the view at the model's peak.
+    pk = np.unravel_index(np.nanargmax(np.where(sel, expected, -1)), expected.shape)
+    pixel = 2.0 * math.tan(math.atan(1.0 / projection[1, 1])) / height
+    footprint = float(t[pk] * pixel / max(float(np.sum(normal[pk] * v[pk])), 1e-3))
+    # The light's centre and spread, by its moments: robust where few glints carry it, as
+    # near by. The same pixels for both, so that the frame's edges cut both alike.
+    # Over the path, where the model gives above 2 % of its peak.
+    path = sel & (np.nan_to_num(expected) >= 0.02 * np.nanmax(np.where(sel, expected, 0)))
+    mm = _moments(np.nan_to_num(measured), path, depression, azimuth)
+    me = _moments(np.nan_to_num(expected), path, depression, azimuth)
+    return name, dict(moments=(mm, me), elevation=elevation, altitude=altitude, ratio=ratio, measured=dm, model=de, sparkle=sparkle,
+                      footprint=footprint, m=float(np.nanmedian(m[sel])), source=main[0])
+
+
+def _read_shot(folder, name, sun_colours, picture):
+    """The shot's JSON (with the sun's colour from the log where given), its traced light, and its alpha (Scatterer's
+    variance per pixel) where the water is Scatterer's, as (data, traced, alpha)."""
     data = json.load(open(os.path.join(folder, name + '.json')))
     if sun_colours and name in sun_colours:
         data['sunColour'] = sun_colours[name]
@@ -129,14 +191,14 @@ def analyse(folder, name, sun_colours=None, picture=None):
     mean_path = os.path.join(folder, name + '-traced-mean.pfm')
     traced = picture if picture is not None else read_pfm(
         mean_path if os.path.exists(mean_path) else os.path.join(folder, name + '-traced.pfm'))
-    height, width = traced.shape[:2]
     alpha_path = os.path.join(folder, name + '-alpha.pfm')
     alpha = read_pfm(alpha_path)[..., 0] if os.path.exists(alpha_path) and not data['stockWater'] else None
+    return data, traced, alpha
 
-    # Each pixel's ray, world space: its point on the far plane through the inverse
-    # projection (view space, -z ahead), turned by the camera's matrix.
-    projection = np.array(data['projection']).reshape(4, 4)
-    to_world = np.array(data['cameraToWorld']).reshape(4, 4)
+
+def _pixel_rays(projection, to_world, width, height):
+    """Each pixel's ray, world space: its point on the far plane through the inverse
+    projection (view space, -z ahead), turned by the camera's matrix."""
     inverse = np.linalg.inv(projection)
     xs = (np.arange(width) + 0.5) / width * 2.0 - 1.0
     ys = (np.arange(height) + 0.5) / height * 2.0 - 1.0
@@ -146,7 +208,12 @@ def analyse(folder, name, sun_colours=None, picture=None):
     view = view[..., :3] / view[..., 3:4]
     rays = view @ to_world[:3, :3].T
     rays /= np.linalg.norm(rays, axis=-1, keepdims=True)
+    return rays
 
+
+def _sea_hits(data, rays):
+    """Where the rays meet the body's sphere, from the eye. It returns the eye relative to the body's centre,
+    the radius, the eye's up, the distance along each ray, the mask of the pixels that hit and the surface normal there."""
     eye = np.array(data['eye'])
     centre = np.array(data['bodyCentre'])
     radius = data['bodyRadius']
@@ -160,19 +227,21 @@ def analyse(folder, name, sun_colours=None, picture=None):
     hit &= t > 0
     point = o + rays * t[..., None]
     normal = point / np.linalg.norm(point, axis=-1, keepdims=True)
-    v = -rays
+    return o, radius, up_eye, t, hit, normal
 
+
+def _roughness(alpha, hit, height, width):
+    """The sea's roughness m of every pixel: Scatterer's 99th percentile of the variance where the shot has alpha,
+    else KSP's own sea's, each with the least roughness water has."""
     if alpha is not None:
-        # Scatterer's variance per pixel is that of the waves the pixel does not show; far
-        # off, where it shows none, all of the sea's: that is the sea's slope.
-        hit &= alpha > 0
-        if not np.any(hit):
-            return name, None
         total = float(np.percentile(2.0 * alpha[hit], 99))
-        m = np.full((height, width), math.sqrt(total ** 2 + WATER_LEAST_ROUGHNESS ** 2))
-    else:
-        m = np.full((height, width), math.sqrt(STOCK_M2 + WATER_LEAST_ROUGHNESS ** 2))
+        return np.full((height, width), math.sqrt(total ** 2 + WATER_LEAST_ROUGHNESS ** 2))
+    return np.full((height, width), math.sqrt(STOCK_M2 + WATER_LEAST_ROUGHNESS ** 2))
 
+
+def _light_sources(data):
+    """The lights that shine on the sea as (name, direction, angular radius, irradiance): the sun, and each of the
+    shot's first two moons that has a lit surface, by its phase."""
     gamma = data['gammaInputs']
     sun = np.array(data['sun'])
     towards_sun = sun[:3] / np.linalg.norm(sun[:3])
@@ -194,22 +263,22 @@ def analyse(folder, name, sun_colours=None, picture=None):
         phase = (math.sin(phase_angle) + (math.pi - phase_angle) * cos_phase) / math.pi
         disc_radiance = surface * (2.0 / 3.0) * phase
         sources.append(('moon %d' % i, l, r, disc_radiance * math.pi * math.sin(r) ** 2))
-    if not sources:
-        return name, None
-    # The brightest source, by its irradiance, is the one checked; the model sums all.
+    return sources
+
+
+def _model_light(normal, v, sources, m, hit):
+    """The model's light of every pixel: the specular reflection of all the sources summed, zero where the ray misses."""
+    height, width = hit.shape
     model = np.zeros((height, width, 3))
     for _, l, _, irradiance in sources:
         model += specular(normal, v, np.broadcast_to(l, normal.shape), m)[..., None] * irradiance
     model[~hit] = 0.0
-    main = max(sources, key=lambda s: float(luminance(np.asarray(s[3]))))
-    l = main[1]
+    return model
 
-    measured = luminance(traced.astype(float))
-    expected = luminance(model)
-    measured[~hit] = np.nan
-    expected[~hit] = np.nan
 
-    # The body's frame: degrees below the horizontal, azimuth from the body's.
+def _body_frame(l, up_eye, rays, o, radius):
+    """Each pixel's degrees below the horizontal and azimuth from the light's, with the light's elevation and the
+    eye's altitude: the frame the bins are in."""
     north = l - np.dot(l, up_eye) * up_eye
     north /= np.linalg.norm(north)
     east = np.cross(up_eye, north)
@@ -217,19 +286,26 @@ def analyse(folder, name, sun_colours=None, picture=None):
     azimuth = np.degrees(np.arctan2(rays @ east, rays @ north))
     elevation = math.degrees(math.asin(float(np.dot(l, up_eye))))
     altitude = float(np.linalg.norm(o) - radius)
+    return depression, azimuth, elevation, altitude
 
-    sel = hit & np.isfinite(measured)
-    if data['stockWater']:
-        # KSP's own sea's traced picture holds what the reflected rays meet, the sky, as
-        # well: taken off as each row's median where the model puts no disc's light.
-        rows = np.floor(depression / BIN).astype(int)
-        dark = sel & (expected < 0.02 * np.nanmax(np.where(sel, expected, 0)))
-        base = np.zeros_like(measured)
-        for r in np.unique(rows[sel]):
-            row = rows == r
-            pick = measured[row & dark]
-            base[row] = np.median(pick) if pick.size > 20 else 0.0
-        measured = measured - base
+
+def _without_sky(measured, expected, sel, depression):
+    """KSP's own sea's traced picture holds what the reflected rays meet, the sky, as
+    well: taken off as each row's median where the model puts no disc's light."""
+    rows = np.floor(depression / BIN).astype(int)
+    dark = sel & (expected < 0.02 * np.nanmax(np.where(sel, expected, 0)))
+    base = np.zeros_like(measured)
+    for r in np.unique(rows[sel]):
+        row = rows == r
+        pick = measured[row & dark]
+        base[row] = np.median(pick) if pick.size > 20 else 0.0
+    return measured - base
+
+
+def _bin_light(depression, azimuth, measured, expected, sel):
+    """The selected pixels' measured and expected light averaged over BIN-degree bins of depression and azimuth.
+    It returns (di, ai, d0, a0, count, bin_m, bin_e, dep_axis, az_axis). Those are each pixel's bin index and the
+    first bin's, the pixels per bin, the two averaged grids and the bins' centres. Bins of fewer than 4 pixels are NaN."""
     di = np.floor(depression[sel] / BIN).astype(int)
     ai = np.floor(azimuth[sel] / BIN).astype(int)
     d0, a0 = di.min(), ai.min()
@@ -245,60 +321,44 @@ def analyse(folder, name, sun_colours=None, picture=None):
         bin_e = np.where(count >= 4, sum_e / count, np.nan)
     dep_axis = (np.arange(shape[0]) + d0 + 0.5) * BIN
     az_axis = (np.arange(shape[1]) + a0 + 0.5) * BIN
+    return di, ai, d0, a0, count, bin_m, bin_e, dep_axis, az_axis
 
-    def describe(grid):
-        # Smoothed over 5 x 5 bins, so that glints average out.
-        g = np.nan_to_num(grid)
-        w = np.isfinite(grid).astype(float)
-        k = np.ones(5)
-        for axis in (0, 1):
-            g = np.apply_along_axis(lambda r: np.convolve(r, k, 'same'), axis, g)
-            w = np.apply_along_axis(lambda r: np.convolve(r, k, 'same'), axis, w)
-        with np.errstate(invalid='ignore', divide='ignore'):
-            s = np.where(w > 0, g / w, np.nan)
-        if not np.any(np.isfinite(s)):
-            return None
-        peak = np.unravel_index(np.nanargmax(s), s.shape)
-        top = s[peak]
-        column = s[:, peak[1]]
-        rows = np.where(column >= top / 2)[0]
-        row = s[peak[0], :]
-        across = np.where(row >= top / 2)[0]
-        return dict(peak=dep_axis[peak[0]], peak_az=az_axis[peak[1]], top=top,
-                    extent=(dep_axis[rows.min()], dep_axis[rows.max()]),
-                    half=(az_axis[across.max()] - az_axis[across.min()] + BIN) / 2, smooth=s)
 
-    dm, de = describe(bin_m), describe(bin_e)
-    if dm is None or de is None:
-        return name, None
-    core = de['smooth'] >= de['top'] / 2
-    with np.errstate(invalid='ignore'):
-        ratio = np.nansum(dm['smooth'][core] * count[core]) / np.nansum(de['smooth'][core] * count[core])
-    # The traced pixels' spread in the core, against their mean.
-    core_px = sel.copy()
-    core_px[sel] = core[di - d0, ai - a0]
-    values = measured[core_px]
-    sparkle = float(np.std(values) / max(np.mean(values), 1e-12)) if values.size else float('nan')
-    # The water a pixel covers along the view at the model's peak.
-    pk = np.unravel_index(np.nanargmax(np.where(sel, expected, -1)), expected.shape)
-    pixel = 2.0 * math.tan(math.atan(1.0 / projection[1, 1])) / height
-    footprint = float(t[pk] * pixel / max(float(np.sum(normal[pk] * v[pk])), 1e-3))
-    # The light's centre and spread, by its moments: robust where few glints carry it, as
-    # near by. The same pixels for both, so that the frame's edges cut both alike.
-    # Over the path, where the model gives above 2 % of its peak.
-    path = sel & (np.nan_to_num(expected) >= 0.02 * np.nanmax(np.where(sel, expected, 0)))
+def _describe_bins(grid, dep_axis, az_axis):
+    """The binned light's peak, its depression extent and half width, from the grid smoothed over 5 x 5 bins, or
+    None where no bin has light."""
+    # Smoothed over 5 x 5 bins, so that glints average out.
+    g = np.nan_to_num(grid)
+    w = np.isfinite(grid).astype(float)
+    k = np.ones(5)
+    for axis in (0, 1):
+        g = np.apply_along_axis(lambda r: np.convolve(r, k, 'same'), axis, g)
+        w = np.apply_along_axis(lambda r: np.convolve(r, k, 'same'), axis, w)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        s = np.where(w > 0, g / w, np.nan)
+    if not np.any(np.isfinite(s)):
+        return None
+    peak = np.unravel_index(np.nanargmax(s), s.shape)
+    top = s[peak]
+    column = s[:, peak[1]]
+    rows = np.where(column >= top / 2)[0]
+    row = s[peak[0], :]
+    across = np.where(row >= top / 2)[0]
+    return dict(peak=dep_axis[peak[0]], peak_az=az_axis[peak[1]], top=top,
+                extent=(dep_axis[rows.min()], dep_axis[rows.max()]),
+                half=(az_axis[across.max()] - az_axis[across.min()] + BIN) / 2, smooth=s)
 
-    def moments(values):
-        w = np.where(path, np.maximum(values, 0.0), 0.0)
-        total = w.sum()
-        cd = (w * depression).sum() / total
-        ca = (w * azimuth).sum() / total
-        sd = math.sqrt((w * (depression - cd) ** 2).sum() / total)
-        sa = math.sqrt((w * (azimuth - ca) ** 2).sum() / total)
-        return cd, sd, sa, total
-    mm, me = moments(np.nan_to_num(measured)), moments(np.nan_to_num(expected))
-    return name, dict(moments=(mm, me), elevation=elevation, altitude=altitude, ratio=ratio, measured=dm, model=de, sparkle=sparkle,
-                      footprint=footprint, m=float(np.nanmedian(m[sel])), source=main[0])
+
+def _moments(values, path, depression, azimuth):
+    """The light's centre and spread over the path's pixels: the depression's centre and spread, the azimuth's
+    spread and the total."""
+    w = np.where(path, np.maximum(values, 0.0), 0.0)
+    total = w.sum()
+    cd = (w * depression).sum() / total
+    ca = (w * azimuth).sum() / total
+    sd = math.sqrt((w * (depression - cd) ** 2).sum() / total)
+    sa = math.sqrt((w * (azimuth - ca) ** 2).sum() / total)
+    return cd, sd, sa, total
 
 
 def ripple_gradient_rms(samples=400000, seed=1):

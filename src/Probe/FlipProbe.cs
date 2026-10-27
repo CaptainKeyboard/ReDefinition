@@ -1,4 +1,4 @@
-using System;
+using ReDefinition.Core;
 
 namespace ReDefinition.Probe
 {
@@ -25,13 +25,13 @@ namespace ReDefinition.Probe
         // Whether KSP was started to record the sweep.
         internal static bool Requested
         {
-            get { return Has(Argument); }
+            get { return CommandLine.Has(Argument, true); }
         }
 
         // Whether frame generation's input dumps are taken beside the recording.
         internal static bool Dumps
         {
-            get { return Has(DumpsArgument); }
+            get { return CommandLine.Has(DumpsArgument, true); }
         }
 
         // The desktop frames to record: 40 with the dumps, else the most the recording takes.
@@ -43,15 +43,7 @@ namespace ReDefinition.Probe
         // How many sweep steps each step is cut into: 2 at half step, else 1.
         internal static int Subdivide
         {
-            get { return Has(HalfStepArgument) ? 2 : 1; }
-        }
-
-        // Whether KSP's command line holds a switch, in any case.
-        private static bool Has(string argument)
-        {
-            foreach (string arg in Environment.GetCommandLineArgs())
-                if (string.Equals(arg, argument, StringComparison.OrdinalIgnoreCase)) return true;
-            return false;
+            get { return CommandLine.Has(HalfStepArgument, true) ? 2 : 1; }
         }
     }
 }

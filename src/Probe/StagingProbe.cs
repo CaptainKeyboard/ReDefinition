@@ -22,7 +22,7 @@ namespace ReDefinition.Probe
         // The craft's file, or null where none is asked for or found.
         internal static string CraftPath()
         {
-            string craft = SceneProbe.ArgumentAfter(LaunchArgument);
+            string craft = CommandLine.After(LaunchArgument);
             if (craft == null) return null;
             string path = Path.Combine(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "Ships"), "VAB"), craft + ".craft");
             return File.Exists(path) ? path : null;
@@ -34,7 +34,7 @@ namespace ReDefinition.Probe
             string path = CraftPath();
             if (path == null)
             {
-                Debug.LogWarning(Log.Tag + " Probe: no craft " + SceneProbe.ArgumentAfter(LaunchArgument) + " in Ships/VAB.");
+                Debug.LogWarning(Log.Tag + " Probe: no craft " + CommandLine.After(LaunchArgument) + " in Ships/VAB.");
                 return false;
             }
             ConfigNode craft = ConfigNode.Load(path);
@@ -66,17 +66,14 @@ namespace ReDefinition.Probe
         // Whether KSP was started to fly the staging.
         internal static bool Requested
         {
-            get { return SceneProbe.ArgumentAfter(StagingArgument) != null; }
+            get { return CommandLine.After(StagingArgument) != null; }
         }
 
         // The flight: full throttle, the first stage, and after the delay (10 s where the switch's value is no number)
         // the next, recorded from just before, with shots before and after the drop.
         public static IEnumerator Run(string folder, string shot)
         {
-            float delay;
-            if (!float.TryParse(SceneProbe.ArgumentAfter(StagingArgument), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out delay))
-                delay = 10f;
+            float delay = CommandLine.Float(StagingArgument, 10f);
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null) yield break;
             Debug.Log(Log.Tag + " Probe: staging: " + vessel.vesselName + ", " + vessel.parts.Count + " parts.");
@@ -95,19 +92,11 @@ namespace ReDefinition.Probe
             bool recording = ScreenRecordingBridge.Start(FlipProbe.Frames, FlipProbe.Dumps);
             Debug.Log(Log.Tag + " Probe: staging: " + (recording ? "recording" : "not recorded: " + ScreenRecordingBridge.State())
                       + " from game frame " + (Time.frameCount + 1) + ".");
-            for (int i = 0; i < 10; i++) yield return null;
+            yield return ProbeSteps.Frames(10);
             int before = FlightGlobals.Vessels.Count;
             KSP.UI.Screens.StageManager.ActivateNextStage();
             Debug.Log(Log.Tag + " Probe: staging: dropped at game frame " + Time.frameCount + ", " + before + " vessels before.");
-            float until = Time.realtimeSinceStartup + 30f;
-            while (Time.realtimeSinceStartup < until)
-            {
-                string state = ScreenRecordingBridge.State();
-                if (!state.StartsWith("recording", StringComparison.Ordinal) && !state.StartsWith("saving", StringComparison.Ordinal))
-                    break;
-                FlightInputHandler.state.mainThrottle = 1f;
-                yield return null;
-            }
+            yield return ProbeSteps.RecordingSaved(30f, () => FlightInputHandler.state.mainThrottle = 1f);
             Debug.Log(Log.Tag + " Probe: staging: " + ScreenRecordingBridge.State() + "; " + FlightGlobals.Vessels.Count + " vessels.");
             yield return new WaitForEndOfFrame();
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-after-drop.png"));

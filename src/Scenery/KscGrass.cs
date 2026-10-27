@@ -12,8 +12,8 @@ using UnityEngine.Rendering;
 namespace ReDefinition.Scenery
 {
     // Parallax's grass on the space centre's lawns. Parallax grows its grass on the terrain,
-    // which lies 2.7 to 3.2 m under the space centre's grass surfaces (measured 2026-10-05,
-    // the KscGrassGap probe), so its clumps stay under them. Here Parallax's own clumps of
+    // which lies 2.7 to 3.2 m under the space centre's grass surfaces (measured 2026-10-05
+    // with a probe), so its clumps stay under them. Here Parallax's own clumps of
     // this frame are lifted onto the lawns where they lie under one
     // (ReDefinitionKscGrass.compute) and drawn with Parallax's own meshes and materials,
     // so its shader, wind and lighting. The clumps are its ScatterRenderers' outputLOD0-2,

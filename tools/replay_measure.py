@@ -12,6 +12,9 @@ import sys
 import numpy as np
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 
 def dump_frames(dump):
     """The dump's frames as grey at half size, as the replay shows them: the presented frame where dumped, else the
@@ -27,7 +30,7 @@ def dump_frames(dump):
         # The frame as presented where the dump has it; the HUD-less colour otherwise.
         name = f"frame-{n:02d}.bin" if os.path.exists(os.path.join(dump, f"frame-{n:02d}.bin")) else f"colour-{n:02d}.bin"
         raw = np.fromfile(os.path.join(dump, name), dtype=np.uint8)
-        g = raw.reshape(h, w, 4)[:, :, :3].astype(np.float32).mean(2)
+        g = imaging.grey(raw.reshape(h, w, 4))
         frames.append(g.reshape(h // 2, 2, w // 2, 2).mean((1, 3)))
         n += 1
     return frames

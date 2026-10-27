@@ -28,23 +28,11 @@ namespace ReDefinition.Raytracing
         // shadow came out 0.62 where EVE's own is 0.76 (measured at sea, 2026-10-13).
         private const int Width = 4096, Height = 2048;
         private const float RepackSeconds = 5f;
-        // -redefinitionProbeCloudValue 1, 2, 3: with the probe's cloud check, the rays write
-        // the map's u, v or coverage (RtCommon.hlsli, CloudProbeValue); the brightness 1 else.
-        private static readonly float ProbeMode = ProbeArgument();
         private static readonly int TimeFadeDensityId = Shader.PropertyToID("cloudTimeFadeDensity");
         private static readonly int MapViewFadeId = Shader.PropertyToID("mapViewFade");
         private static readonly int RadiusId = Shader.PropertyToID("_Radius");
         private static readonly int ShadowColourId = Shader.PropertyToID("_Color");
         private static readonly int ShadowFactorId = Shader.PropertyToID("_ShadowFactor");
-
-        // The value of -redefinitionProbeCloudValue as the rays take it: 10 plus the mode, 1 without it.
-        private static float ProbeArgument()
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            int at = Array.IndexOf(args, "-redefinitionProbeCloudValue");
-            int mode;
-            return at >= 0 && at + 1 < args.Length && int.TryParse(args[at + 1], out mode) ? 10f + mode : 1f;
-        }
 
         // Whether reading EVE threw (the clouds are then left out) and whether its members were looked up; EVE's cloud
         // objects list and the properties read from its cloud objects, volumes and 2D layers.
@@ -240,10 +228,9 @@ namespace ReDefinition.Raytracing
                 clouds[20] = colour.r;
                 clouds[21] = colour.g;
                 clouds[22] = colour.b;
-                clouds[23] = ProbeMode;
+                clouds[23] = 1f;
                 Last = this;
                 lastLayer = layer;
-                lastRadius = radius;
                 lastCentre = (Vector3)body.position;
                 MapFromCentre = readRotation(layer) * Matrix4x4.Translate(lastCentre);
                 MapFades = new Vector3(clouds[17], clouds[19], clouds[18]);
@@ -338,7 +325,7 @@ namespace ReDefinition.Raytracing
             pack.SetVector(mask, channel);
         }
 
-        // The last layer filled, for the probe's check (EvePrediction) and the moon's light on
+        // The last layer filled, for the probe's cloud cover (DensityAt) and the moon's light on
         // the clouds (EveCloudRelight).
         internal static RtEveClouds Last { get; private set; }
 
@@ -357,32 +344,11 @@ namespace ReDefinition.Raytracing
 
         // The frame the layer was last filled in, for the log.
         internal int FilledFrame { get { return filledFrame; } }
-        // The last layer filled, its shadow's radius and its body's centre, for the probe's checks; EVE's
-        // SampleCoverage, looked up on first use.
+        // The last layer filled and its body's centre, for the probe's checks; EVE's SampleCoverage, looked up on
+        // first use.
         private object lastLayer;
-        private float lastRadius;
         private Vector3 lastCentre;
         private MethodInfo sampleCoverage;
-
-        // What EVE's own code (CloudsRaymarchedVolume.SampleCoverage: coverage times the
-        // density curve, CPU) gives where the light's ray from `world` towards the sun leaves
-        // the shadow's sphere. It is the transmittance and the shadow the rays take there
-        // (RtCommon.hlsli, CloudTransmittance, its fades 1). It is -1 where there is no layer.
-        internal float EvePrediction(Vector3 world, Vector3 towardsSun, Color colour, float strength)
-        {
-            if (!HasSampleCoverage()) return -1f;
-            Vector3 toCentre = lastCentre - world;
-            float distance = toCentre.magnitude;
-            if (distance > lastRadius) return -1f;
-            float along = Vector3.Dot(toCentre, towardsSun);
-            float t = along + Mathf.Sqrt(Mathf.Max(lastRadius * lastRadius - (distance * distance - along * along), 0f));
-            Vector3 at = world + towardsSun * t;
-            object[] arguments = { at, 0f, false };
-            float density = (float)sampleCoverage.Invoke(lastLayer, arguments);
-            float tr = 1f / (1f + 7f * density + 26f * density * density);
-            float fade = Mathf.Clamp01(100f * Vector3.Dot(toCentre / distance, -towardsSun)) * Mathf.Clamp01(0.01f * (lastRadius - distance));
-            return 1f + fade * strength * (1f - tr) * (Mathf.Clamp01(tr * colour.r) - 1f);
-        }
 
         // For the probe: EVE's own density of the last layer filled at a world point
         // (CloudsRaymarchedVolume.SampleCoverage, CPU), 0 to 1; -1 where there is none.
@@ -410,82 +376,6 @@ namespace ReDefinition.Raytracing
             inner = readInner(lastLayer);
             outer = readOuter(lastLayer);
             return outer > inner;
-        }
-
-        // For the probe: at the exit point towards the sun, EVE's density, its coverage and type
-        // maps there (TextureWrapper.Sample), the map's direction, and our packed map's texel
-        // at the same place as the CPU reads it.
-        internal string EveRaw(Vector3 world, Vector3 towardsSun)
-        {
-            if (lastLayer == null) return "no layer";
-            Vector3 toCentre = lastCentre - world;
-            float distance = toCentre.magnitude;
-            float along = Vector3.Dot(toCentre, towardsSun);
-            float t = along + Mathf.Sqrt(Mathf.Max(lastRadius * lastRadius - (distance * distance - along * along), 0f));
-            Vector3 at = world + towardsSun * t;
-            Matrix4x4 m = (Matrix4x4)rotation.GetValue(lastLayer, null);
-            Vector3 n = m.MultiplyPoint(at).normalized;
-            object coverageWrapper = coverageMap.GetValue(lastLayer, null);
-            object typeWrapper = typeMap.GetValue(lastLayer, null);
-            MethodInfo sample = coverageWrapper != null ? coverageWrapper.GetType().GetMethod("Sample", new[] { typeof(Vector3) }) : null;
-            Color coverage = sample != null ? (Color)sample.Invoke(coverageWrapper, new object[] { n }) : Color.clear;
-            Color type = sample != null && typeWrapper != null ? (Color)sample.Invoke(typeWrapper, new object[] { n }) : Color.clear;
-            object[] arguments = { at, 0f, false };
-            float density = sampleCoverage != null ? (float)sampleCoverage.Invoke(lastLayer, arguments) : -1f;
-            float u = 0.5f + Mathf.Atan2(n.x, n.z) / (2f * Mathf.PI), v = Mathf.Acos(Mathf.Clamp(n.y, -1f, 1f)) / Mathf.PI;
-            Color texel = Color.clear;
-            if (packed != null)
-            {
-                RenderTexture before = RenderTexture.active;
-                RenderTexture.active = packed;
-                var read = new Texture2D(1, 1, TextureFormat.RGBA32, false, true);
-                read.ReadPixels(new Rect(Mathf.Clamp((int)(u * Width), 0, Width - 1), Mathf.Clamp((int)(v * Height), 0, Height - 1), 1, 1), 0, 0, false);
-                texel = read.GetPixel(0, 0);
-                RenderTexture.active = before;
-                UnityEngine.Object.Destroy(read);
-            }
-            CelestialBody body = FlightGlobals.currentMainBody;
-            string centres = body == null ? "" : " [distances: body.position " + (world - (Vector3)body.position).magnitude.ToString("0")
-                + ", transform " + (world - body.transform.position).magnitude.ToString("0")
-                + ", pqs " + (body.pqsController != null ? (world - body.pqsController.transform.position).magnitude.ToString("0") : "-")
-                + ", radius " + body.Radius.ToString("0") + "]";
-            float coverageOurs = texel.r, curveOurs = texel.g;
-            float densityOurs = curveOurs < 0.01f || coverageOurs < 0.01f ? 0f : curveOurs * coverageOurs;
-            float trOurs = 1f / (1f + 7f * densityOurs + 26f * densityOurs * densityOurs);
-            centres += " ours on the CPU: shadow " + (1f + (1f - trOurs) * (Mathf.Clamp01(trOurs * 2f) - 1f)).ToString("0.00");
-            return centres + " exit " + (at - lastCentre).magnitude.ToString("0") + " m up, uv " + u.ToString("0.000") + "," + v.ToString("0.000")
-                   + ", EVE density " + density.ToString("0.000") + " coverage " + coverage + " type " + type
-                   + ", packed " + texel;
-        }
-
-        // For the probe: EVE's coverage map against our packed map at random directions, as
-        // packed and with v flipped; the mean differences.
-        internal string MapCheck()
-        {
-            if (lastLayer == null || packed == null) return "no layer";
-            object coverageWrapper = coverageMap.GetValue(lastLayer, null);
-            MethodInfo sample = coverageWrapper.GetType().GetMethod("Sample", new[] { typeof(Vector3) });
-            RenderTexture before = RenderTexture.active;
-            RenderTexture.active = packed;
-            var read = new Texture2D(Width, Height, TextureFormat.RGBA32, false, true);
-            read.ReadPixels(new Rect(0, 0, Width, Height), 0, 0, false);
-            RenderTexture.active = before;
-            var random = new System.Random(7);
-            double same = 0, flipped = 0, mirroredU = 0;
-            int n = 0;
-            for (int i = 0; i < 400; i++)
-            {
-                Vector3 d = new Vector3((float)random.NextDouble() * 2f - 1f, (float)random.NextDouble() * 1.6f - 0.8f, (float)random.NextDouble() * 2f - 1f).normalized;
-                float eve = ((Color)sample.Invoke(coverageWrapper, new object[] { d })).r;
-                float u = 0.5f + Mathf.Atan2(d.x, d.z) / (2f * Mathf.PI), v = Mathf.Acos(d.y) / Mathf.PI;
-                same += Math.Abs(read.GetPixelBilinear(u, v).r - eve);
-                flipped += Math.Abs(read.GetPixelBilinear(u, 1f - v).r - eve);
-                mirroredU += Math.Abs(read.GetPixelBilinear(1f - u, v).r - eve);
-                n++;
-            }
-            UnityEngine.Object.Destroy(read);
-            return "map check over " + n + " directions, mean difference as packed " + (same / n).ToString("0.000") + ", v flipped "
-                   + (flipped / n).ToString("0.000") + ", u mirrored " + (mirroredU / n).ToString("0.000");
         }
 
         // No layer: the constants all 0, no texture.

@@ -111,7 +111,6 @@ whole run.
 | `KscGround` | `src/Scenery/KscGround.cs` | FlightAndKSC |
 | `KscGrass` | `src/Scenery/KscGrass.cs` | FlightAndKSC |
 | `KscButtons` | `src/Hud/KscButtons.cs` | FlightEditorAndKSC |
-| `ShaderInventory` | `src/Probe/ShaderInventory.cs` | EveryScene |
 | `ProbeSwitchReset` | `src/Probe/ProbeSwitchReset.cs` | EveryScene |
 | `SeaHighlights` | `src/Raytracing/Ksp/SeaHighlights.cs` | EveryScene |
 | `FlightPanel` | `src/Hud/Panel/FlightPanel.cs` | Flight |
@@ -134,9 +133,7 @@ whole run.
 | `MoonGlow` | `src/Raytracing/Ksp/MoonGlow.cs` | Flight |
 | `RenderInterpolation` | `src/Upscaler/FrameGeneration/RenderInterpolation.cs` | Flight |
 | `UnityMotionRepair` | `src/Upscaler/MotionVectors/UnityMotionRepair.cs` | Flight |
-| `ScreenCheck` | `src/Probe/ScreenCheck.cs` | Flight |
 | `ModCost` | `src/Probe/ModCost.cs` | Flight |
-| `KscGrassGap` | `src/Probe/KscGrassGap.cs` | Flight |
 | `SceneProbeRunner` | `src/Probe/SceneProbe.cs` | Flight |
 | `EditorEngineer` | `src/Engineer/EditorEngineer.cs` | EditorAny |
 | `EditorLaunchButton` | `src/Engineer/EditorLaunchButton.cs` | EditorAny |

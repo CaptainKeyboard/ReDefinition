@@ -29,6 +29,9 @@ import sys
 import numpy as np
 from scipy import ndimage
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 
 def read(prefix, name, dtype, channels, crop):
     """One station of a capture (<prefix>-<name>.bin) as a crop x crop array, or None where it was not written."""
@@ -44,9 +47,9 @@ def grey(prefix, name, crop):
     if name == 'screen':
         # The finished frame, 8 bits, encoded as the screen shows it.
         a = read(prefix, name, np.uint8, 4, crop)
-        return None if a is None else a.astype(np.float32)[..., :3].mean(2) / 255.0
+        return None if a is None else imaging.grey(a) / 255.0
     a = read(prefix, name, np.float16, 4, crop)
-    return None if a is None else a.astype(np.float32)[..., :3].mean(2)
+    return None if a is None else imaging.grey(a)
 
 
 def edge_contrast(image, mask):

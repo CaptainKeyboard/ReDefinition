@@ -124,10 +124,9 @@ namespace ReDefinition.Probe
             // -redefinitionPerfMonitorTypes A,B: every method of those classes of
             // ReDefinition too, to see inside the costly ones (times include the calls
             // they make).
-            string[] args = Environment.GetCommandLineArgs();
-            int at = Array.IndexOf(args, "-redefinitionPerfMonitorTypes");
-            if (at >= 0 && at + 1 < args.Length)
-                foreach (string entry in args[at + 1].Split(','))
+            string typeList = CommandLine.After("-redefinitionPerfMonitorTypes");
+            if (typeList != null)
+                foreach (string entry in typeList.Split(','))
                 {
                     // "Type" for every method of it, "Type.Method" for one.
                     int dot = entry.IndexOf('.');
@@ -166,7 +165,7 @@ namespace ReDefinition.Probe
             // -redefinitionUnityProfilerLog <file>: Unity's profiler records into that file
             // (.raw), for its Profiler window in the editor (Load). A development player
             // only (tools/unity_profile.ps1).
-            string profilerLog = SceneProbe.ArgumentAfter("-redefinitionUnityProfilerLog");
+            string profilerLog = CommandLine.After("-redefinitionUnityProfilerLog");
             if (profilerLog != null && UnityEngine.Profiling.Profiler.supported)
             {
                 UnityEngine.Profiling.Profiler.logFile = profilerLog;

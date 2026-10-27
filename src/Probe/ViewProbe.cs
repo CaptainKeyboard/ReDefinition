@@ -91,9 +91,56 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
-            // -redefinitionProbeViewTarget <part of a name>: the views about the renderer so named nearest the
-            // vessel (the space centre's flag) instead of the vessel.
-            string targetName = SceneProbe.ArgumentAfter("-redefinitionProbeViewTarget");
+            Transform middle = null;
+            yield return FindViewTarget(CommandLine.After("-redefinitionProbeViewTarget"), target => middle = target);
+            float startHeading = FlightCamera.fetch.camHdg;
+            List<Raytracing.RaytracingMode> modes = ParseModes();
+            // -redefinitionProbeViewIni "key=value,key=value;...": each set of the proxy's live keys in turn,
+            // every view under each, as <shot>-v<i>-<mode>-ini<n>.png.
+            string iniList = CommandLine.After("-redefinitionProbeViewIni");
+            string[] iniSets = iniList != null ? iniList.Split(';') : new[] { "" };
+
+            // Each mode once, every view in it: the raytracing set up once per mode.
+            foreach (Raytracing.RaytracingMode mode in modes)
+            for (int n = 0; n < iniSets.Length; n++)
+            {
+                foreach (string pair in iniSets[n].Split(','))
+                {
+                    int equals = pair.IndexOf('=');
+                    if (equals > 0) ProxyIni.Set(pair.Substring(0, equals).Trim(), pair.Substring(equals + 1).Trim());
+                }
+                if (iniSets[n].Length > 0)
+                {
+                    Debug.Log(Log.Tag + " Probe: views: the proxy's ini set to " + iniSets[n] + ".");
+                    yield return new WaitForSecondsRealtime(3f);
+                }
+                string suffix = iniSets[n].Length > 0 ? "-ini" + n : "";
+                OwnSettings before = ReDefinitionAddon.Instance.Current();
+                if (before.Raytracing != mode)
+                {
+                    OwnSettings after = before.Clone();
+                    after.Raytracing = mode;
+                    ReDefinitionAddon.Instance.Apply(before, after);
+                    Debug.Log(Log.Tag + " Probe: views: the raytracing " + mode + ".");
+                    yield return new WaitForSecondsRealtime(10f);
+                }
+                string[] poses = views.Split(';');
+                for (int i = 0; i < poses.Length; i++)
+                    yield return ShootPose(folder, shot, mode, suffix, i, poses[i], startHeading);
+            }
+            // The camera about the vessel again, for the probe's steps after the views.
+            if (middle != null)
+            {
+                if (FlightGlobals.ActiveVessel != null) FlightCamera.fetch.SetTargetVessel(FlightGlobals.ActiveVessel);
+                UnityEngine.Object.Destroy(middle.gameObject);
+            }
+        }
+
+        // -redefinitionProbeViewTarget <part of a name>: the views about the renderer so named nearest the vessel (the
+        // space centre's flag) instead of the vessel. It gives the transform the camera is set on into done, null
+        // where no name was asked for or no renderer so named is found; the camera then settles for two seconds.
+        private static IEnumerator FindViewTarget(string targetName, Action<Transform> done)
+        {
             Transform middle = null;
             if (targetName != null && FlightGlobals.ActiveVessel != null)
             {
@@ -127,9 +174,14 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: views: about " + (nearest != null ? nearest.name + " (" + nearest.GetType().Name + "), "
                                                                  + Mathf.Sqrt(best).ToString("0") + " m from the vessel" : "nothing named " + targetName) + ".");
             }
-            float startHeading = FlightCamera.fetch.camHdg;
+            done(middle);
+        }
+
+        // The raytracing modes of -redefinitionProbeViewModes "Off,Full"; the mode the settings hold where none is given.
+        private static List<Raytracing.RaytracingMode> ParseModes()
+        {
             List<Raytracing.RaytracingMode> modes = new List<Raytracing.RaytracingMode>();
-            string modeList = SceneProbe.ArgumentAfter("-redefinitionProbeViewModes");
+            string modeList = CommandLine.After("-redefinitionProbeViewModes");
             if (modeList != null)
                 foreach (string name in modeList.Split(','))
                 {
@@ -137,108 +189,76 @@ namespace ReDefinition.Probe
                     if (Enum.TryParse(name.Trim(), true, out mode)) modes.Add(mode);
                 }
             if (modes.Count == 0) modes.Add(ReDefinitionAddon.Instance.Current().Raytracing);
-            // -redefinitionProbeViewIni "key=value,key=value;...": each set of the proxy's live keys in turn,
-            // every view under each, as <shot>-v<i>-<mode>-ini<n>.png.
-            string iniList = SceneProbe.ArgumentAfter("-redefinitionProbeViewIni");
-            string[] iniSets = iniList != null ? iniList.Split(';') : new[] { "" };
+            return modes;
+        }
 
-            // Each mode once, every view in it: the raytracing set up once per mode.
-            foreach (Raytracing.RaytracingMode mode in modes)
-            for (int n = 0; n < iniSets.Length; n++)
+        // One pose of the views, "pitch,distance,heading": the camera put there and shot in the raytracing mode, with the
+        // parity report, timings, surfaces and overlay where the switches ask for them. A pose that is no three numbers is skipped.
+        private static IEnumerator ShootPose(string folder, string shot, Raytracing.RaytracingMode mode, string suffix, int i,
+                                             string pose, float startHeading)
+        {
+            string[] parts = pose.Split(',');
+            float pitch, distance, heading;
+            if (parts.Length < 3 || !Number(parts[0], out pitch) || !Number(parts[1], out distance)
+                || !Number(parts[2], out heading))
+                yield break;
+            FlightCamera.fetch.camPitch = pitch * Mathf.Deg2Rad;
+            FlightCamera.fetch.camHdg = startHeading + heading * Mathf.Deg2Rad;
+            FlightCamera.fetch.SetDistance(distance);
+            // The camera there, the raytracing's history and the upscaler's settled on the new view.
+            yield return new WaitForSecondsRealtime(4f);
+            yield return new WaitForEndOfFrame();
+            string name = shot + "-v" + i + "-" + mode + suffix + ".png";
+            // -redefinitionProbeParity: the primary check for this pose, its report in the log under the pose's name.
+            if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeParity") && Raytracing.RtCamera.Current != null)
             {
-                foreach (string pair in iniSets[n].Split(','))
-                {
-                    int equals = pair.IndexOf('=');
-                    if (equals > 0) ProxyIni.Set(pair.Substring(0, equals).Trim(), pair.Substring(equals + 1).Trim());
-                }
-                if (iniSets[n].Length > 0)
-                {
-                    Debug.Log(Log.Tag + " Probe: views: the proxy's ini set to " + iniSets[n] + ".");
-                    yield return new WaitForSecondsRealtime(3f);
-                }
-                string suffix = iniSets[n].Length > 0 ? "-ini" + n : "";
-                OwnSettings before = ReDefinitionAddon.Instance.Current();
-                if (before.Raytracing != mode)
-                {
-                    OwnSettings after = before.Clone();
-                    after.Raytracing = mode;
-                    ReDefinitionAddon.Instance.Apply(before, after);
-                    Debug.Log(Log.Tag + " Probe: views: the raytracing " + mode + ".");
-                    yield return new WaitForSecondsRealtime(10f);
-                }
-                string[] poses = views.Split(';');
-                for (int i = 0; i < poses.Length; i++)
-                {
-                    string[] parts = poses[i].Split(',');
-                    float pitch, distance, heading;
-                    if (parts.Length < 3 || !Number(parts[0], out pitch) || !Number(parts[1], out distance)
-                        || !Number(parts[2], out heading))
-                        continue;
-                    FlightCamera.fetch.camPitch = pitch * Mathf.Deg2Rad;
-                    FlightCamera.fetch.camHdg = startHeading + heading * Mathf.Deg2Rad;
-                    FlightCamera.fetch.SetDistance(distance);
-                    // The camera there, the raytracing's history and the upscaler's settled on the new view.
-                    yield return new WaitForSecondsRealtime(4f);
-                    yield return new WaitForEndOfFrame();
-                    string name = shot + "-v" + i + "-" + mode + suffix + ".png";
-                    // -redefinitionProbeParity: the primary check for this pose, its report in the log under the pose's name.
-                    if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeParity") && Raytracing.RtCamera.Current != null)
-                    {
-                        Raytracing.RtCamera.Current.ParityNow(shot + "-v" + i);
-                        yield return new WaitForSecondsRealtime(1.5f);
-                    }
-                    // -redefinitionProbeViewTimings: the raytracing passes' GPU time and the frame time, each averaged
-                    // over 6 s at the pose.
-                    if (CommandLine.Has("-redefinitionProbeViewTimings"))
-                        yield return Timings(name);
-                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, name));
-                    Debug.Log(Log.Tag + " Probe: views: " + name + " at pitch " + pitch + ", distance " + distance
-                              + " m, heading " + heading + (NoGloss ? ", without Parallax's shine" : "") + ".");
-                    yield return null;
-                    // -redefinitionProbeSurfaces: with the raytracing on, the surfaces of the frame after at every
-                    // second pixel (RtCamera.WriteSurfaceImages), for tools/surface_sheet.py.
-                    if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeSurfaces"))
-                    {
-                        yield return new WaitForEndOfFrame();
-                        Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
-                        string prefix = name.Substring(0, name.Length - 4);
-                        string written;
-                        try
-                        {
-                            written = traced != null ? traced.WriteSurfaceImages(folder, prefix, 2, SurfaceNames) : "none, no raytraced camera";
-                        }
-                        catch (Exception e)
-                        {
-                            written = "failed: " + e.Message;
-                        }
-                        Debug.Log(Log.Tag + " Probe: views: surfaces of " + prefix + ": " + written + ".");
-                    }
-                    // -redefinitionProbeViewOverlay: with the raytracing on, the surfaces' overlay too
-                    // (RtCamera.SurfaceView), as <shot>-v<i>-<mode>-overlay.png.
-                    if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeViewOverlay"))
-                    {
-                        bool shown = Raytracing.RtCamera.SurfaceView;
-                        Raytracing.RtCamera.SurfaceView = true;
-                        try
-                        {
-                            for (int frame = 0; frame < 3; frame++) yield return null;
-                            yield return new WaitForEndOfFrame();
-                            ScreenCapture.CaptureScreenshot(Path.Combine(folder, name.Substring(0, name.Length - 4) + "-overlay.png"));
-                            yield return null;
-                        }
-                        finally
-                        {
-                            Raytracing.RtCamera.SurfaceView = shown;
-                        }
-                        yield return null;
-                    }
-                }
+                Raytracing.RtCamera.Current.ParityNow(shot + "-v" + i);
+                yield return new WaitForSecondsRealtime(1.5f);
             }
-            // The camera about the vessel again, for the probe's steps after the views.
-            if (middle != null)
+            // -redefinitionProbeViewTimings: the raytracing passes' GPU time and the frame time, each averaged
+            // over 6 s at the pose.
+            if (CommandLine.Has("-redefinitionProbeViewTimings"))
+                yield return Timings(name);
+            ScreenCapture.CaptureScreenshot(Path.Combine(folder, name));
+            Debug.Log(Log.Tag + " Probe: views: " + name + " at pitch " + pitch + ", distance " + distance
+                      + " m, heading " + heading + (NoGloss ? ", without Parallax's shine" : "") + ".");
+            yield return null;
+            // -redefinitionProbeSurfaces: with the raytracing on, the surfaces of the frame after at every
+            // second pixel (RtCamera.WriteSurfaceImages), for tools/surface_sheet.py.
+            if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeSurfaces"))
             {
-                if (FlightGlobals.ActiveVessel != null) FlightCamera.fetch.SetTargetVessel(FlightGlobals.ActiveVessel);
-                UnityEngine.Object.Destroy(middle.gameObject);
+                yield return new WaitForEndOfFrame();
+                Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
+                string prefix = name.Substring(0, name.Length - 4);
+                string written;
+                try
+                {
+                    written = traced != null ? traced.WriteSurfaceImages(folder, prefix, 2, SurfaceNames) : "none, no raytraced camera";
+                }
+                catch (Exception e)
+                {
+                    written = "failed: " + e.Message;
+                }
+                Debug.Log(Log.Tag + " Probe: views: surfaces of " + prefix + ": " + written + ".");
+            }
+            // -redefinitionProbeViewOverlay: with the raytracing on, the surfaces' overlay too
+            // (RtCamera.SurfaceView), as <shot>-v<i>-<mode>-overlay.png.
+            if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeViewOverlay"))
+            {
+                bool shown = Raytracing.RtCamera.SurfaceView;
+                Raytracing.RtCamera.SurfaceView = true;
+                try
+                {
+                    yield return ProbeSteps.Frames(3);
+                    yield return new WaitForEndOfFrame();
+                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, name.Substring(0, name.Length - 4) + "-overlay.png"));
+                    yield return null;
+                }
+                finally
+                {
+                    Raytracing.RtCamera.SurfaceView = shown;
+                }
+                yield return null;
             }
         }
 

@@ -15,9 +15,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$kspRoot = if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }
-$settings = Join-Path $kspRoot 'GameData\ReDefinition\PluginData\settings.cfg'
-$save = Join-Path $kspRoot 'saves\ReDefinitionProbe\persistent.sfs'
+. (Join-Path $PSScriptRoot 'common.ps1')
+$kspRoot = Get-KspRoot
 $log = Join-Path $kspRoot 'KSP.log'
 $exe = Join-Path $kspRoot 'KSP_x64.exe'
 $captures = Join-Path $kspRoot 'ReDefinitionCaptures'
@@ -26,8 +25,7 @@ $poses = '10,15,0;10,15,120;10,15,240;35,80,0;-8,12,0;-25,12,180'
 $lastPose = $poses.Split(';').Count - 1
 
 if (Get-Process KSP_x64 -ErrorAction SilentlyContinue) { throw 'KSP is running; close it first.' }
-$settingsBefore = [IO.File]::ReadAllText($settings)
-$saveBefore = [IO.File]::ReadAllText($save)
+$files = Backup-ProbeFiles $kspRoot
 
 # One KSP run on the body at the longitude (null: the default, with the sun's check); the longitude the sun asks for
 # where it quit, or 'done' where the views were shot.
@@ -59,8 +57,7 @@ function Invoke-Run([string]$body, $longitude) {
 }
 
 try {
-    $light = [regex]::Replace($settingsBefore, '(?m)^(\s*raytracing\s*=\s*).*$', '${1}Light')
-    [IO.File]::WriteAllText($settings, $light)
+    Set-RaytracingLight $files
     foreach ($body in $Bodies) {
         $result = Invoke-Run $body $null
         if ($result -ne 'done' -and $result -ne 'failed') { $result = Invoke-Run $body ([double]::Parse($result, [Globalization.CultureInfo]::InvariantCulture)) }
@@ -74,6 +71,5 @@ try {
     }
 }
 finally {
-    [IO.File]::WriteAllText($settings, $settingsBefore)
-    [IO.File]::WriteAllText($save, $saveBefore)
+    Restore-ProbeFiles $files
 }

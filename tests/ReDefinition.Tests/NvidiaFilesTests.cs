@@ -12,30 +12,12 @@ namespace ReDefinition.Tests
     // NVIDIA's DLLs as the download finds, checks and places them (NvidiaFiles),
     // without the network: an archive made here the way NVIDIA's is laid out.
     [TestClass]
-    public class NvidiaFilesTests
+    public class NvidiaFilesTests : TempFolderTests
     {
         // NVAPI's implementation ids: a Turing chip with DLSS, one without (a GTX 16), and an Ada chip.
         private const uint RtxTuring = 0x4;     // TU104, a Turing chip with DLSS
         private const uint GtxTuring = 0x8;     // TU116, a GTX 16: Turing without DLSS
         private const uint Ada102 = 0x2;
-
-        // The folder the test's files are placed in.
-        private string folder;
-
-        // A fresh folder of the test's own in the temporary folder.
-        [TestInitialize]
-        public void MakeFolder()
-        {
-            folder = Path.Combine(Path.GetTempPath(), "ReDefinitionNvidiaFilesTests-" + System.Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
-        }
-
-        // Deletes the test's folder and everything in it.
-        [TestCleanup]
-        public void RemoveFolder()
-        {
-            Directory.Delete(folder, true);
-        }
 
         // Folders for both uses pointing at the test's folder.
         private NvidiaFiles.Folders Here()

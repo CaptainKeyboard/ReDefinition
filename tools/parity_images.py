@@ -19,6 +19,9 @@ import sys
 import numpy as np
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 # The factor a tile's ratio may differ from the picture's median by. Soft shadows, wind in the grass and the
 # rays' own shadows move single tiles by this much.
 FACTOR = 1.3
@@ -30,7 +33,7 @@ DARKEST = 0.04
 
 def luminance(path):
     a = np.asarray(Image.open(path).convert("RGB")).astype(np.float64) / 255.0
-    return a[..., 0] * 0.2126 + a[..., 1] * 0.7152 + a[..., 2] * 0.0722
+    return imaging.luminance(a)
 
 
 def compare(off_path, on_path, tile):

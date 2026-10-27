@@ -29,6 +29,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fg_dump  # noqa: E402
+import imaging  # noqa: E402
 
 
 def load_frames(folder):
@@ -46,7 +47,7 @@ def load_frames(folder):
         raw = np.fromfile(os.path.join(folder, f"colour-{n:02d}.bin"), dtype=np.uint8).reshape(h, w, 4)
         if fmt in (87, 88, 90, 91):   # BGRA
             raw = raw[:, :, [2, 1, 0, 3]]
-        f["colour"] = raw[:, :, :3].astype(np.float32).mean(axis=2)
+        f["colour"] = imaging.grey(raw)
         w, h, _ = tex["depth"]
         f["depth"] = np.fromfile(os.path.join(folder, f"depth-{n:02d}.bin"), dtype=np.float32).reshape(h, w)
         w, h, _ = tex["motion"]

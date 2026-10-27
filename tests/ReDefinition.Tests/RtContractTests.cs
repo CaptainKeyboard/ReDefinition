@@ -82,11 +82,7 @@ namespace ReDefinition.Tests
         // The header's integer #defines.
         private static Dictionary<string, long> Contract()
         {
-            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            string path = null;
-            while (directory != null && !File.Exists(path = Path.Combine(directory.FullName, "src", "DxgiProxy", "Raytracing", "Shaders", "RtContract.h")))
-                directory = directory.Parent;
-            Assert.IsNotNull(directory, "RtContract.h was not found above the test's folder");
+            string path = RepoRoot.Locate("src", "DxgiProxy", "Raytracing", "Shaders", "RtContract.h");
             var values = new Dictionary<string, long>();
             var define = new Regex(@"^#define\s+(RT_\w+)\s+(0x[0-9A-Fa-f]+|\d+)u?\s*(//.*)?$");
             foreach (string line in File.ReadAllLines(path))

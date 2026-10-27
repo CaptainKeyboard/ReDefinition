@@ -56,19 +56,6 @@ namespace ReDefinition.Upscaler
         // Whether Ray Reconstruction takes this frame, in DLSS Super Resolution's place.
         internal bool Reconstructing { get; private set; }
 
-        // sl::DLSSDPreset: 0 eDefault; -redefinitionProbeRrPreset <4 to 6> (D to F) for a
-        // probe's run.
-        private static readonly uint ReconstructionPreset = ProbeReconstructionPreset();
-
-        // The preset after -redefinitionProbeRrPreset on the command line, or 0 (eDefault).
-        private static uint ProbeReconstructionPreset()
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            int at = Array.IndexOf(args, "-redefinitionProbeRrPreset");
-            uint preset;
-            return at >= 0 && at + 1 < args.Length && uint.TryParse(args[at + 1], out preset) ? preset : 0u;
-        }
-
         // Whether the raytraced frame may go to Ray Reconstruction at all; without it the
         // raytracing's own denoiser and DLSS Super Resolution take it. Off with
         // -redefinitionProbeNoRayReconstruction, for a probe's run; the player's "Ray
@@ -218,7 +205,8 @@ namespace ReDefinition.Upscaler
             p.OutputHeight = (uint)displaySize.y;
             // sl::DLSSMode counts from eOff, one above NGX's quality values.
             p.Mode = (uint)(DlssBridge.Quality(QualityMode) + 1);
-            p.Preset = ReconstructionPreset;
+            // sl::DLSSDPreset 0, eDefault.
+            p.Preset = 0u;
             Array.Copy(raytraced.GuidesClipToWorld, p.ClipToWorld, 16);
 
             Matrix4x4 projection = CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix;

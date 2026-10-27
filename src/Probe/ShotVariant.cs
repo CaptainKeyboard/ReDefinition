@@ -11,7 +11,6 @@ namespace ReDefinition.Probe
     // from 5 s into it. Its shot (-redefinitionProbeShot) is compared with one
     // without the change, "none", at the same place and moment
     // (measured 2026-10). The change is only for that run.
-    // The variant cascades2 has two shadow cascades instead of the quality level's.
     // The variant cascades1Low has one cascade at low resolution, the shadow distance kept.
     // The variant distanceHalf halves the shadow distance.
     // The variant shadowsMinimal has one cascade, 200 m, low resolution: where only the raytracing
@@ -31,7 +30,7 @@ namespace ReDefinition.Probe
         // The variant the switch names, changed once in the flight, then two seconds to settle.
         internal static IEnumerator Apply()
         {
-            string name = SceneProbe.ArgumentAfter("-redefinitionProbeShotVariant");
+            string name = CommandLine.After("-redefinitionProbeShotVariant");
             if (name == null) yield break;
             string done;
             try
@@ -53,9 +52,6 @@ namespace ReDefinition.Probe
         {
             switch (name)
             {
-                case "cascades2":
-                    QualitySettings.shadowCascades = 2;
-                    return "2 cascades";
                 case "cascades1Low":
                     QualitySettings.shadowCascades = 1;
                     QualitySettings.shadowResolution = ShadowResolution.Low;

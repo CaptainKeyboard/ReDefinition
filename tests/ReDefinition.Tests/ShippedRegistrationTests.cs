@@ -121,11 +121,7 @@ namespace ReDefinition.Tests
         // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition.
         private static string Repository()
         {
-            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            while (directory != null && !Directory.Exists(Path.Combine(directory.FullName, "GameData", "ReDefinition")))
-                directory = directory.Parent;
-            Assert.IsNotNull(directory, "the repository's GameData folder was not found above the test's folder");
-            return directory.FullName;
+            return RepoRoot.Root("GameData", "ReDefinition");
         }
     }
 }

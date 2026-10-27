@@ -49,11 +49,7 @@ namespace ReDefinition.Tests
         // The header's integer #defines.
         private static Dictionary<string, long> Contract()
         {
-            DirectoryInfo directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-            string path = null;
-            while (directory != null && !File.Exists(path = Path.Combine(directory.FullName, "src", "DxgiProxy", "Managed", "ProxyContract.h")))
-                directory = directory.Parent;
-            Assert.IsNotNull(directory, "ProxyContract.h was not found above the test's folder");
+            string path = RepoRoot.Locate("src", "DxgiProxy", "Managed", "ProxyContract.h");
             var values = new Dictionary<string, long>();
             var define = new Regex(@"^#define\s+(PX_EVENT_\w+)\s+(\d+)\s*(//.*)?$");
             foreach (string line in File.ReadAllLines(path))

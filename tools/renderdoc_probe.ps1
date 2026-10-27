@@ -21,7 +21,7 @@
 #                             [-KeepProxy] [-Stay] [-TimeoutSeconds 420]
 param(
     # By default KspRoot, as the build takes it, or the Steam location.
-    [string]$Ksp = $(if ($env:KspRoot) { $env:KspRoot } else { 'C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program' }),
+    [string]$Ksp,
     [string]$RenderDoc = 'C:\Program Files\RenderDoc\renderdoccmd.exe',
     [switch]$KeepProxy,
     [switch]$Stay,
@@ -29,6 +29,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'common.ps1')
+if (-not $PSBoundParameters.ContainsKey('Ksp')) { $Ksp = Get-KspRoot }
 if (-not (Test-Path $RenderDoc)) { throw "no renderdoccmd at $RenderDoc" }
 $exe = Join-Path $Ksp 'KSP_x64.exe'
 $proxy = Join-Path $Ksp 'dxgi.dll'

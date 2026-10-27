@@ -27,6 +27,9 @@ import sys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import imaging  # noqa: E402
+
 REGIONS = [
     (1, 'terrain', (60, 170, 60)),
     (2, 'lawn', (240, 150, 30)),
@@ -53,11 +56,6 @@ def linear(png, size):
     image = Image.open(png).convert('RGB').resize(size, Image.BILINEAR)
     srgb = np.asarray(image, dtype=np.float32) / 255.0
     return np.where(srgb <= 0.04045, srgb / 12.92, ((srgb + 0.055) / 1.055) ** 2.4)
-
-
-def luma(rgb):
-    """Rec. 709 luminance of linear RGB."""
-    return rgb[..., 0] * 0.2126 + rgb[..., 1] * 0.7152 + rgb[..., 2] * 0.0722
 
 
 def heat(value, top):
@@ -99,14 +97,14 @@ def sheet(folder, prefix, out):
     optional = lambda n: read_bin(names[n]) if os.path.exists(names[n]) else np.zeros_like(surface)
     specular = optional('specular')
     # The drawn albedo (the proxy's copy, before the meadow's shade), the sun's visibility, the raytraced diffuse light.
-    albedo = luma(optional('gbuffer0')[..., :3])
+    albedo = imaging.luminance(optional('gbuffer0')[..., :3])
     sun = optional('sun')[..., 0]
-    diffuse = luma(np.maximum(optional('diffuse')[..., :3], 0.0))
+    diffuse = imaging.luminance(np.maximum(optional('diffuse')[..., :3], 0.0))
     meadow = mode[..., 1]
     region = regions_of(surface, mode)
     f0 = surface[..., :3].max(axis=2)
     smooth = surface[..., 3]
-    spec_light = luma(np.maximum(specular[..., :3], 0.0))
+    spec_light = imaging.luminance(np.maximum(specular[..., :3], 0.0))
     shot_png = os.path.join(folder, prefix + '.png')
     shot = linear(shot_png, size) if os.path.exists(shot_png) else np.zeros((height, width, 3), np.float32)
     # The same view in another mode: <shot>-v<i>-<mode>[-ini<n>].
@@ -114,10 +112,10 @@ def sheet(folder, prefix, out):
     other = (lambda mode: os.path.join(folder, view.group(1) + '-' + mode + (view.group(3) or '') + '.png')) if view else None
     # Mode Light: the finished picture without the raytraced reflections.
     light_png = other('Light') if view and view.group(2) == 'Full' else ''
-    added = luma(shot) - luma(linear(light_png, size)) if light_png and os.path.exists(light_png) else None
+    added = imaging.luminance(shot) - imaging.luminance(linear(light_png, size)) if light_png and os.path.exists(light_png) else None
     # Without the raytracing (mode Off), its regions taken from this one.
     off_png = other('Off') if view else ''
-    off = luma(linear(off_png, size)) if os.path.exists(off_png) else None
+    off = imaging.luminance(linear(off_png, size)) if os.path.exists(off_png) else None
 
     lines = ['%-13s %7s %7s %7s %9s %9s %7s %7s %7s %7s %8s %8s %8s' % (
         'region', 'share', 'F0', 'smooth', 'traced', 'F0*trace', 'albedo', 'meadow', 'sun', 'diffuse', 'picture',
@@ -133,7 +131,7 @@ def sheet(folder, prefix, out):
         row = '%-13s %6.1f%% %7.3f %7.3f %9.4f %9.5f %7.3f %7.3f %7.3f %7.3f %8.4f' % (
             name, 100.0 * n / total, f0[mask].mean(), smooth[mask].mean(), spec_light[mask].mean(),
             (f0 * spec_light)[mask].mean(), albedo[mask].mean(), meadow[mask].mean(), sun[mask].mean(), diffuse[mask].mean(),
-            luma(shot)[mask].mean())
+            imaging.luminance(shot)[mask].mean())
         row += ' %8.4f' % added[mask].mean() if added is not None else ' %8s' % ''
         if off is not None:
             row += ' %8.4f' % off[mask].mean()
@@ -141,7 +139,7 @@ def sheet(folder, prefix, out):
     # The space centre's lawn against the terrain beside it, with the raytracing and without.
     terrain, lawn = region == 1, region == 2
     if terrain.any() and lawn.any():
-        ratio = luma(shot)[lawn].mean() / max(1e-6, luma(shot)[terrain].mean())
+        ratio = imaging.luminance(shot)[lawn].mean() / max(1e-6, imaging.luminance(shot)[terrain].mean())
         line = 'lawn / terrain: %.3f' % ratio
         if off is not None:
             line += ', without the raytracing %.3f' % (off[lawn].mean() / max(1e-6, off[terrain].mean()))

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -32,7 +33,7 @@ namespace ReDefinition.Tests
             ["Hud"] = "Core Engineer Modules Ui Window",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Modules"] = "Core Dashboard Diagnostics Hud Probe Proxy Raytracing Scenery Settings Upscaler Vendor Window",
-            ["Probe"] = "Core Modules Proxy Raytracing Scenery Settings Ui Upscaler Vendor Window",
+            ["Probe"] = "Core Modules Proxy Raytracing Scenery Settings Ui Window",
             ["Proxy"] = "Core",
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",
@@ -49,7 +50,7 @@ namespace ReDefinition.Tests
         public void EveryDependencyBetweenAreasIsInTheTable()
         {
             var unlisted = new List<string>();
-            foreach (var edge in Edges())
+            foreach (var edge in Edges.Value)
             {
                 string allowed;
                 if (!Allowed.TryGetValue(edge.Key.Item1, out allowed) || !allowed.Split(' ').Contains(edge.Key.Item2))
@@ -62,7 +63,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void NoEdgeInTheTableIsGone()
         {
-            var edges = Edges();
+            var edges = Edges.Value;
             var gone = new List<string>();
             foreach (var area in Allowed)
                 foreach (string used in area.Value.Split(' ').Where(u => u.Length > 0))
@@ -70,10 +71,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, gone.Count, "Remove from the table of ArchitectureTests:\n" + string.Join("\n", gone));
         }
 
-        // The edges found: (area, used area) and one file that makes it.
-        private static Dictionary<System.Tuple<string, string>, string> Edges()
+        // The edges found: (area, used area) and one file that makes it. Read once, for both tests: it reads every file of src.
+        private static readonly Lazy<Dictionary<System.Tuple<string, string>, string>> Edges =
+            new Lazy<Dictionary<System.Tuple<string, string>, string>>(ReadEdges);
+
+        // Reads the edges from the code.
+        private static Dictionary<System.Tuple<string, string>, string> ReadEdges()
         {
-            string src = Path.Combine(Root(), "src");
+            string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
             var result = new Dictionary<System.Tuple<string, string>, string>();
             var usingOfOurs = new Regex(@"^using ReDefinition\.(\w+)", RegexOptions.Multiline);
             var qualifiedUse = new Regex(@"(?<![\w.])ReDefinition\.(\w+)\.[A-Z]");
@@ -104,15 +109,6 @@ namespace ReDefinition.Tests
         {
             var key = System.Tuple.Create(area, used);
             if (used != area && !edges.ContainsKey(key)) edges[key] = file;
-        }
-
-        // The first folder above the working folder that holds src/ReDefinition.csproj.
-        private static string Root()
-        {
-            for (DirectoryInfo d = new DirectoryInfo(Directory.GetCurrentDirectory()); d != null; d = d.Parent)
-                if (File.Exists(Path.Combine(d.FullName, "src", "ReDefinition.csproj"))) return d.FullName;
-            Assert.Fail("the repository's root, with src/ReDefinition.csproj, not found above the test's folder");
-            return null;
         }
     }
 }
