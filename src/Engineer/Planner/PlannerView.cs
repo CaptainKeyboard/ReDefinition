@@ -238,6 +238,23 @@ namespace ReDefinition.Engineer
             };
         }
 
+        // The answer `ask` gives, asked again only where textVersion has moved on, as Text does for a text. KSP asks
+        // a row's enabled condition in every frame, and these conditions work out strings and lists.
+        private Func<bool> Cached(Func<bool> ask)
+        {
+            int version = -1;
+            bool answer = false;
+            return () =>
+            {
+                if (version != textVersion)
+                {
+                    answer = ask();
+                    version = textVersion;
+                }
+                return answer;
+            };
+        }
+
         // Works the plan out: the stages the planner budgets with, the vessel's sections, the steps, which stage pays for
         // which step, the thrust checks, each step's warnings, the bars and the marks on the vessel.
         private void Evaluate()
@@ -682,20 +699,14 @@ namespace ReDefinition.Engineer
             // landing.
             bool launch = step.From.Kind == StopKind.Surface;
             bool landing = step.To.Kind == StopKind.Surface && !Chutes(step.To);
-            StageBudget.StageUse first = null;
-            StageBudget.StageUse lastUsed = null;
-            foreach (StageBudget.StageUse use in budget.Uses)
-            {
-                if (use.Leg != index) continue;
-                if (first == null) first = use;
-                lastUsed = use;
-            }
+            StageBudget.StageUse first = FirstUse(index);
+            StageBudget.StageUse lastUsed = LastUse(index);
             double liftOff = first != null ? TwrAt(first.Stage, first.Mass, step.From.Body, true) : 0.0;
             bool runway = first != null && Runway(first.Stage);
-            if (launch && first != null && !runway && liftOff < (bodies.Bodies[step.From.Body].HasAtmosphere ? 1.2 : 1.0))
+            if (launch && first != null && !runway && liftOff < TwrRequired(true, false, step.From.Body))
                 list.Add("TWR " + EngineerFormat.Ratio(liftOff) + " of " + StageLabel(first.Stage) + " is too low to lift off " + RouteSteps.At(bodies.Bodies, step.From).Substring(3));
             double setDown = lastUsed != null ? TwrAt(lastUsed.Stage, lastUsed.Mass, step.To.Body, true) : 0.0;
-            if (landing && lastUsed != null && setDown < 1.0)
+            if (landing && lastUsed != null && setDown < TwrRequired(false, false, step.To.Body))
                 list.Add("TWR " + EngineerFormat.Ratio(setDown) + " of " + StageLabel(lastUsed.Stage) + " is too low to land " + RouteSteps.At(bodies.Bodies, step.To));
 
             // Parachutes for a landing on them; a heat shield where it comes down

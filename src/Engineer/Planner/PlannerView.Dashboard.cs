@@ -11,9 +11,15 @@ namespace ReDefinition.Engineer
     // game or not.
     internal sealed partial class PlannerView
     {
-        // Set while the dashboard reads the rows: the fuel plan and the thrust part give every
-        // step's texts, as if each were open (FuelStepShown, FuelIsOpen, ThrustAt, OpenThrust).
-        private bool everyRow;
+        // Which rows a text is asked for. The game's labels ask for the rows that are shown and open; the dashboard
+        // reads every step of the fuel plan and the thrust part as if each were open (FuelStepShown, FuelIsOpen,
+        // ThrustAt, OpenThrust).
+        private enum RowScope
+        {
+            Shown,
+            Every,
+        }
+
         private int snapshotVersion = -1;
         private Dictionary<string, object> snapshot;
 
@@ -21,15 +27,7 @@ namespace ReDefinition.Engineer
         internal Dictionary<string, object> Snapshot()
         {
             if (snapshot != null && snapshotVersion == textVersion) return snapshot;
-            everyRow = true;
-            try
-            {
-                snapshot = MakeSnapshot();
-            }
-            finally
-            {
-                everyRow = false;
-            }
+            snapshot = MakeSnapshot();
             snapshotVersion = textVersion;
             return snapshot;
         }
@@ -158,32 +156,32 @@ namespace ReDefinition.Engineer
             for (int step = 0; step < steps.Count; step++)
             {
                 var stageRows = new List<object>();
-                int count = FuelStageCount(step);
+                int count = FuelStageCount(step, RowScope.Every);
                 for (int row = 0; row < count; row++)
                 {
-                    StageBudget.StepStage stage = FuelStage(step, row);
+                    StageBudget.StepStage stage = FuelStage(step, row, RowScope.Every);
                     if (stage == null) continue;
                     stageRows.Add(new Dictionary<string, object>
                     {
                         { "number", stage.Stage }, { "name", ColouredStage(stage.Stage) }, { "color", PlannerColors.Hex(StageColour(stage.Stage)) },
-                        { "gives", StageGivesText(step, row) }, { "keeps", StageKeepsText(step, row) }, { "twr", StageTwrText(step, row) },
-                        { "use", Burnable(step, row) }, { "canUse", !AirStage(stage.Stage) },
+                        { "gives", StageGivesText(step, row, RowScope.Every) }, { "keeps", StageKeepsText(step, row, RowScope.Every) }, { "twr", StageTwrText(step, row, RowScope.Every) },
+                        { "use", Burnable(step, row, RowScope.Every) }, { "canUse", !AirStage(stage.Stage) },
                         { "drop", stage.CanDrop && DropsAfter(step, stage.Stage) },
                         { "canDrop", !AirStage(stage.Stage) && (stage.CanDrop || DropsAfter(step, stage.Stage)) },
                     });
                 }
                 var lines = new List<object>();
-                foreach (KeyValuePair<string, string> line in FuelLines(step)) lines.Add(new List<object> { line.Key, line.Value });
+                foreach (KeyValuePair<string, string> line in FuelLines(step, RowScope.Every)) lines.Add(new List<object> { line.Key, line.Value });
                 var warningLines = new List<object>();
                 for (int line = 0; line < MaxWarnings; line++)
                 {
-                    string text = FuelWarning(step, line);
+                    string text = FuelWarning(step, line, RowScope.Every);
                     if (text.Length > 0) warningLines.Add(text);
                 }
                 RcsInfo rcs = RcsAt(step);
                 rows.Add(new Dictionary<string, object>
                 {
-                    { "place", FuelPlace(step) }, { "flyer", FuelFlyer(step) }, { "needs", FuelNeedsText(step) }, { "left", FuelLeftText(step) },
+                    { "place", FuelPlace(step, RowScope.Every) }, { "flyer", FuelFlyer(step, RowScope.Every) }, { "needs", FuelNeedsText(step, RowScope.Every) }, { "left", FuelLeftText(step, RowScope.Every) },
                     { "stages", stageRows }, { "rcs", rcs != null ? EngineerFormat.Speed(rcs.DeltaV) : null }, { "lines", lines },
                     { "warnings", warningLines },
                 });
@@ -198,7 +196,7 @@ namespace ReDefinition.Engineer
             var rows = new List<object>();
             for (int row = 0; row < thrustSteps.Count; row++)
             {
-                ThrustStep entry = OpenThrust(row);
+                ThrustStep entry = OpenThrust(row, RowScope.Every);
                 if (entry == null) continue;
                 var stageRows = new List<object>();
                 for (int stage = 0; stage < entry.Uses.Count; stage++)
