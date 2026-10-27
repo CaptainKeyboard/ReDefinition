@@ -25,8 +25,9 @@ namespace ReDefinition.Hud
         public float Spacing;
         public float Blend;
 
-        // Per child, the place it starts at, counted from the first (CountSlots).
+        // Per child, the place it starts at, counted from the first, and how many places it takes (CountSlots).
         private readonly List<float> slots = new List<float>();
+        private readonly List<float> shares = new List<float>();
 
         // As wide as one column, or two, or between them by the blend.
         public override void CalculateLayoutInputHorizontal()
@@ -42,11 +43,14 @@ namespace ReDefinition.Hud
         private void CountSlots()
         {
             slots.Clear();
+            shares.Clear();
             float at = 0f;
             for (int i = 0; i < rectChildren.Count; i++)
             {
+                float share = Share(rectChildren[i]);
                 slots.Add(at);
-                at += Share(rectChildren[i]);
+                shares.Add(share);
+                at += share;
             }
         }
 
@@ -60,7 +64,7 @@ namespace ReDefinition.Hud
                 float at = slots[i];
                 Vector2 single = Single(at), pair = Pair(at);
                 float top = Mathf.Lerp(single.y, pair.y, Blend);
-                lowest = Mathf.Max(lowest, top + Cell.y * Share(rectChildren[i]));
+                lowest = Mathf.Max(lowest, top + Cell.y * shares[i]);
             }
             float height = padding.vertical + lowest;
             SetLayoutInputForAxis(height, height, -1f, 1);
@@ -111,7 +115,7 @@ namespace ReDefinition.Hud
             for (int i = 0; i < rectChildren.Count && i < slots.Count; i++)
             {
                 float y = Mathf.Lerp(Single(slots[i]).y, Pair(slots[i]).y, Blend);
-                SetChildAlongAxis(rectChildren[i], 1, padding.top + y, Cell.y * Share(rectChildren[i]));
+                SetChildAlongAxis(rectChildren[i], 1, padding.top + y, Cell.y * shares[i]);
             }
         }
 

@@ -110,7 +110,7 @@ namespace ReDefinition.Hud.Panel
                 Readout readout = ReadoutCatalog.Find(profile.Keys[i]);
                 if (readout == null) continue;
                 rows.Add(new DialogGUIHorizontalLayout(rowWidth, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUILabel(Title(readout), rowWidth - 3f * 58f - 3f * 4f, RowHeight),
+                    new DialogGUILabel(readout.Title, rowWidth - 3f * 58f - 3f * 4f, RowHeight),
                     new DialogGUIButton("Up", () => Move(profile, index, -1), 58f, RowHeight, false),
                     new DialogGUIButton("Down", () => Move(profile, index, 1), 58f, RowHeight, false),
                     new DialogGUIButton("Remove", () => Remove(profile, index), 58f, RowHeight, false)));
@@ -126,7 +126,7 @@ namespace ReDefinition.Hud.Panel
                 foreach (Readout readout in others)
                 {
                     string key = readout.Key;
-                    rows.Add(new DialogGUIButton("+  " + Title(readout), () => Add(profile, key), rowWidth, RowHeight, false));
+                    rows.Add(new DialogGUIButton("+  " + readout.Title, () => Add(profile, key), rowWidth, RowHeight, false));
                 }
             }
 
@@ -156,12 +156,6 @@ namespace ReDefinition.Hud.Panel
                 after.content.anchoredPosition = new Vector2(after.content.anchoredPosition.x, Mathf.Min(scrolled, most));
             }
             InputLockManager.SetControlLock(ControlTypes.KEYBOARDINPUT, Lock);
-        }
-
-        // As the panel titles it.
-        private static string Title(Readout readout)
-        {
-            return readout.Title;
         }
 
         // Moves the readout `by` places up or down the profile.

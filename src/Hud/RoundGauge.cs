@@ -87,6 +87,9 @@ namespace ReDefinition.Hud
         private Color dim = Color.grey;
         private float next;
         private float shownFill, wantedFill;
+        // The fill and colour the arc and its tip were last set to, so that a gauge at rest writes nothing.
+        private float placedFill = float.NaN;
+        private Color placedColour;
         private Color wantedColour = Fine;
 
         // What the gauge shows, kept across flights in gauge.cfg.
@@ -422,11 +425,16 @@ namespace ReDefinition.Hud
             if (value == null) return;
             // The arc and its tip move to the value each frame.
             shownFill = Mathf.MoveTowards(shownFill, wantedFill, Time.unscaledDeltaTime * 2f);
-            arc.fillAmount = shownFill * Sweep;
-            arc.color = wantedColour;
-            float degrees;
-            tip.anchoredPosition = On(shownFill, out degrees);
-            tipImage.color = shownFill > 0.001f ? Color.white : Color.clear;
+            if (shownFill != placedFill || wantedColour != placedColour)
+            {
+                placedFill = shownFill;
+                placedColour = wantedColour;
+                arc.fillAmount = shownFill * Sweep;
+                arc.color = wantedColour;
+                float degrees;
+                tip.anchoredPosition = On(shownFill, out degrees);
+                tipImage.color = shownFill > 0.001f ? Color.white : Color.clear;
+            }
 
             if (Time.unscaledTime < next) return;
             next = Time.unscaledTime + Interval;
