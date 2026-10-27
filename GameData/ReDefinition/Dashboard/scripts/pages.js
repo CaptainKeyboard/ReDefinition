@@ -1,13 +1,34 @@
-// The scene pages' shared helpers, published as window.Pages for menu.js, ksc.js and editor.js.
+// The pages' shared helpers, published as window.Pages for widget.js, menu.js, ksc.js and editor.js.
 (function () {
 	"use strict";
-	// What the scene pages (menu.js, ksc.js, editor.js) share: their hold buttons, how they write
-	// numbers and times, and text made safe for their HTML.
+	// What the pages (widget.js, menu.js, ksc.js, editor.js) share: their hold buttons, how they write
+	// numbers and times, text made safe for their HTML, and the writes that skip what is already shown.
 	const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 	// A finite number as it is, anything else (missing, NaN, text) as null.
 	const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
 	// A number rounded and grouped in the viewer's locale; "-" without one.
 	const whole = (v) => (num(v) === null ? "-" : Math.round(v).toLocaleString());
+	// An element by id.
+	const $ = (id) => document.getElementById(id);
+	// KSP's game modes (g.mode) as the pages name them.
+	const MODES = { CAREER: "Career", SCIENCE_SANDBOX: "Science", SANDBOX: "Sandbox", MISSION: "Mission", MISSION_BUILDER: "Mission Builder", SCENARIO: "Scenario", SCENARIO_NON_RESUMABLE: "Scenario", TUTORIAL: "Tutorial" };
+	// One figure: its plate label over the value on an LCD; over marks it red, past what a limit allows.
+	const stat = (label, value, over) => '<div class="sstat' + (over ? " over" : "") + '"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
+
+	// The page is only written where what it shows changes: every write of a glowing LCD makes the
+	// browser lay out and paint it again, the same number or not. Everything written through these is
+	// remembered by id (or by key), so nothing else may write the same element.
+	const shown = new Map(), els = {};
+	// An element by id, looked up once and kept.
+	const el = (id) => els[id] || (els[id] = $(id));
+	// Writes an element's HTML when it differs from what it shows.
+	function put(id, html) { if (shown.get(id) !== html) { shown.set(id, html); el(id).innerHTML = html; } }
+	// Writes an element's text when it differs from what it shows.
+	function putText(id, text) { if (shown.get(id) !== text) { shown.set(id, text); el(id).textContent = text; } }
+	// Sets a class of an element on or off when that differs from what it shows.
+	function putClass(id, name, on) { const key = id + "." + name; on = !!on; if (shown.get(key) !== on) { shown.set(key, on); el(id).classList.toggle(name, on); } }
+	// Sets one style property of a node when it differs from the value last set under key.
+	function putStyle(node, key, prop, value) { if (shown.get(key) !== value) { shown.set(key, value); node.style[prop] = value; } }
 
 	// A button that fires once held for ms; its bar (.prog) fills while it is held.
 	function hold(b, ms, fire) {
@@ -67,5 +88,5 @@
 			.replace(/&lt;\/?(size|align)(=[^&]*)?&gt;/g, "");
 	}
 
-	window.Pages = { esc, num, whole, hold, holdButton, ago, minutes, span, countdown, rich };
+	window.Pages = { $, MODES, stat, shown, el, put, putText, putClass, putStyle, esc, num, whole, hold, holdButton, ago, minutes, span, countdown, rich };
 })();
