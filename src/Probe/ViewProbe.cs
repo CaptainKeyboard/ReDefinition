@@ -91,6 +91,13 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
+            double hoverAltitude;
+            if (LandProbe.HoverAltitude(out hoverAltitude))
+            {
+                ReDefinitionAddon.Instance.StartCoroutine(LandProbe.Hover(hoverAltitude));
+                // The camera, the clouds and the sky settled in the new place.
+                yield return new WaitForSecondsRealtime(8f);
+            }
             Transform middle = null;
             yield return FindViewTarget(CommandLine.After("-redefinitionProbeViewTarget"), target => middle = target);
             float startHeading = FlightCamera.fetch.camHdg;

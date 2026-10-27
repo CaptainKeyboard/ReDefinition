@@ -174,6 +174,17 @@ namespace ReDefinition.Probe
                 }
                 index = capsule;
             }
+            if (SceneProbe.VesselName == null && LandProbe.OrbitBodyName != null)
+            {
+                int capsule = LandProbe.OrbitCapsule(game);
+                if (capsule < 0)
+                {
+                    Debug.LogError(Log.Tag + " Probe: the capsule could not be put in orbit round " + LandProbe.OrbitBodyName + "; quitting.");
+                    Application.Quit();
+                    yield break;
+                }
+                index = capsule;
+            }
             if (SceneProbe.VesselName == null && LandProbe.BodyName != null)
             {
                 int capsule = LandProbe.Capsule(game);

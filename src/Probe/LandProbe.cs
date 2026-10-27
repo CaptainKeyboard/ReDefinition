@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Globalization;
 using ReDefinition.Core;
 using UnityEngine;
@@ -22,6 +23,100 @@ namespace ReDefinition.Probe
         internal static string BodyName
         {
             get { return CommandLine.After(Argument); }
+        }
+
+        // -redefinitionProbeOrbit <body>: the pod in a circular orbit round the body instead, for the gas giants,
+        // which have no ground. -redefinitionProbeOrbitAltitude <metres> says how high, 600 km without it.
+        // The pod stands where the sun lights the side of the body the camera looks at, 55 degrees from the sub-solar point.
+        internal const string OrbitArgument = "-redefinitionProbeOrbit";
+        private const double OrbitPhase = 55.0;
+
+        // The body of the orbit asked for, or null.
+        internal static string OrbitBodyName
+        {
+            get { return CommandLine.After(OrbitArgument); }
+        }
+
+        // -redefinitionProbeHover <metres>, with -redefinitionProbeOrbit: in the flight the pod is set down in the air at that
+        // altitude over the point where the sun stands 35 degrees high, and held there at rest in the air. A pod
+        // let fall would be crushed or burnt in seconds. Jool's air reaches 200 km and crushes below 0 m.
+        internal const string HoverArgument = "-redefinitionProbeHover";
+
+        // Whether the pod is to hang in the air, and how high.
+        internal static bool HoverAltitude(out double metres)
+        {
+            metres = 0.0;
+            string text = CommandLine.After(HoverArgument);
+            return text != null && OrbitBodyName != null
+                   && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out metres);
+        }
+
+        // Moves the active vessel to the altitude over the lit side of its body and holds it there, upright, at rest
+        // in the air. The sun stands 35 degrees above the horizon there (OrbitPhase). Runs for as long as the flight does.
+        internal static IEnumerator Hover(double altitude)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null) yield break;
+            CelestialBody body = vessel.mainBody;
+            Vector3d toSun = (FlightGlobals.Bodies[0].position - body.position).normalized;
+            Vector3d up = (QuaternionD.AngleAxis(OrbitPhase, body.RotationAxis) * toSun).normalized;
+            Vector3d place = body.position + up * (body.Radius + altitude);
+            Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)up);
+            vessel.SetPosition(place);
+            vessel.SetRotation(upright);
+            FloatingOrigin.SetOffset(place);
+            Debug.Log(Log.Tag + " Probe: hover: the capsule set down over " + body.bodyName + " at " + altitude.ToString("0", CultureInfo.InvariantCulture)
+                      + " m, the sun " + (90.0 - OrbitPhase).ToString("0", CultureInfo.InvariantCulture) + " degrees high.");
+            while (vessel != null && vessel.state != Vessel.State.DEAD)
+            {
+                yield return new WaitForFixedUpdate();
+                // At rest in the air: the velocity of the air there, which turns with the body. The parts' bodies carry the
+                // velocity beyond the frame Krakensbane moves with (the shift above 750 m/s), so that is taken off.
+                vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()) - Krakensbane.GetFrameVelocity());
+            }
+        }
+
+        // The pod in a circular equatorial orbit round the body, its index in the game's vessels, or -1.
+        internal static int OrbitCapsule(Game game)
+        {
+            string name = OrbitBodyName;
+            CelestialBody body = FlightGlobals.Bodies.Find(b => b.bodyName == name);
+            if (body == null || body.orbit == null || body.referenceBody == null)
+            {
+                Debug.LogError(Log.Tag + " Probe: orbit: no body " + name + " that orbits another.");
+                return -1;
+            }
+            double altitude;
+            string text = CommandLine.After("-redefinitionProbeOrbitAltitude");
+            if (text == null || !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out altitude)) altitude = 600000.0;
+            double ut = Planetarium.GetUniversalTime();
+            double semiMajorAxis = body.Radius + altitude;
+            // Both orbits give their positions in the same axes: the sun lies opposite the body's own position.
+            Vector3d toSun = (-body.orbit.getRelativePositionAtUT(ut)).normalized;
+            double bestAnomaly = 0.0, bestError = double.MaxValue, bestAngle = 0.0;
+            for (int degrees = 0; degrees < 360; degrees++)
+            {
+                var trial = new Orbit(0.0, 0.0, semiMajorAxis, 0.0, 0.0, degrees * Math.PI / 180.0, ut, body);
+                double angle = Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(trial.getRelativePositionAtUT(ut).normalized, toSun)))) * 180.0 / Math.PI;
+                if (Math.Abs(angle - OrbitPhase) < bestError)
+                {
+                    bestError = Math.Abs(angle - OrbitPhase);
+                    bestAngle = angle;
+                    bestAnomaly = degrees * Math.PI / 180.0;
+                }
+            }
+            game.flightState.protoVessels.RemoveAll(v => v.vesselName == VesselName);
+            ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
+            var orbit = new Orbit(0.0, 0.0, semiMajorAxis, 0.0, 0.0, bestAnomaly, ut, body);
+            ConfigNode node = ProtoVessel.CreateVesselNode(VesselName, VesselType.Ship, orbit, 0, new[] { part });
+            node.SetValue("sit", Vessel.Situations.ORBITING.ToString());
+            node.SetValue("landed", "False");
+            node.SetValue("splashed", "False");
+            game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+            Debug.Log(Log.Tag + " Probe: orbit: a capsule round " + name + " at " + altitude.ToString("0", CultureInfo.InvariantCulture)
+                      + " m, " + (bestAnomaly * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture) + " degrees from the periapsis, "
+                      + bestAngle.ToString("0", CultureInfo.InvariantCulture) + " degrees from the sub-solar point.");
+            return game.flightState.protoVessels.Count - 1;
         }
 
         // Where the pod is asked to stand, in degrees east.

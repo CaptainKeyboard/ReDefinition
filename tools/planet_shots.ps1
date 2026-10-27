@@ -31,7 +31,7 @@ $files = Backup-ProbeFiles $kspRoot
 # where it quit, or 'done' where the views were shot.
 function Invoke-Run([string]$body, $longitude) {
     $started = Get-Date
-    $arguments = @('-popupwindow', '-screen-width', '1600', '-screen-height', '900', '-redefinitionProbe', '-redefinitionProbeStay',
+    $arguments = @('-popupwindow', '-screen-width', '1600', '-screen-height', '900', '-redefinitionProbe', '-redefinitionProbeStay', '-redefinitionProbeClouds',
         '-redefinitionProbeLand', $body, '-redefinitionProbeShot', $body, '-redefinitionProbeViews', $poses,
         '-redefinitionProbeViewModes', 'Off,Light,Full')
     if ($null -eq $longitude) { $arguments += '-redefinitionProbeLandAdjust' } else { $arguments += @('-redefinitionProbeLandLongitude', $longitude) }
