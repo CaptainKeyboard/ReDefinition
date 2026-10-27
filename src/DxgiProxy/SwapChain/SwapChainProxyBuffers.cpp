@@ -13,7 +13,7 @@ using Microsoft::WRL::ComPtr;
 
 namespace redefinition
 {
-    bool SwapChainProxy::HasSharedColour()
+    bool SwapChainProxy::RequireSharedColour()
     {
         if (sharedColour12 != nullptr)
             return true;

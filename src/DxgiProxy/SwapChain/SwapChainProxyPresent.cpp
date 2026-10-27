@@ -65,7 +65,7 @@ namespace redefinition
         // points at the wrong buffer -- the game keeps rendering and the picture
         // stops moving.
         ComPtr<ID3D12Resource> backBuffer;
-        HRESULT hr = HasSharedColour()
+        HRESULT hr = RequireSharedColour()
                          ? swapChain->GetBuffer(swapChain->GetCurrentBackBufferIndex(), IID_PPV_ARGS(&backBuffer))
                          : DXGI_ERROR_INVALID_CALL;
         if (FAILED(hr))
@@ -191,20 +191,24 @@ namespace redefinition
     // presents.
     void SwapChainProxy::CountPresent(uint32_t framesPresented)
     {
-        UINT presents = 0;
-        const bool gotPresents = SUCCEEDED(swapChain->GetLastPresentCount(&presents));
-        UINT step = gotPresents && haveCountedPresents && presents >= countedPresents
-                        ? presents - countedPresents
-                        : 1u;
+        UINT step = 1u;
         // DLSS-G's own count: "Number of frames presented since the last
         // 'slDLSSGGetState' call" (sl_dlss_g.h); XeSS-FG's, "Number of frames sent to
         // be presented during the last call" (xefg_swapchain.h), where its
         // GetLastPresentCount is the native swapchain's, which presents from a thread
-        // of its own on GPUs other than Intel's.
+        // of its own on GPUs other than Intel's. Theirs is the count, so the swapchain
+        // is not asked.
         if (streamlineSwapChain || xessSwapChain)
             step = framesPresented != 0 ? framesPresented : 1u;
-        countedPresents = presents;
-        haveCountedPresents = gotPresents;
+        else
+        {
+            UINT presents = 0;
+            const bool gotPresents = SUCCEEDED(swapChain->GetLastPresentCount(&presents));
+            if (gotPresents && haveCountedPresents && presents >= countedPresents)
+                step = presents - countedPresents;
+            countedPresents = presents;
+            haveCountedPresents = gotPresents;
+        }
         // Compare and swap: one proxy presents at a time in practice, but two
         // overlapping ones must not lose each other's frames.
         uint64_t both = g_counters.load();
@@ -231,7 +235,7 @@ namespace redefinition
 
         // Without Unity's backbuffer nothing of the frame is begun: no inputs
         // copied, no frame generation prepared for a Present that does not come.
-        if (!HasSharedColour())
+        if (!RequireSharedColour())
             return PresentUncopied(syncInterval, flags, "Unity's backbuffer is not shared");
 
         // Before the flush, so the copies go out with this frame's work. Unity

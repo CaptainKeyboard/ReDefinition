@@ -29,6 +29,7 @@ namespace redefinition
             frame = Frame();
         queriesMade = queriesFailed = false;
         current = -1;
+        frameOpen.store(false);
     }
 
     void GpuProfiler::Detach(const void* oldOwner)
@@ -44,6 +45,7 @@ namespace redefinition
         device.Reset();
         queriesMade = false;
         current = -1;
+        frameOpen.store(false);
     }
 
     void GpuProfiler::SetEnabled(bool on)
@@ -120,6 +122,7 @@ namespace redefinition
     void GpuProfiler::BeginFrame()
     {
         current = (current + 1) % kFrames;
+        frameOpen.store(true);
         Frame& frame = frames[current];
         // Still unanswered after kFrames Presents: dropped.
         frame.pending = false;
@@ -157,6 +160,9 @@ namespace redefinition
 
     void GpuProfiler::OnPresent()
     {
+        // Off with no frame open: nothing to do, and no lock taken for it.
+        if (!enabled.load() && !frameOpen.load())
+            return;
         std::lock_guard<std::mutex> lock(mutex);
         if (!context)
             return;
@@ -168,6 +174,7 @@ namespace redefinition
                 Frame& frame = frames[current];
                 context->End(frame.disjoint.Get());
                 current = -1;
+                frameOpen.store(false);
             }
             return;
         }

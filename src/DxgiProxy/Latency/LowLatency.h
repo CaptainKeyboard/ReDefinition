@@ -180,6 +180,8 @@ namespace redefinition
         void NoteHandOverLocked(bool xellReduces);
         // What Describe reports: the kind and its text, logged where it changes and log is set.
         void SetText(int kind, const std::string& text, bool log = true);
+        // The same for a literal: compared as it stands, so that no string is built for text that has not changed.
+        void SetText(int kind, const char* text, bool log = true);
         // The measure's thread: waits for each pending Present's fence and takes the frame's latency and stages.
         // The measure is the time from the frame's start on the main thread to the GPU's end of its
         // Present on the proxy's queue, through a fence of its own, logged every reportSeconds.
@@ -188,8 +190,13 @@ namespace redefinition
         // Guards the state below, except what antiLagMutex, xellMutex and textLock guard.
         mutable std::mutex mutex;
         // Anti-Lag 2's contexts, under a lock of their own: their Update sleeps, which
-        // must not hold the others up; Attach and Detach take it inside `mutex`.
+        // must not hold the others up; Attach and Detach take it inside `mutex`, BeforePresent
+        // only after it let `mutex` go.
         std::mutex antiLagMutex;
+        // The swapchain Anti-Lag 2's private data was last set on, and whether it said on there,
+        // under antiLagMutex; nullptr where none stands (BeforePresent sets it only on a change).
+        const IDXGISwapChain* privateDataSwapChain = nullptr;
+        bool privateDataOn = false;
         // The device Anti-Lag 2 is on, 12 or 11, 0 off, for the main thread's Update.
         std::atomic<int> antiLagOn{ 0 };
         // XeLL's context, for the main thread's Sleep under a lock of its own as Anti-Lag 2's. The

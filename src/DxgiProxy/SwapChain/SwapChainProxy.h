@@ -309,8 +309,8 @@ namespace redefinition
         HRESULT ResetCommandList();
         // The second half: Unity's texture copied into the current backbuffer, the list closed and executed.
         HRESULT CopySharedColourAndExecute();
-        // Whether Unity's backbuffer exists, said once while it does not.
-        bool HasSharedColour();
+        // Whether Unity's backbuffer exists; while it does not, this says so in the log once.
+        bool RequireSharedColour();
         // Also shared by the two: the queue waits for what Unity has submitted to
         // D3D11 so far; and a frame's end on the queue, its fence signalled for
         // this allocator and whatever waits for the frame, which it returns.
@@ -480,6 +480,8 @@ namespace redefinition
 
         // SetFullscreenState and ResizeTarget calls logged so far.
         unsigned int fullscreenLogs = 0;
+        // QueryInterface calls refused and logged so far, with the interface asked for.
+        unsigned int refusedQueryLogs = 0;
 
         // The frame limit's state. It holds when the next frame is due, the timer it waits on and
         // what kind it is, and whether it raised the system timer resolution. It also holds how many

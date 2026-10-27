@@ -108,6 +108,8 @@ namespace redefinition
         bool queriesMade = false;
         bool queriesFailed = false;
         int current = -1;
+        // Whether a frame is open (current is not -1), for OnPresent to skip the mutex while the profiler is off.
+        std::atomic<bool> frameOpen{ false };
         int frameCounter = 0;
 
         // The marker labels by id, set from any thread.

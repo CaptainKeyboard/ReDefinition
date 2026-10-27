@@ -178,6 +178,13 @@ namespace redefinition
             QueryPerformanceCounter(&now);
             return now.QuadPart;
         }
+
+        // How often the reports are logged, in milliseconds: reportSeconds, which the ini's
+        // reader keeps at one or more.
+        ULONGLONG ReportIntervalMs()
+        {
+            return static_cast<ULONGLONG>(Config().reportSeconds) * 1000;
+        }
     }
 
     // Never destroyed, like the other singletons: at process exit the device may be
@@ -200,6 +207,21 @@ namespace redefinition
         }
         if (changed && log)
             LogLine("Low latency: " + newText);
+    }
+
+    // The same for a literal, which is compared where it stands: ApplyConfig runs twice a
+    // frame and builds no string for text that has not changed.
+    void LowLatency::SetText(int newKind, const char* newText, bool log)
+    {
+        {
+            std::lock_guard<std::mutex> lock(textLock);
+            if (kind == newKind && text == newText)
+                return;
+            kind = newKind;
+            text = newText;
+        }
+        if (log)
+            LogLine(std::string("Low latency: ") + newText);
     }
 
     void LowLatency::Attach(const void* newOwner, ID3D11Device* newGameDevice, ID3D12Device* newDevice,
@@ -255,6 +277,7 @@ namespace redefinition
             // returns S_OK, then Anti-Lag 2 is present".
             std::lock_guard<std::mutex> antiLag(antiLagMutex);
             antiLagOn = 0;
+            privateDataSwapChain = nullptr;
             AMD::AntiLag2DX12::DeInitialize(&g_antiLag12);
             AMD::AntiLag2DX11::DeInitialize(&g_antiLag11);
             g_antiLag12 = {};
@@ -317,6 +340,7 @@ namespace redefinition
         {
             std::lock_guard<std::mutex> antiLag(antiLagMutex);
             antiLagOn = 0;
+            privateDataSwapChain = nullptr;
             if (g_antiLag12Ready)
                 AMD::AntiLag2DX12::DeInitialize(&g_antiLag12);
             if (g_antiLag11Ready)
@@ -590,8 +614,7 @@ namespace redefinition
         }
 
         const ULONGLONG tick = GetTickCount64();
-        const ULONGLONG every = static_cast<ULONGLONG>(Config().reportSeconds > 0 ? Config().reportSeconds : 10) * 1000;
-        if (tick - brakeReport >= every)
+        if (tick - brakeReport >= ReportIntervalMs())
         {
             brakeReport = tick;
             char line[192];
@@ -728,45 +751,70 @@ namespace redefinition
     // data goes in the swapchain's private data.
     void LowLatency::BeforePresent(uint32_t frameIndex, IDXGISwapChain* swapChain)
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (!TrackingLocked())
-            return;
-        std::lock_guard<std::mutex> antiLag(antiLagMutex);
-        if (g_antiLag12Ready)
+        bool antiLag12 = false;
+        bool antiLag12On = false;
         {
-            if (frameIndex != 0 && appliedAntiLag == 12)
-                AMD::AntiLag2DX12::MarkEndOfFrameRendering(&g_antiLag12);
-            if (swapChain != nullptr)
+            std::lock_guard<std::mutex> lock(mutex);
+            if (!TrackingLocked())
+                return;
+            // g_antiLag12Ready changes only under `mutex` and antiLagMutex both.
+            antiLag12 = g_antiLag12Ready;
+            antiLag12On = appliedAntiLag == 12;
+            if (frameIndex != 0)
             {
-                AntiLag2Data data = { &g_antiLag12, appliedAntiLag == 12 };
-                swapChain->SetPrivateData(kAntiLag2Data, sizeof(data), &data);
+                stamps[frameIndex % 256].presentStart = Now();
+                MarkerLocked(frameIndex, kRenderSubmitEnd);
+                MarkerLocked(frameIndex, kPresentStart);
             }
         }
-        if (frameIndex == 0)
+        if (!antiLag12)
             return;
-        stamps[frameIndex % 256].presentStart = Now();
-        MarkerLocked(frameIndex, kRenderSubmitEnd);
-        MarkerLocked(frameIndex, kPresentStart);
+
+        // Anti-Lag 2 under its own lock only, which the main thread's Update holds while it
+        // sleeps: the others that take `mutex` are not held up by the sleep. The contexts
+        // are asked again there, as a swapchain made anew meanwhile may have let them go.
+        std::lock_guard<std::mutex> antiLag(antiLagMutex);
+        if (!g_antiLag12Ready)
+            return;
+        if (frameIndex != 0 && antiLag12On)
+            AMD::AntiLag2DX12::MarkEndOfFrameRendering(&g_antiLag12);
+        // The data is the same for as long as the swapchain and the state are: the private
+        // data stays on the object, so it is set only where one of them changed.
+        if (swapChain != nullptr && (swapChain != privateDataSwapChain || antiLag12On != privateDataOn))
+        {
+            AntiLag2Data data = { &g_antiLag12, antiLag12On };
+            if (SUCCEEDED(swapChain->SetPrivateData(kAntiLag2Data, sizeof(data), &data)))
+            {
+                privateDataSwapChain = swapChain;
+                privateDataOn = antiLag12On;
+            }
+        }
     }
 
     // PRESENT_END, then the measure's fence for the meter thread and the report when it is due.
     void LowLatency::AfterPresent(uint32_t frameIndex)
     {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (frameIndex == 0 || !TrackingLocked())
-            return;
-        stamps[frameIndex % 256].presentEnd = Now();
-        MarkerLocked(frameIndex, kPresentEnd);
-        // The measure: the GPU's end of this Present's work on the queue, waited for
-        // by the meter's thread.
-        if (fence != nullptr && queue != nullptr && SUCCEEDED(queue->Signal(fence.Get(), fenceValue + 1)))
+        bool wakeMeter = false;
         {
-            ++fenceValue;
-            if (pending.size() < 64)
-                pending.push_back({ fenceValue, stamps[frameIndex % 256].start, stamps[frameIndex % 256] });
-            wake.notify_one();
+            std::lock_guard<std::mutex> lock(mutex);
+            if (frameIndex == 0 || !TrackingLocked())
+                return;
+            stamps[frameIndex % 256].presentEnd = Now();
+            MarkerLocked(frameIndex, kPresentEnd);
+            // The measure: the GPU's end of this Present's work on the queue, waited for
+            // by the meter's thread.
+            if (fence != nullptr && queue != nullptr && SUCCEEDED(queue->Signal(fence.Get(), fenceValue + 1)))
+            {
+                ++fenceValue;
+                if (pending.size() < 64)
+                    pending.push_back({ fenceValue, stamps[frameIndex % 256].start, stamps[frameIndex % 256] });
+                wakeMeter = true;
+            }
+            ReportLocked();
         }
-        ReportLocked();
+        // After the lock: the woken thread takes it at once, and would only wait for it.
+        if (wakeMeter)
+            wake.notify_one();
     }
 
     // Waits, outside the lock, for each pending Present's fence and takes its latency and stages.
@@ -819,8 +867,7 @@ namespace redefinition
     void LowLatency::ReportLocked()
     {
         const ULONGLONG now = GetTickCount64();
-        const ULONGLONG every = static_cast<ULONGLONG>(Config().reportSeconds > 0 ? Config().reportSeconds : 10) * 1000;
-        if (now - lastReport < every)
+        if (now - lastReport < ReportIntervalMs())
             return;
         lastReport = now;
 

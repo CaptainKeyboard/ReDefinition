@@ -3,6 +3,7 @@
 
 #include "SwapChainProxy.h"
 
+#include "FileUtil.h"
 #include "Log.h"
 
 #include <string>
@@ -62,7 +63,13 @@ namespace redefinition
         // buffers Unity does not render into. Logged, because a refusal Unity
         // cannot do without shows nowhere else.
         *object = nullptr;
-        LogLine("QueryInterface for an unsupported interface on the swapchain");
+        if (refusedQueryLogs < 20)
+        {
+            ++refusedQueryLogs;
+            wchar_t iid[64] = {};
+            StringFromGUID2(riid, iid, static_cast<int>(sizeof(iid) / sizeof(iid[0])));
+            LogLine("QueryInterface for an unsupported interface on the swapchain: " + Narrow(iid));
+        }
         return E_NOINTERFACE;
     }
 
