@@ -18,15 +18,37 @@ namespace ReDefinition
         // what does not scale with output resolution: shadow cascades, cloud
         // volumes, reflection probes (docs/development/flow-frame.md). At NativeAA the
         // upscaler is the temporal antialiasing.
-        private Fsr3Upscaler.QualityMode quality = Fsr3Upscaler.QualityMode.NativeAA;
+        // Held in the settings object itself, as the settings listed under "live" are (OwnSettings): the
+        // setters below change them there, and Apply copies what a view changed.
+        private Fsr3Upscaler.QualityMode quality
+        {
+            get { return settings.Quality; }
+            set { settings.Quality = value; }
+        }
         // RCAS maps sharpness to 2^(-2*(1-s)): 1.0 is the full effect, 0.4 about
         // 0.44 of it.
         private float sharpness = 1.0f;
-        private bool mipmapBias = true;
+        private bool mipmapBias
+        {
+            get { return settings.MipmapBias; }
+            set { settings.MipmapBias = value; }
+        }
         private bool bypass;
-        private bool jitter = true;
-        private bool compensateLodBias = true;
-        private bool disableMsaa = true;
+        private bool jitter
+        {
+            get { return settings.Jitter; }
+            set { settings.Jitter = value; }
+        }
+        private bool compensateLodBias
+        {
+            get { return settings.CompensateLodBias; }
+            set { settings.CompensateLodBias = value; }
+        }
+        private bool disableMsaa
+        {
+            get { return settings.DisableMsaa; }
+            set { settings.DisableMsaa = value; }
+        }
 
         // The settings window's own: it holds the flight while it is open
         // (WindowPause). Not a graphics setting, so nothing is rebuilt for it.
@@ -39,17 +61,37 @@ namespace ReDefinition
         // wherever they run.
         internal static bool DebugMode { get; private set; }
         // Anisotropic filtering forced on every texture while the upscaler runs (UpscalerRig.ForceAnisotropic).
-        private bool forceAnisotropic = true;
+        private bool forceAnisotropic
+        {
+            get { return settings.ForceAnisotropic; }
+            set { settings.ForceAnisotropic = value; }
+        }
         // FSR's own exposure for its internal tonemapping, as AMD recommends
         // (UpscalerRig.AutoExposure).
-        private bool autoExposure = true;
+        private bool autoExposure
+        {
+            get { return settings.AutoExposure; }
+            set { settings.AutoExposure = value; }
+        }
         // TUFX's bloom, tonemapping and the rest of its image effects after the
         // upscaler rather than before it (TufxPostProcessing); a switch to compare the two.
-        private bool tufxAfterUpscaling = true;
+        private bool tufxAfterUpscaling
+        {
+            get { return settings.TufxAfterUpscaling; }
+            set { settings.TufxAfterUpscaling = value; }
+        }
         // The masks FSR 3 takes beside colour, depth and motion vectors
         // (UpscalerMasks); off by default.
-        private bool transparencyMask;
-        private UpscalerMasks.ReactiveSource reactiveMask = UpscalerMasks.ReactiveSource.Off;
+        private bool transparencyMask
+        {
+            get { return settings.TransparencyMask; }
+            set { settings.TransparencyMask = value; }
+        }
+        private UpscalerMasks.ReactiveSource reactiveMask
+        {
+            get { return settings.ReactiveMask; }
+            set { settings.ReactiveMask = value; }
+        }
 #if DEVELOPMENT_BUILD
         private bool debugView;
 #endif
@@ -60,12 +102,24 @@ namespace ReDefinition
         // 2x to 6x or Dynamic (FrameGenerationChoice): the proxy is told it live (SetFrameGenerationMultiplier).
         private string frameGenerationMultiplier = FrameGenerationChoice.Default;
         // The upscaler technique: FSR 3, DLSS, AMD's upscaler or XeSS (UpscalerBackend).
-        private UpscalerBackend backend = UpscalerBackend.Fsr3;
+        private UpscalerBackend backend
+        {
+            get { return settings.Backend; }
+            set { settings.Backend = value; }
+        }
         // DLSS's model in every mode (DlssModel).
-        private DlssModel dlssModel = DlssModel.Default;
+        private DlssModel dlssModel
+        {
+            get { return settings.DlssModel; }
+            set { settings.DlssModel = value; }
+        }
 
         // Skinned meshes made to write motion vectors (UpscalerRig.ForceSkinnedMotionVectors).
-        private bool skinnedMotionVectors = true;
+        private bool skinnedMotionVectors
+        {
+            get { return settings.SkinnedMotionVectors; }
+            set { settings.SkinnedMotionVectors = value; }
+        }
 
         // The settings object the add-on saves and the views copy: the live settings are read from it directly, the rest
         // written into it by Collect.
@@ -94,32 +148,20 @@ namespace ReDefinition
             // What Auto stands for on this card and screen, before anything is built from it.
             AutoSettings.Resolve(loaded);
             resolvedFor = AutoSettings.Inputs();
+            // The hotkeys and the settings read live are read from the settings object
+            // itself (HandleHotkeys, the views and the upscaler's switches below), so the
+            // file's values go there.
+            CopyLiveSettings(loaded);
             wantEnabled = loaded.Enabled;
-            quality = loaded.Quality;
             sharpness = loaded.Sharpness;
-            autoExposure = loaded.AutoExposure;
-            mipmapBias = loaded.MipmapBias;
-            compensateLodBias = loaded.CompensateLodBias;
-            disableMsaa = loaded.DisableMsaa;
             pauseWhileOpen = loaded.PauseWhileOpen;
             DebugMode = loaded.DebugMode;
             replaceKspSettings = loaded.ReplaceKspSettings;
-            forceAnisotropic = loaded.ForceAnisotropic;
-            tufxAfterUpscaling = loaded.TufxAfterUpscaling;
-            transparencyMask = loaded.TransparencyMask;
-            reactiveMask = loaded.ReactiveMask;
-            jitter = loaded.Jitter;
-            skinnedMotionVectors = loaded.SkinnedMotionVectors;
             frameGeneration = loaded.FrameGeneration;
             frameGenerationMultiplier = loaded.FrameGenerationMultiplier;
             FrameGenerationBridge.SetMultiplier(frameGenerationMultiplier);
             raytracing.Apply(loaded.Raytracing, loaded.RaytracingBounces);
             raytracingBounces = loaded.RaytracingBounces;
-            backend = loaded.Backend;
-            dlssModel = loaded.DlssModel;
-            // The hotkeys and the settings read live are read from the settings object
-            // itself (HandleHotkeys and the views), so the file's values go there.
-            CopyLiveSettings(loaded);
             // The proxy reads it when its swapchain is made, before this runs: the ini follows the
             // settings for the next start.
             WriteFrameGenerationTechnique();
@@ -244,27 +286,14 @@ namespace ReDefinition
         private OwnSettings Collect()
         {
             settings.Enabled = wantEnabled;
-            settings.Quality = quality;
             settings.Sharpness = sharpness;
-            settings.AutoExposure = autoExposure;
-            settings.MipmapBias = mipmapBias;
-            settings.CompensateLodBias = compensateLodBias;
-            settings.DisableMsaa = disableMsaa;
             settings.PauseWhileOpen = pauseWhileOpen;
             settings.DebugMode = DebugMode;
             settings.ReplaceKspSettings = replaceKspSettings;
-            settings.ForceAnisotropic = forceAnisotropic;
-            settings.TufxAfterUpscaling = tufxAfterUpscaling;
-            settings.TransparencyMask = transparencyMask;
-            settings.ReactiveMask = reactiveMask;
-            settings.Jitter = jitter;
-            settings.SkinnedMotionVectors = skinnedMotionVectors;
             settings.FrameGeneration = frameGeneration;
             settings.FrameGenerationMultiplier = frameGenerationMultiplier;
             settings.Raytracing = raytracing.Mode;
             settings.RaytracingBounces = raytracingBounces;
-            settings.Backend = backend;
-            settings.DlssModel = dlssModel;
             return settings;
         }
 

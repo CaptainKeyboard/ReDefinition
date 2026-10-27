@@ -93,6 +93,34 @@ namespace ReDefinition.Tests
             Assert.AreEqual(ReDefinition.Raytracing.RaytracingLightColour.Raytraced, live.RaytracingLightColour);
         }
 
+        // The upscaler's switches the add-on holds in its settings object (quality, technique, DLSS model, the
+        // masks, the jitter and the rest) travel with CopyLive and ChangeLive. The ones whose setters can refuse
+        // or clamp a value (the switch, the sharpness, frame generation) stay the add-on's own.
+        [TestMethod]
+        public void TheUpscalersSwitchesTravelAsLiveSettings()
+        {
+            var from = new OwnSettings
+            {
+                Quality = FidelityFX.FSR3.Fsr3Upscaler.QualityMode.Performance, Backend = UpscalerBackend.Dlss,
+                DlssModel = DlssModel.L, MipmapBias = false, AutoExposure = false, CompensateLodBias = false,
+                DisableMsaa = false, ForceAnisotropic = false, TufxAfterUpscaling = false, TransparencyMask = true,
+                ReactiveMask = ReDefinition.Upscaler.UpscalerMasks.ReactiveSource.Automatic, Jitter = false, SkinnedMotionVectors = false,
+                Enabled = true, FrameGeneration = true, Sharpness = 0.5f,
+            };
+            var copy = new OwnSettings();
+            copy.CopyLive(from);
+            Assert.AreEqual(from.Quality, copy.Quality);
+            Assert.AreEqual(UpscalerBackend.Dlss, copy.Backend);
+            Assert.AreEqual(DlssModel.L, copy.DlssModel);
+            Assert.AreEqual(ReDefinition.Upscaler.UpscalerMasks.ReactiveSource.Automatic, copy.ReactiveMask);
+            Assert.IsFalse(copy.MipmapBias || copy.AutoExposure || copy.CompensateLodBias || copy.DisableMsaa);
+            Assert.IsFalse(copy.ForceAnisotropic || copy.TufxAfterUpscaling || copy.Jitter || copy.SkinnedMotionVectors);
+            Assert.IsTrue(copy.TransparencyMask);
+            Assert.IsFalse(copy.Enabled, "the add-on's own");
+            Assert.IsFalse(copy.FrameGeneration, "the add-on's own");
+            Assert.AreEqual(1f, copy.Sharpness, "the add-on's own");
+        }
+
         // The bounces read from a number as written, "2.0" included. NaN and the infinities in a hand-edited file
         // leave the default, where a cast to int would turn them into the smallest integer.
         [TestMethod]
