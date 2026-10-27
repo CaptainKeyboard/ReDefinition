@@ -154,8 +154,9 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
-        // Fill's work: the first of the body's cloud objects with an enabled volume, and a 2D layer out of scaled space
-        // where it has one, packed and turned into the packet's constants; false and a logged reason where none is.
+        // Fill's work: the first of the body's cloud objects with an enabled volume. Where it has a 2D layer, that
+        // must not be in scaled space. It is packed and turned into the packet's constants. False and a logged reason
+        // where there is none.
         private bool FillFrom(float[] clouds, CelestialBody body, Vector3 camera)
         {
             if (!Resolve()) return false;
