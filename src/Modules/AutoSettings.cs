@@ -110,6 +110,12 @@ namespace ReDefinition.Modules
             }
         }
 
+        // The orders in which Auto tries the techniques, made once as the add-on asks every frame.
+        private static readonly string[] RtxOrder =
+            { FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+        private static readonly string[] IntelOrder = { FrameGenerationTechniqueSetting.Xess, FrameGenerationTechniqueSetting.Fsr };
+        private static readonly string[] OtherOrder = { FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+
         // The frame generation technique a choice stands for: itself, or for Auto the card's own where it
         // runs here (DLSS on an RTX, XeSS on an Intel GPU), else FSR 3, else whichever other runs. FSR 3
         // where none does (the row greys Auto out then). Written into the proxy's ini, which makes its
@@ -117,11 +123,7 @@ namespace ReDefinition.Modules
         public static string FrameGenerationTechnique(string chosen, TechniqueAvailability.Facts f)
         {
             if (chosen != FrameGenerationTechniqueSetting.Auto) return chosen;
-            string[] order = GpuClasses.IsRtx(f.Gpu)
-                ? new[] { FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess }
-                : f.Gpu == GpuClass.Intel
-                    ? new[] { FrameGenerationTechniqueSetting.Xess, FrameGenerationTechniqueSetting.Fsr }
-                    : new[] { FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+            string[] order = GpuClasses.IsRtx(f.Gpu) ? RtxOrder : f.Gpu == GpuClass.Intel ? IntelOrder : OtherOrder;
             foreach (string technique in order)
                 if (TechniqueAvailability.Ready(technique, f)) return technique;
             return FrameGenerationTechniqueSetting.Fsr;
@@ -130,10 +132,37 @@ namespace ReDefinition.Modules
         // What Resolve depends on besides the settings, for the add-on to settle Auto again when
         // one changes. These are the card, the screen's height, and whether DLSS, AMD's DLL and Intel's can run
         // (the proxy attaches them after the settings load, a download places them).
-        public static string Inputs()
+        public static AutoInputs Inputs()
         {
             TechniqueAvailability.Facts f = TechniqueAvailability.Current();
-            return GpuClasses.Current + "|" + Screen.height + "|" + DlssUsable() + "|" + AmdUsable(f) + "|" + XessUsable(f);
+            return new AutoInputs { Gpu = GpuClasses.Current, ScreenHeight = Screen.height, Dlss = DlssUsable(), Amd = AmdUsable(f), Xess = XessUsable(f) };
+        }
+
+        // What Resolve depends on besides the settings, as values: compared each frame, so it holds no string.
+        public struct AutoInputs : IEquatable<AutoInputs>
+        {
+            // The card, the screen's height, and whether DLSS, AMD's DLL and Intel's XeSS can run.
+            public GpuClass Gpu;
+            public int ScreenHeight;
+            public bool Dlss, Amd, Xess;
+
+            // Whether the other holds the same inputs.
+            public bool Equals(AutoInputs other)
+            {
+                return Gpu == other.Gpu && ScreenHeight == other.ScreenHeight && Dlss == other.Dlss && Amd == other.Amd && Xess == other.Xess;
+            }
+
+            // The object form of Equals, for the contract.
+            public override bool Equals(object other)
+            {
+                return other is AutoInputs && Equals((AutoInputs)other);
+            }
+
+            // A hash of the inputs, for the contract.
+            public override int GetHashCode()
+            {
+                return ((((int)Gpu * 397 ^ ScreenHeight) * 397 ^ (Dlss ? 1 : 0)) * 397 ^ (Amd ? 1 : 0)) * 397 ^ (Xess ? 1 : 0);
+            }
         }
 
         // AMD's DLL and Intel's offered by the proxy and in their folders.

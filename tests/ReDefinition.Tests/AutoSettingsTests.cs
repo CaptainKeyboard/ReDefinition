@@ -213,5 +213,21 @@ namespace ReDefinition.Tests
             Assert.AreEqual("720", settings.ValueOf("renderTargetHeight"));
             Assert.AreEqual("False", settings.ValueOf("qualityAuto"));
         }
+
+        // The inputs Auto is settled again for are compared as values: equal in each part, unequal in any one.
+        [TestMethod]
+        public void TheInputsAreComparedByTheirParts()
+        {
+            var same = new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx40, ScreenHeight = 1440, Dlss = true, Amd = false, Xess = true };
+            var copy = new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx40, ScreenHeight = 1440, Dlss = true, Amd = false, Xess = true };
+
+            Assert.IsTrue(same.Equals(copy));
+            Assert.AreEqual(same.GetHashCode(), copy.GetHashCode());
+            Assert.IsFalse(same.Equals(new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx30, ScreenHeight = 1440, Dlss = true, Xess = true }));
+            Assert.IsFalse(same.Equals(new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx40, ScreenHeight = 2160, Dlss = true, Xess = true }));
+            Assert.IsFalse(same.Equals(new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx40, ScreenHeight = 1440, Dlss = false, Xess = true }));
+            Assert.IsFalse(same.Equals(new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx40, ScreenHeight = 1440, Dlss = true, Amd = true, Xess = true }));
+            Assert.IsFalse(same.Equals(new AutoSettings.AutoInputs { Gpu = GpuClass.Rtx40, ScreenHeight = 1440, Dlss = true, Xess = false }));
+        }
     }
 }

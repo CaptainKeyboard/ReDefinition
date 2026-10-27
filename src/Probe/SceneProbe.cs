@@ -80,11 +80,9 @@ namespace ReDefinition.Probe
             get { return CommandLine.After("-redefinitionProbeVariants", true); }
         }
 
-        // Whether -redefinitionProbe is on the command line, in any case.
-        internal static bool Requested
-        {
-            get { return CommandLine.Has(Argument, true); }
-        }
+        // Whether -redefinitionProbe is on the command line, in any case. Read once: the add-on asks in every frame,
+        // and the command line is a new array on each read.
+        internal static readonly bool Requested = CommandLine.Has(Argument, true);
     }
 
     // In the main menu: the save's flight, once.

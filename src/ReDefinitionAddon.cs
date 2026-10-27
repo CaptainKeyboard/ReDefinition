@@ -79,6 +79,7 @@ namespace ReDefinition
         // delegate each time.
         private Action enforceProfileStep;
         private Action syncHostStackStep;
+        private Action autoStep;
         private static readonly Action ReassertHostStackStep = HostStack.Reassert;
 
         // Setup attempts that may fail without switching the upscaler off: a rig
@@ -108,6 +109,7 @@ namespace ReDefinition
             windowId = GetInstanceID();
             enforceProfileStep = EnforceProfile;
             syncHostStackStep = SyncHostStack;
+            autoStep = ResolveAutoOnNewScreen;
             // What KSP's V-Sync row allows while DLSS frame generation runs (KSP.cfg).
             KspBehaviour.DlssFrameGenerationRuns = () => frameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
@@ -204,7 +206,7 @@ namespace ReDefinition
             Guarded("profile", enforceProfileStep);
             Guarded("host-stack", syncHostStackStep);
             Guarded("host-stack-reassert", ReassertHostStackStep);
-            Guarded("auto", ResolveAutoOnNewScreen);
+            Guarded("auto", autoStep);
             SaveSettingsIfChanged();
             SharedFrame.PollProfile();
 
@@ -771,19 +773,30 @@ namespace ReDefinition
         // new array on every read.
         private Camera[] pickBuffer = new Camera[16];
 
-        // The first active camera by CameraPreference's names; null where there is none.
+        // The first active camera of each of CameraPreference's names, for PickCamera.
+        private readonly Camera[] pickFirst = new Camera[CameraPreference.Length];
+
+        // The first active camera by CameraPreference's names; null where there is none. Each active camera's name is
+        // read once, as Object.name makes a new string on every read.
         private Camera PickCamera()
         {
             if (pickBuffer.Length < Camera.allCamerasCount) pickBuffer = new Camera[Camera.allCamerasCount];
             int count = Camera.GetAllCameras(pickBuffer);
-            foreach (string wanted in CameraPreference)
+            Array.Clear(pickFirst, 0, pickFirst.Length);
+            for (int i = 0; i < count; i++)
             {
-                for (int i = 0; i < count; i++)
-                {
-                    Camera cam = pickBuffer[i];
-                    if (cam.name == wanted && cam.isActiveAndEnabled) return cam;
-                }
+                Camera cam = pickBuffer[i];
+                if (!cam.isActiveAndEnabled) continue;
+                string name = cam.name;
+                for (int rank = 0; rank < CameraPreference.Length; rank++)
+                    if (pickFirst[rank] == null && name == CameraPreference[rank])
+                    {
+                        pickFirst[rank] = cam;
+                        break;
+                    }
             }
+            foreach (Camera first in pickFirst)
+                if (first != null) return first;
             return null;
         }
 

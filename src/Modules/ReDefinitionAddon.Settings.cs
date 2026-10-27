@@ -211,7 +211,7 @@ namespace ReDefinition
         }
 
         // What Auto was last resolved for (AutoSettings.Inputs); null asks for it again.
-        private string resolvedFor;
+        private AutoSettings.AutoInputs? resolvedFor;
 
         // The technique frame generation's choice stands for -- Auto resolved for the card and the files
         // in place -- into the proxy's ini, for its next start; again whenever that changes (a download).
@@ -233,8 +233,8 @@ namespace ReDefinition
         private void ResolveAutoOnNewScreen()
         {
             WriteFrameGenerationTechnique();
-            string inputs = AutoSettings.Inputs();
-            if (inputs == resolvedFor) return;
+            AutoSettings.AutoInputs inputs = AutoSettings.Inputs();
+            if (resolvedFor.HasValue && resolvedFor.Value.Equals(inputs)) return;
             resolvedFor = inputs;
             OwnSettings now = Current();
             Apply(now, now.Clone());
