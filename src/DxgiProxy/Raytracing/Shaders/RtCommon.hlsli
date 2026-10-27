@@ -1311,6 +1311,12 @@ float3 IntendedSpecular(MaterialData material)
     return material.specular;
 }
 
+// The share of the G-buffer's shine the space centre's tarmac and concrete keep under the rays.
+// Dry, as the rays first had it, it came out darker than the picture without them, whose sky
+// reflection on it is part of its look; with all of it, it shone more than the player wanted
+// (2026-10-05, matt concrete). The player asked for a look between the two (2026-10-27).
+static const float kTarmacShine = 0.5f;
+
 // The greatest smoothness SurfaceIntent keeps from the G-buffer's own, so that a surface is
 // never a perfect mirror.
 static const float kMostSmoothness = 0.95f;
@@ -1514,11 +1520,12 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
         // The lawn by its drawn colour (LawnShare). It shines as the terrain beside it, the
         // material's values (RtMaterialIntent.Ground, Parallax's terrain at its gloss there),
         // or without them the G-buffer's (0.22 at a smoothness of 0.013 there, rough); the
-        // rest not at all.
+        // rest keeps a part of the G-buffer's shine (kTarmacShine).
         float share = LawnShare(gbuffer0[pixel].rgb);
+        float4 tarmac = float4(g1.rgb * kTarmacShine, g1.a) * (1.0f - share);
         if (max(material.specular.r, max(material.specular.g, material.specular.b)) > 0.0f)
-            return float4(material.specular * share, material.smoothness * share);
-        return float4(g1.rgb * share, g1.a * share);
+            return float4(material.specular * share, material.smoothness * share) + tarmac;
+        return float4(g1.rgb * share, g1.a * share) + tarmac;
     }
     if (mode == RT_SURFACE_LEGACY || mode == RT_SURFACE_UNITY_LEGACY)
     {
