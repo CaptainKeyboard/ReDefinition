@@ -80,6 +80,17 @@ namespace ReDefinition.Tests
             Assert.IsFalse(copy.Enabled, "Enabled is the add-on's own, not read live");
         }
 
+        // The navball's place from the file reaches the live settings at the start. Without it the add-on began at the
+        // centre and the next save wrote that over the place the player had put it at.
+        [TestMethod]
+        public void TheNavballsPlaceFromTheFileIsTakenAtTheStart()
+        {
+            var live = new OwnSettings();
+            live.CopyLive(new OwnSettings { NavballOffset = -120f, NavballScreen = "2560x1440" });
+            Assert.AreEqual(-120f, live.NavballOffset);
+            Assert.AreEqual("2560x1440", live.NavballScreen);
+        }
+
         // The raytracing's light colour is read live (RtKsp): a view's change has to reach
         // the live settings, which are what is saved.
         [TestMethod]

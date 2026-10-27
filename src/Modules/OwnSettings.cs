@@ -379,9 +379,10 @@ namespace ReDefinition.Modules
             Binding("diagnosticsKey", x => x.DiagnosticsKey, (x, v) => x.DiagnosticsKey = v),
             Binding("cameraListKey", x => x.CameraListKey, (x, v) => x.CameraListKey = v),
             Binding("settingsWindowKey", x => x.SettingsWindowKey, (x, v) => x.SettingsWindowKey = v),
-            // The navball's place is the add-on's own (ReDefinitionAddon.NavballOffset).
-            Float("navballOffset", "0", x => x.NavballOffset, (x, v) => x.NavballOffset = v),
-            Text("navballScreen", x => x.NavballScreen, (x, v) => x.NavballScreen = v),
+            // The navball's place is read live (ReDefinitionAddon.NavballOffset), so that the file's place is not lost at the
+            // next save.
+            Float("navballOffset", "0", x => x.NavballOffset, (x, v) => x.NavballOffset = v, live: true),
+            Text("navballScreen", x => x.NavballScreen, (x, v) => x.NavballScreen = v, live: true),
             Text("diagnosticsPins", x => x.DiagnosticsPins, (x, v) => x.DiagnosticsPins = v, live: true),
             Enum("diagnosticsPage", x => x.DiagnosticsPage, (x, v) => x.DiagnosticsPage = v, true),
             Float("diagnosticsX", "0", x => x.DiagnosticsX, (x, v) => x.DiagnosticsX = v, true),
