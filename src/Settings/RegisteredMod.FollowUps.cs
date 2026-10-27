@@ -43,13 +43,12 @@ namespace ReDefinition.Settings
             };
         }
 
-        // The call the registration's `after` names, for the end of the frame, or null where there is none:
-        // no `after`, or one this build cannot give (said, and the row's window lowered from Live, since it
-        // promises only what the call that is there can keep: the mod takes the value when it next reads it).
-        // A call that fails is logged rather than thrown into the write already done -- with no planet loaded
-        // Parallax has nothing to update, and the store would take a write that threw for one that did not
-        // happen and drop the value from before ReDefinition with it. `takes` names what then waits for the
-        // mod's next read in that log line.
+        // The call the registration's `after` names, for the end of the frame. Null where there is none.
+        // That is no `after`, or one this build cannot give. The latter is said, and the row's window drops
+        // from Live: the mod then takes the value when it next reads it.
+        // A call that fails is logged, not thrown into the write already done. With no planet loaded Parallax has
+        // nothing to update, and a thrown write would count as not done and lose the value from before ReDefinition.
+        // `takes` names what waits for the mod's next read in that log line.
         private Action AfterCall(SettingRegistration entry, string where, List<string> problems, ref ApplyWindow window,
                                  string takes)
         {

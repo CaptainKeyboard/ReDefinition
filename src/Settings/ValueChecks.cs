@@ -15,9 +15,8 @@ namespace ReDefinition.Settings
             return bool.TryParse(value, out on) ? null : "not True or False";
         }
 
-        // Null where the text is a number inside the range, a whole one where the slider snaps to whole numbers;
-        // otherwise why not. "NaN" and "Infinity" parse, and NaN passes every comparison, so they are refused
-        // first, with the reason `notFinite`.
+        // Null where the text is a number inside the range, a whole one where the slider snaps. Else why not.
+        // "NaN" and "Infinity" parse, and NaN passes every comparison, so they are refused first with `notFinite`.
         public static string Slider(string value, float min, float max, bool wholeNumbers, string notFinite)
         {
             double number;

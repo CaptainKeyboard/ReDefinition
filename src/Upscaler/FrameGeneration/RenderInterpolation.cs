@@ -308,9 +308,9 @@ namespace ReDefinition.Upscaler
             if (Time.unscaledTime - windowStart >= ReportSeconds) Report();
         }
 
-        // The vessel's part transforms with none of its other part transforms above them, in the order of its
-        // parts, kept with the track and worked out again when the vessel's part count, root part or the root's
-        // parent is another, or after RebuildFrames.
+        // The vessel's part transforms that have none of its other part transforms above them, in part order.
+        // They are kept with the track. They are worked out again when the part count, the root part or the
+        // root's parent changes, or after RebuildFrames.
         private List<Transform> Topmost(Track track)
         {
             Vessel vessel = track.Vessel;

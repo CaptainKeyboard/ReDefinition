@@ -250,9 +250,9 @@ namespace ReDefinition.Raytracing
         // shadow only near the camera (RtCommon.hlsli, RayOrigin), it was 0.77. It goes into the ground's
         // albedo for sun and sky alike.
         private const float MeadowShade = 0.82f;
-        // Where the packet keeps what it carries beside the name of its array: Params (RtNative.FramePacket.Params), the
-        // sun's shadow strength in the sun colour's w, the waves' time in the planet's w, and the meadow's range and the
-        // range of the grass about the vessel in the shadow fade's slots 6 and 11.
+        // Slots of the packet that carry more than the name of their array says. Params is RtNative.FramePacket.Params.
+        // The sun's shadow strength is in the sun colour's w, and the waves' time in the planet's w.
+        // The meadow's range and the range of the grass about the vessel are in the shadow fade's slots 6 and 11.
         private const int ParamOcclusion = 0, ParamBounces = 1, ParamDiffuseReach = 2, ParamSpecularReach = 3, ParamClamp = 4,
                           ParamEnvironment = 5, ParamTextures = 6, ParamGBuffer = 7;
         private const int SunShadowStrength = 3, PlanetWaveTime = 3, ShadowFadeMeadowRange = 6, ShadowFadeVesselRange = 11;

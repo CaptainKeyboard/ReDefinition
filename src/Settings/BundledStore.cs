@@ -245,14 +245,12 @@ namespace ReDefinition.Settings
             return !taken || Save();
         }
 
-        // Before a batch of Set calls: the values from before ReDefinition of all the settings the batch is
-        // about to change, written to bundled.cfg once.
-        // Every Set would write the file itself for its own backup, which makes a first profile one write per setting.
-        // This records exactly the backups those Set calls would, with their filters: the setting can take the value
-        // now, the row offers it, its save is known, and the mod holds another value.
-        // As in WriteToMod, the file is written before any mod gets a new value, and nothing is kept for a setting
-        // that would be refused. The Set calls then find their backup and write nothing.
-        // A batch ends with EndPrepare.
+        // Before a batch of Set calls: the values from before ReDefinition of every setting the batch changes,
+        // written to bundled.cfg once. Each Set would write the file for its own backup, one write per setting.
+        // This records the backups those Set calls would, with their filters: the setting can take the value,
+        // the row offers it, its save is known, and the mod holds another value.
+        // The file is written before any mod gets a new value, as in WriteToMod, and a refused setting keeps nothing.
+        // The Set calls then find their backup. A batch ends with EndPrepare.
         public void Prepare(IEnumerable<KeyValuePair<BundledSetting, string>> coming)
         {
             Load();

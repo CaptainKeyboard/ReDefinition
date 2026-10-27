@@ -220,9 +220,9 @@ namespace ReDefinition.Engineer
             return TwrRequired(launch, launch && deciding != null && Runway(deciding.Stage), entry.Body);
         }
 
-        // What a lift-off or a set-down needs of a stage's thrust over weight, one rule for the warnings, the fuel plan's
-        // stage rows and the thrust part: nothing along a runway, 1.2 to lift off from the body (an index in the bodies) if
-        // it has air, else 1. `runway` only counts for a launch.
+        // What a lift-off or a set-down needs of a stage's thrust over weight. One rule serves the warnings, the fuel
+        // plan's stage rows and the thrust part. Nothing along a runway; from a body (an index in the bodies) 1.2
+        // with air, else 1. `runway` only counts for a launch.
         private double TwrRequired(bool launch, bool runway, int body)
         {
             if (launch && runway) return 0.0;
