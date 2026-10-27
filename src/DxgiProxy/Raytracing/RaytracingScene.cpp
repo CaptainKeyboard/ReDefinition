@@ -155,23 +155,6 @@ namespace redefinition
         // The most compacted sizes one list asks for: one a mesh.
         constexpr UINT kMaxSizesAsked = 16384;
 
-        // A mesh's triangles as a build takes them: float3 positions, 32-bit indices, opaque
-        // (the passes' candidate test comes from the instance's FORCE_NON_OPAQUE).
-        D3D12_RAYTRACING_GEOMETRY_DESC GeometryOf(D3D12_GPU_VIRTUAL_ADDRESS positions, uint32_t vertexCount,
-                                                  D3D12_GPU_VIRTUAL_ADDRESS indices, uint32_t indexCount)
-        {
-            D3D12_RAYTRACING_GEOMETRY_DESC geometry = {};
-            geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-            geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-            geometry.Triangles.VertexBuffer.StartAddress = positions;
-            geometry.Triangles.VertexBuffer.StrideInBytes = 3 * sizeof(float);
-            geometry.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-            geometry.Triangles.VertexCount = vertexCount;
-            geometry.Triangles.IndexBuffer = indices;
-            geometry.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-            geometry.Triangles.IndexCount = indexCount;
-            return geometry;
-        }
     }
 
     void Raytracing::ToCopyLocked(BuildFrame& frame, ID3D12Resource* buffer)
@@ -314,13 +297,8 @@ namespace redefinition
         return true;
     }
 
-    uint32_t Raytracing::BuildMeshesLocked(Slot& slot)
+    void Raytracing::SetUpBuildMemoryLocked()
     {
-        LARGE_INTEGER frequency = {}, start = {}, end = {};
-        QueryPerformanceFrequency(&frequency);
-        QueryPerformanceCounter(&start);
-
-        const UINT64 completed = fence12 != nullptr ? fence12->GetCompletedValue() : 0;
         if (!blasMemory.setUp)
         {
             // The structures in RAYTRACING_ACCELERATION_STRUCTURE, which they never leave,
@@ -342,8 +320,6 @@ namespace redefinition
             }
             blasMemory.setUp = true;
         }
-        blasMemory.blas.Reclaim(completed);
-        blasMemory.geometry.Reclaim(completed);
         if (!omm.poolSetUp)
         {
             // The micromap arrays, which stay in RAYTRACING_ACCELERATION_STRUCTURE as the
@@ -352,6 +328,18 @@ namespace redefinition
                              nvomm::kArrayAlignment, 1ull << 20, L"ReDefinition raytracing micromaps");
             omm.poolSetUp = true;
         }
+    }
+
+    uint32_t Raytracing::BuildMeshesLocked(Slot& slot)
+    {
+        LARGE_INTEGER frequency = {}, start = {}, end = {};
+        QueryPerformanceFrequency(&frequency);
+        QueryPerformanceCounter(&start);
+
+        const UINT64 completed = fence12 != nullptr ? fence12->GetCompletedValue() : 0;
+        SetUpBuildMemoryLocked();
+        blasMemory.blas.Reclaim(completed);
+        blasMemory.geometry.Reclaim(completed);
         omm.arrays.Reclaim(completed);
 
         BuildFrame frame;
@@ -616,13 +604,12 @@ namespace redefinition
             // rtBlasCompaction 2: built fast now, for tracing later (RefineMeshesLocked); 1:
             // for tracing, compacted once its size is back (CompactMeshesLocked).
             D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& inputs = build.desc.Inputs;
-            inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-            inputs.Flags = frame.compaction == 2 ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD
-                                                 : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
+            D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS flags =
+                frame.compaction == 2 ? D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD
+                                      : D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
             if (frame.compaction == 1)
-                inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
-            inputs.NumDescs = 1;
-            inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+                flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
+            BlasInputsOf(inputs, flags);
             inputs.pGeometryDescs = &build.geometry;
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
             device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
@@ -664,10 +651,7 @@ namespace redefinition
         {
             build.desc.DestAccelerationStructureData = mesh.blas.address;
             mesh.refine = frame.compaction == 2 ? kRefineRebuild : kRefineNone;
-            frame.builds.push_back(build);
-            // The queued copy's geometry, where the deque holds it.
-            BuildFrame::Build& queued = frame.builds.back();
-            queued.desc.Inputs.pGeometryDescs = &queued.geometry;
+            BuildFrame::Build& queued = frame.Queue(build);
             const UINT index = frame.sizesAsked;
             if (frame.compaction == 1 && AskSizeLocked(frame, frame.meshId, mesh.blasSerial))
             {
@@ -827,11 +811,8 @@ namespace redefinition
             build.geometry = GeometryOf(mesh.positionsBuffer->GetGPUVirtualAddress() + mesh.positionsOffset, mesh.vertexCount,
                                         mesh.indicesBuffer->GetGPUVirtualAddress() + mesh.indicesOffset, mesh.indexCount);
             D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& inputs = build.desc.Inputs;
-            inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-            inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE
-                           | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
-            inputs.NumDescs = 1;
-            inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+            BlasInputsOf(inputs, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE
+                                     | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION);
             inputs.pGeometryDescs = &build.geometry;
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
             device->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
@@ -858,9 +839,7 @@ namespace redefinition
                 mesh.ommCheckedAt = UINT32_MAX;
                 mesh.ommAsked = false;
             }
-            frame.builds.push_back(build);
-            BuildFrame::Build& queued = frame.builds.back();
-            queued.desc.Inputs.pGeometryDescs = &queued.geometry;
+            BuildFrame::Build& queued = frame.Queue(build);
             const UINT index = frame.sizesAsked;
             if (AskSizeLocked(frame, id, mesh.blasSerial))
             {
@@ -897,11 +876,8 @@ namespace redefinition
                                     mesh.indicesBuffer->GetGPUVirtualAddress() + mesh.indicesOffset,
                                     static_cast<UINT>(pending.indices.size()));
         D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& inputs = build.desc.Inputs;
-        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-        inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE
-                       | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-        inputs.NumDescs = 1;
-        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+        BlasInputsOf(inputs, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE
+                                 | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE);
         inputs.pGeometryDescs = &build.geometry;
 
         // Everything made before anything is recorded. The first time the structure is
@@ -972,8 +948,7 @@ namespace redefinition
             mesh.updateScratch = updateScratch;
             mesh.updatable = true;
         }
-        frame.builds.push_back(build);
-        frame.builds.back().desc.Inputs.pGeometryDescs = &frame.builds.back().geometry;
+        frame.Queue(build);
         // Its coordinates, if a cut-out instance may use it, as they are now.
         mesh.id = frame.meshId;
         if (mesh.ommSource)

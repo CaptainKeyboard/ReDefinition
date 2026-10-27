@@ -97,12 +97,10 @@ namespace redefinition
                     const Corners& c = level->triangles[i];
                     const int32_t minU = std::min({ c.u[0], c.u[1], c.u[2] });
                     const int32_t minV = std::min({ c.v[0], c.v[1], c.v[2] });
-                    const int32_t maxU = std::max({ c.u[0], c.u[1], c.u[2] });
                     // The upright triangle has its right angle at the lowest corner in both.
                     bool upright = false;
                     for (int k = 0; k < 3; ++k)
                         upright = upright || (c.u[k] == minU && c.v[k] == minV);
-                    (void)maxU;
                     (upright ? level->upright : level->inverted)[static_cast<size_t>(minV) * side + minU] = i;
                 }
                 return *level;

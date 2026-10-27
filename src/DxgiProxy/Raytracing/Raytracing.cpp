@@ -482,26 +482,33 @@ namespace redefinition
             if (frame.outputs[i] != nullptr)
                 usedUntil = std::max(usedUntil, frame.outputs[i]->lastFence);
         }
+        const int extraOffset = frame.extra ? kProfRtExtraOffset : 0;
+        CopyInputsLocked(usedUntil, frame.inputs, packet.inputs, kRtMaxTextures,
+                         kProfRtWaitShared + extraOffset, kProfRtInputs + extraOffset);
+        return true;
+    }
+
+    void Raytracing::CopyInputsLocked(UINT64 usedUntil, Shared* const* copies, void* const* sources, size_t count,
+                                      int waitMarker, int copiedMarker)
+    {
         if (usedUntil != 0)
             context11->Wait(fence11.Get(), usedUntil);
-        GpuProfiler::Get().OnMarker(kProfRtWaitShared + (frame.extra ? kProfRtExtraOffset : 0));
-        for (uint32_t i = 0; i < kRtMaxTextures; ++i)
-            if (frame.inputs[i] != nullptr)
-                context11->CopyResource(frame.inputs[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(packet.inputs[i]));
-        GpuProfiler::Get().OnMarker(kProfRtInputs + (frame.extra ? kProfRtExtraOffset : 0));
+        GpuProfiler::Get().OnMarker(waitMarker);
+        for (size_t i = 0; i < count; ++i)
+            if (copies[i] != nullptr)
+                context11->CopyResource(copies[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(sources[i]));
+        GpuProfiler::Get().OnMarker(copiedMarker);
         const UINT64 inputsCopied = ++copiedValue;
         context11->Signal(copied11.Get(), inputsCopied);
         context11->Flush();
         queue->Wait(copied12.Get(), inputsCopied);
-        return true;
     }
 
-    bool Raytracing::BeginListLocked(FrameWork& frame)
+    Raytracing::Slot* Raytracing::BeginSlotLocked(UINT& slotNumber)
     {
-        frame.slotNumber = slotIndex;
-        frame.slot = &slots[slotIndex];
+        slotNumber = slotIndex;
+        Slot& slot = slots[slotIndex];
         slotIndex = (slotIndex + 1) % kSlots;
-        Slot& slot = *frame.slot;
         WaitForSlotLocked(slot);
         slot.held.clear();
         HRESULT hr = slot.allocator->Reset();
@@ -510,8 +517,16 @@ namespace redefinition
         if (FAILED(hr))
         {
             SetProblem("the command list could not be reset (" + Hr(hr) + ")");
-            return false;
+            return nullptr;
         }
+        return &slot;
+    }
+
+    bool Raytracing::BeginListLocked(FrameWork& frame)
+    {
+        frame.slot = BeginSlotLocked(frame.slotNumber);
+        if (frame.slot == nullptr)
+            return false;
         frame.timestampBase = frame.slotNumber * kTimestampsPerSlot;
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase);
         return true;

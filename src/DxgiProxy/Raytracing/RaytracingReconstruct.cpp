@@ -148,41 +148,27 @@ namespace redefinition
                 SetProblem("Ray Reconstruction, texture " + std::to_string(i) + ": " + problem);
                 return;
             }
-        Shared* const colour = shared[0];
-        Shared* const depth = shared[1];
-        Shared* const motion = shared[2];
+        ReconstructFrame frame;
+        frame.packet = packet;
+        frame.colour = shared[0];
+        frame.depth = shared[1];
+        frame.motion = shared[2];
+        frame.output = shared[7];
+        frame.width = width;
+        frame.height = height;
         Shared* const specular = shared[6];
-        Shared* const output = shared[7];
 
         UINT64 usedUntil = 0;
         for (Shared* texture : shared)
             if (texture != nullptr)
                 usedUntil = std::max(usedUntil, texture->lastFence);
-        if (usedUntil != 0)
-            context11->Wait(fence11.Get(), usedUntil);
-        GpuProfiler::Get().OnMarker(kProfRrWaitShared);
-        for (int i = 0; i < 7; ++i)
-            if (shared[i] != nullptr)
-                context11->CopyResource(shared[i]->texture.d3d11.Get(), static_cast<ID3D11Resource*>(given[i]));
-        GpuProfiler::Get().OnMarker(kProfRrInputs);
-        const UINT64 inputsCopied = ++copiedValue;
-        context11->Signal(copied11.Get(), inputsCopied);
-        context11->Flush();
-        queue->Wait(copied12.Get(), inputsCopied);
+        CopyInputsLocked(usedUntil, shared, given, 7, kProfRrWaitShared, kProfRrInputs);
 
-        const UINT slotNumber = slotIndex;
-        Slot& slot = slots[slotIndex];
-        slotIndex = (slotIndex + 1) % kSlots;
-        WaitForSlotLocked(slot);
-        slot.held.clear();
-        HRESULT hr = slot.allocator->Reset();
-        if (SUCCEEDED(hr))
-            hr = list->Reset(slot.allocator.Get(), nullptr);
-        if (FAILED(hr))
-        {
-            SetProblem("the command list could not be reset (" + Hr(hr) + ")");
+        UINT slotNumber = 0;
+        Slot* const taken = BeginSlotLocked(slotNumber);
+        if (taken == nullptr)
             return;
-        }
+        Slot& slot = *taken;
 
         const UINT timestampBase = slotNumber * kTimestampsPerSlot;
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrStart);
@@ -207,30 +193,20 @@ namespace redefinition
                                              D3D12_RESOURCE_STATE_COMMON));
             slot.held.push_back(shared[i]->texture.d3d12);
         }
-        slot.held.push_back(output->texture.d3d12);
+        slot.held.push_back(frame.output->texture.d3d12);
         list->ResourceBarrier(static_cast<UINT>(into.size()), into.data());
 
-        // The frame table as the raytracing passes have it: t1 depth, t2-t4 the G-buffer.
-        D3D12_CPU_DESCRIPTOR_HANDLE cpu = heap->GetCPUDescriptorHandleForHeapStart();
-        cpu.ptr += static_cast<SIZE_T>(slotNumber) * kFrameDescriptors * increment;
-        D3D12_GPU_DESCRIPTOR_HANDLE frameTable = heap->GetGPUDescriptorHandleForHeapStart();
-        frameTable.ptr += static_cast<UINT64>(slotNumber) * kFrameDescriptors * increment;
-        Shared* const table[8] = { depth, shared[3], shared[4], shared[5], motion, nullptr, nullptr, nullptr };
-        for (UINT i = 0; i < kFrameDescriptors; ++i)
-        {
-            if (i < kRtMaxTextures)
-            {
-                const D3D12_SHADER_RESOURCE_VIEW_DESC srv =
-                    SrvDesc(table[i] != nullptr ? table[i]->texture.format : DXGI_FORMAT_R8G8B8A8_UNORM);
-                device->CreateShaderResourceView(table[i] != nullptr ? table[i]->texture.d3d12.Get() : nullptr, &srv, cpu);
-            }
-            else
-            {
-                const D3D12_UNORDERED_ACCESS_VIEW_DESC uav = UavDesc(DXGI_FORMAT_R16G16B16A16_FLOAT);
-                device->CreateUnorderedAccessView(nullptr, nullptr, &uav, cpu);
-            }
-            cpu.ptr += increment;
-        }
+        // The frame table as the raytracing passes have it: t1 depth, t2-t4 the G-buffer,
+        // t5 the motion vectors, and nothing to write.
+        FrameWork views;
+        views.slotNumber = slotNumber;
+        views.inputs[0] = frame.depth;
+        views.inputs[1] = shared[3];
+        views.inputs[2] = shared[4];
+        views.inputs[3] = shared[5];
+        views.inputs[4] = frame.motion;
+        WriteFrameViewsLocked(views);
+        const D3D12_GPU_DESCRIPTOR_HANDLE frameTable = views.frameTable;
         memset(slot.constantsMapped, 0, static_cast<size_t>(kRtConstantsSize));
         RtFrameConstants& constants = *reinterpret_cast<RtFrameConstants*>(slot.constantsMapped);
         memcpy(constants.clipToWorld, packet->clipToWorld, sizeof(constants.clipToWorld));
@@ -272,149 +248,9 @@ namespace redefinition
 
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrGuides);
         reconstructionEvaluated = true;
-        bool evaluated = false;
         std::string notEvaluated = "Ray Reconstruction did not evaluate (the proxy's log has Streamline's reason)";
-        if (route == Route::Ngx)
-        {
-            reconstructionThroughNgx = true;
-            // "Input buffers ... For D3D12 - the state must be
-            // D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE", "The Output buffer be in UAV
-            // state", and "After the evaluate call, DLSS ... always transitions buffers
-            // back to these known states" (DLSS Programming Guide 3.4): the shared inputs
-            // stay where the guide pass read them, the output goes to UAV and back, and
-            // all of them to COMMON after it, for Direct3D 11.
-            const D3D12_RESOURCE_BARRIER written =
-                TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
-                                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-            list->ResourceBarrier(1, &written);
-            back.push_back(TransitionBarrier(output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                                             D3D12_RESOURCE_STATE_COMMON));
-
-            NgxRrFrame frame = {};
-            frame.colour = colour->texture.d3d12.Get();
-            frame.output = output->texture.d3d12.Get();
-            frame.depth = depth->texture.d3d12.Get();
-            frame.motion = motion->texture.d3d12.Get();
-            frame.albedo = guides.albedo.resource.Get();
-            frame.specularAlbedo = guides.specularAlbedo.resource.Get();
-            frame.normalRoughness = guides.normalRoughness.resource.Get();
-            frame.specularHitDistance = guides.hitDistance.resource.Get();
-            frame.renderWidth = width;
-            frame.renderHeight = height;
-            frame.outputWidth = packet->outputWidth;
-            frame.outputHeight = packet->outputHeight;
-            // "SL DLSSDContext modes start with 'off' so subtract one, the rest is mapped
-            // 1:1" (sl.dlss_d); its presets are NGX's values.
-            frame.quality = static_cast<int32_t>(packet->mode) - 1;
-            frame.preset = packet->preset;
-            frame.jitterX = packet->jitter[0];
-            frame.jitterY = packet->jitter[1];
-            // Streamline's mvecScale times the render size, as sl.dlss_d hands it to NGX.
-            frame.motionScaleX = packet->motionScale[0] * static_cast<float>(width);
-            frame.motionScaleY = packet->motionScale[1] * static_cast<float>(height);
-            frame.reset = (packet->flags & kRtFrameReset) != 0;
-            memcpy(frame.worldToView, packet->worldToView, sizeof(frame.worldToView));
-            memcpy(frame.viewToClip, packet->viewToClip, sizeof(frame.viewToClip));
-            std::string ngxProblem;
-            evaluated = DlssRayReconstruction::Get().Evaluate(device.Get(), list.Get(), frame,
-                                                              [this]() { WaitForAllLocked(); }, ngxProblem);
-            if (!evaluated)
-                notEvaluated = "Ray Reconstruction through NGX: " + ngxProblem;
-            // "NGX modifies the Vulkan and D3D12 command list states" (DLSS Programming
-            // Guide 5.4): only barriers follow, which need none of it.
-            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
-        }
-        else
-        {
-            reconstructionThroughNgx = false;
-            if (!back.empty())
-                list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
-
-            constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
-            constexpr uint32_t kRead = static_cast<uint32_t>(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            const auto resource = [](ID3D12Resource* native, uint32_t state, UINT w, UINT h, DXGI_FORMAT format)
-            {
-                sl::Resource r(sl::ResourceType::eTex2d, native, state);
-                r.width = w;
-                r.height = h;
-                r.nativeFormat = static_cast<uint32_t>(format);
-                return r;
-            };
-            sl::Resource colourResource = resource(colour->texture.d3d12.Get(), kCommon, colour->texture.width,
-                                                   colour->texture.height, colour->texture.format);
-            sl::Resource outputResource = resource(output->texture.d3d12.Get(), kCommon, output->texture.width,
-                                                   output->texture.height, output->texture.format);
-            sl::Resource depthResource = resource(depth->texture.d3d12.Get(), kCommon, depth->texture.width,
-                                                  depth->texture.height, depth->texture.format);
-            sl::Resource motionResource = resource(motion->texture.d3d12.Get(), kCommon, motion->texture.width,
-                                                   motion->texture.height, motion->texture.format);
-            sl::Resource albedoResource = resource(guides.albedo.resource.Get(), kRead, width, height, guides.albedo.format);
-            sl::Resource specularResource =
-                resource(guides.specularAlbedo.resource.Get(), kRead, width, height, guides.specularAlbedo.format);
-            sl::Resource normalResource =
-                resource(guides.normalRoughness.resource.Get(), kRead, width, height, guides.normalRoughness.format);
-            sl::Resource hitResource = resource(guides.hitDistance.resource.Get(), kRead, width, height, guides.hitDistance.format);
-            const sl::Extent input{ 0, 0, width, height };
-            const sl::Extent outputExtent{ 0, 0, packet->outputWidth, packet->outputHeight };
-            const sl::ResourceLifecycle now = sl::ResourceLifecycle::eOnlyValidNow;
-            const sl::ResourceTag tags[] = {
-                sl::ResourceTag(&colourResource, sl::kBufferTypeScalingInputColor, now, &input),
-                sl::ResourceTag(&outputResource, sl::kBufferTypeScalingOutputColor, now, &outputExtent),
-                sl::ResourceTag(&depthResource, sl::kBufferTypeDepth, now, &input),
-                sl::ResourceTag(&motionResource, sl::kBufferTypeMotionVectors, now, &input),
-                sl::ResourceTag(&albedoResource, sl::kBufferTypeAlbedo, now, &input),
-                sl::ResourceTag(&specularResource, sl::kBufferTypeSpecularAlbedo, now, &input),
-                sl::ResourceTag(&normalResource, sl::kBufferTypeNormalRoughness, now, &input),
-                sl::ResourceTag(&hitResource, sl::kBufferTypeSpecularHitDistance, now, &input),
-            };
-
-            sl::Constants slConstants{};
-            slConstants.cameraViewToClip = Matrix(packet->viewToClip);
-            slConstants.clipToCameraView = Matrix(packet->clipToView);
-            sl::float4x4 identity;
-            memset(&identity, 0, sizeof(identity));
-            for (int i = 0; i < 4; ++i)
-                reinterpret_cast<float*>(&identity)[i * 5] = 1.0f;
-            slConstants.clipToLensClip = identity;
-            slConstants.clipToPrevClip = Matrix(packet->clipToPrevClip);
-            slConstants.prevClipToClip = Matrix(packet->prevClipToClip);
-            slConstants.jitterOffset = sl::float2(packet->jitter[0], packet->jitter[1]);
-            slConstants.mvecScale = sl::float2(packet->motionScale[0], packet->motionScale[1]);
-            slConstants.cameraPinholeOffset = sl::float2(0.0f, 0.0f);
-            slConstants.cameraPos = sl::float3(0.0f, 0.0f, 0.0f);
-            slConstants.cameraUp = sl::float3(packet->up[0], packet->up[1], packet->up[2]);
-            slConstants.cameraRight = sl::float3(packet->right[0], packet->right[1], packet->right[2]);
-            slConstants.cameraFwd = sl::float3(packet->forward[0], packet->forward[1], packet->forward[2]);
-            slConstants.cameraNear = packet->nearPlane;
-            slConstants.cameraFar = packet->farPlane;
-            slConstants.cameraFOV = packet->verticalFov;
-            slConstants.cameraAspectRatio = height != 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
-            slConstants.depthInverted = sl::Boolean::eTrue;
-            slConstants.cameraMotionIncluded = sl::Boolean::eTrue;
-            slConstants.motionVectors3D = sl::Boolean::eFalse;
-            slConstants.motionVectorsDilated = sl::Boolean::eFalse;
-            slConstants.motionVectorsJittered = sl::Boolean::eFalse;
-            slConstants.orthographicProjection = sl::Boolean::eFalse;
-            slConstants.reset = (packet->flags & kRtFrameReset) != 0 ? sl::Boolean::eTrue : sl::Boolean::eFalse;
-
-            sl::DLSSDOptions options{};
-            options.mode = static_cast<sl::DLSSMode>(packet->mode);
-            options.outputWidth = packet->outputWidth;
-            options.outputHeight = packet->outputHeight;
-            // "DLSS-RR only support HDR inputs" (ProgrammingGuideDLSS_RR.md): the mod sends
-            // HDR frames only (UpscalerRig.SubmitReconstruction).
-            options.colorBuffersHDR = sl::Boolean::eTrue;
-            options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
-            options.worldToCameraView = Matrix(packet->worldToView);
-            options.cameraViewToWorld = Matrix(packet->viewToWorld);
-            const sl::DLSSDPreset preset = static_cast<sl::DLSSDPreset>(packet->preset);
-            options.dlaaPreset = options.qualityPreset = options.balancedPreset = options.performancePreset =
-                options.ultraPerformancePreset = options.ultraQualityPreset = preset;
-
-            evaluated = Streamline::Get().EvaluateRayReconstruction(slConstants, options, tags,
-                                                                    static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])),
-                                                                    list.Get());
-        }
+        const bool evaluated = route == Route::Ngx ? EvaluateReconstructNgxLocked(frame, back, notEvaluated)
+                                                   : EvaluateReconstructStreamlineLocked(frame, back);
         // Timed where it evaluated; WaitForSlotLocked reads the three stamps once the slot's
         // list is done.
         list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrEnd);
@@ -423,7 +259,7 @@ namespace redefinition
         slot.timed = evaluated;
         slot.extra = false;
         slot.reconstruction = evaluated;
-        hr = list->Close();
+        const HRESULT hr = list->Close();
         if (FAILED(hr))
         {
             // None of it runs, its recorded states neither: everything made goes, as
@@ -447,11 +283,166 @@ namespace redefinition
         }
         context11->Wait(fence11.Get(), finished);
         GpuProfiler::Get().OnMarker(kProfRrEvaluate);
-        context11->CopyResource(static_cast<ID3D11Resource*>(packet->output), output->texture.d3d11.Get());
+        context11->CopyResource(static_cast<ID3D11Resource*>(packet->output), frame.output->texture.d3d11.Get());
         GpuProfiler::Get().OnMarker(kProfRrOutput);
 
         std::lock_guard<std::mutex> status(statusLock);
         ++reconstructed;
+    }
+
+    bool Raytracing::EvaluateReconstructNgxLocked(const ReconstructFrame& frame, std::vector<D3D12_RESOURCE_BARRIER>& back,
+                                                  std::string& notEvaluated)
+    {
+        const RtReconstructPacket* packet = frame.packet;
+        const UINT width = frame.width, height = frame.height;
+        reconstructionThroughNgx = true;
+        // "Input buffers ... For D3D12 - the state must be
+        // D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE", "The Output buffer be in UAV
+        // state", and "After the evaluate call, DLSS ... always transitions buffers
+        // back to these known states" (DLSS Programming Guide 3.4): the shared inputs
+        // stay where the guide pass read them, the output goes to UAV and back, and
+        // all of them to COMMON after it, for Direct3D 11.
+        const D3D12_RESOURCE_BARRIER written =
+            TransitionBarrier(frame.output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
+                              D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        list->ResourceBarrier(1, &written);
+        back.push_back(TransitionBarrier(frame.output->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                         D3D12_RESOURCE_STATE_COMMON));
+
+        NgxRrFrame ngx = {};
+        ngx.colour = frame.colour->texture.d3d12.Get();
+        ngx.output = frame.output->texture.d3d12.Get();
+        ngx.depth = frame.depth->texture.d3d12.Get();
+        ngx.motion = frame.motion->texture.d3d12.Get();
+        ngx.albedo = guides.albedo.resource.Get();
+        ngx.specularAlbedo = guides.specularAlbedo.resource.Get();
+        ngx.normalRoughness = guides.normalRoughness.resource.Get();
+        ngx.specularHitDistance = guides.hitDistance.resource.Get();
+        ngx.renderWidth = width;
+        ngx.renderHeight = height;
+        ngx.outputWidth = packet->outputWidth;
+        ngx.outputHeight = packet->outputHeight;
+        // "SL DLSSDContext modes start with 'off' so subtract one, the rest is mapped
+        // 1:1" (sl.dlss_d); its presets are NGX's values.
+        ngx.quality = static_cast<int32_t>(packet->mode) - 1;
+        ngx.preset = packet->preset;
+        ngx.jitterX = packet->jitter[0];
+        ngx.jitterY = packet->jitter[1];
+        // Streamline's mvecScale times the render size, as sl.dlss_d hands it to NGX.
+        ngx.motionScaleX = packet->motionScale[0] * static_cast<float>(width);
+        ngx.motionScaleY = packet->motionScale[1] * static_cast<float>(height);
+        ngx.reset = (packet->flags & kRtFrameReset) != 0;
+        memcpy(ngx.worldToView, packet->worldToView, sizeof(ngx.worldToView));
+        memcpy(ngx.viewToClip, packet->viewToClip, sizeof(ngx.viewToClip));
+        std::string ngxProblem;
+        const bool evaluated = DlssRayReconstruction::Get().Evaluate(device.Get(), list.Get(), ngx,
+                                                                     [this]() { WaitForAllLocked(); }, ngxProblem);
+        if (!evaluated)
+            notEvaluated = "Ray Reconstruction through NGX: " + ngxProblem;
+        // "NGX modifies the Vulkan and D3D12 command list states" (DLSS Programming
+        // Guide 5.4): only barriers follow, which need none of it.
+        list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+        return evaluated;
+    }
+
+    // The frame handed to Streamline's sl.dlss_d with its resources tagged (the NGX route above does the
+    // same through NGX's own call).
+    bool Raytracing::EvaluateReconstructStreamlineLocked(const ReconstructFrame& frame,
+                                                         std::vector<D3D12_RESOURCE_BARRIER>& back)
+    {
+        const RtReconstructPacket* packet = frame.packet;
+        const UINT width = frame.width, height = frame.height;
+        Shared* const colour = frame.colour;
+        Shared* const depth = frame.depth;
+        Shared* const motion = frame.motion;
+        Shared* const output = frame.output;
+        reconstructionThroughNgx = false;
+        if (!back.empty())
+            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+
+        constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
+        constexpr uint32_t kRead = static_cast<uint32_t>(D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        const auto resource = [](ID3D12Resource* native, uint32_t state, UINT w, UINT h, DXGI_FORMAT format)
+        {
+            sl::Resource r(sl::ResourceType::eTex2d, native, state);
+            r.width = w;
+            r.height = h;
+            r.nativeFormat = static_cast<uint32_t>(format);
+            return r;
+        };
+        sl::Resource colourResource = resource(colour->texture.d3d12.Get(), kCommon, colour->texture.width,
+                                               colour->texture.height, colour->texture.format);
+        sl::Resource outputResource = resource(output->texture.d3d12.Get(), kCommon, output->texture.width,
+                                               output->texture.height, output->texture.format);
+        sl::Resource depthResource = resource(depth->texture.d3d12.Get(), kCommon, depth->texture.width,
+                                              depth->texture.height, depth->texture.format);
+        sl::Resource motionResource = resource(motion->texture.d3d12.Get(), kCommon, motion->texture.width,
+                                               motion->texture.height, motion->texture.format);
+        sl::Resource albedoResource = resource(guides.albedo.resource.Get(), kRead, width, height, guides.albedo.format);
+        sl::Resource specularResource =
+            resource(guides.specularAlbedo.resource.Get(), kRead, width, height, guides.specularAlbedo.format);
+        sl::Resource normalResource =
+            resource(guides.normalRoughness.resource.Get(), kRead, width, height, guides.normalRoughness.format);
+        sl::Resource hitResource = resource(guides.hitDistance.resource.Get(), kRead, width, height, guides.hitDistance.format);
+        const sl::Extent input{ 0, 0, width, height };
+        const sl::Extent outputExtent{ 0, 0, packet->outputWidth, packet->outputHeight };
+        const sl::ResourceLifecycle now = sl::ResourceLifecycle::eOnlyValidNow;
+        const sl::ResourceTag tags[] = {
+            sl::ResourceTag(&colourResource, sl::kBufferTypeScalingInputColor, now, &input),
+            sl::ResourceTag(&outputResource, sl::kBufferTypeScalingOutputColor, now, &outputExtent),
+            sl::ResourceTag(&depthResource, sl::kBufferTypeDepth, now, &input),
+            sl::ResourceTag(&motionResource, sl::kBufferTypeMotionVectors, now, &input),
+            sl::ResourceTag(&albedoResource, sl::kBufferTypeAlbedo, now, &input),
+            sl::ResourceTag(&specularResource, sl::kBufferTypeSpecularAlbedo, now, &input),
+            sl::ResourceTag(&normalResource, sl::kBufferTypeNormalRoughness, now, &input),
+            sl::ResourceTag(&hitResource, sl::kBufferTypeSpecularHitDistance, now, &input),
+        };
+
+        sl::Constants slConstants{};
+        slConstants.cameraViewToClip = Matrix(packet->viewToClip);
+        slConstants.clipToCameraView = Matrix(packet->clipToView);
+        sl::float4x4 identity;
+        memset(&identity, 0, sizeof(identity));
+        for (int i = 0; i < 4; ++i)
+            reinterpret_cast<float*>(&identity)[i * 5] = 1.0f;
+        slConstants.clipToLensClip = identity;
+        slConstants.clipToPrevClip = Matrix(packet->clipToPrevClip);
+        slConstants.prevClipToClip = Matrix(packet->prevClipToClip);
+        slConstants.jitterOffset = sl::float2(packet->jitter[0], packet->jitter[1]);
+        slConstants.mvecScale = sl::float2(packet->motionScale[0], packet->motionScale[1]);
+        slConstants.cameraPinholeOffset = sl::float2(0.0f, 0.0f);
+        slConstants.cameraPos = sl::float3(0.0f, 0.0f, 0.0f);
+        slConstants.cameraUp = sl::float3(packet->up[0], packet->up[1], packet->up[2]);
+        slConstants.cameraRight = sl::float3(packet->right[0], packet->right[1], packet->right[2]);
+        slConstants.cameraFwd = sl::float3(packet->forward[0], packet->forward[1], packet->forward[2]);
+        slConstants.cameraNear = packet->nearPlane;
+        slConstants.cameraFar = packet->farPlane;
+        slConstants.cameraFOV = packet->verticalFov;
+        slConstants.cameraAspectRatio = height != 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+        slConstants.depthInverted = sl::Boolean::eTrue;
+        slConstants.cameraMotionIncluded = sl::Boolean::eTrue;
+        slConstants.motionVectors3D = sl::Boolean::eFalse;
+        slConstants.motionVectorsDilated = sl::Boolean::eFalse;
+        slConstants.motionVectorsJittered = sl::Boolean::eFalse;
+        slConstants.orthographicProjection = sl::Boolean::eFalse;
+        slConstants.reset = (packet->flags & kRtFrameReset) != 0 ? sl::Boolean::eTrue : sl::Boolean::eFalse;
+
+        sl::DLSSDOptions options{};
+        options.mode = static_cast<sl::DLSSMode>(packet->mode);
+        options.outputWidth = packet->outputWidth;
+        options.outputHeight = packet->outputHeight;
+        // "DLSS-RR only support HDR inputs" (ProgrammingGuideDLSS_RR.md): the mod sends
+        // HDR frames only (UpscalerRig.SubmitReconstruction).
+        options.colorBuffersHDR = sl::Boolean::eTrue;
+        options.normalRoughnessMode = sl::DLSSDNormalRoughnessMode::ePacked;
+        options.worldToCameraView = Matrix(packet->worldToView);
+        options.cameraViewToWorld = Matrix(packet->viewToWorld);
+        const sl::DLSSDPreset preset = static_cast<sl::DLSSDPreset>(packet->preset);
+        options.dlaaPreset = options.qualityPreset = options.balancedPreset = options.performancePreset =
+            options.ultraPerformancePreset = options.ultraQualityPreset = preset;
+
+        return Streamline::Get().EvaluateRayReconstruction(slConstants, options, tags,
+                                                           static_cast<uint32_t>(sizeof(tags) / sizeof(tags[0])), list.Get());
     }
 
     // The mod stopped sending Ray Reconstruction frames (UpscalerRig.Reconstruction).

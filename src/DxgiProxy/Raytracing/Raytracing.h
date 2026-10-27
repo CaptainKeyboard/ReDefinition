@@ -997,8 +997,19 @@ namespace redefinition
         bool TakeTexturesLocked(FrameWork& frame);
         // The next slot, its list reset, the first timestamp.
         bool BeginListLocked(FrameWork& frame);
+        // The next slot, for the frame's list and for Ray Reconstruction's. It is taken once
+        // the GPU is past its last list, what it held is let go of and its list reset. Null
+        // where the list could not be reset, with the reason in the status.
+        Slot* BeginSlotLocked(UINT& slotNumber);
+        // Direct3D 11: the inputs copied into their shared copies once the queue is past
+        // usedUntil, and the queue made to wait for the copies; sources[i] is what copies[i]
+        // takes. The profiler's markers after the wait and after the copies are given.
+        void CopyInputsLocked(UINT64 usedUntil, Shared* const* copies, void* const* sources, size_t count, int waitMarker,
+                              int copiedMarker);
         // The released meshes retired, the pending ones built; how many were built.
         uint32_t BuildMeshesLocked(Slot& slot);
+        // The pools and arenas the structures and the micromap arrays are built in, set up once.
+        void SetUpBuildMemoryLocked();
         // The material textures' array grown to the highest pending layer and the pending
         // layers copied in; false only where the array could not be made.
         bool UploadMaterialTexturesLocked(Slot& slot);
@@ -1263,6 +1274,27 @@ namespace redefinition
         void ReleaseRegenerationLocked();
         // The guides at this size, the ones before held by the slot until it is done.
         bool EnsureGuidesLocked(std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& held, UINT width, UINT height);
+        // The textures of a Ray Reconstruction frame (RaytracingReconstruct.cpp), as the
+        // evaluations below take them: the shared copies of its colour, depth, motion vectors
+        // and output, and the render size.
+        struct ReconstructFrame
+        {
+            // The packet, the four shared copies, and the render size in pixels.
+            const RtReconstructPacket* packet = nullptr;
+            Shared* colour = nullptr;
+            Shared* depth = nullptr;
+            Shared* motion = nullptr;
+            Shared* output = nullptr;
+            UINT width = 0;
+            UINT height = 0;
+        };
+        // The frame evaluated through NGX or through Streamline, recorded into the list, the
+        // shared copies going back to COMMON with `back`; whether it was evaluated. NGX's
+        // reason, where it was not, goes into notEvaluated.
+        bool EvaluateReconstructNgxLocked(const ReconstructFrame& frame, std::vector<D3D12_RESOURCE_BARRIER>& back,
+                                          std::string& notEvaluated);
+        // The same through Streamline's sl.dlss_d.
+        bool EvaluateReconstructStreamlineLocked(const ReconstructFrame& frame, std::vector<D3D12_RESOURCE_BARRIER>& back);
         // A new buffer in GPU memory of that size, state and flags, in place of the one given.
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
