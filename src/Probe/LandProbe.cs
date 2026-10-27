@@ -101,18 +101,41 @@ namespace ReDefinition.Probe
             double altitude;
             string text = CommandLine.After("-redefinitionProbeOrbitAltitude");
             if (text == null || !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out altitude)) altitude = 600000.0;
-            double ut = Planetarium.GetUniversalTime();
+            // The time the probe sets (-redefinitionProbeUniversalTime) is the one the orbit is made for: it is set after this.
+            double ut;
+            string universalTime = CommandLine.After("-redefinitionProbeUniversalTime");
+            if (universalTime == null || !double.TryParse(universalTime, NumberStyles.Float, CultureInfo.InvariantCulture, out ut))
+                ut = Planetarium.GetUniversalTime();
             double semiMajorAxis = body.Radius + altitude;
             // Both orbits give their positions in the same axes: the sun lies opposite the body's own position.
             Vector3d toSun = (-body.orbit.getRelativePositionAtUT(ut)).normalized;
+            // -redefinitionProbeOrbitToward <body>: the pod on the line from the planet to that body instead, so that the body
+            // stands over it, to look at (MoonSkyProbe).
+            string towardName = CommandLine.After("-redefinitionProbeOrbitToward");
+            CelestialBody toward = towardName != null ? FlightGlobals.Bodies.Find(b => b.bodyName == towardName) : null;
+            Vector3d aimed = toward != null ? toward.orbit.getRelativePositionAtUT(ut).normalized : toSun;
+            // -redefinitionProbeOrbitAngle <degrees>: how far from that line the pod stands, so that the body is that far
+            // under the zenith and the camera need not look straight up (the camera's heading is lost there).
+            double wantedAngle = OrbitPhase, angleAsked;
+            if (toward != null)
+                wantedAngle = double.TryParse(CommandLine.After("-redefinitionProbeOrbitAngle") ?? "", NumberStyles.Float,
+                                              CultureInfo.InvariantCulture, out angleAsked) ? angleAsked : 0.0;
             double bestAnomaly = 0.0, bestError = double.MaxValue, bestAngle = 0.0;
             for (int degrees = 0; degrees < 360; degrees++)
             {
                 var trial = new Orbit(0.0, 0.0, semiMajorAxis, 0.0, 0.0, degrees * Math.PI / 180.0, ut, body);
-                double angle = Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(trial.getRelativePositionAtUT(ut).normalized, toSun)))) * 180.0 / Math.PI;
-                if (Math.Abs(angle - OrbitPhase) < bestError)
+                double angle = Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(trial.getRelativePositionAtUT(ut).normalized, aimed)))) * 180.0 / Math.PI;
+                double error = Math.Abs(angle - wantedAngle);
+                // Toward a body, the pod stands on the night side where it can: of the places that are as far from the line as
+                // asked, the one farthest from the sun.
+                if (toward != null)
                 {
-                    bestError = Math.Abs(angle - OrbitPhase);
+                    double sunAngle = Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(trial.getRelativePositionAtUT(ut).normalized, toSun))));
+                    error -= sunAngle * 0.1;
+                }
+                if (error < bestError)
+                {
+                    bestError = error;
                     bestAngle = angle;
                     bestAnomaly = degrees * Math.PI / 180.0;
                 }

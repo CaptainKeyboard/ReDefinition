@@ -202,7 +202,11 @@ namespace ReDefinition.Raytracing
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 float percent = addon != null ? addon.Live.RaytracingMoonlight : 10f;
                 float mirrored = addon != null ? addon.Live.RaytracingMoonReflection : 100f;
-                return RtReflectors.Fill(lights, surfaces, sceneCamera.transform.position, body, percent, mirrored);
+                // The least light the scene gets anyway: KSP's own ambient light at the player's share of it (Night light).
+                Color ambient = RenderSettings.ambientLight.linear;
+                float floor = (0.2126f * ambient.r + 0.7152f * ambient.g + 0.0722f * ambient.b)
+                              * (addon != null ? addon.Live.RaytracingNightAmbient : 0f) / 100f;
+                return RtReflectors.Fill(lights, surfaces, sceneCamera.transform.position, body, percent, mirrored, floor);
             };
             camera.PlanetAlbedo = () =>
             {

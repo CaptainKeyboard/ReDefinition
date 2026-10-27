@@ -56,6 +56,9 @@ namespace ReDefinition.Raytracing
             // The brightest at 100 %, whatever the player's percentage.
             internal float Order;
             internal CelestialBody Body;
+            // The phase angle in radians, and whether its light reaches the floor (for the diagnostics).
+            internal float Phase;
+            internal bool Counted;
         }
 
         // The frame's candidates, brightest first after sorting, and the bodies of the camera's planet's system.
@@ -82,14 +85,78 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
+        // How much of the sun's disc a body sees. It is 1 in the open, less in the penumbra of a body of the camera's planet's
+        // system and none in its umbra (RtReflectorLight.Uncovered). `bodies` is that system.
+        internal static float SunVisible(CelestialBody body, CelestialBody star, List<CelestialBody> bodies)
+        {
+            Vector3d toSun = star.position - body.position;
+            double sunDistance = toSun.magnitude;
+            if (sunDistance <= star.Radius) return 1f;
+            double sunRadius = System.Math.Asin(star.Radius / sunDistance);
+            double visible = 1.0;
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                CelestialBody occluder = bodies[i];
+                if (occluder == null || occluder == body || occluder == star) continue;
+                Vector3d toOccluder = occluder.position - body.position;
+                double distance = toOccluder.magnitude;
+                if (distance <= occluder.Radius) continue;
+                double radius = System.Math.Asin(occluder.Radius / distance);
+                double separation = Vector3d.Angle(toSun, toOccluder) * Mathf.Deg2Rad;
+                visible = System.Math.Min(visible, RtReflectorLight.Uncovered(sunRadius, radius, separation));
+            }
+            return (float)visible;
+        }
+
+        // The light of a moon's planet on the moon, as a share of the sunlight there. It is the planet's albedo, its size from
+        // the moon and its phase as the moon sees it, as they are (RtReflectorLight.Share), less what its shadow takes. It is 0
+        // for a body that circles the star.
+        internal static float PlanetLightOn(CelestialBody moon, CelestialBody star, List<CelestialBody> bodies)
+        {
+            CelestialBody planet = moon.referenceBody;
+            if (planet == null || planet == star || planet.referenceBody == null) return 0f;
+            Vector3d toSun = star.position - planet.position;
+            Vector3d toMoon = moon.position - planet.position;
+            double phaseAngle = Vector3d.Angle(toSun, toMoon) * Mathf.Deg2Rad;
+            double share = RtReflectorLight.Share(Luminance(PlanetAlbedo(planet)), planet.Radius, toMoon.magnitude,
+                                                  (star.position - moon.position).magnitude, toSun.magnitude);
+            return (float)(share * RtReflectorLight.Lit(phaseAngle, SunVisible(planet, star, bodies)));
+        }
+
+        // How much of a body's disc the camera at `eye` sees past the bodies of the system nearer than it: 1 in the open, 0
+        // behind the planet or a moon. It lessens a moon's light by the part that is covered, without a jump at the edge.
+        internal static float SeenFrom(CelestialBody body, Vector3d eye, List<CelestialBody> bodies)
+        {
+            Vector3d toBody = body.position - eye;
+            double distance = toBody.magnitude;
+            if (distance <= body.Radius) return 1f;
+            double radius = System.Math.Asin(body.Radius / distance);
+            double seen = 1.0;
+            for (int i = 0; i < bodies.Count; i++)
+            {
+                CelestialBody cover = bodies[i];
+                if (cover == null || cover == body) continue;
+                Vector3d toCover = cover.position - eye;
+                double coverDistance = toCover.magnitude;
+                if (coverDistance <= cover.Radius || coverDistance >= distance) continue;
+                double coverRadius = System.Math.Asin(cover.Radius / coverDistance);
+                double separation = Vector3d.Angle(toBody, toCover) * Mathf.Deg2Rad;
+                seen = System.Math.Min(seen, RtReflectorLight.Uncovered(radius, coverRadius, separation));
+            }
+            return (float)seen;
+        }
+
         // Fills lights as RtCamera.Lights asks, for a camera at `eye` (world) over `main`,
         // at the player's percentage `percent`. Returns the number of lights.
         // `surfaces` gets, per light, its body's albedo times the star's colour, linear, which a
         // reflected ray sees on its disc, at the player's percentage `mirrored`.
+        // A body whose light at the camera, at 100 %, is no more than `floor` -- the least light the scene gets anyway --
+        // casts none, and none does one the planet or another body hides: its disc is still seen in reflections.
         internal static int Fill(float[] lights, float[] surfaces, Vector3d eye, CelestialBody main, float percent,
-                                 float mirrored)
+                                 float mirrored, float floor)
         {
             lastCount = 0;
+            lastFloor = floor;
             // Also at 0 %: a reflected ray still sees the moons' discs (surfaces).
             if (main == null) return 0;
             CelestialBody star = RtKspMods.StarBody();
@@ -119,12 +186,17 @@ namespace ReDefinition.Raytracing
                 Vector3d bodyToSun = sun - body.position;
                 double angle = Vector3d.Angle(bodyToSun, -toBody) * Mathf.Deg2Rad;
                 Color colour = ColourOf(body);
-                double share = RtReflectorLight.Share(Luminance(colour), angle, body.Radius, distance, sunToEye,
+                double share = RtReflectorLight.Share(Luminance(colour), body.Radius, distance, sunToEye,
                                                       bodyToSun.magnitude);
                 if (share <= 0.0) continue;
-                double brightness = RtReflectorLight.Brightness(share, percent);
+                // The part of the body that is lit and in the sun, and the part the camera sees of it, weaken its light.
+                float sunVisible = SunVisible(body, star, system);
+                double left = RtReflectorLight.Lit(angle, sunVisible) * SeenFrom(body, eye, system);
+                double brightness = RtReflectorLight.Brightness(share, percent) * left;
                 float albedo = Mathf.Max(Luminance(colour), 1e-4f);
-                Color light = tint * (colour / albedo) * (float)brightness;
+                float order = (float)(RtReflectorLight.Brightness(share, 100.0) * left);
+                // Too faint to add to the scene's own least light: no light, the disc stays.
+                Color light = order > floor ? tint * (colour / albedo) * (float)brightness : Color.black;
                 candidates.Add(new Candidate
                 {
                     Towards = ((Vector3)(toBody / distance)),
@@ -133,9 +205,11 @@ namespace ReDefinition.Raytracing
                     // To its surface.
                     Reach = (float)(distance - body.Radius),
                     Luminance = Luminance(light),
-                    Surface = colour * starColour * discFactor,
-                    Order = (float)RtReflectorLight.Brightness(share, 100.0),
+                    Surface = colour * starColour * (discFactor * sunVisible),
+                    Order = order,
                     Body = body,
+                    Phase = (float)angle,
+                    Counted = order > floor,
                 });
             }
             // Brightest first; an insertion sort, stable, for the few candidates there are.
@@ -182,6 +256,19 @@ namespace ReDefinition.Raytracing
                 combinedColour = sum;
             }
             return count;
+        }
+
+        // The last Fill's floor, and its candidates described one by one for the probe: the body, its phase angle in degrees,
+        // its light at 100 % in units of the sunlight, the floor, and whether it counts.
+        private static float lastFloor;
+        internal static string DescribeCandidates()
+        {
+            var text = new System.Text.StringBuilder();
+            foreach (Candidate c in candidates)
+                text.Append(c.Body.bodyName).Append(": phase ").Append((c.Phase * Mathf.Rad2Deg).ToString("0")).Append(" deg, light ")
+                    .Append(c.Order.ToString("0.0000")).Append(", floor ").Append(lastFloor.ToString("0.0000"))
+                    .Append(c.Counted ? ", counts; " : ", too faint; ");
+            return text.ToString();
         }
 
         // What Fill handed over last, for the diagnostics log (RtKsp.Report).

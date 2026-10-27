@@ -13,6 +13,21 @@ namespace ReDefinition.Tests
         private const double MunRadius = 200000.0;
         private const double MunDistance = 12000000.0;
 
+        // A disc seen past another: all of it in the open, none behind a larger disc, the part not covered between, and what a
+        // smaller disc leaves in front of its middle.
+        [TestMethod]
+        public void ABodyBeforeTheSunHidesItsOverlap()
+        {
+            const double sun = 0.0047;
+            Assert.AreEqual(1.0, RtReflectorLight.Uncovered(sun, 0.01, 0.1), 1e-12);
+            Assert.AreEqual(0.0, RtReflectorLight.Uncovered(sun, 0.01, 0.002), 1e-12);
+            Assert.AreEqual(1.0 - 0.5 * 0.5, RtReflectorLight.Uncovered(sun, sun * 0.5, 0.0), 1e-12);
+            double edge = RtReflectorLight.Uncovered(sun, 0.01, 0.01 + sun / 2);
+            Assert.IsTrue(edge > 0.0 && edge < 1.0);
+            // Half the sun's width covered by a disc far larger: the visible part is about a half.
+            Assert.AreEqual(0.5, RtReflectorLight.Uncovered(sun, 0.5, 0.5 + 1e-9), 0.01);
+        }
+
         // Lambert's phase function: 1 at no phase angle, 1/pi at a half moon, 0 at the new, and falling in
         // between.
         [TestMethod]
@@ -25,12 +40,23 @@ namespace ReDefinition.Tests
                 Assert.IsTrue(RtReflectorLight.Phase(a + 0.1) < RtReflectorLight.Phase(a));
         }
 
+        // What is left of a body's light: the phase times the sun that its shadow leaves, and never more than the full body's.
+        [TestMethod]
+        public void TheLightLeftIsThePhaseTimesTheSunTheShadowLeaves()
+        {
+            Assert.AreEqual(1.0, RtReflectorLight.Lit(0.0, 1.0), 1e-12);
+            Assert.AreEqual(0.0, RtReflectorLight.Lit(Math.PI, 1.0), 1e-12);
+            Assert.AreEqual(0.5 / Math.PI, RtReflectorLight.Lit(Math.PI / 2, 0.5), 1e-12);
+            Assert.AreEqual(0.0, RtReflectorLight.Lit(0.0, 0.0), 1e-12);
+            Assert.AreEqual(1.0, RtReflectorLight.Lit(0.0, 7.0), 1e-12);
+        }
+
         // The full Mun sends the albedo times 2/3 times its angular radius squared, between 5 and 6
         // hundred-thousandths of the sunlight.
         [TestMethod]
         public void TheFullMunSendsAFewHundredThousandthsOfTheSunlight()
         {
-            double share = RtReflectorLight.Share(0.3, 0.0, MunRadius, MunDistance, 1.0, 1.0);
+            double share = RtReflectorLight.Share(0.3, MunRadius, MunDistance, 1.0, 1.0);
             Assert.AreEqual(0.3 * 2.0 / 3.0 * Math.Pow(MunRadius / MunDistance, 2), share, 1e-12);
             Assert.IsTrue(share > 5e-5 && share < 6e-5, share.ToString());
         }
@@ -40,8 +66,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void NothingFromInsideABodyOrWithoutOne()
         {
-            Assert.AreEqual(0.0, RtReflectorLight.Share(0.3, 0.0, MunRadius, MunRadius * 0.5, 1.0, 1.0));
-            Assert.AreEqual(0.0, RtReflectorLight.Share(0.3, 0.0, 0.0, MunDistance, 1.0, 1.0));
+            Assert.AreEqual(0.0, RtReflectorLight.Share(0.3, MunRadius, MunRadius * 0.5, 1.0, 1.0));
+            Assert.AreEqual(0.0, RtReflectorLight.Share(0.3, 0.0, MunDistance, 1.0, 1.0));
             Assert.AreEqual(0.0, RtReflectorLight.Brightness(0.0, 100.0));
             Assert.AreEqual(0.0, RtReflectorLight.Brightness(1e-4, 0.0));
         }
@@ -50,7 +76,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheFullMunLightsWithSomeSixHundredthsOfTheSun()
         {
-            double share = RtReflectorLight.Share(0.3, 0.0, MunRadius, MunDistance, 1.0, 1.0);
+            double share = RtReflectorLight.Share(0.3, MunRadius, MunDistance, 1.0, 1.0);
             double brightness = RtReflectorLight.Brightness(share, 100.0);
             Assert.IsTrue(brightness > 0.05 && brightness < 0.07, brightness.ToString());
         }
@@ -83,8 +109,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSunsDistanceToTheBodyCounts()
         {
-            double near = RtReflectorLight.Share(0.3, 0.0, MunRadius, MunDistance, 1.0, 1.0);
-            double far = RtReflectorLight.Share(0.3, 0.0, MunRadius, MunDistance, 1.0, 2.0);
+            double near = RtReflectorLight.Share(0.3, MunRadius, MunDistance, 1.0, 1.0);
+            double far = RtReflectorLight.Share(0.3, MunRadius, MunDistance, 1.0, 2.0);
             Assert.AreEqual(near / 4.0, far, 1e-15);
         }
     }

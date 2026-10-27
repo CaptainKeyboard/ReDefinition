@@ -130,6 +130,9 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
+            // -redefinitionProbeUniversalTime <seconds>: the game's time, to put the moons in a phase.
+            string universalTime = CommandLine.After("-redefinitionProbeUniversalTime");
+            if (universalTime != null) game.flightState.universalTime = double.Parse(universalTime, CultureInfo.InvariantCulture);
             // -redefinitionProbeDays <n>: n of the home body's solar days later, the sun where
             // it was and the clouds moved on.
             string days = CommandLine.After("-redefinitionProbeDays");
@@ -706,6 +709,12 @@ namespace ReDefinition.Probe
             string views = CommandLine.After(ViewProbe.ViewsArgument);
             if (views != null)
                 yield return ViewProbe.Run(folder, shot, views);
+            // -redefinitionProbeMoonSky <moon>: the camera at that moon, shot with the brightening off and on (MoonSkyProbe).
+            if (CommandLine.After(MoonSkyProbe.Argument) != null)
+                yield return MoonSkyProbe.Run(folder, shot);
+            // -redefinitionProbeMoonGround <moon>: that moon's phases in the night sky from the pod's ground (MoonGroundProbe).
+            if (CommandLine.After(MoonGroundProbe.Argument) != null)
+                yield return MoonGroundProbe.Run(folder, shot);
             // -redefinitionProbeBurst <n>: n frames more, one after the other, as
             // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
             // ghosting).
