@@ -44,6 +44,9 @@ namespace ReDefinition.Upscaler
         // What DLSS writes into; check IsCreated after construction.
         public RenderTexture Input { get; private set; }
 
+        // The sharpness the RCAS buffer holds; NaN before the first upload.
+        private float uploadedSharpness = float.NaN;
+
         // For the bundle's RCAS pass writing into `output`: makes the binders, the exposure and Input.
         public RcasSharpener(ComputeShader sharpenPass, RenderTexture output)
         {
@@ -55,8 +58,9 @@ namespace ReDefinition.Upscaler
             // (ffx_fsr3upscaler_rcas_pass.hlsl), and FSR 3's own dispatch binds them.
             // Whether the compiled pass still reads the buffer is not visible from
             // here, and an unbound one it reads stops the dispatch; one all-zero
-            // struct a frame is cheap.
+            // struct, uploaded once, is cheap.
             upscalerBinder = new Fsr3ConstantBinder<Fsr3Upscaler.UpscalerConstants>(upscaler, Fsr3ConstantBuffers.Upscaler);
+            upscalerBinder.Upload();
 
             exposure = new Texture2D(1, 1, TextureFormat.RGFloat, false, true) { name = "ReDefinition_RcasExposure" };
             exposure.SetPixel(0, 0, Color.clear);
@@ -72,7 +76,13 @@ namespace ReDefinition.Upscaler
         // Records into `buffer` the pass from Input into the output at the slider's `sharpness`.
         public void Schedule(CommandBuffer buffer, float sharpness)
         {
-            rcas[0] = Fsr3UpscalerContext.RcasConstantsFor(sharpness);
+            // The buffer keeps its content between frames, so it is uploaded when the slider moved.
+            if (sharpness != uploadedSharpness)
+            {
+                rcas[0] = Fsr3UpscalerContext.RcasConstantsFor(sharpness);
+                rcasBinder.Upload();
+                uploadedSharpness = sharpness;
+            }
             buffer.SetComputeTextureParam(shader, kernel, Fsr3ShaderIDs.SrvInputExposure, exposure);
             buffer.SetComputeTextureParam(shader, kernel, Fsr3ShaderIDs.SrvRcasInput, Input);
             buffer.SetComputeTextureParam(shader, kernel, Fsr3ShaderIDs.UavUpscaledOutput, output);

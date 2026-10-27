@@ -24,6 +24,10 @@ namespace FidelityFX.FSR3
     /// </summary>
     internal interface IFsr3ConstantBinder : IDisposable
     {
+        // Copies the current values into the buffer; once per dispatch, after they are final.
+        void Upload();
+
+        // Hands the buffer, as last uploaded, to the kernel.
         void Bind(CommandBuffer commandBuffer, ComputeShader shader, int kernelIndex);
     }
 
@@ -51,7 +55,7 @@ namespace FidelityFX.FSR3
             _buffer = new ComputeBuffer(1, Marshal.SizeOf(typeof(T)), ComputeBufferType.Structured);
         }
 
-        public void Bind(CommandBuffer commandBuffer, ComputeShader shader, int kernelIndex)
+        public void Upload()
         {
             if (_buffer == null) return;
 
@@ -59,6 +63,12 @@ namespace FidelityFX.FSR3
             // SetComputeBufferData Unity 2019.4 does not have. The values are
             // final when the buffer is recorded, and it runs in the same frame.
             _buffer.SetData(_values);
+        }
+
+        public void Bind(CommandBuffer commandBuffer, ComputeShader shader, int kernelIndex)
+        {
+            if (_buffer == null) return;
+
             commandBuffer.SetComputeBufferParam(shader, kernelIndex, _nameId, _buffer);
         }
 
