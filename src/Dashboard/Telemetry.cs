@@ -372,8 +372,9 @@ namespace ReDefinition.Dashboard
                 resourceFrame = Time.frameCount;
                 resources.Clear();
                 foreach (Part p in v.parts)
-                    foreach (PartResource r in p.Resources)
+                    for (int i = 0; i < p.Resources.Count; i++)
                     {
+                        PartResource r = p.Resources[i];
                         double[] sums;
                         if (!resources.TryGetValue(r.resourceName, out sums)) resources[r.resourceName] = sums = new double[2];
                         sums[0] += r.amount;

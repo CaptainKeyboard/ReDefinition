@@ -31,6 +31,10 @@ namespace ReDefinition.Dashboard
         private Vessel emptyVessel;
         private int emptyFrame = -1;
         private readonly HashSet<string> empty = new HashSet<string>();
+        // The engines of the part being looked at, reused so that a frame allocates no list per part.
+        private readonly List<ModuleEngines> engines = new List<ModuleEngines>();
+        // What Dry answers where no mark is known; never written to, so it can be shared.
+        private static readonly List<object> NoMarks = new List<object>();
 
         // r.engineDry[name]: the totals of that propellant at which engines run dry, simulated again at most
         // every DryInterval; an empty list where none do.
@@ -44,7 +48,7 @@ namespace ReDefinition.Dashboard
                 Simulate(v);
             }
             List<object> marks;
-            return dry.TryGetValue(args[0], out marks) ? marks : new List<object>();
+            return dry.TryGetValue(args[0], out marks) ? marks : NoMarks;
         }
 
         // r.engineEmpty[name]: whether an engine lit now that burns that propellant is empty; found once a frame.
@@ -68,7 +72,7 @@ namespace ReDefinition.Dashboard
             foreach (Part part in v.parts)
             {
                 if (part == null) continue;
-                foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                foreach (ModuleEngines engine in PartModules.Of(part, engines))
                 {
                     if (engine == null || !engine.EngineIgnited || engine.propellants == null) continue;
                     bool dryNow = false;
@@ -81,6 +85,14 @@ namespace ReDefinition.Dashboard
                         if (propellant != null && !air.Contains(propellant.name)) empty.Add(propellant.name);
                 }
             }
+        }
+
+        // Whether any engine on the part is lit.
+        private bool HasIgnitedEngine(Part part)
+        {
+            foreach (ModuleEngines engine in PartModules.Of(part, engines))
+                if (engine != null && engine.EngineIgnited) return true;
+            return false;
         }
 
         // Fills `dry` from the planner's simulation of the vessel as it flies (Marks); left empty where KSP's
@@ -117,12 +129,12 @@ namespace ReDefinition.Dashboard
             // The engines staged by now and switched off.
             HashSet<int> off = new HashSet<int>();
             for (int i = 0; i < parts.Count; i++)
-                if (parts[i].inverseStage >= v.currentStage && !parts[i].FindModulesImplementing<ModuleEngines>().Exists(e => e != null && e.EngineIgnited))
-                    off.Add(i);
+                if (parts[i].inverseStage >= v.currentStage && !HasIgnitedEngine(parts[i])) off.Add(i);
             Dictionary<string, double> total = new Dictionary<string, double>();
             foreach (Part part in parts)
-                foreach (PartResource resource in part.Resources)
+                for (int r = 0; r < part.Resources.Count; r++)
                 {
+                    PartResource resource = part.Resources[r];
                     double sum;
                     total.TryGetValue(resource.resourceName, out sum);
                     total[resource.resourceName] = sum + resource.amount;

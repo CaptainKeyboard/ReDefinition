@@ -314,6 +314,9 @@ namespace ReDefinition.Engineer
 
         // ------------------------------------------------------ own simulation
 
+        // The intakes of the part AirResources is looking at, reused so that the loop allocates no list per part.
+        private static readonly List<ModuleResourceIntake> intakes = new List<ModuleResourceIntake>();
+
         // The resources engines take in from the air: IntakeAir, as KSP's simulation
         // knows it (DeltaVGlobals.PropellantsToIgnore), and whatever the vessel's
         // intakes gather (ModuleResourceIntake.resourceName), a mod's own air.
@@ -322,7 +325,7 @@ namespace ReDefinition.Engineer
             HashSet<string> air = new HashSet<string> { "IntakeAir" };
             foreach (Part part in parts)
                 if (part != null)
-                    foreach (ModuleResourceIntake intake in part.FindModulesImplementing<ModuleResourceIntake>())
+                    foreach (ModuleResourceIntake intake in PartModules.Of(part, intakes))
                         if (intake != null && !string.IsNullOrEmpty(intake.resourceName)) air.Add(intake.resourceName);
             return air;
         }
