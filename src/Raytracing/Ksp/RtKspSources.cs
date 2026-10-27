@@ -97,7 +97,7 @@ namespace ReDefinition.Raytracing
                 if (!Opaque(material)) continue;
                 into.Add(new RtItem
                 {
-                    Mesh = mesh, SubMesh = s, Material = material, LocalToWorld = localToWorld, Mask = 0xFF, Flags = flags,
+                    Mesh = mesh, SubMesh = s, Material = material, LocalToWorld = localToWorld, Mask = 0xFF, Flags = flags, Source = renderer,
                 });
             }
         }

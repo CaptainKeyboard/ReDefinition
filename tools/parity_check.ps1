@@ -37,6 +37,8 @@ $limits = @{
 $poses = '55,330,0;40,150,0;60,300,300;40,600,0;25,400,120;80,1500,0;15,800,60;60,150,200;40,3000,0;30,200,90;70,80,45;20,1200,240'
 $viewMatch = 60.0
 $viewOverSky = 0.2
+# The most share of a pose's pixels where the rays' surface lies before the picture's: scene the picture does not draw.
+$viewInFront = 1.0
 $viewTiles = 6.0
 
 if (Get-Process KSP_x64 -ErrorAction SilentlyContinue) { throw 'KSP is running; close it first.' }
@@ -75,12 +77,13 @@ try {
             for ($i = 0; $i -lt $lines.Count - 1; $i++) {
                 $head = [regex]::Match($lines[$i], 'Raytracing parity of view (gate-v\d+):')
                 if (-not $head.Success) { continue }
-                $match = [regex]::Match($lines[$i + 1], 'match ([0-9.]+) %.*rays over sky ([0-9.]+) %')
+                $match = [regex]::Match($lines[$i + 1], 'match ([0-9.]+) %.*rays in front ([0-9.]+) %.*rays over sky ([0-9.]+) %')
                 if (-not $match.Success) { continue }
                 $share = [double]::Parse($match.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
-                $over = [double]::Parse($match.Groups[2].Value, [Globalization.CultureInfo]::InvariantCulture)
-                $ok = $share -ge $viewMatch -and $over -le $viewOverSky
-                Write-Output ('{0}  {1}: match {2} % (at least {3}), rays over sky {4} % (at most {5})' -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $head.Groups[1].Value, $share, $viewMatch, $over, $viewOverSky)
+                $front = [double]::Parse($match.Groups[2].Value, [Globalization.CultureInfo]::InvariantCulture)
+                $over = [double]::Parse($match.Groups[3].Value, [Globalization.CultureInfo]::InvariantCulture)
+                $ok = $share -ge $viewMatch -and $over -le $viewOverSky -and $front -le $viewInFront
+                Write-Output ('{0}  {1}: match {2} % (at least {3}), rays in front {6} % (at most {7}), rays over sky {4} % (at most {5})' -f ($(if ($ok) { 'PASS' } else { 'FAIL' })), $head.Groups[1].Value, $share, $viewMatch, $over, $viewOverSky, $front, $viewInFront)
                 if (-not $ok) { $failed++ }
             }
             $run = Get-ChildItem (Join-Path $kspRoot 'ReDefinitionCaptures') -Directory -Filter '*-run' | Sort-Object LastWriteTime | Select-Object -Last 1

@@ -22,6 +22,8 @@ namespace ReDefinition.Raytracing
         // RtNative.Instance* flags: InstanceTerrain for the ground, which Parallax displaces off its mesh,
         // InstanceScenery for the space centre's buildings.
         public uint Flags;
+        // The renderer the item was read from, for the parity report to say whether Unity draws it; null where there is none.
+        public Renderer Source;
     }
 
     // Where the rays' scene comes from: KSP's parts, terrain and buildings in the
@@ -286,6 +288,15 @@ namespace ReDefinition.Raytracing
             return id >= 0 && id < Sent.Count && (Sent[id].Flags & RtNative.InstanceTerrain) != 0;
         }
 
+        // How Unity treats the renderer an item was read from. Where the rays see a surface the picture does not
+        // show, the report says whether the renderer is on, active, its layer, and whether a camera saw it.
+        private static string Drawing(Renderer renderer)
+        {
+            if (renderer == null) return "";
+            return " [renderer " + (renderer.enabled ? "on" : "off") + ", " + (renderer.gameObject.activeInHierarchy ? "active" : "inactive")
+                   + ", layer " + renderer.gameObject.layer + ", " + (renderer.isVisible ? "seen" : "not seen") + "]";
+        }
+
         // What the rays' instance of that id is, for a report.
         internal string Describe(int id)
         {
@@ -293,7 +304,7 @@ namespace ReDefinition.Raytracing
             {
                 RtItem item = Sent[id];
                 return "#" + id + " " + (item.Mesh != null ? item.Mesh.name : "-") + " / " + Name(item.Material)
-                       + ((item.Flags & RtNative.InstanceTerrain) != 0 ? " (ground)" : "");
+                       + ((item.Flags & RtNative.InstanceTerrain) != 0 ? " (ground)" : "") + Drawing(item.Source);
             }
             int gpu = id - Sent.Count;
             for (int g = 0; g < GpuItems.Count; g++)
