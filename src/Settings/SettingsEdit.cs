@@ -392,14 +392,32 @@ namespace ReDefinition.Settings
 
         // Whether one row holds something other than what it was read with --
         // changed by hand, by a profile or by the reset.
+        // Every row's mark asks it in every frame, so each answer is kept until Version moves, which every
+        // change to `pending` and to `opened` brings.
         public bool Changed(string key)
         {
+            if (changedVersion != Version)
+            {
+                changedKnown.Clear();
+                changedVersion = Version;
+            }
+            bool known;
+            if (changedKnown.TryGetValue(key, out known)) return known;
             string value;
-            if (!pending.TryGetValue(key, out value)) return false;
-            string before;
-            opened.TryGetValue(key, out before);
-            return !SettingValues.Same(value, before);
+            bool changed = false;
+            if (pending.TryGetValue(key, out value))
+            {
+                string before;
+                opened.TryGetValue(key, out before);
+                changed = !SettingValues.Same(value, before);
+            }
+            changedKnown[key] = changed;
+            return changed;
         }
+
+        // The answers Changed gave since Version last moved, and the Version they belong to.
+        private readonly Dictionary<string, bool> changedKnown = new Dictionary<string, bool>();
+        private int changedVersion = -1;
 
         // Whether a row holds something other than what it was read with.
         public bool RowsPending()

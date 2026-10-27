@@ -236,6 +236,37 @@ namespace ReDefinition.Tests
             Assert.AreEqual("True", steps[0].Value);
         }
 
+        // Changed keeps its answers until the rows change; every way a row's value or the value it was read with
+        // moves -- a change, a sync, a read again, opening anew -- gives the new answer at once.
+        [TestMethod]
+        public void ChangedFollowsEveryWayARowMoves()
+        {
+            BundledSetting row = Setting("ksp.x");
+            SettingsEdit edit = Opened(Row(row.Key, "1"));
+            Assert.IsFalse(edit.Changed(row.Key));
+            Assert.IsFalse(edit.Changed(row.Key));
+
+            edit.Change(row.Key, "2");
+            Assert.IsTrue(edit.Changed(row.Key));
+            edit.Change(row.Key, "1");
+            Assert.IsFalse(edit.Changed(row.Key));
+
+            edit.Change(row.Key, "2");
+            Assert.IsTrue(edit.Changed(row.Key));
+            edit.Reread(row.Key, "2");
+            Assert.IsFalse(edit.Changed(row.Key));
+
+            edit.Change(row.Key, "3");
+            Assert.IsTrue(edit.Changed(row.Key));
+            edit.Sync(row.Key, "3");
+            Assert.IsFalse(edit.Changed(row.Key));
+            edit.Change(row.Key, "4");
+            Assert.IsTrue(edit.Changed(row.Key));
+            edit.Open(true, "", new[] { Row(row.Key, "3") });
+            Assert.IsFalse(edit.Changed(row.Key));
+            Assert.IsFalse(edit.Changed("unknown"));
+        }
+
         // Apply's steps follow where each row's value came from. The player's change is set, a handed back row
         // released, a profile's value set where the mod holding it is not enough, and an unchanged row left out.
         [TestMethod]
