@@ -251,7 +251,7 @@ namespace ReDefinition.Core
                         }
                         break;
                     case OperandType.InlineString:
-                        string literal = Resolve(() => module.ResolveString(BitConverter.ToInt32(il, position)));
+                        string literal = ResolveLiteral(module, il, position);
                         if (strings != null && literal != null) strings.Add(literal);
                         if (text != null) text.Append(" \"").Append(literal).Append('"');
                         position += 4;
@@ -265,7 +265,7 @@ namespace ReDefinition.Core
                         // InlineField, InlineMethod, InlineType, InlineTok.
                         int token = BitConverter.ToInt32(il, position);
                         if (text != null)
-                            text.Append(' ').Append(Resolve(() => Name(module.ResolveMember(token, typeArguments, methodArguments))));
+                            text.Append(' ').Append(ResolveName(module, token, typeArguments, methodArguments));
                         position += 4;
                         break;
                 }
@@ -273,10 +273,18 @@ namespace ReDefinition.Core
             }
         }
 
-        // The name the call returns, or "?" where resolving the token throws.
-        private static string Resolve(Func<string> resolve)
+        // The string literal at the operand, or "?" where reading or resolving it throws. Called directly rather
+        // than through a lambda, whose captured variables would make the walk allocate a closure for the whole method.
+        private static string ResolveLiteral(Module module, byte[] il, int position)
         {
-            try { return resolve(); }
+            try { return module.ResolveString(BitConverter.ToInt32(il, position)); }
+            catch (Exception) { return "?"; }
+        }
+
+        // The name of the member the token stands for, or "?" where resolving it throws.
+        private static string ResolveName(Module module, int token, Type[] typeArguments, Type[] methodArguments)
+        {
+            try { return Name(module.ResolveMember(token, typeArguments, methodArguments)); }
             catch (Exception) { return "?"; }
         }
 
