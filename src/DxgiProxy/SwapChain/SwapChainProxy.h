@@ -14,6 +14,7 @@
 
 #include <FidelityFX/api/include/ffx_api.h>
 
+#include "FrameGeneration.h"
 #include "XessFg.h"
 
 #include <cstdint>
@@ -282,6 +283,38 @@ namespace redefinition
         // Present in proxy mode: frame generation's inputs taken, Unity's frame copied into the D3D12 backbuffer, and
         // the Present through whichever swapchain this is, paced as the settings ask.
         HRESULT CopyAndPresent(UINT syncInterval, UINT flags);
+        // The parts of CopyAndPresent, in its order, all under the frame generation context's lock.
+        // The cap V-Sync sets on the frames shown, for frame generation's minimum, with the refresh rate
+        // monitor started or paused as the cap needs it.
+        void UpdatePresentCapLocked(UINT syncInterval, UINT xellSync, UINT streamlineSync, bool xellFollows);
+        // This Present's frame generation prepared for whichever swapchain this is: DLSS-G's constants, tags and
+        // options under the frame index it takes, XeSS-FG's tags under the game's frame, or FSR's preparation in
+        // the command list. frameIndex and streamlineGenerating are what DLSS-G's came to.
+        void PrepareTechniqueLocked(UINT streamlineSync, UINT xellSync, uint32_t lowLatencyFrame,
+                                    uint32_t& frameIndex, bool& streamlineGenerating);
+        // The sync interval this Present goes out with: the game's, as XeLL and DLSS-G clamp it while they run, and
+        // 1 for FSR paced by VSync. Said once in the log where one of them changes it.
+        UINT ChooseSyncIntervalLocked(UINT syncInterval, bool xell, UINT xellSync, bool streamlineGenerating,
+                                      UINT streamlineSync, bool pacedByVSync);
+        // What a Present left to read: its result, DLSS-G's state after it and XeSS-FG's frames presented.
+        struct PresentReadings
+        {
+            HRESULT hr = S_OK;
+            FrameGeneration::StreamlinePresent streamline;
+            uint32_t xessPresented = 0;
+        };
+        // The latency markers around the Present itself, the Present timed, and what the frame generation
+        // reports after it.
+        PresentReadings PresentAndReadLocked(UINT effectiveSync, UINT presentFlags, uint32_t frameIndex,
+                                             uint32_t lowLatencyFrame);
+        // After the Present, outside the lock: DLSS-G's fence for this slot's inputs kept, D3D11's wait for the
+        // copy signalled, and the frame ended.
+        void SignalInputsDone(UINT slot, bool streamlineGenerating,
+                              const FrameGeneration::StreamlinePresent& streamlinePresent);
+        // Present and Present1 alike: a test only asks, measuring mode hands the call to the real swapchain,
+        // otherwise the frame is copied and presented. realPresent is the real swapchain's call.
+        template <typename RealPresent>
+        HRESULT PresentThrough(UINT syncInterval, UINT flags, RealPresent realPresent);
 
         // DXGI_PRESENT_TEST: the swapchain's state asked of DXGI -- occluded or
         // not -- with nothing presented: of the native swapchain behind
