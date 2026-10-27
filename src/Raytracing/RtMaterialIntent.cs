@@ -22,8 +22,7 @@ namespace ReDefinition.Raytracing
         // For the legacy families, what the G-buffer's smoothness is divided by for the gloss.
         public float GlossDivisor;
         // The gloss where no G-buffer gives it. For the ground it says whether the ground is drawn as Parallax's
-        // terrain already (Scenery/KscGround). The raytracing then does not lift or shade it to the terrain's look
-        // (RtCommon.hlsli, MeadowShade, LawnOcclusion). The ground's shine does not use the gloss.
+        // terrain already (Scenery/KscGround). The ground's shine does not use the gloss.
         public float GlossMean;
 
         // The power of _Shininess in the divisor that gives the gloss back from Deferred's smoothness. KSP's legacy

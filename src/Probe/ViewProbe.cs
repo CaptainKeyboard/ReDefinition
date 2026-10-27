@@ -175,6 +175,12 @@ namespace ReDefinition.Probe
                     yield return new WaitForSecondsRealtime(4f);
                     yield return new WaitForEndOfFrame();
                     string name = shot + "-v" + i + "-" + mode + suffix + ".png";
+                    // -redefinitionProbeParity: the primary check for this pose, its report in the log under the pose's name.
+                    if (mode != Raytracing.RaytracingMode.Off && CommandLine.Has("-redefinitionProbeParity") && Raytracing.RtCamera.Current != null)
+                    {
+                        Raytracing.RtCamera.Current.ParityNow(shot + "-v" + i);
+                        yield return new WaitForSecondsRealtime(1.5f);
+                    }
                     // -redefinitionProbeViewTimings: the raytracing passes' GPU time and the frame time, each averaged
                     // over 6 s at the pose.
                     if (CommandLine.Has("-redefinitionProbeViewTimings"))

@@ -328,12 +328,10 @@ Shader "Hidden/ReDefinition/RtCapture"
     // g the meadow's shade; a the occlusion, below a half where the raytracing found no surface.
     sampler2D _ReDefinitionRtSurfaceMode;
 
-    // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn as bright as the
-    // terrain beside it (RtCommon.hlsli, MeadowShade, in the surface mode's y). These are multiplied into the
-    // G-buffer's albedo, a distant meadow's darker colour, for the sun's light and the sky's alike. The
-    // lawn's occlusion as the terrain's (RtCommon.hlsli, LawnOcclusion, in w) goes into the G-buffer's. The
-    // result is 1 where the raytracing found no surface. It holds half the factors, which pass 16 blends in
-    // twice, up to 2.
+    // The terrain past Parallax's grass in a meadow's shade (RtCommon.hlsli, MeadowShade, in the surface mode's y).
+    // It is multiplied into the G-buffer's albedo, a distant meadow's darker colour, for the sun's light and the
+    // sky's alike. The result is 1 where the raytracing found no surface. It holds half the factors, which pass 16
+    // blends in twice, up to 2.
     half4 fragMeadow(v2fQuad i) : SV_Target
     {
         float4 found = tex2D(_ReDefinitionRtSurfaceMode, i.screen.xy / i.screen.w);
@@ -529,8 +527,7 @@ Shader "Hidden/ReDefinition/RtCapture"
             #pragma vertex vert
             #pragma fragment fragShadowFade
             ENDCG }
-        // Pass 16: the meadow's shade into the G-buffer's albedo, the lawn's occlusion into its alpha:
-        // each times twice the output, so that the factor may lift the albedo too (the space centre's lawn).
+        // Pass 16: the meadow's shade into the G-buffer's albedo, times twice the output.
         Pass {
             Blend DstColor SrcColor
             ColorMask RGBA

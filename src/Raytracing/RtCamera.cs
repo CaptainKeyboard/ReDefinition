@@ -76,6 +76,8 @@ namespace ReDefinition.Raytracing
         private float parityAt;
         private bool parityAsked;
         private bool parityPending;
+        // The name of the pose a report was asked for (ParityNow), logged before the report.
+        private string parityLabel;
         private uint parityFlag;
         // -redefinitionProbeCloudShadow: the sun's visibility is the cloud layer's transmittance
         // alone, to compare with EVE's own cloud shadow (the probe's shadow mask dump).
@@ -1630,6 +1632,13 @@ namespace ReDefinition.Raytracing
             }
         }
 
+        // The primary check at the next frame, for the pose `label` (the views probe): the report follows in the log.
+        internal void ParityNow(string label)
+        {
+            parityLabel = label;
+            parityAt = float.NegativeInfinity;
+        }
+
         // The primary check's output read back (-redefinitionProbeParity): the log says where the rays' scene and
         // the picture disagree, and the picture of it goes into ReDefinitionCaptures.
         private void ParityRead(AsyncGPUReadbackRequest request)
@@ -1639,6 +1648,8 @@ namespace ReDefinition.Raytracing
             int w = parity.width, h = parity.height;
             float[] data = request.GetData<float>().ToArray();
             RtParity.Result result = RtParity.Analyse(data, w, h, Scene.IsTerrain);
+            if (parityLabel != null) Debug.Log(Core.Log.Tag + " Raytracing parity of view " + parityLabel + ":");
+            parityLabel = null;
             Debug.Log(Core.Log.Tag + " " + RtParity.Report(result, Scene.Describe, 12));
             float[] rays = ReadFloats(parityRays), raster = ReadFloats(parityRaster);
             if (rays != null && raster != null)

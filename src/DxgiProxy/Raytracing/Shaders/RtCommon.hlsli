@@ -1312,22 +1312,14 @@ float3 IntendedSpecular(MaterialData material)
 }
 
 // The share of the G-buffer's shine the space centre's tarmac and concrete keep under the rays.
-// Dry, as the rays first had it, it came out darker than the picture without them, whose sky
-// reflection on it is part of its look; with all of it, it shone more than the player wanted
-// (2026-10-05, matt concrete). The player asked for a look between the two (2026-10-27).
+// Dry, they came out darker than the picture without the rays, whose sky reflection is part of
+// their look. All of it shone more than the player wanted (2026-10-05, matt concrete); the
+// player asked for a look between the two (2026-10-27).
 static const float kTarmacShine = 0.5f;
 
 // The greatest smoothness SurfaceIntent keeps from the G-buffer's own, so that a surface is
 // never a perfect mirror.
 static const float kMostSmoothness = 0.95f;
-
-// The lift of the space centre's lawn to the terrain's look (MeadowShade), 1.36 with the
-// terrain's occlusion (LawnOcclusion). The lawn is darker as drawn (albedo 0.30 against the
-// terrain's 0.39 beside it), and as bright only with the rough shine Deferred gives it, which
-// it does not keep under the rays (RT_SURFACE_GROUND). Its picture is 1.01 of the terrain's
-// at the same distance from the vessel by day and 1.03 in the evening. Its outer edge at the
-// launch pad: 1.09 and 1.06 (medians of eleven views from 150 m to 4 km, 2026-10-25).
-static const float kLawnLift = 1.36f;
 
 // The share of a pixel of the space centre's ground that is its lawn, by its drawn colour.
 // Its tarmac and concrete are grey (a saturation under 0.10 at the launch pad, 2026-10-19).
@@ -1340,29 +1332,14 @@ float LawnShare(float3 drawn)
     return smoothstep(0.15f, 0.30f, saturation) * step(drawn.r, drawn.g);
 }
 
-// The space centre's lawn's occlusion as the terrain's beside it. The G-buffer holds 0.85 for
-// Parallax's terrain and 0.99 for the lawn (the launch pad and the space centre's lawns from
-// 150 m to 4 km, 2026-10-25). The raytraced diffuse light is multiplied by it
-// (ReDefinitionDeferredReflections.shader).
-// With the albedo lifted alike (kLawnLift), the lawn took 10 to 37 % more light than the terrain under the
-// same sun, and its outer edge at the launch pad, with less grass about it than its middle, stood out
-// brighter.
-static const float kLawnOcclusion = 0.86f;
-
-// The occlusion the lawn's share of a pixel takes (kLawnOcclusion), 1 for none of it.
-float LawnOcclusion(float3 drawn)
-{
-    return lerp(1.0f, kLawnOcclusion, LawnShare(drawn));
-}
-
 // The light a meadow's own blades keep from the ground they stand on, for the terrain where
-// Parallax no longer draws them, or the lawn's lift, at a pixel's drawn colour. It is 1
+// Parallax no longer draws them, at a pixel's drawn colour. It is 1
 // nearer than the grass's range, and from the range on the meadow's shade
 // (shadowFadeScale.w), faded in over its last fifth as the grass fades out, and so to the
 // horizon. It is 1 where Parallax draws no grass. `lawn`: the space centre's lawn, where it
 // shines as the terrain (SurfaceIntent), told from its tarmac and concrete by its drawn
-// colour (LawnShare). `lift`: the share of kLawnLift the lawn takes.
-float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 1.0f)
+// colour (LawnShare).
+float MeadowShade(uint2 pixel, float3 position, bool lawn = false)
 {
     if (!HAS_GBUFFER)
         return 1.0f;
@@ -1392,16 +1369,11 @@ float MeadowShade(uint2 pixel, float3 position, bool lawn = false, float lift = 
     float beyondCamera = range > 0.0f ? smoothstep(range * 0.8f, range, length(position)) : 1.0f;
     float beyondVessel = vesselRange > 0.0f ? smoothstep(vesselRange * 0.8f, vesselRange, distance(position, meadowVessel.xyz)) : 1.0f;
     beyond = (range > 0.0f && vesselRange > 0.0f) ? max(beyondCamera, beyondVessel) : min(beyondCamera, beyondVessel);
-    // The lawn: as bright as the terrain (kLawnLift), and past the grass in the meadow's shade as the terrain.
-    // Where Parallax draws its grass, lifted onto the lawn (Scenery/KscGrass.cs), the grass in
-    // the rays shades it itself. Past it, the lawn takes the meadow's shade as the terrain
-    // beside it, as the space centre's lawns away from the launch pad, which stood brighter
-    // than the terrain round them without it (2026-10-25). The lift holds wherever Parallax's
-    // grass is drawn or not.
+    // The lawn past the grass takes the meadow's shade as the terrain beside it. Where Parallax draws its grass,
+    // lifted onto the lawn (Scenery/KscGrass.cs), the grass in the rays shades it itself.
     if (lawn && !everyGreen)
     {
-        float share = LawnShare(drawn);
-        return lerp(1.0f, kLawnLift, share * lift) * (none ? 1.0f : lerp(1.0f, shade, beyond * share));
+        return none ? 1.0f : lerp(1.0f, shade, beyond * LawnShare(drawn));
     }
     if (none)
         return 1.0f;
@@ -1432,7 +1404,7 @@ bool IsBlade(Hit hit)
 // materials give fixed values, or the G-buffer's own, never a perfect mirror
 // (kMostSmoothness). `region`: what the camera's ray met (RT_REGION_*), for the probe's
 // surface images.
-float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn, out float lift,
+float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode, out bool terrain, out bool lawn,
                      out uint region)
 {
     // Deferred's G-buffer gives every KSP shader a shine by one formula (LegacyToStandard.cginc),
@@ -1441,7 +1413,6 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     float4 g1 = gbuffer1[pixel];
     terrain = false;
     lawn = false;
-    lift = 0.0f;
     region = RT_REGION_OTHER;
     // KSP's sea keeps the G-buffer's, which the water's reflections replace.
     if (IsStockWater(position, normal))
@@ -1482,9 +1453,6 @@ float4 SurfaceIntent(uint2 pixel, float3 position, float3 normal, out uint mode,
     // terrain (its material's specular colour, RtMaterialIntent.Ground).
     float3 groundShine = near && hitMode == RT_SURFACE_GROUND ? materialData[hit.material].specular : 0.0f;
     lawn = max(groundShine.r, max(groundShine.g, groundShine.b)) > 0.0f;
-    // Drawn as the terrain already (Scenery/KscGround; RtMaterialIntent.Ground): neither lifted nor its occlusion
-    // taken to the terrain's.
-    lift = lawn && materialData[hit.material].vertexColour.w < 0.5f ? 1.0f : 0.0f;
     region = !hit.found ? (behind ? RT_REGION_OTHER_MISSED : RT_REGION_NOTHING)
              : near ? (behind ? RT_REGION_BEHIND_BLADE : (hit.flags & RT_INSTANCE_TERRAIN) != 0u ? RT_REGION_TERRAIN
                        : hitMode == RT_SURFACE_GROUND ? RT_REGION_GROUND : IsBlade(hit) ? RT_REGION_BLADE : RT_REGION_OTHER)
