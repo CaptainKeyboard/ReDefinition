@@ -57,9 +57,9 @@ namespace redefinition
         cache.update = false;
         const bool traced = (packet.signals & (kRtSignalDiffuse | kRtSignalSpecular)) != 0;
         bool built = true;
-        for (const char* name : { "RT_CacheResolve", "RT_CacheClear", "RT_CacheBegin", "RT_DiffuseLightCached",
-                                  "RT_SpecularLightCached" })
-            built = built && denoisePipelines.count(name) != 0;
+        for (const RtAux pass : { RtAux::CacheResolve, RtAux::CacheClear, RtAux::CacheBegin, RtAux::DiffuseLightCached,
+                                  RtAux::SpecularLightCached })
+            built = built && AuxPipeline(pass) != nullptr;
         if (!config.rtRadianceCache || !built || !traced)
         {
             // Turned off, or raytracing without the indirect light: its memory goes, once
@@ -172,8 +172,9 @@ namespace redefinition
     {
         if (!cache.active || (signal != kRtSignalDiffuse && signal != kRtSignalSpecular))
             return plain;
-        auto found = denoisePipelines.find(signal == kRtSignalDiffuse ? "RT_DiffuseLightCached" : "RT_SpecularLightCached");
-        return found != denoisePipelines.end() ? found->second.Get() : plain;
+        ID3D12PipelineState* cached =
+            AuxPipeline(signal == kRtSignalDiffuse ? RtAux::DiffuseLightCached : RtAux::SpecularLightCached);
+        return cached != nullptr ? cached : plain;
     }
 
     void Raytracing::BindRadianceCacheLocked()
@@ -201,7 +202,7 @@ namespace redefinition
         const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
         list->ResourceBarrier(1, &written);
         const uint32_t entries = 1u << cache.log2Entries;
-        list->SetPipelineState(denoisePipelines[clearing ? "RT_CacheClear" : "RT_CacheBegin"].Get());
+        list->SetPipelineState(AuxPipeline(clearing ? RtAux::CacheClear : RtAux::CacheBegin));
         list->Dispatch(clearing ? (entries + 255) / 256 : 1, 1, 1);
         list->ResourceBarrier(1, &written);
         cache.clear = false;
@@ -214,7 +215,7 @@ namespace redefinition
         const D3D12_RESOURCE_BARRIER written = UavBarrier(nullptr);
         list->ResourceBarrier(1, &written);
         const uint32_t entries = 1u << cache.log2Entries;
-        list->SetPipelineState(denoisePipelines["RT_CacheResolve"].Get());
+        list->SetPipelineState(AuxPipeline(RtAux::CacheResolve));
         list->Dispatch((entries + 255) / 256, 1, 1);
         // The frame's counts into the slot's place in the readback buffer.
         D3D12_RESOURCE_BARRIER toCopy[2] = { written, TransitionBarrier(cache.meta.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,

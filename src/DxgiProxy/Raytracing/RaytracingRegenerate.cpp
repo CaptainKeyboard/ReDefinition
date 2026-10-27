@@ -149,9 +149,9 @@ namespace redefinition
                                            Shared* motionInput, Slot& slot)
     {
         Regeneration& r = regeneration;
-        auto guidePass = denoisePipelines.find("RT_RegenerationGuides");
-        auto albedo = denoisePipelines.find("RT_RegenerationAlbedo");
-        if (guidePass == denoisePipelines.end() || albedo == denoisePipelines.end())
+        ID3D12PipelineState* guidePass = AuxPipeline(RtAux::RegenerationGuides);
+        ID3D12PipelineState* albedo = AuxPipeline(RtAux::RegenerationAlbedo);
+        if (guidePass == nullptr || albedo == nullptr)
             return false;
 
         // The guides at this size.
@@ -187,15 +187,15 @@ namespace redefinition
         const bool depthBefore = !made && !r.reset && r.hadFrame && packet.frameIndex == r.lastFrame + 1;
         const uint32_t values[4] = { (motion ? 2u : 0u) | (depthBefore ? 4u : 0u), 0u, 0u, 0u };
         list->SetComputeRoot32BitConstants(9, 4, values, 0);
-        for (DenoiseTarget* target : { &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo })
-            UseLocked(*target, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        UseLocked({ &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo },
+                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         UseLocked(r.linearDepthBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         {
             UINT used = kRegenerationGuidesTable;
             const View reads[8] = { Of(&r.linearDepthBefore) };
             const View writes[4] = { Of(&r.linearDepth), Of(&r.motion), Of(&r.normals), Of(&r.specularAlbedo) };
             BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
-            list->SetPipelineState(guidePass->second.Get());
+            list->SetPipelineState(guidePass);
             list->Dispatch(groupsX, groupsY, 1);
         }
         {
@@ -203,11 +203,11 @@ namespace redefinition
             const View reads[8] = {};
             const View writes[4] = { Of(&r.diffuseAlbedo) };
             BindTablesLocked(TableLocked(slotNumber, used, reads, writes));
-            list->SetPipelineState(albedo->second.Get());
+            list->SetPipelineState(albedo);
             list->Dispatch(groupsX, groupsY, 1);
         }
-        for (DenoiseTarget* target : { &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo })
-            UseLocked(*target, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        UseLocked({ &r.linearDepth, &r.motion, &r.normals, &r.specularAlbedo, &r.diffuseAlbedo },
+                  D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         // The noisy signals the passes wrote to be read, Unity's outputs, in UAV state
         // through the frame, to be written; AMD's denoiser leaves each in the state it

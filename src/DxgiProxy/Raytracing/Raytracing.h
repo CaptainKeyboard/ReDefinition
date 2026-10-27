@@ -14,11 +14,13 @@
 
 #include <FidelityFX/api/include/ffx_api_loader.h>
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <initializer_list>
 #include <map>
 #include <mutex>
 #include <string>
@@ -308,6 +310,32 @@ namespace redefinition
     constexpr uint32_t kRtPassTimings = 8;
     constexpr uint32_t kRtPassDenoiser = 6;
     constexpr uint32_t kRtPassCache = 5;
+
+    // The compute passes besides the signals' own, in the order of kRtDenoiseEntries
+    // (RaytracingInternal.h, which checks the count). They are the denoiser's steps, the
+    // guides for the reconstructions and the GPU's instances. Then come the radiance
+    // cache's passes and the diffuse light's and the reflections' passes that read it.
+    enum class RtAux : uint32_t
+    {
+        // The passes of kRtDenoiseEntries, in its order, and how many there are.
+        DenoisePrepare,
+        DenoiseTemporal,
+        DenoiseVariance,
+        DenoiseAtrous,
+        ReconstructGuides,
+        FrameGuides,
+        GpuInstances,
+        RegenerationGuides,
+        RegenerationAlbedo,
+        CacheClear,
+        CacheBegin,
+        CacheResolve,
+        DiffuseLightCached,
+        SpecularLightCached,
+        Count
+    };
+    // How many passes RtAux names.
+    constexpr size_t kRtAuxCount = static_cast<size_t>(RtAux::Count);
 
     // Event 30: a frame. Matrices rows first, for column vectors: clip = worldToClip *
     // (camera-relative position, 1). Clip y is +1 at the texture's first row, as
@@ -902,6 +930,8 @@ namespace redefinition
             Microsoft::WRL::ComPtr<ID3D12Resource> materials;
             UINT instanceCapacity = 0;
             UINT materialCapacity = 0;
+            // The materialVersion the materials buffer holds the table of; 0 where it holds none.
+            uint64_t materialsVersion = 0;
             // With instances from the GPU: all instances in default buffers the GPU
             // completes, and the groups for its pass.
             Microsoft::WRL::ComPtr<ID3D12Resource> sceneDescs;
@@ -967,8 +997,19 @@ namespace redefinition
         bool TakeTexturesLocked(FrameWork& frame);
         // The next slot, its list reset, the first timestamp.
         bool BeginListLocked(FrameWork& frame);
+        // The next slot, for the frame's list and for Ray Reconstruction's. It is taken once
+        // the GPU is past its last list, what it held is let go of and its list reset. Null
+        // where the list could not be reset, with the reason in the status.
+        Slot* BeginSlotLocked(UINT& slotNumber);
+        // Direct3D 11: the inputs copied into their shared copies once the queue is past
+        // usedUntil, and the queue made to wait for the copies; sources[i] is what copies[i]
+        // takes. The profiler's markers after the wait and after the copies are given.
+        void CopyInputsLocked(UINT64 usedUntil, Shared* const* copies, void* const* sources, size_t count, int waitMarker,
+                              int copiedMarker);
         // The released meshes retired, the pending ones built; how many were built.
         uint32_t BuildMeshesLocked(Slot& slot);
+        // The pools and arenas the structures and the micromap arrays are built in, set up once.
+        void SetUpBuildMemoryLocked();
         // The material textures' array grown to the highest pending layer and the pending
         // layers copied in; false only where the array could not be made.
         bool UploadMaterialTexturesLocked(Slot& slot);
@@ -1033,6 +1074,14 @@ namespace redefinition
         // The passes' compiled shaders from the proxy's own resources (RCDATA), once; false
         // where one is missing.
         bool LoadShadersLocked();
+        // The pipeline of a pass besides the signals' own; null where it was not made.
+        ID3D12PipelineState* AuxPipeline(RtAux pass) const { return denoisePipelines[static_cast<size_t>(pass)].Get(); }
+        // Every such pipeline let go of.
+        void ResetAuxPipelines()
+        {
+            for (Microsoft::WRL::ComPtr<ID3D12PipelineState>& each : denoisePipelines)
+                each.Reset();
+        }
         // The root signature and a pipeline per pass and per entry of kRtDenoiseEntries, made
         // with opacity micromaps' support where they are wanted and the driver has them.
         bool BuildPipelinesLocked();
@@ -1150,14 +1199,35 @@ namespace redefinition
         // that name them.
         void FlushOmmArraysLocked(BuildFrame& frame);
 
-        // Whether a material's texture cuts its surface out.
-        bool IsCutoutLocked(int32_t material) const;
+        // A material as the frame's instances name it: its index among the frame's materials
+        // (0 the grey of an unknown one) and whether its texture cuts its surface out.
+        struct MaterialEntry
+        {
+            // The index, and whether the material is cut out.
+            uint32_t index = 0;
+            bool cutout = false;
+        };
+        // The material's entry in the table (UpdateMaterialTableLocked); the grey one's where
+        // the material is unknown.
+        MaterialEntry MaterialEntryLocked(int32_t material) const;
         // The scene's top-level structure for a frame: its instances (or the newest scene's)
         // with built meshes, its materials, the GPU's instances after them; how many instances.
         bool BuildSceneLocked(Slot& slot, UINT slotNumber, uint32_t frameIndex, Shared* gpuInstances, UINT& instanceCount);
+        // BuildSceneLocked's steps. The slot's upload buffers with room for the frame's instances
+        // and for the materials' table.
+        bool PrepareSceneBuffersLocked(Slot& slot, const std::vector<RtInstance>& instances);
+        // The instances with built meshes written into the slot's upload buffers; how many.
+        bool WriteSceneInstancesLocked(Slot& slot, const std::vector<RtInstance>& instances, UINT& instanceCount);
+        // The materials' table written into the slot's buffer, once for each version of it.
+        void WriteMaterialsLocked(Slot& slot);
+        // The scene's top-level structure built over the instance descriptions at the address.
+        bool BuildTlasLocked(Slot& slot, D3D12_GPU_VIRTUAL_ADDRESS descsAddress, UINT instanceCount);
         // The GPU's instances after the CPU's in the slot's scene buffers.
         bool AddGpuInstancesLocked(Slot& slot, UINT slotNumber, Shared* gpuInstances, const std::vector<RtGpuInstanceGroup>& given,
-                                   const std::unordered_map<int32_t, uint32_t>& materialIndex, UINT cpuCount, UINT& total);
+                                   UINT cpuCount, UINT& total);
+        // The materials' table (materialList, materialLookup) made anew where materialVersion
+        // moved since it was made.
+        void UpdateMaterialTableLocked();
         // A new upload buffer of that size in GENERIC_READ, in place of the one given.
         bool EnsureUploadBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size);
         // The material textures' view in the slot's place of the heap.
@@ -1178,6 +1248,10 @@ namespace redefinition
         // A texture of the service's own into the state wanted, with a barrier; a UAV barrier
         // where it is already writable, so that one dispatch's writes come before the next's.
         void UseLocked(DenoiseTarget& target, D3D12_RESOURCE_STATES wanted);
+        // The same for up to 16 different textures, each into its own state or all into one,
+        // their barriers in one call.
+        void UseLocked(std::initializer_list<std::pair<DenoiseTarget*, D3D12_RESOURCE_STATES>> targets);
+        void UseLocked(std::initializer_list<DenoiseTarget*> targets, D3D12_RESOURCE_STATES wanted);
         // Views for one dispatch of the passes in space 3: eight to read, four to write.
         // Returns the table's start on the GPU; the writes follow the reads.
         D3D12_GPU_DESCRIPTOR_HANDLE TableLocked(UINT slotNumber, UINT& used, const View (&reads)[8],
@@ -1200,6 +1274,27 @@ namespace redefinition
         void ReleaseRegenerationLocked();
         // The guides at this size, the ones before held by the slot until it is done.
         bool EnsureGuidesLocked(std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>>& held, UINT width, UINT height);
+        // The textures of a Ray Reconstruction frame (RaytracingReconstruct.cpp), as the
+        // evaluations below take them: the shared copies of its colour, depth, motion vectors
+        // and output, and the render size.
+        struct ReconstructFrame
+        {
+            // The packet, the four shared copies, and the render size in pixels.
+            const RtReconstructPacket* packet = nullptr;
+            Shared* colour = nullptr;
+            Shared* depth = nullptr;
+            Shared* motion = nullptr;
+            Shared* output = nullptr;
+            UINT width = 0;
+            UINT height = 0;
+        };
+        // The frame evaluated through NGX or through Streamline, recorded into the list, the
+        // shared copies going back to COMMON with `back`; whether it was evaluated. NGX's
+        // reason, where it was not, goes into notEvaluated.
+        bool EvaluateReconstructNgxLocked(const ReconstructFrame& frame, std::vector<D3D12_RESOURCE_BARRIER>& back,
+                                          std::string& notEvaluated);
+        // The same through Streamline's sl.dlss_d.
+        bool EvaluateReconstructStreamlineLocked(const ReconstructFrame& frame, std::vector<D3D12_RESOURCE_BARRIER>& back);
         // A new buffer in GPU memory of that size, state and flags, in place of the one given.
         bool EnsureDefaultBuffer(Microsoft::WRL::ComPtr<ID3D12Resource>& buffer, UINT64 size,
                                  D3D12_RESOURCE_STATES state, D3D12_RESOURCE_FLAGS flags);
@@ -1239,7 +1334,8 @@ namespace redefinition
         std::map<std::string, std::vector<uint8_t>> shaders;
         Microsoft::WRL::ComPtr<ID3D12RootSignature> rootSignature;
         std::map<uint32_t, Microsoft::WRL::ComPtr<ID3D12PipelineState>> pipelines;
-        std::map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> denoisePipelines;
+        // The passes besides the signals' own, by RtAux; null for one that was not made.
+        std::array<Microsoft::WRL::ComPtr<ID3D12PipelineState>, kRtAuxCount> denoisePipelines;
         DenoiseTargets denoise;
         GuideTargets guides;
         Regeneration regeneration;
@@ -1250,7 +1346,8 @@ namespace redefinition
         UINT increment = 0;
         std::vector<uint32_t> freeSlots;
         // Descriptor slots of meshes gone, free again once the queue is past the value.
-        std::vector<std::pair<uint32_t, UINT64>> retiredSlots;
+        // Oldest first: they are retired with the next fence value each time.
+        std::deque<std::pair<uint32_t, UINT64>> retiredSlots;
 
         Microsoft::WRL::ComPtr<ID3D12Fence> copied12;
         Microsoft::WRL::ComPtr<ID3D11Fence> copied11;
@@ -1286,6 +1383,13 @@ namespace redefinition
         std::unordered_map<int32_t, PendingMesh> pendingMeshes;
         std::vector<int32_t> pendingReleases;
         std::unordered_map<int32_t, MaterialData> materialData;
+        // Counted up whenever materialData changes (TakeHandOverLocked, ReleaseLocked); the
+        // table made from it: the materials in the order the shaders index them, the grey
+        // one first, and each material's entry by its id; the version it was made for.
+        uint64_t materialVersion = 1;
+        std::vector<MaterialData> materialList;
+        std::unordered_map<int32_t, MaterialEntry> materialLookup;
+        uint64_t materialTableVersion = 0;
         // A frame's instances and GPU instance groups, as SetInstances and SetGpuGroups hand
         // them over.
         struct FrameScene
@@ -1298,9 +1402,13 @@ namespace redefinition
             // from a scene before it that had them set.
             bool instancesSet = false;
             bool groupsSet = false;
+            // In frameScenes: a number no other scene has had, given each time the hand-over
+            // touched it, to tell scenes that changed from those that did not.
+            uint64_t revision = 0;
         };
-        // The last few frames' scenes, newest last.
+        // The last few frames' scenes, newest last; the last revision given.
         std::deque<FrameScene> frameScenes;
+        uint64_t sceneRevision = 0;
 
         // What the main thread hands over (SetMesh, ReleaseMesh, SetMaterial,
         // ReleaseMaterial, SetInstances, SetGpuGroups, SetMaterialTexture), written under
@@ -1394,6 +1502,20 @@ namespace redefinition
             std::unordered_map<uint32_t, ClusterBlasSize> clusterBlasSizes;
             uint32_t nextSerial = 1;
             bool setUp = false;
+            // The arrays QueueClustersLocked numbers a mesh's cluster vertices with, kept to be
+            // reused. They hold each cluster's first vertex, the vertices in the order they come
+            // in and the 8-bit indices. Per vertex they hold its last cluster and its number there.
+            struct ClusterScratch
+            {
+                // The five arrays, in the order the comment above names them.
+                std::vector<uint32_t> firstVertex;
+                std::vector<uint32_t> vertices;
+                std::vector<uint8_t> localIndices;
+                std::vector<uint32_t> seenIn;
+                std::vector<uint8_t> localOf;
+            };
+            // The arrays in use.
+            ClusterScratch clusterScratch;
             // All of it let go of with the device's objects (ReleaseLocked).
             void Reset();
         };
@@ -1440,6 +1562,9 @@ namespace redefinition
             // (OmmCollectCutoutMeshesLocked).
             std::unordered_map<int32_t, Source> sources;
             std::unordered_set<int32_t> cutoutMeshes;
+            // What cutoutMeshes was made from: materialVersion, then the revision of each
+            // scene held, in order. Made again only where these differ.
+            std::vector<uint64_t> collectedFrom;
             // A set: a baked mesh's micromaps, shared by the meshes with the same texture
             // coordinates and texture.
             struct Set

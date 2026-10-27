@@ -106,6 +106,7 @@ namespace redefinition
         alpha.clear();
         sources.clear();
         cutoutMeshes.clear();
+        collectedFrom.clear();
         sets.clear();
         byKey.clear();
         nextSet = 1;
@@ -177,7 +178,7 @@ namespace redefinition
         {
             WaitForAllLocked();
             pipelines.clear();
-            denoisePipelines.clear();
+            ResetAuxPipelines();
             rootSignature.Reset();
             if (!BuildPipelinesLocked())
             {
@@ -186,7 +187,7 @@ namespace redefinition
                 omm.caps = 0;
                 omm.capsWhy = "the passes' pipelines could not be made with micromap support";
                 pipelines.clear();
-                denoisePipelines.clear();
+                ResetAuxPipelines();
                 rootSignature.Reset();
                 BuildPipelinesLocked();
             }
@@ -227,11 +228,21 @@ namespace redefinition
 
     void Raytracing::OmmCollectCutoutMeshesLocked()
     {
+        // The scenes and the materials as the set was last made from them: it stands as it is.
+        std::vector<uint64_t> from;
+        from.reserve(frameScenes.size() + 1);
+        from.push_back(materialVersion);
+        for (const FrameScene& scene : frameScenes)
+            from.push_back(scene.revision);
+        if (from == omm.collectedFrom)
+            return;
+        omm.collectedFrom = std::move(from);
         omm.cutoutMeshes.clear();
+        UpdateMaterialTableLocked();
         const auto maybeCutout = [&](int32_t material)
         {
-            const auto found = materialData.find(material);
-            return found == materialData.end() || found->second.albedo[3] > 0.0f;
+            const auto found = materialLookup.find(material);
+            return found == materialLookup.end() || found->second.cutout;
         };
         // Every scene held, not the newest alone: the main thread runs a frame or two ahead, and
         // a mesh handed over with a frame's instances may meet its cut-out instance in an older

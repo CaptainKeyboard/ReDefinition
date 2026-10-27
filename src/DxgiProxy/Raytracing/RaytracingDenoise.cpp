@@ -57,6 +57,47 @@ namespace redefinition
         target.state = wanted;
     }
 
+    void Raytracing::UseLocked(std::initializer_list<std::pair<DenoiseTarget*, D3D12_RESOURCE_STATES>> targets)
+    {
+        // As UseLocked for each, in one call for the list; the targets are all different.
+        D3D12_RESOURCE_BARRIER barriers[16];
+        UINT count = 0;
+        for (const auto& use : targets)
+        {
+            DenoiseTarget& target = *use.first;
+            if (target.state == use.second)
+            {
+                if (use.second == D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+                    barriers[count++] = UavBarrier(target.resource.Get());
+                continue;
+            }
+            barriers[count++] = TransitionBarrier(target.resource.Get(), target.state, use.second);
+            target.state = use.second;
+        }
+        if (count > 0)
+            list->ResourceBarrier(count, barriers);
+    }
+
+    void Raytracing::UseLocked(std::initializer_list<DenoiseTarget*> targets, D3D12_RESOURCE_STATES wanted)
+    {
+        D3D12_RESOURCE_BARRIER barriers[16];
+        UINT count = 0;
+        for (DenoiseTarget* each : targets)
+        {
+            DenoiseTarget& target = *each;
+            if (target.state == wanted)
+            {
+                if (wanted == D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+                    barriers[count++] = UavBarrier(target.resource.Get());
+                continue;
+            }
+            barriers[count++] = TransitionBarrier(target.resource.Get(), target.state, wanted);
+            target.state = wanted;
+        }
+        if (count > 0)
+            list->ResourceBarrier(count, barriers);
+    }
+
     void Raytracing::DropDenoiseTargetLocked(DenoiseTarget& target, Slot& slot)
     {
         // A texture may still be in use by lists in flight: held by the slot until it is
@@ -211,15 +252,10 @@ namespace redefinition
                                        Shared* motionInput)
     {
         static_assert(kDenoiserTables * kTableSize <= kFixedTables, "the denoiser's tables reach the fixed ones");
-        const auto pipeline = [&](const char* name) -> ID3D12PipelineState*
-        {
-            auto found = denoisePipelines.find(name);
-            return found != denoisePipelines.end() ? found->second.Get() : nullptr;
-        };
-        ID3D12PipelineState* prepare = pipeline("RT_DenoisePrepare");
-        ID3D12PipelineState* temporal = pipeline("RT_DenoiseTemporal");
-        ID3D12PipelineState* variance = pipeline("RT_DenoiseVariance");
-        ID3D12PipelineState* atrous = pipeline("RT_DenoiseAtrous");
+        ID3D12PipelineState* prepare = AuxPipeline(RtAux::DenoisePrepare);
+        ID3D12PipelineState* temporal = AuxPipeline(RtAux::DenoiseTemporal);
+        ID3D12PipelineState* variance = AuxPipeline(RtAux::DenoiseVariance);
+        ID3D12PipelineState* atrous = AuxPipeline(RtAux::DenoiseAtrous);
         if (prepare == nullptr || temporal == nullptr || variance == nullptr || atrous == nullptr)
             return;
 
@@ -256,18 +292,15 @@ namespace redefinition
         };
 
         // This frame's view distance and normal, for this frame and the next.
-        UseLocked(denoise.linearDepth[now], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-        UseLocked(denoise.normal[now], D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        UseLocked({ &denoise.linearDepth[now], &denoise.normal[now] }, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         {
             const View reads[8] = {};
             const View writes[4] = { Of(&denoise.linearDepth[now]), Of(&denoise.normal[now]) };
             constants(1, 0, 0, 0);
             dispatch(prepare, TableLocked(slotNumber, used, reads, writes));
         }
-        UseLocked(denoise.linearDepth[now], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        UseLocked(denoise.normal[now], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        UseLocked(denoise.linearDepth[before], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        UseLocked(denoise.normal[before], D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+        UseLocked({ &denoise.linearDepth[now], &denoise.normal[now], &denoise.linearDepth[before], &denoise.normal[before] },
+                  D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
         // Temporal and variance for each signal: the noisy signal and its history into the
         // work texture, the moments into this frame's; then into the history of the frame
@@ -283,11 +316,11 @@ namespace redefinition
             DenoiseTarget& moments = denoise.moments[s][now];
             DenoiseTarget& momentsBefore = denoise.moments[s][before];
 
-            UseLocked(noisy, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(historyBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(momentsBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(denoise.work, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-            UseLocked(moments, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            UseLocked({ { &noisy, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE },
+                        { &historyBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE },
+                        { &momentsBefore, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE },
+                        { &denoise.work, D3D12_RESOURCE_STATE_UNORDERED_ACCESS },
+                        { &moments, D3D12_RESOURCE_STATE_UNORDERED_ACCESS } });
             {
                 const View reads[8] = { Of(&noisy), Of(&historyBefore), Of(&momentsBefore), Of(&denoise.linearDepth[now]),
                                         Of(&denoise.normal[now]), Of(&denoise.linearDepth[before]),
@@ -302,9 +335,9 @@ namespace redefinition
                 dispatch(temporal, TableLocked(slotNumber, used, reads, writes));
             }
 
-            UseLocked(denoise.work, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(moments, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            UseLocked(historyBefore, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            UseLocked({ { &denoise.work, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE },
+                        { &moments, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE },
+                        { &historyBefore, D3D12_RESOURCE_STATE_UNORDERED_ACCESS } });
             {
                 const View reads[8] = { Of(&denoise.work), Of(&moments), View{}, Of(&denoise.linearDepth[now]),
                                         Of(&denoise.normal[now]) };

@@ -12,6 +12,35 @@
 
 namespace redefinition
 {
+    // A mesh's triangles as a build takes them: float3 positions, 32-bit indices, opaque
+    // (the passes' candidate test comes from the instance's FORCE_NON_OPAQUE).
+    inline D3D12_RAYTRACING_GEOMETRY_DESC GeometryOf(D3D12_GPU_VIRTUAL_ADDRESS positions, uint32_t vertexCount,
+                                                     D3D12_GPU_VIRTUAL_ADDRESS indices, uint32_t indexCount)
+    {
+        D3D12_RAYTRACING_GEOMETRY_DESC geometry = {};
+        geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+        geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+        geometry.Triangles.VertexBuffer.StartAddress = positions;
+        geometry.Triangles.VertexBuffer.StrideInBytes = 3 * sizeof(float);
+        geometry.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+        geometry.Triangles.VertexCount = vertexCount;
+        geometry.Triangles.IndexBuffer = indices;
+        geometry.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+        geometry.Triangles.IndexCount = indexCount;
+        return geometry;
+    }
+
+    // The inputs of a bottom-level structure of one geometry, built with the flags; the
+    // caller points pGeometryDescs at the geometry.
+    inline void BlasInputsOf(D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS& inputs,
+                             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAGS flags)
+    {
+        inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+        inputs.Flags = flags;
+        inputs.NumDescs = 1;
+        inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+    }
+
     // One frame's work on the meshes' structures. With rtBlasBatch the copies of all its
     // meshes come first. Then come one barrier for all the buffers they wrote, then every
     // build back to back, each with scratch memory of its own, and the one UAV barrier
@@ -88,6 +117,15 @@ namespace redefinition
         std::deque<Build> builds;
         UINT sizesAsked = 0;
         ID3D12Resource* sizes = nullptr;
+        // A build queued, its inputs pointing at its own copy of the geometry, where the deque
+        // holds it.
+        Build& Queue(const Build& build)
+        {
+            builds.push_back(build);
+            Build& queued = builds.back();
+            queued.desc.Inputs.pGeometryDescs = &queued.geometry;
+            return queued;
+        }
 
         // The micromap arrays to build before the structures that name them.
         struct OmmArrayBuild

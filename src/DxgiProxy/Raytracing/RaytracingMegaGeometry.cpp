@@ -99,12 +99,30 @@ namespace redefinition
         const uint32_t clusterCount = (triangles + kClusterTriangles - 1) / kClusterTriangles;
         if (clusterCount == 0 || clusterCount > (1u << 24))
             return false;
-        std::vector<uint32_t> firstVertex(clusterCount + 1, 0);
-        std::vector<uint32_t> vertices;
+        // The five working arrays are the BlasMemory's, kept from mesh to mesh; one made for a
+        // very large mesh is let go of as this returns.
+        BlasMemory::ClusterScratch& scratch = blasMemory.clusterScratch;
+        struct ScratchRelease
+        {
+            BlasMemory::ClusterScratch& scratch;
+            ~ScratchRelease()
+            {
+                constexpr size_t kKeep = 1u << 20;
+                if (scratch.seenIn.capacity() > kKeep || scratch.localIndices.capacity() > kKeep)
+                    scratch = BlasMemory::ClusterScratch{};
+            }
+        } release = { scratch };
+        std::vector<uint32_t>& firstVertex = scratch.firstVertex;
+        std::vector<uint32_t>& vertices = scratch.vertices;
+        std::vector<uint8_t>& localIndices = scratch.localIndices;
+        std::vector<uint32_t>& seenIn = scratch.seenIn;
+        std::vector<uint8_t>& localOf = scratch.localOf;
+        firstVertex.assign(clusterCount + 1, 0);
+        vertices.clear();
         vertices.reserve(pending.vertexCount + clusterCount * 16);
-        std::vector<uint8_t> localIndices(pending.indices.size());
-        std::vector<uint32_t> seenIn(pending.vertexCount, UINT32_MAX);
-        std::vector<uint8_t> localOf(pending.vertexCount, 0);
+        localIndices.assign(pending.indices.size(), 0);
+        seenIn.assign(pending.vertexCount, UINT32_MAX);
+        localOf.assign(pending.vertexCount, 0);
         for (uint32_t c = 0; c < clusterCount; ++c)
         {
             firstVertex[c] = static_cast<uint32_t>(vertices.size());
@@ -178,7 +196,7 @@ namespace redefinition
             args.vertexCount = vertexCount;
             args.indexFormat = nvmg::kIndexFormat8Bit;
             // The cluster's number within the mesh as the geometry index; opaque, as the
-            // usual structures' geometry is (RaytracingScene.cpp, GeometryOf).
+            // usual structures' geometry is (RaytracingBuildFrame.h, GeometryOf).
             args.baseGeometryIndexAndFlags = c | nvmg::kGeometryFlagOpaque;
             args.indexBuffer = address + positionsBytes + static_cast<UINT64>(c) * kClusterTriangles * 3;
             args.vertexBuffer = address + static_cast<UINT64>(firstVertex[c]) * 3 * sizeof(float);
@@ -373,21 +391,11 @@ namespace redefinition
             RetireBlasLocked(mesh.blas, slot);
             mesh.built = false;
             mesh.refine = kRefineNone;
-            D3D12_RAYTRACING_GEOMETRY_DESC geometry = {};
-            geometry.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-            geometry.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
-            geometry.Triangles.VertexBuffer.StartAddress = mesh.positionsBuffer->GetGPUVirtualAddress() + mesh.positionsOffset;
-            geometry.Triangles.VertexBuffer.StrideInBytes = 3 * sizeof(float);
-            geometry.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-            geometry.Triangles.VertexCount = mesh.vertexCount;
-            geometry.Triangles.IndexBuffer = mesh.indicesBuffer->GetGPUVirtualAddress() + mesh.indicesOffset;
-            geometry.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-            geometry.Triangles.IndexCount = mesh.indexCount;
+            D3D12_RAYTRACING_GEOMETRY_DESC geometry =
+                GeometryOf(mesh.positionsBuffer->GetGPUVirtualAddress() + mesh.positionsOffset, mesh.vertexCount,
+                           mesh.indicesBuffer->GetGPUVirtualAddress() + mesh.indicesOffset, mesh.indexCount);
             D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC build = {};
-            build.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-            build.Inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-            build.Inputs.NumDescs = 1;
-            build.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+            BlasInputsOf(build.Inputs, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE);
             build.Inputs.pGeometryDescs = &geometry;
             D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info = {};
             device->GetRaytracingAccelerationStructurePrebuildInfo(&build.Inputs, &info);

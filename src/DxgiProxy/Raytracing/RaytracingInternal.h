@@ -58,6 +58,8 @@ namespace redefinition
         L"RT_RegenerationAlbedo", L"RT_CacheClear", L"RT_CacheBegin", L"RT_CacheResolve",
         L"RT_DiffuseLightCached", L"RT_SpecularLightCached",
     };
+    static_assert(sizeof(kRtDenoiseEntries) / sizeof(kRtDenoiseEntries[0]) == kRtAuxCount,
+                  "kRtDenoiseEntries and RtAux list the same passes");
 
     // A buffer's description: at least 256 bytes, row major.
     inline D3D12_RESOURCE_DESC RtBufferDesc(UINT64 size, D3D12_RESOURCE_FLAGS flags)

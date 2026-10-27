@@ -7,11 +7,11 @@
 
 #include "D3d12Util.h"
 #include "DlssRayReconstruction.h"
+#include "FileUtil.h"
 #include "Log.h"
 #include "RaytracingInternal.h"
 
 #include <algorithm>
-#include <functional>
 
 using Microsoft::WRL::ComPtr;
 
@@ -34,37 +34,28 @@ namespace redefinition
         if (!shaders.empty())
             return true;
         const HMODULE module = OwnModule();
+        // One shader by its resource name, kept under the name as text; false where the DLL
+        // has none, with every shader let go of.
+        const auto load = [&](const wchar_t* resource)
+        {
+            const HRSRC found = FindResourceW(module, resource, MAKEINTRESOURCEW(10));   // RT_RCDATA
+            const HGLOBAL loaded = found != nullptr ? LoadResource(module, found) : nullptr;
+            const void* bytes = loaded != nullptr ? LockResource(loaded) : nullptr;
+            const DWORD length = found != nullptr ? SizeofResource(module, found) : 0;
+            if (bytes == nullptr || length == 0)
+            {
+                shaders.clear();
+                return false;
+            }
+            shaders[Narrow(resource)].assign(static_cast<const uint8_t*>(bytes), static_cast<const uint8_t*>(bytes) + length);
+            return true;
+        };
         for (const RtPassEntry& pass : kRtPasses)
-        {
-            const HRSRC found = FindResourceW(module, pass.resource, MAKEINTRESOURCEW(10));   // RT_RCDATA
-            const HGLOBAL loaded = found != nullptr ? LoadResource(module, found) : nullptr;
-            const void* bytes = loaded != nullptr ? LockResource(loaded) : nullptr;
-            const DWORD length = found != nullptr ? SizeofResource(module, found) : 0;
-            if (bytes == nullptr || length == 0)
-            {
-                shaders.clear();
+            if (!load(pass.resource))
                 return false;
-            }
-            std::vector<uint8_t> code(static_cast<const uint8_t*>(bytes), static_cast<const uint8_t*>(bytes) + length);
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, pass.resource, -1, name, sizeof(name), nullptr, nullptr);
-            shaders[name] = std::move(code);
-        }
         for (const wchar_t* entry : kRtDenoiseEntries)
-        {
-            const HRSRC found = FindResourceW(module, entry, MAKEINTRESOURCEW(10));
-            const HGLOBAL loaded = found != nullptr ? LoadResource(module, found) : nullptr;
-            const void* bytes = loaded != nullptr ? LockResource(loaded) : nullptr;
-            const DWORD length = found != nullptr ? SizeofResource(module, found) : 0;
-            if (bytes == nullptr || length == 0)
-            {
-                shaders.clear();
+            if (!load(entry))
                 return false;
-            }
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
-            shaders[name].assign(static_cast<const uint8_t*>(bytes), static_cast<const uint8_t*>(bytes) + length);
-        }
         return true;
     }
 
@@ -275,13 +266,15 @@ namespace redefinition
             const nvomm::PipelineOptionsParams options = { nvomm::Version(sizeof(nvomm::PipelineOptionsParams), 1), flags };
             return reinterpret_cast<nvomm::SetCreatePipelineStateOptionsFn>(omm.setOptions)(device.Get(), &options);
         };
+        // Puts the option back as this function returns, where it was set: by a lambda that
+        // lives as long as the guard does.
         struct OptionsReset
         {
-            std::function<void()> put;
+            const decltype(setOmmOptions)* set = nullptr;
             ~OptionsReset()
             {
-                if (put)
-                    put();
+                if (set != nullptr)
+                    (*set)(0);
             }
         } optionsReset;
         omm.pipelines = false;
@@ -291,7 +284,7 @@ namespace redefinition
             if (status == 0)
             {
                 omm.pipelines = true;
-                optionsReset.put = [&] { setOmmOptions(0); };
+                optionsReset.set = &setOmmOptions;
             }
             else
             {
@@ -301,45 +294,44 @@ namespace redefinition
             }
         }
 
+        // One pass's pipeline from the shader of its resource name, made with the option set above;
+        // null where there is no such shader, and failed set where the driver refused it.
+        bool failed = false;
+        const auto make = [&](const wchar_t* resource, const char* kind) -> ComPtr<ID3D12PipelineState>
+        {
+            const std::string name = Narrow(resource);
+            const auto code = shaders.find(name);
+            if (code == shaders.end())
+                return nullptr;
+            D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
+            pipelineDesc.pRootSignature = rootSignature.Get();
+            pipelineDesc.CS.pShaderBytecode = code->second.data();
+            pipelineDesc.CS.BytecodeLength = code->second.size();
+            ComPtr<ID3D12PipelineState> pipeline;
+            const HRESULT made = device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline));
+            if (FAILED(made))
+            {
+                SetProblem(std::string(kind) + name + " could not be built (" + Hr(made) + ")");
+                failed = true;
+                return nullptr;
+            }
+            return pipeline;
+        };
         for (const RtPassEntry& pass : kRtPasses)
         {
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, pass.resource, -1, name, sizeof(name), nullptr, nullptr);
-            const auto code = shaders.find(name);
-            if (code == shaders.end())
-                continue;
-            D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
-            pipelineDesc.pRootSignature = rootSignature.Get();
-            pipelineDesc.CS.pShaderBytecode = code->second.data();
-            pipelineDesc.CS.BytecodeLength = code->second.size();
-            ComPtr<ID3D12PipelineState> pipeline;
-            hr = device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline));
-            if (FAILED(hr))
-            {
-                SetProblem(std::string("the raytracing pass ") + name + " could not be built (" + Hr(hr) + ")");
+            ComPtr<ID3D12PipelineState> pipeline = make(pass.resource, "the raytracing pass ");
+            if (failed)
                 return false;
-            }
-            pipelines[pass.signal] = pipeline;
+            if (pipeline != nullptr)
+                pipelines[pass.signal] = pipeline;
         }
-        for (const wchar_t* entry : kRtDenoiseEntries)
+        for (size_t entryIndex = 0; entryIndex < kRtAuxCount; ++entryIndex)
         {
-            char name[64] = {};
-            WideCharToMultiByte(CP_UTF8, 0, entry, -1, name, sizeof(name), nullptr, nullptr);
-            const auto code = shaders.find(name);
-            if (code == shaders.end())
-                continue;
-            D3D12_COMPUTE_PIPELINE_STATE_DESC pipelineDesc = {};
-            pipelineDesc.pRootSignature = rootSignature.Get();
-            pipelineDesc.CS.pShaderBytecode = code->second.data();
-            pipelineDesc.CS.BytecodeLength = code->second.size();
-            ComPtr<ID3D12PipelineState> pipeline;
-            hr = device->CreateComputePipelineState(&pipelineDesc, IID_PPV_ARGS(&pipeline));
-            if (FAILED(hr))
-            {
-                SetProblem(std::string("the denoiser's pass ") + name + " could not be built (" + Hr(hr) + ")");
+            ComPtr<ID3D12PipelineState> pipeline = make(kRtDenoiseEntries[entryIndex], "the denoiser's pass ");
+            if (failed)
                 return false;
-            }
-            denoisePipelines[name] = pipeline;
+            if (pipeline != nullptr)
+                denoisePipelines[entryIndex] = pipeline;
         }
         return true;
     }
@@ -596,6 +588,7 @@ namespace redefinition
         pendingMeshes.clear();
         pendingReleases.clear();
         materialData.clear();
+        ++materialVersion;
         pendingTextures.clear();
         {
             // The same of what the main thread handed over since; its scenes stay, as the
@@ -621,7 +614,7 @@ namespace redefinition
         meshSlotsFull = false;
         textures.clear();
         pipelines.clear();
-        denoisePipelines.clear();
+        ResetAuxPipelines();
         denoise = DenoiseTargets{};
         guides = GuideTargets{};
         rootSignature.Reset();
@@ -649,6 +642,5 @@ namespace redefinition
         copied12.Reset();
         fenceValue = 0;
         copiedValue = 0;
-
     }
 }
