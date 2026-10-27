@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using ReDefinition.Core;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -184,11 +185,31 @@ namespace ReDefinition.Scenery
             return true;
         }
 
-        // Parallax's terrain material of the main body with every texture the lawn takes.
+        // The fields of a body's ParallaxMaterials that hold its terrain materials (Parallax.ParallaxMaterials).
+        private static readonly string[] MaterialFields =
+        {
+            "parallaxFull", "parallaxMid", "parallaxHigh", "parallaxLow", "parallaxLowMid", "parallaxMidHigh",
+        };
+
+        // Parallax's terrain material of the home body, whose ground the space centre stands on, with every texture
+        // the lawn takes. It is the one Parallax made for that body (ConfigLoader.parallaxTerrainBodies, as the keyword
+        // behaviour reads it), not the first of all its bodies' that is loaded: a moon's would give the lawn the moon's
+        // meadow texture.
         private static Material ParallaxTerrain()
         {
-            foreach (Material material in Resources.FindObjectsOfTypeAll<Material>())
+            CelestialBody home = FlightGlobals.GetHomeBody();
+            Type loader = TypeLookup.Find("Parallax.ConfigLoader");
+            FieldInfo bodiesField = loader != null ? loader.GetField("parallaxTerrainBodies", TypeLookup.Any) : null;
+            IDictionary bodies = bodiesField != null && bodiesField.IsStatic ? bodiesField.GetValue(null) as IDictionary : null;
+            if (home == null || bodies == null || !bodies.Contains(home.bodyName)) return null;
+            object body = bodies[home.bodyName];
+            FieldInfo materialsField = body != null ? body.GetType().GetField("parallaxMaterials", TypeLookup.Any) : null;
+            object materials = materialsField != null ? materialsField.GetValue(body) : null;
+            if (materials == null) return null;
+            foreach (string name in MaterialFields)
             {
+                FieldInfo field = materials.GetType().GetField(name, TypeLookup.Any);
+                Material material = field != null ? field.GetValue(materials) as Material : null;
                 if (material == null || material.shader == null || material.shader.name != "Custom/Parallax") continue;
                 bool complete = true;
                 foreach (string texture in ParallaxTextures)
