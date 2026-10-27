@@ -179,6 +179,7 @@ namespace ReDefinition.Engineer
             {
                 foreach (int i in new List<int>(attached))
                     if (!PartFacts.AttachedIn(parts[i].DecoupleStage, stage)) attached.Remove(i);
+                state.AttachedChanged();
                 Row row = new Row { Number = stage };
                 List<int> active = new List<int>();
                 foreach (int i in attached)
@@ -203,7 +204,7 @@ namespace ReDefinition.Engineer
                 double mass = row.StartMass, time = 0.0;
                 for (int events = 0; lit.Count > 0 && time < MaxTime && events < MaxEvents; events++)
                 {
-                    List<Draw> draws = new List<Draw>();
+                    Draws draws = new Draws();
                     double thrust = 0.0, flow = 0.0;
                     foreach (int i in lit)
                     {
@@ -264,7 +265,7 @@ namespace ReDefinition.Engineer
             double mass = row.StartMass, burnt = 0.0;
             for (int events = 0; burnt < wanted - Empty && lit.Count > 0 && events < MaxEvents; events++)
             {
-                List<Draw> draws = new List<Draw>();
+                Draws draws = new Draws();
                 foreach (int i in lit) state.Demand(attached, i, parts[i].Air, 1.0, draws);
                 double rate = 0.0;
                 foreach (Draw draw in draws) rate += draw.Rate * state.Density(draw.Resource);
@@ -297,6 +298,54 @@ namespace ReDefinition.Engineer
             public double Rate;
         }
 
+        // The draws of one event in the order they were first made, found by part and resource.
+        private sealed class Draws : List<Draw>
+        {
+            private readonly Dictionary<DrawKey, Draw> byKey = new Dictionary<DrawKey, Draw>();
+
+            // The draw of that resource from that part, made (at rate 0) where there is none yet.
+            internal Draw Of(int part, string resource)
+            {
+                Draw draw;
+                DrawKey key = new DrawKey(part, resource);
+                if (!byKey.TryGetValue(key, out draw))
+                {
+                    draw = new Draw { Part = part, Resource = resource };
+                    byKey[key] = draw;
+                    Add(draw);
+                }
+                return draw;
+            }
+        }
+
+        // A part and a resource, to find a draw by.
+        private struct DrawKey : IEquatable<DrawKey>
+        {
+            private readonly int part;
+            private readonly string resource;
+
+            internal DrawKey(int part, string resource)
+            {
+                this.part = part;
+                this.resource = resource;
+            }
+
+            public bool Equals(DrawKey other)
+            {
+                return part == other.part && resource == other.resource;
+            }
+
+            public override bool Equals(object other)
+            {
+                return other is DrawKey && Equals((DrawKey)other);
+            }
+
+            public override int GetHashCode()
+            {
+                return part * 397 ^ resource.GetHashCode();
+            }
+        }
+
         // What each part holds as the simulation goes on, and how resources flow to the engines.
         private sealed class State
         {
@@ -304,6 +353,8 @@ namespace ReDefinition.Engineer
             internal readonly IList<SimPart> Parts;
             private readonly IDictionary<string, double> density;
             private readonly Dictionary<string, double>[] amount;
+            // Per start part, what Reachable found for the parts attached now; dropped when the attached parts change.
+            private readonly Dictionary<int, List<int>> reached = new Dictionary<int, List<int>>();
 
             // Over the parts, holding `amount`, which it changes as the engines burn.
             internal State(IList<SimPart> parts, IDictionary<string, double> density, Dictionary<string, double>[] amount)
@@ -311,6 +362,12 @@ namespace ReDefinition.Engineer
                 Parts = parts;
                 this.density = density;
                 this.amount = amount;
+            }
+
+            // The attached parts have changed: what Reachable found before no longer holds.
+            internal void AttachedChanged()
+            {
+                reached.Clear();
             }
 
             // Tonnes per unit; 0 for a resource of no mass or not known.
@@ -379,7 +436,7 @@ namespace ReDefinition.Engineer
 
             // The engine's draw at full thrust times `share`, split evenly over its
             // sources: its mass flow over its propellants by ratio and density.
-            internal void Demand(HashSet<int> attached, int part, SimEngine engine, double share, List<Draw> draws)
+            internal void Demand(HashSet<int> attached, int part, SimEngine engine, double share, Draws draws)
             {
                 if (engine.Isp <= 0.0) return;
                 double flow = engine.Thrust * share / (engine.Isp * G0);
@@ -394,9 +451,7 @@ namespace ReDefinition.Engineer
                     double units = flow * propellant.Ratio / total / pool.Count;
                     foreach (int source in pool)
                     {
-                        Draw draw = draws.Find(d => d.Part == source && d.Resource == propellant.Name);
-                        if (draw == null) draws.Add(draw = new Draw { Part = source, Resource = propellant.Name });
-                        draw.Rate += units;
+                        draws.Of(source, propellant.Name).Rate += units;
                     }
                 }
             }
@@ -441,8 +496,11 @@ namespace ReDefinition.Engineer
 
             // The part itself and every attached part reached from it through parts
             // that let fuel cross, along the part tree and the fuel lines.
+            // The answer is kept until AttachedChanged and must not be changed by the caller.
             private List<int> Reachable(HashSet<int> attached, int start)
             {
+                List<int> known;
+                if (reached.TryGetValue(start, out known)) return known;
                 HashSet<int> seen = new HashSet<int> { start };
                 Stack<int> todo = new Stack<int>();
                 todo.Push(start);
@@ -461,10 +519,11 @@ namespace ReDefinition.Engineer
                         todo.Push(other);
                     }
                 }
-                List<int> reached = new List<int>();
+                List<int> found = new List<int>();
                 foreach (int i in seen)
-                    if (attached.Contains(i)) reached.Add(i);
-                return reached;
+                    if (attached.Contains(i)) found.Add(i);
+                reached[start] = found;
+                return found;
             }
         }
     }
@@ -515,6 +574,54 @@ namespace ReDefinition.Engineer
                 last = value;
             }
             return peakAt < TransonicPeak ? Math.Min(limit, 1.0) : limit;
+        }
+
+        // The Mach limits worked out, by the numbers of the curve they came from, and the most kept before they are dropped.
+        private static readonly Dictionary<CurveKey, double> limits = new Dictionary<CurveKey, double>();
+        private const int LimitsKept = 64;
+
+        // MachLimit for a curve that `curve` lists the numbers of (time, value, tangents, weights and wrap modes of its keys).
+        // The search takes about 2000 evaluations, and the same curve comes with every engine of a kind and with every read.
+        internal static double MachLimit(float[] curve, Func<double, double> thrustOverMach)
+        {
+            CurveKey key = new CurveKey(curve);
+            double limit;
+            if (limits.TryGetValue(key, out limit)) return limit;
+            limit = MachLimit(thrustOverMach);
+            if (limits.Count >= LimitsKept) limits.Clear();
+            limits[key] = limit;
+            return limit;
+        }
+
+        // The numbers that decide a curve's values, equal where all of them are.
+        private struct CurveKey : IEquatable<CurveKey>
+        {
+            private readonly float[] numbers;
+
+            internal CurveKey(float[] numbers)
+            {
+                this.numbers = numbers;
+            }
+
+            public bool Equals(CurveKey other)
+            {
+                if (numbers.Length != other.numbers.Length) return false;
+                for (int i = 0; i < numbers.Length; i++)
+                    if (numbers[i] != other.numbers[i]) return false;
+                return true;
+            }
+
+            public override bool Equals(object other)
+            {
+                return other is CurveKey && Equals((CurveKey)other);
+            }
+
+            public override int GetHashCode()
+            {
+                int hash = numbers.Length;
+                foreach (float number in numbers) hash = unchecked(hash * 31 + number.GetHashCode());
+                return hash;
+            }
         }
 
         // The part of the launch into the body's low orbit (RoutePlanner.Launch) the

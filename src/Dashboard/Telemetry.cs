@@ -36,6 +36,19 @@ namespace ReDefinition.Dashboard
         private readonly EditorTelemetry editor = new EditorTelemetry();
         private readonly FuelTelemetry fuel = new FuelTelemetry();
 
+        // A key as the dashboard sends it, split once: with a page polling every frame, the same keys come back
+        // for as long as it is open. Keys beyond the cap (a client may send any) are split each time.
+        private sealed class Parsed
+        {
+            // The name before the brackets, the arguments inside them, and the step the value is rounded to (null for none).
+            public string Name;
+            public string[] Args;
+            public Func<double, double> Step;
+        }
+
+        private const int ParsedCap = 1024;
+        private readonly Dictionary<string, Parsed> parsed = new Dictionary<string, Parsed>();
+
         // Resource totals are summed over the whole vessel once per frame and then looked up per key.
         private int resourceFrame = -1;
         private readonly Dictionary<string, double[]> resources = new Dictionary<string, double[]>();
@@ -171,14 +184,14 @@ namespace ReDefinition.Dashboard
             readers["n.normal"] = (v, a) =>
             {
                 Vector3d u, n, e;
-                Frame(v, out n, out e, out u);
+                FrameThisFrame(v, out n, out e, out u);
                 return Local(v, Vector3d.Cross(v.obt_velocity.normalized, u).normalized);
             };
             readers["n.radial"] = (v, a) =>
             {
                 Vector3d p = v.obt_velocity.normalized;
                 Vector3d u, n, e;
-                Frame(v, out n, out e, out u);
+                FrameThisFrame(v, out n, out e, out u);
                 return Local(v, (u - Vector3d.Dot(u, p) * p).normalized);
             };
 
@@ -285,15 +298,25 @@ namespace ReDefinition.Dashboard
         {
             value = null;
             if (key == "p.paused") { value = PauseState(); return true; }
-            string name; string[] args;
-            Split(key, out name, out args);
+            Parsed split = Parse(key);
             SceneReader sceneReader;
-            if (sceneReaders.TryGetValue(name, out sceneReader)) { value = sceneReader(args); return true; }
+            if (sceneReaders.TryGetValue(split.Name, out sceneReader)) { value = sceneReader(split.Args); return true; }
             if (PauseState() != 0) return false;
             Reader reader;
-            if (!readers.TryGetValue(name, out reader)) return false;
-            value = reader(FlightGlobals.ActiveVessel, args);
+            if (!readers.TryGetValue(split.Name, out reader)) return false;
+            value = reader(FlightGlobals.ActiveVessel, split.Args);
             return true;
+        }
+
+        // The key split into name and arguments, from the memo where it was split before.
+        private Parsed Parse(string key)
+        {
+            Parsed result;
+            if (parsed.TryGetValue(key, out result)) return result;
+            result = new Parsed { Step = StepOf(key) };
+            Split(key, out result.Name, out result.Args);
+            if (parsed.Count < ParsedCap) parsed[key] = result;
+            return result;
         }
 
         // How finely a value is sent: no finer than the dashboard shows it, so a value that has not
@@ -323,6 +346,19 @@ namespace ReDefinition.Dashboard
         /// <summary>The value rounded to what the dashboard shows of it; directions to 1e-4.</summary>
         public static object Round(string key, object value)
         {
+            return Round(key, value, null);
+        }
+
+        /// <summary>The same for a key that TryRead has split before, which spares the second look-up of its name.</summary>
+        public object RoundRead(string key, object value)
+        {
+            Parsed known;
+            return Round(key, value, parsed.TryGetValue(key, out known) ? known : null);
+        }
+
+        // Rounds as Round does; `known`, where there is one, holds the key's step already.
+        private static object Round(string key, object value, Parsed known)
+        {
             var arr = value as double[];
             if (arr != null)
             {
@@ -332,11 +368,19 @@ namespace ReDefinition.Dashboard
             }
             if (!(value is double)) return value;
             double d = (double)value;
-            int bracket = key.IndexOf('[');
-            Func<double, double> step;
-            if (double.IsNaN(d) || double.IsInfinity(d) || !Steps.TryGetValue(bracket < 0 ? key : key.Substring(0, bracket), out step)) return value;
+            if (double.IsNaN(d) || double.IsInfinity(d)) return value;
+            Func<double, double> step = known != null ? known.Step : StepOf(key);
+            if (step == null) return value;
             double s = step(d);
             return Math.Round(d / s) * s;
+        }
+
+        // The step a key's value is rounded to, by its name before the brackets; null where it has none.
+        private static Func<double, double> StepOf(string key)
+        {
+            int bracket = key.IndexOf('[');
+            Func<double, double> step;
+            return Steps.TryGetValue(bracket < 0 ? key : key.Substring(0, bracket), out step) ? step : null;
         }
 
         /// <summary>Runs a command on the active vessel, or one of every scene. Must be called on the main thread.</summary>
@@ -356,8 +400,7 @@ namespace ReDefinition.Dashboard
         // Whether the name is a key or a command here, read or run in any scene; arguments do not matter.
         public bool IsKnown(string key)
         {
-            string name; string[] args;
-            Split(key, out name, out args);
+            string name = Parse(key).Name;
             return key == "p.paused" || readers.ContainsKey(name) || actions.ContainsKey(name) || sceneReaders.ContainsKey(name)
                    || sceneActions.ContainsKey(name);
         }
@@ -372,8 +415,9 @@ namespace ReDefinition.Dashboard
                 resourceFrame = Time.frameCount;
                 resources.Clear();
                 foreach (Part p in v.parts)
-                    foreach (PartResource r in p.Resources)
+                    for (int i = 0; i < p.Resources.Count; i++)
                     {
+                        PartResource r = p.Resources[i];
                         double[] sums;
                         if (!resources.TryGetValue(r.resourceName, out sums)) resources[r.resourceName] = sums = new double[2];
                         sums[0] += r.amount;
@@ -472,11 +516,30 @@ namespace ReDefinition.Dashboard
             if (spin.magnitude > 1.0 && Vector3d.Dot(east, spin) < 0) east = -east;
         }
 
+        // The vessel and the frame (Time.frameCount) FrameThisFrame last worked out, and its three axes.
+        private static Vessel frameVessel;
+        private static int frameAt = -1;
+        private static Vector3d frameNorth, frameEast, frameUp;
+
+        // Frame, worked out once per rendered frame and vessel for the keys that all ask for it. Only the dashboard's
+        // update reads it, after the frame's physics steps, so the vessel does not move between two reads.
+        // FlyByWire steers inside the physics steps and calls Frame itself.
+        private static void FrameThisFrame(Vessel v, out Vector3d north, out Vector3d east, out Vector3d up)
+        {
+            if (v != frameVessel || Time.frameCount != frameAt)
+            {
+                Frame(v, out frameNorth, out frameEast, out frameUp);
+                frameVessel = v;
+                frameAt = Time.frameCount;
+            }
+            north = frameNorth; east = frameEast; up = frameUp;
+        }
+
         // A world direction in the vessel's north, east, up frame, as the navball keys send it.
         private static double[] Local(Vessel v, Vector3d world)
         {
             Vector3d up, north, east;
-            Frame(v, out north, out east, out up);
+            FrameThisFrame(v, out north, out east, out up);
             return new[] { Vector3d.Dot(world, north), Vector3d.Dot(world, east), Vector3d.Dot(world, up) };
         }
 

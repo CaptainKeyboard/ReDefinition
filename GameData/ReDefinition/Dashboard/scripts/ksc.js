@@ -5,7 +5,7 @@
 	// buildings, entered with a tap as with a click on them; the vessels, flown by holding FLY; the next
 	// alarms, each warped to with a tap; the active contracts. Lists are drawn when they change, the
 	// countdowns and mission times with every new g.ut.
-	const { esc, num, whole, hold, holdButton, span, countdown } = Pages;
+	const { $, MODES, stat, putText, putClass, esc, num, whole, hold, holdButton, span, countdown } = Pages;
 	const SCENES = ["SPACECENTER"];
 	const KEYS = ["g.mode", "g.funds", "g.science", "g.reputation", "g.ut", "g.date", "g.calendar", "t.currentRate", "t.currentRateIndex",
 		"k.buildings", "k.vessels", "k.alarms", "k.contracts", "k.crew"];
@@ -16,16 +16,11 @@
 		["AstronautComplex", "CREW", "Astronaut Complex"], ["ResearchAndDevelopment", "R&amp;D", "Research &amp; Development"],
 		["MissionControl", "MISSION", "Mission Control"], ["Administration", "ADMIN", "Administration"],
 	];
-	const MODES = { CAREER: "Career", SCIENCE_SANDBOX: "Science", SANDBOX: "Sandbox", MISSION: "Mission", MISSION_BUILDER: "Mission Builder", SCENARIO: "Scenario", SCENARIO_NON_RESUMABLE: "Scenario", TUTORIAL: "Tutorial" };
 	const SITUATIONS = { LANDED: "Landed", SPLASHED: "Splashed", PRELAUNCH: "On the pad", FLYING: "Flying", SUB_ORBITAL: "Sub-orbital", ORBITING: "Orbiting", ESCAPING: "Escaping", DOCKED: "Docked" };
 	const HOLD_FLY = 600, HOLD_LEAVE = 1200;
 	const PENDING_MS = 10000;
-	const $ = (id) => document.getElementById(id);
 	const shown = {};
 	let pending = null;
-
-	// One figure: its plate label over the value on an LCD.
-	const stat = (label, value) => '<div class="sstat"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 
 	// The buildings' buttons in BUILDINGS' order, a tap entering one; destroyed ones marked, levels as pips
 	// in a career. Buildings the mod does not send are left out.
@@ -92,12 +87,12 @@
 	function render(d, connected) {
 		const mode = d["g.mode"], career = mode === "CAREER", science = career || mode === "SCIENCE_SANDBOX";
 		const now = num(d["g.ut"]), calendar = d["g.calendar"];
-		$("kdate").textContent = d["g.date"] || "-";
-		$("klink").textContent = connected ? "● LINK" : "DEMO";
-		$("klink").classList.toggle("ok", connected);
-		$("kmode").textContent = mode ? MODES[mode] || mode : "";
+		putText("kdate", d["g.date"] || "-");
+		putText("klink", connected ? "● LINK" : "DEMO");
+		putClass("klink", "ok", connected);
+		putText("kmode", mode ? MODES[mode] || mode : "");
 		if (pending && performance.now() - pending.at > PENDING_MS) pending = null;
-		$("khint").textContent = pending ? pending.text : "";
+		putText("khint", pending ? pending.text : "");
 
 		const stats = (career ? stat("Funds", whole(d["g.funds"])) : "") + (science ? stat("Science", whole(d["g.science"])) : "") +
 			(career ? stat("Reputation", whole(d["g.reputation"])) : "");

@@ -161,24 +161,6 @@ namespace ReDefinition.Engineer
             return Uri.EscapeDataString(vessel ?? "");
         }
 
-        // Whether the file holds a plan for the vessel.
-        internal static bool Exists(string vessel)
-        {
-            try
-            {
-                string path = PluginData.Path(FileName);
-                if (!File.Exists(path)) return false;
-                ConfigNode root = ConfigNode.Load(path);
-                if (root == null) return false;
-                foreach (ConfigNode plan in root.GetNodes("PLAN"))
-                    if (plan.GetValue("vessel") == Key(vessel)) return true;
-            }
-            catch (Exception)
-            {
-            }
-            return false;
-        }
-
         // Who flies a step as the file keeps it: Auto, Ship, Section 3, Without 3.
         private static string FlyerText(int code)
         {

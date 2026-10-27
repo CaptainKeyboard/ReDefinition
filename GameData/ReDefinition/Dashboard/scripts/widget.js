@@ -205,13 +205,11 @@
 		["RadialOut", "RAD OUT", "radout", "#5ee1ff"], ["Target", "TARGET", "tgt", "#e05ce0"], ["AntiTarget", "ANTI-TGT", "atgt", "#e05ce0"], ["Maneuver", "MANEUVER", "mnvr", "#3d8bff"]];
 	const TOGGLES = [["SAS", "f.sas", "f.sasEnabled"], ["RCS", "f.rcs", "v.rcsValue"], ["LIGHTS", "f.light", "v.lightValue"], ["GEAR", "f.gear", "v.gearValue"], ["BRAKES", "f.brake", "v.brakeValue"]];
 	const PAUSE_TEXT = { 1: "GAME PAUSED", 5: "NOT IN FLIGHT" };
-	const $ = (id) => document.getElementById(id);
+	const { $, num } = Pages;
 	// Updates asked of the mod: one every 16 ms, as many as a 60 Hz screen can show.
 	const RATE_MS = 16;
 	let ws, data = {}, dragging = false, throttleSent = 0, connected = false, dirty = true;
 
-	// A finite number as it is, anything else (missing, NaN, text) as null.
-	const num = (v) => (typeof v === "number" && isFinite(v) ? v : null);
 	// Readouts as number and unit; the unit is drawn small.
 	const lcd = (value, unit) => (unit ? value + '<span class="u">' + unit + "</span>" : value);
 	// A distance as an LCD readout: whole metres, then km from 10 km on, Mm and Gm; "-" without one.
@@ -388,17 +386,8 @@
 		slot.addEventListener("pointercancel", () => { dragging = false; });
 	}
 
-	// The page is only written where what it shows changes: every write of a glowing LCD makes the
-	// browser lay out and paint it again, the same number or not.
-	const shown = new Map(), els = {};
-	// An element by id, looked up once and kept.
-	const el = (id) => els[id] || (els[id] = $(id));
-	// Writes an element's HTML when it differs from what it shows.
-	function put(id, html) { if (shown.get(id) !== html) { shown.set(id, html); el(id).innerHTML = html; } }
-	// Writes an element's text when it differs from what it shows.
-	function putText(id, text) { if (shown.get(id) !== text) { shown.set(id, text); el(id).textContent = text; } }
-	// Sets one style property of a node when it differs from the value last set under key.
-	function putStyle(node, key, prop, value) { if (shown.get(key) !== value) { shown.set(key, value); node.style[prop] = value; } }
+	// The page is only written where what it shows changes (Pages.put and the others; the scene pages write through them too).
+	const { shown, el, put, putText, putStyle } = Pages;
 	let tapes = null, keyed = null, litButtons = null;
 
 	// Writes the flight panels from the data: readouts, node, orbit, stage, resource tapes, throttle, lit
@@ -952,7 +941,7 @@
 		const end = (e) => {
 			if (e.pointerId !== jog.id) return;
 			jog.id = null; jog.d = 0;
-			knob.style.transform = ""; knob.textContent = "";
+			knob.style.transform = ""; putText("altknob", "");
 			track.classList.remove("held");
 			if (jog.value !== null) run("v.steerAltitude[" + jog.value.toFixed(0) + "]");
 		};
@@ -978,7 +967,7 @@
 			if (step) lastStepAt = now;
 			const base = jog.value !== null ? jog.value : set !== null ? set : num(data["v.altitude"]) || 0;
 			jog.step = zone ? fineStep(dir > 0 ? base : Math.max(0, base - 1)) * Math.pow(10, zone - 1) : 0;
-			$("altknob").textContent = zone ? stepLabel(jog.step) : "";
+			putText("altknob", zone ? stepLabel(jog.step) : "");
 			let changed = false;
 			if (step) {
 				jog.value = stepAltitude(jog.value !== null ? jog.value : base, dir, zone);
@@ -987,7 +976,7 @@
 			if (changed && now - jog.sent >= 50) { jog.sent = now; run("v.steerAltitude[" + jog.value.toFixed(0) + "]"); }
 		} else if (set === null || (jog.value !== null && Math.abs(set - jog.value) < 1)) jog.value = null; // the mod has it (or reset it)
 		const shown = jog.value !== null ? jog.value : set !== null ? set : num(data["v.altitude"]);
-		$("altval").innerHTML = jog.value !== null || set !== null || jog.id !== null ? altText(shown, jog.id !== null ? jog.step : 0) : dist(shown);
+		put("altval", jog.value !== null || set !== null || jog.id !== null ? altText(shown, jog.id !== null ? jog.step : 0) : dist(shown));
 		$("altbox").classList.toggle("set", jog.value !== null || set !== null);
 	}
 	// The curve switch shows the curve the turn follows over the way to the target altitude.

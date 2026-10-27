@@ -417,7 +417,7 @@ namespace ReDefinition.Hud.Readouts
                         if (propellant == null) continue;
                         HashSet<Part> from;
                         if (!sources.TryGetValue(propellant.name, out from)) sources[propellant.name] = from = new HashSet<Part>();
-                        AddSources(part, propellant.GetFlowMode(), from);
+                        ReDefinition.Engineer.EditorReadout.AddRcsSources(part, propellant.GetFlowMode(), part.crossfeedPartSet, Vessel.parts, from);
                     }
                 }
             if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
@@ -436,30 +436,6 @@ namespace ReDefinition.Hud.Readouts
             double total = Vessel.totalMass;
             if (total <= propellantMass || propellantMass <= 0.0) return 0.0;
             return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(total / (total - propellantMass));
-        }
-
-        // The parts a thruster on `part` draws a propellant of flow mode `mode` from,
-        // as Part.GetConnectedResourceTotals takes them.
-        private void AddSources(Part part, ResourceFlowMode mode, HashSet<Part> into)
-        {
-            switch (mode)
-            {
-                case ResourceFlowMode.STACK_PRIORITY_SEARCH:
-                case ResourceFlowMode.STAGE_STACK_FLOW:
-                case ResourceFlowMode.STAGE_STACK_FLOW_BALANCE:
-                    if (part.crossfeedPartSet != null) into.UnionWith(part.crossfeedPartSet.GetParts());
-                    else into.Add(part);
-                    break;
-                case ResourceFlowMode.ALL_VESSEL:
-                case ResourceFlowMode.STAGE_PRIORITY_FLOW:
-                case ResourceFlowMode.ALL_VESSEL_BALANCE:
-                case ResourceFlowMode.STAGE_PRIORITY_FLOW_BALANCE:
-                    into.UnionWith(Vessel.parts);
-                    break;
-                default:
-                    into.Add(part);
-                    break;
-            }
         }
 
         // The target's docking port, where the target is one.

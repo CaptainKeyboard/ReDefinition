@@ -6,11 +6,10 @@
 	// has, its resources and crew. The planner: its plan as its rows show it in the game, KSP's
 	// rich text and all, worked here as there -- every button sends the change the planner's own
 	// button makes, every list is the one it folds out, picked by its place and its label.
-	const { esc, num, whole, rich } = Pages;
+	const { $, stat, putText, putClass, esc, num, whole, rich } = Pages;
 	const SCENES = ["EDITOR"];
 	const ENGINEER_KEYS = ["e.ship"], PLANNER_KEYS = ["e.ship", "e.plan", "e.choiceList"];
 	const TAB_KEY = "kspdashboard.editorTab", FOLD_KEY = "kspdashboard.plannerFolded";
-	const $ = (id) => document.getElementById(id);
 	let tab = "engineer", folded = {};
 	try { tab = localStorage.getItem(TAB_KEY) || tab; folded = JSON.parse(localStorage.getItem(FOLD_KEY)) || {}; } catch (e) { /* no storage */ }
 	let shownShip, shownPlan, typing = false, picker = null;
@@ -34,8 +33,6 @@
 		const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = Math.floor(s % 60);
 		return (h ? h + "h " : "") + (h || m ? m + "m " : "") + r + "s";
 	}
-	// One figure: its plate label over the value on an LCD; over marks it red, past what the building allows.
-	const stat = (label, value, over) => '<div class="sstat' + (over ? " over" : "") + '"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 
 	// ------------------------------------------------------------ Engineer
 
@@ -230,8 +227,8 @@
 
 	// Draws the page from the frame's data: each tab only when its data is new. connected is false in the demo.
 	function render(d, connected) {
-		$("elink").textContent = connected ? "● LINK" : "DEMO";
-		$("elink").classList.toggle("ok", connected);
+		putText("elink", connected ? "● LINK" : "DEMO");
+		putClass("elink", "ok", connected);
 		if (d["e.ship"] && d["e.ship"] !== shownShip) { shownShip = d["e.ship"]; renderShip(shownShip); }
 		if (tab === "planner") {
 			// Not while an altitude is typed: the field would be made anew under the finger.

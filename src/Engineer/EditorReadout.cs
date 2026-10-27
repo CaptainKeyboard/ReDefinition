@@ -99,14 +99,14 @@ namespace ReDefinition.Engineer
             Dictionary<string, HashSet<Part>> rcsReach = new Dictionary<string, HashSet<Part>>();
             foreach (Part part in parts)
                 if (part != null)
-                    foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                    foreach (ModuleRCS rcs in PartModules.Of(part, thrusters))
                         if (RcsOn(rcs) && rcs.propellants != null)
                             foreach (Propellant propellant in rcs.propellants)
                             {
                                 if (propellant == null) continue;
                                 HashSet<Part> from;
                                 if (!rcsReach.TryGetValue(propellant.name, out from)) rcsReach[propellant.name] = from = new HashSet<Part>();
-                                AddRcsSources(part, propellant.GetFlowMode(), parts, from);
+                                AddRcsSources(part, propellant.GetFlowMode(), part.simulationCrossfeedPartSet ?? part.crossfeedPartSet, parts, from);
                             }
 
             // The vessel's frame: its root part's.
@@ -122,9 +122,13 @@ namespace ReDefinition.Engineer
                     facts.Add(new PartFacts());
                     continue;
                 }
-                bool legs = false;
-                foreach (ModuleWheelBase wheel in part.FindModulesImplementing<ModuleWheelBase>())
-                    if (wheel != null && wheel.wheelType == WheelType.LEG) legs = true;
+                bool legs = false, wheeled = false;
+                foreach (ModuleWheelBase wheel in PartModules.Of(part, wheelModules))
+                {
+                    if (wheel == null) continue;
+                    if (wheel.wheelType == WheelType.LEG) legs = true;
+                    else wheeled = true;
+                }
                 int parent;
                 DeltaVPartInfo info;
                 infos.TryGetValue(part, out info);
@@ -142,7 +146,7 @@ namespace ReDefinition.Engineer
                     HeatShield = part.HasModuleImplementing<ModuleAblator>(),
                     Lift = part.HasModuleImplementing<ModuleLiftingSurface>() && !part.HasModuleImplementing<ModuleCommand>()
                            && !part.HasModuleImplementing<ModuleAblator>(),
-                    Wheels = part.FindModulesImplementing<ModuleWheelBase>().Exists(wheel => wheel != null && wheel.wheelType != WheelType.LEG),
+                    Wheels = wheeled,
                     Clamp = part.HasModuleImplementing<LaunchClamp>(),
                     Crew = part.CrewCapacity,
                     Aboard = Aboard(part),
@@ -155,7 +159,7 @@ namespace ReDefinition.Engineer
                     Mass = dry + part.GetResourceMass(),
                     Tag = part,
                 };
-                foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                foreach (ModuleRCS rcs in PartModules.Of(part, thrusters))
                 {
                     if (!RcsOn(rcs)) continue;
                     double isp = rcs.atmosphereCurve != null ? rcs.atmosphereCurve.Evaluate(0f) : 0.0;
@@ -210,19 +214,19 @@ namespace ReDefinition.Engineer
         }
 
         // The parts a thruster on `part` draws a propellant of flow mode `mode` from,
-        // as Part.GetConnectedResourceTotals takes them. They are its crossfeed set,
-        // which the editor builds for its simulation (ShipConstruct: PartSet.BuildPartSets
-        // with Simulate, into Part.simulationCrossfeedPartSet; decompiled), the
-        // whole vessel, or the part itself.
-        private static void AddRcsSources(Part part, ResourceFlowMode mode, List<Part> parts, HashSet<Part> into)
+        // as Part.GetConnectedResourceTotals takes them. They are its crossfeed set
+        // `crossfeed` (in the editor the one built for its simulation, ShipConstruct:
+        // PartSet.BuildPartSets with Simulate, into Part.simulationCrossfeedPartSet;
+        // decompiled), the whole vessel `parts`, or the part itself. The flight's
+        // readout takes them the same way (ReadoutFrame.FindRcsDeltaV).
+        internal static void AddRcsSources(Part part, ResourceFlowMode mode, PartSet crossfeed, List<Part> parts, HashSet<Part> into)
         {
             switch (mode)
             {
                 case ResourceFlowMode.STACK_PRIORITY_SEARCH:
                 case ResourceFlowMode.STAGE_STACK_FLOW:
                 case ResourceFlowMode.STAGE_STACK_FLOW_BALANCE:
-                    PartSet set = part.simulationCrossfeedPartSet ?? part.crossfeedPartSet;
-                    if (set != null) into.UnionWith(set.GetParts());
+                    if (crossfeed != null) into.UnionWith(crossfeed.GetParts());
                     else into.Add(part);
                     break;
                 case ResourceFlowMode.ALL_VESSEL:
@@ -273,11 +277,11 @@ namespace ReDefinition.Engineer
             if (any) fact.Size = high - low;
 
             fact.Fin = part.HasModuleImplementing<ModuleControlSurface>();
-            foreach (ModuleReactionWheel wheel in part.FindModulesImplementing<ModuleReactionWheel>())
+            foreach (ModuleReactionWheel wheel in PartModules.Of(part, reactionWheels))
                 if (wheel != null && wheel.moduleIsEnabled)
                     fact.WheelTorque += new Vector3(wheel.PitchTorque, wheel.RollTorque, wheel.YawTorque) * (wheel.authorityLimiter * 0.01f);
 
-            foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+            foreach (ModuleRCS rcs in PartModules.Of(part, thrusters))
             {
                 if (!RcsOn(rcs) || string.IsNullOrEmpty(rcs.thrusterTransformName)) continue;
                 float power = rcs.thrusterPower * rcs.thrustPercentage * 0.01f;
@@ -296,7 +300,7 @@ namespace ReDefinition.Engineer
                 }
             }
 
-            foreach (ModuleGimbal gimbal in part.FindModulesImplementing<ModuleGimbal>())
+            foreach (ModuleGimbal gimbal in PartModules.Of(part, gimbals))
             {
                 if (gimbal == null || !gimbal.moduleIsEnabled || gimbal.gimbalLock) continue;
                 float range = gimbal.gimbalRange;
@@ -305,7 +309,7 @@ namespace ReDefinition.Engineer
                 range *= gimbal.gimbalLimiter * 0.01f;
                 if (range <= 0f) continue;
                 double thrust = 0.0;
-                foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                foreach (ModuleEngines engine in PartModules.Of(part, engineModules))
                     if (engine != null) thrust = Math.Max(thrust, engine.maxThrust * engine.thrustPercentage * 0.01);
                 fact.GimbalSide += thrust * Math.Sin(range * Math.PI / 180.0);
                 break;
@@ -313,6 +317,16 @@ namespace ReDefinition.Engineer
         }
 
         // ------------------------------------------------------ own simulation
+
+        // The modules of the part being looked at, one list for each kind and reused, so that the loops over
+        // the parts allocate no list per part. They are filled and read on the main thread only, and no loop
+        // over one of them fills it again.
+        private static readonly List<ModuleResourceIntake> intakes = new List<ModuleResourceIntake>();
+        private static readonly List<ModuleEngines> engineModules = new List<ModuleEngines>();
+        private static readonly List<ModuleRCS> thrusters = new List<ModuleRCS>();
+        private static readonly List<ModuleWheelBase> wheelModules = new List<ModuleWheelBase>();
+        private static readonly List<ModuleReactionWheel> reactionWheels = new List<ModuleReactionWheel>();
+        private static readonly List<ModuleGimbal> gimbals = new List<ModuleGimbal>();
 
         // The resources engines take in from the air: IntakeAir, as KSP's simulation
         // knows it (DeltaVGlobals.PropellantsToIgnore), and whatever the vessel's
@@ -322,7 +336,7 @@ namespace ReDefinition.Engineer
             HashSet<string> air = new HashSet<string> { "IntakeAir" };
             foreach (Part part in parts)
                 if (part != null)
-                    foreach (ModuleResourceIntake intake in part.FindModulesImplementing<ModuleResourceIntake>())
+                    foreach (ModuleResourceIntake intake in PartModules.Of(part, intakes))
                         if (intake != null && !string.IsNullOrEmpty(intake.resourceName)) air.Add(intake.resourceName);
             return air;
         }
@@ -332,7 +346,7 @@ namespace ReDefinition.Engineer
         {
             foreach (Part part in parts)
                 if (part != null)
-                    foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                    foreach (ModuleEngines engine in PartModules.Of(part, engineModules))
                         if (engine != null && engine.propellants != null && engine.propellants.Exists(p => p != null && air.Contains(p.name)))
                             return true;
             return false;
@@ -425,7 +439,7 @@ namespace ReDefinition.Engineer
         // counts it; not a motor KSP leaves out.
         private static void EnginesOf(Part part, HashSet<string> air, SimPart simPart)
         {
-            List<ModuleEngines> engines = part.FindModulesImplementing<ModuleEngines>();
+            List<ModuleEngines> engines = PartModules.Of(part, engineModules);
             bool multi = part.HasModuleImplementing<MultiModeEngine>();
             for (int e = 0; e < engines.Count; e++)
             {
@@ -473,9 +487,31 @@ namespace ReDefinition.Engineer
                 }
             if (breathes)
                 mode.Mach = engine.useVelCurve && engine.velCurve != null
-                    ? AirLaunch.MachLimit(mach => engine.velCurve.Evaluate((float)mach))
+                    ? AirLaunch.MachLimit(NumbersOf(engine.velCurve.Curve), mach => engine.velCurve.Evaluate((float)mach))
                     : 1.0;
             return mode.Thrust > 0.0 && mode.Isp > 0.0 && mode.Propellants.Count > 0 ? mode : null;
+        }
+
+        // Everything that decides what an animation curve evaluates to: its wrap modes, then each key's time, value,
+        // tangents, weights and weight mode.
+        private static float[] NumbersOf(AnimationCurve curve)
+        {
+            Keyframe[] keys = curve.keys;
+            float[] numbers = new float[2 + 7 * keys.Length];
+            numbers[0] = (float)curve.preWrapMode;
+            numbers[1] = (float)curve.postWrapMode;
+            for (int k = 0; k < keys.Length; k++)
+            {
+                int at = 2 + 7 * k;
+                numbers[at] = keys[k].time;
+                numbers[at + 1] = keys[k].value;
+                numbers[at + 2] = keys[k].inTangent;
+                numbers[at + 3] = keys[k].outTangent;
+                numbers[at + 4] = keys[k].inWeight;
+                numbers[at + 5] = keys[k].outWeight;
+                numbers[at + 6] = (float)keys[k].weightedMode;
+            }
+            return numbers;
         }
 
         // KSP's flow mode as the planner's simulation takes it: no flow stays in its part, the stack modes follow crossfeed,
@@ -501,7 +537,7 @@ namespace ReDefinition.Engineer
         // decompiled).
         internal static bool HasThrust(Part part)
         {
-            foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+            foreach (ModuleEngines engine in PartModules.Of(part, engineModules))
                 if (engine != null && (!engine.nonThrustMotor || engine.includeinDVCalcs)) return true;
             return false;
         }

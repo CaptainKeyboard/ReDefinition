@@ -435,7 +435,9 @@ namespace ReDefinition.Hud
         {
             if (barRect == null) return;
             Vector2 away = slide != null && slide.panel != null ? slide.panel.anchoredPosition - slide.positionHovered : Vector2.zero;
-            barRect.localPosition = unfolded - (Vector3)away;
+            Vector3 wanted = unfolded - (Vector3)away, now = barRect.localPosition;
+            // A write marks the layout dirty, so only a change is written.
+            if (now.x != wanted.x || now.y != wanted.y || now.z != wanted.z) barRect.localPosition = wanted;
         }
 
         // A strip in the extension's bar colour from the top of its bar picture up

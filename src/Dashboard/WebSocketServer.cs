@@ -139,11 +139,14 @@ namespace ReDefinition.Dashboard
             origin = null;
             var header = new StringBuilder();
             var one = new byte[1];
+            // The last four bytes read, the oldest in the top byte; the blank line ends the header.
+            uint lastFour = 0;
             while (header.Length < 8192)
             {
                 if (stream.Read(one, 0, 1) != 1) return false;
                 header.Append((char)one[0]);
-                if (header.Length >= 4 && header.ToString(header.Length - 4, 4) == "\r\n\r\n") break;
+                lastFour = (lastFour << 8) | one[0];
+                if (lastFour == 0x0D0A0D0A) break;
             }
             string key = null;
             bool upgrade = false;
@@ -337,25 +340,50 @@ namespace ReDefinition.Dashboard
             /// <summary>Set when a frame was dropped for a slow reader; whoever sends changes only resends all.</summary>
             public volatile bool Dropped;
 
-            // Queues a text frame; from any thread.
+            // Queues a text frame, encoded straight into the frame's buffer; from any thread.
             public void SendText(string text)
             {
-                EnqueueFrame(0x1, Encoding.UTF8.GetBytes(text));
+                int length = Encoding.UTF8.GetByteCount(text);
+                byte[] frame = new byte[HeaderSize(length) + length];
+                int at = WriteHeader(frame, 0x1, length);
+                Encoding.UTF8.GetBytes(text, 0, text.Length, frame, at);
+                Enqueue(0x1, frame);
             }
 
             // Frames the payload, unmasked and unfragmented as a server sends it, queues it and wakes the writer.
             public void EnqueueFrame(int opcode, byte[] payload)
             {
-                var frame = new List<byte>(payload.Length + 10) { (byte)(0x80 | opcode) };
-                if (payload.Length < 126) frame.Add((byte)payload.Length);
-                else if (payload.Length <= 0xFFFF) { frame.Add(126); frame.Add((byte)(payload.Length >> 8)); frame.Add((byte)payload.Length); }
-                else { frame.Add(127); for (int i = 7; i >= 0; i--) frame.Add((byte)((long)payload.Length >> (8 * i))); }
-                frame.AddRange(payload);
+                byte[] frame = new byte[HeaderSize(payload.Length) + payload.Length];
+                int at = WriteHeader(frame, opcode, payload.Length);
+                Buffer.BlockCopy(payload, 0, frame, at, payload.Length);
+                Enqueue(opcode, frame);
+            }
+
+            // The bytes before the payload: the opcode byte and the length in 1, 3 or 9 bytes.
+            private static int HeaderSize(int length)
+            {
+                return length < 126 ? 2 : length <= 0xFFFF ? 4 : 10;
+            }
+
+            // Writes the header of a frame whose payload is `length` bytes at the start of `frame`; returns where the payload goes.
+            private static int WriteHeader(byte[] frame, int opcode, int length)
+            {
+                int at = 0;
+                frame[at++] = (byte)(0x80 | opcode);
+                if (length < 126) frame[at++] = (byte)length;
+                else if (length <= 0xFFFF) { frame[at++] = 126; frame[at++] = (byte)(length >> 8); frame[at++] = (byte)length; }
+                else { frame[at++] = 127; for (int i = 7; i >= 0; i--) frame[at++] = (byte)((long)length >> (8 * i)); }
+                return at;
+            }
+
+            // Queues a finished frame and wakes the writer.
+            private void Enqueue(int opcode, byte[] frame)
+            {
                 lock (queueLock)
                 {
                     // A reader that cannot keep up gets the newest data, not a growing backlog.
                     if (opcode == 0x1) while (queue.Count >= 2) { queue.Dequeue(); Dropped = true; }
-                    queue.Enqueue(frame.ToArray());
+                    queue.Enqueue(frame);
                 }
                 wake.Set();
             }

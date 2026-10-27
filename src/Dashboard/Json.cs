@@ -16,6 +16,13 @@ namespace ReDefinition.Dashboard
         public static string Encode(IDictionary<string, object> values)
         {
             var sb = new StringBuilder(256);
+            WriteObject(sb, values);
+            return sb.ToString();
+        }
+
+        // An object written to `sb`; a nested one goes through the same builder.
+        private static void WriteObject(StringBuilder sb, IDictionary<string, object> values)
+        {
             sb.Append('{');
             bool first = true;
             foreach (var kv in values)
@@ -27,7 +34,6 @@ namespace ReDefinition.Dashboard
                 WriteValue(sb, kv.Value);
             }
             sb.Append('}');
-            return sb.ToString();
         }
 
         /// <summary>JSON already written, put in as it is.</summary>
@@ -61,7 +67,7 @@ namespace ReDefinition.Dashboard
                 case float f: WriteNumber(sb, f); break;
                 case int i: sb.Append(i.ToString(CultureInfo.InvariantCulture)); break;
                 case long l: sb.Append(l.ToString(CultureInfo.InvariantCulture)); break;
-                case IDictionary<string, object> map: sb.Append(Encode(map)); break;
+                case IDictionary<string, object> map: WriteObject(sb, map); break;
                 case IEnumerable e:
                     sb.Append('[');
                     bool first = true;

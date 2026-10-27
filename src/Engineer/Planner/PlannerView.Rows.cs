@@ -26,8 +26,9 @@ namespace ReDefinition.Engineer
         private const float LetterWidth = 14f;
         // Every button's height, and the size of the square ones: the cross, "..." and +.
         private const float Square = RowHeight + 2f;
-        // What a stop's and a step's rows leave free at their right end.
+        // What a stop's and a step's rows leave free at their right end, and the gap between the cells of a row.
         private const float RowEnd = 2f;
+        private const float Gap = 4f;
         // The line between a stop's Surface and Orbit and a further choice.
         private const float Divider = 1f;
         private const float BarHeight = 10f;
@@ -203,7 +204,7 @@ namespace ReDefinition.Engineer
             deploy.OptionEnabledCondition = () => IsKind(row, SectionKind.Satellite);
             yield return deploy;
 
-            DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(SectionName),
                 new DialogGUILabel(Text(() => "<color=" + Problem + ">" + SectionWarning(row) + "</color>"), PartButtonWidth, RowHeight));
             warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
@@ -242,7 +243,7 @@ namespace ReDefinition.Engineer
         // A section's parts button, from the column of who flies a step to the rows' end; 120 wide at least.
         private float PartButtonWidth
         {
-            get { return Mathf.Max(120f, width - Timeline - SectionName - 4f * 2f - RowEnd); }
+            get { return Mathf.Max(120f, width - Timeline - SectionName - Gap * 2f - RowEnd); }
         }
 
         // ----------------------------------------------------------------- stops
@@ -263,7 +264,7 @@ namespace ReDefinition.Engineer
             // by a line from the body before and from the atmosphere's choice after.
             const float bodyWidth = Place - LetterWidth - Divider - 8f;
             float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - Divider - 62f - 52f - Divider - 76f - Square
-                                       - 4f * 9f - RowEnd);
+                                       - Gap * 9f - RowEnd);
             DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
                 RowHeight + 2f, false);
             bodyButtons[index] = body;
@@ -306,7 +307,7 @@ namespace ReDefinition.Engineer
             DialogGUIButton raise = new DialogGUIButton("+", () => StepAltitude(index, 1), Square, Square, false);
             raise.tooltipText = "Raise the orbit by 10 km.";
             altitudeFields.Add(typed);
-            DialogGUIHorizontalLayout altitude = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout altitude = new DialogGUIHorizontalLayout(width, RowHeight + 2f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(LetterWidth),
                 lower, typed, new DialogGUILabel("<color=" + Dim + ">km</color>", 24f), raise);
             altitude.OptionEnabledCondition = () => HasBody(index) && Kind(index) == StopKind.Orbit;
@@ -380,11 +381,11 @@ namespace ReDefinition.Engineer
         {
             System.Func<bool> shown = () => Slot(leg, role) >= 0;
 
-            DialogGUIHorizontalLayout leaves = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout leaves = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
                 new DialogGUILabel(Text(() => "<color=" + Dim + ">" + SeparationText(leg, role) + "</color>"),
                     width - Timeline - BarIndent - 8f, RowHeight));
-            leaves.OptionEnabledCondition = () => SeparationText(leg, role).Length > 0;
+            leaves.OptionEnabledCondition = Cached(() => SeparationText(leg, role).Length > 0);
             yield return leaves;
 
             DialogGUIButton vehicle = null;
@@ -398,12 +399,13 @@ namespace ReDefinition.Engineer
             DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
                 () => { more[leg, (int)role] = !more[leg, (int)role]; textVersion++; }, Square, Square, false);
             open.tooltipText = "More options for this step.";
-            open.OptionEnabledCondition = () => HasMore(leg, role);
+            System.Func<bool> hasMore = Cached(() => HasMore(leg, role));
+            open.OptionEnabledCondition = hasMore;
             DialogGUISpace noMore = new DialogGUISpace(Square);
-            noMore.OptionEnabledCondition = () => !HasMore(leg, role);
+            noMore.OptionEnabledCondition = () => !hasMore();
             Sizer filler = new Sizer(after);
             barFillers[leg, (int)role] = filler;
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Icon + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 TimelineLine(Icon + 2f), new DialogGUILabel(Text(() => StepPlace(leg, role)), Place), vehicle, bar.Layout,
                 filler.Add(new DialogGUISpace(1f)), speed, open, noMore);
             row.OptionEnabledCondition = shown;
@@ -415,17 +417,17 @@ namespace ReDefinition.Engineer
             tanker = new DialogGUIButton(() => TankerText(leg, role), () => PickTanker(leg, role, tanker), 150f, RowHeight + 2f, false);
             tanker.tooltipText = "Choose the stage of the rest of the vessel to refuel from first.";
             tanker.OptionEnabledCondition = () => Refuels(leg, role);
-            DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout docks = new DialogGUIHorizontalLayout(width, RowHeight + 4f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
                 new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", OptionLabel), refuel, tanker);
             docks.OptionEnabledCondition = () => Docks(leg, role);
             yield return docks;
 
-            DialogGUIHorizontalLayout stays = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout stays = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
                 new DialogGUILabel(Text(() => "<color=" + Dim + ">" + DeployedText(leg, role) + "</color>"), width - Timeline - BarIndent - 8f,
                     RowHeight));
-            stays.OptionEnabledCondition = () => DeployedText(leg, role).Length > 0;
+            stays.OptionEnabledCondition = Cached(() => DeployedText(leg, role).Length > 0);
             yield return stays;
 
             // Behind "...", each on a line of its own, as they concern different
@@ -440,12 +442,12 @@ namespace ReDefinition.Engineer
             together.tooltipText = "Plan the departure and arrival burns as one step.";
             DialogGUIButton split = Choice("Split", () => SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, true), 84f);
             split.tooltipText = "Plan the departure and arrival burns as separate steps, each with its own flyer.";
-            yield return OptionLine(leg, role, "Burns", () => role == StepRole.Transfer && CanSplit(leg), together, split);
+            yield return OptionLine(leg, role, "Burns", Cached(() => role == StepRole.Transfer && CanSplit(leg)), together, split);
 
             for (int i = 0; i < MaxWarnings; i++)
             {
                 int line = i;
-                DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(),
+                DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(),
                     TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
                     new DialogGUILabel(Text(() => "<color=" + Problem + ">" + WarningText(leg, role, line) + "</color>"),
                         width - Timeline - BarIndent - 8f, RowHeight));
@@ -465,7 +467,7 @@ namespace ReDefinition.Engineer
                 new DialogGUILabel("<color=" + Dim + ">" + name + "</color>", OptionLabel),
             };
             elements.AddRange(choices);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, RowHeight + 4f, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, RowHeight + 4f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, elements.ToArray());
             line.OptionEnabledCondition = () => more[leg, (int)role] && Slot(leg, role) >= 0 && applies();
             return line;
@@ -597,7 +599,7 @@ namespace ReDefinition.Engineer
                 () => "<align=right><b><size=120%><color=#e0e0e0>" + (shown() ? "-" : "+") + "</color></size></b></align>", Square, RowHeight);
             DialogGUIHorizontalLayout heading = new DialogGUIHorizontalLayout(outer, HeaderHeight, 4f, new RectOffset((int)BoxMargin, 0, 0, 0),
                 TextAnchor.MiddleLeft, titleLabel,
-                new DialogGUILabel(Text(() => Worked() ? summary() : ""), outer - BoxMargin - HeadingTitle - Square - 4f * 2f - SignEdge, RowHeight),
+                new DialogGUILabel(Text(() => Worked() ? summary() : ""), outer - BoxMargin - HeadingTitle - Square - Gap * 2f - SignEdge, RowHeight),
                 sign);
             // On the bar itself: the pointer enters its background, not its labels.
             heading.tooltipText = tooltip;

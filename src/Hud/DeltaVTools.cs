@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using HarmonyLib;
 using KSP.UI;
 using KSP.UI.Screens;
 using ReDefinition.Core;
@@ -62,7 +63,7 @@ namespace ReDefinition.Hud
         // setter that does not save settings.cfg.
         private static readonly FieldInfo FramePrefabField = typeof(DeltaVApp).GetField("appFramePrefab", Private);
         private static readonly FieldInfo SituationPrefabField = typeof(DeltaVApp).GetField("situationPrefab", Private);
-        private static readonly FieldInfo PinnedField = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
+        private static readonly AccessTools.FieldRef<ApplicationLauncher, UIRadioButton> PinnedField = PinnedRef();
         private static readonly MethodInfo ClickField = typeof(ApplicationLauncher).GetMethod("MutuallyExclusiveStockApplistCLICK", Private);
         private static readonly MethodInfo InitEnabled = typeof(DeltaVAppValues.InfoLine).GetMethod("InitEnabledValue", Private);
 
@@ -239,7 +240,23 @@ namespace ReDefinition.Hud
             if (button == null || button.toggleButton == null) return false;
             if (button.toggleButton.CurrentState == UIRadioButton.State.True) return true;
             ApplicationLauncher launcher = ApplicationLauncher.Instance;
-            return PinnedField != null && launcher != null && ReferenceEquals(PinnedField.GetValue(launcher), button.toggleButton);
+            return PinnedField != null && launcher != null && ReferenceEquals(PinnedField(launcher), button.toggleButton);
+        }
+
+        // A ref to the launcher's private lastPinnedButton, read every frame without a FieldInfo's boxing; null where KSP has
+        // no such field or it cannot be reached.
+        private static AccessTools.FieldRef<ApplicationLauncher, UIRadioButton> PinnedRef()
+        {
+            FieldInfo field = typeof(ApplicationLauncher).GetField("lastPinnedButton", Private);
+            if (field == null) return null;
+            try
+            {
+                return AccessTools.FieldRefAccess<ApplicationLauncher, UIRadioButton>(field);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
         }
 
         // A stage added while the tools are open opens as well.

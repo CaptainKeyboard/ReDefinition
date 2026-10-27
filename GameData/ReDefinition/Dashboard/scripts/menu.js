@@ -4,30 +4,26 @@
 	// The menu page: KSP's progress while it loads at its start, and in the main menu the saves, the
 	// last one played first, each loaded by holding its button. widget.js shows it in the scenes below,
 	// subscribes its keys and hands it the data; commands go out through Dashboard.run.
-	const { esc, num, whole, hold, holdButton, ago, minutes } = Pages;
+	const { $, MODES, stat, putText, put, putClass, putStyle, el, esc, num, whole, hold, holdButton, ago, minutes } = Pages;
 	const SCENES = ["LOADING", "PSYSTEM", "MAINMENU", "SETTINGS", "CREDITS"];
 	const KEYS = ["g.versions", "g.loading", "g.saves"];
 	const SCENE_TEXT = { LOADING: "LOADING", PSYSTEM: "LOADING", MAINMENU: "MAIN MENU", SETTINGS: "KSP SETTINGS", CREDITS: "CREDITS" };
-	const MODES = { CAREER: "Career", SCIENCE_SANDBOX: "Science", SANDBOX: "Sandbox", MISSION: "Mission", MISSION_BUILDER: "Mission Builder", SCENARIO: "Scenario", SCENARIO_NON_RESUMABLE: "Scenario", TUTORIAL: "Tutorial" };
 	// Held this long, a button fires: no stray touch loads a save or quits the game.
 	const HOLD_LOAD = 600, HOLD_QUIT = 1200;
 	// A load asked for shows on its card until the scene changes, or the mod is taken to have refused it.
 	const PENDING_MS = 10000;
-	const $ = (id) => document.getElementById(id);
 	let shownSaves, shownAt = 0, pending = null, lastScene = null;
 
 	// What a save's summary holds, as the game mode has it: funds, reputation and contracts in a career,
 	// science there and in science mode, vessels in every mode.
 	function stats(s) {
 		const career = s.mode === "CAREER", science = career || s.mode === "SCIENCE_SANDBOX";
-		// One figure of a card: its plate label over the value on an LCD.
-		const cell = (label, value) => '<div class="sstat"><div class="plate sm">' + label + '</div><div class="lcd">' + value + "</div></div>";
 		let html = "";
-		if (career) html += cell("Funds", whole(s.funds));
-		if (science) html += cell("Science", whole(s.science));
-		if (career) html += cell("Reputation", num(s.reputation) === null ? "-" : Math.round(s.reputation) + '<span class="u">%</span>');
-		if (career) html += cell("Contracts", whole(s.contracts));
-		if (s.mode) html += cell("Vessels", whole(s.vessels));
+		if (career) html += stat("Funds", whole(s.funds));
+		if (science) html += stat("Science", whole(s.science));
+		if (career) html += stat("Reputation", num(s.reputation) === null ? "-" : Math.round(s.reputation) + '<span class="u">%</span>');
+		if (career) html += stat("Contracts", whole(s.contracts));
+		if (s.mode) html += stat("Vessels", whole(s.vessels));
 		return html;
 	}
 
@@ -70,22 +66,22 @@
 		if (pending && performance.now() - pending.at > PENDING_MS) pending = null;
 
 		const loading = scene === "LOADING" || scene === "PSYSTEM";
-		$("menu").classList.toggle("loading", loading);
+		putClass("menu", "loading", loading);
 		$("mquit").disabled = scene !== "MAINMENU" || !!pending;
-		$("mscene").textContent = SCENE_TEXT[scene] || scene;
+		putText("mscene", SCENE_TEXT[scene] || scene);
 		const v = d["g.versions"] || {};
-		$("mversions").textContent = (v.ksp ? "KSP " + v.ksp : "") + (v.mod ? "  ·  ReDefinition " + v.mod : "");
-		$("mlink").textContent = connected ? "● LINK" : "DEMO";
-		$("mlink").classList.toggle("ok", connected);
+		putText("mversions", (v.ksp ? "KSP " + v.ksp : "") + (v.mod ? "  ·  ReDefinition " + v.mod : ""));
+		putText("mlink", connected ? "● LINK" : "DEMO");
+		putClass("mlink", "ok", connected);
 
 		if (loading) {
 			const l = d["g.loading"];
 			// After its loaders KSP builds the solar system, the last step before the main menu.
 			const fraction = l ? num(l.fraction) || 0 : scene === "PSYSTEM" ? 1 : 0;
-			$("mloadstep").textContent = l && l.title ? l.title : scene === "PSYSTEM" ? "Building the solar system" : "Starting";
-			$("mloadbar").style.width = (fraction * 100).toFixed(1) + "%";
-			$("mloadpct").innerHTML = Math.floor(fraction * 100) + '<span class="u">%</span>';
-			$("mloadtime").textContent = l ? minutes(l.seconds) : "";
+			putText("mloadstep", l && l.title ? l.title : scene === "PSYSTEM" ? "Building the solar system" : "Starting");
+			putStyle(el("mloadbar"), "mloadbar", "width", (fraction * 100).toFixed(1) + "%");
+			put("mloadpct", Math.floor(fraction * 100) + '<span class="u">%</span>');
+			putText("mloadtime", l ? minutes(l.seconds) : "");
 			return;
 		}
 
@@ -98,7 +94,7 @@
 			b.disabled = !canLoad;
 			b.closest(".msave").classList.toggle("pending", !!pending && pending.name === b.dataset.load);
 		}
-		$("mhint").textContent = pending ? "Loading " + pending.name + " ..." : scene === "MAINMENU" ? "" : "Back in KSP's main menu, a save can be loaded from here.";
+		putText("mhint", pending ? "Loading " + pending.name + " ..." : scene === "MAINMENU" ? "" : "Back in KSP's main menu, a save can be loaded from here.");
 	}
 
 	// Gives the quit button its hold, once when the page is set up.

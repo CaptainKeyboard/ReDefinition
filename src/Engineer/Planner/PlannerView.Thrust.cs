@@ -75,7 +75,7 @@ namespace ReDefinition.Engineer
                 DimLabel("Has", FuelLeft),
             };
             if (TurnFits) heads.Add(DimLabel("Turns 90°", TurnColumn));
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 heads.ToArray());
             names.OptionEnabledCondition = () => thrustShown && Worked() && thrustSteps.Count > 0;
             yield return names;
@@ -89,23 +89,23 @@ namespace ReDefinition.Engineer
         }
 
         // The entry of a row; null for none.
-        private ThrustStep ThrustAt(int row)
+        private ThrustStep ThrustAt(int row, RowScope scope)
         {
-            return (thrustShown || everyRow) && Worked() && row < thrustSteps.Count && thrustSteps[row].Step < steps.Count ? thrustSteps[row] : null;
+            return (thrustShown || scope == RowScope.Every) && Worked() && row < thrustSteps.Count && thrustSteps[row].Step < steps.Count ? thrustSteps[row] : null;
         }
 
         // The entry of an open row; null for none, and for a closed one, so that its
         // texts are not written.
-        private ThrustStep OpenThrust(int row)
+        private ThrustStep OpenThrust(int row, RowScope scope)
         {
-            ThrustStep entry = ThrustAt(row);
-            return entry != null && (everyRow || thrustOpen.Contains(FuelKey(entry.Step))) ? entry : null;
+            ThrustStep entry = ThrustAt(row, scope);
+            return entry != null && (scope == RowScope.Every || thrustOpen.Contains(FuelKey(entry.Step))) ? entry : null;
         }
 
         // Opens the row's stages and burns, or folds them.
         private void ToggleThrust(int row)
         {
-            ThrustStep entry = ThrustAt(row);
+            ThrustStep entry = ThrustAt(row, RowScope.Shown);
             if (entry == null) return;
             int key = FuelKey(entry.Step);
             if (!thrustOpen.Remove(key)) thrustOpen.Add(key);
@@ -115,100 +115,100 @@ namespace ReDefinition.Engineer
         // A step's line and, while it is open, its stages, its RCS, its burns in orbit, its notes and its body.
         private IEnumerable<DialogGUIBase> ThrustStepRows(int row)
         {
-            DialogGUIButton open = new DialogGUIButton(() => OpenThrust(row) != null ? "<b><color=" + Good + ">-</color></b>" : "+",
+            DialogGUIButton open = new DialogGUIButton(() => OpenThrust(row, RowScope.Shown) != null ? "<b><color=" + Good + ">-</color></b>" : "+",
                 () => ToggleThrust(row), Square, Square, false);
             open.tooltipText = "Show the stages of this step with their thrust, and each burn.";
-            float room = Mathf.Max(0f, ThrustRoom - (TurnFits ? TurnColumn + 4f : 0f));
+            float room = Mathf.Max(0f, StepLineRoom - (TurnFits ? TurnColumn + Gap : 0f));
             List<DialogGUIBase> cells = new List<DialogGUIBase>
             {
-                new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => ThrustAt(row) != null ? StepName(ThrustAt(row).Step) : ""), Place),
-                new DialogGUILabel(Text(() => ThrustAt(row) != null ? StepFlyer(ThrustAt(row).Step) : ""), VehicleButton),
-                new DialogGUILabel(Text(() => ThrustNeedsText(ThrustAt(row))), FuelNeeds), new DialogGUILabel(Text(() => ThrustHasText(ThrustAt(row))), FuelLeft),
+                new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => ThrustAt(row, RowScope.Shown) != null ? StepName(ThrustAt(row, RowScope.Shown).Step) : ""), Place),
+                new DialogGUILabel(Text(() => ThrustAt(row, RowScope.Shown) != null ? StepFlyer(ThrustAt(row, RowScope.Shown).Step) : ""), VehicleButton),
+                new DialogGUILabel(Text(() => ThrustNeedsText(ThrustAt(row, RowScope.Shown))), FuelNeeds), new DialogGUILabel(Text(() => ThrustHasText(ThrustAt(row, RowScope.Shown))), FuelLeft),
             };
-            if (TurnFits) cells.Add(new DialogGUILabel(Text(() => TurnText(ThrustAt(row))), TurnColumn));
+            if (TurnFits) cells.Add(new DialogGUILabel(Text(() => TurnText(ThrustAt(row, RowScope.Shown))), TurnColumn));
             cells.Add(new DialogGUISpace(room));
             cells.Add(open);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 cells.ToArray());
-            line.OptionEnabledCondition = () => ThrustAt(row) != null;
+            line.OptionEnabledCondition = () => ThrustAt(row, RowScope.Shown) != null;
             yield return line;
 
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Mass", MassColumn),
                 DimLabel("Isp", IspColumn), DimLabel("Start", TwrColumn), DimLabel("End", TwrColumn), DimLabel("In air", TwrColumn),
                 DimLabel("Thrust", ThrustColumn), DimLabel("Burns", BurnColumn));
-            names.OptionEnabledCondition = () => OpenThrust(row) != null && OpenThrust(row).Uses.Count > 0;
+            names.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null && OpenThrust(row, RowScope.Shown).Uses.Count > 0;
             yield return names;
 
             for (int i = 0; i < MaxStepStages; i++)
             {
                 int stage = i;
-                DialogGUIHorizontalLayout use = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
+                DialogGUIHorizontalLayout use = new DialogGUIHorizontalLayout(width, RowHeight + 2f, Gap, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f),
-                    new DialogGUILabel(Text(() => ThrustStageName(OpenThrust(row), stage)), StageName_),
-                    new DialogGUILabel(Text(() => StageMassText(OpenThrust(row), stage)), MassColumn),
-                    new DialogGUILabel(Text(() => StageIspText(OpenThrust(row), stage)), IspColumn),
-                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row), stage, true, false)), TwrColumn),
-                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row), stage, false, false)), TwrColumn),
-                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row), stage, true, true)), TwrColumn),
-                    new DialogGUILabel(Text(() => StageThrustText(OpenThrust(row), stage)), ThrustColumn),
-                    new DialogGUILabel(Text(() => StageBurnText(OpenThrust(row), stage)), BurnColumn));
-                use.OptionEnabledCondition = () => OpenThrust(row) != null && stage < OpenThrust(row).Uses.Count;
+                    new DialogGUILabel(Text(() => ThrustStageName(OpenThrust(row, RowScope.Shown), stage)), StageName_),
+                    new DialogGUILabel(Text(() => StageMassText(OpenThrust(row, RowScope.Shown), stage)), MassColumn),
+                    new DialogGUILabel(Text(() => StageIspText(OpenThrust(row, RowScope.Shown), stage)), IspColumn),
+                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row, RowScope.Shown), stage, true, false)), TwrColumn),
+                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row, RowScope.Shown), stage, false, false)), TwrColumn),
+                    new DialogGUILabel(Text(() => TwrValue(OpenThrust(row, RowScope.Shown), stage, true, true)), TwrColumn),
+                    new DialogGUILabel(Text(() => StageThrustText(OpenThrust(row, RowScope.Shown), stage)), ThrustColumn),
+                    new DialogGUILabel(Text(() => StageBurnText(OpenThrust(row, RowScope.Shown), stage)), BurnColumn));
+                use.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null && stage < OpenThrust(row, RowScope.Shown).Uses.Count;
                 yield return use;
             }
 
             // Its RCS, as a stage of its own.
-            DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, RowHeight + 2f, 4f, new RectOffset(),
+            DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, RowHeight + 2f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_),
-                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Mass(info.Mass))), MassColumn),
-                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Isp(info.Isp))), IspColumn),
-                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => RcsRatio(info.StartTwr))), TwrColumn),
-                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => RcsRatio(info.EndTwr))), TwrColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => EngineerFormat.Mass(info.Mass))), MassColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => EngineerFormat.Isp(info.Isp))), IspColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => RcsRatio(info.StartTwr))), TwrColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => RcsRatio(info.EndTwr))), TwrColumn),
                 new DialogGUISpace(TwrColumn),
-                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Force(info.Thrust))), ThrustColumn),
-                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row), info => EngineerFormat.Time(info.Seconds))), BurnColumn));
-            rcs.OptionEnabledCondition = () => OpenThrust(row) != null && RcsAt(OpenThrust(row).Step) != null;
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => EngineerFormat.Force(info.Thrust))), ThrustColumn),
+                new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => EngineerFormat.Time(info.Seconds))), BurnColumn));
+            rcs.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null && RcsAt(OpenThrust(row, RowScope.Shown).Step) != null;
             yield return rcs;
 
             for (int i = 0; i < MaxFuelLines; i++)
             {
                 int burn = i;
-                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
-                    new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(Text(() => BurnName_(OpenThrust(row), burn)), BurnName),
-                    new DialogGUILabel(Text(() => BurnText(OpenThrust(row), burn)), width - Timeline - Swatch - 4f - BurnName - 4f * 2f - RowEnd));
-                text.OptionEnabledCondition = () => OpenThrust(row) != null && burn < OpenThrust(row).Burns.Count;
+                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+                    new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(Text(() => BurnName_(OpenThrust(row, RowScope.Shown), burn)), BurnName),
+                    new DialogGUILabel(Text(() => BurnText(OpenThrust(row, RowScope.Shown), burn)), width - Timeline - Swatch - 4f - BurnName - Gap * 2f - RowEnd));
+                text.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null && burn < OpenThrust(row, RowScope.Shown).Burns.Count;
                 yield return text;
             }
 
             for (int i = 0; i < MaxNotes; i++)
             {
                 int note = i;
-                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUISpace(Timeline + Swatch + 4f),
-                    new DialogGUILabel(Text(() => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count ? OpenThrust(row).Notes[note] : ""),
+                    new DialogGUILabel(Text(() => OpenThrust(row, RowScope.Shown) != null && note < OpenThrust(row, RowScope.Shown).Notes.Count ? OpenThrust(row, RowScope.Shown).Notes[note] : ""),
                         width - Timeline - Swatch - 4f - 4f - RowEnd));
-                text.OptionEnabledCondition = () => OpenThrust(row) != null && note < OpenThrust(row).Notes.Count;
+                text.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null && note < OpenThrust(row, RowScope.Shown).Notes.Count;
                 yield return text;
             }
 
-            DialogGUIHorizontalLayout body = new DialogGUIHorizontalLayout(width, RowHeight, 4f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout body = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f),
-                new DialogGUILabel(Text(() => ThrustBodyText(OpenThrust(row))), width - Timeline - Swatch - 4f - 4f - RowEnd));
-            body.OptionEnabledCondition = () => OpenThrust(row) != null;
+                new DialogGUILabel(Text(() => ThrustBodyText(OpenThrust(row, RowScope.Shown))), width - Timeline - Swatch - 4f - 4f - RowEnd));
+            body.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null;
             yield return body;
         }
 
         // What a step's line leaves beside its cells and its button; the turn's
         // column stands there where it fits, else its note alone says it.
-        private float ThrustRoom
+        private float StepLineRoom
         {
-            get { return width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - 4f * 6f - RowEnd; }
+            get { return width - Timeline - Place - VehicleButton - FuelNeeds - FuelLeft - Square - Gap * 6f - RowEnd; }
         }
 
         // Whether the turn's column fits on a step's line.
         private bool TurnFits
         {
-            get { return ThrustRoom >= TurnColumn + 4f; }
+            get { return StepLineRoom >= TurnColumn + Gap; }
         }
 
         // What a lift-off or a set-down needs: 1.2 from a body with air, 1 otherwise;
@@ -217,8 +217,28 @@ namespace ReDefinition.Engineer
         {
             bool launch = Launches(steps[entry.Step]);
             StageBudget.StageUse deciding = Deciding(entry);
-            if (launch && deciding != null && Runway(deciding.Stage)) return 0.0;
-            return launch && bodies.Bodies[entry.Body].HasAtmosphere ? 1.2 : 1.0;
+            return TwrRequired(launch, launch && deciding != null && Runway(deciding.Stage), entry.Body);
+        }
+
+        // What a lift-off or a set-down needs of a stage's thrust over weight, one rule for the warnings, the fuel plan's
+        // stage rows and the thrust part: nothing along a runway, 1.2 to lift off from the body (an index in the bodies) if
+        // it has air, else 1. `runway` only counts for a launch.
+        private double TwrRequired(bool launch, bool runway, int body)
+        {
+            if (launch && runway) return 0.0;
+            return launch && bodies.Bodies[body].HasAtmosphere ? 1.2 : 1.0;
+        }
+
+        // The first stage the budget burns on the step, null for none; the lift-off stage of a launch.
+        private StageBudget.StageUse FirstUse(int step)
+        {
+            return budget.Uses.Find(use => use.Leg == step);
+        }
+
+        // The last stage the budget burns on the step, null for none; the set-down stage of a landing.
+        private StageBudget.StageUse LastUse(int step)
+        {
+            return budget.Uses.FindLast(use => use.Leg == step);
         }
 
         // The stage that lifts off or sets down: the first of a launch, the last of a

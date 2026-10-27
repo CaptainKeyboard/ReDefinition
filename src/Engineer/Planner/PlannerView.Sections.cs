@@ -56,6 +56,9 @@ namespace ReDefinition.Engineer
         private string detectedLogged;
         // The groups' keys and sizes as last read.
         private string groupKeys;
+        // The parts `groups` were found for. A new reading of the vessel is a new list, and the groups are not changed after
+        // they are made, so the same list gives the same groups.
+        private List<PartFacts> groupsOf;
 
         // ------------------------------------------------------------ resolving
 
@@ -64,14 +67,18 @@ namespace ReDefinition.Engineer
         private void Detect(List<PartFacts> facts)
         {
             parts = facts;
-            groups = VesselShape.Candidates(facts);
-            // The vessel changed under an open list, as with undo: its entries and
-            // their parts are no longer the vessel's.
-            string keys = string.Join(" ", groups.ConvertAll(group => group.Key + "=" + group.Members.Count).ToArray());
-            if (keys != groupKeys)
+            if (!ReferenceEquals(facts, groupsOf))
             {
-                if (groupKeys != null) Dropdown.Close(this);
-                groupKeys = keys;
+                groups = VesselShape.Candidates(facts);
+                groupsOf = facts;
+                // The vessel changed under an open list, as with undo: its entries and
+                // their parts are no longer the vessel's.
+                string keys = string.Join(" ", groups.ConvertAll(group => group.Key + "=" + group.Members.Count).ToArray());
+                if (keys != groupKeys)
+                {
+                    if (groupKeys != null) Dropdown.Close(this);
+                    groupKeys = keys;
+                }
             }
             bool crewed = VesselShape.Crewed(facts);
             detectedCapsule = crewed ? VesselShape.AutoCapsule(groups) : null;

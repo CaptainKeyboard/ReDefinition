@@ -312,8 +312,14 @@ namespace ReDefinition.Engineer
         // a mode change is under way or locked.
         private bool ModeSwitchAllowed()
         {
+            return ModeSwitchAllowed(PanelsSliding());
+        }
+
+        // The same, where `sliding` says whether a panel slides (PanelsSliding), asked once for the pass.
+        private bool ModeSwitchAllowed(bool sliding)
+        {
             if (!InputLockManager.IsUnlocked(ControlTypes.EDITOR_MODE_SWITCH)) return false;
-            if (PanelsSliding()) return false;
+            if (sliding) return false;
             if (editor.editorScreen == EditorScreen.Parts) return true;
             return editor.partPanelBtn != null && editor.partPanelBtn.interactable;
         }
@@ -474,13 +480,14 @@ namespace ReDefinition.Engineer
             return false;
         }
 
-        // Locks every mode button while a panel slides, and lets KSP set them again once the panels stand still.
-        private void LockWhileSliding()
+        // Locks every mode button while a panel slides (`sliding`), and lets KSP set them again once the panels stand
+        // still. It runs after Place, which has `modes` hold the buttons.
+        private void LockWhileSliding(bool sliding)
         {
-            if (PanelsSliding())
+            if (sliding)
             {
                 locked = true;
-                foreach (Button mode in new[] { editor.partPanelBtn, editor.actionPanelBtn, editor.crewPanelBtn, editor.cargoPanelBtn })
+                foreach (Button mode in modes)
                     if (mode != null) mode.interactable = false;
                 button.interactable = false;
             }
@@ -503,7 +510,8 @@ namespace ReDefinition.Engineer
                 Place();
                 Match(editor.cargoPanelBtn);
                 Tiles(editor.cargoPanelBtn);
-                bool allowed = ModeSwitchAllowed();
+                bool sliding = PanelsSliding();
+                bool allowed = ModeSwitchAllowed(sliding);
                 SpriteState states = button.spriteState;
                 Sprite disabled = open ? tileActive : tileDisabled;
                 if (disabled != null && states.disabledSprite != disabled)
@@ -513,7 +521,7 @@ namespace ReDefinition.Engineer
                 }
                 button.interactable = !open && allowed;
                 if (open && editor.partPanelBtn != null) editor.partPanelBtn.interactable = allowed;
-                LockWhileSliding();
+                LockWhileSliding(sliding);
             }
             catch (Exception e)
             {

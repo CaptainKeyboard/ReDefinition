@@ -22,7 +22,7 @@ namespace ReDefinition.Engineer
             // Six elements and five gaps besides who flies, to end where a stop's
             // cross does.
             float room = Mathf.Max(40f, width - Timeline - Place - (HasSections() ? VehicleButton + 4f : 0f)
-                                        - StepSpeed_ - Square - 4f * 5f - RowEnd);
+                                        - StepSpeed_ - Square - Gap * 5f - RowEnd);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
             for (int leg = 0; leg < MaxStops; leg++)
