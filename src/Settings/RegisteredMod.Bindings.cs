@@ -65,42 +65,10 @@ namespace ReDefinition.Settings
         private Action<string> CalledAfter(SettingRegistration entry, string where, List<string> problems,
                                            Action<string> write, ref ApplyWindow window)
         {
-            string problem;
-            MemberPath call = MemberPath.Resolve(entry.After, folder, out problem);
-            if (call != null && !call.IsMethod)
-            {
-                problem = entry.After + " is no method";
-                call = null;
-            }
-            if (call == null)
-            {
-                problems.Add(where + ": after: " + problem + " -- ignored.");
-                // The row promises only what the call that is there can keep.
-                if (window == ApplyWindow.Live) window = ApplyWindow.NextScene;
-                return write;
-            }
+            Action run = AfterCall(entry, where, problems, ref window, "the binding");
+            if (run == null) return write;
             Action<string> inner = write;
-            MemberPath method = call;
             string runKey = "after-" + Id + "-" + entry.After;
-            string after = entry.After;
-            string modName = ModName;
-            // As for a setting: a call that fails is logged rather than thrown into
-            // the write already done, which the store would otherwise take for a
-            // write that did not happen -- and drop the value from before
-            // ReDefinition with it.
-            Action run = () =>
-            {
-                try
-                {
-                    method.Invoke();
-                }
-                catch (Exception e)
-                {
-                    CompatibilityLog.Warn(runKey, modName + "'s " + after + " did not run after a change ("
-                                                  + CompatibilityLog.Reason(e) + "); the binding takes effect when "
-                                                  + modName + " next reads it.");
-                }
-            };
             return text =>
             {
                 inner(text);
