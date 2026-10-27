@@ -30,6 +30,22 @@ namespace redefinition
         presentCapFactor = shownPerRendered > 0 ? shownPerRendered : 1u;
     }
 
+    const char* FrameGeneration::GateReasonLocked() const
+    {
+        return !wanted ? "switched off in the mod"
+               : rateTooLow || slowFrame ? "the rendered frame rate is below its minimum (fgMinimumFps)"
+               : nullptr;
+    }
+
+    bool FrameGeneration::TakeFrameInputsLocked()
+    {
+        const bool thisFrame = packetFresh && inputsCopied;
+        packetFresh = false;
+        inputsCopied = false;
+        generatedLastPresent = false;
+        return thisFrame;
+    }
+
     // Each rendered frame's time from its packet; every two seconds the average decides.
     void FrameGeneration::NoteFrameRateLocked(float frameTimeMs)
     {
@@ -74,18 +90,17 @@ namespace redefinition
         const double fps = 1000.0 * rateWindowFrames / rateWindowMs;
         rateWindowMs = 0.0;
         rateWindowFrames = 0;
-        const float minimum = MinimumFpsLocked();
         // Off below nine tenths of the minimum, on again above nineteen twentieths: a
         // game held at 60 by V-Sync averages a little under it, and turning frame
         // generation off gives back only its own cost, which AMD says a decision should
         // not flip on.
-        const bool tooLow = minimum > 0.0f && (rateTooLow ? fps < minimum * 0.95 : fps < minimum * 0.9);
+        const bool tooLow = minimumFps > 0.0f && (rateTooLow ? fps < minimumFps * 0.95 : fps < minimumFps * 0.9);
         if (tooLow == rateTooLow)
             return;
         rateTooLow = tooLow;
         char line[200];
         std::snprintf(line, sizeof(line), "Frame generation %s: %.1f fps rendered over two seconds, minimum %.0f%s",
-                      tooLow ? "held off" : "allowed again", fps, minimum,
+                      tooLow ? "held off" : "allowed again", fps, minimumFps,
                       tooLow ? " (fgMinimumFps), off below nine tenths of it" : ", back above nineteen twentieths of it");
         LogLine(line);
     }

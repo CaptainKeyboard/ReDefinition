@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "FileUtil.h"
 #include "Log.h"
+#include "RuntimeLoader.h"
 
 #include <XeSS/xell_d3d12.h>
 
@@ -120,15 +121,12 @@ namespace redefinition
         if (xellModule != nullptr)
             return true;
 
-        const std::wstring folder = RuntimeFolder();
-        const std::wstring path = folder + L"\\" + kXellName;
-        HMODULE module = LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+        const RuntimeModule loaded = LoadRuntimeModule(RuntimeFolder(), kXellName, "Intel's XeSS SDK has it");
+        const std::wstring& path = loaded.path;
+        HMODULE module = loaded.module;
         if (module == nullptr)
         {
-            const DWORD error = GetLastError();
-            NoteLocked(GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES
-                           ? "no libxell.dll in " + Narrow(folder) + " -- Intel's XeSS SDK has it"
-                           : Narrow(path) + " could not be loaded (" + Hr(HRESULT_FROM_WIN32(error)) + ")");
+            NoteLocked(loaded.error);
             return false;
         }
 
@@ -169,15 +167,12 @@ namespace redefinition
             return false;
         }
 
-        const std::wstring folder = RuntimeFolder();
-        const std::wstring path = folder + L"\\" + kFgName;
-        HMODULE module = LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+        const RuntimeModule loaded = LoadRuntimeModule(RuntimeFolder(), kFgName, "Intel's XeSS SDK has it");
+        const std::wstring& path = loaded.path;
+        HMODULE module = loaded.module;
         if (module == nullptr)
         {
-            const DWORD error = GetLastError();
-            NoteLocked(GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES
-                           ? "no libxess_fg.dll in " + Narrow(folder) + " -- Intel's XeSS SDK has it"
-                           : Narrow(path) + " could not be loaded (" + Hr(HRESULT_FROM_WIN32(error)) + ")");
+            NoteLocked(loaded.error);
             return false;
         }
 

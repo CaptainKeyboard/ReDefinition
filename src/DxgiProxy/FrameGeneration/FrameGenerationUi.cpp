@@ -24,6 +24,7 @@
 
 #include "Config.h"
 #include "Log.h"
+#include "ShaderCompiler.h"
 
 #include <d3dcompiler.h>
 
@@ -96,13 +97,8 @@ namespace redefinition
         uiShader.Reset();
         uiUnavailable = true;
 
-        // Loaded by hand, as the flip's compiler is: linked, this dxgi.dll would fail to load
-        // on a machine without it.
-        const HMODULE compiler = LoadLibraryW(L"d3dcompiler_47.dll");
-        const auto compile = compiler != nullptr
-            ? reinterpret_cast<pD3DCompile>(GetProcAddress(compiler, "D3DCompile"))
-            : nullptr;
-        if (compile == nullptr)
+        // Loaded by hand, as the flip's compiler is (ShaderCompiler.h).
+        if (LoadShaderCompiler().compile == nullptr)
         {
             LogLine("DLSS frame generation: d3dcompiler_47.dll is not available -- no UI plane");
             return false;
@@ -113,12 +109,11 @@ namespace redefinition
         const D3D_SHADER_MACRO defines[] = { { "THRESHOLD", threshold }, { "MINIMAL", minimal ? "1" : "0" },
                                              { nullptr, nullptr } };
         ComPtr<ID3DBlob> code;
-        ComPtr<ID3DBlob> errors;
-        HRESULT hr = compile(kUiShader, sizeof(kUiShader) - 1, "ui", defines, nullptr, "main", "cs_5_0", 0, 0, &code, &errors);
+        std::string errors;
+        HRESULT hr = CompileComputeShader50(kUiShader, sizeof(kUiShader) - 1, "ui", defines, code, errors);
         if (FAILED(hr))
         {
-            LogLine(std::string("DLSS frame generation: the UI plane's shader did not compile (") + Hr(hr) + "): "
-                    + (errors ? static_cast<const char*>(errors->GetBufferPointer()) : ""));
+            LogLine(std::string("DLSS frame generation: the UI plane's shader did not compile (") + Hr(hr) + "): " + errors);
             return false;
         }
         hr = device11->CreateComputeShader(code->GetBufferPointer(), code->GetBufferSize(), nullptr, &uiShader);

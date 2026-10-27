@@ -65,6 +65,123 @@ namespace redefinition
             return m;
         }
 
+        // The four tags of a frame -- depth, motion vectors, the HUD-less copy and the UI plane -- with the
+        // resources and extents they point into. It stays where it is made, as the tags hold their addresses.
+        struct StreamlineTags
+        {
+            // The shared textures were opened on D3D12 and sit in COMMON between
+            // uses, where D3D11 finds them; Streamline transitions what it needs
+            // and "resources will always be in the state they where left".
+            static constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
+
+            // The HUD-less copy or the UI plane is given a null resource where it is not used: its tag is
+            // then let go.
+            StreamlineTags(const SharedTexture& depthTexture, const SharedTexture& motionTexture,
+                           const SharedTexture& hudLessTexture, const SharedTexture& uiTexture, bool useHudLess,
+                           bool useUi)
+                : depth(sl::ResourceType::eTex2d, depthTexture.d3d12.Get(), kCommon),
+                  motion(sl::ResourceType::eTex2d, motionTexture.d3d12.Get(), kCommon),
+                  hudLess(sl::ResourceType::eTex2d, useHudLess ? hudLessTexture.d3d12.Get() : nullptr, kCommon),
+                  ui(sl::ResourceType::eTex2d, useUi ? uiTexture.d3d12.Get() : nullptr, kCommon),
+                  depthExtent{ 0, 0, depthTexture.width, depthTexture.height },
+                  motionExtent{ 0, 0, motionTexture.width, motionTexture.height },
+                  hudLessExtent{ 0, 0, hudLessTexture.width, hudLessTexture.height },
+                  uiExtent{ 0, 0, uiTexture.width, uiTexture.height },
+                  tags{ sl::ResourceTag(&depth, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent,
+                                        &depthExtent),
+                        sl::ResourceTag(&motion, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent,
+                                        &motionExtent),
+                        useHudLess ? sl::ResourceTag(&hudLess, sl::kBufferTypeHUDLessColor,
+                                                     sl::ResourceLifecycle::eValidUntilPresent, &hudLessExtent)
+                                   : sl::ResourceTag(nullptr, sl::kBufferTypeHUDLessColor,
+                                                     sl::ResourceLifecycle::eValidUntilPresent),
+                        useUi ? sl::ResourceTag(&ui, sl::kBufferTypeUIColorAndAlpha,
+                                                sl::ResourceLifecycle::eValidUntilPresent, &uiExtent)
+                              : sl::ResourceTag(nullptr, sl::kBufferTypeUIColorAndAlpha,
+                                                sl::ResourceLifecycle::eValidUntilPresent) }
+            {
+                depth.width = depthTexture.width;
+                depth.height = depthTexture.height;
+                depth.nativeFormat = static_cast<uint32_t>(TypedFormat(depthTexture.format));
+                motion.width = motionTexture.width;
+                motion.height = motionTexture.height;
+                motion.nativeFormat = static_cast<uint32_t>(TypedFormat(motionTexture.format));
+                hudLess.width = hudLessTexture.width;
+                hudLess.height = hudLessTexture.height;
+                hudLess.nativeFormat = static_cast<uint32_t>(TypedFormat(hudLessTexture.format));
+                ui.width = uiTexture.width;
+                ui.height = uiTexture.height;
+                ui.nativeFormat = static_cast<uint32_t>(DXGI_FORMAT_R8G8B8A8_UNORM);
+            }
+            StreamlineTags(const StreamlineTags&) = delete;
+            StreamlineTags& operator=(const StreamlineTags&) = delete;
+
+            // The resources, the extents they are tagged with, and the tags: depth, motion vectors, HUD-less
+            // colour, UI plane.
+            sl::Resource depth, motion, hudLess, ui;
+            sl::Extent depthExtent, motionExtent, hudLessExtent, uiExtent;
+            sl::ResourceTag tags[4];
+        };
+
+        // DLSS-G's common constants for the frame from the packet, the settings and the motion vectors' size.
+        // resumed is set when DLSS-G comes back from off, which is a discontinuity as it is for FSR.
+        sl::Constants BuildStreamlineConstants(const FramePacket& packet, const ProxyConfig& cfg,
+                                               const SharedTexture& motion, uint32_t displayWidth,
+                                               uint32_t displayHeight, bool resumed)
+        {
+            // The upscaler's conventions carry over, as for FSR (PrepareForPresentLocked):
+            // the motion vector scale turned into Streamline's "scale factors used to
+            // normalize motion vectors" by the texture's size -- NVIDIA's own example
+            // for vectors in pixels is {1/renderWidth, 1/renderHeight} -- and a flip of
+            // the textures -- always, above -- turning Y round with it. The packet's
+            // matrices are Direct3D's with the top of the screen up
+            // (StreamlineCamera), as the flipped textures are.
+            const float negate = cfg.fgNegateMotionScale ? -1.0f : 1.0f;
+            const float flipY = -1.0f;
+
+            sl::Constants constants{};
+            CopyMatrix(constants.cameraViewToClip, packet.viewToClip);
+            CopyMatrix(constants.clipToCameraView, packet.clipToView);
+            constants.clipToLensClip = Identity();
+            CopyMatrix(constants.clipToPrevClip, packet.clipToPrevClip);
+            CopyMatrix(constants.prevClipToClip, packet.prevClipToClip);
+            constants.jitterOffset = sl::float2(packet.jitterX, packet.jitterY * flipY);
+            constants.mvecScale = sl::float2(packet.motionVectorScaleX * negate / static_cast<float>(motion.width),
+                                             packet.motionVectorScaleY * negate * flipY
+                                                 / static_cast<float>(motion.height));
+            constants.cameraPinholeOffset = sl::float2(0.0f, 0.0f);
+            constants.cameraPos = sl::float3(packet.position[0], packet.position[1], packet.position[2]);
+            constants.cameraUp = sl::float3(packet.up[0], packet.up[1], packet.up[2]);
+            constants.cameraRight = sl::float3(packet.right[0], packet.right[1], packet.right[2]);
+            constants.cameraFwd = sl::float3(packet.forward[0], packet.forward[1], packet.forward[2]);
+            constants.cameraNear = packet.nearPlane;
+            constants.cameraFar = packet.farPlane;
+            constants.cameraFOV = packet.verticalFovRadians;
+            const uint32_t renderWidth = packet.renderWidth != 0 ? packet.renderWidth : displayWidth;
+            const uint32_t renderHeight = packet.renderHeight != 0 ? packet.renderHeight : displayHeight;
+            constants.cameraAspectRatio = renderHeight != 0 ? static_cast<float>(renderWidth) / static_cast<float>(renderHeight)
+                                                            : 1.0f;
+            constants.depthInverted = cfg.fgDepthInverted ? sl::Boolean::eTrue : sl::Boolean::eFalse;
+            // Unity's vectors: camera and object motion together, 2D, at render size,
+            // neither dilated nor jittered.
+            constants.cameraMotionIncluded = sl::Boolean::eTrue;
+            constants.motionVectors3D = sl::Boolean::eFalse;
+            constants.motionVectorsDilated = sl::Boolean::eFalse;
+            constants.motionVectorsJittered = sl::Boolean::eFalse;
+            constants.orthographicProjection = sl::Boolean::eFalse;
+            // Streamline's "minimum depth difference between two objects in
+            // screen-space", in linear depth: "if depthInverted is true: lin_depth =
+            // 1 / depth", which is about the distance over the near plane (sl_consts.h).
+            // Its default of 40 near planes is 8.4 m at KSP's 0.21 m in flight: an
+            // aircraft and the runway under it would count as one object. The header:
+            // "smaller thresholds are useful when depth units are unusually compressed".
+            if (cfg.fgObjectSeparationMetres > 0.0f && packet.nearPlane > 0.0f)
+                constants.minRelativeLinearDepthObjectSeparation = cfg.fgObjectSeparationMetres / packet.nearPlane;
+            // Coming back from off is a discontinuity, as for FSR.
+            constants.reset = packet.reset != 0 || resumed ? sl::Boolean::eTrue : sl::Boolean::eFalse;
+            return constants;
+        }
+
         // DLSS-G's status bits in words for the log, "ok" for none; bits the header does not name in hex.
         std::string StatusText(uint32_t status)
         {
@@ -129,160 +246,10 @@ namespace redefinition
         streamlineUiSet = false;
     }
 
-    bool FrameGeneration::PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
-                                                  const char* holdOff)
+    FrameGeneration::StreamlineFramePlan FrameGeneration::ChooseStreamlineFramesLocked(
+        const std::function<uint32_t()>& maxFrames)
     {
-        // As PrepareForPresentLocked: taken and cleared first, so neither a packet
-        // nor a set of inputs carries over into a later frame.
-        const bool thisFrame = packetFresh && inputsCopied;
-        packetFresh = false;
-        inputsCopied = false;
-        generatedLastPresent = false;
-
-        if (!streamline)
-            return false;
-
-        const bool inputs = wanted && !rateTooLow && !slowFrame && thisFrame && S(depth).Valid() && S(motion).Valid();
-
-        // Depth and motion vectors upside down against the backbuffer and the
-        // HUD-less colour DLSS-G warps -- fgFlipInputs off, or no flip for them
-        // (CaptureForPresent) -- would move every pixel by the row mirrored to it;
-        // no constant turns that round.
-        const bool unflipped = inputs && !flippedLastCopy;
-        if (unflipped && !loggedUnflipped)
-        {
-            loggedUnflipped = true;
-            LogLine("DLSS frame generation stays off: depth and motion vectors are not flipped to the screen's"
-                    " orientation (fgFlipInputs, or no flip for them)");
-        }
-
-        // A status failing past its grace keeps DLSS-G off until the retry; what
-        // it was is said once per status (ReadStreamlineStateLocked), so a retry
-        // goes by without lines of its own.
-        const bool statusFailing = streamlineStatusKnown && streamlineStatus != 0;
-        const bool statusWaiting = statusFailing && streamlineGrace == 0 && GetTickCount64() < streamlineRetryAfter;
-        if (holdOff != nullptr || !inputs || unflipped || frameIndex == 0 || statusWaiting)
-        {
-            StreamlineOffLocked(holdOff != nullptr ? holdOff
-                                : !wanted ? "switched off in the mod"
-                                : rateTooLow || slowFrame ? "the rendered frame rate is below its minimum (fgMinimumFps)"
-                                : !inputs ? "no inputs this frame"
-                                : unflipped ? "its inputs are not flipped"
-                                : frameIndex == 0 ? "no frame token"
-                                : nullptr);
-            return false;
-        }
-
-        Streamline& streamlineApi = Streamline::Get();
         const ProxyConfig& cfg = Config();
-
-        // The shared textures were opened on D3D12 and sit in COMMON between
-        // uses, where D3D11 finds them; Streamline transitions what it needs
-        // and "resources will always be in the state they where left".
-        constexpr uint32_t kCommon = static_cast<uint32_t>(D3D12_RESOURCE_STATE_COMMON);
-
-        sl::Resource depthResource(sl::ResourceType::eTex2d, S(depth).d3d12.Get(), kCommon);
-        depthResource.width = S(depth).width;
-        depthResource.height = S(depth).height;
-        depthResource.nativeFormat = static_cast<uint32_t>(TypedFormat(S(depth).format));
-        sl::Resource motionResource(sl::ResourceType::eTex2d, S(motion).d3d12.Get(), kCommon);
-        motionResource.width = S(motion).width;
-        motionResource.height = S(motion).height;
-        motionResource.nativeFormat = static_cast<uint32_t>(TypedFormat(S(motion).format));
-
-        const sl::Extent depthExtent{ 0, 0, S(depth).width, S(depth).height };
-        const sl::Extent motionExtent{ 0, 0, S(motion).width, S(motion).height };
-
-        // The HUD-less copy, or its tag let go: "Hudless ... Should contain the
-        // full viewable scene, without any HUD/UI elements in it", at the
-        // backbuffer's size.
-        const bool useHudLess = cfg.hudLessColour && S(hudLess).Valid();
-        sl::Resource hudLessResource(sl::ResourceType::eTex2d, useHudLess ? S(hudLess).d3d12.Get() : nullptr, kCommon);
-        hudLessResource.width = S(hudLess).width;
-        hudLessResource.height = S(hudLess).height;
-        hudLessResource.nativeFormat = static_cast<uint32_t>(TypedFormat(S(hudLess).format));
-        const sl::Extent hudLessExtent{ 0, 0, S(hudLess).width, S(hudLess).height };
-
-        // The UI plane, where the proxy made one for this frame and the options ask for recomposition
-        // (FrameGenerationUi.cpp); otherwise its tag let go. "Needs the same dimensions as the colour backbuffer".
-        const bool useUi = cfg.dlssgUiRecomposition && useHudLess && uiPlaneFresh && uiPlane[slot].Valid();
-        sl::Resource uiResource(sl::ResourceType::eTex2d, useUi ? uiPlane[slot].d3d12.Get() : nullptr, kCommon);
-        uiResource.width = uiPlane[slot].width;
-        uiResource.height = uiPlane[slot].height;
-        uiResource.nativeFormat = static_cast<uint32_t>(DXGI_FORMAT_R8G8B8A8_UNORM);
-        const sl::Extent uiExtent{ 0, 0, uiPlane[slot].width, uiPlane[slot].height };
-
-        sl::ResourceTag tags[] = {
-            sl::ResourceTag(&depthResource, sl::kBufferTypeDepth, sl::ResourceLifecycle::eValidUntilPresent, &depthExtent),
-            sl::ResourceTag(&motionResource, sl::kBufferTypeMotionVectors, sl::ResourceLifecycle::eValidUntilPresent,
-                            &motionExtent),
-            useHudLess ? sl::ResourceTag(&hudLessResource, sl::kBufferTypeHUDLessColor,
-                                         sl::ResourceLifecycle::eValidUntilPresent, &hudLessExtent)
-                       : sl::ResourceTag(nullptr, sl::kBufferTypeHUDLessColor, sl::ResourceLifecycle::eValidUntilPresent),
-            useUi ? sl::ResourceTag(&uiResource, sl::kBufferTypeUIColorAndAlpha,
-                                    sl::ResourceLifecycle::eValidUntilPresent, &uiExtent)
-                  : sl::ResourceTag(nullptr, sl::kBufferTypeUIColorAndAlpha, sl::ResourceLifecycle::eValidUntilPresent),
-        };
-
-        // The upscaler's conventions carry over, as for FSR (PrepareForPresentLocked):
-        // the motion vector scale turned into Streamline's "scale factors used to
-        // normalize motion vectors" by the texture's size -- NVIDIA's own example
-        // for vectors in pixels is {1/renderWidth, 1/renderHeight} -- and a flip of
-        // the textures -- always, above -- turning Y round with it. The packet's
-        // matrices are Direct3D's with the top of the screen up
-        // (StreamlineCamera), as the flipped textures are.
-        const float negate = cfg.fgNegateMotionScale ? -1.0f : 1.0f;
-        const float flipY = -1.0f;
-        const bool resumed = !streamlineOn;
-
-        sl::Constants constants{};
-        CopyMatrix(constants.cameraViewToClip, packet.viewToClip);
-        CopyMatrix(constants.clipToCameraView, packet.clipToView);
-        constants.clipToLensClip = Identity();
-        CopyMatrix(constants.clipToPrevClip, packet.clipToPrevClip);
-        CopyMatrix(constants.prevClipToClip, packet.prevClipToClip);
-        constants.jitterOffset = sl::float2(packet.jitterX, packet.jitterY * flipY);
-        constants.mvecScale = sl::float2(packet.motionVectorScaleX * negate / static_cast<float>(S(motion).width),
-                                         packet.motionVectorScaleY * negate * flipY
-                                             / static_cast<float>(S(motion).height));
-        constants.cameraPinholeOffset = sl::float2(0.0f, 0.0f);
-        constants.cameraPos = sl::float3(packet.position[0], packet.position[1], packet.position[2]);
-        constants.cameraUp = sl::float3(packet.up[0], packet.up[1], packet.up[2]);
-        constants.cameraRight = sl::float3(packet.right[0], packet.right[1], packet.right[2]);
-        constants.cameraFwd = sl::float3(packet.forward[0], packet.forward[1], packet.forward[2]);
-        constants.cameraNear = packet.nearPlane;
-        constants.cameraFar = packet.farPlane;
-        constants.cameraFOV = packet.verticalFovRadians;
-        const uint32_t renderWidth = packet.renderWidth != 0 ? packet.renderWidth : displayWidth;
-        const uint32_t renderHeight = packet.renderHeight != 0 ? packet.renderHeight : displayHeight;
-        constants.cameraAspectRatio = renderHeight != 0 ? static_cast<float>(renderWidth) / static_cast<float>(renderHeight)
-                                                        : 1.0f;
-        constants.depthInverted = cfg.fgDepthInverted ? sl::Boolean::eTrue : sl::Boolean::eFalse;
-        // Unity's vectors: camera and object motion together, 2D, at render size,
-        // neither dilated nor jittered.
-        constants.cameraMotionIncluded = sl::Boolean::eTrue;
-        constants.motionVectors3D = sl::Boolean::eFalse;
-        constants.motionVectorsDilated = sl::Boolean::eFalse;
-        constants.motionVectorsJittered = sl::Boolean::eFalse;
-        constants.orthographicProjection = sl::Boolean::eFalse;
-        // Streamline's "minimum depth difference between two objects in
-        // screen-space", in linear depth: "if depthInverted is true: lin_depth =
-        // 1 / depth", which is about the distance over the near plane (sl_consts.h).
-        // Its default of 40 near planes is 8.4 m at KSP's 0.21 m in flight: an
-        // aircraft and the runway under it would count as one object. The header:
-        // "smaller thresholds are useful when depth units are unusually compressed".
-        if (cfg.fgObjectSeparationMetres > 0.0f && packet.nearPlane > 0.0f)
-            constants.minRelativeLinearDepthObjectSeparation = cfg.fgObjectSeparationMetres / packet.nearPlane;
-        // Coming back from off is a discontinuity, as for FSR.
-        constants.reset = packet.reset != 0 || resumed ? sl::Boolean::eTrue : sl::Boolean::eFalse;
-
-        streamlineTagged = true;
-        if (!streamlineApi.SetConstants(constants, frameIndex) || !streamlineApi.SetTags(frameIndex, tags, 4))
-        {
-            StreamlineOffLocked("its inputs were not accepted");
-            return false;
-        }
-
         // On, with as many frames as the GPU reports it can generate, but no more
         // than the proxy allows for the display (maxFrames). Options take effect
         // "in the next Present() call that executes after it", and this is the
@@ -323,6 +290,106 @@ namespace redefinition
                     + (dynamicByMod ? "in the mod" : "dlssgMode=dynamic")
                     + "), but Streamline does not report it supported on this system -- the fixed multiplier is used");
         }
+
+        StreamlineFramePlan plan;
+        plan.wantedFrames = wantedFrames;
+        plan.frames = frames;
+        plan.dynamic = dynamic;
+        return plan;
+    }
+
+    void FrameGeneration::LogStreamlineOnLocked(const StreamlineFramePlan& plan, bool useHudLess)
+    {
+        const ProxyConfig& cfg = Config();
+        const uint32_t frames = plan.frames;
+        const uint32_t wantedFrames = plan.wantedFrames;
+        const bool dynamic = plan.dynamic;
+        if (dynamic)
+        {
+            char target[48] = "the display's refresh rate";
+            if (cfg.dlssgDynamicTargetFps > 0.0f)
+                FormatTo(target, "%.0f fps", cfg.dlssgDynamicTargetFps);
+            LogLine(std::string("DLSS frame generation on, dynamic multi frame generation toward ") + target
+                    + ", up to " + std::to_string(streamlineFrames) + " generated frame(s) per rendered"
+                    + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
+        }
+        else
+            LogLine("DLSS frame generation on, " + std::to_string(frames) + " generated frame(s) per rendered"
+                    + (frames < streamlineFrames ? " (the GPU and the package offer " + std::to_string(streamlineFrames)
+                                                         + (wantedFrames < streamlineFrames ? ", fewer asked for" : "") + ")"
+                                                 : "")
+                    + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
+    }
+
+    bool FrameGeneration::PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
+                                                  const char* holdOff)
+    {
+        // As PrepareForPresentLocked: taken and cleared first, so neither a packet
+        // nor a set of inputs carries over into a later frame.
+        const bool thisFrame = TakeFrameInputsLocked();
+
+        if (!streamline)
+            return false;
+
+        const bool inputs = wanted && !rateTooLow && !slowFrame && thisFrame && S(depth).Valid() && S(motion).Valid();
+
+        // Depth and motion vectors upside down against the backbuffer and the
+        // HUD-less colour DLSS-G warps -- fgFlipInputs off, or no flip for them
+        // (CaptureForPresent) -- would move every pixel by the row mirrored to it;
+        // no constant turns that round.
+        const bool unflipped = inputs && !flippedLastCopy;
+        if (unflipped && !loggedUnflipped)
+        {
+            loggedUnflipped = true;
+            LogLine("DLSS frame generation stays off: depth and motion vectors are not flipped to the screen's"
+                    " orientation (fgFlipInputs, or no flip for them)");
+        }
+
+        // A status failing past its grace keeps DLSS-G off until the retry; what
+        // it was is said once per status (ReadStreamlineStateLocked), so a retry
+        // goes by without lines of its own.
+        const bool statusFailing = streamlineStatusKnown && streamlineStatus != 0;
+        const bool statusWaiting = statusFailing && streamlineGrace == 0 && GetTickCount64() < streamlineRetryAfter;
+        if (holdOff != nullptr || !inputs || unflipped || frameIndex == 0 || statusWaiting)
+        {
+            const char* gate = GateReasonLocked();
+            StreamlineOffLocked(holdOff != nullptr ? holdOff
+                                : gate != nullptr ? gate
+                                : !inputs ? "no inputs this frame"
+                                : unflipped ? "its inputs are not flipped"
+                                : frameIndex == 0 ? "no frame token"
+                                : nullptr);
+            return false;
+        }
+
+        Streamline& streamlineApi = Streamline::Get();
+        const ProxyConfig& cfg = Config();
+
+        // The HUD-less copy, or its tag let go: "Hudless ... Should contain the
+        // full viewable scene, without any HUD/UI elements in it", at the
+        // backbuffer's size.
+        const bool useHudLess = cfg.hudLessColour && S(hudLess).Valid();
+
+        // The UI plane, where the proxy made one for this frame and the options ask for recomposition
+        // (FrameGenerationUi.cpp); otherwise its tag let go. "Needs the same dimensions as the colour backbuffer".
+        const bool useUi = cfg.dlssgUiRecomposition && useHudLess && uiPlaneFresh && uiPlane[slot].Valid();
+        StreamlineTags tagged(S(depth), S(motion), S(hudLess), uiPlane[slot], useHudLess, useUi);
+
+        // Coming back from off is a discontinuity, as for FSR.
+        const sl::Constants constants =
+            BuildStreamlineConstants(packet, cfg, S(motion), displayWidth, displayHeight, !streamlineOn);
+
+        streamlineTagged = true;
+        if (!streamlineApi.SetConstants(constants, frameIndex) || !streamlineApi.SetTags(frameIndex, tagged.tags, 4))
+        {
+            StreamlineOffLocked("its inputs were not accepted");
+            return false;
+        }
+
+        const StreamlineFramePlan plan = ChooseStreamlineFramesLocked(maxFrames);
+        const uint32_t frames = plan.frames;
+        const bool dynamic = plan.dynamic;
+
         sl::DLSSGOptions options{};
         options.mode = dynamic ? sl::DLSSGMode::eDynamic : sl::DLSSGMode::eOn;
         options.numFramesToGenerate = frames;
@@ -366,23 +433,7 @@ namespace redefinition
         const int modeNow = dynamic ? kDlssgModeDynamic : kDlssgModeOn;
         if ((!streamlineOn && !statusFailing) || frames != streamlineFramesSet
             || (streamlineModeSet >= 0 && modeNow != streamlineModeSet))
-        {
-            if (dynamic)
-            {
-                char target[48] = "the display's refresh rate";
-                if (cfg.dlssgDynamicTargetFps > 0.0f)
-                    FormatTo(target, "%.0f fps", cfg.dlssgDynamicTargetFps);
-                LogLine(std::string("DLSS frame generation on, dynamic multi frame generation toward ") + target
-                        + ", up to " + std::to_string(streamlineFrames) + " generated frame(s) per rendered"
-                        + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
-            }
-            else
-                LogLine("DLSS frame generation on, " + std::to_string(frames) + " generated frame(s) per rendered"
-                        + (frames < streamlineFrames ? " (the GPU and the package offer " + std::to_string(streamlineFrames)
-                                                             + (wantedFrames < streamlineFrames ? ", fewer asked for" : "") + ")"
-                                                     : "")
-                        + (useHudLess ? ", with the HUD-less copy" : ", without a HUD-less copy"));
-        }
+            LogStreamlineOnLocked(plan, useHudLess);
         streamlineModeSet = modeNow;
         streamlineDynamicActive = dynamic;
         streamlineOn = true;

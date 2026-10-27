@@ -524,8 +524,11 @@ namespace redefinition
 
     void RecordBackBuffer(ID3D11DeviceContext* context, ID3D11Texture2D* backBuffer)
     {
+        // No recording running: no frame is wanted or waiting, and no lock is taken for it.
+        if (context == nullptr || backBuffer == nullptr || !g_running.load())
+            return;
         std::unique_lock<std::mutex> lock(g_backLock);
-        if (context == nullptr || backBuffer == nullptr || (g_backWanted == 0 && g_backFrames.empty()))
+        if (g_backWanted == 0 && g_backFrames.empty())
             return;
         if (g_backWanted > 0)
         {

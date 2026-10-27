@@ -9,6 +9,7 @@
 #include "FidelityFx.h"
 #include "Log.h"
 #include "ScreenRecorder.h"
+#include "ShaderCompiler.h"
 
 #include <FidelityFX/api/include/dx12/ffx_api_dx12.h>
 #include <FidelityFX/framegeneration/include/dx12/ffx_api_framegeneration_dx12.h>
@@ -304,15 +305,8 @@ namespace redefinition
     void FrameGeneration::CheckMotionSize(UINT& width, UINT& height) const
     {
         std::lock_guard<std::mutex> lock(mutex);
-        width = 0;
-        height = 0;
-        if (!checkMotion)
-            return;
-
-        D3D11_TEXTURE2D_DESC desc = {};
-        checkMotion->GetDesc(&desc);
-        width = desc.Width;
-        height = desc.Height;
+        width = checkMotionWidth;
+        height = checkMotionHeight;
     }
 
     void FrameGeneration::RegisterInputs(ID3D11Resource* newDepth, ID3D11Resource* newMotion,
@@ -396,14 +390,8 @@ namespace redefinition
         if (flipUnavailable || device11 == nullptr)
             return false;
 
-        // The compiler ships with Windows 10 but is loaded by hand: linked, this
-        // dxgi.dll would fail to load, and the game not start, on a machine
-        // without it.
-        const HMODULE compiler = LoadLibraryW(L"d3dcompiler_47.dll");
-        const auto compile = compiler != nullptr
-            ? reinterpret_cast<pD3DCompile>(GetProcAddress(compiler, "D3DCompile"))
-            : nullptr;
-        if (compile == nullptr)
+        // The compiler ships with Windows 10 but is loaded by hand (ShaderCompiler.h).
+        if (LoadShaderCompiler().compile == nullptr)
         {
             LogLine("d3dcompiler_47.dll not available -- inputs are copied without the flip");
             flipUnavailable = true;
@@ -414,13 +402,11 @@ namespace redefinition
         {
             const D3D_SHADER_MACRO defines[] = { { "CH", kFlipChannelTypes[variant] }, { nullptr, nullptr } };
             ComPtr<ID3DBlob> code;
-            ComPtr<ID3DBlob> errors;
-            HRESULT hr = compile(kFlipShader, sizeof(kFlipShader) - 1, "flip", defines, nullptr,
-                                 "main", "cs_5_0", 0, 0, &code, &errors);
+            std::string errors;
+            HRESULT hr = CompileComputeShader50(kFlipShader, sizeof(kFlipShader) - 1, "flip", defines, code, errors);
             if (FAILED(hr))
             {
-                LogLine(std::string("Flip shader did not compile (") + Hr(hr) + "): "
-                        + (errors ? static_cast<const char*>(errors->GetBufferPointer()) : ""));
+                LogLine(std::string("Flip shader did not compile (") + Hr(hr) + "): " + errors);
                 flipUnavailable = true;
                 return false;
             }
@@ -446,7 +432,7 @@ namespace redefinition
                && S(input).uav;
     }
 
-    bool FrameGeneration::FlipLocked(Input& input)
+    bool FrameGeneration::FlipLocked(Input& input, bool moreFollow)
     {
         const int variant = FlipVariant(TypedFormat(S(input).format));
         if (variant < 0 || !input.unityView || !S(input).uav || !EnsureFlipLocked())
@@ -460,22 +446,34 @@ namespace redefinition
         context11->Dispatch((S(input).width + 7) / 8, (S(input).height + 7) / 8, 1);
 
         // The flip's bindings go, so Unity's next dispatch does not find a view
-        // where it expects nothing.
+        // where it expects nothing. Not between two flips in a row: the next sets its own.
+        flipBindingsLeft = true;
+        if (!moreFollow)
+            ClearFlipBindingsLocked();
+        return true;
+    }
+
+    void FrameGeneration::ClearFlipBindingsLocked()
+    {
         ID3D11ShaderResourceView* noView[] = { nullptr };
         ID3D11UnorderedAccessView* noUav[] = { nullptr };
         context11->CSSetShaderResources(0, 1, noView);
         context11->CSSetUnorderedAccessViews(0, 1, noUav, nullptr);
         context11->CSSetShader(nullptr, nullptr, 0);
-        return true;
+        flipBindingsLeft = false;
     }
 
-    void FrameGeneration::CopyInputLocked(Input& input, bool flip)
+    void FrameGeneration::CopyInputLocked(Input& input, bool flip, bool moreFollow)
     {
         if (!input.unity || !S(input).Valid())
             return;
 
-        if (flip && FlipLocked(input))
+        if (flip && FlipLocked(input, moreFollow))
             return;
+
+        // A flip before this one that expected another after it: its bindings go before the copy.
+        if (flipBindingsLeft)
+            ClearFlipBindingsLocked();
 
         // A straight CopyResource: the shared texture was created from the
         // source description, so format family and size match by construction.
@@ -513,8 +511,10 @@ namespace redefinition
 
             const bool flipHudLess = Config().fgFlipHudLess && EnsureFlipLocked() && CanFlipLocked(hudLess);
 
-            CopyInputLocked(depth, canFlip);
+            CopyInputLocked(depth, canFlip, canFlip);
             CopyInputLocked(motion, canFlip);
+            if (flipBindingsLeft)
+                ClearFlipBindingsLocked();
             CopyInputLocked(hudLess, flipHudLess);
 
             // DLSS-G's UI plane, from the presented frame and the HUD-less copy just taken.

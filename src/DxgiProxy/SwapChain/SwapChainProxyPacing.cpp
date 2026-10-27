@@ -414,6 +414,8 @@ namespace redefinition
         if (ticksPerSecond != 0 && count != 0)
         {
             const char* names[] = { "for a frame in flight", "for a raytracing slot", "for frame generation's inputs" };
+            static_assert(sizeof(names) / sizeof(names[0]) == static_cast<size_t>(WaitKind::Count),
+                          "every WaitKind needs its label, in the enum's order");
             std::string waits = "  The render thread waited, per frame:";
             for (int kind = 0; kind < static_cast<int>(WaitKind::Count); ++kind)
             {

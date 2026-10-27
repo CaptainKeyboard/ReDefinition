@@ -2,6 +2,7 @@
 
 #include "D3d12Util.h"
 #include "Log.h"
+#include "ShaderCompiler.h"
 
 #include <d3dcompiler.h>
 
@@ -58,33 +59,6 @@ namespace redefinition
 
     namespace
     {
-        // The two functions of d3dcompiler_47.dll the proxy calls.
-        struct Compiler
-        {
-            // D3DCompile and D3DCompileFromFile, null where the DLL could not be loaded.
-            pD3DCompile compile = nullptr;
-            HRESULT(WINAPI* compileFromFile)(LPCWSTR, const D3D_SHADER_MACRO*, ID3DInclude*, LPCSTR, LPCSTR, UINT,
-                                             UINT, ID3DBlob**, ID3DBlob**) = nullptr;
-        };
-
-        // Loaded once, from System32 only, and never freed.
-        const Compiler& LoadCompiler()
-        {
-            static const Compiler compiler = []
-            {
-                Compiler loaded;
-                const HMODULE module = LoadLibraryExW(L"d3dcompiler_47.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-                if (module != nullptr)
-                {
-                    loaded.compile = reinterpret_cast<pD3DCompile>(GetProcAddress(module, "D3DCompile"));
-                    loaded.compileFromFile = reinterpret_cast<decltype(loaded.compileFromFile)>(
-                        GetProcAddress(module, "D3DCompileFromFile"));
-                }
-                return loaded;
-            }();
-            return compiler;
-        }
-
         // The blob's text into buffer, cut to fit; empty without one.
         void CopyText(ID3DBlob* blob, char* buffer, int size)
         {
@@ -105,7 +79,7 @@ namespace redefinition
         written = 0;
         if (messages != nullptr && messagesSize > 0)
             messages[0] = '\0';
-        const Compiler& compiler = LoadCompiler();
+        const ShaderCompiler& compiler = LoadShaderCompiler();
         if (compiler.compile == nullptr || compiler.compileFromFile == nullptr)
         {
             if (messages != nullptr && messagesSize > 0)
@@ -440,8 +414,9 @@ namespace redefinition
 
         // Shared resources are in COMMON whenever Direct3D 11 touches them.
         const D3D12_RESOURCE_STATES readState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
-        std::vector<D3D12_RESOURCE_BARRIER> into;
-        std::vector<D3D12_RESOURCE_BARRIER> back;
+        D3D12_RESOURCE_BARRIER into[2 * kD3d12MaxTextures];
+        D3D12_RESOURCE_BARRIER back[2 * kD3d12MaxTextures];
+        UINT intoCount = 0, backCount = 0;
         for (uint32_t i = 0; i < packet->readCount; ++i)
         {
             bool before = false;
@@ -449,20 +424,20 @@ namespace redefinition
                 before = before || read[j] == read[i];
             if (before)
                 continue;
-            into.push_back(TransitionBarrier(read[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, readState));
-            back.push_back(TransitionBarrier(read[i]->texture.d3d12.Get(), readState, D3D12_RESOURCE_STATE_COMMON));
+            into[intoCount++] = TransitionBarrier(read[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON, readState);
+            back[backCount++] = TransitionBarrier(read[i]->texture.d3d12.Get(), readState, D3D12_RESOURCE_STATE_COMMON);
             slot.held.push_back(read[i]->texture.d3d12);
         }
         for (uint32_t i = 0; i < packet->writeCount; ++i)
         {
-            into.push_back(TransitionBarrier(write[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
-                                             D3D12_RESOURCE_STATE_UNORDERED_ACCESS));
-            back.push_back(TransitionBarrier(write[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                                             D3D12_RESOURCE_STATE_COMMON));
+            into[intoCount++] = TransitionBarrier(write[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_COMMON,
+                                                  D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+            back[backCount++] = TransitionBarrier(write[i]->texture.d3d12.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                                                  D3D12_RESOURCE_STATE_COMMON);
             slot.held.push_back(write[i]->texture.d3d12);
         }
-        if (!into.empty())
-            list->ResourceBarrier(static_cast<UINT>(into.size()), into.data());
+        if (intoCount != 0)
+            list->ResourceBarrier(intoCount, into);
 
         ID3D12DescriptorHeap* heaps[] = { slot.heap.Get() };
         list->SetDescriptorHeaps(1, heaps);
@@ -475,8 +450,8 @@ namespace redefinition
         list->SetComputeRootConstantBufferView(2, slot.constants->GetGPUVirtualAddress());
         list->Dispatch(packet->groupsX, packet->groupsY, packet->groupsZ);
 
-        if (!back.empty())
-            list->ResourceBarrier(static_cast<UINT>(back.size()), back.data());
+        if (backCount != 0)
+            list->ResourceBarrier(backCount, back);
         hr = list->Close();
         if (FAILED(hr))
         {
@@ -724,10 +699,19 @@ namespace redefinition
         }
 
         const DXGI_FORMAT format = ShareFormat(desc.Format);
-        D3D12_FEATURE_DATA_FORMAT_SUPPORT support = { format };
-        if (FAILED(device12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &support, sizeof(support)))
-            || (support.Support2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE) == 0
-            || (!write && (support.Support1 & D3D12_FORMAT_SUPPORT1_SHADER_LOAD) == 0))
+        auto known = formatSupport.find(format);
+        if (known == formatSupport.end())
+        {
+            D3D12_FEATURE_DATA_FORMAT_SUPPORT support = { format };
+            FormatBits bits;
+            bits.answered = SUCCEEDED(device12->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &support, sizeof(support)));
+            bits.support1 = support.Support1;
+            bits.support2 = support.Support2;
+            known = formatSupport.emplace(format, bits).first;
+        }
+        const FormatBits& bits = known->second;
+        if (!bits.answered || (bits.support2 & D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE) == 0
+            || (!write && (bits.support1 & D3D12_FORMAT_SUPPORT1_SHADER_LOAD) == 0))
         {
             problem = "format " + std::to_string(static_cast<int>(desc.Format))
                       + " cannot be shared for unordered access";
@@ -807,6 +791,7 @@ namespace redefinition
             entry.second.pendingFence = 0;
         }
         textures.clear();
+        formatSupport.clear();
         list.Reset();
         for (Slot& slot : slots)
         {
