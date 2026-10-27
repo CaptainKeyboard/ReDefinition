@@ -58,11 +58,26 @@ namespace ReDefinition.Upscaler
             internal Vector3d Reference;
             internal Vector3 Offset;
             internal int Frame;
+
+            // The vessel's topmost part transforms (Apply moves these), and what they were worked out from: the part
+            // count, the root part and the root's parent, and the frame. -1 for none yet.
+            internal readonly List<Transform> Topmost = new List<Transform>();
+            internal int TopmostParts = -1;
+            internal Part TopmostRoot;
+            internal Transform TopmostRootParent;
+            internal int TopmostFrame;
+            // The part count and root trackOfPart was last filled from for this track; -1 for never.
+            internal int MappedParts = -1;
+            internal Part MappedRoot;
         }
+
+        // The topmost transforms are worked out again after this many frames at the latest, whatever the cheap
+        // checks say: a part moved under another with the part count kept would otherwise stay unseen.
+        private const int RebuildFrames = 120;
 
         // The transforms moved this frame, in the order they were moved.
         private readonly List<Moved> moved = new List<Moved>();
-        // One vessel's part transforms at a time, for finding the topmost (Apply).
+        // One vessel's part transforms at a time, for finding the topmost (Topmost).
         private readonly HashSet<Transform> partTransforms = new HashSet<Transform>();
         // The tracks of the active vessel and the vessels near it, by vessel. The near ones are what the active
         // vessel dropped: boosters, fairings, a stage, which KSP makes vessels of their own as they part. Left on
@@ -75,6 +90,10 @@ namespace ReDefinition.Upscaler
         // vessel goes on from the steps of the one it was part of, so the frame of the split moves it as the
         // frame before did.
         private readonly Dictionary<Part, Track> trackOfPart = new Dictionary<Part, Track>();
+        // Whether trackOfPart must be filled again: a track came or went, or a frame count ran out. Otherwise it is
+        // filled again only when a followed vessel's part count or root changed (Update).
+        private bool mappingStale = true;
+        private int mappedFrame;
         private readonly List<Vessel> near = new List<Vessel>();
         private readonly List<Vessel> gone = new List<Vessel>();
         // The active vessel's track, this frame's; null while nothing is drawn between the steps.
@@ -136,6 +155,7 @@ namespace ReDefinition.Upscaler
             {
                 tracks.Clear();
                 trackOfPart.Clear();
+                mappingStale = true;
                 return;
             }
 
@@ -152,14 +172,41 @@ namespace ReDefinition.Upscaler
             foreach (KeyValuePair<Vessel, Track> pair in tracks)
                 if (pair.Value.Frame != Time.frameCount) gone.Add(pair.Key);
             foreach (Vessel v in gone) tracks.Remove(v);
-            trackOfPart.Clear();
-            foreach (Track track in tracks.Values)
-                foreach (Part part in track.Vessel.parts)
-                    if (part != null) trackOfPart[part] = track;
+            if (gone.Count > 0) mappingStale = true;
+            MapParts();
 
             if (others > othersMax) othersMax = others;
             framesSeen++;
             if (active != null && active.Interpolator.Steps == 0) framesWithoutStep++;
+        }
+
+        // trackOfPart, filled from the followed vessels' parts where they changed since it was: a track came or went, a
+        // vessel's part count or root part is another, or RebuildFrames passed. Follow reads the mapping of the frame
+        // before, so a frame in which a vessel parted still sees the old one: this runs after the Follow calls.
+        private void MapParts()
+        {
+            if (Time.frameCount - mappedFrame >= RebuildFrames) mappingStale = true;
+            if (!mappingStale)
+            {
+                foreach (Track track in tracks.Values)
+                    if (track.MappedParts != track.Vessel.parts.Count || track.MappedRoot != track.Vessel.rootPart)
+                    {
+                        mappingStale = true;
+                        break;
+                    }
+            }
+            if (!mappingStale) return;
+
+            mappingStale = false;
+            mappedFrame = Time.frameCount;
+            trackOfPart.Clear();
+            foreach (Track track in tracks.Values)
+            {
+                foreach (Part part in track.Vessel.parts)
+                    if (part != null) trackOfPart[part] = track;
+                track.MappedParts = track.Vessel.parts.Count;
+                track.MappedRoot = track.Vessel.rootPart;
+            }
         }
 
         // The vessel's offset for this frame. Relative to the body: Krakensbane, above a
@@ -176,6 +223,7 @@ namespace ReDefinition.Upscaler
             {
                 track = new Track { Vessel = vessel, Reference = relative };
                 tracks[vessel] = track;
+                mappingStale = true;
                 Track before;
                 if (trackOfPart.TryGetValue(vessel.rootPart, out before) && before.Vessel != null && before.Vessel.rootPart != null
                     && before.Vessel.mainBody == vessel.mainBody && before.Interpolator.Known)
@@ -247,12 +295,9 @@ namespace ReDefinition.Upscaler
             foreach (Track track in tracks.Values)
             {
                 if (track.Frame != Time.frameCount || track.Vessel == null) continue;
-                partTransforms.Clear();
-                foreach (Part part in track.Vessel.parts)
-                    if (part != null) partTransforms.Add(part.transform);
-
-                foreach (Transform t in partTransforms)
-                    if (!UnderAnother(t)) Move(t, track.Offset);
+                List<Transform> topmost = Topmost(track);
+                for (int i = 0; i < topmost.Count; i++)
+                    if (topmost[i] != null) Move(topmost[i], track.Offset);
             }
 
             framesShifted++;
@@ -261,6 +306,32 @@ namespace ReDefinition.Upscaler
             if (length > offsetMax) offsetMax = length;
             if (windowStart < 0f) windowStart = Time.unscaledTime;
             if (Time.unscaledTime - windowStart >= ReportSeconds) Report();
+        }
+
+        // The vessel's part transforms with none of its other part transforms above them, in the order of its
+        // parts, kept with the track and worked out again when the vessel's part count, root part or the root's
+        // parent is another, or after RebuildFrames.
+        private List<Transform> Topmost(Track track)
+        {
+            Vessel vessel = track.Vessel;
+            Part root = vessel.rootPart;
+            Transform rootParent = root != null ? root.transform.parent : null;
+            int count = vessel.parts.Count;
+            if (track.TopmostParts == count && track.TopmostRoot == root && track.TopmostRootParent == rootParent
+                && Time.frameCount - track.TopmostFrame < RebuildFrames)
+                return track.Topmost;
+
+            partTransforms.Clear();
+            foreach (Part part in vessel.parts)
+                if (part != null) partTransforms.Add(part.transform);
+            track.Topmost.Clear();
+            foreach (Transform t in partTransforms)
+                if (!UnderAnother(t)) track.Topmost.Add(t);
+            track.TopmostParts = count;
+            track.TopmostRoot = root;
+            track.TopmostRootParent = rootParent;
+            track.TopmostFrame = Time.frameCount;
+            return track.Topmost;
         }
 
         // Whether one of the vessel's part transforms is above it: moving that one moves
