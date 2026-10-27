@@ -561,112 +561,17 @@ namespace ReDefinition
                 return;
             }
 
-            // A technique this installation cannot run falls back to FSR 3, which
-            // runs wherever the mod does; the setting stays the player's.
-            UpscalerBackend runs = backend;
             Vector2Int output = new Vector2Int(Screen.width, Screen.height);
-            // A failure at another output size says nothing about this one.
-            if (output != nativeFailureOutput)
-            {
-                ForgetNativeFailures(false);
-                nativeFailureOutput = output;
-            }
-            string failure;
-            fallbackReason = bypass || passThrough
-                ? null
-                : UpscalerBackends.WhyNotOffered(backend)
-                  ?? (nativeFailures.TryGetValue(backend, out failure) ? failure : null);
-            if (fallbackReason != null)
-            {
-                runs = UpscalerBackend.Fsr3;
-                if (loggedFallback != fallbackReason)
-                    Debug.LogWarning(Log.Tag + " " + UpscalerBackends.Name(backend)
-                                     + " cannot run, FSR 3 runs instead: " + fallbackReason);
-                loggedFallback = fallbackReason;
-            }
-            if (passThrough) runs = UpscalerBackend.Fsr3;
-
-            // DLSS renders at the size it asks for (UpscalerRig.Setup), which the
-            // proxy knows once it has been asked. Asked here at every output size it
-            // does not know yet, answered on the render thread within a frame or
-            // two; the rig waits that long rather than being built at a size DLSS
-            // would have it rebuilt from, and no longer if no answer comes. The
-            // texture only carries Unity's device.
-            Vector2Int known;
+            UpscalerBackend runs = ChooseBackendOrFallback(passThrough, output);
             Fsr3Upscaler.QualityMode builtWith = EffectiveQuality;
-            if (runs == UpscalerBackend.Dlss && !bypass
-                && !DlssBridge.RenderSize(output, DlssBridge.Quality(builtWith), out known))
-            {
-                if (dlssSizesAskedFor != output)
-                {
-                    dlssSizesAskedFor = output;
-                    dlssSizeWaits = 0;
-                    DlssBridge.RequestRenderSizes(Texture2D.whiteTexture.GetNativeTexturePtr(), output);
-                }
-                if (dlssSizeWaits < DlssSizeWaitFrames)
-                {
-                    dlssSizeWaits++;
-                    nextAttachAttempt = 0f;
-                    return;
-                }
-            }
+            if (WaitForDlssSizes(runs, output, builtWith)) return;
 
             UpscalerRig created = target.gameObject.AddComponent<UpscalerRig>();
-            created.QualityMode = builtWith;
-            created.Sharpness = sharpness;
-            created.Sharpening = sharpness > 0f;
-            created.AutoExposure = autoExposure;
-            created.DlssPreset = DlssModels.Preset(dlssModel);
-            created.EnableMipmapBias = mipmapBias;
-            // Bypass is the upscaler's diagnostic; frame generation's capture has no
-            // upscaler to bypass, and would send nothing with it.
-            created.Bypass = bypass && !passThrough;
-            created.EnableJitter = jitter;
-            created.ForceSkinnedMotionVectors = skinnedMotionVectors;
-            created.CompensateLodBias = compensateLodBias;
-            created.DisableMsaa = disableMsaa;
-            created.ForceAnisotropic = forceAnisotropic;
-            created.TufxAfterUpscaling = tufxAfterUpscaling;
-            created.TransparencyMask = transparencyMask;
-            created.ReactiveMask = reactiveMask;
-#if DEVELOPMENT_BUILD
-            created.DebugView = debugView;
-#endif
-            created.FrameGeneration = frameGeneration;
-            created.Backend = runs;
-            created.PassThrough = passThrough;
-            created.RecordFastTurns = recordFastTurns;
+            ConfigureRig(created, builtWith, runs, passThrough);
 
             if (!created.Setup(target, shaders))
             {
-                problem = created.Status;
-                problemIsCamera = false;
-                DestroyImmediate(created);
-                if (attachRetries > 0)
-                {
-                    attachRetries--;
-                    Debug.LogWarning(Log.Tag + " Upscaler could not be set up yet, trying again in a second: "
-                                     + problem);
-                    return;
-                }
-                // Tried again later rather than turning the player's setting off,
-                // which would be saved, for what may pass: a scene loading, VRAM.
-                int failures = passThrough ? ++captureFailures : ++setupFailures;
-                bool givingUp = failures >= SetupAttempts;
-                if (loggedSetupProblem != problem || givingUp)
-                    Debug.LogWarning(Log.Tag
-                                     + (passThrough ? " Frame generation's capture" : " The upscaler")
-                                     + " could not be set up"
-                                     + (!givingUp
-                                         ? ", trying again in five seconds: "
-                                         : passThrough
-                                             ? ", and is not tried again before the next scene or a switch of the upscaler or frame generation: "
-                                             : ", and is not tried again before the next scene, a switch of the upscaler or frame"
-                                               + " generation, or a change of its settings: ")
-                                     + problem);
-                loggedSetupProblem = problem;
-                // Given up, frame generation's capture may take over at once.
-                nextAttachAttempt = givingUp ? 0f : Time.unscaledTime + 5f;
+                OnSetupFailed(created, passThrough);
                 return;
             }
 
@@ -693,6 +598,126 @@ namespace ReDefinition
                           ? (wantEnabled ? ", the upscaler not set up" : ", upscaler off") + ": frame generation's inputs only"
                           : !wantEnabled ? ", upscaler off: antialiasing at the screen's size for frame generation" : "") + ")");
             RequestRenderSizeFollowUp("upscaler attached at " + rig.RenderSize.x + "x" + rig.RenderSize.y);
+        }
+
+        // A technique this installation cannot run falls back to FSR 3, which runs wherever the mod does; the setting stays
+        // the player's. This is the backend the rig is built for at the output size: the technique chosen, FSR 3 in its
+        // place with the reason in fallbackReason, or FSR 3 for frame generation's capture alone.
+        private UpscalerBackend ChooseBackendOrFallback(bool passThrough, Vector2Int output)
+        {
+            UpscalerBackend runs = backend;
+            // A failure at another output size says nothing about this one.
+            if (output != nativeFailureOutput)
+            {
+                ForgetNativeFailures(false);
+                nativeFailureOutput = output;
+            }
+            string failure;
+            fallbackReason = bypass || passThrough
+                ? null
+                : UpscalerBackends.WhyNotOffered(backend)
+                  ?? (nativeFailures.TryGetValue(backend, out failure) ? failure : null);
+            if (fallbackReason != null)
+            {
+                runs = UpscalerBackend.Fsr3;
+                if (loggedFallback != fallbackReason)
+                    Debug.LogWarning(Log.Tag + " " + UpscalerBackends.Name(backend)
+                                     + " cannot run, FSR 3 runs instead: " + fallbackReason);
+                loggedFallback = fallbackReason;
+            }
+            if (passThrough) runs = UpscalerBackend.Fsr3;
+            return runs;
+        }
+
+        // DLSS renders at the size it asks for (UpscalerRig.Setup), which the
+        // proxy knows once it has been asked. Asked here at every output size it
+        // does not know yet, answered on the render thread within a frame or
+        // two; the rig waits that long rather than being built at a size DLSS
+        // would have it rebuilt from, and no longer if no answer comes. The
+        // texture only carries Unity's device. True while the rig waits.
+        private bool WaitForDlssSizes(UpscalerBackend runs, Vector2Int output, Fsr3Upscaler.QualityMode builtWith)
+        {
+            Vector2Int known;
+            if (runs == UpscalerBackend.Dlss && !bypass
+                && !DlssBridge.RenderSize(output, DlssBridge.Quality(builtWith), out known))
+            {
+                if (dlssSizesAskedFor != output)
+                {
+                    dlssSizesAskedFor = output;
+                    dlssSizeWaits = 0;
+                    DlssBridge.RequestRenderSizes(Texture2D.whiteTexture.GetNativeTexturePtr(), output);
+                }
+                if (dlssSizeWaits < DlssSizeWaitFrames)
+                {
+                    dlssSizeWaits++;
+                    nextAttachAttempt = 0f;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // The new rig's properties from the settings as they stand, set before its Setup.
+        private void ConfigureRig(UpscalerRig created, Fsr3Upscaler.QualityMode builtWith, UpscalerBackend runs, bool passThrough)
+        {
+            created.QualityMode = builtWith;
+            created.Sharpness = sharpness;
+            created.Sharpening = sharpness > 0f;
+            created.AutoExposure = autoExposure;
+            created.DlssPreset = DlssModels.Preset(dlssModel);
+            created.EnableMipmapBias = mipmapBias;
+            // Bypass is the upscaler's diagnostic; frame generation's capture has no
+            // upscaler to bypass, and would send nothing with it.
+            created.Bypass = bypass && !passThrough;
+            created.EnableJitter = jitter;
+            created.ForceSkinnedMotionVectors = skinnedMotionVectors;
+            created.CompensateLodBias = compensateLodBias;
+            created.DisableMsaa = disableMsaa;
+            created.ForceAnisotropic = forceAnisotropic;
+            created.TufxAfterUpscaling = tufxAfterUpscaling;
+            created.TransparencyMask = transparencyMask;
+            created.ReactiveMask = reactiveMask;
+#if DEVELOPMENT_BUILD
+            created.DebugView = debugView;
+#endif
+            created.FrameGeneration = frameGeneration;
+            created.Backend = runs;
+            created.PassThrough = passThrough;
+            created.RecordFastTurns = recordFastTurns;
+        }
+
+        // A rig whose Setup failed is destroyed and the failure counted: tried again in a second while the retries of a rebuild
+        // last, else every five seconds until SetupAttempts failures give it up.
+        private void OnSetupFailed(UpscalerRig created, bool passThrough)
+        {
+            problem = created.Status;
+            problemIsCamera = false;
+            DestroyImmediate(created);
+            if (attachRetries > 0)
+            {
+                attachRetries--;
+                Debug.LogWarning(Log.Tag + " Upscaler could not be set up yet, trying again in a second: "
+                                 + problem);
+                return;
+            }
+            // Tried again later rather than turning the player's setting off,
+            // which would be saved, for what may pass: a scene loading, VRAM.
+            int failures = passThrough ? ++captureFailures : ++setupFailures;
+            bool givingUp = failures >= SetupAttempts;
+            if (loggedSetupProblem != problem || givingUp)
+                Debug.LogWarning(Log.Tag
+                                 + (passThrough ? " Frame generation's capture" : " The upscaler")
+                                 + " could not be set up"
+                                 + (!givingUp
+                                     ? ", trying again in five seconds: "
+                                     : passThrough
+                                         ? ", and is not tried again before the next scene or a switch of the upscaler or frame generation: "
+                                         : ", and is not tried again before the next scene, a switch of the upscaler or frame"
+                                           + " generation, or a change of its settings: ")
+                                 + problem);
+            loggedSetupProblem = problem;
+            // Given up, frame generation's capture may take over at once.
+            nextAttachAttempt = givingUp ? 0f : Time.unscaledTime + 5f;
         }
 
         // Tears the rig down and removes it at once, and asks the other mods to be sized anew.
