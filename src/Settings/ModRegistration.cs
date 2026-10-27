@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Text;
 using System;
@@ -338,7 +339,14 @@ namespace ReDefinition.Settings
         public bool Direct;
 
         // The blocks the node holds, each kind in the order it stands.
-        public readonly List<SettingRegistration> Settings = new List<SettingRegistration>();
+        public ReadOnlyCollection<SettingRegistration> Settings
+        {
+            get { return settingsView ?? (settingsView = settings.AsReadOnly()); }
+        }
+        private readonly List<SettingRegistration> settings = new List<SettingRegistration>();
+        private ReadOnlyCollection<SettingRegistration> settingsView;
+        // The settings by name, kept in step with the list by AddSetting and RemoveSetting.
+        private readonly Dictionary<string, SettingRegistration> settingsByName = new Dictionary<string, SettingRegistration>();
         public readonly List<BuildRegistration> Builds = new List<BuildRegistration>();
         public readonly List<DefaultsRegistration> Defaults = new List<DefaultsRegistration>();
         public readonly List<ProfileRegistration> Profiles = new List<ProfileRegistration>();
@@ -349,9 +357,23 @@ namespace ReDefinition.Settings
         // The setting or binding of that name; null where the mod has none.
         public SettingRegistration Setting(string name)
         {
-            foreach (SettingRegistration setting in Settings)
-                if (setting.Name == name) return setting;
-            return null;
+            SettingRegistration setting;
+            return name != null && settingsByName.TryGetValue(name, out setting) ? setting : null;
+        }
+
+        // A setting after the ones there; one of the same name before it is the caller's to remove first.
+        public void AddSetting(SettingRegistration setting)
+        {
+            settings.Add(setting);
+            settingsByName[setting.Name] = setting;
+        }
+
+        // The setting taken out, with its name.
+        public void RemoveSetting(SettingRegistration setting)
+        {
+            if (!settings.Remove(setting)) return;
+            SettingRegistration indexed;
+            if (settingsByName.TryGetValue(setting.Name, out indexed) && indexed == setting) settingsByName.Remove(setting.Name);
         }
 
         // Null only where the node has no usable name or detect.
@@ -676,9 +698,9 @@ namespace ReDefinition.Settings
             {
                 problems.Add(modWhere + ": " + (binding ? "binding '" : "setting '") + name
                              + "' twice -- the last one counts.");
-                mod.Settings.Remove(earlier);
+                mod.RemoveSetting(earlier);
             }
-            mod.Settings.Add(setting);
+            mod.AddSetting(setting);
         }
 
         // A DIALOG block, added to the mod's dialogs; left out without a usable name, content or row.
