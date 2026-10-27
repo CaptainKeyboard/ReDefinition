@@ -210,21 +210,11 @@ half4 frag (unity_v2f_deferred i) : SV_Target
             // Never below the player's share of KSP's own night light: mixed with
             // Deferred's legacy ambient as Deferred mixes its probe's.
             float3 raytraced = ReDefinitionRtSignal(tex2Dlod(_ReDefinitionRtDiffuse, float4(rtUv, 0.0, 0.0)).rgb);
-            // Deferred's limit on the ambient light's tint, as it applies it to the probe's
-            // above, keeping the light's strength (a grey of the same length): with
-            // _ReDefinitionRtLight.w at 1, the raytraced light's colour as far from grey as
-            // Deferred lets its own be.
+            // Deferred's limit on the ambient light's tint, as it applies it to the probe's above,
+            // keeping the light's strength (a grey of the same length): the raytraced light's colour is as
+            // far from grey as Deferred lets its own be.
             float3 grey = length(raytraced).xxx * 0.57735027;
-            raytraced = lerp(raytraced, lerp(grey, raytraced, saturate(deferredAmbientTint)), saturate(_ReDefinitionRtLight.w));
-            // With w above 1, up to 2: the raytraced light's strength in the colour of
-            // Deferred's own ambient light at this point (ind.diffuse above, before the
-            // raytraced light takes its place), its colours as without the raytracing.
-            float deferredLength = length(ind.diffuse);
-            if (deferredLength > 1e-5)
-                raytraced = lerp(raytraced, length(raytraced) * ind.diffuse / deferredLength, saturate(_ReDefinitionRtLight.w - 1.0));
-            // From 2 to 3: more and more grey, its strength kept -- in a shadow the surface
-            // keeps its own colour.
-            raytraced = lerp(raytraced, length(raytraced).xxx * 0.57735027, saturate(_ReDefinitionRtLight.w - 2.0));
+            raytraced = lerp(grey, raytraced, saturate(deferredAmbientTint));
             float3 nightLight = legacyAmbientColor * _ReDefinitionRtLight.z;
             raytraced = lerp(nightLight, raytraced, saturate((length(raytraced) - length(nightLight)) * 100.0));
             ind.diffuse = raytraced * data.occlusion;

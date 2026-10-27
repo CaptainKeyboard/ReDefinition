@@ -25,7 +25,6 @@ upscaler's. The other rows are under *Detail*, in the *Raytracing* group.
 | Moon glow | the moons' discs a little brighter in the night sky, with a soft glow round them, the more the darker the sky. It lights nothing, and works without raytracing too |
 | Sun reflection | how strongly water mirrors the sun, from 0 to 300 %: the raytraced sun on the sea with *Full*, otherwise Scatterer's own glint. 100 % is Scatterer's |
 | Night light | how much of KSP's own night light stays, from 0 to 100 %: the least light anything gets where neither the sun nor a moon reaches it. Lower makes the night darker, and the moonlight's shadows show more clearly. Only with *Shadows and light* or *Full* |
-| Light colour | the colour of the light from the sky and the surroundings; its strength is the rays' either way. *Raytraced*: the sky's own, blue by day, orange at dusk. *As without raytracing*: the colour of the ambient light the game has without it. *Neutral*, the default: grey, so that grass and ground in shadow keep their own colour. Only with *Shadows and light* or *Full*, and only with Deferred, in whose lighting the colour is set |
 
 The profiles set the mode: Low and Medium leave raytracing *Off*, High sets *Shadows*, Ultra
 *Shadows and light* and Max *Full*. They set two light bounces, which no row changes. More

@@ -49,7 +49,7 @@ namespace ReDefinition.Raytracing
             {
                 Light sun = SunLight != null ? SunLight() : null;
                 Debug.Log(Core.Log.Tag + " Raytracing parity of view " + parityLabel + ": the sun's light " + (sun != null ? sun.color + " x " + sun.intensity : "none")
-                          + ", the rays' sun " + SunColor() + ", the rays' sky " + SkyColor() + ", Unity's ambient sky " + RenderSettings.ambientSkyColor + " equator "
+                          + ", the rays' sun " + SunColor() + " (drawn " + drawnSunColour + " in frame " + drawnSunFrame + " of " + Time.frameCount + "), the rays' sky " + SkyColor() + ", Unity's ambient sky " + RenderSettings.ambientSkyColor + " equator "
                           + RenderSettings.ambientEquatorColor + " ground " + RenderSettings.ambientGroundColor + " flat " + RenderSettings.ambientLight + ".");
             }
             parityLabel = null;

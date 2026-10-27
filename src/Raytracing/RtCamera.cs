@@ -311,23 +311,10 @@ namespace ReDefinition.Raytracing
         private int statusFrame;
 
         // The lighting shaders' flags: on around this camera's rendering, the sun's mask taking the raytraced
-        // visibility, and which raytraced light to use (x diffuse, y reflections, z the night light kept).
+        // visibility, and which raytraced light to use (x diffuse, y reflections, z the night light kept, w unused).
         private static readonly int RtOn = Shader.PropertyToID("_ReDefinitionRtOn");
         private static readonly int RtSunMask = Shader.PropertyToID("_ReDefinitionRtSunMask");
         private static readonly int RtLight = Shader.PropertyToID("_ReDefinitionRtLight");
-        // The raytraced diffuse light's colour (ReDefinitionDeferredReflections.shader). At 0 it is its
-        // own. Up to 1, it takes that much of Deferred's limit on its ambient light's tint (its
-        // ambientTint). From 1 to 2, it is more and more in the colour of Deferred's own ambient
-        // light, its strength kept. From 2 to 3, it is more and more grey.
-        // It is the player's choice (RtKsp, RaytracingLightColour).
-        internal Func<float> AmbientColour = () => 0f;
-
-        // The light colour in effect: the player's, 0 to 3.
-        private float AmbientTintLimit
-        {
-            get { return Mathf.Clamp(AmbientColour(), 0f, 3f); }
-        }
-
         // The ocean's traced reflections for the deferred reflections, Scatterer's ocean's input of screen-space
         // reflections, and KSP's sea as a sphere (centre and radius; radius 0 where the sea is not KSP's).
         private static readonly int RtOcean = Shader.PropertyToID("_ReDefinitionRtOcean");
@@ -650,8 +637,7 @@ namespace ReDefinition.Raytracing
             // The previous frame's results, carried to this frame's world.
             bool valid = haveHistory && !Cut();
             Shader.SetGlobalVector(RtLight, new Vector4(valid && Settings.Diffuse ? 1f : 0f,
-                                                        valid && Settings.Reflections ? 1f : 0f, Mathf.Clamp01(NightLight()),
-                                                        AmbientTintLimit));
+                                                        valid && Settings.Reflections ? 1f : 0f, Mathf.Clamp01(NightLight()), 0f));
             if (valid)
             {
                 RtPosition near = WorldShift();
@@ -801,7 +787,7 @@ namespace ReDefinition.Raytracing
             Shader.SetGlobalVector(RtOffsetNear, toCamera);
             Shader.SetGlobalVector(RtOffsetFar, toCamera);
             Shader.SetGlobalVector(RtLight, new Vector4(Settings.Diffuse ? 1f : 0f, Settings.Reflections ? 1f : 0f,
-                                                        Mathf.Clamp01(NightLight()), AmbientTintLimit));
+                                                        Mathf.Clamp01(NightLight()), 0f));
             if (sun != null)
             {
                 Shader.SetGlobalTexture(RtSun, sun);

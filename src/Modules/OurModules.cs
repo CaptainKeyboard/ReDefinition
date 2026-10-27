@@ -410,38 +410,7 @@ namespace ReDefinition.Modules
                 "How much of KSP's own night light stays: the least light anything gets where neither\n"
                   + "the sun nor a moon reaches it. 100 % is KSP's night; lower makes the night darker\n"
                   + "and the moonlight's shadows stand out.",
-                TracesDiffuseLight),
-            new ModuleSetting
-            {
-                Key = "lightColour",
-                Detail = true,
-                Title = "Light colour",
-                Kind = SettingKind.Other,
-                Order = 85,
-                Control = SettingControl.Choice,
-                Choices = new[]
-                {
-                    ReDefinition.Raytracing.RaytracingLightColour.Raytraced.ToString(),
-                    ReDefinition.Raytracing.RaytracingLightColour.AsWithout.ToString(),
-                    ReDefinition.Raytracing.RaytracingLightColour.Neutral.ToString(),
-                },
-                Label = value => LightColourLabel(value),
-                Tooltip = "The colour of the light from the sky and the surroundings; its strength is the rays' in each.\n"
-                          + "Raytraced: the sky's own, blue by day, orange at dusk, blue at night.\n"
-                          + "As without raytracing: the colour of the ambient light the game has without it.\n"
-                          + "Neutral: grey, so that grass and ground in shadow keep their own colour.\n"
-                          + "Only with Deferred, in whose lighting the colour is set.",
-                Read = settings => EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.Name(settings.RaytracingLightColour),
-                Write = (settings, value) =>
-                {
-                    ReDefinition.Raytracing.RaytracingLightColour colour;
-                    settings.RaytracingLightColour = EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.TryParse(value, out colour)
-                        ? colour : ReDefinition.Raytracing.RaytracingLightColour.AsWithout;
-                },
-                // Set in Deferred's reflections pass, through ReDefinition's copy of its shader
-                // (RtLighting); without Deferred the raytraced light goes in as it is.
-                Interactable = settings => TracesDiffuseLight(settings) && ReDefinition.Core.ForeignAssumptions.DeferredReflections.Holds,
-            });
+                TracesDiffuseLight));
 
         // Whether the proxy offers raytracing on this GPU (RtNative.Ready), asked once a second: a row asks
         // it in every frame.
@@ -465,19 +434,6 @@ namespace ReDefinition.Modules
             string why;
             raytracingOffered = RtNative.Ready(out why);
             return raytracingOffered;
-        }
-
-        // The light colour row's value as its row names it.
-        private static string LightColourLabel(string value)
-        {
-            ReDefinition.Raytracing.RaytracingLightColour colour;
-            if (!EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.TryParse(value, out colour)) return value;
-            switch (colour)
-            {
-                case ReDefinition.Raytracing.RaytracingLightColour.Raytraced: return "Raytraced";
-                case ReDefinition.Raytracing.RaytracingLightColour.AsWithout: return "As without raytracing";
-                default: return "Neutral";
-            }
         }
 
         // A fraction's value as a whole percentage, e.g. "50 %".

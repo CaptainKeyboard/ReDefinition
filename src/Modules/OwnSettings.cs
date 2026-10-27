@@ -84,9 +84,6 @@ namespace ReDefinition.Modules
         // How much of KSP's night light stays under raytracing, in percent: the least
         // light a point gets where neither the sun nor a moon reaches it.
         public float RaytracingNightAmbient = 0f;
-        // The colour of the raytraced light from the sky and the surroundings
-        // (Raytracing/Ksp/RtKsp, RaytracingLightColour).
-        public RaytracingLightColour RaytracingLightColour = RaytracingLightColour.AsWithout;
 
         // Whether phones and tablets on the network may open the dashboard (Dashboard/DashboardServer),
         // and the key such a device needs, random where the file has none (the phone's address carries it).
@@ -446,7 +443,6 @@ namespace ReDefinition.Modules
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
             Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),
             Float("raytracingNightAmbient", "0", x => x.RaytracingNightAmbient, (x, v) => x.RaytracingNightAmbient = v, true),
-            Enum("raytracingLightColour", x => x.RaytracingLightColour, (x, v) => x.RaytracingLightColour = v, true),
             Bool("dashboardNetwork", x => x.DashboardNetwork, (x, v) => x.DashboardNetwork = v, true),
             // Live, so that the window's Apply, which copies only what it changed, never takes it back.
             Text("dashboardKey", x => x.DashboardKey, (x, v) => x.DashboardKey = v, live: true),

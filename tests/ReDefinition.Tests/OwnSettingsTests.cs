@@ -91,19 +91,6 @@ namespace ReDefinition.Tests
             Assert.AreEqual("2560x1440", live.NavballScreen);
         }
 
-        // The raytracing's light colour is read live (RtKsp): a view's change has to reach
-        // the live settings, which are what is saved.
-        [TestMethod]
-        public void TheLightColourIsReadLive()
-        {
-            var live = new OwnSettings();
-            var before = new OwnSettings();
-            var after = before.Clone();
-            after.RaytracingLightColour = ReDefinition.Raytracing.RaytracingLightColour.Raytraced;
-            live.ChangeLive(before, after);
-            Assert.AreEqual(ReDefinition.Raytracing.RaytracingLightColour.Raytraced, live.RaytracingLightColour);
-        }
-
         // The upscaler's switches the add-on holds in its settings object (quality, technique, DLSS model, the
         // masks, the jitter and the rest) travel with CopyLive and ChangeLive. The ones whose setters can refuse
         // or clamp a value (the switch, the sharpness, frame generation) stay the add-on's own.
