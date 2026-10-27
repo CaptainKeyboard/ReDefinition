@@ -15,6 +15,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# -File passes a comma list whole.
+$Bodies = @($Bodies | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 . (Join-Path $PSScriptRoot 'common.ps1')
 $kspRoot = Get-KspRoot
 $log = Join-Path $kspRoot 'KSP.log'

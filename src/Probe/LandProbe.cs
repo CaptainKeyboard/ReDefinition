@@ -67,12 +67,24 @@ namespace ReDefinition.Probe
             FloatingOrigin.SetOffset(place);
             Debug.Log(Log.Tag + " Probe: hover: the capsule set down over " + body.bodyName + " at " + altitude.ToString("0", CultureInfo.InvariantCulture)
                       + " m, the sun " + (90.0 - OrbitPhase).ToString("0", CultureInfo.InvariantCulture) + " degrees high.");
+            // Krakensbane carries the orbital speed in the world's frame; it goes into the bodies and the pod is set at rest in
+            // the air, which turns with the body.
+            Krakensbane.ResetVelocityFrame(true);
+            vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()));
+            // Held in place: its bodies take no forces, so that it neither falls nor is slowed. The air's heat on it, at a
+            // speed over the turning body, would destroy it, so the game's own cheat for that is on.
+            CheatOptions.IgnoreMaxTemperature = true;
+            CheatOptions.NoCrashDamage = true;
             while (vessel != null && vessel.state != Vessel.State.DEAD)
             {
+                foreach (Part part in vessel.parts)
+                    if (part.rb != null && !part.rb.isKinematic)
+                    {
+                        part.rb.velocity = Vector3.zero;
+                        part.rb.angularVelocity = Vector3.zero;
+                        part.rb.isKinematic = true;
+                    }
                 yield return new WaitForFixedUpdate();
-                // At rest in the air: the velocity of the air there, which turns with the body. The parts' bodies carry the
-                // velocity beyond the frame Krakensbane moves with (the shift above 750 m/s), so that is taken off.
-                vessel.SetWorldVelocity(body.getRFrmVel(vessel.GetWorldPos3D()) - Krakensbane.GetFrameVelocity());
             }
         }
 
