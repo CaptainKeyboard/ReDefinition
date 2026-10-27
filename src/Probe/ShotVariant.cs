@@ -30,7 +30,7 @@ namespace ReDefinition.Probe
         // The variant the switch names, changed once in the flight, then two seconds to settle.
         internal static IEnumerator Apply()
         {
-            string name = SceneProbe.ArgumentAfter("-redefinitionProbeShotVariant");
+            string name = CommandLine.After("-redefinitionProbeShotVariant");
             if (name == null) yield break;
             string done;
             try

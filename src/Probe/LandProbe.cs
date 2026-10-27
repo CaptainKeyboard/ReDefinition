@@ -21,14 +21,14 @@ namespace ReDefinition.Probe
         // The body asked for, or null.
         internal static string BodyName
         {
-            get { return SceneProbe.ArgumentAfter(Argument); }
+            get { return CommandLine.After(Argument); }
         }
 
         // Where the pod is asked to stand, in degrees east.
         private static double Longitude()
         {
             double value;
-            string text = SceneProbe.ArgumentAfter("-redefinitionProbeLandLongitude");
+            string text = CommandLine.After("-redefinitionProbeLandLongitude");
             return text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) ? value : 0.0;
         }
 

@@ -18,7 +18,7 @@ namespace ReDefinition.Probe
 {
     // A measurement the game runs on its own, started with -redefinitionProbe on KSP's
     // command line. KSP loads the save ReDefinitionProbe and goes to the flight of the
-    // vessel waiting on the launch pad. It turns the flight camera on a fixed path from
+    // vessel waiting on the launch pad. By default it turns the flight camera on a fixed path from
     // the vessel up into the sky. It writes what the scene camera holds at each stage
     // of its rendering, around the vessel, into ReDefinitionCaptures\<time>-probe.
     // Each run is made twice, with the vessel and with its renderers hidden, so that the
@@ -26,6 +26,11 @@ namespace ReDefinition.Probe
     // With -redefinitionProbeVariants the same is made with each other mod's component and command
     // buffer on the flight's cameras switched off in turn. Then KSP quits. tools/analyze_probe.py
     // measures the halo and trail around the vessel in each.
+    //
+    // The same flight hosts the other probes, each started by its own switch: the light probe, the views,
+    // the vendors' checks, the FLIP sweep, the soak, the scene round trips, the staging, the scenes at sea, on grass
+    // and on another body (-redefinitionProbeSea, -redefinitionProbeGrass, -redefinitionProbeLand), and the
+    // single shots of -redefinitionProbeStay. The README of this folder lists them.
     //
     // Nothing of it runs without the argument.
     internal static class SceneProbe
@@ -35,21 +40,13 @@ namespace ReDefinition.Probe
         // -redefinitionProbeSave <folder>: another save than ReDefinitionProbe, a copy of a
         // player's (the probe saves the flight it leaves into it); -redefinitionProbeVessel
         // <name>: that vessel's flight, wherever it is.
-        internal static readonly string SaveFolder = ArgumentAfter("-redefinitionProbeSave") ?? "ReDefinitionProbe";
-        internal static readonly string VesselName = ArgumentAfter("-redefinitionProbeVessel");
+        internal static readonly string SaveFolder = CommandLine.After("-redefinitionProbeSave") ?? "ReDefinitionProbe";
+        internal static readonly string VesselName = CommandLine.After("-redefinitionProbeVessel");
         // -redefinitionProbeBody <name>: the sea capsule on that body's sea instead of the
         // home body's (-redefinitionProbeSea); -redefinitionProbeMoon <name>: the moon the
         // light probe's "mun-" shots look at instead of the Mun.
-        internal static readonly string BodyName = ArgumentAfter("-redefinitionProbeBody");
-        internal static readonly string MoonName = ArgumentAfter("-redefinitionProbeMoon") ?? "Mun";
-
-        // The command line's word after the switch named; null where the switch is not given or ends the line.
-        internal static string ArgumentAfter(string name)
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            int at = Array.IndexOf(args, name);
-            return at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
-        }
+        internal static readonly string BodyName = CommandLine.After("-redefinitionProbeBody");
+        internal static readonly string MoonName = CommandLine.After("-redefinitionProbeMoon") ?? "Mun";
 
         // Whether the main menu has started the probe's flight already, so that a return to it does not again.
         internal static bool Launched;
@@ -72,43 +69,21 @@ namespace ReDefinition.Probe
         // centre and back, each flight settled, for what scene changes leave behind
         // in the logs (memory, devices, the upscaler's and raytracing's setup). -1
         // where not asked for.
-        internal static int ScenesLeft = SceneCount();
+        internal static int ScenesLeft = CommandLine.Int("-redefinitionProbeScenes", -1, true);
         // On each round trip the space centre first opens the VAB, then the flight.
         internal static bool EditorVisited;
-
-        // The round trips -redefinitionProbeScenes asks for; -1 without it.
-        private static int SceneCount()
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int i = 0; i + 1 < args.Length; i++)
-                if (string.Equals(args[i], "-redefinitionProbeScenes", StringComparison.OrdinalIgnoreCase))
-                    return int.Parse(args[i + 1], CultureInfo.InvariantCulture);
-            return -1;
-        }
 
         // The variants to run, -redefinitionProbeVariants <part of their name, or all>:
         // none without it. The baseline first says at which stage the halo enters.
         internal static string Variants
         {
-            get
-            {
-                string[] args = Environment.GetCommandLineArgs();
-                for (int i = 0; i < args.Length - 1; i++)
-                    if (string.Equals(args[i], "-redefinitionProbeVariants", StringComparison.OrdinalIgnoreCase))
-                        return args[i + 1];
-                return null;
-            }
+            get { return CommandLine.After("-redefinitionProbeVariants", true); }
         }
 
         // Whether -redefinitionProbe is on the command line, in any case.
         internal static bool Requested
         {
-            get
-            {
-                foreach (string arg in Environment.GetCommandLineArgs())
-                    if (string.Equals(arg, Argument, StringComparison.OrdinalIgnoreCase)) return true;
-                return false;
-            }
+            get { return CommandLine.Has(Argument, true); }
         }
     }
 
@@ -126,7 +101,7 @@ namespace ReDefinition.Probe
             // -redefinitionProbeProfile <name>: that graphics profile applied as the main
             // menu's question applies it, saved in the mods, and KSP quits, so that the next
             // start runs with it all; the caller keeps copies of the files it changes.
-            string profileName = SceneProbe.ArgumentAfter("-redefinitionProbeProfile");
+            string profileName = CommandLine.After("-redefinitionProbeProfile");
             if (profileName != null)
             {
                 List<string> problems = new List<string>();
@@ -158,7 +133,7 @@ namespace ReDefinition.Probe
             }
             // -redefinitionProbeDays <n>: n of the home body's solar days later, the sun where
             // it was and the clouds moved on.
-            string days = SceneProbe.ArgumentAfter("-redefinitionProbeDays");
+            string days = CommandLine.After("-redefinitionProbeDays");
             if (days != null)
             {
                 CelestialBody home = FlightGlobals.GetHomeBody();
@@ -229,6 +204,29 @@ namespace ReDefinition.Probe
             FlightDriver.StartAndFocusVessel(game, index);
         }
 
+        // A Mk1 command pod made as KSP makes a vessel (ProtoVessel.CreateVesselNode) and added to the game's vessels, upright
+        // on the body at the latitude and longitude, at the altitude given. Landed it is set on the ground by KSP; splashed it
+        // floats at sea level and is not set down on the ground, which at sea is the sea floor. It returns the vessel's index.
+        private static int AddProbeVessel(Game game, CelestialBody body, string name, Vessel.Situations situation, double latitude,
+                                          double longitude, double altitude)
+        {
+            bool splashed = situation == Vessel.Situations.SPLASHED;
+            ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
+            var orbit = new Orbit(0.0, 0.0, body.Radius + 100000.0, 0.0, 0.0, 0.0, Planetarium.GetUniversalTime(), body);
+            ConfigNode node = ProtoVessel.CreateVesselNode(name, VesselType.Ship, orbit, 0, new[] { part });
+            node.SetValue("sit", situation.ToString());
+            node.SetValue("landed", splashed ? "False" : "True");
+            node.SetValue("splashed", splashed ? "True" : "False");
+            node.SetValue("skipGroundPositioning", splashed ? "True" : "False");
+            node.SetValue("lat", latitude.ToString(CultureInfo.InvariantCulture));
+            node.SetValue("lon", longitude.ToString(CultureInfo.InvariantCulture));
+            node.SetValue("alt", altitude.ToString(CultureInfo.InvariantCulture));
+            Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)body.GetRelSurfaceNVector(latitude, longitude));
+            node.SetValue("rot", KSPUtil.WriteQuaternion(upright));
+            game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+            return game.flightState.protoVessels.Count - 1;
+        }
+
         // A Mk1 command pod on the ground where Parallax's Kerbin grass grows thick. It stands at the first
         // place, by distance from the launch pad, in the Grasslands biome (Kerbin.cfg's grass
         // scatters grow from 25 m of altitude and are blacklisted from water, deserts and
@@ -269,29 +267,22 @@ namespace ReDefinition.Probe
                         for (int j = -3; j <= 3 && field; j++)
                         {
                             double sampleLat = lat + i * step, sampleLon = lon + j * step / Math.Cos(lat * Math.PI / 180.0);
-                            field = biome(sampleLat, sampleLon) == "Grasslands" && ground(sampleLat, sampleLon) > 80.0
-                                    && Math.Abs(ground(sampleLat, sampleLon) - here) < 40.0 * 3.0 * Math.Tan(8.0 * Math.PI / 180.0);
+                            if (biome(sampleLat, sampleLon) != "Grasslands")
+                            {
+                                field = false;
+                                continue;
+                            }
+                            double sampleHeight = ground(sampleLat, sampleLon);
+                            field = sampleHeight > 80.0 && Math.Abs(sampleHeight - here) < 40.0 * 3.0 * Math.Tan(8.0 * Math.PI / 180.0);
                         }
                     if (!field) continue;
                     game.flightState.protoVessels.RemoveAll(v => v.vesselName == SceneProbe.GrassVesselName);
-                    ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
-                    var orbit = new Orbit(0.0, 0.0, radius + 100000.0, 0.0, 0.0, 0.0, Planetarium.GetUniversalTime(), home);
-                    ConfigNode node = ProtoVessel.CreateVesselNode(SceneProbe.GrassVesselName, VesselType.Ship, orbit, 0, new[] { part });
-                    node.SetValue("sit", Vessel.Situations.LANDED.ToString());
-                    node.SetValue("landed", "True");
-                    node.SetValue("splashed", "False");
-                    node.SetValue("skipGroundPositioning", "False");
-                    node.SetValue("lat", lat.ToString(CultureInfo.InvariantCulture));
-                    node.SetValue("lon", lon.ToString(CultureInfo.InvariantCulture));
-                    node.SetValue("alt", (here + 1.0).ToString(CultureInfo.InvariantCulture));
-                    Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)home.GetRelSurfaceNVector(lat, lon));
-                    node.SetValue("rot", KSPUtil.WriteQuaternion(upright));
-                    game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+                    int index = AddProbeVessel(game, home, SceneProbe.GrassVesselName, Vessel.Situations.LANDED, lat, lon, here + 1.0);
                     Debug.Log(Log.Tag + " Probe: a capsule on grassland " + distance.ToString("0") + " m from the pad (bearing " + degrees
                               + "), latitude " + lat.ToString(CultureInfo.InvariantCulture) + ", longitude "
                               + lon.ToString(CultureInfo.InvariantCulture) + ", the ground " + here.ToString("0", CultureInfo.InvariantCulture)
                               + " m above the sea.");
-                    return game.flightState.protoVessels.Count - 1;
+                    return index;
                 }
             Debug.LogError(Log.Tag + " Probe: grass scene unavailable: no field of grassland found around the pad.");
             return -1;
@@ -335,23 +326,11 @@ namespace ReDefinition.Probe
                     for (int j = -2; j <= 2 && deep; j++)
                         deep = ground(place[0] + i * (coast ? 0.01 : 0.2), place[1] + j * (coast ? 0.01 : 0.2)) < (coast ? -10.0 : -100.0);
                 if (!deep) continue;
-                ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
-                var orbit = new Orbit(0.0, 0.0, home.Radius + 100000.0, 0.0, 0.0, 0.0, Planetarium.GetUniversalTime(), home);
-                ConfigNode node = ProtoVessel.CreateVesselNode("ReDefinition sea probe", VesselType.Ship, orbit, 0, new[] { part });
-                node.SetValue("sit", Vessel.Situations.SPLASHED.ToString());
-                node.SetValue("landed", "False");
-                node.SetValue("splashed", "True");
-                node.SetValue("skipGroundPositioning", "True");
-                node.SetValue("lat", place[0].ToString(CultureInfo.InvariantCulture));
-                node.SetValue("lon", place[1].ToString(CultureInfo.InvariantCulture));
-                node.SetValue("alt", "0");
-                Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)home.GetRelSurfaceNVector(place[0], place[1]));
-                node.SetValue("rot", KSPUtil.WriteQuaternion(upright));
-                game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+                int index = AddProbeVessel(game, home, "ReDefinition sea probe", Vessel.Situations.SPLASHED, place[0], place[1], 0.0);
                 Debug.Log(Log.Tag + " Probe: a capsule afloat on " + home.bodyName + " at latitude " + place[0].ToString(CultureInfo.InvariantCulture)
                           + ", longitude " + place[1].ToString(CultureInfo.InvariantCulture) + ", the sea floor "
                           + ground(place[0], place[1]).ToString("0", CultureInfo.InvariantCulture) + " m.");
-                return game.flightState.protoVessels.Count - 1;
+                return index;
             }
             Debug.LogWarning(Log.Tag + " Probe: no open sea found at any of the places tried.");
             return -1;
@@ -417,7 +396,7 @@ namespace ReDefinition.Probe
             {
                 Raytracing.RtCamera.SurfacesAsDeferred = shot == "deferred";
                 Raytracing.RtCamera.SurfaceView = shot == "overlay";
-                for (int i = 0; i < 30; i++) yield return null;
+                yield return ProbeSteps.Frames(30);
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
                 SceneProbeRunner.EnvironmentFaces(folder, shot);
                 yield return null;
@@ -435,7 +414,7 @@ namespace ReDefinition.Probe
     // In the probe's flight: whichever measurement the switches ask for, by default the camera path's stages
     // around the vessel with and without it, for each variant; then KSP quits; -redefinitionProbeStay leaves the flight to the player.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    internal sealed class SceneProbeRunner : MonoBehaviour
+    internal sealed partial class SceneProbeRunner : MonoBehaviour
     {
         // The proxy's CPU sampler (src/DxgiProxy/Latency/CpuSampler.h): the main thread sampled for seconds into path; 1
         // started, 0 not.
@@ -495,432 +474,10 @@ namespace ReDefinition.Probe
         // frames the halo shows in (-redefinitionProbeCaptureStep, default 21).
         private static int CaptureStep
         {
-            get
-            {
-                string[] args = Environment.GetCommandLineArgs();
-                for (int i = 0; i + 1 < args.Length; i++)
-                    if (args[i] == "-redefinitionProbeCaptureStep") return int.Parse(args[i + 1], CultureInfo.InvariantCulture);
-                return 21;
-            }
+            get { return CommandLine.Int("-redefinitionProbeCaptureStep", 21); }
         }
         // The sweep in this many frames a step of the path (FlipProbe).
         private int sweepSubdivide = 1;
-
-        // The reflection probe the rays see the sky in (RtKsp, Environment), its six faces
-        // into `folder` as <shot>-env<face>.ppm, clamped to 0..1.
-        internal static void EnvironmentFaces(string folder, string shot)
-        {
-            ReflectionProbe found = null;
-            foreach (ReflectionProbe p in UnityEngine.Object.FindObjectsOfType<ReflectionProbe>())
-                if (p.isActiveAndEnabled && p.texture != null)
-                {
-                    found = p;
-                    break;
-                }
-            var cube = found != null ? found.texture as RenderTexture : null;
-            if (cube == null)
-            {
-                Debug.Log(Log.Tag + " Probe: no reflection probe render texture to dump.");
-                return;
-            }
-            var face = new RenderTexture(cube.width, cube.height, 0, cube.format);
-            face.Create();
-            var read = new Texture2D(cube.width, cube.height, TextureFormat.RGBA32, false);
-            RenderTexture active = RenderTexture.active;
-            for (int i = 0; i < 6; i++)
-            {
-                Graphics.CopyTexture(cube, i, 0, face, 0, 0);
-                RenderTexture.active = face;
-                read.ReadPixels(new Rect(0, 0, cube.width, cube.height), 0, 0);
-                Color32[] pixels = read.GetPixels32();
-                var bytes = new List<byte>(Encoding.ASCII.GetBytes("P6\n" + cube.width + " " + cube.height + "\n255\n"));
-                for (int y = cube.height - 1; y >= 0; y--)
-                    for (int x = 0; x < cube.width; x++)
-                    {
-                        Color32 c = pixels[y * cube.width + x];
-                        bytes.Add(c.r);
-                        bytes.Add(c.g);
-                        bytes.Add(c.b);
-                    }
-                File.WriteAllBytes(Path.Combine(folder, shot + "-env" + i + ".ppm"), bytes.ToArray());
-            }
-            RenderTexture.active = active;
-            UnityEngine.Object.Destroy(read);
-            face.Release();
-            UnityEngine.Object.Destroy(face);
-            Debug.Log(Log.Tag + " Probe: reflection probe " + found.name + " (" + cube.width + ", " + cube.format + ") dumped.");
-        }
-
-        // The camera events at whose end Stages reads the camera's target.
-        private static readonly CameraEvent[] StageEvents =
-        {
-            CameraEvent.AfterGBuffer, CameraEvent.BeforeLighting, CameraEvent.AfterLighting, CameraEvent.AfterForwardOpaque,
-            CameraEvent.AfterSkybox, CameraEvent.AfterForwardAlpha, CameraEvent.BeforeImageEffects, CameraEvent.AfterImageEffects,
-            CameraEvent.AfterEverything,
-        };
-
-        // At the nearest visible renderer so named (<name>@<parent's name>), a 32-pixel window of Camera 00's target
-        // at each of StageEvents: the brightest pixel and the mean into the log.
-        private static IEnumerator Stages(string rendererName)
-        {
-            Camera scene = null;
-            foreach (Camera c in Camera.allCameras)
-                if (c.name == "Camera 00") scene = c;
-            // <name>@<parent's name>: only under a parent so named.
-            string[] parts = rendererName.Split('@');
-            string name = parts[0], parentName = parts.Length > 1 ? parts[1] : null;
-            Renderer target = null;
-            float nearest = float.MaxValue;
-            if (scene != null)
-                foreach (Renderer r in FindObjectsOfType<Renderer>())
-                {
-                    if (r.name != name || (parentName != null && (r.transform.parent == null || r.transform.parent.name != parentName))
-                        || !r.isVisible)
-                        continue;
-                    float d = Vector3.Distance(scene.transform.position, r.bounds.center);
-                    if (d < nearest) { nearest = d; target = r; }
-                }
-            if (target == null)
-            {
-                Debug.Log(Log.Tag + " Probe: stages, no visible renderer " + rendererName + " or no Camera 00.");
-                yield break;
-            }
-            // In the camera's pixels: its screen points are the screen's. A window around the
-            // middle of its bounds, which may lie off the renderer's own pixels.
-            const int Window = 32;
-            Vector3 at = scene.WorldToViewportPoint(target.bounds.center);
-            int px = Mathf.Clamp(Mathf.RoundToInt(at.x * scene.pixelWidth), Window / 2, scene.pixelWidth - Window / 2);
-            int py = Mathf.Clamp(Mathf.RoundToInt(at.y * scene.pixelHeight), Window / 2, scene.pixelHeight - Window / 2);
-            Vector2 scale = new Vector2((float)Window / scene.pixelWidth, (float)Window / scene.pixelHeight);
-            Vector2 offset = new Vector2((float)(px - Window / 2) / scene.pixelWidth, (float)(py - Window / 2) / scene.pixelHeight);
-            var buffers = new List<KeyValuePair<CameraEvent, CommandBuffer>>();
-            var crops = new List<KeyValuePair<string, RenderTexture>>();
-            foreach (CameraEvent e in StageEvents)
-            {
-                var cb = new CommandBuffer { name = "ReDefinition probe stages " + e };
-                RenderTexture crop = new RenderTexture(Window, Window, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-                crop.Create();
-                cb.Blit(BuiltinRenderTextureType.CameraTarget, crop, scale, offset);
-                crops.Add(new KeyValuePair<string, RenderTexture>(e.ToString(), crop));
-                scene.AddCommandBuffer(e, cb);
-                buffers.Add(new KeyValuePair<CameraEvent, CommandBuffer>(e, cb));
-            }
-            yield return new WaitForEndOfFrame();
-            foreach (KeyValuePair<CameraEvent, CommandBuffer> b in buffers)
-                scene.RemoveCommandBuffer(b.Key, b.Value);
-            var line = new StringBuilder(Log.Tag + " Probe: stages at " + rendererName + " under "
-                                         + (target.transform.parent != null ? target.transform.parent.name : "nothing") + ", "
-                                         + nearest.ToString("0.0", CultureInfo.InvariantCulture) + " m, pixel " + px + "," + py
-                                         + " of " + scene.pixelWidth + "x" + scene.pixelHeight + ", the window's brightest pixel and mean:");
-            Texture2D read = new Texture2D(Window, Window, TextureFormat.RGBAFloat, false, true);
-            RenderTexture active = RenderTexture.active;
-            foreach (KeyValuePair<string, RenderTexture> crop in crops)
-            {
-                RenderTexture.active = crop.Value;
-                read.ReadPixels(new Rect(0, 0, Window, Window), 0, 0);
-                Color sum = Color.clear, most = Color.clear;
-                foreach (Color c in read.GetPixels())
-                {
-                    sum += c;
-                    if (c.r + c.g + c.b > most.r + most.g + most.b) most = c;
-                }
-                sum /= Window * Window;
-                line.Append(System.Environment.NewLine).Append("  ").Append(crop.Key).Append(' ').Append(Rgb(most)).Append(", mean ").Append(Rgb(sum));
-                crop.Value.Release();
-            }
-            RenderTexture.active = active;
-            Destroy(read);
-            Debug.Log(line.ToString());
-        }
-
-        // Camera 00's target after the G-buffer and before the lighting, each as <shot>-<event>.bin: width, height,
-        // then RGBA floats.
-        private static IEnumerator LightBuffer(string folder, string shot)
-        {
-            Camera scene = null;
-            foreach (Camera c in Camera.allCameras)
-                if (c.name == "Camera 00") scene = c;
-            if (scene == null) yield break;
-            var events = new[] { CameraEvent.AfterGBuffer, CameraEvent.BeforeLighting };
-            var buffers = new CommandBuffer[events.Length];
-            var targets = new RenderTexture[events.Length];
-            for (int i = 0; i < events.Length; i++)
-            {
-                targets[i] = new RenderTexture(scene.pixelWidth, scene.pixelHeight, 0, RenderTextureFormat.ARGBFloat, RenderTextureReadWrite.Linear);
-                targets[i].Create();
-                buffers[i] = new CommandBuffer { name = "ReDefinition probe light buffer " + events[i] };
-                buffers[i].Blit(BuiltinRenderTextureType.CameraTarget, targets[i]);
-                scene.AddCommandBuffer(events[i], buffers[i]);
-            }
-            yield return new WaitForEndOfFrame();
-            RenderTexture active = RenderTexture.active;
-            for (int i = 0; i < events.Length; i++)
-            {
-                scene.RemoveCommandBuffer(events[i], buffers[i]);
-                Texture2D read = new Texture2D(targets[i].width, targets[i].height, TextureFormat.RGBAFloat, false, true);
-                RenderTexture.active = targets[i];
-                read.ReadPixels(new Rect(0, 0, targets[i].width, targets[i].height), 0, 0, false);
-                string name = events[i] == CameraEvent.AfterGBuffer ? "afterGBuffer" : "beforeLighting";
-                using (var file = new BinaryWriter(File.Create(Path.Combine(folder, shot + "-" + name + ".bin"))))
-                {
-                    file.Write(read.width);
-                    file.Write(read.height);
-                    foreach (Color c in read.GetPixels())
-                    {
-                        file.Write(c.r);
-                        file.Write(c.g);
-                        file.Write(c.b);
-                        file.Write(c.a);
-                    }
-                }
-                Destroy(read);
-                targets[i].Release();
-            }
-            RenderTexture.active = active;
-            Debug.Log(Log.Tag + " Probe: light buffer of Camera 00 written.");
-        }
-
-        // Windows' ini writer, for ReDefinitionProxy.ini's keys.
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-        private static extern bool WritePrivateProfileString(string section, string key, string value, string file);
-
-        // Windows' ini reader: a key's value, or fallback where it is missing.
-        [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
-        private static extern uint GetPrivateProfileString(string section, string key, string fallback, StringBuilder value, uint size,
-                                                           string file);
-
-        // Shoots the diagnostics window, step by step. Each step's commands are applied, then 2 s pass for the
-        // window and its strip to settle, then the frame is shot as the screen shows it, window included. It waits
-        // 20 s first, for the upscaler and the frame generation to be set up.
-        private static IEnumerator DiagnosticsShots(string steps)
-        {
-            yield return new WaitForSeconds(20f);
-            string folder = CaptureFolder.Run;
-            foreach (string step in steps.Split('|'))
-            {
-                string[] parts = step.Split(new[] { '@' }, 2);
-                string name = parts[0].Trim();
-                if (ReDefinitionAddon.Instance == null) yield break;
-                string done = ReDefinitionAddon.Instance.ProbeDiagnostics("show" + (parts.Length > 1 && parts[1].Length > 0 ? "," + parts[1] : ""));
-                yield return new WaitForSeconds(2f);
-                yield return new WaitForEndOfFrame();
-                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "diagnostics-" + name + ".png"));
-                Debug.Log(Log.Tag + " Probe: diagnostics shot " + name + " (" + done.Trim() + ").");
-                yield return new WaitForSeconds(1f);
-            }
-        }
-
-        // A key mod.<key> is one of ReDefinition's own settings (OwnSettings, its key in
-        // settings.cfg: mod.technique=Dlss, mod.raytracing=Full, mod.rayReconstruction=False),
-        // applied as the settings window applies it; every other key the proxy's ini.
-        private static IEnumerator IniShots(string folder, string shot, string sets)
-        {
-            string ini = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(Application.dataPath)) ?? "", "ReDefinitionProxy.ini");
-            var before = new Dictionary<string, string>();
-            var modBefore = new Dictionary<string, string>();
-            int n = 0;
-            foreach (string set in sets.Split(';'))
-            {
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                OwnSettings current = addon != null ? addon.Current() : null;
-                OwnSettings wanted = current != null ? current.Clone() : null;
-                foreach (string pair in set.Split(','))
-                {
-                    int equals = pair.IndexOf('=');
-                    if (equals <= 0) continue;
-                    string key = pair.Substring(0, equals).Trim();
-                    string text = pair.Substring(equals + 1).Trim();
-                    if (key.StartsWith("mod.", StringComparison.Ordinal))
-                    {
-                        string modKey = key.Substring(4);
-                        if (wanted == null) continue;
-                        if (!modBefore.ContainsKey(modKey)) modBefore[modKey] = current.ValueOf(modKey);
-                        if (!wanted.SetValue(modKey, text))
-                            Debug.LogWarning(Log.Tag + " Probe: no setting " + modKey + " takes " + text + ".");
-                        continue;
-                    }
-                    if (!before.ContainsKey(key))
-                    {
-                        var value = new StringBuilder(260);
-                        GetPrivateProfileString("Proxy", key, "", value, (uint)value.Capacity, ini);
-                        before[key] = value.ToString();
-                    }
-                    WritePrivateProfileString("Proxy", key, text, ini);
-                }
-                if (wanted != null && modBefore.Count > 0) addon.Apply(current, wanted);
-                Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini set to " + set + ".");
-                yield return new WaitForSecondsRealtime(12f);
-                // -redefinitionProbeSettingsWindow <tab>: the settings window on that tab in the shot,
-                // built anew after the set so that it shows it.
-                SettingCategory windowTab;
-                string windowArgument = SceneProbe.ArgumentAfter("-redefinitionProbeSettingsWindow");
-                if (windowArgument != null && Enum.TryParse(windowArgument, true, out windowTab))
-                {
-                    // -redefinitionProbeSettingsWindowScroll <0 to 1>: the page scrolled, 1 the top, 0 the bottom.
-                    float scrollAt;
-                    string scrollArgument = SceneProbe.ArgumentAfter("-redefinitionProbeSettingsWindowScroll");
-                    TabScrollList.ProbePosition =
-                        scrollArgument != null && float.TryParse(scrollArgument, NumberStyles.Float, CultureInfo.InvariantCulture, out scrollAt)
-                            ? scrollAt : (float?)null;
-                    ReDefinition.Window.SettingsWindow.OpenOn(windowTab);
-                    yield return new WaitForSecondsRealtime(2f);
-                    yield return new WaitForEndOfFrame();
-                }
-                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-ini" + n + ".png"));
-                Debug.Log(Log.Tag + " Probe: shot " + shot + "-ini" + n + " with " + set + ".");
-                n++;
-                yield return null;
-            }
-            foreach (KeyValuePair<string, string> pair in before)
-                WritePrivateProfileString("Proxy", pair.Key, pair.Value, ini);
-            ReDefinitionAddon restoring = ReDefinitionAddon.Instance;
-            if (restoring != null && modBefore.Count > 0)
-            {
-                OwnSettings now = restoring.Current();
-                OwnSettings back = now.Clone();
-                foreach (KeyValuePair<string, string> pair in modBefore)
-                {
-                    if (pair.Value != null) back.SetValue(pair.Key, pair.Value);
-                }
-                restoring.Apply(now, back);
-            }
-            Debug.Log(Log.Tag + " Probe: ReDefinitionProxy.ini's values set back.");
-        }
-
-        // A colour's red, green and blue for the log, four decimals, space-separated.
-        private static string Rgb(Color c)
-        {
-            return c.r.ToString("0.0000", CultureInfo.InvariantCulture) + " " + c.g.ToString("0.0000", CultureInfo.InvariantCulture) + " "
-                   + c.b.ToString("0.0000", CultureInfo.InvariantCulture);
-        }
-
-        // Logs the raytraced camera's light at a few places of the pad's view. It logs the
-        // traced diffuse light (linear), the sun's visibility, the forward ratio (k, w),
-        // Unity's ambient probe up / side / down and the sun's colour.
-        private static IEnumerator LightValues()
-        {
-            Raytracing.RtCamera rt = Raytracing.RtCamera.Current;
-            if (rt == null) yield break;
-            // The screen-space shadow mask Unity collected for the sun this frame, copied after
-            // it is made, into the session's capture folder, shadowmask.pgm.
-            Light masked = rt.SunLightNow;
-            if (masked != null)
-            {
-                var copy = new RenderTexture(rt.Camera.pixelWidth, rt.Camera.pixelHeight, 0, RenderTextureFormat.ARGB32);
-                var grab = new CommandBuffer { name = "ReDefinition probe shadow mask" };
-                grab.Blit(BuiltinRenderTextureType.CurrentActive, copy);
-                masked.AddCommandBuffer(LightEvent.AfterScreenspaceMask, grab);
-                yield return new WaitForEndOfFrame();
-                yield return null;
-                masked.RemoveCommandBuffer(LightEvent.AfterScreenspaceMask, grab);
-                AsyncGPUReadbackRequest maskRead = AsyncGPUReadback.Request(copy, 0, TextureFormat.RGBA32);
-                while (!maskRead.done) yield return null;
-                if (!maskRead.hasError)
-                {
-                    NativeArray<Color32> m = maskRead.GetData<Color32>();
-                    int mw = copy.width, mh = copy.height;
-                    byte[] head = Encoding.ASCII.GetBytes("P5\n" + mw + " " + mh + "\n255\n");
-                    var mb = new byte[head.Length + mw * mh];
-                    Array.Copy(head, mb, head.Length);
-                    for (int y = 0; y < mh; y++)
-                        for (int x = 0; x < mw; x++)
-                            mb[head.Length + y * mw + x] = m[(mh - 1 - y) * mw + x].r;
-                    File.WriteAllBytes(Path.Combine(CaptureFolder.Run, "shadowmask.pgm"), mb);
-                }
-                grab.Release();
-                copy.Release();
-            }
-            var places = new[] { new KeyValuePair<string, Rect>("lawn", new Rect(0.02f, 0.57f, 0.18f, 0.12f)),
-                                 new KeyValuePair<string, Rect>("pad", new Rect(0.16f, 0.80f, 0.15f, 0.07f)),
-                                 new KeyValuePair<string, Rect>("rocket", new Rect(0.485f, 0.35f, 0.022f, 0.14f)),
-                                 new KeyValuePair<string, Rect>("far", new Rect(0.06f + 0.88f * 21f / 22f, 0.08f + 0.64f * 5f / 12f,
-                                                                                0.88f / 22f, 0.64f / 12f)) };
-            foreach (var texture in new[] { new KeyValuePair<string, RenderTexture>("diffuse", rt.DiffuseTexture),
-                                            new KeyValuePair<string, RenderTexture>("sun", rt.SunTexture),
-                                            new KeyValuePair<string, RenderTexture>("ratio", rt.ForwardRatioTexture),
-                                            new KeyValuePair<string, RenderTexture>("forward", rt.ForwardTexture),
-                                            new KeyValuePair<string, RenderTexture>("specular", rt.SpecularTexture),
-                                            new KeyValuePair<string, RenderTexture>("ocean", rt.OceanTracedTexture) })
-            {
-                if (texture.Value == null) continue;
-                AsyncGPUReadbackRequest request = AsyncGPUReadback.Request(texture.Value, 0, TextureFormat.RGBAFloat);
-                while (!request.done) yield return null;
-                if (request.hasError) continue;
-                NativeArray<Color> data = request.GetData<Color>();
-                int w = texture.Value.width, h = texture.Value.height;
-                // The forward ratio's w and the sun's visibility as pictures (PGM, top row
-                // first): black where the rays held no surface, or saw no sun.
-                if (texture.Key == "ratio" || texture.Key == "sun" || texture.Key == "diffuse" || texture.Key == "ocean")
-                {
-                    byte[] header = Encoding.ASCII.GetBytes("P5\n" + w + " " + h + "\n255\n");
-                    var bytes = new byte[header.Length + w * h];
-                    Array.Copy(header, bytes, header.Length);
-                    for (int y = 0; y < h; y++)
-                        for (int x = 0; x < w; x++)
-                        {
-                            Color texel = data[(h - 1 - y) * w + x];
-                            bytes[header.Length + y * w + x] = (byte)Mathf.Clamp((texture.Key == "sun" ? texel.r : texture.Key == "diffuse" ? texel.g * 4f : texture.Key == "ocean" ? (texel.a > 0f ? 0.5f + texel.g : 0f) : texel.g * 0.5f + 0.5f) * 255f, 0f, 255f);
-                        }
-                    string maskFolder = CaptureFolder.Run;
-                    File.WriteAllBytes(Path.Combine(maskFolder, texture.Key + ".pgm"), bytes);
-                }
-                var line = new StringBuilder(Log.Tag + " Probe: light values, " + texture.Key + ":");
-                foreach (var place in places)
-                {
-                    Color sum = Color.clear;
-                    int n = 0;
-                    // Rows from the bottom in the texture, the places from the top.
-                    for (int y = (int)((1f - place.Value.yMax) * h); y < (int)((1f - place.Value.yMin) * h); y++)
-                        for (int x = (int)(place.Value.xMin * w); x < (int)(place.Value.xMax * w); x++)
-                        {
-                            sum += data[y * w + x];
-                            n++;
-                        }
-                    if (n > 0) sum /= n;
-                    line.Append(' ').Append(place.Key).Append(' ').Append(sum.r.ToString("0.000", CultureInfo.InvariantCulture))
-                        .Append(", ").Append(sum.g.ToString("0.000", CultureInfo.InvariantCulture)).Append(", ")
-                        .Append(sum.b.ToString("0.000", CultureInfo.InvariantCulture)).Append(", ")
-                        .Append(sum.a.ToString("0.000", CultureInfo.InvariantCulture)).Append(';');
-                }
-                Debug.Log(line.ToString());
-            }
-            // What lies at a few cells of tools' grid comparison (22 by 12 over x 6-94 %, y 8-72 %).
-            // And at pixels of the 2560 by 1440 shot: the lawn before the runway, the runway, the lawn beyond.
-            foreach (Vector2Int cell in new[] { new Vector2Int(21, 5), new Vector2Int(18, 5), new Vector2Int(2, 6),
-                                                new Vector2Int(10, 7), new Vector2Int(14, 9), new Vector2Int(-500, 545),
-                                                new Vector2Int(-500, 528), new Vector2Int(-500, 570), new Vector2Int(-500, 600) })
-            {
-                float vx = cell.x < 0 ? -cell.x / 2560f : 0.06f + 0.88f * (cell.x + 0.5f) / 22f;
-                float vy = cell.x < 0 ? 1f - cell.y / 1440f : 1f - (0.08f + 0.64f * (cell.y + 0.5f) / 12f);
-                Ray ray = rt.Camera.ViewportPointToRay(new Vector3(vx, vy, 0f));
-                RaycastHit hit;
-                string what = "nothing";
-                if (Physics.Raycast(ray, out hit, 1e6f, ~0, QueryTriggerInteraction.Ignore))
-                {
-                    Renderer renderer = hit.collider.GetComponent<Renderer>() ?? hit.collider.GetComponentInParent<Renderer>();
-                    Material material = renderer != null ? renderer.sharedMaterial : null;
-                    what = hit.collider.name + " at " + hit.distance.ToString("0") + " m, "
-                           + (material != null ? material.name + " (" + material.shader.name + ")" : "no renderer");
-                }
-                Debug.Log(Log.Tag + " Probe: light values, cell " + cell.x + "," + cell.y + ": " + what + ".");
-            }
-            foreach (Light light in UnityEngine.Object.FindObjectsOfType<Light>())
-                if (light.isActiveAndEnabled && light.intensity > 0f)
-                    Debug.Log(Log.Tag + " Probe: light values, light '" + light.name + "' " + light.type + " intensity "
-                              + light.intensity.ToString("0.00", CultureInfo.InvariantCulture) + " colour " + light.color
-                              + " shadows " + light.shadows + " strength " + light.shadowStrength.ToString("0.00", CultureInfo.InvariantCulture)
-                              + " mask " + light.cullingMask + " at " + light.transform.position + " forward " + light.transform.forward
-                              + " parent " + (light.transform.parent != null ? light.transform.parent.name : "none")
-                              + (light == rt.SunLightNow ? " (the raytracing's sun)" : "") + ".");
-            var directions = new[] { Vector3.up, Vector3.right, Vector3.down };
-            var ambient = new Color[3];
-            UnityEngine.Rendering.SphericalHarmonicsL2 probe;
-            LightProbes.GetInterpolatedProbe(rt.transform.position, null, out probe);
-            probe.Evaluate(directions, ambient);
-            Debug.Log(Log.Tag + " Probe: light values, ambient up " + ambient[0] + " side " + ambient[1] + " down " + ambient[2]
-                      + ", RenderSettings.ambientLight " + RenderSettings.ambientLight + ", mode " + RenderSettings.ambientMode
-                      + ", sun " + rt.TracedSunColour + ", path " + rt.Camera.actualRenderingPath + ".");
-        }
 
         // Runs only in the probe's flight, once it stands. It does the switches' single runs (each quits KSP), the
         // scene round trips, else the default measurement. That measurement is the baseline, each variant asked for,
@@ -932,6 +489,69 @@ namespace ReDefinition.Probe
             if (SceneProbe.Requested && !probeFlight)
                 Debug.Log(Log.Tag + " Probe: flight of the save " + HighLogic.SaveFolder + ", not the probe's; left alone.");
             if (!SceneProbe.Requested || !probeFlight) yield break;
+            yield return WaitForFlight();
+            Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
+            if (CommandLine.Has(SceneProbe.StayArgument))
+            {
+                yield return StayMode();
+                yield break;
+            }
+            yield return new WaitForSeconds(SettleSeconds);
+
+            if (SceneProbe.ScenesLeft >= 0)
+            {
+                yield return RoundTripMode();
+                yield break;
+            }
+
+            if (!PrepareMeasurement())
+            {
+                Application.Quit();
+                yield break;
+            }
+
+            if (RenderDocCapture.Available)
+            {
+                yield return RenderDocMode();
+                yield break;
+            }
+
+            if (VendorProbe.Requested)
+            {
+                yield return VendorMode();
+                yield break;
+            }
+
+            // -redefinitionProbeSoak <seconds>: the camera circles the vessel for that
+            // long, for the proxy's and the game's own reports over time (memory,
+            // frame times, errors), then KSP quits.
+            int soakSeconds = CommandLine.Int("-redefinitionProbeSoak", 0);
+            if (soakSeconds > 0)
+            {
+                yield return SoakMode(soakSeconds);
+                yield break;
+            }
+
+            if (FlipProbe.Requested)
+            {
+                yield return FlipMode();
+                yield break;
+            }
+
+            if (LightProbe.Requested)
+            {
+                Detach();
+                yield return LightProbe.Run(folder);
+                yield return ProbeSteps.QuitAfter(1f);
+                yield break;
+            }
+
+            yield return VariantsMode();
+        }
+
+        // Waits until the flight stands: ready, with a vessel and its camera, saying every 10 s what it still waits for.
+        private static IEnumerator WaitForFlight()
+        {
             float waitSaid = Time.realtimeSinceStartup;
             while (!FlightGlobals.ready || FlightGlobals.ActiveVessel == null || FlightCamera.fetch == null)
             {
@@ -943,191 +563,211 @@ namespace ReDefinition.Probe
                 }
                 yield return null;
             }
-            Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
-            if (CommandLine.Has(SceneProbe.StayArgument))
+        }
+
+        // -redefinitionProbeStay: the flight left to the player, the clouds hidden. The switches for a single run
+        // (the staging, the diagnostics window, RenderDoc, the CPU sample, a shot) then run it and quit KSP; with none
+        // KSP is left running.
+        private IEnumerator StayMode()
+        {
+            yield return new WaitForSeconds(5f);
+            LightProbe.HideClouds();
+            Debug.Log(Log.Tag + " Probe: the flight is the player's.");
+            // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
+            if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
+                ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
+            if (CommandLine.Has(SceneProbe.GrassArgument))
             {
-                yield return new WaitForSeconds(5f);
-                LightProbe.HideClouds();
-                Debug.Log(Log.Tag + " Probe: the flight is the player's.");
-                // -redefinitionProbeNoGloss: Parallax's materials without their shine for the whole flight.
-                if (ViewProbe.NoGloss && ReDefinitionAddon.Instance != null)
-                    ReDefinitionAddon.Instance.StartCoroutine(ViewProbe.KeepGlossOff());
-                if (CommandLine.Has(SceneProbe.GrassArgument))
-                {
-                    // Where the grass scene ended up: the situation, the height above the ground
-                    // and the biome, to read against the grass the shot shows.
-                    Vessel vessel = FlightGlobals.ActiveVessel;
-                    Debug.Log(Log.Tag + " Probe: grass scene, " + vessel.vesselName + " " + vessel.situation + ", "
-                              + vessel.heightFromTerrain.ToString("0.0", CultureInfo.InvariantCulture) + " m over the ground, "
-                              + vessel.altitude.ToString("0.0", CultureInfo.InvariantCulture) + " m above the sea, biome "
-                              + ScienceUtil.GetExperimentBiome(vessel.mainBody, vessel.latitude, vessel.longitude) + ".");
-                }
-                yield return ShotVariant.Apply();
-                // -redefinitionProbeStaging <seconds>: the launch flown and a stage dropped, recorded (StagingProbe).
-                if (StagingProbe.Requested)
-                {
-                    string stagingShot = SceneProbe.ArgumentAfter("-redefinitionProbeShot") ?? "staging";
-                    yield return StagingProbe.Run(CaptureFolder.Run, stagingShot);
-                    Application.Quit();
-                    yield break;
-                }
-                // -redefinitionProbeDiagnostics "<name>@<commands>|<name>@<commands>": the diagnostics
-                // window opened and set by each step's commands (ReDefinitionAddon.ProbeDiagnostics),
-                // a shot of the whole frame after each as diagnostics-<name>.png, then KSP quits.
-                string diagnosticsSteps = SceneProbe.ArgumentAfter("-redefinitionProbeDiagnostics");
-                if (diagnosticsSteps != null)
-                {
-                    yield return DiagnosticsShots(diagnosticsSteps);
-                    Application.Quit();
-                    yield break;
-                }
-                // -redefinitionProbeRenderDoc, under RenderDoc (tools/renderdoc_probe.ps1
-                // -Stay): one frame captured 25 s on, then KSP quits.
-                if (CommandLine.Has("-redefinitionProbeRenderDoc"))
-                {
-                    yield return new WaitForSeconds(25f);
-                    RenderDocCapture.Capture("the flight left to run");
-                    yield return new WaitForSeconds(5f);
-                    Application.Quit();
-                    yield break;
-                }
-                // -redefinitionProbeCpuSample: the main thread sampled for 30 s from 20 s on
-                // (src/DxgiProxy/Latency/CpuSampler.h) into the session's capture folder, cpu-samples.txt,
-                // then KSP quits; tools/cpu_samples.py reads it.
-                if (CommandLine.Has("-redefinitionProbeCpuSample"))
-                {
-                    yield return new WaitForSeconds(20f);
-                    string samplesFolder = CaptureFolder.Run;
-                    int started = 0;
-                    try
-                    {
-                        started = KspCpuSample(30, Path.GetFullPath(Path.Combine(samplesFolder, "cpu-samples.txt")));
-                    }
-                    catch (Exception e)
-                    {
-                        Debug.Log(Log.Tag + " Probe: no CPU sampler (" + e.GetType().Name + ").");
-                    }
-                    Debug.Log(Log.Tag + " Probe: CPU sampler " + (started != 0 ? "started" : "not started") + ".");
-                    yield return new WaitForSeconds(33f);
-                    Application.Quit();
-                    yield break;
-                }
-                // -redefinitionProbeShot <name>: the frame as KSP draws it, 30 s on, into
-                // the session's capture folder (CaptureFolder.Run) as <name>.png, then KSP quits.
-                string shot = SceneProbe.ArgumentAfter("-redefinitionProbeShot");
-                if (shot == null) yield break;
-                yield return new WaitForSeconds(30f);
-                yield return LightValues();
-                string folder = CaptureFolder.Run;
-                ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
-                EnvironmentFaces(folder, shot);
-                // -redefinitionProbeSurfaces: the raytraced camera's surfaces of the frame
-                // after, as <shot>-<name>.bin (RtCamera.WriteSurfaceImages).
-                if (CommandLine.Has("-redefinitionProbeSurfaces"))
-                {
-                    yield return new WaitForEndOfFrame();
-                    Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
-                    Debug.Log(Log.Tag + " Probe: surfaces " + (traced != null ? traced.WriteSurfaceImages(folder, shot) : "none, no raytraced camera")
-                              + ".");
-                }
-                Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
-                // -redefinitionProbeMaterials <part of a name>: the renderers so named, with
-                // their materials' shaders, queues and keywords.
-                string materialsOf = SceneProbe.ArgumentAfter("-redefinitionProbeMaterials");
-                if (materialsOf != null)
-                    foreach (Renderer renderer in FindObjectsOfType<Renderer>())
-                    {
-                        Transform parent = renderer.transform.parent;
-                        if (renderer.name.IndexOf(materialsOf, StringComparison.OrdinalIgnoreCase) < 0
-                            && (parent == null || parent.name.IndexOf(materialsOf, StringComparison.OrdinalIgnoreCase) < 0))
-                            continue;
-                        StringBuilder line = new StringBuilder(Log.Tag + " Probe: renderer " + renderer.name + " under "
-                                                               + (renderer.transform.parent != null ? renderer.transform.parent.name : "nothing")
-                                                               + ", layer " + renderer.gameObject.layer + ", enabled " + renderer.enabled + ", "
-                                                               + renderer.GetType().Name + ", mesh filter "
-                                                               + (renderer.GetComponent<MeshFilter>() != null) + ":");
-                        foreach (Material material in renderer.sharedMaterials)
-                            if (material != null)
-                                line.Append(' ').Append(material.name).Append(" (").Append(material.shader.name).Append(", queue ")
-                                    .Append(material.renderQueue).Append(", keywords ").Append(string.Join(" ", material.shaderKeywords))
-                                    .Append(material.HasProperty("_Color") ? ", _Color " + material.GetColor("_Color") : "")
-                                    .Append(material.HasProperty("_EmissiveColor") ? ", _EmissiveColor " + material.GetColor("_EmissiveColor") : "")
-                                    .Append(material.HasProperty("_EmissionColor") ? ", _EmissionColor " + material.GetColor("_EmissionColor") : "")
-                                    .Append(')');
-                        Debug.Log(line.ToString());
-                    }
-                // -redefinitionProbeStagesAt <renderer name>[@<parent's name>]: the scene camera's image after each
-                // of its stages at the middle of the nearest renderer so named, linear, a 5 by 5
-                // pixel mean each: in which stage it takes its brightness.
-                string stagesAt = SceneProbe.ArgumentAfter("-redefinitionProbeStagesAt");
-                if (stagesAt != null)
-                    yield return Stages(stagesAt);
-                // -redefinitionProbeLightBuffer: the scene camera's light buffer, whole, after the
-                // G-buffer and before the lights, as <shot>-afterGBuffer.bin and
-                // <shot>-beforeLighting.bin (the surfaces' format): what each surface brings
-                // into the lighting of its own.
-                if (CommandLine.Has("-redefinitionProbeLightBuffer"))
-                    yield return LightBuffer(folder, shot);
-                // -redefinitionProbeShotIni "key=value,key=value;key=value": then each set of the
-                // proxy's live settings in turn written into ReDefinitionProxy.ini, which the proxy
-                // re-reads within a second, and the same view 10 s later as <shot>-ini<n>.png;
-                // the values as they were written back at the end.
-                string iniSets = SceneProbe.ArgumentAfter("-redefinitionProbeShotIni");
-                if (iniSets != null)
-                    yield return IniShots(folder, shot, iniSets);
-                // -redefinitionProbeWindow "step;...": the settings window used as the player does (WindowProbe).
-                string windowSteps = SceneProbe.ArgumentAfter("-redefinitionProbeWindow");
-                if (windowSteps != null)
-                    yield return WindowProbe.Run(folder, shot, windowSteps);
-                // -redefinitionProbeViews "pitch,distance,heading;...": shots from several poses, in each
-                // raytracing mode asked for (ViewProbe).
-                string views = SceneProbe.ArgumentAfter(ViewProbe.ViewsArgument);
-                if (views != null)
-                    yield return ViewProbe.Run(folder, shot, views);
-                // -redefinitionProbeBurst <n>: n frames more, one after the other, as
-                // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
-                // ghosting).
-                string burst = SceneProbe.ArgumentAfter("-redefinitionProbeBurst");
-                int burstFrames;
-                if (burst != null && int.TryParse(burst, out burstFrames))
-                    for (int i = 0; i < burstFrames; i++)
-                    {
-                        yield return null;
-                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-burst" + i.ToString("00") + ".png"));
-                    }
-                yield return new WaitForSeconds(2f);
+                // Where the grass scene ended up: the situation, the height above the ground
+                // and the biome, to read against the grass the shot shows.
+                Vessel vessel = FlightGlobals.ActiveVessel;
+                Debug.Log(Log.Tag + " Probe: grass scene, " + vessel.vesselName + " " + vessel.situation + ", "
+                          + vessel.heightFromTerrain.ToString("0.0", CultureInfo.InvariantCulture) + " m over the ground, "
+                          + vessel.altitude.ToString("0.0", CultureInfo.InvariantCulture) + " m above the sea, biome "
+                          + ScienceUtil.GetExperimentBiome(vessel.mainBody, vessel.latitude, vessel.longitude) + ".");
+            }
+            yield return ShotVariant.Apply();
+            // -redefinitionProbeStaging <seconds>: the launch flown and a stage dropped, recorded (StagingProbe).
+            if (StagingProbe.Requested)
+            {
+                string stagingShot = CommandLine.After("-redefinitionProbeShot") ?? "staging";
+                yield return StagingProbe.Run(CaptureFolder.Run, stagingShot);
                 Application.Quit();
                 yield break;
             }
-            yield return new WaitForSeconds(SettleSeconds);
-
-            if (SceneProbe.ScenesLeft >= 0)
+            // -redefinitionProbeDiagnostics "<name>@<commands>|<name>@<commands>": the diagnostics
+            // window opened and set by each step's commands (ReDefinitionAddon.ProbeDiagnostics),
+            // a shot of the whole frame after each as diagnostics-<name>.png, then KSP quits.
+            string diagnosticsSteps = CommandLine.After("-redefinitionProbeDiagnostics");
+            if (diagnosticsSteps != null)
             {
-                if (SceneProbe.ScenesLeft == 0)
-                {
-                    Debug.Log(Log.Tag + " Probe: scene round trips done; quitting.");
-                    yield return new WaitForSeconds(1f);
-                    Application.Quit();
-                    yield break;
-                }
-                SceneProbe.ScenesLeft--;
-                Debug.Log(Log.Tag + " Probe: map view.");
-                MapView.EnterMapView();
-                yield return new WaitForSeconds(8f);
-                MapView.ExitMapView();
-                yield return new WaitForSeconds(3f);
-                Debug.Log(Log.Tag + " Probe: to the space centre, " + SceneProbe.ScenesLeft + " round trip(s) after this.");
-                HighLogic.LoadScene(GameScenes.SPACECENTER);
+                yield return DiagnosticsShots(diagnosticsSteps);
+                Application.Quit();
                 yield break;
             }
+            // -redefinitionProbeRenderDoc, under RenderDoc (tools/renderdoc_probe.ps1
+            // -Stay): one frame captured 25 s on, then KSP quits.
+            if (CommandLine.Has("-redefinitionProbeRenderDoc"))
+            {
+                yield return new WaitForSeconds(25f);
+                RenderDocCapture.Capture("the flight left to run");
+                yield return new WaitForSeconds(5f);
+                Application.Quit();
+                yield break;
+            }
+            if (CommandLine.Has("-redefinitionProbeCpuSample"))
+            {
+                yield return CpuSampleMode();
+                yield break;
+            }
+            // -redefinitionProbeShot <name>: the frame as KSP draws it, 30 s on, into
+            // the session's capture folder (CaptureFolder.Run) as <name>.png, then KSP quits.
+            string shot = CommandLine.After("-redefinitionProbeShot");
+            if (shot == null) yield break;
+            yield return ShotMode(shot);
+        }
 
-            foreach (Camera c in Camera.allCameras)
-                if (c.name == "Camera 00") scene = c;
+        // -redefinitionProbeCpuSample: the main thread sampled for 30 s from 20 s on
+        // (src/DxgiProxy/Latency/CpuSampler.h) into the session's capture folder, cpu-samples.txt,
+        // then KSP quits; tools/cpu_samples.py reads it.
+        private static IEnumerator CpuSampleMode()
+        {
+            yield return new WaitForSeconds(20f);
+            string samplesFolder = CaptureFolder.Run;
+            int started = 0;
+            try
+            {
+                started = KspCpuSample(30, Path.GetFullPath(Path.Combine(samplesFolder, "cpu-samples.txt")));
+            }
+            catch (Exception e)
+            {
+                Debug.Log(Log.Tag + " Probe: no CPU sampler (" + e.GetType().Name + ").");
+            }
+            Debug.Log(Log.Tag + " Probe: CPU sampler " + (started != 0 ? "started" : "not started") + ".");
+            yield return ProbeSteps.QuitAfter(33f);
+        }
+
+        // The shot of the stay mode, named shot, and what the switches add to it: the surfaces, the renderers' materials,
+        // the stages at a renderer, the light buffer, the ini settings, the settings window, the views and a burst of
+        // frames. KSP quits after them.
+        private IEnumerator ShotMode(string shot)
+        {
+            yield return new WaitForSeconds(30f);
+            yield return LightValues();
+            string folder = CaptureFolder.Run;
+            ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + ".png"));
+            EnvironmentFaces(folder, shot);
+            // -redefinitionProbeSurfaces: the raytraced camera's surfaces of the frame
+            // after, as <shot>-<name>.bin (RtCamera.WriteSurfaceImages).
+            if (CommandLine.Has("-redefinitionProbeSurfaces"))
+            {
+                yield return new WaitForEndOfFrame();
+                Raytracing.RtCamera traced = Raytracing.RtCamera.Current;
+                Debug.Log(Log.Tag + " Probe: surfaces " + (traced != null ? traced.WriteSurfaceImages(folder, shot) : "none, no raytraced camera")
+                          + ".");
+            }
+            Debug.Log(Log.Tag + " Probe: shot " + shot + ".");
+            LogMaterials(CommandLine.After("-redefinitionProbeMaterials"));
+            // -redefinitionProbeStagesAt <renderer name>[@<parent's name>]: the scene camera's image after each
+            // of its stages at the middle of the nearest renderer so named, linear, a 5 by 5
+            // pixel mean each: in which stage it takes its brightness.
+            string stagesAt = CommandLine.After("-redefinitionProbeStagesAt");
+            if (stagesAt != null)
+                yield return Stages(stagesAt);
+            // -redefinitionProbeLightBuffer: the scene camera's light buffer, whole, after the
+            // G-buffer and before the lights, as <shot>-afterGBuffer.bin and
+            // <shot>-beforeLighting.bin (the surfaces' format): what each surface brings
+            // into the lighting of its own.
+            if (CommandLine.Has("-redefinitionProbeLightBuffer"))
+                yield return LightBuffer(folder, shot);
+            // -redefinitionProbeShotIni "key=value,key=value;key=value": then each set of the
+            // proxy's live settings in turn written into ReDefinitionProxy.ini, which the proxy
+            // re-reads within a second, and the same view 10 s later as <shot>-ini<n>.png;
+            // the values as they were written back at the end.
+            string iniSets = CommandLine.After("-redefinitionProbeShotIni");
+            if (iniSets != null)
+                yield return IniShots(folder, shot, iniSets);
+            // -redefinitionProbeWindow "step;...": the settings window used as the player does (WindowProbe).
+            string windowSteps = CommandLine.After("-redefinitionProbeWindow");
+            if (windowSteps != null)
+                yield return WindowProbe.Run(folder, shot, windowSteps);
+            // -redefinitionProbeViews "pitch,distance,heading;...": shots from several poses, in each
+            // raytracing mode asked for (ViewProbe).
+            string views = CommandLine.After(ViewProbe.ViewsArgument);
+            if (views != null)
+                yield return ViewProbe.Run(folder, shot, views);
+            // -redefinitionProbeBurst <n>: n frames more, one after the other, as
+            // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
+            // ghosting).
+            string burst = CommandLine.After("-redefinitionProbeBurst");
+            int burstFrames;
+            if (burst != null && int.TryParse(burst, out burstFrames))
+                for (int i = 0; i < burstFrames; i++)
+                {
+                    yield return null;
+                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, shot + "-burst" + i.ToString("00") + ".png"));
+                }
+            yield return ProbeSteps.QuitAfter(2f);
+        }
+
+        // -redefinitionProbeMaterials <part of a name>: the renderers so named, with
+        // their materials' shaders, queues and keywords.
+        private static void LogMaterials(string materialsOf)
+        {
+            if (materialsOf == null) return;
+            foreach (Renderer renderer in FindObjectsOfType<Renderer>())
+            {
+                Transform parent = renderer.transform.parent;
+                if (renderer.name.IndexOf(materialsOf, StringComparison.OrdinalIgnoreCase) < 0
+                    && (parent == null || parent.name.IndexOf(materialsOf, StringComparison.OrdinalIgnoreCase) < 0))
+                    continue;
+                StringBuilder line = new StringBuilder(Log.Tag + " Probe: renderer " + renderer.name + " under "
+                                                       + (renderer.transform.parent != null ? renderer.transform.parent.name : "nothing")
+                                                       + ", layer " + renderer.gameObject.layer + ", enabled " + renderer.enabled + ", "
+                                                       + renderer.GetType().Name + ", mesh filter "
+                                                       + (renderer.GetComponent<MeshFilter>() != null) + ":");
+                foreach (Material material in renderer.sharedMaterials)
+                    if (material != null)
+                        line.Append(' ').Append(material.name).Append(" (").Append(material.shader.name).Append(", queue ")
+                            .Append(material.renderQueue).Append(", keywords ").Append(string.Join(" ", material.shaderKeywords))
+                            .Append(material.HasProperty("_Color") ? ", _Color " + material.GetColor("_Color") : "")
+                            .Append(material.HasProperty("_EmissiveColor") ? ", _EmissiveColor " + material.GetColor("_EmissiveColor") : "")
+                            .Append(material.HasProperty("_EmissionColor") ? ", _EmissionColor " + material.GetColor("_EmissionColor") : "")
+                            .Append(')');
+                Debug.Log(line.ToString());
+            }
+        }
+
+        // Round trip to the space centre and back (-redefinitionProbeScenes): the map view, then the space centre; the
+        // round trips are counted down, and at none left KSP quits.
+        private IEnumerator RoundTripMode()
+        {
+            if (SceneProbe.ScenesLeft == 0)
+            {
+                Debug.Log(Log.Tag + " Probe: scene round trips done; quitting.");
+                yield return ProbeSteps.QuitAfter(1f);
+                yield break;
+            }
+            SceneProbe.ScenesLeft--;
+            Debug.Log(Log.Tag + " Probe: map view.");
+            MapView.EnterMapView();
+            yield return new WaitForSeconds(8f);
+            MapView.ExitMapView();
+            yield return new WaitForSeconds(3f);
+            Debug.Log(Log.Tag + " Probe: to the space centre, " + SceneProbe.ScenesLeft + " round trip(s) after this.");
+            HighLogic.LoadScene(GameScenes.SPACECENTER);
+        }
+
+        // The measurement's set-up: the scene camera, the run's folder and meta.txt, the stations and the vessel's mask
+        // material, the flight camera's sharpness, the interface hidden and the frame rate capped where asked. False,
+        // after a warning, where there is no scene camera.
+        private bool PrepareMeasurement()
+        {
+            scene = ProbeSteps.SceneCamera();
             if (scene == null)
             {
                 Debug.LogWarning(Log.Tag + " Probe: no Camera 00; quitting.");
-                Application.Quit();
-                yield break;
+                return false;
             }
             folder = Path.Combine(CaptureFolder.Root,
                                   DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture) + "-probe");
@@ -1167,113 +807,95 @@ namespace ReDefinition.Probe
                 GameEvents.onHideUI.Fire();
             // -redefinitionProbeFpsCap <n>: n rendered frames a second at most, so that frame
             // generation's frames all fit the display's refresh rate and the desktop recording sees them.
-            int fpsCap = IntArgument("-redefinitionProbeFpsCap");
+            int fpsCap = CommandLine.Int("-redefinitionProbeFpsCap", 0);
             if (fpsCap > 0)
             {
                 QualitySettings.vSyncCount = 0;
                 Application.targetFrameRate = fpsCap;
                 Debug.Log(Log.Tag + " Probe: rendered frames capped at " + fpsCap + " a second.");
             }
+            return true;
+        }
 
-            if (RenderDocCapture.Available)
+        // Under RenderDoc: a frame of the camera still and a sweep of it with the vessel, then without it; KSP quits.
+        private IEnumerator RenderDocMode()
+        {
+            startHeading = FlightCamera.fetch.camHdg;
+            FlightCamera.fetch.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
+            yield return ProbeSteps.Frames(60);
+            RenderDocCapture.Capture("camera still");
+            yield return ProbeSteps.Frames(30);
+            captureDuringSweep = true;
+            yield return Sweep("renderdoc");
+            // The same pose without the vessel: what the vessel changes around it.
+            List<Renderer> hidden = HideVessel();
+            FlightCamera.fetch.camHdg = startHeading;
+            FlightCamera.fetch.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
+            yield return ProbeSteps.Frames(60);
+            RenderDocCapture.Capture("camera still, without the vessel");
+            yield return ProbeSteps.Frames(30);
+            yield return Sweep("renderdoc without the vessel");
+            captureDuringSweep = false;
+            foreach (Renderer r in hidden)
+                if (r != null) r.enabled = true;
+            yield return ProbeSteps.Frames(60);
+            Detach();
+            Debug.Log(Log.Tag + " Probe: RenderDoc captures done; quitting.");
+            yield return ProbeSteps.QuitAfter(3f);
+        }
+
+        // The vendors' checks (VendorProbe), each recorded during a sweep; KSP quits.
+        private IEnumerator VendorMode()
+        {
+            startHeading = FlightCamera.fetch.camHdg;
+            yield return VendorProbe.Run(Sweep);
+            Detach();
+            File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
+            Debug.Log(Log.Tag + " Probe: vendor checks done; quitting.");
+            yield return ProbeSteps.QuitAfter(1f);
+        }
+
+        // The camera circles the vessel for the seconds given, for the proxy's and the game's own reports over time.
+        private IEnumerator SoakMode(int soakSeconds)
+        {
+            Detach();
+            float until = Time.realtimeSinceStartup + soakSeconds;
+            float hdg = FlightCamera.fetch.camHdg;
+            int frame = 0;
+            Debug.Log(Log.Tag + " Probe: soak for " + soakSeconds + " s.");
+            while (Time.realtimeSinceStartup < until)
             {
-                startHeading = FlightCamera.fetch.camHdg;
-                FlightCamera.fetch.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
-                for (int i = 0; i < 60; i++) yield return null;
-                RenderDocCapture.Capture("camera still");
-                for (int i = 0; i < 30; i++) yield return null;
-                captureDuringSweep = true;
-                yield return Sweep("renderdoc");
-                // The same pose without the vessel: what the vessel changes around it.
-                List<Renderer> hidden = HideVessel();
-                FlightCamera.fetch.camHdg = startHeading;
-                FlightCamera.fetch.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
-                for (int i = 0; i < 60; i++) yield return null;
-                RenderDocCapture.Capture("camera still, without the vessel");
-                for (int i = 0; i < 30; i++) yield return null;
-                yield return Sweep("renderdoc without the vessel");
-                captureDuringSweep = false;
-                foreach (Renderer r in hidden)
-                    if (r != null) r.enabled = true;
-                for (int i = 0; i < 60; i++) yield return null;
-                Detach();
-                Debug.Log(Log.Tag + " Probe: RenderDoc captures done; quitting.");
-                yield return new WaitForSeconds(3f);
-                Application.Quit();
-                yield break;
+                hdg += 1f * Mathf.Deg2Rad;
+                FlightCamera.fetch.camHdg = hdg;
+                FlightCamera.fetch.camPitch = (StartPitchDegrees + 10f * Mathf.Sin(frame++ * 0.01f)) * Mathf.Deg2Rad;
+                yield return null;
             }
+            Debug.Log(Log.Tag + " Probe: soak done after " + frame + " frames; quitting.");
+            yield return ProbeSteps.QuitAfter(1f);
+        }
 
-            if (VendorProbe.Requested)
-            {
-                startHeading = FlightCamera.fetch.camHdg;
-                yield return VendorProbe.Run(Sweep);
-                Detach();
-                File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
-                Debug.Log(Log.Tag + " Probe: vendor checks done; quitting.");
-                yield return new WaitForSeconds(1f);
-                Application.Quit();
-                yield break;
-            }
+        // The sweep recorded for FLIP (FlipProbe); KSP quits.
+        private IEnumerator FlipMode()
+        {
+            startHeading = FlightCamera.fetch.camHdg;
+            sweepSubdivide = FlipProbe.Subdivide;
+            FlightCamera.fetch.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
+            yield return ProbeSteps.Frames(60);
+            bool started = ScreenRecordingBridge.Start(FlipProbe.Frames, FlipProbe.Dumps);
+            Debug.Log(Log.Tag + " Probe: flip sweep, " + (started ? "recording" : "not recorded: "
+                      + ScreenRecordingBridge.State()) + "; step 1/" + sweepSubdivide
+                      + ", first step at game frame " + (Time.frameCount + 1) + ".");
+            yield return Sweep("flip");
+            yield return ProbeSteps.RecordingSaved(30f);
+            Debug.Log(Log.Tag + " Probe: flip sweep: " + ScreenRecordingBridge.State());
+            Detach();
+            yield return ProbeSteps.QuitAfter(1f);
+        }
 
-            // -redefinitionProbeSoak <seconds>: the camera circles the vessel for that
-            // long, for the proxy's and the game's own reports over time (memory,
-            // frame times, errors), then KSP quits.
-            int soakSeconds = SoakSeconds;
-            if (soakSeconds > 0)
-            {
-                Detach();
-                float until = Time.realtimeSinceStartup + soakSeconds;
-                float hdg = FlightCamera.fetch.camHdg;
-                int frame = 0;
-                Debug.Log(Log.Tag + " Probe: soak for " + soakSeconds + " s.");
-                while (Time.realtimeSinceStartup < until)
-                {
-                    hdg += 1f * Mathf.Deg2Rad;
-                    FlightCamera.fetch.camHdg = hdg;
-                    FlightCamera.fetch.camPitch = (StartPitchDegrees + 10f * Mathf.Sin(frame++ * 0.01f)) * Mathf.Deg2Rad;
-                    yield return null;
-                }
-                Debug.Log(Log.Tag + " Probe: soak done after " + frame + " frames; quitting.");
-                yield return new WaitForSeconds(1f);
-                Application.Quit();
-                yield break;
-            }
-
-            if (FlipProbe.Requested)
-            {
-                startHeading = FlightCamera.fetch.camHdg;
-                sweepSubdivide = FlipProbe.Subdivide;
-                FlightCamera.fetch.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
-                for (int i = 0; i < 60; i++) yield return null;
-                bool started = ScreenRecordingBridge.Start(FlipProbe.Frames, FlipProbe.Dumps);
-                Debug.Log(Log.Tag + " Probe: flip sweep, " + (started ? "recording" : "not recorded: "
-                          + ScreenRecordingBridge.State()) + "; step 1/" + sweepSubdivide
-                          + ", first step at game frame " + (Time.frameCount + 1) + ".");
-                yield return Sweep("flip");
-                float until = Time.realtimeSinceStartup + 30f;
-                while (Time.realtimeSinceStartup < until)
-                {
-                    string state = ScreenRecordingBridge.State();
-                    if (!state.StartsWith("recording", StringComparison.Ordinal)
-                        && !state.StartsWith("saving", StringComparison.Ordinal)) break;
-                    yield return null;
-                }
-                Debug.Log(Log.Tag + " Probe: flip sweep: " + ScreenRecordingBridge.State());
-                Detach();
-                yield return new WaitForSeconds(1f);
-                Application.Quit();
-                yield break;
-            }
-
-            if (LightProbe.Requested)
-            {
-                Detach();
-                yield return LightProbe.Run(folder);
-                yield return new WaitForSeconds(1f);
-                Application.Quit();
-                yield break;
-            }
-
+        // The default measurement: the baseline, each variant asked for (-redefinitionProbeVariants), the baseline again,
+        // then the reads are finished and meta.txt is written; KSP quits.
+        private IEnumerator VariantsMode()
+        {
             yield return Run("baseline");
             string wanted = SceneProbe.Variants;
             foreach (string cameraName in wanted == null ? new string[0] : CameraNames)
@@ -1313,8 +935,7 @@ namespace ReDefinition.Probe
             }
             File.WriteAllText(Path.Combine(folder, "meta.txt"), meta.ToString());
             Debug.Log(Log.Tag + " Probe: done; quitting.");
-            yield return new WaitForSeconds(1f);
-            Application.Quit();
+            yield return ProbeSteps.QuitAfter(1f);
         }
 
         // Whether the variant is asked for: "all", or its name holds the text asked for, ignoring case.
@@ -1375,283 +996,6 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: motion vector shader mode "
                       + GraphicsSettings.GetShaderMode(BuiltinShaderType.MotionVectors)
                       + ", custom shader " + (custom != null ? custom.name : "none") + ".");
-        }
-
-        // One variant: the camera path with the vessel, then without.
-        private IEnumerator Run(string name)
-        {
-            variant = name;
-            Directory.CreateDirectory(Path.Combine(folder, name));
-            capturePrefix = "";
-            // Both passes from the same heading: the sky behind the vessel the same.
-            if (float.IsNaN(startHeading)) startHeading = FlightCamera.fetch.camHdg;
-            // -redefinitionProbeFreeze: game time stopped for both passes, so that
-            // clouds and water stand still between them and only the vessel differs.
-            float timeScale = Time.timeScale;
-            if (Freeze) Time.timeScale = 0f;
-            yield return Turn(name);
-            List<Renderer> hidden = HideVessel();
-            capturePrefix = "h";
-            yield return Turn(name + " without the vessel");
-            foreach (Renderer r in hidden)
-                if (r != null) r.enabled = true;
-            Time.timeScale = timeScale;
-        }
-
-        // The whole number after the switch named; 0 without it.
-        private static int IntArgument(string name)
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            for (int i = 0; i + 1 < args.Length; i++)
-                if (args[i] == name) return int.Parse(args[i + 1], CultureInfo.InvariantCulture);
-            return 0;
-        }
-
-        // The soak's seconds, -redefinitionProbeSoak <seconds>; 0 without it.
-        private static int SoakSeconds
-        {
-            get
-            {
-                string[] args = Environment.GetCommandLineArgs();
-                for (int i = 0; i + 1 < args.Length; i++)
-                    if (args[i] == "-redefinitionProbeSoak") return int.Parse(args[i + 1], CultureInfo.InvariantCulture);
-                return 0;
-            }
-        }
-
-        // Whether -redefinitionProbeFreeze stops game time for both passes of a variant.
-        private static bool Freeze
-        {
-            get { return CommandLine.Has("-redefinitionProbeFreeze"); }
-        }
-
-        // The active vessel's enabled renderers disabled; those it disabled, to enable again.
-        private static List<Renderer> HideVessel()
-        {
-            List<Renderer> hidden = new List<Renderer>();
-            foreach (Part part in FlightGlobals.ActiveVessel.parts)
-                foreach (Renderer r in part.GetComponentsInChildren<Renderer>())
-                    if (r.enabled)
-                    {
-                        r.enabled = false;
-                        hidden.Add(r);
-                    }
-            return hidden;
-        }
-
-        // For the vendors' checks: from below the vessel, the sky moving past it left
-        // and right, without captures of its own.
-        private IEnumerator Sweep(string name)
-        {
-            FlightCamera camera = FlightCamera.fetch;
-            float hdg = startHeading;
-            camera.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
-            int n = sweepSubdivide;
-            // -redefinitionProbeSweepRight: the same path the other way round.
-            float sign = CommandLine.Has("-redefinitionProbeSweepRight") ? -1f : 1f;
-            for (int i = 0; i < 60 * n; i++)
-            {
-                hdg += sign * (i < 20 * n || i >= 40 * n ? 1.5f : -1.5f) / n * Mathf.Deg2Rad;
-                camera.camHdg = hdg;
-                camera.camPitch = StartPitchDegrees * Mathf.Deg2Rad;
-                // The capture without the vessel spans the frames either side of the
-                // one with it, of which one shows the same step.
-                if (captureDuringSweep && name == "renderdoc" && i == CaptureStep)
-                    RenderDocCapture.Capture("camera at sweep step " + CaptureStep);
-                if (captureDuringSweep && name != "renderdoc" && i == CaptureStep - 1)
-                    RenderDocCapture.CaptureFrames(4, "camera at sweep step " + CaptureStep + ", " + name);
-                yield return null;
-            }
-        }
-
-        // A stretch of the path: per frame the change of heading and pitch, in degrees.
-        private struct Segment
-        {
-            // Its name, a capture's phase in meta.txt; the heading's and the pitch's change a frame; its frames.
-            internal string Name;
-            internal float Heading;
-            internal float Pitch;
-            internal int Frames;
-        }
-
-        // From below the vessel, the sky behind it, the camera moves the sky past it to
-        // each side: left, right, down, up, each followed by a steady stretch.
-        private static readonly Segment[] Segments =
-        {
-            new Segment { Name = "steady", Frames = SteadyFrames },
-            new Segment { Name = "left", Heading = 1.5f, Frames = 20 },
-            new Segment { Name = "after-left", Frames = 20 },
-            new Segment { Name = "right", Heading = -1.5f, Frames = 40 },
-            new Segment { Name = "after-right", Frames = 20 },
-            new Segment { Name = "down", Pitch = 1f, Frames = 20 },
-            new Segment { Name = "after-down", Frames = 20 },
-            new Segment { Name = "up", Pitch = -1f, Frames = 20 },
-            new Segment { Name = "after-up", Frames = 20 },
-        };
-
-        // The camera path, with captures in the middle of each move and at the end of
-        // each steady stretch.
-        private IEnumerator Turn(string name)
-        {
-            captureIndex = 0;
-            FlightCamera camera = FlightCamera.fetch;
-            float hdg = startHeading;
-            float pitch = StartPitchDegrees;
-            foreach (Segment segment in Segments)
-            {
-                bool moving = segment.Heading != 0f || segment.Pitch != 0f;
-                for (int i = 1; i <= segment.Frames; i++)
-                {
-                    hdg += segment.Heading * Mathf.Deg2Rad;
-                    pitch += segment.Pitch;
-                    camera.camPitch = pitch * Mathf.Deg2Rad;
-                    camera.camHdg = hdg;
-                    bool capture = moving ? i == segment.Frames / 2 || i == segment.Frames / 2 + 1 : i == segment.Frames;
-                    if (capture)
-                    {
-                        phase = segment.Name;
-                        yield return Capture();
-                    }
-                    else
-                    {
-                        ReadNext();
-                        yield return null;
-                    }
-                }
-            }
-            Debug.Log(Log.Tag + " Probe: " + name + " measured.");
-        }
-
-        // The stages of this frame's scene camera, around the vessel.
-        private IEnumerator Capture()
-        {
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            // In the camera's pixels: its screen points are the screen's (ScreenCoordinates).
-            int width = scene.pixelWidth, height = scene.pixelHeight;
-            Vector3 viewport = scene.WorldToViewportPoint(vessel.CoMD);
-            Vector3 screen = new Vector3(viewport.x * width, viewport.y * height, viewport.z);
-            int x = Mathf.Clamp(Mathf.RoundToInt(screen.x) - Crop / 2, 0, Mathf.Max(0, width - Crop));
-            int y = Mathf.Clamp(Mathf.RoundToInt(screen.y) - Crop / 2, 0, Mathf.Max(0, height - Crop));
-            Vector2 scale = new Vector2((float)Crop / width, (float)Crop / height);
-            Vector2 offset = new Vector2((float)x / width, (float)y / height);
-            int n = captureIndex++;
-            string capture = capturePrefix + n.ToString("00", CultureInfo.InvariantCulture);
-            string prefix = Path.Combine(Path.Combine(folder, variant), capture);
-            meta.Append(variant).Append(' ').Append(Time.frameCount).Append(' ').Append(capture).Append(' ')
-                .Append(x).Append(' ').Append(y).Append(' ').Append(phase).Append('\n');
-
-            foreach (Station station in stations)
-            {
-                RenderTexture crop = Target(RenderTextureFormat.ARGBHalf);
-                CommandBuffer cb = Buffer(station.Event);
-                cb.Blit(BuiltinRenderTextureType.CameraTarget, crop, scale, offset);
-                reads.Enqueue(new Read { Path = prefix + "-" + station.Name + ".bin", Texture = crop });
-            }
-            CommandBuffer last = Buffer(CameraEvent.AfterEverything);
-            RenderTexture depth = Target(RenderTextureFormat.RFloat);
-            last.Blit(new RenderTargetIdentifier("_CameraDepthTexture"), depth, scale, offset);
-            reads.Enqueue(new Read { Path = prefix + "-depth.bin", Texture = depth });
-            if (fullMask == null || fullMask.width != width || fullMask.height != height)
-            {
-                if (fullMask != null) fullMask.Release();
-                fullMask = new RenderTexture(width, height, 24, RenderTextureFormat.R8);
-                fullMask.Create();
-            }
-            last.SetRenderTarget(fullMask);
-            last.ClearRenderTarget(true, true, Color.clear);
-            last.SetViewProjectionMatrices(scene.worldToCameraMatrix, scene.projectionMatrix);
-            foreach (Part part in vessel.parts)
-                foreach (Renderer r in part.GetComponentsInChildren<Renderer>())
-                    if (r.enabled && r.gameObject.activeInHierarchy)
-                        for (int s = 0; s < r.sharedMaterials.Length; s++)
-                            last.DrawRenderer(r, maskMaterial, s, 0);
-            RenderTexture mask = Target(RenderTextureFormat.R8);
-            last.Blit(fullMask, mask, scale, offset);
-            reads.Enqueue(new Read { Path = prefix + "-mask.bin", Texture = mask });
-
-            // The finished frame, as it goes to the screen: the scene camera's image
-            // reaches it only after its own last event (measured: AfterEverything
-            // holds the frame without the vessel).
-            yield return new WaitForEndOfFrame();
-            // Around the same point of the screen, Crop screen pixels wide whatever the
-            // render size, so that runs at different render sizes compare. The
-            // screenshot's rows run the other way from the camera's buffers: counted
-            // from the other edge.
-            int screenX = Mathf.Clamp(Mathf.RoundToInt(screen.x * Screen.width / width) - Crop / 2, 0,
-                                      Mathf.Max(0, Screen.width - Crop));
-            int screenY = Mathf.Clamp(Screen.height - Mathf.RoundToInt(screen.y * Screen.height / height) - Crop / 2, 0,
-                                      Mathf.Max(0, Screen.height - Crop));
-            RenderTexture full = RenderTexture.GetTemporary(Screen.width, Screen.height, 0, RenderTextureFormat.ARGB32);
-            ScreenCapture.CaptureScreenshotIntoRenderTexture(full);
-            RenderTexture screenCrop = Target(RenderTextureFormat.ARGB32);
-            Graphics.Blit(full, screenCrop, new Vector2((float)Crop / Screen.width, (float)Crop / Screen.height),
-                          new Vector2((float)screenX / Screen.width, (float)screenY / Screen.height));
-            RenderTexture.ReleaseTemporary(full);
-            reads.Enqueue(new Read { Path = prefix + "-screen.bin", Texture = screenCrop });
-            // The buffers ran in that frame: emptied for the frames after.
-            foreach (CommandBuffer cb in buffers.Values) cb.Clear();
-        }
-
-        // A new linear crop texture, Crop pixels square.
-        private static RenderTexture Target(RenderTextureFormat format)
-        {
-            RenderTexture texture = new RenderTexture(Crop, Crop, 0, format, RenderTextureReadWrite.Linear);
-            texture.Create();
-            return texture;
-        }
-
-        // The probe's command buffer on the scene camera's event, added the first time it is asked for.
-        private CommandBuffer Buffer(CameraEvent e)
-        {
-            CommandBuffer cb;
-            if (!buffers.TryGetValue(e, out cb))
-            {
-                cb = new CommandBuffer { name = "ReDefinition probe " + e };
-                scene.AddCommandBuffer(e, cb);
-                buffers[e] = cb;
-            }
-            return cb;
-        }
-
-        // The probe's command buffers taken off the scene camera.
-        private void Detach()
-        {
-            foreach (KeyValuePair<CameraEvent, CommandBuffer> pair in buffers)
-                if (scene != null) scene.RemoveCommandBuffer(pair.Key, pair.Value);
-            buffers.Clear();
-        }
-
-        // One read-back at a time, written by a thread.
-        private void ReadNext()
-        {
-            if (Volatile.Read(ref busy) != 0 || reads.Count == 0) return;
-            Read next = reads.Dequeue();
-            Volatile.Write(ref busy, 1);
-            AsyncGPUReadback.Request(next.Texture, 0, request =>
-            {
-                next.Texture.Release();
-                Destroy(next.Texture);
-                if (request.hasError)
-                {
-                    Volatile.Write(ref busy, 0);
-                    return;
-                }
-                NativeArray<byte> data = request.GetData<byte>();
-                byte[] bytes = data.ToArray();
-                string path = next.Path;
-                ThreadPool.QueueUserWorkItem(_ =>
-                {
-                    try
-                    {
-                        File.WriteAllBytes(path, bytes);
-                    }
-                    catch (Exception)
-                    {
-                        // A diagnostic: a file not written is a file missing.
-                    }
-                    Volatile.Write(ref busy, 0);
-                });
-            });
         }
     }
 }

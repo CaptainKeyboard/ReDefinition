@@ -17,7 +17,8 @@ by a switch, never a Unity light probe.
 ## What it does
 
 - `SceneProbe` loads the save `ReDefinitionProbe`, flies the camera on a fixed path and writes the
-  scene camera's stages into `ReDefinitionCaptures`.
+  scene camera's stages into `ReDefinitionCaptures`. `SceneProbeRunner` is the flight's side of it,
+  in `SceneProbe.cs` with the capture path and the single shots in files of their own.
 - `LightProbe`, `ViewProbe`, `ShotVariant`, `VendorProbe`, `FlipProbe`, `StagingProbe` and
   `WindowProbe` each add one measurement or one set of shots to that flight.
 - `LandProbe` puts the probe's command pod on another body's ground (`-redefinitionProbeLand`), so
@@ -25,6 +26,8 @@ by a switch, never a Unity light probe.
 - `GpuProfiler` puts markers into Unity's render stream and reports the GPU time between them.
 - `PerfMonitor` times the Unity methods ReDefinition has on the main thread through Harmony.
 - `ModCost` switches each graphics mod off and on and measures the difference.
+- `ProbeSteps` holds the waits and lookups the probes share: frames to wait, the scene camera, the end
+  of the screen recording and the quit that ends a run.
 - `RenderDocCapture` triggers a frame capture where KSP runs under RenderDoc.
 - `ProbeSwitchReset` turns the light probe's switches off at every scene start.
 

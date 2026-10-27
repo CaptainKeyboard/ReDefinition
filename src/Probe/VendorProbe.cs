@@ -44,12 +44,7 @@ namespace ReDefinition.Probe
         // Whether KSP was started with the switch.
         internal static bool Requested
         {
-            get
-            {
-                foreach (string arg in Environment.GetCommandLineArgs())
-                    if (string.Equals(arg, Argument, StringComparison.OrdinalIgnoreCase)) return true;
-                return false;
-            }
+            get { return CommandLine.Has(Argument, true); }
         }
 
         // Each state shown: recorded while the camera moves (the motion vector and
@@ -109,20 +104,13 @@ namespace ReDefinition.Probe
         private static IEnumerator Record(string name, Func<string, IEnumerator> move)
         {
             // Settle a moment on the new state, then record during the move.
-            for (int i = 0; i < 30; i++) yield return null;
+            yield return ProbeSteps.Frames(30);
             bool started = ScreenRecordingBridge.Start(RecordedFrames, false);
             Debug.Log(Log.Tag + " Probe: vendor " + name + (started ? ", recording." : ", not recorded: "
                                                                      + ScreenRecordingBridge.State()));
             yield return move(name);
             // The recording writes in a thread of its own; the next waits for it.
-            float until = Time.realtimeSinceStartup + 20f;
-            while (Time.realtimeSinceStartup < until)
-            {
-                string state = ScreenRecordingBridge.State();
-                if (!state.StartsWith("recording", StringComparison.Ordinal)
-                    && !state.StartsWith("saving", StringComparison.Ordinal)) break;
-                yield return null;
-            }
+            yield return ProbeSteps.RecordingSaved(20f);
             Debug.Log(Log.Tag + " Probe: vendor " + name + ": " + ScreenRecordingBridge.State());
         }
 
@@ -135,7 +123,7 @@ namespace ReDefinition.Probe
             if (!KspInFront())
             {
                 SetForegroundWindow(System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle);
-                for (int i = 0; i < 10; i++) yield return null;
+                yield return ProbeSteps.Frames(10);
                 if (!KspInFront())
                 {
                     Debug.LogWarning(Log.Tag + " Probe: vendor keys not sent -- another window is in front.");
@@ -150,9 +138,9 @@ namespace ReDefinition.Probe
                 up[keys.Length - 1 - i] = Key(keys[i], true);
             }
             SendInput((uint)down.Length, down, Marshal.SizeOf(typeof(Input)));
-            for (int i = 0; i < 6; i++) yield return null;
+            yield return ProbeSteps.Frames(6);
             SendInput((uint)up.Length, up, Marshal.SizeOf(typeof(Input)));
-            for (int i = 0; i < 2; i++) yield return null;
+            yield return ProbeSteps.Frames(2);
         }
 
         // Whether the window in front belongs to this process.
