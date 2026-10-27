@@ -9,6 +9,8 @@ namespace ReDefinition.Upscaler
         // The size of the tinted previews, whatever the render size; the source is read back scaled to it.
         public const int PreviewWidth = 320;
         public const int PreviewHeight = 180;
+        // How often the preview is read back: four times a second.
+        private const float PreviewIntervalSeconds = 0.25f;
 
         // The tinted preview and its pixels, the time it is next read back, and the scale it was tinted by.
         private Texture2D preview;
@@ -57,7 +59,7 @@ namespace ReDefinition.Upscaler
 
             // Four times a second: every readback stalls the frame briefly.
             if (preview != null && Time.unscaledTime < nextPreview) return preview;
-            nextPreview = Time.unscaledTime + 0.25f;
+            nextPreview = Time.unscaledTime + PreviewIntervalSeconds;
 
             Color[] pixels = ReadBack(source);
             if (preview == null)

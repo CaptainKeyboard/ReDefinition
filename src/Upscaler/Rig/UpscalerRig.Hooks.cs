@@ -21,6 +21,8 @@ namespace ReDefinition.Upscaler
         private readonly AttachedBuffer overlayAttached = new AttachedBuffer("ReDefinition.OverlayHooks", CameraEvent.AfterEverything);
         private CommandBuffer overlayBuffer { get { return overlayAttached.Buffer; } }
         private float overlayDepthCheck;
+        // How often the overlay camera's depth is looked at again, as effect cameras can come later.
+        private const float OverlayDepthCheckSeconds = 1f;
 
         // Cached, so the hooks' calls allocate nothing per frame.
         private Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> callMotionVectorHook;
@@ -139,7 +141,7 @@ namespace ReDefinition.Upscaler
             // cameras can come later.
             if (Time.unscaledTime >= overlayDepthCheck)
             {
-                overlayDepthCheck = Time.unscaledTime + 1f;
+                overlayDepthCheck = Time.unscaledTime + OverlayDepthCheckSeconds;
                 float depth = float.MinValue;
                 foreach (Camera carrier in HudLessCarriers(cameras.Presenter))
                     if (carrier != null) depth = Mathf.Max(depth, carrier.depth);
