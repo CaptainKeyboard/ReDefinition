@@ -368,14 +368,8 @@ namespace ReDefinition.Upscaler
                 // Inactive while it is put together: the layer sets itself up as it is
                 // enabled, on its camera, with its resources.
                 host.SetActive(false);
-                ownCamera = host.AddComponent<Camera>();
+                ownCamera = HelperCamera.AddTo(host, true);
                 ownCamera.enabled = false;
-                ownCamera.cullingMask = 0;
-                ownCamera.clearFlags = CameraClearFlags.Nothing;
-                ownCamera.allowHDR = true;
-                ownCamera.allowMSAA = false;
-                ownCamera.useOcclusionCulling = false;
-                ownCamera.depthTextureMode = DepthTextureMode.None;
                 layer = host.AddComponent(layerType);
                 one[0] = resources;
                 layerInit.Invoke(layer, one);

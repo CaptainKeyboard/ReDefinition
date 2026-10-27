@@ -16,7 +16,8 @@ namespace ReDefinition.Upscaler
         //
         // The list follows KerbalVR, which redirects the same stack into its own
         // RenderTextures.
-        //   Flight external: GalaxyCamera, Camera ScaledSpace, Camera 00.
+        //   Flight external: GalaxyCamera, Camera ScaledSpace, Camera 00, and Camera 01
+        //   where the flight scene is split into a far and a near camera.
         //   Flight IVA: plus InternalCamera.
         //   Editor: GalaxyCamera, sceneryCam, Main Camera, markerCam.
         //   Main menu: GalaxyCamera, Landscape Camera.
@@ -88,15 +89,8 @@ namespace ReDefinition.Upscaler
             // (empty culling mask); its OnRenderImage has the frame buffer as its
             // target, at full resolution.
             presenterObject = new GameObject("ReDefinitionPresenter");
-            Camera presenterCam = presenterObject.AddComponent<Camera>();
-            presenterCam.cullingMask = 0;
-            presenterCam.clearFlags = CameraClearFlags.Nothing;
+            Camera presenterCam = HelperCamera.AddTo(presenterObject, true);
             presenterCam.depth = lastDepth + 0.1f;
-            presenterCam.targetTexture = null;
-            presenterCam.allowHDR = true;
-            presenterCam.allowMSAA = false;
-            presenterCam.useOcclusionCulling = false;
-            presenterCam.depthTextureMode = DepthTextureMode.None;
 
             presenterCamera = presenterCam;
             presenter = presenterObject.AddComponent<UpscalerPresenter>();

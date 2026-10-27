@@ -37,6 +37,9 @@ namespace ReDefinition.Upscaler
         private const float NativeStoppedSeconds = 2f;
         private const float NativeNeverShownSeconds = 1f;
 
+        // How often a stopped state is noted again, as long as it stays stopped.
+        private const float NativeRecheckSeconds = 1f;
+
         // The link to the technique in the proxy (null for FSR 3, a bypass or pass-through). Then the packets sent
         // and the last state noted. Then whether the proxy's output is shown this frame and was in this rig at all.
         // Then the reason it stopped, as last logged, and since when it is stopped (-1 while it is not). Last when
@@ -59,14 +62,11 @@ namespace ReDefinition.Upscaler
             if (!Reconstructing && (state != nativeState || (state < 0 && Time.unscaledTime >= nextNativeCheck)))
             {
                 nativeState = state;
-                nextNativeCheck = Time.unscaledTime + 1f;
+                nextNativeCheck = Time.unscaledTime + NativeRecheckSeconds;
                 NoteNativeState(state);
             }
 
-            uint flags = (EffectiveHdr ? NativeUpscalerLink.FlagHdr : 0u)
-                         | (SystemInfo.usesReversedZBuffer ? NativeUpscalerLink.FlagDepthInverted : 0u)
-                         | (Backend == UpscalerBackend.Dlss || AutoExposure ? NativeUpscalerLink.FlagAutoExposure : 0u)
-                         | (dispatch.Reset ? NativeUpscalerLink.FlagReset : 0u);
+            uint flags = NativeFlags();
             bool submitted;
             bool reconstructedShown;
             if (Backend != UpscalerBackend.Dlss) ReleaseReconstruction(dispatchBuffer);
@@ -79,24 +79,26 @@ namespace ReDefinition.Upscaler
             }
             if (Backend == UpscalerBackend.Dlss)
             {
+                // With sharpening, into RCAS's input, which writes the output.
+                AmdUpscalerBridge.AmdPacket shared = SharedNativePacket(flags,
+                    nativeSharpener != null ? nativeSharpenInputHandle : textures.UpscaledHandle);
                 DlssBridge.DlssPacket packet = new DlssBridge.DlssPacket
                 {
-                    Colour = textures.LowResHandle,
-                    // With sharpening, into RCAS's input, which writes the output.
-                    Output = nativeSharpener != null ? nativeSharpenInputHandle : textures.UpscaledHandle,
-                    Depth = textures.DepthHandle,
-                    MotionVectors = textures.MotionHandle,
-                    RenderWidth = (uint)renderSize.x,
-                    RenderHeight = (uint)renderSize.y,
-                    OutputWidth = (uint)displaySize.x,
-                    OutputHeight = (uint)displaySize.y,
+                    Colour = shared.Colour,
+                    Output = shared.Output,
+                    Depth = shared.Depth,
+                    MotionVectors = shared.MotionVectors,
+                    RenderWidth = shared.RenderWidth,
+                    RenderHeight = shared.RenderHeight,
+                    OutputWidth = shared.OutputWidth,
+                    OutputHeight = shared.OutputHeight,
                     Quality = DlssBridge.Quality(QualityMode),
                     Preset = (uint)DlssPreset,
-                    Flags = flags,
-                    JitterX = dispatch.JitterOffset.x,
-                    JitterY = dispatch.JitterOffset.y,
-                    MotionVectorScaleX = dispatch.MotionVectorScale.x,
-                    MotionVectorScaleY = dispatch.MotionVectorScale.y,
+                    Flags = shared.Flags,
+                    JitterX = shared.JitterX,
+                    JitterY = shared.JitterY,
+                    MotionVectorScaleX = shared.MotionVectorScaleX,
+                    MotionVectorScaleY = shared.MotionVectorScaleY,
                 };
                 submitted = DlssBridge.Submit(dispatchBuffer, ref packet);
             }
@@ -104,56 +106,19 @@ namespace ReDefinition.Upscaler
             {
                 // AMD's packet without what XeSS does not take: no masks, and RCAS
                 // after it as after DLSS.
-                AmdUpscalerBridge.AmdPacket packet = new AmdUpscalerBridge.AmdPacket
-                {
-                    Colour = textures.LowResHandle,
-                    Output = nativeSharpener != null ? nativeSharpenInputHandle : textures.UpscaledHandle,
-                    Depth = textures.DepthHandle,
-                    MotionVectors = textures.MotionHandle,
-                    RenderWidth = (uint)renderSize.x,
-                    RenderHeight = (uint)renderSize.y,
-                    OutputWidth = (uint)displaySize.x,
-                    OutputHeight = (uint)displaySize.y,
-                    Flags = flags,
-                    JitterX = dispatch.JitterOffset.x,
-                    JitterY = dispatch.JitterOffset.y,
-                    MotionVectorScaleX = dispatch.MotionVectorScale.x,
-                    MotionVectorScaleY = dispatch.MotionVectorScale.y,
-                    FrameTimeDeltaMs = dispatch.FrameTimeDelta * 1000f,
-                    CameraNear = dispatch.CameraNear,
-                    CameraFar = dispatch.CameraFar,
-                    VerticalFovRadians = dispatch.CameraFovAngleVertical,
-                };
+                AmdUpscalerBridge.AmdPacket packet = SharedNativePacket(flags,
+                    nativeSharpener != null ? nativeSharpenInputHandle : textures.UpscaledHandle);
                 submitted = XessUpscalerBridge.Submit(dispatchBuffer, ref packet);
             }
             else
             {
-                AmdUpscalerBridge.AmdPacket packet = new AmdUpscalerBridge.AmdPacket
-                {
-                    Colour = textures.LowResHandle,
-                    Output = textures.UpscaledHandle,
-                    Depth = textures.DepthHandle,
-                    MotionVectors = textures.MotionHandle,
-                    RenderWidth = (uint)renderSize.x,
-                    RenderHeight = (uint)renderSize.y,
-                    OutputWidth = (uint)displaySize.x,
-                    OutputHeight = (uint)displaySize.y,
-                    Flags = flags,
-                    JitterX = dispatch.JitterOffset.x,
-                    JitterY = dispatch.JitterOffset.y,
-                    MotionVectorScaleX = dispatch.MotionVectorScale.x,
-                    MotionVectorScaleY = dispatch.MotionVectorScale.y,
-                    // RCAS as with FSR 3; the proxy stops at AMD's maximum of 1.
-                    Sharpness = Sharpening ? Sharpness : 0f,
-                    FrameTimeDeltaMs = dispatch.FrameTimeDelta * 1000f,
-                    CameraNear = dispatch.CameraNear,
-                    CameraFar = dispatch.CameraFar,
-                    VerticalFovRadians = dispatch.CameraFovAngleVertical,
-                    // The masks as FSR 3 gets them (SetupDispatch); FSR's automatic
-                    // reactive mask has no counterpart here.
-                    Reactive = ReactiveMask == UpscalerMasks.ReactiveSource.Renderers ? inputs.Masks.ReactiveHandle : IntPtr.Zero,
-                    TransparencyAndComposition = TransparencyMask ? inputs.Masks.TransparencyHandle : IntPtr.Zero,
-                };
+                AmdUpscalerBridge.AmdPacket packet = SharedNativePacket(flags, textures.UpscaledHandle);
+                // RCAS as with FSR 3; the proxy stops at AMD's maximum of 1.
+                packet.Sharpness = Sharpening ? Sharpness : 0f;
+                // The masks as FSR 3 gets them (SetupDispatch); FSR's automatic
+                // reactive mask has no counterpart here.
+                packet.Reactive = ReactiveMask == UpscalerMasks.ReactiveSource.Renderers ? inputs.Masks.ReactiveHandle : IntPtr.Zero;
+                packet.TransparencyAndComposition = TransparencyMask ? inputs.Masks.TransparencyHandle : IntPtr.Zero;
                 submitted = AmdUpscalerBridge.Submit(dispatchBuffer, ref packet);
             }
 
@@ -161,6 +126,43 @@ namespace ReDefinition.Upscaler
             nativeShown = submitted && state > 0;
             if (nativeShown) nativeEverShown = true;
             return nativeShown;
+        }
+
+        // NativeUpscalerLink's flags for this frame: HDR, inverted depth, auto exposure (always for DLSS) and reset.
+        private uint NativeFlags()
+        {
+            return (EffectiveHdr ? NativeUpscalerLink.FlagHdr : 0u)
+                   | (SystemInfo.usesReversedZBuffer ? NativeUpscalerLink.FlagDepthInverted : 0u)
+                   | (Backend == UpscalerBackend.Dlss || AutoExposure ? NativeUpscalerLink.FlagAutoExposure : 0u)
+                   | (dispatch.Reset ? NativeUpscalerLink.FlagReset : 0u);
+        }
+
+        // What every proxy upscaler's packet carries alike, in the layout of AMD's (XeSS takes it
+        // as it is, DLSS's has fewer fields): this frame's textures, sizes, jitter, motion vector
+        // scale, frame time and camera. Output is where the upscaler writes; the caller adds what
+        // only its backend takes.
+        private AmdUpscalerBridge.AmdPacket SharedNativePacket(uint flags, IntPtr output)
+        {
+            return new AmdUpscalerBridge.AmdPacket
+            {
+                Colour = textures.LowResHandle,
+                Output = output,
+                Depth = textures.DepthHandle,
+                MotionVectors = textures.MotionHandle,
+                RenderWidth = (uint)renderSize.x,
+                RenderHeight = (uint)renderSize.y,
+                OutputWidth = (uint)displaySize.x,
+                OutputHeight = (uint)displaySize.y,
+                Flags = flags,
+                JitterX = dispatch.JitterOffset.x,
+                JitterY = dispatch.JitterOffset.y,
+                MotionVectorScaleX = dispatch.MotionVectorScale.x,
+                MotionVectorScaleY = dispatch.MotionVectorScale.y,
+                FrameTimeDeltaMs = dispatch.FrameTimeDelta * 1000f,
+                CameraNear = dispatch.CameraNear,
+                CameraFar = dispatch.CameraFar,
+                VerticalFovRadians = dispatch.CameraFovAngleVertical,
+            };
         }
 
         // On every change of the proxy's state, and once a second while it is

@@ -414,13 +414,9 @@ namespace ReDefinition.Upscaler
             float[] magnitudes = new float[pixels.Length];
             int moving = 0;
 
-            // The vectors are in UV units; the render resolution turns them into
-            // pixels.
             for (int i = 0; i < pixels.Length; i++)
             {
-                float dx = pixels[i].r * renderSize.x;
-                float dy = pixels[i].g * renderSize.y;
-                float magnitude = Mathf.Sqrt(dx * dx + dy * dy);
+                float magnitude = MotionMagnitude(pixels[i]);
                 magnitudes[i] = magnitude;
                 if (magnitude > movingThresholdPx) moving++;
             }

@@ -131,14 +131,7 @@ namespace ReDefinition.Upscaler
                     overlayBuffer = null;
                 }
                 overlayObject = new GameObject("ReDefinitionOverlay");
-                overlayCamera = overlayObject.AddComponent<Camera>();
-                overlayCamera.cullingMask = 0;
-                overlayCamera.clearFlags = CameraClearFlags.Nothing;
-                overlayCamera.targetTexture = null;
-                overlayCamera.allowHDR = false;
-                overlayCamera.allowMSAA = false;
-                overlayCamera.useOcclusionCulling = false;
-                overlayCamera.depthTextureMode = DepthTextureMode.None;
+                overlayCamera = HelperCamera.AddTo(overlayObject, false);
                 overlayBuffer = new CommandBuffer { name = "ReDefinition.OverlayHooks" };
                 overlayCamera.AddCommandBuffer(CameraEvent.AfterEverything, overlayBuffer);
                 overlayObject.AddComponent<UpscalerOverlay>().Rig = this;

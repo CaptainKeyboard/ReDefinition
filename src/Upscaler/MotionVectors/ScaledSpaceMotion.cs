@@ -58,9 +58,19 @@ namespace ReDefinition.Upscaler
             internal Matrix4x4 Motion;
         }
 
+        // What Sample keeps of a body from one frame to the next: its transform, the scaled
+        // object it had that transform on, and that object's renderer, so that GetComponent
+        // runs once per body rather than every frame.
+        private struct Previous
+        {
+            internal Matrix4x4 LocalToWorld;
+            internal GameObject Scaled;
+            internal Renderer Renderer;
+        }
+
         // Every body's transform of the frame before; the bodies in view; the arrays the shader is given (the spheres,
         // then the outer radii, and the motions); and the order of the bodies, largest on screen first.
-        private readonly Dictionary<CelestialBody, Matrix4x4> previousLocalToWorld = new Dictionary<CelestialBody, Matrix4x4>();
+        private readonly Dictionary<CelestialBody, Previous> previousLocalToWorld = new Dictionary<CelestialBody, Previous>();
         private readonly List<Body> bodies = new List<Body>();
         private readonly Vector4[] spheres = new Vector4[MaxBodies * 2];
         private readonly Matrix4x4[] motions = new Matrix4x4[MaxBodies];
@@ -151,11 +161,15 @@ namespace ReDefinition.Upscaler
                     if (body == null || body.scaledBody == null) continue;
                     Transform transform = body.scaledBody.transform;
                     Matrix4x4 now = transform.localToWorldMatrix;
-                    Matrix4x4 before;
-                    bool known = previousLocalToWorld.TryGetValue(body, out before);
-                    previousLocalToWorld[body] = now;
+                    Previous last;
+                    bool known = previousLocalToWorld.TryGetValue(body, out last);
+                    Matrix4x4 before = last.LocalToWorld;
 
-                    Renderer renderer = body.scaledBody.GetComponent<Renderer>();
+                    // Looked up again where the body's scaled object is another one or its renderer is gone.
+                    Renderer renderer = known && last.Scaled == body.scaledBody ? last.Renderer : null;
+                    if (renderer == null) renderer = body.scaledBody.GetComponent<Renderer>();
+                    previousLocalToWorld[body] = new Previous { LocalToWorld = now, Scaled = body.scaledBody, Renderer = renderer };
+
                     if (renderer == null || !renderer.enabled || !body.scaledBody.activeInHierarchy) continue;
                     float radius = (float)(body.Radius * ScaledSpace.InverseScaleFactor);
                     float outer = body.atmosphere

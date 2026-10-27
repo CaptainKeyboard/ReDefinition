@@ -173,11 +173,21 @@ namespace ReDefinition.Upscaler
         private bool biasApplied;
         private bool resetHistory = true;
 
+        // The time of a timer that is not running: it never comes.
+        private const float NotScheduled = float.MaxValue;
+
+        // How long after the rig first sees a scene its skinned renderers are reported, and after a load
+        // that keeps the rig the mipmap bias is applied to the whole scene again; and how often Parallax's
+        // scatter gets it.
+        private const float SkinnedReportDelaySeconds = 5f;
+        private const float BiasSceneDelaySeconds = 3f;
+        private const float BiasScatterIntervalSeconds = 2f;
+
         // Once per scene load, a few seconds after the rig first sees it: which
         // skinned renderers draw their own motion vectors. Static: a rig rebuilt in
         // the same scene -- a quality change, a camera mode change -- is not another
         // scene to report on.
-        private static float skinnedReportTime = float.MaxValue;
+        private static float skinnedReportTime = NotScheduled;
         private static int skinnedReportedLoad = -1;
 
         // DLSS frame generation's camera matrices for the packet (StreamlineCamera),
@@ -595,7 +605,7 @@ namespace ReDefinition.Upscaler
         private readonly List<Renderer> biasRenderers = new List<Renderer>();
         private int biasPartsFrame = -1;
         private int biasSeenLoads = -1;
-        private float biasSceneTime = float.MaxValue;
+        private float biasSceneTime = NotScheduled;
 
         // A vessel loaded in flight: its parts get the mipmap bias in the next frame.
         private void OnVesselLoaded(Vessel vessel)
@@ -625,12 +635,12 @@ namespace ReDefinition.Upscaler
             if (sceneLoads != biasSeenLoads)
             {
                 biasSeenLoads = sceneLoads;
-                biasSceneTime = Time.unscaledTime + 3f;
+                biasSceneTime = Time.unscaledTime + BiasSceneDelaySeconds;
             }
             int added = 0;
             if (Time.unscaledTime >= biasSceneTime)
             {
-                biasSceneTime = float.MaxValue;
+                biasSceneTime = NotScheduled;
                 biasParts.Clear();
                 added = mipmapBias.Extend(FindObjectsOfType<Renderer>());
             }
@@ -647,7 +657,7 @@ namespace ReDefinition.Upscaler
             // into a scene and as the terrain around the vessel is built.
             if (Time.unscaledTime >= biasScatterTime)
             {
-                biasScatterTime = Time.unscaledTime + 2f;
+                biasScatterTime = Time.unscaledTime + BiasScatterIntervalSeconds;
                 biasMaterials.Clear();
                 Raytracing.RtKspMods.ParallaxScatterMaterials(biasMaterials);
                 int scatter = biasMaterials.Count > 0 ? mipmapBias.Extend(biasMaterials) : 0;
@@ -736,11 +746,11 @@ namespace ReDefinition.Upscaler
         // load that keeps the rig.
         private void ReportSkinnedIfDue()
         {
-            if (sceneLoads != skinnedReportedLoad && skinnedReportTime == float.MaxValue)
-                skinnedReportTime = Time.unscaledTime + 5f;
+            if (sceneLoads != skinnedReportedLoad && skinnedReportTime == NotScheduled)
+                skinnedReportTime = Time.unscaledTime + SkinnedReportDelaySeconds;
             if (Time.unscaledTime >= skinnedReportTime)
             {
-                skinnedReportTime = float.MaxValue;
+                skinnedReportTime = NotScheduled;
                 skinnedReportedLoad = sceneLoads;
                 // It walks the scene's renderers and their materials: a shader
                 // unloaded with the scene must not take this frame's inputs with it.

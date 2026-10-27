@@ -24,24 +24,15 @@ namespace ReDefinition.Upscaler
         // Made once: the capture buffer is recorded every frame.
         private static class DepthTargets
         {
-            // _CameraDepthTexture, Unity's resolved depth buffer, and the depth buffer of the camera's target.
+            // _CameraDepthTexture, and Unity's resolved depth buffer.
             internal static readonly RenderTargetIdentifier Global = new RenderTargetIdentifier("_CameraDepthTexture");
             internal static readonly RenderTargetIdentifier Resolved = new RenderTargetIdentifier(BuiltinRenderTextureType.ResolvedDepth);
-            internal static readonly RenderTargetIdentifier Depth = new RenderTargetIdentifier(BuiltinRenderTextureType.Depth);
         }
 
         // The depth the capture and the masks read, for the configured DepthSource.
         internal static RenderTargetIdentifier DepthIdentifier(UpscalerRig.DepthSource source)
         {
-            switch (source)
-            {
-                case UpscalerRig.DepthSource.GlobalDepthTexture:
-                    return DepthTargets.Global;
-                case UpscalerRig.DepthSource.ResolvedDepth:
-                    return DepthTargets.Resolved;
-                default:
-                    return DepthTargets.Depth;
-            }
+            return source == UpscalerRig.DepthSource.GlobalDepthTexture ? DepthTargets.Global : DepthTargets.Resolved;
         }
 
         // Puts the capture buffer on cam at BeforeImageEffects, filled once here and recorded anew by Record.
