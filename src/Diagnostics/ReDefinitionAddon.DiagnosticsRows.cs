@@ -11,6 +11,8 @@ namespace ReDefinition
     {
         // The narrowest a segment is drawn, in pixels.
         private const float SegmentMinimum = 44f;
+        // The room an action button asks for at least.
+        private static readonly GUILayoutOption ActionMinimumOption = GUILayout.MinWidth(SegmentMinimum + 24f);
 
         // What the rows draw with, made once (DiagnosticsContent).
         private readonly DiagnosticsContent content = new DiagnosticsContent();
@@ -76,7 +78,7 @@ namespace ReDefinition
         {
             if (option.Kind == DebugKind.Action)
             {
-                if (GUILayout.Button(option.ActionText, styles.Segment, GUILayout.MinWidth(SegmentMinimum + 24f))) option.Run();
+                if (GUILayout.Button(option.ActionText, styles.Segment, ActionMinimumOption)) option.Run();
                 return;
             }
             int value = option.Get();
@@ -104,7 +106,7 @@ namespace ReDefinition
         private int Segments(string[] labels, int selected)
         {
             int result = selected;
-            GUILayout.BeginHorizontal(GUILayout.ExpandWidth(false));
+            GUILayout.BeginHorizontal(DiagnosticsLayout.Shrink);
             for (int i = 0; i < labels.Length; i++)
                 if (GUILayout.Toggle(selected == i, labels[i], styles.Segment, content.SegmentOf(styles.Segment, labels[i], SegmentMinimum).Option) && selected != i)
                     result = i;
@@ -166,7 +168,7 @@ namespace ReDefinition
                     if (GUILayout.Button(label, styles.Segment)) option.Run();
                     break;
                 case DebugKind.Choice:
-                    GUILayout.Label(label, styles.Small, GUILayout.ExpandWidth(false));
+                    GUILayout.Label(label, styles.Small, DiagnosticsLayout.Shrink);
                     GUILayout.Space(4f);
                     // Its segments in the chip's own row, not in a group of their own: a nested
                     // group left a gap behind it.
@@ -197,8 +199,8 @@ namespace ReDefinition
         private void InfoRow(string name, string value)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Label(name, styles.Dim, GUILayout.Width(150f));
-            GUILayout.Label(value, GUI.skin.label, GUILayout.ExpandWidth(true));
+            GUILayout.Label(name, styles.Dim, DiagnosticsLayout.NameColumn);
+            GUILayout.Label(value, GUI.skin.label, DiagnosticsLayout.Fill);
             GUILayout.EndHorizontal();
         }
 

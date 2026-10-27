@@ -41,8 +41,6 @@ namespace ReDefinition
         // The page: the list buttons, the note, and the lines of the list that contain the search.
         private void DrawOtherMods()
         {
-            
-
             GUILayout.BeginHorizontal();
             int picked = Segments(ModsListNames, (int)modsList);
             if (picked != (int)modsList) pendingModsList = (ModsList)picked;
@@ -66,8 +64,8 @@ namespace ReDefinition
                 shown++;
                 GUI.color = row.Tint;
                 GUILayout.BeginHorizontal();
-                GUILayout.Label(row.Name, styles.Cell, GUILayout.Width(150f));
-                GUILayout.Label(row.Text, styles.Cell, GUILayout.ExpandWidth(true));
+                GUILayout.Label(row.Name, styles.Cell, DiagnosticsLayout.NameColumn);
+                GUILayout.Label(row.Text, styles.Cell, DiagnosticsLayout.Fill);
                 GUILayout.EndHorizontal();
             }
             GUI.color = previous;
