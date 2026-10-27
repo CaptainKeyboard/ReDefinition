@@ -154,8 +154,8 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
-        // Fill's work: the first of the body's cloud objects with an enabled volume and a 2D layer out of scaled space,
-        // packed and turned into the packet's constants; false and a logged reason where none is.
+        // Fill's work: the first of the body's cloud objects with an enabled volume, and a 2D layer out of scaled space
+        // where it has one, packed and turned into the packet's constants; false and a logged reason where none is.
         private bool FillFrom(float[] clouds, CelestialBody body, Vector3 camera)
         {
             if (!Resolve()) return false;
@@ -176,9 +176,9 @@ namespace ReDefinition.Raytracing
                 if (cloudsObject == null || (readBodyName(cloudsObject) as string) != name) continue;
                 object layer = readVolume(cloudsObject);
                 object flat = readLayer2D(cloudsObject);
-                if (layer == null || flat == null)
+                if (layer == null)
                 {
-                    why = "a layer without " + (layer == null ? "a volume" : "a 2D layer");
+                    why = "a layer without a volume";
                     continue;
                 }
                 if (readEnabled != null && !readEnabled(layer))
@@ -186,20 +186,22 @@ namespace ReDefinition.Raytracing
                     why = "the volume off";
                     continue;
                 }
-                if (readScaled2D != null && readScaled2D(flat))
+                if (flat != null && readScaled2D != null && readScaled2D(flat))
                 {
                     why = "the 2D layer in scaled space";
                     continue;
                 }
                 Material material = readVolumeMaterial(layer) as Material;
-                Material shadow = readShadowMaterial(flat) as Material;
-                if (material == null || shadow == null || !shadow.HasProperty(RadiusId))
+                // A layer of the volume alone (Jool's): no shadow of a 2D layer, so the shadow stands in the middle of the
+                // layer's shell, at EVE's default strength, white and never faded but by the volume's own fade.
+                Material shadow = flat != null ? readShadowMaterial(flat) as Material : null;
+                if (material == null || (flat != null && (shadow == null || !shadow.HasProperty(RadiusId))))
                 {
                     why = material == null ? "no volume material" : shadow == null ? "no shadow material" : "no _Radius on the shadow material";
                     continue;
                 }
-                float radius = shadow.GetFloat(RadiusId);
                 float innerRadius = readInner(layer), outerRadius = readOuter(layer);
+                float radius = shadow != null ? shadow.GetFloat(RadiusId) : 0.5f * (innerRadius + outerRadius);
                 if (!Pack(layer, radius, innerRadius, outerRadius)) return false;
 
                 // World to map, taken to the camera-relative world the rays work in.
@@ -211,8 +213,8 @@ namespace ReDefinition.Raytracing
                 clouds[13] = innerRadius;
                 clouds[14] = outerRadius;
                 clouds[15] = 1f;
-                Color colour = shadow.HasProperty(ShadowColourId) ? shadow.GetColor(ShadowColourId) : Color.white;
-                float factor = shadow.HasProperty(ShadowFactorId) ? shadow.GetFloat(ShadowFactorId) : 0.75f;
+                Color colour = shadow != null && shadow.HasProperty(ShadowColourId) ? shadow.GetColor(ShadowColourId) : Color.white;
+                float factor = shadow != null && shadow.HasProperty(ShadowFactorId) ? shadow.GetFloat(ShadowFactorId) : 0.75f;
                 clouds[16] = factor * colour.a;
                 clouds[17] = readFadeCoverage != null ? readFadeCoverage(layer) : 1f;
                 // The fades read without HasProperty, which asks the shader for the property
@@ -221,7 +223,7 @@ namespace ReDefinition.Raytracing
                 // (Clouds2D.Apply, Reassign, SetTimeFade, SetMapViewFade): where the shader did not declare
                 // them, the layer counted as never faded. Their names are checked in EVE's
                 // code (ForeignAssumptions.EveRtClouds).
-                float fade = shadow.GetFloat(TimeFadeDensityId) * shadow.GetFloat(MapViewFadeId)
+                float fade = (shadow != null ? shadow.GetFloat(TimeFadeDensityId) * shadow.GetFloat(MapViewFadeId) : 1f)
                              * (readScaledFade != null ? readScaledFade(layer) : 1f);
                 clouds[18] = fade;
                 clouds[19] = readFadeDensity != null ? readFadeDensity(layer) : 1f;
