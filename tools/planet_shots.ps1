@@ -46,7 +46,7 @@ function Invoke-Run([string]$body, $longitude) {
         $text = Get-Content $log -Raw -ErrorAction SilentlyContinue
         if ($text -match "views: $body-v$lastPose-Full.png") { $result = 'done' }
         elseif ($process.HasExited) {
-            $next = [regex]::Match($text, 'longitude for 30 degrees: (-?[0-9.]+)')
+            $next = [regex]::Match($text, 'longitude for 30 degrees: (-?[0-9]+(?:\.[0-9]+)?)')
             $result = if ($next.Success) { $next.Groups[1].Value } else { 'failed' }
         }
         elseif ($text -match 'could not be put on|no level ground') { $result = 'failed' }
