@@ -17,9 +17,9 @@ namespace ReDefinition.Upscaler
 
         // On the camera that produces depth and motion vectors, where the built-in
         // identifiers are valid, before the image effects; recorded every frame.
-        internal CommandBuffer Capture { get; private set; }
-        // The camera the capture buffer was added to, so it can be removed from it again.
-        private Camera captureCamera;
+        internal CommandBuffer Capture { get { return captured.Buffer; } }
+        // The same buffer with the camera it was added to, so it can be removed from it again.
+        private readonly AttachedBuffer captured = new AttachedBuffer("ReDefinition.CaptureInputs", CameraEvent.BeforeImageEffects);
 
         // Made once: the capture buffer is recorded every frame.
         private static class DepthTargets
@@ -38,11 +38,9 @@ namespace ReDefinition.Upscaler
         // Puts the capture buffer on cam at BeforeImageEffects, filled once here and recorded anew by Record.
         internal void AttachCapture(Camera cam, UpscalerTextures textures, UpscalerRig.DepthSource depth)
         {
-            Capture = new CommandBuffer { name = "ReDefinition.CaptureInputs" };
-            Capture.Blit(BuiltinRenderTextureType.MotionVectors, textures.MotionVectors);
-            Capture.Blit(DepthIdentifier(depth), textures.DepthCopy);
-            cam.AddCommandBuffer(CameraEvent.BeforeImageEffects, Capture);
-            captureCamera = cam;
+            CommandBuffer capture = captured.AttachTo(cam);
+            capture.Blit(BuiltinRenderTextureType.MotionVectors, textures.MotionVectors);
+            capture.Blit(DepthIdentifier(depth), textures.DepthCopy);
         }
 
         // The scene camera's inputs, recorded anew every frame: the masks follow
@@ -86,10 +84,7 @@ namespace ReDefinition.Upscaler
         // Takes the capture buffer off its camera and frees it; Record needs AttachCapture again after it.
         internal void ReleaseCapture()
         {
-            if (Capture == null) return;
-            if (captureCamera != null) captureCamera.RemoveCommandBuffer(CameraEvent.BeforeImageEffects, Capture);
-            Capture.Release();
-            Capture = null;
+            captured.Detach();
         }
     }
 }

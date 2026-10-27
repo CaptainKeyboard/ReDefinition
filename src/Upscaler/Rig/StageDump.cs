@@ -77,13 +77,12 @@ namespace ReDefinition.Upscaler
         private static readonly int CloudsId = Shader.PropertyToID("scattererReconstructedCloud");
         private static readonly RenderTargetIdentifier CloudsSource = new RenderTargetIdentifier(CloudsId);
         private static RenderTexture cloudsNow;
-        private static CommandBuffer cloudsCopy;
-        private static Camera cloudsCamera;
+        private static readonly AttachedBuffer cloudsCopy = new AttachedBuffer("ReDefinition.StageDump clouds", CameraEvent.AfterForwardAlpha);
 
         // This frame's copy of EVE's clouds, or null while no copy is recorded.
         private static RenderTexture Clouds()
         {
-            return cloudsCopy != null ? cloudsNow : null;
+            return cloudsCopy.Buffer != null ? cloudsNow : null;
         }
 
         // The copy at the scene camera's size, while the dump is armed and EVE has bound
@@ -99,22 +98,14 @@ namespace ReDefinition.Upscaler
                 DropClouds();
                 return;
             }
-            if (cloudsCopy != null && cloudsCamera == cam && !created) return;
-            DetachClouds();
-            cloudsCopy = new CommandBuffer { name = "ReDefinition.StageDump clouds" };
-            cloudsCopy.Blit(CloudsSource, cloudsNow);
-            cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, cloudsCopy);
-            cloudsCamera = cam;
+            if (cloudsCopy.IsOn(cam) && !created) return;
+            cloudsCopy.AttachTo(cam).Blit(CloudsSource, cloudsNow);
         }
 
         // Takes the clouds' copy buffer off its camera and releases it.
         private static void DetachClouds()
         {
-            if (cloudsCopy == null) return;
-            if (cloudsCamera != null) cloudsCamera.RemoveCommandBuffer(CameraEvent.AfterForwardAlpha, cloudsCopy);
-            cloudsCopy.Release();
-            cloudsCopy = null;
-            cloudsCamera = null;
+            cloudsCopy.Detach();
         }
 
         // The clouds' copy buffer and its texture, both gone.
