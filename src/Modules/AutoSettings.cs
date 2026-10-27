@@ -110,6 +110,15 @@ namespace ReDefinition.Modules
             }
         }
 
+        // The order Auto tries the frame generation techniques in, by the kind of card; built once, since
+        // the add-on asks every frame.
+        private static readonly string[] RtxOrder =
+            { FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+        private static readonly string[] IntelOrder =
+            { FrameGenerationTechniqueSetting.Xess, FrameGenerationTechniqueSetting.Fsr };
+        private static readonly string[] OtherOrder =
+            { FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+
         // The frame generation technique a choice stands for: itself, or for Auto the card's own where it
         // runs here (DLSS on an RTX, XeSS on an Intel GPU), else FSR 3, else whichever other runs. FSR 3
         // where none does (the row greys Auto out then). Written into the proxy's ini, which makes its
@@ -117,11 +126,7 @@ namespace ReDefinition.Modules
         public static string FrameGenerationTechnique(string chosen, TechniqueAvailability.Facts f)
         {
             if (chosen != FrameGenerationTechniqueSetting.Auto) return chosen;
-            string[] order = GpuClasses.IsRtx(f.Gpu)
-                ? new[] { FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess }
-                : f.Gpu == GpuClass.Intel
-                    ? new[] { FrameGenerationTechniqueSetting.Xess, FrameGenerationTechniqueSetting.Fsr }
-                    : new[] { FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+            string[] order = GpuClasses.IsRtx(f.Gpu) ? RtxOrder : f.Gpu == GpuClass.Intel ? IntelOrder : OtherOrder;
             foreach (string technique in order)
                 if (TechniqueAvailability.Ready(technique, f)) return technique;
             return FrameGenerationTechniqueSetting.Fsr;
@@ -130,10 +135,43 @@ namespace ReDefinition.Modules
         // What Resolve depends on besides the settings, for the add-on to settle Auto again when
         // one changes. These are the card, the screen's height, and whether DLSS, AMD's DLL and Intel's can run
         // (the proxy attaches them after the settings load, a download places them).
-        public static string Inputs()
+        public static ResolvedFor Inputs()
         {
             TechniqueAvailability.Facts f = TechniqueAvailability.Current();
-            return GpuClasses.Current + "|" + Screen.height + "|" + DlssUsable() + "|" + AmdUsable(f) + "|" + XessUsable(f);
+            return new ResolvedFor(GpuClasses.Current, Screen.height, DlssUsable(f), AmdUsable(f), XessUsable(f));
+        }
+
+        // The inputs above as one value the add-on compares every frame without allocating.
+        internal struct ResolvedFor : IEquatable<ResolvedFor>
+        {
+            private readonly GpuClass gpu;
+            private readonly int screenHeight;
+            private readonly bool dlss, amd, xess;
+
+            public ResolvedFor(GpuClass gpu, int screenHeight, bool dlss, bool amd, bool xess)
+            {
+                this.gpu = gpu;
+                this.screenHeight = screenHeight;
+                this.dlss = dlss;
+                this.amd = amd;
+                this.xess = xess;
+            }
+
+            public bool Equals(ResolvedFor other)
+            {
+                return gpu == other.gpu && screenHeight == other.screenHeight && dlss == other.dlss && amd == other.amd
+                       && xess == other.xess;
+            }
+
+            public override bool Equals(object obj)
+            {
+                return obj is ResolvedFor && Equals((ResolvedFor)obj);
+            }
+
+            public override int GetHashCode()
+            {
+                return ((int)gpu * 397 ^ screenHeight) * 8 + (dlss ? 4 : 0) + (amd ? 2 : 0) + (xess ? 1 : 0);
+            }
         }
 
         // AMD's DLL and Intel's offered by the proxy and in their folders.
@@ -149,34 +187,18 @@ namespace ReDefinition.Modules
         }
 
         // Whether DLSS can run: the proxy has it, the GPU is NVIDIA's, and NVIDIA's DLSS file is in its
-        // folder. The folder is looked at every two seconds, not in every frame.
-        private static float dlssAskedAt = float.MinValue;
-        private static bool dlssUsable;
-
-        // The answer above, asked anew at most every two seconds.
-        public static bool DlssUsable()
+        // folder (a DLL its download still needs, licence texts aside). The facts are gathered once a
+        // second, not in every frame.
+        private static bool DlssUsable(TechniqueAvailability.Facts f)
         {
-            float now = Time.realtimeSinceStartup;
-            if (dlssAskedAt != float.MinValue && now - dlssAskedAt < 2f) return dlssUsable;
-            dlssAskedAt = now;
-            dlssUsable = DlssBridge.Offered && !DlssFileMissing();
-            return dlssUsable;
-        }
-
-        // Whether a DLL NVIDIA's DLSS needs is missing from the folders (licence texts do not count); false
-        // on a GPU that is not NVIDIA's.
-        private static bool DlssFileMissing()
-        {
-            foreach (NvidiaFiles.Entry entry in NvidiaDownloader.Needed())
-                if (!entry.Notice && entry.Use == NvidiaFiles.Use.Dlss) return true;
-            return false;
+            return f.DlssOffered && !f.DlssFileMissing;
         }
 
         // For the card and screen KSP runs on.
         public static void Resolve(OwnSettings settings)
         {
             TechniqueAvailability.Facts f = TechniqueAvailability.Current();
-            Resolve(settings, GpuClasses.Current, Screen.height, DlssUsable(), AmdUsable(f), XessUsable(f));
+            Resolve(settings, GpuClasses.Current, Screen.height, DlssUsable(f), AmdUsable(f), XessUsable(f));
         }
     }
 }

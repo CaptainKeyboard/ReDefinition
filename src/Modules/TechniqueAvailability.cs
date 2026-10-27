@@ -132,6 +132,10 @@ namespace ReDefinition.Modules
             }
         }
 
+        // The techniques Auto's row asks about, for whether any of them runs here.
+        private static readonly string[] AnyOrder =
+            { FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess };
+
         // Null where the card and the proxy can run the frame generation row's choice; why not otherwise.
         public static string FrameGeneration(string choice, Facts f)
         {
@@ -143,10 +147,7 @@ namespace ReDefinition.Modules
             {
                 case FrameGenerationTechniqueSetting.Auto:
                     // The best that runs here (AutoSettings.FrameGenerationTechnique): greyed out only where none does.
-                    foreach (string technique in new[]
-                             {
-                                 FrameGenerationTechniqueSetting.Dlss, FrameGenerationTechniqueSetting.Fsr, FrameGenerationTechniqueSetting.Xess,
-                             })
+                    foreach (string technique in AnyOrder)
                         if (Ready(technique, f)) return null;
                     return "No frame generation runs here yet: " + (FrameGeneration(FrameGenerationTechniqueSetting.Fsr, f)
                                                                      ?? "each technique waits for its files.");
@@ -192,10 +193,8 @@ namespace ReDefinition.Modules
         // does everywhere.
         public static string Step(string step, string technique, FrameGenerationChoice.Limits limits)
         {
-            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1
-                : technique == FrameGenerationTechniqueSetting.Dlss ? 2
-                : technique == FrameGenerationTechniqueSetting.Xess ? 3
-                : limits.Known ? limits.Technique : 0;
+            int kind = FrameGenerationTechniqueSetting.KindOfNamed(technique);
+            if (kind == FrameGenerationTechniqueSetting.KindNone && limits.Known) kind = limits.Technique;
             if (kind != 0 && limits.Known && limits.Technique == kind)
             {
                 if (FrameGenerationChoice.Offered(step, limits)) return null;

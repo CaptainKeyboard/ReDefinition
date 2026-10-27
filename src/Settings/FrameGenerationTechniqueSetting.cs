@@ -27,6 +27,25 @@ namespace ReDefinition.Settings
             return System.Array.IndexOf(Techniques, text) >= 0;
         }
 
+        // The numbers the proxy gives the technique its swapchain runs (KspFgTechnique); 0 is none.
+        public const int KindNone = 0;
+        public const int KindFsr = 1;
+        public const int KindDlss = 2;
+        public const int KindXess = 3;
+
+        // The proxy's number for a technique that is chosen or resolved: FSR 3 is 1 and DLSS is 2; anything
+        // else counts as XeSS, the last technique a resolved choice can be.
+        public static int KindOf(string technique)
+        {
+            return technique == Fsr ? KindFsr : technique == Dlss ? KindDlss : KindXess;
+        }
+
+        // The proxy's number for a technique by its name, or none for a value that is no technique (Auto, Off).
+        public static int KindOfNamed(string technique)
+        {
+            return technique == Fsr ? KindFsr : technique == Dlss ? KindDlss : technique == Xess ? KindXess : KindNone;
+        }
+
         // The button's text and the value column's.
         public static string Label(string value)
         {

@@ -194,7 +194,7 @@ namespace ReDefinition.Settings.Behaviours
             PropertyInfo fonts = group != null ? group.FieldType.GetProperty("fonts", TypeLookup.Any) : null;
             if (fonts == null)
             {
-                mod.Settings.Remove(setting);
+                mod.RemoveSetting(setting);
                 mod.Drop("fontName", "this build of Distant Object has no list of fonts to choose from");
                 return false;
             }

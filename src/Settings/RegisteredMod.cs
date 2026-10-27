@@ -104,7 +104,25 @@ namespace ReDefinition.Settings
         // The settings bundled, in the registration's order and then those a behaviour found.
         public IList<BundledSetting> Settings
         {
-            get { return settings; }
+            get { return settingsView ?? (settingsView = settings.AsReadOnly()); }
+        }
+        private System.Collections.ObjectModel.ReadOnlyCollection<BundledSetting> settingsView;
+
+        // The settings by the name the registration gives them (Key without the mod's id), kept in step with
+        // the list by Add, RemoveSetting and the left-out sweep.
+        private readonly Dictionary<string, BundledSetting> settingsByName = new Dictionary<string, BundledSetting>();
+
+        // A setting taken out again, a behaviour finding that this build cannot give it.
+        internal void RemoveSetting(BundledSetting setting)
+        {
+            if (settings.Remove(setting)) IndexSettings();
+        }
+
+        // The index over the list, made anew after settings left it.
+        private void IndexSettings()
+        {
+            settingsByName.Clear();
+            foreach (BundledSetting setting in settings) settingsByName[setting.Key.Substring(Id.Length + 1)] = setting;
         }
 
         // What was left out and why, "name -- why" each, for the log and the diagnostics.
@@ -334,6 +352,7 @@ namespace ReDefinition.Settings
                 string key = Id + "." + entry.Name;
                 for (int i = settings.Count - 1; i >= 0; i--)
                     if (settings[i].Key == key) settings.RemoveAt(i);
+                IndexSettings();
                 Drop(entry.Name, "left to " + entry.LeftOutWith + ", which holds it itself");
             }
             IsInstalled = settings.Count > 0 || dialogs.Count > 0;
@@ -365,10 +384,7 @@ namespace ReDefinition.Settings
         // Whether a setting of that name is bundled.
         internal bool Has(string name)
         {
-            string key = Id + "." + name;
-            foreach (BundledSetting setting in settings)
-                if (setting.Key == key) return true;
-            return false;
+            return name != null && settingsByName.ContainsKey(name);
         }
 
         // A row the registration places that this build cannot give: not an
@@ -703,6 +719,7 @@ namespace ReDefinition.Settings
                 Owner = this,
             };
             settings.Add(setting);
+            settingsByName[name] = setting;
             return setting;
         }
 

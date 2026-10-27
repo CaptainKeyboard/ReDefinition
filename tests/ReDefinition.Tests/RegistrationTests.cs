@@ -245,6 +245,31 @@ namespace ReDefinition.Tests
             Assert.AreEqual("indexed", mod.Build, "an indexer tells the build as any member does");
         }
 
+        // The registration finds a setting by name, the last of two of one name, and the bundled mod knows which
+        // names it bundles -- also after a setting is left out to the mod that holds it itself.
+        [TestMethod]
+        public void SettingsAreFoundByNameAlsoAfterOneIsReplacedOrLeftOut()
+        {
+            List<string> problems = new List<string>();
+            RegisteredMod mod = Build("MOD_SETTINGS\n{\n name = indexfake\n detect = ReDefinition.Tests.DefaultsFake\n"
+                                      + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n  default = 1\n }\n"
+                                      + " SETTING\n {\n  name = Width\n  member = ReDefinition.Tests.DefaultsFake.Width\n  default = 2\n }\n"
+                                      + " SETTING\n {\n  name = Depth\n  member = ReDefinition.Tests.DefaultsFake.Depth\n  default = 3\n }\n"
+                                      + " SETTING\n {\n  name = Held\n  member = ReDefinition.Tests.DefaultsFake.Width\n"
+                                      + "  leftOutWith = holder\n }\n}", problems);
+
+            Assert.AreEqual("3", mod.Registration.Setting("Depth").Default, "the last of two counts");
+            Assert.IsNull(mod.Registration.Setting("Nothing"));
+            Assert.AreEqual(3, mod.Registration.Settings.Count);
+            Assert.IsTrue(mod.Has("Depth") && mod.Has("Width") && mod.Has("Held"));
+            Assert.IsFalse(mod.Has("Nothing"));
+
+            mod.LeaveOutHeld(name => name == "holder");
+            Assert.IsFalse(mod.Has("Held"), "left to the mod that holds it");
+            Assert.IsTrue(mod.Has("Depth") && mod.Has("Width"));
+            Assert.AreEqual(2, mod.Settings.Count);
+        }
+
         // A profile takes the blocks of its name for every build and for the installed one, not for another build;
         // a profile with no block leaves the defaults, and a block for a profile not installed is reported.
         [TestMethod]

@@ -49,8 +49,18 @@ namespace ReDefinition.Vendor
         // The class once it is certain; Unknown until then, so that Current asks again.
         private static GpuClass current = GpuClass.Unknown;
 
+        // The class by the adapter's name while NVAPI has not answered, and when it was asked
+        // (realtimeSinceStartup). Without the proxy NVAPI never answers on an NVIDIA card, and Current is
+        // read every frame (AutoSettings.Inputs): the native call, the name and the package check are
+        // repeated at most once a second then.
+        private static GpuClass uncertain = GpuClass.Unknown;
+        private static float uncertainAskedAt = float.MinValue;
+        private const float UncertainRefresh = 1f;
+
         // The card KSP renders on. Asked once the proxy has answered (NVAPI's architecture),
-        // by the adapter's name before.
+        // by the adapter's name before. Every reader acts on a change of it a moment later anyway
+        // (Auto settles again, the technique facts are gathered once a second), so the class becomes
+        // certain up to a second after the proxy has attached.
         public static GpuClass Current
         {
             get
@@ -58,6 +68,9 @@ namespace ReDefinition.Vendor
                 if (current != GpuClass.Unknown) return current;
                 try
                 {
+                    float now = Clock();
+                    if (uncertainAskedAt != float.MinValue && now - uncertainAskedAt < UncertainRefresh) return uncertain;
+                    uncertainAskedAt = now;
                     uint architecture = 0, implementation = 0;
                     bool known = FrameGenerationBridge.NvidiaGpu(out architecture, out implementation);
                     // The package for an RTX 30 or 20 (dlssg_for_sm86) makes NVAPI answer as a Blackwell card
@@ -69,6 +82,7 @@ namespace ReDefinition.Vendor
                     // A name alone for an NVIDIA card may be wrong for a new model, so it is asked again
                     // until NVAPI has answered.
                     if (found != GpuClass.Unknown && (known || SystemInfo.graphicsDeviceVendorID != Nvidia || Spoofed())) current = found;
+                    uncertain = found;
                     return found;
                 }
                 catch (Exception)
@@ -77,6 +91,14 @@ namespace ReDefinition.Vendor
                     return GpuClass.Unknown;
                 }
             }
+        }
+
+        // Unity's clock in its own method, so that outside the game, where Unity's calls do not run, Current's
+        // catch takes the failure (the tests).
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static float Clock()
+        {
+            return Time.realtimeSinceStartup;
         }
 
         // Whether the package that makes an RTX 30 or 20 pass for a newer card lies next to KSP_x64.exe.

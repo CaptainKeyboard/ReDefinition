@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using FidelityFX.FSR3;
+using ReDefinition.Core;
 using ReDefinition.Proxy;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
@@ -26,6 +28,11 @@ namespace ReDefinition.Modules
     // (ReDefinitionAddon).
     internal static class OurModules
     {
+        // The upscaler row's values the buttons' texts and tooltips compare with in every frame.
+        private static readonly string Fsr3Name = UpscalerBackend.Fsr3.ToString();
+        private static readonly string DlssName = UpscalerBackend.Dlss.ToString();
+        private static readonly string AmdName = UpscalerBackend.Amd.ToString();
+
         // The upscaler: on or off, the technique and its mode, the render height, the DLSS model, the sharpness, and
         // whether the upscaler is the only antialiasing.
         public static readonly IGraphicsModule Upscaler = new GraphicsModule("upscaler", "Upscaler",
@@ -57,9 +64,9 @@ namespace ReDefinition.Modules
                 Control = SettingControl.Choice,
                 Radio = true,
                 ChoiceLabel = value => value == "Off" || value == AutoSettings.Auto ? value
-                    : value == UpscalerBackend.Fsr3.ToString() ? "FSR 3"
-                    : value == UpscalerBackend.Dlss.ToString() ? "DLSS"
-                    : value == UpscalerBackend.Amd.ToString() ? "FSR 4" : "XeSS",
+                    : value == Fsr3Name ? "FSR 3"
+                    : value == DlssName ? "DLSS"
+                    : value == AmdName ? "FSR 4" : "XeSS",
                 Unavailable = (settings, value) => TechniqueAvailability.Upscaler(value, TechniqueAvailability.Current()),
                 Files = (settings, value) => TechniqueFiles.For(
                     TechniqueAvailability.UpscalerNeeds(value, TechniqueAvailability.Current())),
@@ -76,12 +83,12 @@ namespace ReDefinition.Modules
                 ChoiceTooltip = value => value == "Off" ? "No upscaling. With frame generation on, the upscaler last chosen still smooths\n"
                                                          + "the edges at full size (AA only), in place of the mods' antialiasing."
                     : value == AutoSettings.Auto ? "The best upscaler for this card: DLSS on an RTX, FSR 4 on a Radeon RX 7000 or 9000, XeSS on an Intel GPU, otherwise FSR 3."
-                    : value == UpscalerBackend.Fsr3.ToString() ? "AMD FSR 3, built into ReDefinition. Runs on every card."
-                    : value == UpscalerBackend.Dlss.ToString() ? "NVIDIA DLSS, on a GeForce RTX."
-                    : value == UpscalerBackend.Amd.ToString() ? "AMD FSR 4, on a Radeon RX 7000 or 9000."
+                    : value == Fsr3Name ? "AMD FSR 3, built into ReDefinition. Runs on every card."
+                    : value == DlssName ? "NVIDIA DLSS, on a GeForce RTX."
+                    : value == AmdName ? "AMD FSR 4, on a Radeon RX 7000 or 9000."
                     : "Intel XeSS. Runs on most cards.",
                 Read = settings => !settings.Enabled ? "Off"
-                    : settings.BackendAuto ? AutoSettings.Auto : settings.Backend.ToString(),
+                    : settings.BackendAuto ? AutoSettings.Auto : EnumNames<UpscalerBackend>.Name(settings.Backend),
                 Write = (settings, value) =>
                 {
                     settings.Enabled = value != "Off";
@@ -104,7 +111,7 @@ namespace ReDefinition.Modules
                     : KspSettingsSection.ModeName(Mode(value)),
                 Tooltip = "How much smaller the scene renders: AA only is full size, further left is faster and softer. "
                           + "Auto fits the profile to your screen.",
-                Read = settings => settings.QualityAuto ? AutoSettings.Auto : settings.Quality.ToString(),
+                Read = settings => settings.QualityAuto ? AutoSettings.Auto : EnumNames<Fsr3Upscaler.QualityMode>.Name(settings.Quality),
                 Write = (settings, value) =>
                 {
                     settings.QualityAuto = value == AutoSettings.Auto;
@@ -146,7 +153,7 @@ namespace ReDefinition.Modules
                           + "Preset K: the transformer model before M and L.\n"
                           + "Preset M: close to L in quality, close to K in speed.\n"
                           + "Preset L: the sharpest, most stable image with the least ghosting, at the most GPU time.",
-                Read = settings => settings.DlssModel.ToString(),
+                Read = settings => EnumNames<DlssModel>.Name(settings.DlssModel),
                 Write = (settings, value) => settings.DlssModel = DlssModelOf(value),
                 Interactable = settings => settings.Backend == UpscalerBackend.Dlss,
                 // The profile's, by the card; not a row.
@@ -171,19 +178,11 @@ namespace ReDefinition.Modules
                     settings.Sharpness = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
             },
             // The mods' antialiasing with the upscaler and frame generation off (HostStack.Duplicates).
-            new ModuleSetting
-            {
-                Key = "oneAntialiasing",
-                Title = "One antialiasing per camera",
-                Section = "Upscaling",
-                Kind = SettingKind.Other,
-                Order = 35,
-                Control = SettingControl.Toggle,
-                Tooltip = "With the upscaler and frame generation off: where Scatterer's TAA smooths a camera,\n"
-                          + "TUFX's antialiasing is not run on it as well. With either on, the upscaler smooths alone.",
-                Read = settings => SettingValues.Text(settings.OneAntialiasing),
-                Write = (settings, value) => settings.OneAntialiasing = bool.Parse(value),
-            });
+            Toggle("oneAntialiasing", "One antialiasing per camera", 35,
+                "With the upscaler and frame generation off: where Scatterer's TAA smooths a camera,\n"
+                  + "TUFX's antialiasing is not run on it as well. With either on, the upscaler smooths alone.",
+                section: "Upscaling",
+                needsProfile: true));
 
         // Frame generation: the switch a profile sets, and the player's technique and multiplier rows.
         public static readonly IGraphicsModule FrameGeneration = new GraphicsModule("frameGeneration", "Frame generation",
@@ -310,7 +309,7 @@ namespace ReDefinition.Modules
                 Tooltip = "Raytraced lighting. Shadows: the sun's shadows. Shadows and light: plus bounced light and "
                           + "ambient occlusion. Full: plus reflections. Needs a card with DirectX Raytracing 1.1 (RTX 20, "
                           + "Radeon RX 6000 and newer).",
-                Read = settings => settings.Raytracing.ToString(),
+                Read = settings => EnumNames<ReDefinition.Raytracing.RaytracingMode>.Name(settings.Raytracing),
                 Write = (settings, value) => settings.Raytracing = RaytracingModeOf(value),
                 // Offered while the proxy runs raytracing here, and always while it is on, so that a
                 // setting saved with the proxy installed can still be switched off after it has gone.
@@ -380,7 +379,7 @@ namespace ReDefinition.Modules
                           + "denoiser and DLSS Super Resolution do. Ray Reconstruction costs about 9 ms of GPU time on an\n"
                           + "RTX A4500 in every mode; the own denoiser and Super Resolution together 2.2 ms with Shadows,\n"
                           + "4.2 ms with shadows and light and 5.2 ms with Full. Shadows: Ray Reconstruction in all of them.",
-                Read = settings => settings.RayReconstructionFrom.ToString(),
+                Read = settings => EnumNames<ReDefinition.Raytracing.RaytracingMode>.Name(settings.RayReconstructionFrom),
                 Write = (settings, value) => settings.RayReconstructionFrom = RaytracingModeOf(value),
                 Interactable = settings => settings.RayReconstruction && !settings.RayReconstructionAuto
                                            && settings.Raytracing != ReDefinition.Raytracing.RaytracingMode.Off
@@ -388,97 +387,30 @@ namespace ReDefinition.Modules
                 // Auto sets it by the card; On runs in every mode.
                 Present = () => false,
             },
-            new ModuleSetting
-            {
-                Key = "moonlight",
-                Detail = true,
-                Title = "Moonlight",
-                Kind = SettingKind.Other,
-                Order = 70,
-                Control = SettingControl.Slider,
-                Min = 0f,
-                Max = 300f,
-                StepsPerUnit = 0.2f,
-                Label = PercentLabel,
-                Tooltip = "How bright the light of moons and planets is that the sun shines on: the night side under\n"
-                          + "the Mun, and the planet's light in orbit. It falls only where the body stands in the sky,\n"
-                          + "with its shadows. Real moonlight would be too faint to see; 100 % is ReDefinition's scale.",
-                Read = settings => settings.RaytracingMoonlight.ToString("0", CultureInfo.InvariantCulture),
-                Write = (settings, value) =>
-                    settings.RaytracingMoonlight = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-                // The bodies' light comes with the traced diffuse light.
-                Interactable = TracesDiffuseLight,
-            },
-            new ModuleSetting
-            {
-                Key = "moonReflection",
-                Detail = true,
-                Title = "Moon reflection",
-                Kind = SettingKind.Other,
-                Order = 75,
-                Control = SettingControl.Slider,
-                Min = 0f,
-                Max = 500f,
-                StepsPerUnit = 0.2f,
-                Label = PercentLabel,
-                Tooltip = "How strongly water mirrors the moons. 100 % is the moon as bright in the water as the eye\n"
-                          + "sees it at night; it lights nothing. Only with Full, which traces reflections.",
-                Read = settings => settings.RaytracingMoonReflection.ToString("0", CultureInfo.InvariantCulture),
-                Write = (settings, value) =>
-                    settings.RaytracingMoonReflection = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-                Interactable = settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full,
-            },
-            new ModuleSetting
-            {
-                Key = "moonGlow",
-                Detail = true,
-                Title = "Moon glow",
-                Kind = SettingKind.Other,
-                Order = 76,
-                Control = SettingControl.Toggle,
-                Tooltip = "The moons' discs a little brighter in the night sky, with a soft glow round them.\n"
-                          + "It lights nothing.",
-                Read = settings => SettingValues.Text(settings.MoonGlow),
-                Write = (settings, value) => settings.MoonGlow = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "sunReflection",
-                Detail = true,
-                Title = "Sun reflection",
-                Kind = SettingKind.Other,
-                Order = 77,
-                Control = SettingControl.Slider,
-                Min = 0f,
-                Max = 300f,
-                StepsPerUnit = 0.2f,
-                Label = PercentLabel,
-                Tooltip = "How strongly water mirrors the sun: the raytraced sun on the sea, or Scatterer's own\n"
-                          + "glint without raytraced reflections. 100 % is three times the sun's own brightness and Scatterer's.",
-                Read = settings => settings.SunReflection.ToString("0", CultureInfo.InvariantCulture),
-                Write = (settings, value) =>
-                    settings.SunReflection = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-            },
-            new ModuleSetting
-            {
-                Key = "nightAmbient",
-                Detail = true,
-                Title = "Night light",
-                Kind = SettingKind.Other,
-                Order = 80,
-                Control = SettingControl.Slider,
-                Min = 0f,
-                Max = 100f,
-                StepsPerUnit = 0.2f,
-                Label = PercentLabel,
-                Tooltip = "How much of KSP's own night light stays: the least light anything gets where neither\n"
-                          + "the sun nor a moon reaches it. 100 % is KSP's night; lower makes the night darker\n"
-                          + "and the moonlight's shadows stand out.",
-                Read = settings => settings.RaytracingNightAmbient.ToString("0", CultureInfo.InvariantCulture),
-                Write = (settings, value) =>
-                    settings.RaytracingNightAmbient = float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture),
-                Interactable = TracesDiffuseLight,
-            },
+            // The bodies' light comes with the traced diffuse light.
+            Percentage("moonlight", "raytracingMoonlight", "Moonlight", 70, 300f,
+                "How bright the light of moons and planets is that the sun shines on: the night side under\n"
+                  + "the Mun, and the planet's light in orbit. It falls only where the body stands in the sky,\n"
+                  + "with its shadows. Real moonlight would be too faint to see; 100 % is ReDefinition's scale.",
+                TracesDiffuseLight),
+            Percentage("moonReflection", "raytracingMoonReflection", "Moon reflection", 75, 500f,
+                "How strongly water mirrors the moons. 100 % is the moon as bright in the water as the eye\n"
+                  + "sees it at night; it lights nothing. Only with Full, which traces reflections.",
+                settings => settings.Raytracing == ReDefinition.Raytracing.RaytracingMode.Full),
+            Toggle("moonGlow", "Moon glow", 76,
+                "The moons' discs a little brighter in the night sky, with a soft glow round them.\n"
+                  + "It lights nothing.",
+                detail: true,
+                needsProfile: true),
+            Percentage("sunReflection", "sunReflection", "Sun reflection", 77, 300f,
+                "How strongly water mirrors the sun: the raytraced sun on the sea, or Scatterer's own\n"
+                  + "glint without raytraced reflections. 100 % is three times the sun's own brightness and Scatterer's.",
+                null),
+            Percentage("nightAmbient", "raytracingNightAmbient", "Night light", 80, 100f,
+                "How much of KSP's own night light stays: the least light anything gets where neither\n"
+                  + "the sun nor a moon reaches it. 100 % is KSP's night; lower makes the night darker\n"
+                  + "and the moonlight's shadows stand out.",
+                TracesDiffuseLight),
             new ModuleSetting
             {
                 Key = "lightColour",
@@ -499,11 +431,11 @@ namespace ReDefinition.Modules
                           + "As without raytracing: the colour of the ambient light the game has without it.\n"
                           + "Neutral: grey, so that grass and ground in shadow keep their own colour.\n"
                           + "Only with Deferred, in whose lighting the colour is set.",
-                Read = settings => settings.RaytracingLightColour.ToString(),
+                Read = settings => EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.Name(settings.RaytracingLightColour),
                 Write = (settings, value) =>
                 {
                     ReDefinition.Raytracing.RaytracingLightColour colour;
-                    settings.RaytracingLightColour = System.Enum.TryParse(value, out colour)
+                    settings.RaytracingLightColour = EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.TryParse(value, out colour)
                         ? colour : ReDefinition.Raytracing.RaytracingLightColour.Neutral;
                 },
                 // Set in Deferred's reflections pass, through ReDefinition's copy of its shader
@@ -539,7 +471,7 @@ namespace ReDefinition.Modules
         private static string LightColourLabel(string value)
         {
             ReDefinition.Raytracing.RaytracingLightColour colour;
-            if (!System.Enum.TryParse(value, out colour)) return value;
+            if (!EnumNames<ReDefinition.Raytracing.RaytracingLightColour>.TryParse(value, out colour)) return value;
             switch (colour)
             {
                 case ReDefinition.Raytracing.RaytracingLightColour.Raytraced: return "Raytraced";
@@ -554,6 +486,63 @@ namespace ReDefinition.Modules
             return float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture).ToString("0", CultureInfo.InvariantCulture) + " %";
         }
 
+        // A True/False setting over the settings file's key of the same name (OwnSettings), which holds
+        // the getter and the setter. A profile sets the upscaler's and frame generation's only once one is chosen, so
+        // `needsProfile` stays off for the player's own switches of the interface and the scenery.
+        private static ModuleSetting Toggle(string key, string title, int order, string tooltip,
+                                            SettingCategory row = SettingCategory.General, string section = null,
+                                            ApplyWindow takesEffect = ApplyWindow.Live, bool detail = false,
+                                            bool needsProfile = false, Func<OwnSettings, bool> interactable = null,
+                                            Func<bool> present = null)
+        {
+            Func<OwnSettings, bool> get;
+            Action<OwnSettings, bool> set;
+            OwnSettings.BoolMember(key, out get, out set);
+            return new ModuleSetting
+            {
+                Key = key,
+                Title = title,
+                Order = order,
+                Tooltip = tooltip,
+                Row = row,
+                Section = section,
+                TakesEffect = takesEffect,
+                Detail = detail,
+                NeedsProfile = needsProfile,
+                Control = SettingControl.Toggle,
+                Interactable = interactable,
+                Present = present,
+                Read = settings => get(settings) ? bool.TrueString : bool.FalseString,
+                Write = (settings, value) => set(settings, bool.Parse(value)),
+            };
+        }
+
+        // A slider of a percentage from 0 to `max`, shown as a whole number and kept in the settings file under
+        // `fileKey`, in Detail's group.
+        private static ModuleSetting Percentage(string key, string fileKey, string title, int order, float max, string tooltip,
+                                                Func<OwnSettings, bool> interactable)
+        {
+            Func<OwnSettings, float> get;
+            Action<OwnSettings, float> set;
+            OwnSettings.FloatMember(fileKey, out get, out set);
+            return new ModuleSetting
+            {
+                Key = key,
+                Detail = true,
+                Title = title,
+                Order = order,
+                Control = SettingControl.Slider,
+                Min = 0f,
+                Max = max,
+                StepsPerUnit = 0.2f,
+                Label = PercentLabel,
+                Tooltip = tooltip,
+                Interactable = interactable,
+                Read = settings => get(settings).ToString("0", CultureInfo.InvariantCulture),
+                Write = (settings, value) => set(settings, float.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)),
+            };
+        }
+
         // Whether the raytracing traces the diffuse light: in Light and Full.
         private static bool TracesDiffuseLight(OwnSettings settings)
         {
@@ -565,7 +554,8 @@ namespace ReDefinition.Modules
         private static ReDefinition.Raytracing.RaytracingMode RaytracingModeOf(string value)
         {
             ReDefinition.Raytracing.RaytracingMode mode;
-            return System.Enum.TryParse(value, out mode) ? mode : ReDefinition.Raytracing.RaytracingMode.Off;
+            return EnumNames<ReDefinition.Raytracing.RaytracingMode>.TryParse(value, out mode)
+                ? mode : ReDefinition.Raytracing.RaytracingMode.Off;
         }
 
         // The raytracing row's names for its modes.
@@ -630,367 +620,160 @@ namespace ReDefinition.Modules
 
         // The flight UI's own, in the Gameplay tab with KSP's flight settings.
         public static readonly IGraphicsModule FlightUi = new GraphicsModule("flightUi", "Flight",
-            new ModuleSetting
-            {
-                Key = "flightPanelAuto",
-                Title = "Flight panel follows the situation",
-                Order = 104,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The flight panel in the maneuver mode switches to the profile for what the vessel is doing: ascent, "
-                          + "orbit, rendezvous, landing, docking or flight on wings. A profile picked by hand stays until the "
-                          + "situation changes.",
-                Read = settings => SettingValues.Text(settings.FlightPanelAuto),
-                Write = (settings, value) => settings.FlightPanelAuto = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "autoAltimeter",
-                Title = "Altimeter switches to the ground",
-                Order = 103,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The altimeter shows the height above the ground below 5 km over it and on the ground, and the height "
-                          + "above sea level above 6 km. A click on its switch still changes it by hand, until the height crosses "
-                          + "the other way.",
-                Read = settings => SettingValues.Text(settings.AutoAltimeter),
-                Write = (settings, value) => settings.AutoAltimeter = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "flightStartsInManeuverMode",
-                Title = "Start flight in maneuver mode",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 105,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "A flight starts in KSP's maneuver mode, with its orbit and maneuver panel at the bottom left, rather "
-                          + "than in the staging mode. The mode buttons switch it as before.",
-                Read = settings => SettingValues.Text(settings.FlightStartsInManeuverMode),
-                Write = (settings, value) => settings.FlightStartsInManeuverMode = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "worldButtons",
-                Title = "Buttons over the buildings",
-                Order = 106,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Buttons over the space centre's buildings while the vessel stands near them -- back to the "
-                          + "assembly building, and before the launch to every other building -- and over the launch pad and "
-                          + "the runway in the editors.",
-                Read = settings => SettingValues.Text(settings.WorldButtons),
-                Write = (settings, value) => settings.WorldButtons = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "roundGauge",
-                Title = "Round gauge",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 107,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "KSP's vertical speed gauge shows the stage's burn time, the burn, the time to impact, the closing "
-                          + "speed or the angle of attack, picked by a click or following the situation. From the next flight.\n"
-                          + "Needs the speeds at the navball, which show the vertical speed in its place.",
-                // Without them, the vertical speed would stand nowhere (RoundGauge.Start).
-                Interactable = settings => settings.NavballSpeeds,
-                Read = settings => SettingValues.Text(settings.RoundGauge),
-                Write = (settings, value) => settings.RoundGauge = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "navballSpeeds",
-                Title = "Speeds at the navball",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 108,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The vertical and horizontal speed in two fields left of the navball, under its SAS modes. From the "
-                          + "next flight.",
-                Read = settings => SettingValues.Text(settings.NavballSpeeds),
-                Write = (settings, value) => settings.NavballSpeeds = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "navballDockingMarker",
-                Title = "Docking marker on the navball",
-                Order = 109,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "While a docking port is the target, a marker on the navball shows where to point the nose so that "
-                          + "the two ports face each other.",
-                Read = settings => SettingValues.Text(settings.NavballDockingMarker),
-                Write = (settings, value) => settings.NavballDockingMarker = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "navballDrag",
-                Title = "Navball moves by dragging",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 110,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Dragging the navball's show and hide button moves the navball sideways; it keeps clear of the mode "
-                          + "buttons and the crew portraits and is drawn over the staging stack. From the next flight.",
-                Read = settings => SettingValues.Text(settings.NavballDrag),
-                Write = (settings, value) => settings.NavballDrag = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "flightPanel",
-                Title = "Flight panel profiles",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 111,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The maneuver mode's orbit tabs give way to the flight panel's profiles of readouts, with a pencil to "
-                          + "edit them. From the next flight.",
-                Read = settings => SettingValues.Text(settings.FlightPanel),
-                Write = (settings, value) => settings.FlightPanel = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "stageDetailColumns",
-                Title = "Stage details in two columns",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 112,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "More than four stage details stand in two columns, and the stage's part icons beside them, so that a "
-                          + "stage grows wider rather than taller. From the next scene.",
-                Read = settings => SettingValues.Text(settings.StageDetailColumns),
-                Write = (settings, value) => settings.StageDetailColumns = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "stageTwrRange",
-                Title = "TWR at the stage's start and end",
-                Order = 113,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The stage details' TWR gives the TWR at the end of the stage beside the one at its start.",
-                Read = settings => SettingValues.Text(settings.StageTwrRange),
-                Write = (settings, value) => settings.StageTwrRange = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "deltaVTools",
-                Title = "Delta-v tools in the staging stack",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 114,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The delta-v tools' button opens every stage's details with every value, and in the editors a compact "
-                          + "situation window under the stages, in place of KSP's own window. From the next scene.",
-                Read = settings => SettingValues.Text(settings.DeltaVTools),
-                Write = (settings, value) => settings.DeltaVTools = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "hudTooltips",
-                Title = "Tooltips on the HUD's buttons",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 115,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Tooltips for the HUD's buttons that have none: the staging stack's, the alarm clock's, the "
-                          + "altimeter's mode switch and the navball's speed field. From the next scene.",
-                Read = settings => SettingValues.Text(settings.HudTooltips),
-                Write = (settings, value) => settings.HudTooltips = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "stagingResetAsks",
-                Title = "Ask before resetting the staging",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 116,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The editors' button that resets the staging asks first. From the next scene.",
-                Read = settings => SettingValues.Text(settings.StagingResetAsks),
-                Write = (settings, value) => settings.StagingResetAsks = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "crewSlotButtons",
-                Title = "Crew slot buttons in the staging look",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 117,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The crew portraits' buttons that add and remove a slot look like the staging stack's add and delete "
-                          + "buttons. From the next flight.",
-                Read = settings => SettingValues.Text(settings.CrewSlotButtons),
-                Write = (settings, value) => settings.CrewSlotButtons = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "timeWarpPanelButton",
-                Title = "Better Time Warp in the time panel",
-                TakesEffect = ApplyWindow.NextScene,
-                Order = 118,
-                Row = SettingCategory.Gameplay,
-                Section = "Flight",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "With Better Time Warp installed, its button stands at the end of the time panel's warp row instead "
-                          + "of where the mod draws it. From the next scene.",
-                // Only with the mod, as its toolbar switch (SettingsWindow.ButtonRows).
-                Present = () => ReDefinition.Hud.TimeWarpButton.Installed,
-                Read = settings => SettingValues.Text(settings.TimeWarpPanelButton),
-                Write = (settings, value) => settings.TimeWarpPanelButton = bool.Parse(value),
-            });
+            Toggle("flightPanelAuto", "Flight panel follows the situation", 104,
+                "The flight panel in the maneuver mode switches to the profile for what the vessel is doing: ascent, "
+                  + "orbit, rendezvous, landing, docking or flight on wings. A profile picked by hand stays until the "
+                  + "situation changes.",
+                row: SettingCategory.Gameplay,
+                section: "Flight"),
+            Toggle("autoAltimeter", "Altimeter switches to the ground", 103,
+                "The altimeter shows the height above the ground below 5 km over it and on the ground, and the height "
+                  + "above sea level above 6 km. A click on its switch still changes it by hand, until the height crosses "
+                  + "the other way.",
+                row: SettingCategory.Gameplay,
+                section: "Flight"),
+            Toggle("flightStartsInManeuverMode", "Start flight in maneuver mode", 105,
+                "A flight starts in KSP's maneuver mode, with its orbit and maneuver panel at the bottom left, rather "
+                  + "than in the staging mode. The mode buttons switch it as before.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("worldButtons", "Buttons over the buildings", 106,
+                "Buttons over the space centre's buildings while the vessel stands near them -- back to the "
+                  + "assembly building, and before the launch to every other building -- and over the launch pad and "
+                  + "the runway in the editors.",
+                row: SettingCategory.Gameplay,
+                section: "Flight"),
+            // Without them, the vertical speed would stand nowhere (RoundGauge.Start).
+            Toggle("roundGauge", "Round gauge", 107,
+                "KSP's vertical speed gauge shows the stage's burn time, the burn, the time to impact, the closing "
+                  + "speed or the angle of attack, picked by a click or following the situation. From the next flight.\n"
+                  + "Needs the speeds at the navball, which show the vertical speed in its place.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene,
+                interactable: settings => settings.NavballSpeeds),
+            Toggle("navballSpeeds", "Speeds at the navball", 108,
+                "The vertical and horizontal speed in two fields left of the navball, under its SAS modes. From the "
+                  + "next flight.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("navballDockingMarker", "Docking marker on the navball", 109,
+                "While a docking port is the target, a marker on the navball shows where to point the nose so that "
+                  + "the two ports face each other.",
+                row: SettingCategory.Gameplay,
+                section: "Flight"),
+            Toggle("navballDrag", "Navball moves by dragging", 110,
+                "Dragging the navball's show and hide button moves the navball sideways; it keeps clear of the mode "
+                  + "buttons and the crew portraits and is drawn over the staging stack. From the next flight.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("flightPanel", "Flight panel profiles", 111,
+                "The maneuver mode's orbit tabs give way to the flight panel's profiles of readouts, with a pencil to "
+                  + "edit them. From the next flight.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("stageDetailColumns", "Stage details in two columns", 112,
+                "More than four stage details stand in two columns, and the stage's part icons beside them, so that a "
+                  + "stage grows wider rather than taller. From the next scene.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("stageTwrRange", "TWR at the stage's start and end", 113,
+                "The stage details' TWR gives the TWR at the end of the stage beside the one at its start.",
+                row: SettingCategory.Gameplay,
+                section: "Flight"),
+            Toggle("deltaVTools", "Delta-v tools in the staging stack", 114,
+                "The delta-v tools' button opens every stage's details with every value, and in the editors a compact "
+                  + "situation window under the stages, in place of KSP's own window. From the next scene.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("hudTooltips", "Tooltips on the HUD's buttons", 115,
+                "Tooltips for the HUD's buttons that have none: the staging stack's, the alarm clock's, the "
+                  + "altimeter's mode switch and the navball's speed field. From the next scene.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("stagingResetAsks", "Ask before resetting the staging", 116,
+                "The editors' button that resets the staging asks first. From the next scene.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            Toggle("crewSlotButtons", "Crew slot buttons in the staging look", 117,
+                "The crew portraits' buttons that add and remove a slot look like the staging stack's add and delete "
+                  + "buttons. From the next flight.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene),
+            // Only with the mod, as its toolbar switch (SettingsWindow.ButtonRows).
+            Toggle("timeWarpPanelButton", "Better Time Warp in the time panel", 118,
+                "With Better Time Warp installed, its button stands at the end of the time panel's warp row instead "
+                  + "of where the mod draws it. From the next scene.",
+                row: SettingCategory.Gameplay,
+                section: "Flight",
+                takesEffect: ApplyWindow.NextScene,
+                present: () => ReDefinition.Hud.TimeWarpButton.Installed));
 
         // What KSP leaves unscaled (Scaling/UiScaling).
         public static readonly IGraphicsModule Scaling = new GraphicsModule("uiScaling", "Scaling",
-            new ModuleSetting
-            {
-                Key = "scaleModWindows",
-                Title = "Other mods' windows",
-                Order = 210,
-                Row = SettingCategory.Interface,
-                Section = ScalingSection,
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Draws other mods' windows at KSP's UI scale. Windows of mods that scale themselves, such as "
-                          + "MechJeb's, stay as they are.",
-                Read = settings => SettingValues.Text(settings.ScaleModWindows),
-                Write = (settings, value) => settings.ScaleModWindows = bool.Parse(value),
-            });
+            Toggle("scaleModWindows", "Other mods' windows", 210,
+                "Draws other mods' windows at KSP's UI scale. Windows of mods that scale themselves, such as "
+                  + "MechJeb's, stay as they are.",
+                row: SettingCategory.Interface,
+                section: ScalingSection));
 
         // The heading the scaling rows stand under in their tab.
         private const string ScalingSection = "Scaling";
 
         // The main menu's scene (Menu/MenuFireworks).
         public static readonly IGraphicsModule MainMenuScene = new GraphicsModule("mainMenu", "Main menu",
-            new ModuleSetting
-            {
-                Key = "menuFireworks",
-                Title = "Fireworks",
-                Order = 220,
-                Row = SettingCategory.Interface,
-                Section = "Main menu",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Small fireworks on Kerbin's night side behind the main menu.",
-                Read = settings => SettingValues.Text(settings.MenuFireworks),
-                Write = (settings, value) => settings.MenuFireworks = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "menuKscZoom",
-                Title = "Zoom to the space centre",
-                Order = 221,
-                Row = SettingCategory.Interface,
-                Section = "Main menu",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "From the main menu to the space centre as one camera flight: in to Kerbin, then down to\n"
-                          + "the space centre. A click or a key ends it.",
-                Read = settings => SettingValues.Text(settings.MenuKscZoom),
-                Write = (settings, value) => settings.MenuKscZoom = bool.Parse(value),
-            });
+            Toggle("menuFireworks", "Fireworks", 220,
+                "Small fireworks on Kerbin's night side behind the main menu.",
+                row: SettingCategory.Interface,
+                section: "Main menu"),
+            Toggle("menuKscZoom", "Zoom to the space centre", 221,
+                "From the main menu to the space centre as one camera flight: in to Kerbin, then down to\n"
+                  + "the space centre. A click or a key ends it.",
+                row: SettingCategory.Interface,
+                section: "Main menu"));
 
         // The space centre's look (Scenery/KscGrass).
         public static readonly IGraphicsModule SpaceCentre = new GraphicsModule("spaceCentre", "Space centre",
-            new ModuleSetting
-            {
-                Key = "kscGrass",
-                Title = "Grass on the lawns",
-                Order = 230,
-                Row = SettingCategory.Planets,
-                Section = "Space centre",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Parallax's grass on the space centre's lawns, where Parallax itself grows it under them.\n"
-                          + "Needs Parallax.",
-                Interactable = settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled,
-                Read = settings => SettingValues.Text(settings.KscGrass),
-                Write = (settings, value) => settings.KscGrass = bool.Parse(value),
-            },
-            new ModuleSetting
-            {
-                Key = "kscLawnTerrain",
-                Title = "Lawns like the terrain",
-                Order = 231,
-                Row = SettingCategory.Planets,
-                Section = "Space centre",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "The space centre's lawns drawn with Parallax's terrain textures and colours, so that they\n"
-                          + "look like the terrain beside them. Needs Parallax.",
-                Interactable = settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled,
-                Read = settings => SettingValues.Text(settings.KscLawnTerrain),
-                Write = (settings, value) => settings.KscLawnTerrain = bool.Parse(value),
-            });
+            Toggle("kscGrass", "Grass on the lawns", 230,
+                "Parallax's grass on the space centre's lawns, where Parallax itself grows it under them.\n"
+                  + "Needs Parallax.",
+                row: SettingCategory.Planets,
+                section: "Space centre",
+                interactable: settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled),
+            Toggle("kscLawnTerrain", "Lawns like the terrain", 231,
+                "The space centre's lawns drawn with Parallax's terrain textures and colours, so that they\n"
+                  + "look like the terrain beside them. Needs Parallax.",
+                row: SettingCategory.Planets,
+                section: "Space centre",
+                interactable: settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled));
 
         // Firefly's re-entry effects (Scenery/FireflyIdle).
         public static readonly IGraphicsModule ReEntry = new GraphicsModule("reEntry", "Re-entry",
-            new ModuleSetting
-            {
-                Key = "fireflyIdle",
-                Title = "Skip unseen re-entry effects",
-                Order = 240,
-                Row = SettingCategory.Effects,
-                Section = "Re-entry",
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Firefly's re-entry effects are not drawn while they are too weak to be seen, as on the launch\n"
-                          + "pad, which saves GPU time. They are drawn again as soon as they show.",
-                // Only with the mod, as Better Time Warp's switch.
-                Present = () => ReDefinition.Scenery.FireflyIdle.FireflyInstalled,
-                Read = settings => SettingValues.Text(settings.FireflyIdle),
-                Write = (settings, value) => settings.FireflyIdle = bool.Parse(value),
-            });
+            // Only with the mod, as Better Time Warp's switch.
+            Toggle("fireflyIdle", "Skip unseen re-entry effects", 240,
+                "Firefly's re-entry effects are not drawn while they are too weak to be seen, as on the launch\n"
+                  + "pad, which saves GPU time. They are drawn again as soon as they show.",
+                row: SettingCategory.Effects,
+                section: "Re-entry",
+                present: () => ReDefinition.Scenery.FireflyIdle.FireflyInstalled));
 
         // The dashboard for phones, tablets and touch screens (Dashboard/DashboardServer): its server
         // listens on this computer always, on the network with this switch.
         public static readonly IGraphicsModule Dashboard = new GraphicsModule("dashboard", "Dashboard",
-            new ModuleSetting
-            {
-                Key = "dashboardNetwork",
-                Title = "Dashboard on other devices",
-                Order = 250,
-                Row = SettingCategory.Devices,
-                Section = DashboardSection,
-                Control = SettingControl.Toggle,
-                NeedsProfile = false,
-                Tooltip = "Phones and tablets in the same Wi-Fi may open the dashboard (Connect shows the QR code).\n"
-                          + "On this computer, the iCUE widget for instance, it opens either way.",
-                Read = settings => SettingValues.Text(settings.DashboardNetwork),
-                Write = (settings, value) => settings.DashboardNetwork = bool.Parse(value),
-            });
+            Toggle("dashboardNetwork", "Dashboard on other devices", 250,
+                "Phones and tablets in the same Wi-Fi may open the dashboard (Connect shows the QR code).\n"
+                  + "On this computer, the iCUE widget for instance, it opens either way.",
+                row: SettingCategory.Devices,
+                section: DashboardSection));
 
         // The heading the dashboard's rows stand under in the Devices tab.
         private const string DashboardSection = "Dashboard";
@@ -1086,13 +869,13 @@ namespace ReDefinition.Modules
         // A DLSS model by its name, case aside.
         private static DlssModel DlssModelOf(string name)
         {
-            return (DlssModel)System.Enum.Parse(typeof(DlssModel), name, true);
+            return EnumNames<DlssModel>.Parse(name, true);
         }
 
         // An upscaler technique by its name, case aside.
         private static UpscalerBackend Backend(string name)
         {
-            return (UpscalerBackend)System.Enum.Parse(typeof(UpscalerBackend), name, true);
+            return EnumNames<UpscalerBackend>.Parse(name, true);
         }
 
         // The frame generation row's value column: the technique, and for Auto what it makes of it; a
@@ -1104,7 +887,7 @@ namespace ReDefinition.Modules
             // Auto names the technique it stands for here (the technique only: the multiplier row says how many
             // frames).
             string technique = AutoSettings.FrameGenerationTechnique(value, TechniqueAvailability.Current());
-            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1 : technique == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            int kind = FrameGenerationTechniqueSetting.KindOf(technique);
             string name = FrameGenerationTechniqueSetting.Label(technique)
                           + (limits.Known && limits.Technique != kind ? ", after a restart" : "");
             return value == FrameGenerationTechniqueSetting.Auto ? "Auto (" + name + ")"
@@ -1118,7 +901,7 @@ namespace ReDefinition.Modules
         {
             if (after == FrameGenerationTechniqueSetting.Off || !FrameGenerationBridge.Available) return ApplyWindow.Live;
             string technique = AutoSettings.FrameGenerationTechnique(after, TechniqueAvailability.Current());
-            int kind = technique == FrameGenerationTechniqueSetting.Fsr ? 1 : technique == FrameGenerationTechniqueSetting.Dlss ? 2 : 3;
+            int kind = FrameGenerationTechniqueSetting.KindOf(technique);
             return FrameGenerationBridge.Limits().Technique == kind ? ApplyWindow.Live : ApplyWindow.Restart;
         }
 
@@ -1142,7 +925,7 @@ namespace ReDefinition.Modules
         // An upscaler mode by its name, case aside.
         private static Fsr3Upscaler.QualityMode Mode(string name)
         {
-            return (Fsr3Upscaler.QualityMode)System.Enum.Parse(typeof(Fsr3Upscaler.QualityMode), name, true);
+            return EnumNames<Fsr3Upscaler.QualityMode>.Parse(name, true);
         }
     }
 }

@@ -549,5 +549,72 @@ namespace ReDefinition.Tests
             store.SetEnabled(false);
             Assert.AreEqual(0, store.ModsWithoutTheProfile().Count, "with the bundling off the mods keep their own");
         }
+
+        // A batch of first changes -- a profile applied for the first time -- sets every value from before and
+        // writes bundled.cfg once for it, not once per setting. What it leaves in the ledger and in the mods is
+        // what the same changes one by one leave: nothing for a setting its mod refused, cannot take now, holds
+        // already, or fails to write.
+        [TestMethod]
+        public void AFirstProfileWritesOurFileOnceAndKeepsTheSameBackups()
+        {
+            int singly;
+            string alone = FirstProfile(false, out singly);
+            int batched;
+            string together = FirstProfile(true, out batched);
+
+            Assert.AreEqual(alone, together, "the same backups and the same values in the mods");
+            Assert.IsTrue(alone.Contains("|scatterer.s1=False"), "the values from before were kept: " + alone);
+            Assert.IsTrue(alone.Contains("|waterfall.w1=False"), "also for a mod that reads its value at every start: " + alone);
+            foreach (string notChanged in new[] { "refused", "waiting", "same", "fails" })
+                Assert.IsFalse(alone.Contains("|scatterer." + notChanged + "="),
+                               "nothing kept for " + notChanged + ": " + alone);
+            Assert.IsTrue(singly > 4, "one write for each backup of a mod that saves: " + singly);
+            Assert.AreEqual(1, batched, "one write in all");
+        }
+
+        // The batch of AFirstProfileWritesOurFileOnceAndKeepsTheSameBackups, with or without Prepare. Returns the
+        // ledger's backups and the mods' values as text, and how often bundled.cfg was written.
+        private string FirstProfile(bool prepare, out int fileWrites)
+        {
+            NewStore();
+            FakeMod scatterer = Mod("scatterer", SettingsSaving.InModFiles);
+            FakeMod waterfall = Mod("waterfall", SettingsSaving.AtEveryStart);
+            List<KeyValuePair<BundledSetting, string>> coming = new List<KeyValuePair<BundledSetting, string>>();
+            // The failing write is the first one the mod gets, so it is the first setting's.
+            BundledSetting fails = scatterer.Add("fails", "False");
+            scatterer.WriteFails = new InvalidOperationException("the mod is not ready");
+            coming.Add(new KeyValuePair<BundledSetting, string>(fails, "True"));
+            for (int i = 1; i <= 5; i++) coming.Add(new KeyValuePair<BundledSetting, string>(scatterer.Add("s" + i, "False"), "True"));
+            coming.Add(new KeyValuePair<BundledSetting, string>(waterfall.Add("w1", "False"), "True"));
+            coming.Add(new KeyValuePair<BundledSetting, string>(PerSave(scatterer, "perSave", "False"), "True"));
+            BundledSetting refused = scatterer.Add("refused", "A");
+            refused.Control = SettingControl.Choice;
+            refused.Choices = new[] { "A", "B" };
+            coming.Add(new KeyValuePair<BundledSetting, string>(refused, "Gone"));
+            BundledSetting waiting = scatterer.Add("waiting", "False");
+            waiting.Applicable = () => false;
+            coming.Add(new KeyValuePair<BundledSetting, string>(waiting, "True"));
+            coming.Add(new KeyValuePair<BundledSetting, string>(scatterer.Add("same", "True"), "True"));
+
+            if (prepare) store.Prepare(coming);
+            try
+            {
+                foreach (KeyValuePair<BundledSetting, string> pair in coming) store.Set(pair.Key, pair.Value, false);
+            }
+            finally
+            {
+                if (prepare) store.EndPrepare();
+            }
+
+            List<string> lines = new List<string>();
+            foreach (string context in store.Ledger.Contexts())
+                foreach (KeyValuePair<string, BundledLedger.Backup> backup in store.Ledger.BackupsIn(context))
+                    lines.Add(context + "|" + backup.Key + "=" + backup.Value.Value);
+            lines.Sort();
+            foreach (FakeMod mod in host.Mods)
+                foreach (KeyValuePair<string, string> value in mod.Values) lines.Add(mod.Id + "." + value.Key + "=" + value.Value);
+            fileWrites = host.FileWrites;
+            return string.Join("\n", lines.ToArray());
+        }
     }
 }

@@ -210,22 +210,39 @@ namespace ReDefinition.Settings.Behaviours
             if (profile == null && emptyProfile != null && all.Contains(emptyProfile)) profile = all[emptyProfile];
             if (profile == null) return false;
 
-            FieldInfo list = profile.GetType().GetField("Settings", BindingFlags.Public | BindingFlags.Instance);
+            FieldInfo list = FieldOf(ProfileSettingsFields, profile.GetType(), "Settings");
             IEnumerable effects = list != null ? list.GetValue(profile) as IEnumerable : null;
             if (effects == null) return null;
             foreach (object effect in effects)
             {
                 if (effect == null || effect.GetType().Name != effectType) continue;
-                FieldInfo enabled = effect.GetType().GetField("enabled", BindingFlags.Public | BindingFlags.Instance);
+                FieldInfo enabled = FieldOf(EnabledFields, effect.GetType(), "enabled");
                 object parameter = enabled != null ? enabled.GetValue(effect) : null;
-                FieldInfo value = parameter != null
-                    ? parameter.GetType().GetField("value", BindingFlags.Public | BindingFlags.Instance)
-                    : null;
+                FieldInfo value = parameter != null ? FieldOf(ValueFields, parameter.GetType(), "value") : null;
                 if (value == null) return null;
                 object on = value.GetValue(parameter);
                 if (on is bool && (bool)on) return true;
             }
             return false;
+        }
+
+        // The fields HasEffect reads, by the type that has them -- a profile's list of effects, an effect's
+        // `enabled`, and that parameter's `value` -- kept with the absence of a field, since every profile
+        // checked reads all three.
+        private static readonly Dictionary<Type, FieldInfo> ProfileSettingsFields = new Dictionary<Type, FieldInfo>();
+        private static readonly Dictionary<Type, FieldInfo> EnabledFields = new Dictionary<Type, FieldInfo>();
+        private static readonly Dictionary<Type, FieldInfo> ValueFields = new Dictionary<Type, FieldInfo>();
+
+        // The public instance field of that name on the type, looked up once; null where the type has none.
+        private static FieldInfo FieldOf(Dictionary<Type, FieldInfo> known, Type type, string name)
+        {
+            FieldInfo field;
+            if (!known.TryGetValue(type, out field))
+            {
+                field = type.GetField(name, BindingFlags.Public | BindingFlags.Instance);
+                known[type] = field;
+            }
+            return field;
         }
 
         // Whether TUFX shows its button, from its configuration -- for the reset, not

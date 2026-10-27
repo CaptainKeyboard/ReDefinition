@@ -207,6 +207,19 @@ namespace ReDefinition.Settings
             store.Set(setting, value, save);
         }
 
+        // The values from before of a batch of Set calls, written to bundled.cfg once (BundledStore.Prepare);
+        // EndPrepare closes the batch.
+        internal static void Prepare(IEnumerable<KeyValuePair<BundledSetting, string>> coming)
+        {
+            store.Prepare(coming);
+        }
+
+        // The batch is over (BundledStore.EndPrepare).
+        internal static void EndPrepare()
+        {
+            store.EndPrepare();
+        }
+
         // A setting the new profile leaves alone goes back to what it had (BundledStore.Release).
         public static void Release(BundledSetting setting)
         {
