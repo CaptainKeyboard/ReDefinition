@@ -542,6 +542,8 @@
 		nose: null, top: null, target: null, targetTop: null, altitude: null, curve: "s", last: 0,
 	};
 	// A vector scaled to length 1.
+	// A vector to four decimals, as the mod's telemetry rounds it (Telemetry.Round).
+	const r4 = (v) => (v ? v.map((x) => Math.round(x * 1e4) / 1e4) : v);
 	const unit = (v) => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return v.map((x) => x / l); };
 	// Turns v towards to by at most maxRad, at an even pace at any angle (about the axis between
 	// them; straight opposite, about axis). Blending the two vectors instead would hardly move v when
@@ -573,7 +575,15 @@
 		if (name === "f.precisionControl") { demo.precision = !demo.precision; return; }
 		if (name === "f.stage") { demo.stage = demo.stage > 0 ? demo.stage - 1 : 4; demo.fuel = 1; demo.solid = demo.stage === 4 ? 1 : 0; return; }
 		if (name === "f.abort") { demo.abortUntil = performance.now() + 3000; demo.throttle = 0; return; }
-		if (name === "v.steerTo") { demo.target = unit(args.slice(0, 3)); demo.targetTop = unit(args.slice(3, 6)); return; }
+		if (name === "v.steerTo") {
+			// As the mod takes it (FlyByWire.SteerTo): the top is made square to the nose, so the numbers sent
+			// rounded to four places do not add up over many drags into a ball that is skewed.
+			const t = unit(args.slice(0, 3)), k = t[0] * args[3] + t[1] * args[4] + t[2] * args[5];
+			const top = [args[3] - k * t[0], args[4] - k * t[1], args[5] - k * t[2]];
+			if (Math.hypot(top[0], top[1], top[2]) < 1e-6) return;
+			demo.target = t; demo.targetTop = unit(top);
+			return;
+		}
 		if (name === "v.steerRoll") {
 			if (!demo.target && demo.nose) { demo.target = demo.nose.slice(); demo.targetTop = demo.top.slice(); }
 			if (demo.target) {
@@ -628,7 +638,7 @@
 			"v.geeForce": 1 + 2 * demo.throttle, "v.missionTime": 300 + s, "v.currentStage": demo.stage, "f.throttle": demo.throttle,
 			"f.sasMode": demo.sasMode, "t.currentRate": (demo.physics ? PHYS_RATES : WARP_RATES)[demo.warp], "t.physics": !!demo.physics, "m.mapIsEnabled": !!demo.map, "v.precisionControlValue": !!demo.precision, "t.currentRateIndex": demo.warp,
 			"n.nose": f, "n.right": right, "n.top": top, "n.prograde": off(0.05 * Math.sin(s)), "n.normal": off(0.9), "n.radial": off(-0.8), "n.maneuver": off(-0.35), "o.nodeDvTotal": 2000, "o.nodeDv": 1646.8, "o.nodeTime": 234 - (s % 234), "o.nodeBurnTime": 67, "o.nodeStartIn": 234 - (s % 234) - 67 * (demo.lead ?? 50) / 100, "o.nodeLead": demo.lead ?? 50, "n.speedMode": "Orbit",
-			"n.steerTarget": demo.target, "n.steerTargetTop": demo.targetTop, "n.steerAltitude": demo.altitude, "n.steerSCurve": demo.curve === "s", "n.steerCurve": demo.curve, "n.steerArmed": demo.armed !== false,
+			"n.steerTarget": r4(demo.target), "n.steerTargetTop": r4(demo.targetTop), "n.steerAltitude": demo.altitude, "n.steerSCurve": demo.curve === "s", "n.steerCurve": demo.curve, "n.steerArmed": demo.armed !== false,
 			"r.resource[LiquidFuel]": 1800 * demo.fuel, "r.resourceMax[LiquidFuel]": 1800,
 			"r.resource[Oxidizer]": 2200 * demo.fuel, "r.resourceMax[Oxidizer]": 2200,
 			"r.resource[MonoPropellant]": 90, "r.resourceMax[MonoPropellant]": 120,
