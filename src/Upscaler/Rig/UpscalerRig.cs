@@ -318,6 +318,7 @@ namespace ReDefinition.Upscaler
                 return false;
             }
 
+            dispatchStaticReady = false;
             displaySize = new Vector2Int(Screen.width, Screen.height);
             if (displaySize.x <= 0 || displaySize.y <= 0)
             {
@@ -603,6 +604,8 @@ namespace ReDefinition.Upscaler
         // editors' switch between VAB and SPH) the whole scene is taken again.
         private readonly List<Part> biasParts = new List<Part>();
         private readonly List<Renderer> biasRenderers = new List<Renderer>();
+        // One part's renderers while ExtendMipmapBias collects them.
+        private readonly List<Renderer> partRenderers = new List<Renderer>();
         private int biasPartsFrame = -1;
         private int biasSeenLoads = -1;
         private float biasSceneTime = NotScheduled;
@@ -648,7 +651,12 @@ namespace ReDefinition.Upscaler
             {
                 biasRenderers.Clear();
                 foreach (Part part in biasParts)
-                    if (part != null) biasRenderers.AddRange(part.GetComponentsInChildren<Renderer>(true));
+                {
+                    if (part == null) continue;
+                    part.GetComponentsInChildren(true, partRenderers);
+                    biasRenderers.AddRange(partRenderers);
+                }
+                partRenderers.Clear();
                 biasParts.Clear();
                 added = mipmapBias.Extend(biasRenderers);
                 biasRenderers.Clear();
@@ -789,10 +797,32 @@ namespace ReDefinition.Upscaler
             }
         }
 
+        // Whether SetupStaticDispatch has filled the description since Setup decided the sizes.
+        private bool dispatchStaticReady;
+
+        // The dispatch description's values that no frame changes: the sizes Setup decided, the motion vector
+        // scale they give, and constants. Dispatch writes only the masks and the exposure of the description,
+        // and SetupDispatch sets those again in each frame.
+        private void SetupStaticDispatch()
+        {
+            dispatch.PreExposure = 1.0f;
+            dispatch.MotionVectorScale = new Vector2(-renderSize.x, -renderSize.y);
+            dispatch.RenderSize = renderSize;
+            dispatch.UpscaleSize = displaySize;
+            dispatch.ViewSpaceToMetersFactor = 1.0f;    // in KSP one unit is one metre
+            // FSR 3.1.4's four tuning constants keep DispatchDescription's
+            // defaults, which are AMD's.
+            dispatch.VelocityFactor = 1.0f;
+            dispatchStaticReady = true;
+        }
+
         // FSR 3's dispatch description from the rig's textures, masks and camera; the proxy's upscalers and the
-        // frame packet read their sizes, scale, planes and frame time from it too.
+        // frame packet read their sizes, scale, planes and frame time from it too. What no frame changes is set
+        // once after Setup (SetupStaticDispatch); the rest in every frame, since the textures can be replaced and
+        // the masks, sharpening and debug view are live settings.
         private void SetupDispatch()
         {
+            if (!dispatchStaticReady) SetupStaticDispatch();
             dispatch.Color = new ResourceView(textures.LowRes);
             dispatch.Depth = new ResourceView(textures.DepthCopy);
             dispatch.MotionVectors = new ResourceView(textures.MotionVectors);
@@ -805,7 +835,6 @@ namespace ReDefinition.Upscaler
                 : ResourceView.Unassigned;
 
             dispatch.Output = textures.Upscaled != null ? new ResourceView(textures.Upscaled) : ResourceView.Unassigned;
-            dispatch.PreExposure = 1.0f;
             // JitterOffset is set in Update.
 
             // Matches the accumulate shader the context was built with: the sharpen
@@ -814,17 +843,10 @@ namespace ReDefinition.Upscaler
             dispatch.EnableSharpening = Sharpening;
             dispatch.Sharpness = Sharpness;
 
-            dispatch.MotionVectorScale = new Vector2(-renderSize.x, -renderSize.y);
-            dispatch.RenderSize = renderSize;
-            dispatch.UpscaleSize = displaySize;
             dispatch.FrameTimeDelta = Time.unscaledDeltaTime;
             dispatch.CameraNear = cam.nearClipPlane;
             dispatch.CameraFar = cam.farClipPlane;
             dispatch.CameraFovAngleVertical = cam.fieldOfView * Mathf.Deg2Rad;
-            dispatch.ViewSpaceToMetersFactor = 1.0f;    // in KSP one unit is one metre
-            // FSR 3.1.4's four tuning constants keep DispatchDescription's
-            // defaults, which are AMD's.
-            dispatch.VelocityFactor = 1.0f;
             dispatch.Flags = DebugView ? Fsr3Upscaler.DispatchFlags.DrawDebugView : 0;
             // FSR's own estimate replaces both masks; a transparency mask given is
             // kept in it as the larger of the two (ffx_fsr3upscaler_tcr_autogen_pass.hlsl).
