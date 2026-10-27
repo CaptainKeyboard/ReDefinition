@@ -141,10 +141,7 @@ namespace redefinition
     {
         // As PrepareForPresentLocked: taken and cleared first, so neither a packet
         // nor a set of inputs carries over into a later frame.
-        const bool thisFrame = packetFresh && inputsCopied;
-        packetFresh = false;
-        inputsCopied = false;
-        generatedLastPresent = false;
+        const bool thisFrame = TakeFrameInputsLocked();
 
         if (!xess)
             return false;
@@ -303,9 +300,9 @@ namespace redefinition
         const bool retryWaiting = !xessOn && GetTickCount64() < xessRetryAfter;
         if (holdOff != nullptr || !inputs || !depthSized || unflipped || presentId == 0 || retryWaiting)
         {
+            const char* gate = GateReasonLocked();
             XessOffLocked(holdOff != nullptr ? holdOff
-                          : !wanted ? "switched off in the mod"
-                          : rateTooLow || slowFrame ? "the rendered frame rate is below its minimum (fgMinimumFps)"
+                          : gate != nullptr ? gate
                           : refused != nullptr ? "the frame's constants are refused (xessFgBadConstants)"
                           : !inputs ? "no inputs this frame"
                           : !depthSized ? "the depth and the motion vectors differ in size"

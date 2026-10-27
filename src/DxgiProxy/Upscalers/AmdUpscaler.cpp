@@ -5,6 +5,7 @@
 #include "FidelityFx.h"
 #include "FileUtil.h"
 #include "Log.h"
+#include "RuntimeLoader.h"
 
 #include <FidelityFX/api/include/dx12/ffx_api_dx12.h>
 #include <FidelityFX/upscalers/include/ffx_upscale.h>
@@ -227,18 +228,12 @@ namespace redefinition
         runtimeTried = true;
         runtimeSignature = signature;
 
-        const std::wstring folder = RuntimeFolder();
-        const std::wstring path = folder + L"\\" + kRuntimeName;
-
-        module = LoadLibraryExW(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+        const RuntimeModule loaded = LoadRuntimeModule(RuntimeFolder(), kRuntimeName, "copy it from a game that has it");
+        const std::wstring& path = loaded.path;
+        module = loaded.module;
         if (module == nullptr)
         {
-            const DWORD error = GetLastError();
-            if (GetFileAttributesW(path.c_str()) == INVALID_FILE_ATTRIBUTES)
-                SetStatus(-2, "no amd_fidelityfx_upscaler_dx12.dll in " + Narrow(folder)
-                                  + " -- copy it from a game that has it");
-            else
-                SetStatus(-2, Narrow(path) + " could not be loaded (" + Hr(HRESULT_FROM_WIN32(error)) + ")");
+            SetStatus(-2, loaded.error);
             return false;
         }
 

@@ -2,6 +2,7 @@
 
 #include "D3d12Util.h"
 #include "Log.h"
+#include "ShaderCompiler.h"
 
 #include <d3dcompiler.h>
 
@@ -58,33 +59,6 @@ namespace redefinition
 
     namespace
     {
-        // The two functions of d3dcompiler_47.dll the proxy calls.
-        struct Compiler
-        {
-            // D3DCompile and D3DCompileFromFile, null where the DLL could not be loaded.
-            pD3DCompile compile = nullptr;
-            HRESULT(WINAPI* compileFromFile)(LPCWSTR, const D3D_SHADER_MACRO*, ID3DInclude*, LPCSTR, LPCSTR, UINT,
-                                             UINT, ID3DBlob**, ID3DBlob**) = nullptr;
-        };
-
-        // Loaded once, from System32 only, and never freed.
-        const Compiler& LoadCompiler()
-        {
-            static const Compiler compiler = []
-            {
-                Compiler loaded;
-                const HMODULE module = LoadLibraryExW(L"d3dcompiler_47.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-                if (module != nullptr)
-                {
-                    loaded.compile = reinterpret_cast<pD3DCompile>(GetProcAddress(module, "D3DCompile"));
-                    loaded.compileFromFile = reinterpret_cast<decltype(loaded.compileFromFile)>(
-                        GetProcAddress(module, "D3DCompileFromFile"));
-                }
-                return loaded;
-            }();
-            return compiler;
-        }
-
         // The blob's text into buffer, cut to fit; empty without one.
         void CopyText(ID3DBlob* blob, char* buffer, int size)
         {
@@ -105,7 +79,7 @@ namespace redefinition
         written = 0;
         if (messages != nullptr && messagesSize > 0)
             messages[0] = '\0';
-        const Compiler& compiler = LoadCompiler();
+        const ShaderCompiler& compiler = LoadShaderCompiler();
         if (compiler.compile == nullptr || compiler.compileFromFile == nullptr)
         {
             if (messages != nullptr && messagesSize > 0)

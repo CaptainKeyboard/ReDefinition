@@ -94,10 +94,7 @@ namespace redefinition
     {
         // Taken and cleared before anything can return early, so neither a
         // packet nor a set of inputs ever carries over into a later frame.
-        const bool thisFrame = packetFresh && inputsCopied;
-        packetFresh = false;
-        inputsCopied = false;
-        generatedLastPresent = false;
+        const bool thisFrame = TakeFrameInputsLocked();
 
         if (swapChain == nullptr || commandList == nullptr)
             return false;
@@ -125,9 +122,8 @@ namespace redefinition
 
         if (!generate)
         {
-            ConfigureOffLocked(swapChain, !wanted ? "switched off in the mod"
-                                          : rateTooLow || slowFrame ? "the rendered frame rate is below its minimum (fgMinimumFps)"
-                                          : "no inputs this frame");
+            const char* gate = GateReasonLocked();
+            ConfigureOffLocked(swapChain, gate != nullptr ? gate : "no inputs this frame");
             return false;
         }
 

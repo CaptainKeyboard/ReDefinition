@@ -142,8 +142,6 @@ namespace redefinition
         void SetMultiplier(int multiplier, bool dynamic);
         // The multiplier asked for (SetMultiplier), 0 for none.
         int AskedMultiplier() const { return static_cast<int>(askedPacked.load() & 0xFFFFu); }
-        // Whether Dynamic Multi Frame Generation is asked for, from the same packed value.
-        bool AskedDynamic() const { return (askedPacked.load() >> 16) != 0; }
 
         // From the render thread, with the packet the managed side sent for
         // this frame.
@@ -167,6 +165,13 @@ namespace redefinition
         // The minimum rendered frame rate (fgMinimumFps, else the provider's), under the
         // context lock.
         float MinimumFpsLocked() const;
+        // Why frame generation is held off before the inputs are looked at: the mod has it off, or the rendered
+        // frame rate is below its minimum. nullptr where neither is so. The reasons are the ones each Prepare
+        // function gives its provider.
+        const char* GateReasonLocked() const;
+        // The start of every Prepare function, under the context lock: whether the frame has its own packet
+        // and inputs, which are then taken and cleared so that neither carries over into a later frame.
+        bool TakeFrameInputsLocked();
 
         // Whether the last Present was prepared for a generated frame, for the
         // proxy's frame limit, which is taken outside the context lock.
@@ -319,6 +324,22 @@ namespace redefinition
         // It asks for fewer where the GPU offers fewer. Returns whether this frame generates.
         bool PrepareStreamlineLocked(uint32_t frameIndex, const std::function<uint32_t()>& maxFrames,
                                      const char* holdOff);
+        // How many frames a Present generates, and whether DLSS-G chooses them (Dynamic Multi Frame Generation).
+        struct StreamlineFramePlan
+        {
+            // What the mod, the settings and the GPU would have, and the number DLSS-G is asked for under the
+            // display's most. Under Dynamic it is the most it may choose from.
+            uint32_t wantedFrames = 0;
+            uint32_t frames = 0;
+            bool dynamic = false;
+        };
+        // Caller must hold ContextMutex. The generated frames for this Present from the mod's multiplier, dlssgFrames,
+        // dlssgMode and what the GPU and the package offer, never more than maxFrames() allows. Said in the
+        // log once where Dynamic is asked for and not supported.
+        StreamlineFramePlan ChooseStreamlineFramesLocked(const std::function<uint32_t()>& maxFrames);
+        // Caller must hold ContextMutex. The line that says DLSS-G is on, with how many frames and whether
+        // the HUD-less copy goes with it.
+        void LogStreamlineOnLocked(const StreamlineFramePlan& plan, bool useHudLess);
 
         // Caller must hold ContextMutex. DLSS-G off from the next Present on,
         // with the reason in the log -- none for nullptr; returns whether it was
@@ -491,7 +512,8 @@ namespace redefinition
         // The three of them shared on the devices attached (RegisterInputs, Attach).
         void ShareInputsLocked(ID3D11Resource* newDepth, ID3D11Resource* newMotion, ID3D11Resource* newHudLess);
         // Unity's texture into this frame's slot, flipped where flip is asked and possible, copied otherwise.
-        void CopyInputLocked(Input& input, bool flip);
+        // With moreFollow the flip leaves its bindings for the next flip, which replaces them.
+        void CopyInputLocked(Input& input, bool flip, bool moreFollow = false);
 
         // Replaced shared textures that frames on the GPU may still read.
         // releaseAfter stays 0 until the next Present names the frame fence
@@ -515,7 +537,10 @@ namespace redefinition
         // on Unity's texture and a write view on the shared one.
         bool CanFlipLocked(Input& input);
         // The input flipped vertically into its shared slot by the compute shader; false where it cannot be.
-        bool FlipLocked(Input& input);
+        // The flip's bindings go afterwards, unless moreFollow says that another flip comes next.
+        bool FlipLocked(Input& input, bool moreFollow);
+        // The flip's compute shader and views taken off Unity's context.
+        void ClearFlipBindingsLocked();
 
         void CheckHudLessLocked(bool copied);
         void DumpInputsLocked(bool copied);
@@ -645,6 +670,8 @@ namespace redefinition
         // The flip shaders, by channel count: float, float2, float4.
         Microsoft::WRL::ComPtr<ID3D11ComputeShader> flipShaders[3];
         bool flipReady = false;
+        // Whether a flip left its bindings on Unity's context for the next one.
+        bool flipBindingsLeft = false;
         bool flipUnavailable = false;
         bool loggedFlipMissing = false;
 
