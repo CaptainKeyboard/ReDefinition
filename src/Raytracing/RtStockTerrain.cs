@@ -47,16 +47,29 @@ namespace ReDefinition.Raytracing
         // KSP's PQS terrain shaders, with an atlas or the three bands.
         private static bool Pqs(Material material)
         {
-            return material.shader.name.StartsWith("Terrain/PQS/", System.StringComparison.Ordinal)
+            return NamedLike(material.shader, PqsShaders, "Terrain/PQS/")
                    && (material.HasProperty(AtlasId) || material.HasProperty(LowTexId));
         }
 
         // KSP's space centre ground shaders, or one drawn as Parallax's terrain, with their blend mask.
         private static bool Ksc(Material material)
         {
-            return (material.shader.name.StartsWith("KSP/Scenery/Diffuse Ground KSC", System.StringComparison.Ordinal)
+            return (NamedLike(material.shader, KscShaders, "KSP/Scenery/Diffuse Ground KSC")
                     || Scenery.KscGround.Draws(material))
                    && material.HasProperty(BlendMaskId);
+        }
+
+        // Whether each shader seen has the name's start, so a mesh upload reads no shader name twice.
+        private static readonly Dictionary<Shader, bool> PqsShaders = new Dictionary<Shader, bool>();
+        private static readonly Dictionary<Shader, bool> KscShaders = new Dictionary<Shader, bool>();
+
+        // Whether the shader's name starts with `prefix`, remembered in `known`.
+        private static bool NamedLike(Shader shader, Dictionary<Shader, bool> known, string prefix)
+        {
+            bool named;
+            if (!known.TryGetValue(shader, out named))
+                known[shader] = named = shader.name.StartsWith(prefix, System.StringComparison.Ordinal);
+            return named;
         }
 
         // The mesh's colours as the material draws its ground, or null where it is none of
@@ -215,17 +228,17 @@ namespace ReDefinition.Raytracing
         private static Color AtlasAt(Texture atlas, Vector2 packed)
         {
             int indices = Mathf.RoundToInt(packed.x);
-            int[] index = { indices >> 15, (indices >> 10) & 31, (indices >> 5) & 31, indices & 31 };
             float y = Mathf.Round(packed.y);
             float s0 = Mathf.Floor(y / 40000f) / 200f;
             float rest = y - 40000f * Mathf.Floor(y / 40000f);
             float s1 = Mathf.Floor(rest / 200f) * 0.01f;
             float s2 = (rest - 200f * Mathf.Floor(rest / 200f)) * 0.01f;
             float s3 = 1f - s0 - s1 - s2;
-            float[] strength = { s0, s1, s2, s3 };
             Color sum = Color.black;
-            for (int k = 0; k < 4; k++)
-                if (strength[k] > 0f) sum += Layer(atlas, index[k]) * strength[k];
+            if (s0 > 0f) sum += Layer(atlas, indices >> 15) * s0;
+            if (s1 > 0f) sum += Layer(atlas, (indices >> 10) & 31) * s1;
+            if (s2 > 0f) sum += Layer(atlas, (indices >> 5) & 31) * s2;
+            if (s3 > 0f) sum += Layer(atlas, indices & 31) * s3;
             return sum;
         }
 

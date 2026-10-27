@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ReDefinition.Raytracing
 {
@@ -16,6 +17,10 @@ namespace ReDefinition.Raytracing
         private static bool looked;
         private static FieldInfo kopernicusCurrent;
         private static PropertyInfo starLight;
+        // Those read every frame, through compiled getters: the current star, its light, its shifter and the shifter's colour.
+        private static Func<object, object> readStar, readShifter;
+        private static Func<object, Light> readStarLight;
+        private static Func<object, Color> readShifterColour;
         private static FieldInfo planetShineOn;
         // PlanetShine's switch, read every frame through a compiled getter: a
         // FieldInfo's GetValue boxes the bool.
@@ -75,6 +80,10 @@ namespace ReDefinition.Raytracing
                         starShifter = star?.GetField("shifter", BindingFlags.Public | BindingFlags.Instance);
                         shifterColour = starShifter?.FieldType.GetField("sunlightColor", BindingFlags.Public | BindingFlags.Instance);
                         if (shifterColour != null && shifterColour.FieldType != typeof(Color)) shifterColour = null;
+                        readStar = Core.CompiledGetter.Of<object>(kopernicusCurrent);
+                        readStarLight = Core.CompiledGetter.Of<Light>(starLight);
+                        readShifter = Core.CompiledGetter.Of<object>(starShifter);
+                        readShifterColour = Core.CompiledGetter.Of<Color>(shifterColour);
                     }
                     else if (name == "PlanetShine")
                     {
@@ -171,12 +180,12 @@ namespace ReDefinition.Raytracing
         private static Light FindSunLight()
         {
             Look();
-            if (kopernicusCurrent != null && starLight != null)
+            if (readStar != null && readStarLight != null)
             {
-                Sun current = kopernicusCurrent.GetValue(null) as Sun;
+                Sun current = readStar(null) as Sun;
                 if (current != null)
                 {
-                    Light light = starLight.GetValue(current, null) as Light;
+                    Light light = readStarLight(current);
                     if (light != null) return light;
                 }
             }
@@ -188,11 +197,11 @@ namespace ReDefinition.Raytracing
         private static Color FindStarColour()
         {
             Look();
-            if (kopernicusCurrent != null && starShifter != null && shifterColour != null)
+            if (readStar != null && readShifter != null && readShifterColour != null)
             {
-                object current = kopernicusCurrent.GetValue(null);
-                object shifter = current != null ? starShifter.GetValue(current) : null;
-                if (shifter != null) return (Color)shifterColour.GetValue(shifter);
+                object current = readStar(null);
+                object shifter = current != null ? readShifter(current) : null;
+                if (shifter != null) return readShifterColour(shifter);
             }
             return Color.white;
         }
@@ -201,9 +210,9 @@ namespace ReDefinition.Raytracing
         private static CelestialBody FindStarBody()
         {
             Look();
-            if (kopernicusCurrent != null)
+            if (readStar != null)
             {
-                Sun current = kopernicusCurrent.GetValue(null) as Sun;
+                Sun current = readStar(null) as Sun;
                 if (current != null && current.sun != null) return current.sun;
             }
             if (Sun.Instance != null && Sun.Instance.sun != null) return Sun.Instance.sun;
@@ -235,17 +244,31 @@ namespace ReDefinition.Raytracing
         }
 
         private static float grassNotedAt = -100f;
+        private static bool grassReading;
+        private static ComputeBuffer grassCounts;
+
+        // One of Parallax's grass buffers the note may read: its renderer, level of detail and name.
+        private sealed class GrassBuffer
+        {
+            public object Renderer;
+            public int Lod;
+            public string Name;
+            public ComputeBuffer Buffer;
+        }
 
         // Where Parallax's main grass lies against the camera and the point it culls about, once a minute in the log.
         // It names the blades' distances from the camera in 50 m steps and the share past the range. It reads the
         // first level of detail that holds blades. A patch of grass the rays see and the picture does not (the space
-        // centre, 2026-10-26) can then be told from the log alone.
+        // centre, 2026-10-26) can then be told from the log alone. The buffers are read back without a stall: the
+        // blades' counts first, then the blades of the first buffer that holds any.
         private static void NoteGrass(IList renderers)
         {
-            if (Time.realtimeSinceStartup - grassNotedAt < 60f) return;
+            if (Time.realtimeSinceStartup - grassNotedAt < (grassReading ? 180f : 60f)) return;
             grassNotedAt = Time.realtimeSinceStartup;
+            if (!SystemInfo.supportsAsyncGPUReadback) return;
             Camera main = Camera.main;
             if (main == null) return;
+            var found = new List<GrassBuffer>();
             for (int r = 0; r < renderers.Count; r++)
             {
                 string name = Scenery.ParallaxScatterFields.ScatterName(renderers[r]);
@@ -255,40 +278,95 @@ namespace ReDefinition.Raytracing
                 for (int lod = 0; lod < 3; lod++)
                 {
                     ComputeBuffer buffer = Scenery.ParallaxScatterFields.Output(renderers[r], lod);
-                    if (buffer == null) continue;
-                    var count = new ComputeBuffer(1, 4, ComputeBufferType.Raw);
-                    ComputeBuffer.CopyCount(buffer, count, 0);
-                    var taken = new int[1];
-                    count.GetData(taken);
-                    count.Release();
-                    int blades = Mathf.Min(taken[0], buffer.count);
+                    if (buffer != null) found.Add(new GrassBuffer { Renderer = renderers[r], Lod = lod, Name = name, Buffer = buffer });
+                }
+            }
+            if (found.Count == 0) return;
+            try
+            {
+                if (grassCounts == null || grassCounts.count < found.Count)
+                {
+                    if (grassCounts != null) grassCounts.Release();
+                    grassCounts = new ComputeBuffer(Math.Max(found.Count, 16), 4, ComputeBufferType.Raw);
+                }
+                for (int i = 0; i < found.Count; i++) ComputeBuffer.CopyCount(found[i].Buffer, grassCounts, i * 4);
+                grassReading = true;
+                AsyncGPUReadback.Request(grassCounts, found.Count * 4, 0, request => GrassCounted(request, found, main));
+            }
+            catch (Exception)
+            {
+                // A diagnostic only: the buffers could not be read.
+                grassReading = false;
+            }
+        }
+
+        // The counts are back: the blades of the first buffer that holds any are asked for.
+        private static void GrassCounted(AsyncGPUReadbackRequest request, List<GrassBuffer> found, Camera main)
+        {
+            bool asked = false;
+            try
+            {
+                if (request.hasError) return;
+                Unity.Collections.NativeArray<int> taken = request.GetData<int>();
+                for (int i = 0; i < found.Count && i < taken.Length; i++)
+                {
+                    GrassBuffer grass = found[i];
+                    int blades = grass.Buffer.IsValid() ? Mathf.Min(taken[i], grass.Buffer.count) : 0;
                     if (blades == 0) continue;
-                    var data = new float[blades * 16];
-                    buffer.GetData(data, 0, 0, blades * 16);
-                    Vector3 eye = main.transform.position;
-                    Vector3 about = Scenery.ParallaxScatterFields.AboutVessel(renderers[r])
-                        ? Scenery.ParallaxScatterFields.CraftPosition() : Scenery.ParallaxScatterFields.CameraPosition();
-                    float range = Scenery.ParallaxScatterFields.Range(renderers[r]);
-                    var bins = new int[8];
-                    float nearest = float.MaxValue, farthest = 0f;
-                    int beyond = 0;
-                    for (int i = 0; i < blades; i++)
-                    {
-                        var at = new Vector3(data[i * 16 + 12], data[i * 16 + 13], data[i * 16 + 14]);
-                        float d = (at - eye).magnitude;
-                        nearest = Mathf.Min(nearest, d);
-                        farthest = Mathf.Max(farthest, d);
-                        bins[Mathf.Min(7, (int)(d / 50f))]++;
-                        if ((at - about).magnitude > range * 1.1f + 20f) beyond++;
-                    }
-                    Debug.Log(Core.Log.Tag + " Parallax's " + name + " in " + HighLogic.LoadedScene + ", level " + lod + ": " + blades
-                              + " blades, " + nearest.ToString("F0") + " to " + farthest.ToString("F0") + " m from the camera ("
-                              + string.Join("/", Array.ConvertAll(bins, b => b.ToString())) + " per 50 m), range " + range.ToString("F0")
-                              + " m (farthest level from " + Scenery.ParallaxScatterFields.Lod2Start(renderers[r]).ToString("F0") + " m) about "
-                              + (Scenery.ParallaxScatterFields.AboutVessel(renderers[r]) ? "the vessel" : "the camera") + " at "
-                              + about + ", the camera at " + eye + ", " + (beyond * 100 / blades) + " % past the range.");
+                    asked = true;
+                    AsyncGPUReadback.Request(grass.Buffer, blades * 64, 0, data => GrassRead(data, grass, blades, main));
                     return;
                 }
+            }
+            catch (Exception)
+            {
+                // A diagnostic only: Parallax's buffers changed under the read.
+            }
+            finally
+            {
+                if (!asked) grassReading = false;
+            }
+        }
+
+        // The blades are back: their distances from the camera and past the range, in the log.
+        private static void GrassRead(AsyncGPUReadbackRequest request, GrassBuffer grass, int blades, Camera main)
+        {
+            try
+            {
+                if (request.hasError || main == null) return;
+                Unity.Collections.NativeArray<float> data = request.GetData<float>();
+                if (data.Length < blades * 16) return;
+                object renderer = grass.Renderer;
+                Vector3 eye = main.transform.position;
+                Vector3 about = Scenery.ParallaxScatterFields.AboutVessel(renderer)
+                    ? Scenery.ParallaxScatterFields.CraftPosition() : Scenery.ParallaxScatterFields.CameraPosition();
+                float range = Scenery.ParallaxScatterFields.Range(renderer);
+                var bins = new int[8];
+                float nearest = float.MaxValue, farthest = 0f;
+                int beyond = 0;
+                for (int i = 0; i < blades; i++)
+                {
+                    var at = new Vector3(data[i * 16 + 12], data[i * 16 + 13], data[i * 16 + 14]);
+                    float d = (at - eye).magnitude;
+                    nearest = Mathf.Min(nearest, d);
+                    farthest = Mathf.Max(farthest, d);
+                    bins[Mathf.Min(7, (int)(d / 50f))]++;
+                    if ((at - about).magnitude > range * 1.1f + 20f) beyond++;
+                }
+                Debug.Log(Core.Log.Tag + " Parallax's " + grass.Name + " in " + HighLogic.LoadedScene + ", level " + grass.Lod + ": " + blades
+                          + " blades, " + nearest.ToString("F0") + " to " + farthest.ToString("F0") + " m from the camera ("
+                          + string.Join("/", Array.ConvertAll(bins, b => b.ToString())) + " per 50 m), range " + range.ToString("F0")
+                          + " m (farthest level from " + Scenery.ParallaxScatterFields.Lod2Start(renderer).ToString("F0") + " m) about "
+                          + (Scenery.ParallaxScatterFields.AboutVessel(renderer) ? "the vessel" : "the camera") + " at "
+                          + about + ", the camera at " + eye + ", " + (beyond * 100 / blades) + " % past the range.");
+            }
+            catch (Exception)
+            {
+                // A diagnostic only: Parallax went away under the read.
+            }
+            finally
+            {
+                grassReading = false;
             }
         }
 

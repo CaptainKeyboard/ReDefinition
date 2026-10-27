@@ -45,6 +45,10 @@ namespace ReDefinition.Raytracing
         private static PropertyInfo scattererInstance;
         private static bool warned;
 
+        // The same members through compiled getters, read each frame without a reflection call.
+        private static Func<object, object> readBodyName, readAtlas, readInstance, readHandler, readLayers, readFlat, readRaymarched,
+                                            readProbe;
+
         // The 2D materials whose secondary lights this class turned on, to turn off again.
         private static readonly List<Material> lit2D = new List<Material>();
         private static readonly List<Material> raymarched = new List<Material>();
@@ -89,8 +93,17 @@ namespace ReDefinition.Raytracing
             flatField = layer != null ? layer.GetField("Clouds2dMaterial", TypeLookup.Any) : null;
             raymarchedField = layer != null ? layer.GetField("RaymarchedVolumetricsMaterial", TypeLookup.Any) : null;
             probeField = layer != null ? layer.GetField("ReflectionProbeRaymarchedVolumetricsMaterial", TypeLookup.Any) : null;
+            readBodyName = CompiledGetter.Of<object>(bodyNameField);
+            readAtlas = CompiledGetter.Of<object>(atlasField);
+            readInstance = CompiledGetter.Of<object>(scattererInstance);
+            readHandler = CompiledGetter.Of<object>(handlerField);
+            readLayers = CompiledGetter.Of<object>(layersField);
+            readFlat = CompiledGetter.Of<object>(flatField);
+            readRaymarched = CompiledGetter.Of<object>(raymarchedField);
+            readProbe = CompiledGetter.Of<object>(probeField);
             if (update == null || bodyNameField == null || scattererInstance == null || handlerField == null || layersField == null
-                || flatField == null || raymarchedField == null || probeField == null)
+                || flatField == null || raymarchedField == null || probeField == null || readBodyName == null || readInstance == null
+                || readHandler == null || readLayers == null || readFlat == null || readRaymarched == null || readProbe == null)
             {
                 CompatibilityLog.Warn("scatterer-cloud-light", "EVE's clouds take the sun's light alone: this Scatterer"
                                                                + " has not the members read.");
@@ -129,20 +142,24 @@ namespace ReDefinition.Raytracing
         private static void Apply(object skyNode)
         {
             CelestialBody main = RtKspMods.SceneBody();
-            string name = bodyNameField.GetValue(skyNode) as string;
-            if (name == null || !Collect(name)) return;
+            string name = readBodyName(skyNode) as string;
+            if (name == null) return;
+            bool otherBody = main == null || name != main.bodyName;
+            // Another body's clouds change only where this class lit some of them.
+            if (otherBody && lit2D.Count == 0) return;
+            if (!Collect(name)) return;
             // Another body's clouds, still in view from orbit: the moonlight this class gave
             // them while the camera was there taken back.
-            if (main == null || name != main.bodyName)
+            if (otherBody)
             {
                 if (lit2D.Count > 0) Light2D(false, null, null, Color.black);
                 return;
             }
             // Scatterer's atmosphere atlas for the light per pixel: it sets it on the cloud
             // materials, whose shader does not declare it, so it cannot be read back from them.
-            if (atlasField != null)
+            if (readAtlas != null)
             {
-                Texture atlas = atlasField.GetValue(skyNode) as Texture;
+                Texture atlas = readAtlas(skyNode) as Texture;
                 if (atlas != null) EveCloudRelight.Atlas = atlas;
             }
 
@@ -262,9 +279,9 @@ namespace ReDefinition.Raytracing
         {
             raymarched.Clear();
             flat.Clear();
-            object instance = scattererInstance.GetValue(null, null);
-            object handler = instance != null ? handlerField.GetValue(instance) : null;
-            IDictionary layers = handler != null ? layersField.GetValue(handler) as IDictionary : null;
+            object instance = readInstance(null);
+            object handler = instance != null ? readHandler(instance) : null;
+            IDictionary layers = handler != null ? readLayers(handler) as IDictionary : null;
             if (layers == null || !layers.Contains(name)) return false;
             IList list = layers[name] as IList;
             if (list == null) return false;
@@ -273,11 +290,11 @@ namespace ReDefinition.Raytracing
             {
                 object layer = list[i];
                 if (layer == null) continue;
-                Material material = raymarchedField.GetValue(layer) as Material;
+                Material material = readRaymarched(layer) as Material;
                 if (material != null) raymarched.Add(material);
-                material = probeField.GetValue(layer) as Material;
+                material = readProbe(layer) as Material;
                 if (material != null) raymarched.Add(material);
-                material = flatField.GetValue(layer) as Material;
+                material = readFlat(layer) as Material;
                 if (material != null) flat.Add(material);
             }
             return raymarched.Count > 0 || flat.Count > 0;

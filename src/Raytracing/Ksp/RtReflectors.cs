@@ -138,7 +138,14 @@ namespace ReDefinition.Raytracing
                     Body = body,
                 });
             }
-            candidates.Sort((a, b) => b.Order.CompareTo(a.Order));
+            // Brightest first; an insertion sort, stable, for the few candidates there are.
+            for (int i = 1; i < candidates.Count; i++)
+            {
+                Candidate inserted = candidates[i];
+                int at = i - 1;
+                for (; at >= 0 && inserted.Order.CompareTo(candidates[at].Order) > 0; at--) candidates[at + 1] = candidates[at];
+                candidates[at + 1] = inserted;
+            }
             int count = Mathf.Min(2, candidates.Count);
             for (int i = 0; i < count; i++)
             {

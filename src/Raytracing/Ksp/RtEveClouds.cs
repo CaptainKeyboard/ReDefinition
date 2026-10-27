@@ -33,6 +33,9 @@ namespace ReDefinition.Raytracing
         private static readonly float ProbeMode = ProbeArgument();
         private static readonly int TimeFadeDensityId = Shader.PropertyToID("cloudTimeFadeDensity");
         private static readonly int MapViewFadeId = Shader.PropertyToID("mapViewFade");
+        private static readonly int RadiusId = Shader.PropertyToID("_Radius");
+        private static readonly int ShadowColourId = Shader.PropertyToID("_Color");
+        private static readonly int ShadowFactorId = Shader.PropertyToID("_ShadowFactor");
 
         // The value of -redefinitionProbeCloudValue as the rays take it: 10 plus the mode, 1 without it.
         private static float ProbeArgument()
@@ -58,6 +61,9 @@ namespace ReDefinition.Raytracing
         // PropertyInfo's GetValue boxes each (CompiledGetter).
         private Func<object, bool> readEnabled, readScaled2D;
         private Func<object, Matrix4x4> readRotation;
+        // The reference-typed members read every frame, through compiled getters: a reflection call each otherwise.
+        private Func<object, object> readObjects, readBodyName, readLayer2D, readVolume, readVolumeMaterial, readShadowMaterial,
+                                     readCoverageMap, readTypeMap;
         private Func<object, float> readInner, readOuter, readFadeCoverage, readFadeDensity, readScaledFade;
         // The body whose name was read last, and its name: Object.name is a new string
         // each time it is read.
@@ -131,6 +137,14 @@ namespace ReDefinition.Raytracing
             wrapperType = wrapper != null ? wrapper.GetField("type", BindingFlags.Instance | BindingFlags.NonPublic) : null;
             wrapperMask = wrapper != null ? wrapper.GetField("alphaMask", BindingFlags.Instance | BindingFlags.NonPublic) : null;
             scaled2D = layerType.GetProperty("Scaled");
+            readObjects = CompiledGetter.Of<object>(objectList);
+            readBodyName = CompiledGetter.Of<object>(bodyName);
+            readLayer2D = CompiledGetter.Of<object>(layer2D);
+            readVolume = CompiledGetter.Of<object>(volume);
+            readVolumeMaterial = CompiledGetter.Of<object>(volumeMaterial);
+            readShadowMaterial = CompiledGetter.Of<object>(shadowMaterial);
+            readCoverageMap = CompiledGetter.Of<object>(coverageMap);
+            readTypeMap = CompiledGetter.Of<object>(typeMap);
             readEnabled = CompiledGetter.Of<bool>(volumeEnabled);
             readScaled2D = CompiledGetter.Of<bool>(scaled2D);
             readRotation = CompiledGetter.Of<Matrix4x4>(rotation);
@@ -141,7 +155,8 @@ namespace ReDefinition.Raytracing
             readScaledFade = CompiledGetter.Of<float>(scaledFade);
             if (objectList == null || bodyName == null || layer2D == null || volume == null || readRotation == null || volumeMaterial == null
                 || readInner == null || readOuter == null || shadowMaterial == null || coverageMap == null || typeMap == null || curves == null
-                || wrapperTexture == null)
+                || wrapperTexture == null || readObjects == null || readBodyName == null || readLayer2D == null || readVolume == null
+                || readVolumeMaterial == null || readShadowMaterial == null || readCoverageMap == null || readTypeMap == null)
             {
                 objectList = null;
                 CompatibilityLog.Warn("rt-eve-clouds", "Raytracing: EVE's clouds are left out of the rays (this EVE has not the members read).");
@@ -156,7 +171,7 @@ namespace ReDefinition.Raytracing
         private bool FillFrom(float[] clouds, CelestialBody body, Vector3 camera)
         {
             if (!Resolve()) return false;
-            IList objects = objectList.GetValue(null) as IList;
+            IList objects = readObjects(null) as IList;
             if (objects == null) return false;
             if (body != namedBody)
             {
@@ -167,11 +182,12 @@ namespace ReDefinition.Raytracing
             // Why there is no layer, as a text only where it is logged; null for none of
             // the body's.
             string why = null;
-            foreach (object cloudsObject in objects)
+            for (int o = 0; o < objects.Count; o++)
             {
-                if (cloudsObject == null || (bodyName.GetValue(cloudsObject, null) as string) != name) continue;
-                object layer = volume.GetValue(cloudsObject, null);
-                object flat = layer2D.GetValue(cloudsObject, null);
+                object cloudsObject = objects[o];
+                if (cloudsObject == null || (readBodyName(cloudsObject) as string) != name) continue;
+                object layer = readVolume(cloudsObject);
+                object flat = readLayer2D(cloudsObject);
                 if (layer == null || flat == null)
                 {
                     why = "a layer without " + (layer == null ? "a volume" : "a 2D layer");
@@ -187,14 +203,14 @@ namespace ReDefinition.Raytracing
                     why = "the 2D layer in scaled space";
                     continue;
                 }
-                Material material = volumeMaterial.GetValue(layer, null) as Material;
-                Material shadow = shadowMaterial.GetValue(flat, null) as Material;
-                if (material == null || shadow == null || !shadow.HasProperty("_Radius"))
+                Material material = readVolumeMaterial(layer) as Material;
+                Material shadow = readShadowMaterial(flat) as Material;
+                if (material == null || shadow == null || !shadow.HasProperty(RadiusId))
                 {
                     why = material == null ? "no volume material" : shadow == null ? "no shadow material" : "no _Radius on the shadow material";
                     continue;
                 }
-                float radius = shadow.GetFloat("_Radius");
+                float radius = shadow.GetFloat(RadiusId);
                 float innerRadius = readInner(layer), outerRadius = readOuter(layer);
                 if (!Pack(layer, radius, innerRadius, outerRadius)) return false;
 
@@ -207,8 +223,8 @@ namespace ReDefinition.Raytracing
                 clouds[13] = innerRadius;
                 clouds[14] = outerRadius;
                 clouds[15] = 1f;
-                Color colour = shadow.HasProperty("_Color") ? shadow.GetColor("_Color") : Color.white;
-                float factor = shadow.HasProperty("_ShadowFactor") ? shadow.GetFloat("_ShadowFactor") : 0.75f;
+                Color colour = shadow.HasProperty(ShadowColourId) ? shadow.GetColor(ShadowColourId) : Color.white;
+                float factor = shadow.HasProperty(ShadowFactorId) ? shadow.GetFloat(ShadowFactorId) : 0.75f;
                 clouds[16] = factor * colour.a;
                 clouds[17] = readFadeCoverage != null ? readFadeCoverage(layer) : 1f;
                 // The fades read without HasProperty, which asks the shader for the property
@@ -265,8 +281,7 @@ namespace ReDefinition.Raytracing
         // few seconds (the coverage map is loaded on demand).
         private bool Pack(object layer, float radius, float innerRadius, float outerRadius)
         {
-            object coverageWrapper = coverageMap.GetValue(layer, null);
-            object typeWrapper = typeMap.GetValue(layer, null);
+            object coverageWrapper = readCoverageMap(layer);
             Texture coverage = coverageWrapper != null ? wrapperTexture.Invoke(coverageWrapper, null) as Texture : null;
             if (coverage == null) return false;
             if (packed != null && coverage == packedCoverage && Mathf.Approximately(radius, packedRadius)
@@ -290,6 +305,7 @@ namespace ReDefinition.Raytracing
                 packed.Create();
                 packedHandle = packed.GetNativeTexturePtr();
             }
+            object typeWrapper = readTypeMap(layer);
             Texture type = typeWrapper != null ? wrapperTexture.Invoke(typeWrapper, null) as Texture : null;
             pack.SetTexture("CloudCoverage", coverage);
             pack.SetTexture("CloudType", type != null ? type : Texture2D.whiteTexture);

@@ -664,7 +664,8 @@ namespace ReDefinition.Raytracing
             // OnRenderImage found; at a new size, from the next frame on. Only for the trace
             // after the frame: the trace in the frame copies it itself (TraceThisFrame).
             gbufferCopy.Clear();
-            RecordEarlyGBuffer1();
+            // The trace in the frame clears this buffer and records the copies itself (TraceThisFrame).
+            if (!TraceBeforeLighting) RecordEarlyGBuffer1();
             if (!TraceBeforeLighting && gbuffer0 != null && cam.actualRenderingPath == RenderingPath.DeferredShading)
             {
                 gbufferCopy.Blit(BuiltinRenderTextureType.GBuffer0, gbuffer0);
@@ -848,7 +849,7 @@ namespace ReDefinition.Raytracing
                 command.Blit(source, environment, capture, 5);
             }
             bool withGpu = GatherGpuInstances();
-            FillPacket(deferredPath, false, cube != null);
+            Matrix4x4 worldToClip = FillPacket(deferredPath, false, cube != null);
             if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
             ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
             Probe.GpuProfiler.Mark(command, "ReDefinition raytracing: trace (inputs to D3D12, results back)");
@@ -879,7 +880,6 @@ namespace ReDefinition.Raytracing
 
             // This frame's results for this frame's lighting: the same pixel. The matrix is
             // relative to the camera, the shaders' positions are Unity's world.
-            Matrix4x4 worldToClip = WorldToClipRelative();
             var toCamera = new Vector4((float)-position.x, (float)-position.y, (float)-position.z, 0f);
             Shader.SetGlobalMatrix(RtPrevViewProj, worldToClip);
             Shader.SetGlobalVector(RtOffsetNear, toCamera);
@@ -1225,13 +1225,13 @@ namespace ReDefinition.Raytracing
             }
 
             bool withGpu = GatherGpuInstances();
-            FillPacket(deferred, withMotion, cube != null);
+            Matrix4x4 worldToClip = FillPacket(deferred, withMotion, cube != null);
             if (withGpu) packet.Inputs[RtNative.InputInstances] = gpuInstancesHandle;
             ring.Issue(command, RtNative.RenderEvent, RtNative.FrameEvent, ref packet);
             Graphics.ExecuteCommandBuffer(command);
             Graphics.Blit(source, destination);
 
-            previousWorldToClip = WorldToClipRelative();
+            previousWorldToClip = worldToClip;
             previousPosition = position;
             haveHistory = true;
             frameIndex++;
@@ -1352,8 +1352,9 @@ namespace ReDefinition.Raytracing
 
         // The frame packet for this frame. It holds the view and the previous one, the inputs, the sun, sky, lights,
         // clouds, sea and settings, and which passes to run. The argument `deferred` is set where the G-buffer was
-        // copied, the others where motion vectors and the sky's cube were.
-        private void FillPacket(bool deferred, bool withMotion, bool withEnvironment)
+        // copied, the others where motion vectors and the sky's cube were. It returns the frame's camera-relative
+        // world to clip.
+        private Matrix4x4 FillPacket(bool deferred, bool withMotion, bool withEnvironment)
         {
             Matrix4x4 worldToClip = WorldToClipRelative();
             Write(worldToClip, packet.WorldToClip);
@@ -1611,6 +1612,7 @@ namespace ReDefinition.Raytracing
                 packet.Outputs[RtNative.OutputSurface] = parityRaysHandle;
                 packet.Outputs[RtNative.OutputSurfaceMode] = parityRasterHandle;
             }
+            return worldToClip;
         }
 
         // A render texture's pixels as four floats each, read at once (the probe's); null where it cannot be.

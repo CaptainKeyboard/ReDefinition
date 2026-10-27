@@ -75,8 +75,8 @@ namespace ReDefinition.Scaling
             for (int i = 0; i < parent.childCount; i++)
             {
                 Transform label = parent.GetChild(i);
-                if (label.GetComponent<BaseLabel>() == null) continue;
-                if ((label.localScale - wanted).sqrMagnitude > 1e-8f) label.localScale = wanted;
+                if ((label.localScale - wanted).sqrMagnitude <= 1e-8f || label.GetComponent<BaseLabel>() == null) continue;
+                label.localScale = wanted;
             }
         }
     }

@@ -34,6 +34,9 @@ namespace ReDefinition.Raytracing
         private readonly Dictionary<string, Shader> specularVariants = new Dictionary<string, Shader>();
         private const float MeanGloss = 0.5f;
 
+        // Whether the hall of the scene loaded was done.
+        internal bool AppliedHere { get { return appliedIn == HighLogic.LoadedScene; } }
+
         // The editors' halls, once a scene; the rest stays as it is.
         internal void Apply(IEnumerable<MeshFilter> hall)
         {
