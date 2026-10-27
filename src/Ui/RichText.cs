@@ -69,4 +69,24 @@ namespace ReDefinition.Ui
             joined.Append(part);
         }
     }
+
+    // A number with two decimals that stays one string until the number changes.
+    internal sealed class TwoDecimals
+    {
+        // The number the text was made for, and the text; none before the first.
+        private float number;
+        private string text;
+
+        // The number with two decimals, in the invariant culture.
+        public string Of(float value)
+        {
+            // A zero keeps its sign, which the text may show.
+            if (text == null || value != number || float.IsNaN(value) || (value == 0f && 1f / value != 1f / number))
+            {
+                number = value;
+                text = value.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+            }
+            return text;
+        }
+    }
 }

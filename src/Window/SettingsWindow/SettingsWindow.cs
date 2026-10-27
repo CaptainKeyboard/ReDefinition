@@ -205,6 +205,7 @@ namespace ReDefinition.Window
         private static DialogGUIBase[] Build(UISkinDef skin)
         {
             choiceRows.Clear();
+            anyNotShown = AnyNotShown();
             shownKeys.Clear();
             Conflicts.Clear();
             kspPending.Clear();
@@ -218,6 +219,8 @@ namespace ReDefinition.Window
             foldRows.Clear();
             keysIn.Clear();
             pageMatchesFor = null;
+            rowMatchesFor = null;
+            rowMatches.Clear();
             List<DialogGUIBase> tabs = new List<DialogGUIBase> { SearchRow() };
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
@@ -337,9 +340,13 @@ namespace ReDefinition.Window
                 case SettingCategory.Axes: return "Axes";
                 // Marked where a mod has settings this window cannot show: the tab says
                 // which, and where they are.
-                default: return AnyNotShown() ? "Mods and toolbar (!)" : "Mods / Toolbar";
+                default: return anyNotShown ? "Mods and toolbar (!)" : "Mods / Toolbar";
             }
         }
+
+        // Whether any loaded mod has something the window cannot show, worked out as the window is built: the
+        // rows that say so are built then, and the tab's name follows them.
+        private static bool anyNotShown;
 
         // A tab's rows: Graphics' profiles, Detail's groups, or the tab's own rows and the mods' settings, with the
         // Advanced row of the mods that have their own window.
@@ -562,6 +569,8 @@ namespace ReDefinition.Window
             // One row per module setting, in the same order (KspSettingsSection.Rows).
             List<ModuleSetting> titles = new List<ModuleSetting>(OurModules.Rows(SettingCategory.General, false));
             string section = null;
+            JoinedLines upscalerLines = new JoinedLines();
+            JoinedLines frameGenerationLines = new JoinedLines();
             for (int i = 0; i < own.Length; i++)
             {
                 ModuleSetting setting = i < titles.Count ? titles[i] : null;
@@ -575,10 +584,12 @@ namespace ReDefinition.Window
                 if (setting == null || setting.Key != "technique") continue;
                 // Under the technique row: what a download that was chosen came to, while it runs and after.
                 if (setting.Title == "Upscaler")
-                    AddHint(rows, StatusLine(() => JoinStatus(NvidiaStatus(), IntelStatus())), "download NVIDIA Intel files");
+                    AddHint(rows, StatusLine(() => upscalerLines.Of(NvidiaStatus(), IntelStatus())),
+                        "download NVIDIA Intel files");
                 else if (setting.Title == "Frame generation")
                 {
-                    AddHint(rows, StatusLine(() => JoinStatus(NvidiaStatus(), IntelStatus(), AmpereFrameGeneration.StatusText())),
+                    AddHint(rows, StatusLine(() => frameGenerationLines.Of(NvidiaStatus(), IntelStatus(),
+                            AmpereFrameGeneration.StatusText())),
                         "download NVIDIA Intel files dlssg_for_sm86");
                     // The package's preset, once it is in place.
                     if (AmpereFrameGeneration.Installed())
@@ -700,50 +711,20 @@ namespace ReDefinition.Window
             return line;
         }
 
-        // Intel's download status as the window shows it, made anew only when it changes: the label asks every frame.
-        private static string intelStatus;
-        private static string intelStatusText = "";
+        // Each download's status as the window shows it, made anew only when it changes: the label asks every frame.
+        private static readonly GreyText intelGrey = new GreyText();
+        private static readonly GreyText nvidiaGrey = new GreyText();
 
         // Intel's download status, grey; empty while there is none.
         private static string IntelStatus()
         {
-            string now = IntelDownloader.Status;
-            if (now != intelStatus)
-            {
-                intelStatus = now;
-                intelStatusText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
-            }
-            return intelStatusText;
+            return intelGrey.Of(IntelDownloader.Status);
         }
-
-        // The parts that say something, one to a line.
-        private static string JoinStatus(params string[] parts)
-        {
-            System.Text.StringBuilder joined = new System.Text.StringBuilder();
-            foreach (string part in parts)
-            {
-                if (string.IsNullOrEmpty(part)) continue;
-                if (joined.Length > 0) joined.Append('\n');
-                joined.Append(part);
-            }
-            return joined.ToString();
-        }
-
-        // The download's progress or outcome, grey, made anew only when it changes:
-        // the label asks every frame.
-        private static string nvidiaStatus;
-        private static string nvidiaStatusText = "";
 
         // NVIDIA's download status, grey; empty while there is none.
         private static string NvidiaStatus()
         {
-            string now = NvidiaDownloader.Status;
-            if (now != nvidiaStatus)
-            {
-                nvidiaStatus = now;
-                nvidiaStatusText = now == null ? "" : "<color=#9a9a9a>" + now + "</color>";
-            }
-            return nvidiaStatusText;
+            return nvidiaGrey.Of(NvidiaDownloader.Status);
         }
 
         // The mods with rows here that have a settings window of their own, for

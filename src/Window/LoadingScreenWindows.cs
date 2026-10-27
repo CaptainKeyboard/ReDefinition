@@ -18,9 +18,14 @@ namespace ReDefinition.Window
         // Every instance method, public or not: what the two OnGUI lookups ask for.
         private const BindingFlags Instance = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
 
-        // KSP's loading screen, once found, and the frame it was last looked for in.
+        // KSP's loading screen, once found, and the frame it was last looked for in (where the field below is missing).
         private static LoadingBufferMask mask;
         private static int lookedAt = -1;
+
+        // LoadingBufferMask sets its internal static Instance in Start (decompiled), and there is one mask: the
+        // field gives the screen the search over the scene would find, and costs a read where nothing is found yet.
+        private static readonly FieldInfo instanceField = typeof(LoadingBufferMask).GetField("Instance",
+            BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public);
 
         // Kept across scenes; installs the prefix on each of the two mods that is installed.
         private void Awake()
@@ -48,12 +53,18 @@ namespace ReDefinition.Window
         // Harmony prefix: false skips the mod's OnGUI.
         private static bool DrawUnlessLoading()
         {
-            if (mask == null && Time.frameCount != lookedAt)
-            {
-                lookedAt = Time.frameCount;
-                mask = FindObjectOfType<LoadingBufferMask>();
-            }
+            if (mask == null) mask = FindMask();
             return mask == null || mask.camera == null || !mask.camera.enabled;
+        }
+
+        // The loading screen where it stands: its Instance, else (in a KSP without that field) a search of the scene
+        // once a frame.
+        private static LoadingBufferMask FindMask()
+        {
+            if (instanceField != null) return instanceField.GetValue(null) as LoadingBufferMask;
+            if (Time.frameCount == lookedAt) return null;
+            lookedAt = Time.frameCount;
+            return FindObjectOfType<LoadingBufferMask>();
         }
     }
 }

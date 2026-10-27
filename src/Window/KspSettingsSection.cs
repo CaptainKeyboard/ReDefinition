@@ -74,6 +74,17 @@ namespace ReDefinition.Window
             // applied; in the settings window the one its rows were filled from.
             // Without one, ReDefinition's own rows cannot be changed.
             public Func<bool> ProfileChosen = () => BundledSettings.ProfileChosen;
+
+            // The settings as text, read once per frame for the rows, which ask for them several times each.
+            public readonly OwnReads Reads = new OwnReads();
+
+            // Writes a setting into the copy the controls edit. Every write of the controls goes through here, so
+            // that what Reads kept is read again.
+            public void Write(ModuleSetting setting, string value)
+            {
+                setting.Write(After, value);
+                Reads.Written();
+            }
         }
 
         // Each graphics section's own copies, dropped with the section.
@@ -292,7 +303,8 @@ namespace ReDefinition.Window
                 Func<ModuleSetting, OwnSettings, string> defaultOf = layout.Default;
                 Func<string> name = layout.Marked == null
                     ? null
-                    : (Func<string>)(() => SettingsWindow.MarkedName(shown.Title, shown.Read(edit.After) != shown.Read(edit.Before),
+                    : (Func<string>)(() => SettingsWindow.MarkedName(shown.Title,
+                        edit.Reads.Read(shown, edit.After) != edit.Reads.Read(shown, edit.Before),
                         defaultOf != null && defaultOf(shown, edit.After) != null));
                 if (shown.Radio)
                 {
@@ -326,11 +338,11 @@ namespace ReDefinition.Window
                 // tooltip over a disabled button, and the tooltip says why. Clicking it says so on the screen.
                 string text = setting.ChoiceLabel != null ? setting.ChoiceLabel(value) : value;
                 if (reason != null) text = "<color=#7a7a7a>" + text + "</color>";
-                DialogGUIToggleButton toggle = new DialogGUIToggleButton(() => setting.Read(edit.After) == value, text,
+                DialogGUIToggleButton toggle = new DialogGUIToggleButton(() => edit.Reads.Read(setting, edit.After) == value, text,
                     // Only the player's click chooses: KSP sets the toggle from the row in every frame it shows.
                     on =>
                     {
-                        if (!on || setting.Read(edit.After) == value) return;
+                        if (!on || edit.Reads.Read(setting, edit.After) == value) return;
                         string why = setting.Unavailable == null ? null : setting.Unavailable(edit.After, value);
                         if (why != null)
                         {
@@ -341,8 +353,8 @@ namespace ReDefinition.Window
                         // Files missing: their download first, and the choice once they are in place; a
                         // cancelled dialog leaves the row as it was.
                         FilesNeeded files = setting.Files == null ? null : setting.Files(edit.After, value);
-                        if (files != null) files.Begin(() => setting.Write(edit.After, value));
-                        else setting.Write(edit.After, value);
+                        if (files != null) files.Begin(() => edit.Write(setting, value));
+                        else edit.Write(setting, value);
                     },
                     button, RowHeight + 2f);
                 FilesNeeded needed = reason != null || setting.Files == null ? null : setting.Files(edit.After, value);
@@ -383,7 +395,7 @@ namespace ReDefinition.Window
                 control = new DialogGUIToggle(() => IsOn(edit, setting),
                     () => setting.Label != null ? setting.Label(IsOn(edit, setting) ? "True" : "False")
                                                 : StateText(IsOn(edit, setting)),
-                    b => setting.Write(edit.After, b ? "True" : "False"), width);
+                    b => edit.Write(setting, b ? "True" : "False"), width);
             }
             else if (setting.Control == SettingControl.Slider)
             {
@@ -396,7 +408,7 @@ namespace ReDefinition.Window
                         float shown = Mathf.Clamp(Number(edit, setting), setting.Min, setting.Max);
                         if (setting.WholeNumbers) shown = Mathf.Round(shown);
                         if (Mathf.Approximately(f, shown)) return;
-                        setting.Write(edit.After, Snapped(f, setting));
+                        edit.Write(setting, Snapped(f, setting));
                     });
             }
             else
@@ -404,7 +416,7 @@ namespace ReDefinition.Window
                 // A step through the choices, left to right.
                 int last = setting.Choices.Length - 1;
                 control = new DialogGUISlider(() => ChoiceIndex(edit, setting), 0f, last, true, width, -1f,
-                    f => setting.Write(edit.After, setting.Choices[Mathf.Clamp(Mathf.RoundToInt(f), 0, last)]));
+                    f => edit.Write(setting, setting.Choices[Mathf.Clamp(Mathf.RoundToInt(f), 0, last)]));
             }
             control.tooltipText = TooltipText.Wrap(setting.Tooltip
                                                    + (setting.NeedsProfile && !edit.ProfileChosen() ? "\n" + Locked : ""));
@@ -417,14 +429,15 @@ namespace ReDefinition.Window
         private static bool IsOn(Edit edit, ModuleSetting setting)
         {
             bool on;
-            return bool.TryParse(setting.Read(edit.After), out on) && on;
+            return bool.TryParse(edit.Reads.Read(setting, edit.After), out on) && on;
         }
 
         // A slider's edited value; its minimum where the value is no number.
         private static float Number(Edit edit, ModuleSetting setting)
         {
             float value;
-            return float.TryParse(setting.Read(edit.After), NumberStyles.Float, CultureInfo.InvariantCulture, out value)
+            return float.TryParse(edit.Reads.Read(setting, edit.After), NumberStyles.Float, CultureInfo.InvariantCulture,
+                       out value)
                 ? value
                 : setting.Min;
         }
@@ -440,7 +453,7 @@ namespace ReDefinition.Window
         // The slider position of the edited value among the choices; 0 where it is none of them.
         private static float ChoiceIndex(Edit edit, ModuleSetting setting)
         {
-            string now = setting.Read(edit.After);
+            string now = edit.Reads.Read(setting, edit.After);
             for (int i = 0; i < setting.Choices.Length; i++)
                 if (setting.Choices[i] == now) return i;
             return 0f;
@@ -449,7 +462,7 @@ namespace ReDefinition.Window
         // The value column's text: LabelWith, Label or the value itself.
         private static string Shown(Edit edit, ModuleSetting setting)
         {
-            string now = setting.Read(edit.After);
+            string now = edit.Reads.Read(setting, edit.After);
             if (setting.LabelWith != null) return setting.LabelWith(edit.After, now);
             return setting.Label != null ? setting.Label(now) : now;
         }

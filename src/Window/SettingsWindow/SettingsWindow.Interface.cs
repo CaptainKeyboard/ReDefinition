@@ -40,7 +40,9 @@ namespace ReDefinition.Window
                 () => KspSettingsSection.StateText(edit != null && edit.After.ReplaceKspSettings),
                 b =>
                 {
-                    if (edit != null) edit.After.ReplaceKspSettings = b;
+                    if (edit == null) return;
+                    edit.After.ReplaceKspSettings = b;
+                    edit.Reads.Written();
                 }, ControlWidth);
             toggle.tooltipText = "On: every Settings button of KSP -- the main menu's and the pause menus' -- opens this"
                                  + " window, which holds all of KSP's settings, and ReDefinition adds no entry of its own"
@@ -188,7 +190,12 @@ namespace ReDefinition.Window
         private static bool TimeWarpHidden
         {
             get { return edit != null && edit.After != null && !edit.After.TimeWarpToolbarButton; }
-            set { if (edit != null && edit.After != null) edit.After.TimeWarpToolbarButton = !value; }
+            set
+            {
+                if (edit == null || edit.After == null) return;
+                edit.After.TimeWarpToolbarButton = !value;
+                edit.Reads.Written();
+            }
         }
 
         // Whether every one of those mods' buttons is to be hidden; false for none.

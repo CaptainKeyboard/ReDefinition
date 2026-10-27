@@ -271,6 +271,7 @@ namespace ReDefinition.Ui
                 PopupDialog dialog = shielded[i];
                 if (dialog == null)
                 {
+                    canvases.Remove(dialog);
                     shielded.RemoveAt(i);
                     continue;
                 }
@@ -279,8 +280,8 @@ namespace ReDefinition.Ui
                 RectTransform frame = dialog.popupWindow != null ? dialog.popupWindow.transform as RectTransform : null;
                 if (frame == null) frame = dialog.RTrf;
                 if (frame == null) continue;
-                Canvas canvas = frame.GetComponentInParent<Canvas>();
-                Canvas root = canvas != null ? canvas.rootCanvas : null;
+                Canvas canvas, root;
+                CanvasOf(dialog, frame, out canvas, out root);
                 // Hidden with the rest of KSP's interface -- F2 and screenshots
                 // switch the canvases off (UIMasterController.HideUI), not the
                 // dialogs -- it is not there to click.
@@ -289,6 +290,45 @@ namespace ReDefinition.Ui
                 if (RectTransformUtility.RectangleContainsScreenPoint(frame, mouse, eye)) return true;
             }
             return false;
+        }
+
+        // The canvas a dialog's frame stands on and the root of it, as GetComponentInParent finds them.
+        // They are looked up again only when the frame or its parent is another or the canvas is gone: the
+        // dialogs stay where KSP put them, and the search climbs the hierarchy in every frame otherwise.
+        private sealed class DialogCanvas
+        {
+            // The frame and its parent the canvas was found for, the canvas, and its root.
+            public Transform Frame;
+            public Transform Parent;
+            public Canvas Canvas;
+            public Canvas Root;
+        }
+
+        // The canvases found so far, by dialog.
+        private static readonly Dictionary<PopupDialog, DialogCanvas> canvases = new Dictionary<PopupDialog, DialogCanvas>();
+
+        // The canvas of that dialog's frame, and its root; null for none.
+        private static void CanvasOf(PopupDialog dialog, RectTransform frame, out Canvas canvas, out Canvas root)
+        {
+            DialogCanvas known;
+            if (canvases.TryGetValue(dialog, out known) && known.Frame == frame && known.Parent == frame.parent
+                && known.Canvas != null && known.Root != null)
+            {
+                canvas = known.Canvas;
+                root = known.Root;
+                return;
+            }
+            canvas = frame.GetComponentInParent<Canvas>();
+            root = canvas != null ? canvas.rootCanvas : null;
+            if (known == null)
+            {
+                known = new DialogCanvas();
+                canvases[dialog] = known;
+            }
+            known.Frame = frame;
+            known.Parent = frame.parent;
+            known.Canvas = canvas;
+            known.Root = root;
         }
 
         // A bundled mod's own window over one of ReDefinition's: IMGUI draws on top,
