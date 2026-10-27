@@ -1428,6 +1428,9 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
         // The proxy looks at the file at most once a second, from its Present.
         Sleep(1100);
         swapChain->Present(0, 0);
+        // The ini is read on a worker thread and applied by the next Present after that.
+        Sleep(300);
+        swapChain->Present(0, 0);
     };
 
     uint32_t frameIndex = 52000;
@@ -1679,6 +1682,9 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
             WritePrivateProfileStringW(L"Proxy", key.first, key.second, ini.c_str());
         Sleep(1100);
         swapChain->Present(0, 0);
+        // The ini is read on a worker thread and applied by the next Present after that.
+        Sleep(300);
+        swapChain->Present(0, 0);
         for (int f = 0; f < 600 && !expectNone && status().meshes < 1; ++f)
         {
             SendFrame(proxy, camera, g, outputs, sun, 0.0047f, frameIndex++, kRtSignalSunVisibility, lighting());
@@ -1688,6 +1694,9 @@ static int RunOmmProxyChecks(Proxy& proxy, ID3D11Device* device, ID3D11DeviceCon
         for (const auto& key : offKeys)
             WritePrivateProfileStringW(L"Proxy", key.first, key.second, ini.c_str());
         Sleep(1100);
+        swapChain->Present(0, 0);
+        // The ini is read on a worker thread and applied by the next Present after that.
+        Sleep(300);
         swapChain->Present(0, 0);
         const Measure without = measure();
         if (!withOmm.ok || !without.ok)
@@ -2407,6 +2416,9 @@ int main(int argc, char** argv)
                     WritePrivateProfileStringW(L"Proxy", L"rtRadianceCache", value, ini.c_str());
                     Sleep(1100);
                     swapChain->Present(0, 0);
+                    // The ini is read on a worker thread and applied by the next Present after that.
+                    Sleep(300);
+                    swapChain->Present(0, 0);
                 };
                 uint32_t kspFrame = 7300;
                 // A cache made anew is cleared by its first frame and warm after 60.
@@ -2776,6 +2788,9 @@ int main(int argc, char** argv)
             WritePrivateProfileStringW(L"Proxy", L"rtSunHistory", std::to_wstring(history).c_str(), ini.c_str());
             // The proxy looks at the file at most once a second, from its Present.
             Sleep(1100);
+            swapChain->Present(0, 0);
+            // The ini is read on a worker thread and applied by the next Present after that.
+            Sleep(300);
             swapChain->Present(0, 0);
         };
         std::vector<uint16_t> postsDiffuse, postsSun, postsLast, wideSun, backSun;
@@ -3320,6 +3335,9 @@ int main(int argc, char** argv)
         // The proxy looks at the file at most once a second, from its Present.
         Sleep(1100);
         swapChain->Present(0, 0);
+        // The ini is read on a worker thread and applied by the next Present after that.
+        Sleep(300);
+        swapChain->Present(0, 0);
         Mesh card;
         card.id = 40;
         AddQuad(card, { -0.5, 0, 0.5 }, { 0.5, 0, 0.5 }, { 0.5, 0, -0.5 }, { -0.5, 0, -0.5 }, { 0, 1, 0 });
@@ -3453,6 +3471,9 @@ int main(int argc, char** argv)
               "cut-out surfaces", detail);
         WritePrivateProfileStringW(L"Proxy", L"rtFoliageTransmission", foliageSet ? foliageBefore : nullptr, ini.c_str());
         Sleep(1100);
+        swapChain->Present(0, 0);
+        // The ini is read on a worker thread and applied by the next Present after that.
+        Sleep(300);
         swapChain->Present(0, 0);
         proxy.releaseMesh(40);
         SendInstances(proxy, scene, camera.position);
@@ -4765,6 +4786,9 @@ int main(int argc, char** argv)
             // The proxy looks at the file at most once a second, from its Present.
             Sleep(1100);
             swapChain->Present(0, 0);
+            // The ini is read on a worker thread and applied by the next Present after that.
+            Sleep(300);
+            swapChain->Present(0, 0);
         };
         const auto statusCount = [&](const char* name) -> double
         {
@@ -5209,6 +5233,9 @@ int main(int argc, char** argv)
             // The proxy looks at the file at most once a second, from its Present.
             Sleep(1100);
             swapChain->Present(0, 0);
+            // The ini is read on a worker thread and applied by the next Present after that.
+            Sleep(300);
+            swapChain->Present(0, 0);
         };
 
         // The parts: tubes on a grid around the box, each a mesh of its own.
@@ -5403,6 +5430,9 @@ int main(int argc, char** argv)
             WritePrivateProfileStringW(L"Proxy", variants[0].keys[k][0], before[k].empty() ? nullptr : before[k].c_str(),
                                        ini.c_str());
         Sleep(1100);
+        swapChain->Present(0, 0);
+        // The ini is read on a worker thread and applied by the next Present after that.
+        Sleep(300);
         swapChain->Present(0, 0);
         for (int id : released)
         {
