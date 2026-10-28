@@ -44,7 +44,17 @@ namespace ReDefinition.Probe
                 string label = "the sun " + Elevation(sun).ToString("0", CultureInfo.InvariantCulture) + ", " + moon.bodyName + " "
                                + Elevation(moon).ToString("0", CultureInfo.InvariantCulture) + " degrees";
                 yield return LookAlong(towardsClouds, -25f, 60f, "the clouds from below");
+                Debug.Log(Log.Tag + " Probe: cloud sides: the moon is "
+                          + Vector3.Angle(FlightCamera.fetch.transform.forward, (Vector3)(moon.position - (Vector3d)vessel.transform.position)).ToString("0", CultureInfo.InvariantCulture)
+                          + " degrees off the line of sight, looking up at the clouds.");
                 yield return CloudRatio(folder, "sides-" + position.Name + "-below", "sides, " + label + ", from the ground looking up");
+                // At the moon itself: the angle from the camera's line of sight to it is told, to say whether it is in the picture.
+                Vector3 toMoon = (Vector3)(moon.position - (Vector3d)vessel.transform.position).normalized;
+                Vector3 moonFlat = Vector3.ProjectOnPlane(toMoon, up).normalized;
+                yield return LookAlong(moonFlat, -Elevation(moon), 60f, "the moon");
+                Debug.Log(Log.Tag + " Probe: cloud sides: the moon is " + Vector3.Angle(FlightCamera.fetch.transform.forward, toMoon).ToString("0", CultureInfo.InvariantCulture)
+                          + " degrees off the line of sight.");
+                yield return CloudRatio(folder, "sides-" + position.Name + "-moon", "sides, " + label + ", from the ground looking at the moon");
                 yield return LookAlong(flat, RatioPitch, 14000f, "the clouds from above");
                 yield return CloudRatio(folder, "sides-" + position.Name + "-above", "sides, " + label + ", from 14 km looking down");
             }
