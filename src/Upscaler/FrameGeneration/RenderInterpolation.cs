@@ -36,6 +36,11 @@ namespace ReDefinition.Upscaler
         // Seconds between two log lines.
         private const float ReportSeconds = 10f;
 
+        // A vessel's parts were moved by an offset for this frame (Apply), and the parts are back (Restore): for what hangs
+        // beside the vessel without hanging on it, as Firefly's airstream camera does (FireflyInterpolation).
+        internal static event System.Action<Vessel, Vector3> Shifted;
+        internal static event System.Action Restored;
+
         // The Debug switch; on at every start, off with -redefinitionProbeNoInterpolation.
         internal static bool Enabled = !CommandLine.Has("-redefinitionProbeNoInterpolation");
 
@@ -298,6 +303,7 @@ namespace ReDefinition.Upscaler
                 List<Transform> topmost = Topmost(track);
                 for (int i = 0; i < topmost.Count; i++)
                     if (topmost[i] != null) Move(topmost[i], track.Offset);
+                Shifted?.Invoke(track.Vessel, track.Offset);
             }
 
             framesShifted++;
@@ -382,6 +388,7 @@ namespace ReDefinition.Upscaler
                 if (moved[i].Transform != null) moved[i].Transform.localPosition = moved[i].LocalPosition;
             moved.Clear();
             shiftCamera = null;
+            Restored?.Invoke();
         }
 
         // Logs the window's counts, if any frame was drawn between steps, and starts a new window.
