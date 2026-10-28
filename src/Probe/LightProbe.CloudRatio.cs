@@ -438,6 +438,11 @@ namespace ReDefinition.Probe
                 yield return CloudSides(addon, folder);
                 yield break;
             }
+            if (CommandLine.Has("-redefinitionProbeRatioAuroraScan"))
+            {
+                yield return AuroraScan();
+                yield break;
+            }
             if (CommandLine.Has("-redefinitionProbeRatioAurora"))
             {
                 yield return AuroraView(addon, folder);
