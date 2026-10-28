@@ -147,6 +147,7 @@ namespace Surface
         {
             string name = node.Values.Where(v => v.Key == "name").Select(v => v.Value).FirstOrDefault();
             string here = path + "." + node.Name + (name != null ? "[" + name + "]" : "");
+            lines[here + ".@exists"] = "True";
             foreach (KeyValuePair<string, string> value in node.Values)
             {
                 if (Words.Contains(value.Key) || value.Key == "name") continue;

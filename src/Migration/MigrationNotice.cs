@@ -28,6 +28,17 @@ namespace ReDefinition.Migration
             File.WriteAllLines(path, lines.ToArray());
         }
 
+        // Adds changes to the ones waiting, or writes them where none wait: a second file migrated in the same start, bundled.cfg, tells
+        // the player in the same notice.
+        internal static void Append(string path, string from, IEnumerable<SettingsChange> changes)
+        {
+            Pending waiting = Read(path);
+            var all = new List<SettingsChange>();
+            if (waiting != null) all.AddRange(waiting.Changes);
+            all.AddRange(changes);
+            Write(path, waiting != null ? waiting.From : from, all);
+        }
+
         // The changes waiting, or null where there are none.
         internal static Pending Read(string path)
         {

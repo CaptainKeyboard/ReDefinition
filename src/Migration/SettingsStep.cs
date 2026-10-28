@@ -39,6 +39,12 @@ namespace ReDefinition.Migration
     {
         private readonly string key;
 
+        // The key that leaves the file.
+        public string Key
+        {
+            get { return key; }
+        }
+
         public RemovedSetting(string id, string key, string text) : base(id, text)
         {
             this.key = key;

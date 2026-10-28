@@ -55,6 +55,28 @@ namespace ReDefinition.Tests
                         + " REDEFINITION_UPDATE_SURFACE=1. " + differences.Count + " lines differ:\n" + string.Join("\n", differences.Take(40)));
         }
 
+        // A setting of a bundled mod that is gone from its registration leaves a kept value in the player's bundled.cfg: a step of
+        // Migrations.BundledToCome must remove that key ("<mod>.<setting>").
+        [TestMethod]
+        public void TheBundledStepsExplainTheSettingsThatWentSinceTheLastRelease()
+        {
+            string shippedPath = Path.Combine(RepoRoot.Root("ReDefinition.sln"), Folder, "surface.shipped.txt");
+            SortedDictionary<string, string> shipped = SurfaceBuilder.Parse(File.ReadAllText(shippedPath));
+            SortedDictionary<string, string> now = Current();
+            var removed = new HashSet<string>(Migrations.BundledToCome.OfType<RemovedSetting>().Select(step => step.Key));
+            var unexplained = new List<string>();
+            foreach (string key in shipped.Keys)
+            {
+                System.Text.RegularExpressions.Match setting = System.Text.RegularExpressions.Regex.Match(
+                    key, @"^mod\.MOD_SETTINGS\[([^\]]+)\]\.SETTING\[([^\]]+)\]\.@exists$");
+                if (!setting.Success || now.ContainsKey(key)) continue;
+                string stored = setting.Groups[1].Value + "." + setting.Groups[2].Value;
+                if (!removed.Contains(stored)) unexplained.Add(stored + " is gone, and no bundled step removes its kept value");
+            }
+            Assert.AreEqual(0, unexplained.Count, "Settings of bundled mods that went since the last release, and no step says what bundled.cfg does:\n"
+                                                  + string.Join("\n", unexplained));
+        }
+
         // A file that holds every standard of the last release, once migrated, holds the standards now. A key that is gone from the
         // build is gone from the file, and a standard that changed is carried by a step; one nothing explains fails here.
         [TestMethod]

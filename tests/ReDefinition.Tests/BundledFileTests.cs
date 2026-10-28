@@ -37,6 +37,45 @@ namespace ReDefinition.Tests
             File.WriteAllText(path, text);
         }
 
+        // A kept value of a setting that is gone leaves with the step that removes it. The file is kept as it was, under the release
+        // it came from, and the player's notice names the change. The file written afterwards lists the step as done.
+        [TestMethod]
+        public void AKeptValueOfARemovedSettingLeavesWithItsStep()
+        {
+            string notice = Path.Combine(Path.GetDirectoryName(path), "migration-notice.txt");
+            Func<string> before = BundledFile.NoticePath;
+            BundledFile.NoticePath = () => notice;
+            try
+            {
+                FileHolds("REDEFINITION_BUNDLED\n{\n\tenabled = True\n\tVALUES\n\t{\n\t\ttufx.old = 1\n\t\ttufx.keep = 2\n\t}\n}\n");
+                BundledLedger ledger = new BundledLedger();
+                BundledState state = new BundledState();
+                var steps = new ReDefinition.Migration.SettingsStep[]
+                {
+                    new ReDefinition.Migration.RemovedSetting("remove-old", "tufx.old", "TUFX's old switch is gone."),
+                };
+                BundledFile.Read(path, ledger, state, host, steps);
+
+                Assert.AreEqual(0, host.Warnings.Count, string.Join("\n", host.Warnings));
+                Assert.IsFalse(ledger.StoredCopy().Exists(pair => pair.Key == "tufx.old"));
+                Assert.AreEqual("2", ledger.StoredCopy().Find(pair => pair.Key == "tufx.keep").Value);
+                Assert.IsTrue(File.Exists(path + ".bak-0.1.3"), "the file as it was is kept");
+                Assert.AreEqual("remove-old", state.Stamp["migrations"]);
+                ReDefinition.Migration.MigrationNotice.Pending pending = ReDefinition.Migration.MigrationNotice.Read(notice);
+                Assert.AreEqual("tufx.old", pending.Changes[0].Key);
+                BundledFile.Write(path, ledger, state, host);
+                BundledLedger again = new BundledLedger();
+                BundledState againState = new BundledState();
+                BundledFile.Read(path, again, againState, host, steps);
+                Assert.AreEqual("remove-old", againState.Stamp["migrations"]);
+                Assert.AreEqual(1, ReDefinition.Migration.MigrationNotice.Read(notice).Changes.Count, "the second read adds no change");
+            }
+            finally
+            {
+                BundledFile.NoticePath = before;
+            }
+        }
+
         // Everything the file keeps -- kept values, the profile, the mods asked, the buttons kept, the backups per
         // save and their restore marks -- reads back as written, without warnings and not dirty.
         [TestMethod]

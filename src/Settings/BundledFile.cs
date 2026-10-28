@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using ReDefinition.Migration;
 
 namespace ReDefinition.Settings
 {
@@ -26,6 +27,17 @@ namespace ReDefinition.Settings
         // since, never had this profile's values -- it is installed or updated
         // after the fact, and gets them without the player pressing Apply.
         public readonly Dictionary<string, string> ProfileApplied = new Dictionary<string, string>();
+
+        // The release that last wrote the file and the migration steps it has been through (SettingsMigration), as Write puts them;
+        // those of a fresh file until Read finds another.
+        public readonly Dictionary<string, string> Stamp = FreshStamp();
+
+        private static Dictionary<string, string> FreshStamp()
+        {
+            var stamp = new Dictionary<string, string>();
+            SettingsMigration.Fresh(stamp, Migrations.Bundled, SettingsMigration.Current);
+            return stamp;
+        }
     }
 
     // What the store needs of the game (docs/development/architecture.md):
@@ -83,6 +95,13 @@ namespace ReDefinition.Settings
         // stays there for a look, and the main-menu notice asks again.
         internal static void Read(string path, BundledLedger ledger, BundledState state, IStoreHost host)
         {
+            Read(path, ledger, state, host, Migrations.Bundled);
+        }
+
+        // The same with the migration steps given: those a file from an earlier release has not been through run on its kept values.
+        internal static void Read(string path, BundledLedger ledger, BundledState state, IStoreHost host,
+                                  IEnumerable<SettingsStep> steps)
+        {
             if (!File.Exists(path)) return;
 
             ConfigNode node = null;
@@ -131,10 +150,11 @@ namespace ReDefinition.Settings
 
                 // With the bundling off no value is kept to hand over.
                 ConfigNode values = state.Enabled ? node.GetNode(ValuesName) : null;
+                var keptValues = new Dictionary<string, string>();
                 if (values != null)
-                {
-                    foreach (ConfigNode.Value value in values.values) ledger.Keep(value.name, value.value);
-                }
+                    foreach (ConfigNode.Value value in values.values) keptValues[value.name] = value.value;
+                MigrateKept(path, node, keptValues, state, steps);
+                foreach (KeyValuePair<string, string> pair in keptValues) ledger.Keep(pair.Key, pair.Value);
 
                 // Kept whatever the switch says: it is the way back.
                 ConfigNode before = node.GetNode(BackupName);
@@ -155,6 +175,32 @@ namespace ReDefinition.Settings
             ledger.Dirty = false;
         }
 
+        // Where the notice about what a migration changed is kept: next to the settings, and elsewhere in the tests.
+        internal static Func<string> NoticePath = () => Core.PluginData.Path("migration-notice.txt");
+
+        // The steps a file from an earlier release has not been through, run on its kept values. What they changed is kept for the
+        // main menu's notice, and the file as it was is kept beside it. The release and the steps done go into the state.
+        private static void MigrateKept(string path, ConfigNode node, Dictionary<string, string> kept, BundledState state,
+                                        IEnumerable<SettingsStep> steps)
+        {
+            const string versionKey = SettingsMigration.VersionKey, appliedKey = SettingsMigration.AppliedKey;
+            string version = node.GetValue(versionKey);
+            string done = node.GetValue(appliedKey);
+            if (version != null) kept[versionKey] = version;
+            if (done != null) kept[appliedKey] = done;
+            string from = SettingsMigration.From(kept);
+            List<SettingsChange> changes = SettingsMigration.Run(kept, steps, SettingsMigration.Current);
+            if (changes.Count > 0)
+            {
+                SettingsMigration.Backup(path, from);
+                MigrationNotice.Append(NoticePath(), from, changes);
+            }
+            state.Stamp[versionKey] = kept[versionKey];
+            state.Stamp[appliedKey] = kept[appliedKey];
+            kept.Remove(versionKey);
+            kept.Remove(appliedKey);
+        }
+
         // The ledger and the state written whole, the folder made where it is missing; false, with a warning,
         // where that failed.
         internal static bool Write(string path, BundledLedger ledger, BundledState state, IStoreHost host)
@@ -166,6 +212,7 @@ namespace ReDefinition.Settings
                 node.AddValue("asked", string.Join(",", state.Asked.ToArray()));
                 node.AddValue("profile", state.ProfileName);
                 node.AddValue("buttonsKept", string.Join(",", state.ButtonKept.ToArray()));
+                foreach (KeyValuePair<string, string> pair in state.Stamp) node.AddValue(pair.Key, pair.Value);
                 ConfigNode applied = node.AddNode(AppliedName);
                 foreach (KeyValuePair<string, string> pair in state.ProfileApplied)
                     applied.AddValue(pair.Key, pair.Value);

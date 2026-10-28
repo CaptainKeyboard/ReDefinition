@@ -20,6 +20,8 @@ player's file goes through the steps it has not been through, once, when the gam
   under the release it came from (`settings.cfg.bak-<release>`) and notes what changed.
 - A file from a newer release than the running one is put back as it was before that release changed it, and the
   newer file stays as `settings.cfg.bak-newer`.
+- `bundled.cfg`, which keeps the values of other mods' settings for the player, goes through its own steps in the same way
+  (`BundledFile.Read`). Their changes join the same notice.
 - `tools/Surface` reads the surface from a build and its files. `SurfaceTests` holds the written surface to the build
   and holds the steps to the last release's surface: a standard that changed or a setting that went must have a step.
 - A release is only ever compared with the one before it. A setting renamed twice between two releases needs one step.
@@ -28,9 +30,13 @@ player's file goes through the steps it has not been through, once, when the gam
 
 1. Change it in the code or in a registration.
 2. Add the step to `Unreleased` in `Migrations.cs` that says what a player's file does: a changed standard follows
-   the new one where the player kept the old one, a removed setting leaves the file.
+   the new one where the player kept the old one, a removed setting leaves the file. A setting of a bundled mod that
+   goes from its registration needs a `RemovedSetting` under `UnreleasedBundled` with its key `<mod>.<setting>`, which
+   takes its kept value out of `bundled.cfg`.
 3. Write the surface anew: `REDEFINITION_UPDATE_SURFACE=1 dotnet test --filter TheWrittenSurface`.
-4. At the release, move the steps into `Released` and write `surface.shipped.txt` from the release's build.
+4. At the release, `tools/promote_release.ps1` moves the steps into `Released` and writes `surface.shipped.txt` from
+   `surface.txt` under the release's version. The release package refuses a version that does not fit what changed
+   (`tools/checks/check_release_version.ps1`).
 
 ## Every commit says what it changed
 

@@ -39,7 +39,7 @@ namespace ReDefinition.Tests
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",
             ["Scenery"] = "Core Raytracing Upscaler",
-            ["Settings"] = "Core Proxy Raytracing Vendor",
+            ["Settings"] = "Core Migration Proxy Raytracing Vendor",
             ["Ui"] = "Core Scaling Upscaler Window",
             ["Upscaler"] = "Api Core Probe Proxy Raytracing Settings",
             ["Vendor"] = "Core Modules Proxy Ui Window",
