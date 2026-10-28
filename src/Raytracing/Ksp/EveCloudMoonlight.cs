@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using UnityEngine;
 
 namespace ReDefinition.Raytracing
@@ -21,10 +22,9 @@ namespace ReDefinition.Raytracing
     // run, the one light turns from the sun to the moon for all clouds together, by the
     // layers' heights (CloudLightBlend). Light2D carries the 2D layers.
     //
-    // The moon's light is the raytracing's moons' together (RtReflectors.Combined), in units
-    // of the sunlight, at CloudShare of it, times the brightness of the sun's colour
-    // Scatterer sets on the material. Without Scatterer, EVE's own
-    // clouds take the sun's direction alone, without a colour to dim: nothing here then.
+    // The moon's light is that of the moons and planets together as they light the ground (RtReflectors.CloudLight).
+    // It is in units of the sunlight, at the player's Night clouds percentage, times the brightness of the sun's
+    // colour Scatterer sets on the material. Without Scatterer nothing is done here.
     internal static class EveCloudMoonlight
     {
         // The Harmony id; the 2D cloud shader's keywords for its secondary lights; the cloud shaders' properties:
@@ -57,22 +57,37 @@ namespace ReDefinition.Raytracing
         private static string state;
         private static double lastReach = 1.0;
 
-        // The share of the raytracing's moonlight the clouds take. EVE's clouds answer their
-        // light far more brightly than the raytraced ground does. From 14 km over the pad,
-        // the clouds came out 17 times as bright as the land under them in the sun and 49
-        // times in the full Mun's light. That is the light probe of 2026-10-23: the brightest clouds
-        // against the land's median, linear. The player found them too bright at night.
-        // At this share they stand to the land as in the sun.
-        internal const float CloudShare = 0.35f;
-
         // For the light probe: the clouds in the sun's light alone, as without this, to compare.
         internal static bool HeldOff;
+
+        // The first raymarched layer's shader and keywords as Scatterer set them, for the probe's log.
+        internal static string RaymarchKeywords()
+        {
+            Material first = raymarched.Count > 0 ? raymarched[0] : null;
+            return first != null && first.shader != null ? first.shader.name + ": " + string.Join(" ", first.shaderKeywords) : "none";
+        }
 
         // The light last set, for the probe's log.
         internal static string Describe()
         {
             return (state ?? "not set") + ", the sun's share "
                    + lastReach.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        // What Apply read last: the brightness of the sun's colour on the first raymarched layer as Scatterer set it, before this class
+        // put the moon's light there, and the moon's colour in the same units.
+        private static float lastSunBrightness = -1f, lastMoonBrightness = -1f;
+
+        // For the probes: the brightness both kinds of layers take the moon's light times. The raymarched layers' is Scatterer's sun
+        // colour as the frame began, the 2D layers' is their own cloudSunColor now. Where the two are the same, the two kinds
+        // get the same light from one moon.
+        internal static string LayerSunBrightness()
+        {
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            string flatText = flat.Count > 0 && flat[0] != null
+                ? RtReflectors.Luminance(flat[0].GetColor(CloudSunColourId)).ToString("0.0000", culture) : "none";
+            return "the sun's brightness for the raymarched layer " + lastSunBrightness.ToString("0.0000", culture) + " (the moon's light " +
+                   lastMoonBrightness.ToString("0.00000", culture) + "), for the 2D layer " + flatText;
         }
 
         // From the addon's Awake, before any scene has clouds.
@@ -164,14 +179,18 @@ namespace ReDefinition.Raytracing
             }
 
             CelestialBody moon;
-            Vector3d eye;
+            Vector3d eye = SceneEye();
             Vector3 towards;
             Color moonColour;
-            // The raytracing's moonlight, the moons' together as they light the ground; none
-            // while it is off. On the clouds at CloudShare of it.
-            bool lit = RtReflectors.Combined(main, out moon, out eye, out towards, out moonColour)
+            // The moons' light together as it lights the ground, at the player's percentage for the clouds, with the
+            // raytracing or without. The clouds take all of it, as the ground does: they stand to the ground as in the sun
+            // (measured: the clouds against the ground behind them, by day 1.7 to 3.7, at night with a third of it 1.0).
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            float percent = addon != null ? addon.Live.NightClouds : OwnSettings.DefaultNightClouds;
+            bool lit = RtReflectors.CloudLight(main, eye, percent, out moon, out towards, out moonColour)
                        && RtReflectors.Luminance(moonColour) > 0f && !HeldOff;
-            moonColour *= CloudShare;
+            // The layers' maps for the light per pixel, where the rays do not keep them (raytracing off).
+            if (lit && raymarched.Count > 0) RtEveClouds.Keep(main);
             Light2D(lit, main, moon, moonColour);
             lastReach = 1.0;
             if (!lit || raymarched.Count == 0)
@@ -201,6 +220,8 @@ namespace ReDefinition.Raytracing
             double top = CloudLightBlend.Dip(main.Radius, highest);
             float sunBrightness = RtReflectors.Luminance(sunColour);
             Color moonLight = moonColour * sunBrightness;
+            lastSunBrightness = sunBrightness;
+            lastMoonBrightness = RtReflectors.Luminance(moonLight);
 
             if (EveCloudRelight.Ready)
             {
@@ -246,6 +267,11 @@ namespace ReDefinition.Raytracing
             // From the planet's centre, as Scatterer places the sun for the clouds' planet
             // shadow: the brightest moon's place, the moons' direction from the eye without one.
             Vector3 fromCentre = moon != null ? (Vector3)(moon.position - main.position).normalized : towards;
+            if (ProbeMoonDirection.sqrMagnitude > 0.5f)
+            {
+                fromCentre = ProbeMoonDirection;
+                towards = ProbeMoonDirection;
+            }
             double moonElevation = Math.Asin(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(up, (Vector3d)towards))));
             float share = ProbeShare >= 0f ? ProbeShare : (float)((1.0 - handoff) * CloudLightBlend.Dusk(elevation));
             bool perPixel = (share > 0f || EveCloudRelight.ProbeAlways) && moonElevation > -farthest;
@@ -264,6 +290,17 @@ namespace ReDefinition.Raytracing
             }
             Report(handoff >= 1.0 ? 2 : 4, moon);
         }
+
+        // The scene camera's place, world: the flight camera, the space centre's camera otherwise.
+        private static Vector3d SceneEye()
+        {
+            Camera camera = HighLogic.LoadedSceneIsFlight && FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : Camera.main;
+            return camera != null ? (Vector3d)camera.transform.position : Vector3d.zero;
+        }
+
+        // For the probes: the moon's direction from the planet's centre, unit length, for the light per pixel, instead of the moon's
+        // own; zero for the moon's. It lets the probe turn the moon round over one cloud field.
+        internal static Vector3 ProbeMoonDirection = Vector3.zero;
 
         // For the light probe: the moon's share of the clouds' one light with the light per
         // pixel, forced; below 0 as the sun's place gives it.
@@ -291,6 +328,8 @@ namespace ReDefinition.Raytracing
                 object layer = list[i];
                 if (layer == null) continue;
                 Material material = readRaymarched(layer) as Material;
+                // A layer that shines by itself, an aurora, keeps its own light, flat part and volume (CloudLayerKinds).
+                if (CloudLayerKinds.IsEmissive(NameOf(layer), material)) continue;
                 if (material != null) raymarched.Add(material);
                 material = readProbe(layer) as Material;
                 if (material != null) raymarched.Add(material);
@@ -298,6 +337,57 @@ namespace ReDefinition.Raytracing
                 if (material != null) flat.Add(material);
             }
             return raymarched.Count > 0 || flat.Count > 0;
+        }
+
+        // The EVE cloud object's name of a Scatterer cloud layer, or null where it cannot be read: then every layer counts as
+        // weather, as before. Looked up once per type.
+        private static FieldInfo cloudObjectField;
+        private static PropertyInfo cloudObjectName;
+        private static bool cloudObjectLooked, cloudObjectNameLooked;
+
+        private static string NameOf(object layer)
+        {
+            try
+            {
+                if (!cloudObjectLooked)
+                {
+                    cloudObjectLooked = true;
+                    cloudObjectField = layer.GetType().GetField("CloudObject", TypeLookup.Any);
+                }
+                object cloudObject = cloudObjectField != null ? cloudObjectField.GetValue(layer) : null;
+                if (cloudObject == null) return null;
+                if (!cloudObjectNameLooked)
+                {
+                    cloudObjectNameLooked = true;
+                    cloudObjectName = cloudObject.GetType().GetProperty("Name", TypeLookup.Any);
+                }
+                return cloudObjectName != null ? cloudObjectName.GetValue(cloudObject, null) as string : null;
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        // For the probes: the layers of the body named, which are weather (lit by the sun and the moon) and which shine by themselves.
+        internal static string DescribeLayers(string body)
+        {
+            if (readInstance == null) return "no Scatterer";
+            object instance = readInstance(null);
+            object handler = instance != null ? readHandler(instance) : null;
+            IDictionary layers = handler != null ? readLayers(handler) as IDictionary : null;
+            IList list = layers != null && layers.Contains(body) ? layers[body] as IList : null;
+            if (list == null) return "no layers of " + body;
+            var weather = new System.Text.StringBuilder();
+            var emissive = new System.Text.StringBuilder();
+            for (int i = 0; i < list.Count; i++)
+            {
+                object layer = list[i];
+                if (layer == null) continue;
+                string name = NameOf(layer) ?? "?";
+                (CloudLayerKinds.IsEmissive(name, readRaymarched(layer) as Material) ? emissive : weather).Append(name).Append(' ');
+            }
+            return list.Count + " layers; weather: " + weather + "; shining by themselves: " + emissive;
         }
 
         // The moon as the 2D layers' second light, or off again where this class turned it on.

@@ -59,6 +59,8 @@ namespace ReDefinition.Raytracing
             // The phase angle in radians, and whether its light reaches the floor (for the diagnostics).
             internal float Phase;
             internal bool Counted;
+            // The part of the body in the sun and the part the camera sees of it, for the diagnostics.
+            internal float SunSeen, EyeSeen;
         }
 
         // The frame's candidates, brightest first after sorting, and the bodies of the camera's planet's system.
@@ -158,68 +160,7 @@ namespace ReDefinition.Raytracing
             lastCount = 0;
             lastFloor = floor;
             // Also at 0 %: a reflected ray still sees the moons' discs (surfaces).
-            if (main == null) return 0;
-            CelestialBody star = RtKspMods.StarBody();
-            if (star == null) return 0;
-            // The star's colour as the bodies get it: the scene's light is tinted by the
-            // atmosphere (Scatterer), and darkened at night (measured, KSP.log: an orange
-            // moonlight, and none with the Mun high).
-            Color starColour = RtKspMods.StarColour().linear;
-            float tintLuminance = Luminance(starColour);
-            starColour = tintLuminance > 0f ? starColour / tintLuminance : Color.white;
-            Color tint = starColour * NightTint;
-
-            // The discs as the eye sees them at night, brighter than their albedo makes them
-            // (NightAdaptation): what water mirrors of them.
-            float discFactor = NightAdaptation.DiscFactor(eye, main, star) * Mathf.Max(mirrored, 0f) / 100f;
-
-            candidates.Clear();
-            Vector3d sun = star.position;
-            double sunToEye = (sun - eye).magnitude;
-            if (!SystemOf(main, star, system)) return 0;
-            foreach (CelestialBody body in system)
-            {
-                if (body == null || body == star || body.scaledBody == null) continue;
-                Vector3d toBody = body.position - eye;
-                double distance = toBody.magnitude;
-                if (distance <= body.Radius || body == main) continue;
-                Vector3d bodyToSun = sun - body.position;
-                double angle = Vector3d.Angle(bodyToSun, -toBody) * Mathf.Deg2Rad;
-                Color colour = ColourOf(body);
-                double share = RtReflectorLight.Share(Luminance(colour), body.Radius, distance, sunToEye,
-                                                      bodyToSun.magnitude);
-                if (share <= 0.0) continue;
-                // The part of the body that is lit and in the sun, and the part the camera sees of it, weaken its light.
-                float sunVisible = SunVisible(body, star, system);
-                double left = RtReflectorLight.Lit(angle, sunVisible) * SeenFrom(body, eye, system);
-                double brightness = RtReflectorLight.Brightness(share, percent) * left;
-                float albedo = Mathf.Max(Luminance(colour), 1e-4f);
-                float order = (float)(RtReflectorLight.Brightness(share, 100.0) * left);
-                // Too faint to add to the scene's own least light: no light, the disc stays.
-                Color light = order > floor ? tint * (colour / albedo) * (float)brightness : Color.black;
-                candidates.Add(new Candidate
-                {
-                    Towards = ((Vector3)(toBody / distance)),
-                    Radius = Mathf.Asin(Mathf.Clamp01((float)(body.Radius / distance))),
-                    Colour = light,
-                    // To its surface.
-                    Reach = (float)(distance - body.Radius),
-                    Luminance = Luminance(light),
-                    Surface = colour * starColour * (discFactor * sunVisible),
-                    Order = order,
-                    Body = body,
-                    Phase = (float)angle,
-                    Counted = order > floor,
-                });
-            }
-            // Brightest first; an insertion sort, stable, for the few candidates there are.
-            for (int i = 1; i < candidates.Count; i++)
-            {
-                Candidate inserted = candidates[i];
-                int at = i - 1;
-                for (; at >= 0 && inserted.Order.CompareTo(candidates[at].Order) > 0; at--) candidates[at + 1] = candidates[at];
-                candidates[at + 1] = inserted;
-            }
+            if (!Gather(candidates, eye, main, percent, mirrored, floor)) return 0;
             int count = Mathf.Min(2, candidates.Count);
             for (int i = 0; i < count; i++)
             {
@@ -238,24 +179,80 @@ namespace ReDefinition.Raytracing
                 lastLuminance[i] = c.Luminance;
             }
             lastCount = count;
-            if (count > 0)
-            {
-                brightest = candidates[0];
-                brightestFrame = Time.frameCount;
-                brightestMain = main;
-                brightestEye = eye;
-                // Every body's light together, for EVE's clouds' one light.
-                Vector3 weighted = Vector3.zero;
-                Color sum = Color.black;
-                foreach (Candidate c in candidates)
-                {
-                    weighted += c.Towards * c.Luminance;
-                    sum += c.Colour;
-                }
-                combinedTowards = weighted.sqrMagnitude > 0f ? weighted.normalized : brightest.Towards;
-                combinedColour = sum;
-            }
             return count;
+        }
+
+        // The bodies of the camera's planet's system as lights for a camera at `eye` over `main`, brightest first, into `into`.
+        // Each has its light at the player's percentage `percent` and its disc's colour at `mirrored`. A body that is no more
+        // than `floor` at 100 % gives no light. False where there is no star, no planet or no body.
+        private static bool Gather(List<Candidate> into, Vector3d eye, CelestialBody main, float percent, float mirrored, float floor)
+        {
+            into.Clear();
+            if (main == null) return false;
+            CelestialBody star = RtKspMods.StarBody();
+            if (star == null) return false;
+            // The star's colour as the bodies get it: the scene's light is tinted by the
+            // atmosphere (Scatterer), and darkened at night (measured, KSP.log: an orange
+            // moonlight, and none with the Mun high).
+            Color starColour = RtKspMods.StarColour().linear;
+            float tintLuminance = Luminance(starColour);
+            starColour = tintLuminance > 0f ? starColour / tintLuminance : Color.white;
+            Color tint = starColour * NightTint;
+
+            // The discs as the eye sees them at night, brighter than their albedo makes them
+            // (NightAdaptation): what water mirrors of them.
+            float discFactor = NightAdaptation.DiscFactor(eye, main, star) * Mathf.Max(mirrored, 0f) / 100f;
+
+            Vector3d sun = star.position;
+            double sunToEye = (sun - eye).magnitude;
+            if (!SystemOf(main, star, system)) return false;
+            foreach (CelestialBody body in system)
+            {
+                if (body == null || body == star || body.scaledBody == null) continue;
+                Vector3d toBody = body.position - eye;
+                double distance = toBody.magnitude;
+                if (distance <= body.Radius || body == main) continue;
+                Vector3d bodyToSun = sun - body.position;
+                double angle = Vector3d.Angle(bodyToSun, -toBody) * Mathf.Deg2Rad;
+                Color colour = ColourOf(body);
+                double share = RtReflectorLight.Share(Luminance(colour), body.Radius, distance, sunToEye,
+                                                      bodyToSun.magnitude);
+                if (share <= 0.0) continue;
+                // The part of the body that is lit and in the sun, and the part the camera sees of it, weaken its light.
+                float sunVisible = SunVisible(body, star, system);
+                float eyeSeen = SeenFrom(body, eye, system);
+                double left = RtReflectorLight.Lit(angle, sunVisible) * eyeSeen;
+                double brightness = RtReflectorLight.Brightness(share, percent) * left;
+                float albedo = Mathf.Max(Luminance(colour), 1e-4f);
+                float order = (float)(RtReflectorLight.Brightness(share, 100.0) * left);
+                // Too faint to add to the scene's own least light: no light, the disc stays.
+                Color light = order > floor ? tint * (colour / albedo) * (float)brightness : Color.black;
+                into.Add(new Candidate
+                {
+                    Towards = ((Vector3)(toBody / distance)),
+                    Radius = Mathf.Asin(Mathf.Clamp01((float)(body.Radius / distance))),
+                    Colour = light,
+                    // To its surface.
+                    Reach = (float)(distance - body.Radius),
+                    Luminance = Luminance(light),
+                    Surface = colour * starColour * (discFactor * sunVisible),
+                    Order = order,
+                    Body = body,
+                    Phase = (float)angle,
+                    Counted = order > floor,
+                    SunSeen = sunVisible,
+                    EyeSeen = eyeSeen,
+                });
+            }
+            // Brightest first; an insertion sort, stable, for the few candidates there are.
+            for (int i = 1; i < into.Count; i++)
+            {
+                Candidate inserted = into[i];
+                int at = i - 1;
+                for (; at >= 0 && inserted.Order.CompareTo(into[at].Order) > 0; at--) into[at + 1] = into[at];
+                into[at + 1] = inserted;
+            }
+            return into.Count > 0;
         }
 
         // The last Fill's floor, and its candidates described one by one for the probe: the body, its phase angle in degrees,
@@ -274,32 +271,61 @@ namespace ReDefinition.Raytracing
         // What Fill handed over last, for the diagnostics log (RtKsp.Report).
         private static int lastCount;
         private static readonly float[] lastLuminance = new float[2];
-        // The brightest light Fill found last, the frame and the main body it was for: the
-        // light EVE's clouds take at night (EveCloudMoonlight).
-        private static Candidate brightest;
-        private static int brightestFrame = -100;
-        private static CelestialBody brightestMain;
-        private static Vector3d brightestEye;
-        private static Vector3 combinedTowards;
-        private static Color combinedColour;
 
-        // The bodies' light over `main` as the raytracing takes it this frame or the last
-        // few, as one. It gives the brightest body, the camera (world), the direction from it the
-        // bodies' light comes from, each weighted by its brightness, and their colours
-        // together, in units of the sunlight, linear, at the player's percentage. So a
-        // moon as small as Minmus counts for as little as it lights, and the light does not
-        // jump from one body to another as their order changes. It is false where the raytracing
-        // has handed over none since, as while it is off.
-        internal static bool Combined(CelestialBody main, out CelestialBody body, out Vector3d eye, out Vector3 towards,
-                                      out Color colour)
+        // The clouds' moonlight of the frame, kept for the frame, the body and the percentage it was made for, and the candidates
+        // it was made from: the brightest body and all of them together.
+        private static readonly List<Candidate> cloudCandidates = new List<Candidate>();
+        private static int cloudFrame = -100;
+        private static CelestialBody cloudMain, cloudBody;
+        private static float cloudPercent;
+        private static bool cloudFound;
+        private static Vector3 cloudTowards;
+        private static Color cloudColour;
+
+        // The bodies' light for the clouds of the last frame, one by one, for the probes. It names the body and its phase angle,
+        // how much of it the sun lights and the camera sees, its light at 100 % and the light at the percentage asked.
+        internal static string DescribeCloudLight()
         {
-            bool recent = Time.frameCount - brightestFrame <= 3 && main != null && main == brightestMain
-                          && brightest.Body != null;
-            body = recent ? brightest.Body : null;
-            eye = recent ? brightestEye : Vector3d.zero;
-            towards = recent ? combinedTowards : Vector3.zero;
-            colour = recent ? combinedColour : Color.black;
-            return recent;
+            var text = new System.Text.StringBuilder();
+            foreach (Candidate c in cloudCandidates)
+                text.Append(c.Body.bodyName).Append(": phase ").Append((c.Phase * Mathf.Rad2Deg).ToString("0")).Append(" deg, in the sun ")
+                    .Append(c.SunSeen.ToString("0.00")).Append(", seen ").Append(c.EyeSeen.ToString("0.00")).Append(", at 100 % ")
+                    .Append(c.Order.ToString("0.0000")).Append(", asked ").Append(c.Luminance.ToString("0.00000")).Append("; ");
+            return text.ToString();
+        }
+
+        // The light the clouds of `main` take at night from the planets and moons the sun shines on, at `percent`. It needs no
+        // raytracing. It gives the brightest body, the direction the light comes from (each body weighted by its brightness) and
+        // the colours together, in units of the sunlight, linear. It is false where no body lights `main`. The bodies, phases
+        // and shadows are those of the raytraced light on the ground (Fill), so the clouds and the ground take one moon.
+        internal static bool CloudLight(CelestialBody main, Vector3d eye, float percent, out CelestialBody body, out Vector3 towards,
+                                        out Color colour)
+        {
+            if (cloudFrame != Time.frameCount || cloudMain != main || cloudPercent != percent)
+            {
+                cloudFrame = Time.frameCount;
+                cloudMain = main;
+                cloudPercent = percent;
+                cloudFound = Gather(cloudCandidates, eye, main, percent, 0f, 0f);
+                cloudBody = null;
+                cloudTowards = Vector3.zero;
+                cloudColour = Color.black;
+                if (cloudFound)
+                {
+                    cloudBody = cloudCandidates[0].Body;
+                    Vector3 weighted = Vector3.zero;
+                    for (int i = 0; i < cloudCandidates.Count; i++)
+                    {
+                        weighted += cloudCandidates[i].Towards * cloudCandidates[i].Luminance;
+                        cloudColour += cloudCandidates[i].Colour;
+                    }
+                    cloudTowards = weighted.sqrMagnitude > 0f ? weighted.normalized : cloudCandidates[0].Towards;
+                }
+            }
+            body = cloudBody;
+            towards = cloudTowards;
+            colour = cloudColour;
+            return cloudFound;
         }
 
         // The lights Fill handed over last, by their luminance, for the diagnostics log (RtKsp.Report).

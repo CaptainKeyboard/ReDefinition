@@ -32,16 +32,20 @@ namespace ReDefinition.Raytracing
         private const string VolumeType = "Atmosphere.CloudsRaymarchedVolume";
         private const CameraEvent Event = CameraEvent.AfterForwardOpaque;
 
-        // The per-pixel light's strength against the light the raymarching gives the clouds in
-        // the moon's light, its direct light's and its sky's. It is the probe's calibration
-        // (LightProbe, CloudCalibration) at night: the raymarching's moonlight fitted by the
-        // two on the same clouds, in red, green and blue. Measured 2026-10-23 with the Mun at 41 degrees
-        // over the pad: the direct light alone matches it within 3 per cent in each colour at
-        // 2.284. The sky's light took a weight below 0 in the fit, so it is left out (0).
-        internal const float DefaultDirectGain = 2.284f;
-        internal const float DefaultSkyGain = 0f;
+        // The per-pixel light's strength against the light the raymarching gives the clouds in the moon's light. The shader
+        // repeats the raymarching's sum, which a gain of 1 would match. The probe's matrix (LightProbe, CloudMatrix) read the
+        // gain that equals the two at nine views, with the moon 25, 45 and 65 degrees up. It came out from 0.8 to 4.3, the
+        // thin clouds needing most, with a median of 2.1: the raymarching erodes the density with a noise the maps lack.
+        // The gain stands at that median. The sky's light is exact at 1 and negligible beside the direct.
+        internal const float DefaultDirectGain = 2.1f;
+        internal const float DefaultSkyGain = 1f;
         internal static float DirectGain = DefaultDirectGain;
         internal static float SkyGain = DefaultSkyGain;
+
+        // The scale of the optical depth towards the moon, which the layer's maps give without the noise the raymarching erodes the
+        // density with. The probe measures it so that the direct gain comes out at 1.
+        internal const float DefaultTauScale = 1f;
+        internal static float TauScale = DefaultTauScale;
 
         // For the light probe: the clouds without this light.
         internal static bool HeldOff;
@@ -79,7 +83,16 @@ namespace ReDefinition.Raytracing
         private static readonly int AtlasId = Shader.PropertyToID("_ReDefinitionCloudAtlas");
         private static readonly int TransmittanceRectId = Shader.PropertyToID("_ReDefinitionCloudTransmittanceRect");
         private static readonly int AtlasSizesId = Shader.PropertyToID("_ReDefinitionCloudAtlasSizes");
-        private static readonly int MapId = Shader.PropertyToID("_ReDefinitionCloudMap");
+        private static readonly int CoverageId = Shader.PropertyToID("_ReDefinitionCloudCoverage");
+        private static readonly int TypeId = Shader.PropertyToID("_ReDefinitionCloudType");
+        private static readonly int CurveId = Shader.PropertyToID("_ReDefinitionCloudCurve");
+        private static readonly int UseMask1Id = Shader.PropertyToID("_ReDefinitionCloudUseMask1");
+        private static readonly int UseMask2Id = Shader.PropertyToID("_ReDefinitionCloudUseMask2");
+        private static readonly int Mask1Id = Shader.PropertyToID("_ReDefinitionCloudMask1");
+        private static readonly int Mask2Id = Shader.PropertyToID("_ReDefinitionCloudMask2");
+        private static readonly int TypeDensityId = Shader.PropertyToID("_ReDefinitionCloudTypeDensity");
+        private static readonly int TypeBrightnessId = Shader.PropertyToID("_ReDefinitionCloudTypeBrightness");
+        private static readonly int TypeCountId = Shader.PropertyToID("_ReDefinitionCloudTypes");
         private static readonly int MapRow0Id = Shader.PropertyToID("_ReDefinitionCloudMapRow0");
         private static readonly int MapRow1Id = Shader.PropertyToID("_ReDefinitionCloudMapRow1");
         private static readonly int MapRow2Id = Shader.PropertyToID("_ReDefinitionCloudMapRow2");
@@ -110,6 +123,16 @@ namespace ReDefinition.Raytracing
         private static readonly int IrradianceSourceId = Shader.PropertyToID("IrradianceAtlasScaleAndOffset");
         private static readonly int SkyWId = Shader.PropertyToID("SKY_W");
         private static readonly int SkyHId = Shader.PropertyToID("SKY_H");
+        private static readonly int TypePropertiesSourceId = Shader.PropertyToID("cloudTypeProperties0");
+        private static readonly int TypeBrightnessSourceId = Shader.PropertyToID("multipleScatteringBrightnessArray");
+        private static readonly int TypeCountSourceId = Shader.PropertyToID("numberOfCloudTypes");
+
+        // The cloud types' density and multiple scattering brightness as the shader takes them: at most twelve, as EVE's
+        // arrays hold; and the lists they are read into.
+        private const int MostTypes = 12;
+        private static readonly float[] typeDensity = new float[MostTypes], typeBrightness = new float[MostTypes];
+        private static readonly List<Vector4> typeProperties = new List<Vector4>();
+        private static readonly List<float> typeBrightnessList = new List<float>();
 
         // Compiled getters of EVE's members (InstallHook), read from Atmosphere.dll 3.2.2, decompiled
         // (its renderer's source on GitHub, LGhassen/EnvironmentalVisualEnhancements): the renderer's targetCamera.
@@ -351,16 +374,29 @@ namespace ReDefinition.Raytracing
             Camera camera = readCamera(renderer);
             if (camera == null || camera.stereoActiveEye != Camera.MonoOrStereoscopicEye.Mono) return;
             IList volumes = readVolumes(renderer);
-            if (volumes == null || volumes.Count == 0 || volumes[0] == null) return;
-            Material raymarched = readMaterial(volumes[0]);
+            if (volumes == null || volumes.Count == 0) return;
+            // The first volume that is weather: an aurora shines by itself and is not lit (CloudLayerKinds). It is not the layer
+            // the maps come from (RtEveClouds): with SPVE that is a thin cirrus first, and its material gives next to no light,
+            // measured 2026-10-28 (the moon added 0.0001 to the clouds against 0.0022 with this one).
+            Material raymarched = null;
+            for (int i = 0; i < volumes.Count && raymarched == null; i++)
+            {
+                if (volumes[i] == null) continue;
+                Material candidate = readMaterial(volumes[i]);
+                if (candidate != null && !CloudLayerKinds.IsEmissive(null, candidate)) raymarched = candidate;
+            }
+            if (raymarched == null) return;
             RtEveClouds clouds = RtEveClouds.Last;
-            RenderTexture map = clouds != null ? clouds.PackedMap : null;
+            Texture coverage = null, kind = null, curve = null;
+            Vector4 mask1 = Vector4.zero, mask2 = Vector4.zero;
+            Vector2 uses = Vector2.zero;
+            bool maps = clouds != null && clouds.Maps(out coverage, out kind, out curve, out mask1, out mask2, out uses);
             RenderTexture source = readColour(renderer, readFlip(renderer));
             RenderTexture distance = readDistance(renderer, readFlip(renderer));
-            if (raymarched == null || map == null || source == null || distance == null || !source.IsCreated())
+            if (raymarched == null || !maps || source == null || distance == null || !source.IsCreated())
             {
-                Miss(raymarched == null ? "no raymarching material" : map == null
-                         ? (clouds == null ? "no cloud layer in the rays" : "the rays' cloud map not filled since frame " + clouds.FilledFrame)
+                Miss(raymarched == null ? "no raymarching material" : !maps
+                         ? (clouds == null ? "no cloud layer in the rays" : "the layer's maps not there, the layer filled in frame " + clouds.FilledFrame)
                          : source == null || !source.IsCreated() ? "no reconstructed clouds" : "no distances");
                 return;
             }
@@ -375,7 +411,7 @@ namespace ReDefinition.Raytracing
             float inner = float.MaxValue, outer = 0f;
             for (int i = 0; i < volumes.Count; i++)
             {
-                if (volumes[i] == null) continue;
+                if (volumes[i] == null || CloudLayerKinds.IsEmissive(null, readMaterial(volumes[i]))) continue;
                 inner = Mathf.Min(inner, readInner(volumes[i]));
                 outer = Mathf.Max(outer, readOuter(volumes[i]));
             }
@@ -410,7 +446,7 @@ namespace ReDefinition.Raytracing
             Color cloudColour = raymarched.GetColor(CloudColourId);
             float skyScale = raymarched.GetFloat(SkylightId) * raymarched.GetFloat(ExposureId);
             Color light = moonLight * cloudColour * (DirectGain * strength);
-            Color sky = moonLight * cloudColour * (SkyGain * strength * skyScale);
+            Color sky = moonLight * moonLight * cloudColour * (SkyGain * strength * skyScale);
             LastMoonLight = moonLight;
             LastCloudColour = cloudColour;
             LastSkyScale = skyScale;
@@ -418,6 +454,14 @@ namespace ReDefinition.Raytracing
             Matrix4x4 fromCentre = clouds.MapFromCentre;
             Vector3 fades = clouds.MapFades;
             Vector2 dimensions = raymarched.GetVector(AtlasDimensionsId);
+            int types = Mathf.Clamp(Mathf.RoundToInt(raymarched.GetFloat(TypeCountSourceId)), 1, MostTypes);
+            raymarched.GetVectorArray(TypePropertiesSourceId, typeProperties);
+            raymarched.GetFloatArray(TypeBrightnessSourceId, typeBrightnessList);
+            for (int i = 0; i < MostTypes; i++)
+            {
+                typeDensity[i] = i < typeProperties.Count ? typeProperties[i].x : 0f;
+                typeBrightness[i] = i < typeBrightnessList.Count ? typeBrightnessList[i] : 1f;
+            }
 
             CommandBuffer command = state.Command;
             command.Clear();
@@ -440,11 +484,20 @@ namespace ReDefinition.Raytracing
             command.SetGlobalVector(TransmittanceRectId, raymarched.GetVector(TransmittanceSourceId));
             command.SetGlobalVector(AtlasSizesId, new Vector4(dimensions.x, dimensions.y, raymarched.GetFloat(TransmittanceWId),
                                                               raymarched.GetFloat(TransmittanceHId)));
-            command.SetGlobalTexture(MapId, map);
+            command.SetGlobalTexture(CoverageId, coverage);
+            command.SetGlobalTexture(TypeId, kind);
+            command.SetGlobalTexture(CurveId, curve);
+            command.SetGlobalFloat(UseMask1Id, uses.x);
+            command.SetGlobalFloat(UseMask2Id, uses.y);
+            command.SetGlobalVector(Mask1Id, mask1);
+            command.SetGlobalVector(Mask2Id, mask2);
+            command.SetGlobalFloatArray(TypeDensityId, typeDensity);
+            command.SetGlobalFloatArray(TypeBrightnessId, typeBrightness);
+            command.SetGlobalFloat(TypeCountId, types);
             command.SetGlobalVector(MapRow0Id, fromCentre.GetRow(0));
             command.SetGlobalVector(MapRow1Id, fromCentre.GetRow(1));
             command.SetGlobalVector(MapRow2Id, fromCentre.GetRow(2));
-            command.SetGlobalVector(MapFadesId, new Vector4(fades.x, fades.y, fades.z, 1f));
+            command.SetGlobalVector(MapFadesId, new Vector4(fades.x, fades.y, fades.z, TauScale));
             command.SetGlobalFloat(DebugId, DebugMode);
             command.Blit(source, state.Target, material);
             command.SetGlobalTexture(ColourBufferId, state.Target);

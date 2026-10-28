@@ -1,19 +1,20 @@
 // A moon's light on EVE's raymarched clouds, per pixel (src/Raytracing/Ksp/EveCloudRelight.cs).
-// EVE's reconstructed cloud buffer for the frame holds the clouds in the sun's light, as
-// Scatterer's raymarching shader lights them. This shader copies it with the moon's light added
-// at each pixel's cloud, a second sun with the moon's values. The copy then stands in for EVE's
-// buffer for everything that reads it this frame (colorBuffer, scattererReconstructedCloud).
-// EVE's own buffer, its history, stays as EVE wrote it. Built into redefinition.shaders by
-// BundleBuilder.
+// EVE's reconstructed cloud buffer holds the clouds in the sun's light. This shader copies it with the moon's light
+// added at each pixel's cloud, a second sun with the moon's values. The copy then stands in for EVE's buffer for
+// everything that reads it this frame. EVE's history stays as EVE wrote it.
 //
-// Read off Scatterer-EVE/RaymarchCloud (Scatterer 0.908, scatterershaders-directx,
-// disassembled), which lights the clouds once per pixel at the weighted mean point of the
-// cloud along the ray. That light is the light the sun gives there in through the atmosphere
-// (Transmittance), the planet's shadow with its soft edge (Lit), and EVE's two phase
-// functions, direct and multiple (Phase). The sky's light the sun gives the cloud comes on
-// top (SkyLight). The same is done here with the moon's direction. The two get a gain each,
-// from the light probe's calibration against the raymarching's own moonlight, which holds
-// what is not repeated here.
+// The model is read off Scatterer-EVE/RaymarchCloud (Scatterer 0.908, the variant with LIGHT_VOLUME_ON, disassembled).
+// It steps along the ray. Each step receives L = Pd exp(-t) + B Pm s / (1 + 0.35 t + 0.065 t^2). Pd and Pm are EVE's
+// two phase functions at the angle between light and ray, and t is the optical depth towards the light. B is the
+// cloud type's multiple scattering brightness, and s is 0.05 + 0.95 smoothstep of the effective coverage. The steps
+// count by their share of the ray's transmittance. Their sum, times 5, the colours of light and clouds, the light's way
+// through the atmosphere (Transmittance) and the planet's shadow (Lit) is the direct light. The sky's light is the sum
+// of the steps' sqrt(1 - coverage) times the colours, the skylight multiplier, the exposure and the irradiance table.
+//
+// A short march of our own stands for the steps, over the shell where EVE's mean distance puts the cloud. The
+// maps and curves give each step's coverage, type, density and brightness. The optical depth is the extinction summed
+// along the moon's way out of the layer, as EVE's light volume holds it for the sun only. EVE's opacity scales the
+// mean of the steps' light. A scale on the optical depth (TauScale, measured by the probe) stands for the raymarching's noise.
 Shader "Hidden/ReDefinition/CloudMoonlight"
 {
     Properties
@@ -30,7 +31,7 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment frag
-            #pragma target 3.0
+            #pragma target 4.0
             #include "UnityCG.cginc"
 
             // rgb: the clouds' light, premultiplied, before Scatterer's tone mapping; a: the
@@ -68,15 +69,26 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             sampler2D _ReDefinitionCloudAtlas;
             float4 _ReDefinitionCloudTransmittanceRect;
             float4 _ReDefinitionCloudAtlasSizes;
-            // The layer's packed coverage map (RtEveClouds): r coverage, g the density curve.
-            // The rows take a position from the planet's centre to the map. In the fades, x is the
-            // coverage fade, y the density fade, z the other fades together, w how strongly the cloud
-            // shadows itself.
-            sampler2D _ReDefinitionCloudMap;
+            // The layer's own maps (RtEveClouds): coverage and type as EVE's raymarching reads them, with the alpha masks
+            // that pick their channel. The density curve's x is the cloud type and its y the height in the layer; r is
+            // its coverage curve and g its density curve. The rows take a position from the planet's centre to the maps.
+            // In the fades, x is the coverage fade, y the density fade and w the scale of the optical depth.
+            sampler2D _ReDefinitionCloudCoverage;
+            sampler2D _ReDefinitionCloudType;
+            sampler2D _ReDefinitionCloudCurve;
+            float _ReDefinitionCloudUseMask1;
+            float _ReDefinitionCloudUseMask2;
+            float4 _ReDefinitionCloudMask1;
+            float4 _ReDefinitionCloudMask2;
             float4 _ReDefinitionCloudMapRow0;
             float4 _ReDefinitionCloudMapRow1;
             float4 _ReDefinitionCloudMapRow2;
             float4 _ReDefinitionCloudMapFades;
+            // Per cloud type: the density (the x of cloudTypeProperties0) and the multiple scattering brightness, and how
+            // many types there are.
+            float _ReDefinitionCloudTypeDensity[12];
+            float _ReDefinitionCloudTypeBrightness[12];
+            float _ReDefinitionCloudTypes;
             // Mode 0 shows the clouds lit. Mode 1 shows where each pixel's point lies: green inside
             // the layer's shell, red outside it, blue without a distance. Mode 2 shows the moon's
             // direct light alone. Mode 3 shows the sky's light it gives alone. Modes 4 to 7 show
@@ -84,6 +96,8 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
             float _ReDefinitionCloudDebug;
 
             static const float kPi = 3.14159265f;
+            // The factor the raymarching multiplies the sum of its steps' light with.
+            static const float kRaymarchGain = 5.0f;
 
             // Bruneton's analytic optical depth over `d` from radius r at cosine mu, scale
             // height H, as Scatterer's cloud shader evaluates it.
@@ -187,40 +201,117 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 return Lobe(lobes.x, cosine) * lobes.y + Lobe(lobes.z, cosine) * lobes.w;
             }
 
-            // The layer's density at a point relative to the planet's centre, as the rays'
-            // cloud shadows read it (RtCommon.hlsli, CloudTransmittanceAt).
-            float Density(float3 position)
+            // What the layer holds at a point relative to the planet's centre, as the raymarching reads it: the effective
+            // coverage (ce), the extinction per metre (sigma) and the multiple scattering brightness (brightness).
+            struct Cloud
             {
+                float ce;
+                float sigma;
+                float brightness;
+            };
+
+            Cloud Sample(float3 position)
+            {
+                Cloud c;
+                c.ce = 0.0f;
+                c.sigma = 0.0f;
+                c.brightness = 1.0f;
                 float4 at = float4(position, 1.0f);
                 float3 q = float3(dot(_ReDefinitionCloudMapRow0, at), dot(_ReDefinitionCloudMapRow1, at), dot(_ReDefinitionCloudMapRow2, at));
                 float3 n = q / max(length(q), 1e-3f);
                 float2 uv = float2(0.5f + atan2(n.x, n.z) * (0.5f / kPi), acos(clamp(n.y, -1.0f, 1.0f)) / kPi);
-                float4 map = tex2Dlod(_ReDefinitionCloudMap, float4(uv, 0.0f, 0.0f));
-                float fade = _ReDefinitionCloudMapFades.x;
-                float keep = 1.0f - saturate(fade);
-                float coverage = (min(max(map.r, keep), 1.0f) - keep) / max(fade, 1e-3f);
-                return map.g < 0.01f || coverage < 0.01f ? 0.0f : map.g * coverage * _ReDefinitionCloudMapFades.y;
+                float4 map = tex2Dlod(_ReDefinitionCloudCoverage, float4(uv, 0.0f, 0.0f));
+                float4 kind = tex2Dlod(_ReDefinitionCloudType, float4(uv, 0.0f, 0.0f));
+                float coverage = _ReDefinitionCloudUseMask1 > 0.5f ? dot(map, _ReDefinitionCloudMask1) : map.a;
+                float type = _ReDefinitionCloudUseMask2 > 0.5f ? dot(kind, _ReDefinitionCloudMask2) : kind.r;
+                float height = (length(position) - _ReDefinitionCloudHeights.z) / max(_ReDefinitionCloudHeights.w - _ReDefinitionCloudHeights.z, 1.0f);
+                if (height < 0.0f || height > 1.0f)
+                    return c;
+                float2 curve = tex2Dlod(_ReDefinitionCloudCurve, float4(type, height, 0.0f, 0.0f)).xy;
+                float fade = max(_ReDefinitionCloudMapFades.x, 1e-3f);
+                c.ce = curve.x + saturate((coverage - (1.0f - fade)) / fade) - 1.0f;
+                if (c.ce < 0.01f)
+                    return c;
+                float index = type * (_ReDefinitionCloudTypes - 1.0f);
+                int low = (int)index;
+                int high = (int)min(_ReDefinitionCloudTypes - 1.0f, 1.0f + index);
+                float blend = index - (float)low;
+                low = clamp(low, 0, 11);
+                high = clamp(high, 0, 11);
+                float density = lerp(_ReDefinitionCloudTypeDensity[low], _ReDefinitionCloudTypeDensity[high], blend);
+                c.brightness = lerp(_ReDefinitionCloudTypeBrightness[low], _ReDefinitionCloudTypeBrightness[high], blend);
+                c.sigma = density * c.ce * _ReDefinitionCloudMapFades.y * curve.y;
+                return c;
             }
 
-            // How much of the moon's light reaches the point through the layer above it. It takes six
-            // samples towards the moon to the layer's top, each a slice of a column whose whole
-            // lets 1 / (1 + 7 d + 26 d^2) through, as the rays' cloud shadow takes it. The raymarching
-            // takes the light's way through the cloud itself from EVE's light volume along the sun. Here it
-            // comes from the layer's coverage map along the moon's (RtEveClouds' packed map).
-            float SelfShadow(float3 position, float3 towards)
+            // The optical depth from a point towards the moon, out of the layer: the extinction summed over eight steps of
+            // the way, times the scale for the noise the raymarching's own light volume holds (the fades' w).
+            float LightDepth(float3 position, float3 towards)
             {
-                float inner = _ReDefinitionCloudHeights.z, outer = _ReDefinitionCloudHeights.w;
-                float thickness = max(outer - inner, 1.0f);
+                float outer = _ReDefinitionCloudHeights.w;
                 float b = dot(position, towards);
                 float c = dot(position, position) - outer * outer;
-                float span = min(max(-b + sqrt(max(b * b - c, 0.0f)), 0.0f), 4.0f * thickness);
-                float depth = 0.0f;
-                for (int i = 0; i < 6; i++)
+                float span = max(-b + sqrt(max(b * b - c, 0.0f)), 0.0f);
+                float sum = 0.0f;
+                for (int i = 0; i < 8; i++)
+                    sum += Sample(position + towards * (span * (i + 0.5f) / 8.0f)).sigma;
+                return sum * (span / 8.0f) * _ReDefinitionCloudMapFades.w;
+            }
+
+            // The light a step receives, as the raymarching adds it up (see the head): the direct light and the multiple
+            // scattering, from the phase functions at the cosine of the angle between the moon and the ray.
+            float StepLight(Cloud c, float tau, float cosine)
+            {
+                float s = 0.05f + 0.95f * smoothstep(0.0f, 1.0f, saturate(c.ce));
+                float direct = Phase(_ReDefinitionCloudDirectPhase, cosine) * exp(-tau);
+                float multiple = c.brightness * Phase(_ReDefinitionCloudMultiplePhase, cosine) * s / (1.0f + 0.35f * tau + 0.065f * tau * tau);
+                return direct + multiple;
+            }
+
+            // The mean light of the steps along a ray through the layer, each counting by its share of the ray's
+            // transmittance as in the raymarching, and the opacity of the steps. The steps lie between the layer's shell and
+            // 2.5 times EVE's mean distance, nearer ones closer together. It is -1 where our maps put no cloud on the ray.
+            float MarchLight(float3 eye, float3 ray, float3 towards, float cosine, float meanDistance, out float opacity, out float skyMean)
+            {
+                opacity = 0.0f;
+                skyMean = 0.0f;
+                float outer = _ReDefinitionCloudHeights.w;
+                float b = dot(eye, ray);
+                float c = dot(eye, eye) - outer * outer;
+                float discriminant = b * b - c;
+                if (discriminant <= 0.0f)
+                    return -1.0f;
+                float root = sqrt(discriminant);
+                float near = max(-b - root, 0.0f);
+                float far = min(-b + root, 2.5f * meanDistance + 500.0f);
+                if (far <= near)
+                    return -1.0f;
+                float transmittance = 1.0f;
+                float weights = 0.0f;
+                float light = 0.0f;
+                float sky = 0.0f;
+                float previous = near;
+                for (int i = 0; i < 20; i++)
                 {
-                    float d = Density(position + towards * (span * (i + 0.5f) / 6.0f));
-                    depth += log(1.0f + 7.0f * d + 26.0f * d * d);
+                    float f = (i + 1.0f) / 20.0f;
+                    float next = near + (far - near) * f * f;
+                    float middle = 0.5f * (previous + next);
+                    Cloud cloud = Sample(eye + ray * middle);
+                    if (cloud.sigma > 0.0f)
+                    {
+                        float step = exp(-cloud.sigma * (next - previous));
+                        float weight = transmittance * (1.0f - step);
+                        float3 spot = eye + ray * middle;
+                        light += weight * StepLight(cloud, LightDepth(spot, towards), cosine);
+                        sky += weight * sqrt(max(1.0f - cloud.ce, 0.0f));
+                        weights += weight;
+                        transmittance *= step;
+                    }
+                    previous = next;
                 }
-                return exp(-depth * (span / 6.0f) / thickness * _ReDefinitionCloudMapFades.w * _ReDefinitionCloudMapFades.z);
+                opacity = 1.0f - transmittance;
+                skyMean = weights > 1e-5f ? sky / weights : 0.0f;
+                return weights > 1e-5f ? light / weights : -1.0f;
             }
 
             // The pixel's clouds as EVE wrote them plus the moon's direct and sky light at the cloud's point; with
@@ -255,29 +346,38 @@ Shader "Hidden/ReDefinition/CloudMoonlight"
                 float3 towards = _ReDefinitionCloudMoon.xyz;
                 float lit = Lit(position, towards);
                 float3 light = 0.0f;
+                Cloud cloud = Sample(position);
+                float tau = LightDepth(position, towards);
+                float cosine = dot(towards, ray);
+                // The mean light along the ray; the light at the mean point where our maps put no cloud on the ray.
+                float ours, skyMean;
+                float scattered = MarchLight(eye, ray, towards, cosine, distance, ours, skyMean);
+                if (scattered < 0.0f)
+                {
+                    scattered = StepLight(cloud, tau, cosine);
+                    skyMean = sqrt(max(1.0f - cloud.ce, 0.0f));
+                }
                 if (lit > 0.0f)
                 {
                     float3 through = Transmittance(r, dot(position, towards) / r);
-                    float cosine = dot(towards, ray);
-                    float shadow = SelfShadow(position, towards);
-                    float scattered = Phase(_ReDefinitionCloudDirectPhase, cosine) * shadow
-                                      + Phase(_ReDefinitionCloudMultiplePhase, cosine) * sqrt(shadow);
-                    light = _ReDefinitionCloudMoonColour.rgb * (lit * opacity * scattered) * through;
+                    light = _ReDefinitionCloudMoonColour.rgb * (kRaymarchGain * lit * opacity * scattered) * through;
                 }
-                // The sky's light the moon gives, which the table already holds in the planet's
-                // shadow; without a gain (0) not read.
+                // The sky's light the moon gives, which the table already holds in the planet's shadow; without a
+                // gain (0) not read.
                 float3 sky = 0.0f;
                 if (any(_ReDefinitionCloudSkyColour.rgb > 0.0f))
-                    sky = _ReDefinitionCloudSkyColour.rgb * opacity * SkyLight(r, dot(position, towards) / r);
+                    sky = _ReDefinitionCloudSkyColour.rgb * (opacity * skyMean) * SkyLight(r, dot(position, towards) / r);
                 // 4 to 7, for the probe's means, each times the opacity: the transmittance towards
-                // the moon, the table's part of it, the planet's shadow times the cloud's own, and
-                // the opacity.
+                // the moon, the table's part of it, the planet's shadow times the step's light, and
+                // the opacity. 8: our opacity along the ray, the mean light of the steps and the optical depth at the mean point.
+                if (_ReDefinitionCloudDebug > 7.5f)
+                    return float4(ours * opacity, scattered * opacity, tau * opacity, clouds.a);
                 if (_ReDefinitionCloudDebug > 3.5f)
                 {
                     float mu = dot(position, towards) / r;
                     float3 part = _ReDefinitionCloudDebug < 4.5f ? Transmittance(r, mu)
                                 : _ReDefinitionCloudDebug < 5.5f ? Table(r, mu)
-                                : _ReDefinitionCloudDebug < 6.5f ? (float3)(lit * SelfShadow(position, towards)) : 1.0f;
+                                : _ReDefinitionCloudDebug < 6.5f ? (float3)(lit * scattered) : 1.0f;
                     return float4(part * opacity, clouds.a);
                 }
                 // 2: the moon's direct light alone; 3: its sky's light alone.

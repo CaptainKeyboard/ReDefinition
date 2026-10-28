@@ -75,7 +75,7 @@ namespace ReDefinition.Raytracing
             if (failed || body == null) return false;
             try
             {
-                return FillFrom(clouds, body, camera);
+                return FillFrom(clouds, body, camera, true);
             }
             catch (Exception e)
             {
@@ -83,6 +83,27 @@ namespace ReDefinition.Raytracing
                 CompatibilityLog.Warn("rt-eve-clouds", "Raytracing: EVE's clouds are left out of the rays (" + CompatibilityLog.Reason(e) + ").");
                 for (int i = 0; i < clouds.Length; i++) clouds[i] = 0f;
                 return false;
+            }
+        }
+
+        // The name of an EVE cloud object, or null where it cannot be read (then every object counts as weather).
+        private PropertyInfo objectName;
+        private bool objectNameLooked;
+
+        private string NameOfObject(object cloudsObject)
+        {
+            try
+            {
+                if (!objectNameLooked)
+                {
+                    objectNameLooked = true;
+                    objectName = cloudsObject.GetType().GetProperty("Name", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                }
+                return objectName != null ? objectName.GetValue(cloudsObject, null) as string : null;
+            }
+            catch (Exception)
+            {
+                return null;
             }
         }
 
@@ -157,7 +178,7 @@ namespace ReDefinition.Raytracing
         // Fill's work: the first of the body's cloud objects with an enabled volume. Where it has a 2D layer, that
         // must not be in scaled space. It is packed and turned into the packet's constants. False and a logged reason
         // where there is none.
-        private bool FillFrom(float[] clouds, CelestialBody body, Vector3 camera)
+        private bool FillFrom(float[] clouds, CelestialBody body, Vector3 camera, bool pack)
         {
             if (!Resolve()) return false;
             IList objects = readObjects(null) as IList;
@@ -182,6 +203,12 @@ namespace ReDefinition.Raytracing
                     why = "a layer without a volume";
                     continue;
                 }
+                // Not an aurora or another layer that shines by itself: it is no cloud for the rays or the moon's light.
+                if (CloudLayerKinds.IsEmissive(NameOfObject(cloudsObject), readVolumeMaterial(layer) as Material))
+                {
+                    why = "a layer that shines by itself";
+                    continue;
+                }
                 if (readEnabled != null && !readEnabled(layer))
                 {
                     why = "the volume off";
@@ -203,7 +230,7 @@ namespace ReDefinition.Raytracing
                 }
                 float innerRadius = readInner(layer), outerRadius = readOuter(layer);
                 float radius = shadow != null ? shadow.GetFloat(RadiusId) : 0.5f * (innerRadius + outerRadius);
-                if (!Pack(layer, radius, innerRadius, outerRadius)) return false;
+                if (pack && !Pack(layer, radius, innerRadius, outerRadius)) return false;
 
                 // World to map, taken to the camera-relative world the rays work in.
                 Matrix4x4 m = readRotation(layer) * Matrix4x4.Translate(camera);
@@ -241,12 +268,12 @@ namespace ReDefinition.Raytracing
                 if (loggedBody != name)
                 {
                     loggedBody = name;
-                    Debug.Log(Log.Tag + " Raytracing: " + body.name + "'s clouds in the rays: shadow at " + radius.ToString("0")
+                    Debug.Log(Log.Tag + (pack ? " Raytracing: " : " Clouds: ") + body.name + (pack ? "'s clouds in the rays" : "'s layer for the moon's light") + ": shadow at " + radius.ToString("0")
                               + " m from the centre, the layer " + innerRadius.ToString("0") + " to " + outerRadius.ToString("0")
                               + " m, shadow strength " + clouds[16].ToString("0.00") + ", fades " + clouds[17].ToString("0.00") + " / "
                               + clouds[18].ToString("0.00") + " / " + clouds[19].ToString("0.00") + ", colour " + colour + ".");
                 }
-                return packedHandle != IntPtr.Zero;
+                return !pack || packedHandle != IntPtr.Zero;
             }
             int count = objects.Count;
             if (whyLogged != why || whyCount != count || whyBody != name || !whyAny)
@@ -255,7 +282,7 @@ namespace ReDefinition.Raytracing
                 whyCount = count;
                 whyBody = name;
                 whyAny = true;
-                Debug.Log(Log.Tag + " Raytracing: no clouds in the rays over " + name + ": "
+                Debug.Log(Log.Tag + (pack ? " Raytracing: no clouds in the rays over " : " Clouds: no layer for the moon's light over ") + name + ": "
                           + (why ?? count + " cloud objects, none of " + name) + ".");
             }
             return false;
@@ -314,27 +341,95 @@ namespace ReDefinition.Raytracing
         // an alpha map, the channel its alphaMask names (ALPHAMAP_R..A); otherwise none.
         private void Mask(object wrapper, string use, string mask)
         {
-            bool alphaMap = false;
-            Vector4 channel = Vector4.zero;
-            if (wrapper != null && wrapperType != null && wrapperMask != null)
-            {
-                object type = wrapperType.GetValue(wrapper);
-                alphaMap = type != null && type.ToString().IndexOf("AlphaMap", StringComparison.Ordinal) >= 0;
-                string name = wrapperMask.GetValue(wrapper)?.ToString() ?? "";
-                channel = new Vector4(name.EndsWith("_R") ? 1f : 0f, name.EndsWith("_G") ? 1f : 0f, name.EndsWith("_B") ? 1f : 0f,
-                                      name.EndsWith("_A") ? 1f : 0f);
-            }
+            bool alphaMap;
+            Vector4 channel;
+            MaskOf(wrapper, out alphaMap, out channel);
             pack.SetFloat(use, alphaMap ? 1f : 0f);
             pack.SetVector(mask, channel);
         }
 
+        // Whether a map is read through an alpha mask, and the channel it names.
+        private void MaskOf(object wrapper, out bool alphaMap, out Vector4 channel)
+        {
+            alphaMap = false;
+            channel = Vector4.zero;
+            if (wrapper == null || wrapperType == null || wrapperMask == null) return;
+            object type = wrapperType.GetValue(wrapper);
+            alphaMap = type != null && type.ToString().IndexOf("AlphaMap", StringComparison.Ordinal) >= 0;
+            string name = wrapperMask.GetValue(wrapper)?.ToString() ?? "";
+            channel = new Vector4(name.EndsWith("_R") ? 1f : 0f, name.EndsWith("_G") ? 1f : 0f, name.EndsWith("_B") ? 1f : 0f,
+                                  name.EndsWith("_A") ? 1f : 0f);
+        }
+
+        // The layer's own maps as EVE's raymarching reads them, for the moon's light per pixel (EveCloudRelight): the
+        // coverage and the type texture with the masks that pick their channels, and the density curve. Looked up again every
+        // second. False where the layer was not filled in the last frame or the one before.
+        internal bool Maps(out Texture coverage, out Texture type, out Texture curve, out Vector4 masks1, out Vector4 masks2,
+                           out Vector2 uses)
+        {
+            coverage = mapsCoverage;
+            type = mapsType;
+            curve = mapsCurve;
+            masks1 = mapsMask1;
+            masks2 = mapsMask2;
+            uses = mapsUses;
+            if (lastLayer == null || Time.frameCount - filledFrame > 1) return false;
+            if (mapsLayer != lastLayer || Time.unscaledTime - mapsAt > 1f || mapsCoverage == null)
+            {
+                object coverageWrapper = readCoverageMap(lastLayer), typeWrapper = readTypeMap(lastLayer);
+                mapsCoverage = coverageWrapper != null ? wrapperTexture.Invoke(coverageWrapper, null) as Texture : null;
+                mapsType = typeWrapper != null ? wrapperTexture.Invoke(typeWrapper, null) as Texture : null;
+                mapsCurve = curves.GetValue(lastLayer) as Texture;
+                bool use1, use2;
+                MaskOf(coverageWrapper, out use1, out mapsMask1);
+                MaskOf(typeWrapper, out use2, out mapsMask2);
+                mapsUses = new Vector2(use1 ? 1f : 0f, use2 ? 1f : 0f);
+                mapsLayer = lastLayer;
+                mapsAt = Time.unscaledTime;
+            }
+            coverage = mapsCoverage;
+            type = mapsType;
+            curve = mapsCurve;
+            masks1 = mapsMask1;
+            masks2 = mapsMask2;
+            uses = mapsUses;
+            return coverage != null && type != null && curve != null;
+        }
+
+        // What Maps found last, the layer it was for and when.
+        private Texture mapsCoverage, mapsType, mapsCurve;
+        private Vector4 mapsMask1, mapsMask2;
+        private Vector2 mapsUses;
+        private object mapsLayer;
+        private float mapsAt = -100f;
+
+        // The body's layer kept for the moon's light on the clouds where the rays keep none, as with the raytracing off: this frame's
+        // layer is found without packing its map for the rays. Where the rays filled a layer in the last frame or this one, nothing is
+        // done.
+        internal static void Keep(CelestialBody body)
+        {
+            RtEveClouds last = Last;
+            if (last != null && Time.frameCount - last.filledFrame <= 1 && last.namedBody == body) return;
+            if (own == null) own = new RtEveClouds();
+            if (own.failed || body == null) return;
+            try
+            {
+                own.FillFrom(keepScratch, body, Vector3.zero, false);
+            }
+            catch (Exception e)
+            {
+                own.failed = true;
+                CompatibilityLog.Warn("rt-eve-clouds", "The clouds' maps for the moon's light could not be read (" + CompatibilityLog.Reason(e) + ").");
+            }
+        }
+
+        // The instance Keep fills, and the constants it throws away.
+        private static RtEveClouds own;
+        private static readonly float[] keepScratch = new float[32];
+
         // The last layer filled, for the probe's cloud cover (DensityAt) and the moon's light on
         // the clouds (EveCloudRelight).
         internal static RtEveClouds Last { get; private set; }
-
-        // The packed map of the layer filled in the last frame or the one before, for the
-        // moon's light on the clouds; null for none.
-        internal RenderTexture PackedMap { get { return Time.frameCount - filledFrame <= 1 ? packed : null; } }
 
         // From the planet's centre, world axes, to the packed map's direction.
         internal Matrix4x4 MapFromCentre { get; private set; }

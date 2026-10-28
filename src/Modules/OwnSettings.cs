@@ -70,6 +70,12 @@ namespace ReDefinition.Modules
         // How bright the moons' and planets' light is, in percent of the raytracing's
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
+        // How bright the clouds are in the light of the moons and planets at night, in percent of the same scale as
+        // RaytracingMoonlight, with or without the raytracing (Raytracing/Ksp/EveCloudMoonlight). At 30 % the clouds stand to the
+        // ground lit by the moon at the default Moonlight (10 %) as they stand to the ground in the sun: measured 3.0 against
+        // 1.8 to 3.9 by day (2026-10-28).
+        public float NightClouds = DefaultNightClouds;
+        internal const float DefaultNightClouds = 30f;
         // The moons' discs made to stand out in the night sky (Raytracing/Ksp/MoonGlow).
         public bool MoonGlow = true;
         // How strongly water mirrors the moons, in percent of their discs as the eye sees
@@ -439,6 +445,7 @@ namespace ReDefinition.Modules
             Bool("rayReconstruction", x => x.RayReconstruction, (x, v) => x.RayReconstruction = v, true),
             Enum("rayReconstructionFrom", x => x.RayReconstructionFrom, (x, v) => x.RayReconstructionFrom = v, true),
             Float("raytracingMoonlight", "0", x => x.RaytracingMoonlight, (x, v) => x.RaytracingMoonlight = v, true),
+            Float("nightClouds", "0", x => x.NightClouds, (x, v) => x.NightClouds = v, true),
             Bool("moonGlow", x => x.MoonGlow, (x, v) => x.MoonGlow = v, true),
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
             Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),

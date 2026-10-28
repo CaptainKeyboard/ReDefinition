@@ -28,6 +28,8 @@ namespace ReDefinition.Raytracing
     // them.
     internal sealed class RtKsp
     {
+        // The clouds left out of the rays, for the probes' A/B: set by -redefinitionProbeNoRtClouds, and live in the probes.
+        internal static bool NoCloudsInRays = CommandLine.Has("-redefinitionProbeNoRtClouds");
 
         // The mode and bounces applied; the RtCamera on the scene camera and that camera; the scene's sources.
         private RaytracingMode mode;
@@ -238,9 +240,7 @@ namespace ReDefinition.Raytracing
             // the sky's light 0.065, 0.135, 0.314 linear under a white sun; with Scatterer
             // 0.043, 0.093, 0.194 under a sun of 0.73, 0.57, 0.34).
             camera.SkyNeutral = () => RtKspMods.ScattererInstalled ? 0f : 1f;
-            // -redefinitionProbeNoRtClouds: the clouds left out of the rays, for the probe's A/B.
-            bool noClouds = CommandLine.Has("-redefinitionProbeNoRtClouds");
-            camera.Clouds = data => !noClouds && clouds.Fill(data, RtKspMods.SceneBody(), sceneCamera.transform.position)
+            camera.Clouds = data => !NoCloudsInRays && clouds.Fill(data, RtKspMods.SceneBody(), sceneCamera.transform.position)
                 ? clouds.Texture : RtEveClouds.None(data);
             scatter = new RtParallaxScatter();
             camera.Scene.AddGpuSource(scatter);

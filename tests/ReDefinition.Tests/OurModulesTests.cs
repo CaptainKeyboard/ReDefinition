@@ -198,7 +198,7 @@ namespace ReDefinition.Tests
         public void TheUpscalingRowsStandInTheirOrder()
         {
             CollectionAssert.AreEqual(new[] { "Upscaler", "Mode", "Sharpness", "One antialiasing per camera", "Frame generation", "Multiplier",
-                                            "Low latency", "Raytracing", "Ray Reconstruction", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night light" },
+                                            "Low latency", "Raytracing", "Ray Reconstruction", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night clouds", "Night light" },
                 OurModules.Rows().Select(setting => setting.Title).ToArray());
         }
 
@@ -295,6 +295,7 @@ namespace ReDefinition.Tests
             new[] { "raytracing", "moonReflection", "raytracingMoonReflection" },
             new[] { "raytracing", "sunReflection", "sunReflection" },
             new[] { "raytracing", "nightAmbient", "raytracingNightAmbient" },
+            new[] { "raytracing", "nightClouds", "nightClouds" },
         };
 
         // Each switch of the own modules reads and writes the setting of its file key and no other, in the text the

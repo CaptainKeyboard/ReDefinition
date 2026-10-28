@@ -402,6 +402,11 @@ namespace ReDefinition.Modules
                   + "It lights nothing.",
                 detail: true,
                 needsProfile: true),
+            Percentage("nightClouds", "nightClouds", "Night clouds", 78, 300f,
+                "How bright the clouds are at night in the light of the moons and planets, volumetric and flat\n"
+                  + "layers alike, with or without raytracing. The scale is the one of Moonlight. At 30 %, the\n"
+                  + "default, the clouds stand to the ground as they do in the sun.",
+                null),
             Percentage("sunReflection", "sunReflection", "Sun reflection", 77, 300f,
                 "How strongly water mirrors the sun: the raytraced sun on the sea, or Scatterer's own\n"
                   + "glint without raytraced reflections. 100 % is three times the sun's own brightness and Scatterer's.",
