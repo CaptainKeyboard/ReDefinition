@@ -127,6 +127,43 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The same view of the auroras as the game draws it, and with one part of ReDefinition off at a time: the moon's light on the
+        // clouds, the upscaler, the raytracing. Each is a shot of the screen as it is. An artifact that stays with a part off is not that part's.
+        private static IEnumerator AuroraVariants(ReDefinitionAddon addon, string folder, string name)
+        {
+            float moonlight = addon.Live.RaytracingMoonlight, nightAmbient = addon.Live.RaytracingNightAmbient;
+            RaytracingMode mode = addon.Live.Raytracing;
+            bool upscaler = addon.Live.Enabled;
+            Debug.Log(Log.Tag + " Probe: aurora variants: the upscaler " + (upscaler ? "on" : "off") + ", raytracing " + mode + ".");
+            yield return AuroraShot(folder, name + "-all");
+            EveCloudMoonlight.HeldOff = true;
+            EveCloudRelight.HeldOff = true;
+            yield return AuroraShot(folder, name + "-nomoon");
+            EveCloudMoonlight.HeldOff = false;
+            EveCloudRelight.HeldOff = false;
+            OwnSettings before = addon.Live.Clone();
+            OwnSettings after = before.Clone();
+            after.Enabled = false;
+            addon.Apply(before, after);
+            yield return AuroraShot(folder, name + "-noupscaler");
+            Set(addon, RaytracingMode.Off, moonlight, nightAmbient);
+            yield return AuroraShot(folder, name + "-noupscaler-nort");
+            before = addon.Live.Clone();
+            after = before.Clone();
+            after.Enabled = upscaler;
+            addon.Apply(before, after);
+            yield return AuroraShot(folder, name + "-nort");
+            Set(addon, mode, moonlight, nightAmbient);
+        }
+
+        // A shot of the screen after the frames have settled.
+        private static IEnumerator AuroraShot(string folder, string name)
+        {
+            yield return ProbeSteps.Frames(90);
+            UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, name + ".png"));
+            yield return ProbeSteps.Frames(3);
+        }
+
         // Whether the moon's light changes the auroras' pixels. The moon is turned to 45 degrees up on the side the camera looks to, the
         // per-pixel light forced on, and the picture taken with the clouds off, on, and on with the moon's light held off. Of the
         // pixels the clouds change, those the moon's light changes too are weather; the rest are the auroras', and must not change.
@@ -239,6 +276,11 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: " + label + ".");
                 yield return LookAlong(toward, -climb, 60f, "the aurora");
                 string name = "aurora-sun" + (double.IsNaN(elevation) ? "x" : ((int)elevation).ToString(CultureInfo.InvariantCulture));
+                if (CommandLine.Has("-redefinitionProbeAuroraVariants"))
+                {
+                    yield return AuroraVariants(addon, folder, name);
+                    continue;
+                }
                 yield return CloudRatio(folder, name, label);
                 yield return AuroraMoonCheck(folder, name, up, toward);
             }
