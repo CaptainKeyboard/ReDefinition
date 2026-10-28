@@ -658,6 +658,10 @@ namespace ReDefinition.Core
                 .Method(EveVolume, "get_OuterSphereRadius")
                 .Literal(EveProperties, "colorBuffer", "scattererReconstructedCloud")
                 .Literal(EveVolume, "directPhaseFunctionProperties", "multiplePhaseFunctionProperties", "cloudColor")
+                // The material properties the light per pixel reads off the layers (EVE's cloud materials), and the one that
+                // tells a layer that shines by itself.
+                .Literal(EveVolume, "skylightTintMultiplier", "skylightMultiplier", "cloudTypeProperties0",
+                         "multipleScatteringBrightnessArray", "numberOfCloudTypes")
                 .Tested("427bd9602cbb") // EVE 3.2.2
                 .OnChange(WhenChanged.Fallback, "EVE's clouds take the moon's light all at once as the sun sets");
 
@@ -679,11 +683,22 @@ namespace ReDefinition.Core
                 .TestedVersions("0.908.0.0")
                 .OnChange(WhenChanged.Fallback, "EVE's clouds take the moon's light all at once as the sun sets");
 
+        // The names that tell EVE's weather layers from the layers that shine by themselves (CloudLayerKinds): the cloud object's
+        // name, and Scatterer's layer holding that object. A layer's tint, a material property, is named with the light per pixel
+        // (EveCloudRelight). Without the names the tint decides alone.
+        public static readonly ForeignAssumption EveCloudKinds =
+            new ForeignAssumption("eve-cloud-kinds", "EVE", "the auroras told from the clouds by name")
+                .Type("Atmosphere.CloudsObject")
+                .Method("Atmosphere.CloudsObject", "get_Name")
+                .Field(CloudLayer, "CloudObject")
+                .Tested("c1c52b581bea") // EVE 3.2.2
+                .OnChange(WhenChanged.Keep, "the auroras are told from the clouds by their tint alone");
+
         // The whole catalogue, in the order the report lists it.
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,

@@ -128,6 +128,7 @@ namespace ReDefinition.Raytracing
             {
                 HarmonyHooks.Install(HarmonyId, typeof(EveCloudMoonlight),
                     new List<HarmonyHook> { new HarmonyHook(update, null, nameof(AfterUpdate), null) });
+                NightClouds.Hooked = true;
             }
             catch (Exception e)
             {
@@ -329,7 +330,7 @@ namespace ReDefinition.Raytracing
                 if (layer == null) continue;
                 Material material = readRaymarched(layer) as Material;
                 // A layer that shines by itself, an aurora, keeps its own light, flat part and volume (CloudLayerKinds).
-                if (CloudLayerKinds.IsEmissive(NameOf(layer), material)) continue;
+                if (CloudLayerKinds.IsEmissive(CloudLayerKinds.NameOfLayer(layer), material)) continue;
                 if (material != null) raymarched.Add(material);
                 material = readProbe(layer) as Material;
                 if (material != null) raymarched.Add(material);
@@ -337,36 +338,6 @@ namespace ReDefinition.Raytracing
                 if (material != null) flat.Add(material);
             }
             return raymarched.Count > 0 || flat.Count > 0;
-        }
-
-        // The EVE cloud object's name of a Scatterer cloud layer, or null where it cannot be read: then every layer counts as
-        // weather, as before. Looked up once per type.
-        private static FieldInfo cloudObjectField;
-        private static PropertyInfo cloudObjectName;
-        private static bool cloudObjectLooked, cloudObjectNameLooked;
-
-        private static string NameOf(object layer)
-        {
-            try
-            {
-                if (!cloudObjectLooked)
-                {
-                    cloudObjectLooked = true;
-                    cloudObjectField = layer.GetType().GetField("CloudObject", TypeLookup.Any);
-                }
-                object cloudObject = cloudObjectField != null ? cloudObjectField.GetValue(layer) : null;
-                if (cloudObject == null) return null;
-                if (!cloudObjectNameLooked)
-                {
-                    cloudObjectNameLooked = true;
-                    cloudObjectName = cloudObject.GetType().GetProperty("Name", TypeLookup.Any);
-                }
-                return cloudObjectName != null ? cloudObjectName.GetValue(cloudObject, null) as string : null;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
         }
 
         // For the probes: the layers of the body named, which are weather (lit by the sun and the moon) and which shine by themselves.
@@ -384,7 +355,7 @@ namespace ReDefinition.Raytracing
             {
                 object layer = list[i];
                 if (layer == null) continue;
-                string name = NameOf(layer) ?? "?";
+                string name = CloudLayerKinds.NameOfLayer(layer) ?? "?";
                 (CloudLayerKinds.IsEmissive(name, readRaymarched(layer) as Material) ? emissive : weather).Append(name).Append(' ');
             }
             return list.Count + " layers; weather: " + weather + "; shining by themselves: " + emissive;
@@ -434,6 +405,17 @@ namespace ReDefinition.Raytracing
         // to the moon while the per-pixel light gives way.
         private static int stateKind = -1;
         private static CelestialBody stateMoon;
+
+        // A new scene: the kind of the light is told anew, and the cloud materials of the scene before are let go.
+        internal static void NewScene()
+        {
+            stateKind = -1;
+            stateMoon = null;
+            warned = false;
+            lit2D.Clear();
+            raymarched.Clear();
+            flat.Clear();
+        }
 
         // Notes the cloud light's kind (stateKind) for Describe and logs it when kind or moon change.
         private static void Report(int kind, CelestialBody moon)

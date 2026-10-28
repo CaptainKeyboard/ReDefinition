@@ -237,6 +237,19 @@ namespace ReDefinition.Raytracing
             requested = Time.frameCount;
         }
 
+        // A new scene: the light per pixel is tried again where a failure in the scene before turned it off, and what it was asked for
+        // by the scene before is let go.
+        internal static void NewScene()
+        {
+            failed = false;
+            warned = false;
+            missed = 0;
+            missedSince = -1;
+            requested = -10;
+            body = null;
+            Atlas = null;
+        }
+
         // For the probe's log.
         internal static string Describe()
         {

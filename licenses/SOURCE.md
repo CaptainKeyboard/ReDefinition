@@ -16,6 +16,9 @@ package.
 * AMD FidelityFX FSR 3 shaders, by Advanced Micro Devices -- MIT, under two
   notices, both in `LICENSE-FidelityFX.txt`. Compiled into
   `Shaders/redefinition.shaders`.
+* Precomputed Atmospheric Scattering, by Eric Bruneton (INRIA), modified and ported to Unity by
+  Justin Hawkins, as Scatterer carries it -- BSD-3-Clause, `LICENSE-Bruneton.txt`. Its optical
+  depth, adapted in the moonlight on the clouds, compiled into `Shaders/redefinition.shaders`.
 * AMD FidelityFX SDK API headers, by Advanced Micro Devices -- MIT,
   `dxgi_LICENSE-FidelityFX.txt` next to `KSP_x64.exe`. Compiled into `dxgi.dll`.
 * NVIDIA Streamline SDK and NVAPI headers, by NVIDIA -- MIT,

@@ -3,13 +3,14 @@
 // added at each pixel's cloud, a second sun with the moon's values. The copy then stands in for EVE's buffer for
 // everything that reads it this frame. EVE's history stays as EVE wrote it.
 //
-// The model is read off Scatterer-EVE/RaymarchCloud (Scatterer 0.908, the variant with LIGHT_VOLUME_ON, disassembled).
-// It steps along the ray. Each step receives L = Pd exp(-t) + B Pm s / (1 + 0.35 t + 0.065 t^2). Pd and Pm are EVE's
-// two phase functions at the angle between light and ray, and t is the optical depth towards the light. B is the
-// cloud type's multiple scattering brightness, and s is 0.05 + 0.95 smoothstep of the effective coverage. The steps
-// count by their share of the ray's transmittance. Their sum, times 5, the colours of light and clouds, the light's way
-// through the atmosphere (Transmittance) and the planet's shadow (Lit) is the direct light. The sky's light is the sum
-// of the steps' sqrt(1 - coverage) times the colours, the skylight multiplier, the exposure and the irradiance table.
+// The model is read off Scatterer-EVE/RaymarchCloud (Scatterer 0.908, LIGHT_VOLUME_ON, disassembled). Each step along the ray
+// receives L = Pd exp(-t) + B Pm s / (1 + 0.35 t + 0.065 t^2). Pd and Pm are EVE's phase functions. t is the optical depth towards
+// the light, B the type's multiple scattering brightness, s 0.05 + 0.95 smoothstep of the coverage. The steps count by their
+// share of the ray's transmittance. Their sum, times 5, the colours, the atmosphere (Transmittance) and the planet's shadow (Lit)
+// is the direct light. The sky's light is the steps' sqrt(1 - coverage) times the colours, skylight multiplier and exposure.
+//
+// Credits: OpticalDepth is Eric Bruneton's (Precomputed Atmospheric Scattering, Copyright (c) 2008 INRIA, BSD-3-Clause), modified
+// and ported to Unity by Justin Hawkins 2013 as in Scatterer's CommonAtmosphere.cginc. The notice: licenses/Bruneton-INRIA-BSD3.txt.
 //
 // A short march of our own stands for the steps, over the shell where EVE's mean distance puts the cloud. The
 // maps and curves give each step's coverage, type, density and brightness. The optical depth is the extinction summed

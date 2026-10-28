@@ -31,6 +31,14 @@ namespace ReDefinition.Raytracing
         // The clouds left out of the rays, for the probes' A/B: set by -redefinitionProbeNoRtClouds, and live in the probes.
         internal static bool NoCloudsInRays = CommandLine.Has("-redefinitionProbeNoRtClouds");
 
+        // From the addon when a scene has loaded: what the clouds' moonlight keeps from the scene before is let go.
+        internal static void NewScene()
+        {
+            EveCloudMoonlight.NewScene();
+            EveCloudRelight.NewScene();
+            RtEveClouds.NewScene();
+        }
+
         // The mode and bounces applied; the RtCamera on the scene camera and that camera; the scene's sources.
         private RaytracingMode mode;
         private int bounces = 2;

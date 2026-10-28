@@ -86,27 +86,6 @@ namespace ReDefinition.Raytracing
             }
         }
 
-        // The name of an EVE cloud object, or null where it cannot be read (then every object counts as weather).
-        private PropertyInfo objectName;
-        private bool objectNameLooked;
-
-        private string NameOfObject(object cloudsObject)
-        {
-            try
-            {
-                if (!objectNameLooked)
-                {
-                    objectNameLooked = true;
-                    objectName = cloudsObject.GetType().GetProperty("Name", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                }
-                return objectName != null ? objectName.GetValue(cloudsObject, null) as string : null;
-            }
-            catch (Exception)
-            {
-                return null;
-            }
-        }
-
         // EVE's members looked up once; false without EVE, with another build of it, or where one is missing.
         private bool Resolve()
         {
@@ -204,7 +183,7 @@ namespace ReDefinition.Raytracing
                     continue;
                 }
                 // Not an aurora or another layer that shines by itself: it is no cloud for the rays or the moon's light.
-                if (CloudLayerKinds.IsEmissive(NameOfObject(cloudsObject), readVolumeMaterial(layer) as Material))
+                if (CloudLayerKinds.IsEmissive(CloudLayerKinds.NameOfObject(cloudsObject), readVolumeMaterial(layer) as Material))
                 {
                     why = "a layer that shines by itself";
                     continue;
@@ -421,6 +400,13 @@ namespace ReDefinition.Raytracing
                 own.failed = true;
                 CompatibilityLog.Warn("rt-eve-clouds", "The clouds' maps for the moon's light could not be read (" + CompatibilityLog.Reason(e) + ").");
             }
+        }
+
+        // A new scene: the layer kept for the moon's light is tried again, where reading it failed in the scene before.
+        internal static void NewScene()
+        {
+            if (own != null) own.failed = false;
+            Last = null;
         }
 
         // The instance Keep fills, and the constants it throws away.

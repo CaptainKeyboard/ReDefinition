@@ -463,6 +463,7 @@ namespace ReDefinition
                                    UnityEngine.SceneManagement.LoadSceneMode mode)
         {
             UpscalerRig.NoteSceneLoad();
+            ReDefinition.Raytracing.RtKsp.NewScene();
         }
 
         // KSP's own settings screens write the quality level and MSAA into

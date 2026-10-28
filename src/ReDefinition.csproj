@@ -363,6 +363,7 @@
     <Copy SourceFiles="$(_RepoRoot)licenses\FidelityFX-FSR3-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-FidelityFX.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Telemachus-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-Telemachus.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\QR-Code-generator-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-QR-Code-generator.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\Bruneton-INRIA-BSD3.txt" DestinationFiles="$(_StageMod)\LICENSE-Bruneton.txt" />
     <Copy SourceFiles="@(_StaticGameDataZip)" DestinationFolder="$(_Stage)\GameData\%(RecursiveDir)" />
     <Copy SourceFiles="$(_ProxyDll);$(_FfxRuntime);$(_FfxDenoiser)" DestinationFolder="$(_Stage)" />
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_framegeneration_dx12_LICENSE.md" />
