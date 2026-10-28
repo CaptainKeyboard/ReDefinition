@@ -101,14 +101,13 @@ namespace ReDefinition.Probe
             double altitude;
             string text = CommandLine.After("-redefinitionProbeOrbitAltitude");
             if (text == null || !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out altitude)) altitude = 600000.0;
-            // The time the probe sets (-redefinitionProbeUniversalTime) is the one the orbit is made for: it is set after this.
-            double ut;
-            string universalTime = CommandLine.After("-redefinitionProbeUniversalTime");
-            if (universalTime == null || !double.TryParse(universalTime, NumberStyles.Float, CultureInfo.InvariantCulture, out ut))
-                ut = Planetarium.GetUniversalTime();
+            // The game's own time at the flight's start, which -redefinitionProbeUniversalTime sets: the orbit is made for it.
+            double ut = game.flightState.universalTime;
             double semiMajorAxis = body.Radius + altitude;
             // Both orbits give their positions in the same axes: the sun lies opposite the body's own position.
             Vector3d toSun = (-body.orbit.getRelativePositionAtUT(ut)).normalized;
+            // -redefinitionProbeReentry: an orbit that dips into the air instead (EntryOrbit).
+            Orbit entry = CommandLine.Has(ReentryProbe.Argument) ? EntryOrbit(body, ut, toSun) : null;
             // -redefinitionProbeOrbitToward <body>: the pod on the line from the planet to that body instead, so that the body
             // stands over it, to look at (MoonSkyProbe).
             string towardName = CommandLine.After("-redefinitionProbeOrbitToward");
@@ -142,7 +141,7 @@ namespace ReDefinition.Probe
             }
             game.flightState.protoVessels.RemoveAll(v => v.vesselName == VesselName);
             ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
-            var orbit = new Orbit(0.0, 0.0, semiMajorAxis, 0.0, 0.0, bestAnomaly, ut, body);
+            Orbit orbit = entry ?? new Orbit(0.0, 0.0, semiMajorAxis, 0.0, 0.0, bestAnomaly, ut, body);
             ConfigNode node = ProtoVessel.CreateVesselNode(VesselName, VesselType.Ship, orbit, 0, new[] { part });
             node.SetValue("sit", Vessel.Situations.ORBITING.ToString());
             node.SetValue("landed", "False");
@@ -152,6 +151,34 @@ namespace ReDefinition.Probe
                       + " m, " + (bestAnomaly * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture) + " degrees from the periapsis, "
                       + bestAngle.ToString("0", CultureInfo.InvariantCulture) + " degrees from the sub-solar point.");
             return game.flightState.protoVessels.Count - 1;
+        }
+
+        // An equatorial orbit that comes down into the air as a return from the Mun's height does: its periapsis
+        // (-redefinitionProbeReentryPeriapsis, 45 km up without it) in the air, its apoapsis out at 11 500 km. The pod starts on its
+        // way down at 120 km, over the side of the planet the sun lights, 55 degrees from the sub-solar point.
+        private static Orbit EntryOrbit(CelestialBody body, double ut, Vector3d toSun)
+        {
+            double periapsis;
+            if (!double.TryParse(CommandLine.After("-redefinitionProbeReentryPeriapsis") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out periapsis))
+                periapsis = 45000.0;
+            double rp = body.Radius + periapsis, ra = body.Radius + 11500000.0, r0 = body.Radius + 120000.0;
+            double a = 0.5 * (rp + ra), e = (ra - rp) / (ra + rp);
+            double eccentric = Math.Acos(Math.Max(-1.0, Math.Min(1.0, (1.0 - r0 / a) / e)));
+            double mean = 2.0 * Math.PI - (eccentric - e * Math.Sin(eccentric));
+            double bestError = double.MaxValue, bestArgument = 0.0;
+            for (int degrees = 0; degrees < 360; degrees++)
+            {
+                var trial = new Orbit(0.0, e, a, 0.0, degrees, mean, ut, body);
+                double angle = Math.Acos(Math.Max(-1.0, Math.Min(1.0, Vector3d.Dot(trial.getRelativePositionAtUT(ut).normalized, toSun)))) * 180.0 / Math.PI;
+                if (Math.Abs(angle - OrbitPhase) < bestError)
+                {
+                    bestError = Math.Abs(angle - OrbitPhase);
+                    bestArgument = degrees;
+                }
+            }
+            Debug.Log(Log.Tag + " Probe: reentry: an orbit from " + (r0 - body.Radius).ToString("0", CultureInfo.InvariantCulture) + " m down to a periapsis at "
+                      + periapsis.ToString("0", CultureInfo.InvariantCulture) + " m, apoapsis " + (ra - body.Radius).ToString("0", CultureInfo.InvariantCulture) + " m.");
+            return new Orbit(0.0, e, a, 0.0, bestArgument, mean, ut, body);
         }
 
         // Where the pod is asked to stand, in degrees east.

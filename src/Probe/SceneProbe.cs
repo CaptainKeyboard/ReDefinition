@@ -600,6 +600,14 @@ namespace ReDefinition.Probe
                           + ScienceUtil.GetExperimentBiome(vessel.mainBody, vessel.latitude, vessel.longitude) + ".");
             }
             yield return ShotVariant.Apply();
+            // -redefinitionProbeReentry: the pod held in the air of a re-entry, each variant measured (ReentryProbe), then KSP
+            // quits. It comes before the other shots, since the pod is already falling.
+            if (ReentryProbe.Requested)
+            {
+                yield return ReentryProbe.Run(CaptureFolder.Run, CommandLine.After("-redefinitionProbeShot") ?? "reentry");
+                yield return ProbeSteps.QuitAfter(2f);
+                yield break;
+            }
             // -redefinitionProbeStaging <seconds>: the launch flown and a stage dropped, recorded (StagingProbe).
             if (StagingProbe.Requested)
             {
@@ -715,6 +723,7 @@ namespace ReDefinition.Probe
             // -redefinitionProbeMoonGround <moon>: that moon's phases in the night sky from the pod's ground (MoonGroundProbe).
             if (CommandLine.After(MoonGroundProbe.Argument) != null)
                 yield return MoonGroundProbe.Run(folder, shot);
+
             // -redefinitionProbeBurst <n>: n frames more, one after the other, as
             // <shot>-burst<i>.png, for what changes from frame to frame (flicker,
             // ghosting).

@@ -13,6 +13,8 @@ namespace ReDefinition.Probe
         {
             RtCamera.ResetProbeSwitches();
             MoonGlow.HeldOff = false;
+            MoonGlow.GainOverride = -1f;
+            MoonGlow.NoEarthshine = false;
             EveCloudMoonlight.HeldOff = false;
             EveCloudMoonlight.ProbeHandoff = -1f;
             EveCloudMoonlight.ProbeShare = -1f;

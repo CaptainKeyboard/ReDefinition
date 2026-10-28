@@ -40,6 +40,9 @@ namespace ReDefinition.Probe
         // With it, EVE's clouds by the light of the sun rising and setting and of the Mun at night (CloudShots).
         internal const string CloudLightArgument = "-redefinitionProbeCloudLight";
 
+        // With it, EVE's 2D clouds seen from orbit by the Mun's light at two phases and heights (CloudsFromOrbit).
+        internal const string CloudsOrbitArgument = "-redefinitionProbeCloudsOrbit";
+
         // Seconds each shot waits for the denoiser to settle; the passes' times are averaged over its second half.
         private const float SettleSeconds = 4f;
 
@@ -82,6 +85,16 @@ namespace ReDefinition.Probe
                 if (CommandLine.Has(CloudLightArgument))
                 {
                     yield return CloudShots(addon, folder);
+                    yield break;
+                }
+                if (CommandLine.Has(CloudRatiosArgument))
+                {
+                    yield return CloudRatios(addon, folder);
+                    yield break;
+                }
+                if (CommandLine.Has(CloudsOrbitArgument))
+                {
+                    yield return CloudsFromOrbit(addon, folder);
                     yield break;
                 }
                 if (CommandLine.Has(PerfArgument))
@@ -139,8 +152,8 @@ namespace ReDefinition.Probe
             CelestialBody body = vessel.mainBody;
             Vector3d vab = body.GetWorldSurfacePosition(VabLatitude, VabLongitude, 0.0);
             FlightCamera.fetch.SetDistance(Mathf.Min(40f, FlightCamera.fetch.maxDistance));
-            Vector3 up = ((Vector3)(vessel.CoMD - body.position)).normalized;
-            Vector3 flat = Vector3.ProjectOnPlane((Vector3)(vab - vessel.CoMD), up).normalized;
+            Vector3 up = ((Vector3)(((Vector3d)vessel.transform.position) - body.position)).normalized;
+            Vector3 flat = Vector3.ProjectOnPlane((Vector3)(vab - ((Vector3d)vessel.transform.position)), up).normalized;
             Vector3 look = flat * Mathf.Cos(4f * Mathf.Deg2Rad) - up * Mathf.Sin(4f * Mathf.Deg2Rad);
             FlightCamera.fetch.SetCamCoordsFromPosition(-look * FlightCamera.fetch.Distance);
             yield return ProbeSteps.Frames(10);
@@ -272,7 +285,7 @@ namespace ReDefinition.Probe
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null || body == null || star == null) return 180f;
-            return (float)Vector3d.Angle(star.position - body.position, vessel.CoMD - body.position);
+            return (float)Vector3d.Angle(star.position - body.position, ((Vector3d)vessel.transform.position) - body.position);
         }
 
         // A body's elevation over the active vessel's horizon, in degrees.
@@ -280,8 +293,8 @@ namespace ReDefinition.Probe
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null || body == null) return -90f;
-            Vector3d up = (vessel.CoMD - vessel.mainBody.position).normalized;
-            return (float)(90.0 - Vector3d.Angle(up, body.position - vessel.CoMD));
+            Vector3d up = (((Vector3d)vessel.transform.position) - vessel.mainBody.position).normalized;
+            return (float)(90.0 - Vector3d.Angle(up, body.position - ((Vector3d)vessel.transform.position)));
         }
 
         // Time warp on rails at 10 000 times, once the vessel moves less than 0.2 m/s. KSP
@@ -301,15 +314,46 @@ namespace ReDefinition.Probe
                       + " m/s.");
         }
 
-        // Time warp until `wanted` holds, `longest` seconds of game time at most.
+        // Whether the probe steps the game's time on by setting it (a step of JumpStep seconds, two frames each) where it looks
+        // for a time of day, as against the warp, which takes some seconds for each half hour. It falls back to the warp
+        // where setting the time does not take.
+        internal static bool JumpTime = true;
+        private const double JumpStep = 120.0, SlowJumpStep = 30.0;
+
+        // The game's time set `step` seconds on; false where it did not take.
+        private static IEnumerator JumpOn(double step, Action<bool> took)
+        {
+            double target = Planetarium.GetUniversalTime() + step;
+            Planetarium.SetUniversalTime(target);
+            yield return ProbeSteps.Frames(2);
+            bool ok = Math.Abs(Planetarium.GetUniversalTime() - target) < 5.0;
+            if (!ok) JumpTime = false;
+            took(ok);
+        }
+
+        // Time on until `wanted` holds, `longest` seconds of game time at most: set on by steps, or warped.
         private static IEnumerator WarpUntil(string what, Func<bool> wanted, Action<bool> done, double longest = 43200.0)
         {
             double started = Planetarium.GetUniversalTime();
             bool found = wanted();
-            if (!found) yield return RailsWarp();
+            bool warping = false;
+            if (!found && !JumpTime)
+            {
+                warping = true;
+                yield return RailsWarp();
+            }
             while (!found && Planetarium.GetUniversalTime() - started < longest)
             {
-                yield return null;
+                if (JumpTime) yield return JumpOn(JumpStep, took => { });
+                else
+                {
+                    if (!warping)
+                    {
+                        warping = true;
+                        yield return RailsWarp();
+                    }
+                    yield return null;
+                }
                 found = wanted();
             }
             TimeWarp.SetRate(0, true);
@@ -327,8 +371,8 @@ namespace ReDefinition.Probe
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null || body == null) yield break;
-            Vector3 up = ((Vector3)(vessel.CoMD - vessel.mainBody.position)).normalized;
-            Vector3 flat = Vector3.ProjectOnPlane((Vector3)(body.position - vessel.CoMD), up).normalized * (away ? -1f : 1f);
+            Vector3 up = ((Vector3)(((Vector3d)vessel.transform.position) - vessel.mainBody.position)).normalized;
+            Vector3 flat = Vector3.ProjectOnPlane((Vector3)(body.position - ((Vector3d)vessel.transform.position)), up).normalized * (away ? -1f : 1f);
             yield return LookAlong(flat, pitch, distance, body.bodyName + "'s direction, "
                                                         + Elevation(body).ToString("0", CultureInfo.InvariantCulture) + " degrees up");
         }
@@ -341,10 +385,10 @@ namespace ReDefinition.Probe
             FlightCamera.fetch.SetDistance(Mathf.Min(distance, FlightCamera.fetch.maxDistance));
             for (int attempt = 0; attempt < 2; attempt++)
             {
-                Vector3 up = ((Vector3)(vessel.CoMD - vessel.mainBody.position)).normalized;
+                Vector3 up = ((Vector3)(((Vector3d)vessel.transform.position) - vessel.mainBody.position)).normalized;
                 Vector3 look = flat * Mathf.Cos(pitch * Mathf.Deg2Rad) - up * Mathf.Sin(pitch * Mathf.Deg2Rad);
                 Vector3 place = -look * FlightCamera.fetch.Distance;
-                FlightCamera.fetch.SetCamCoordsFromPosition(attempt == 0 ? place : (Vector3)vessel.CoMD + place);
+                FlightCamera.fetch.SetCamCoordsFromPosition(attempt == 0 ? place : (Vector3)((Vector3d)vessel.transform.position) + place);
                 yield return ProbeSteps.Frames(10);
                 Vector3 forward = Vector3.ProjectOnPlane(FlightCamera.fetch.transform.forward, up);
                 float off = Vector3.Angle(forward, flat);
@@ -544,9 +588,9 @@ namespace ReDefinition.Probe
             while (Planetarium.GetUniversalTime() - started < 2.0 * mun.orbit.period)
             {
                 yield return null;
-                Vector3d up = (vessel.CoMD - vessel.mainBody.position).normalized;
-                double sunHeight = Vector3d.Dot(up, (sun.position - vessel.CoMD).normalized);
-                double munHeight = Vector3d.Dot(up, (mun.position - vessel.CoMD).normalized);
+                Vector3d up = (((Vector3d)vessel.transform.position) - vessel.mainBody.position).normalized;
+                double sunHeight = Vector3d.Dot(up, (sun.position - ((Vector3d)vessel.transform.position)).normalized);
+                double munHeight = Vector3d.Dot(up, (mun.position - ((Vector3d)vessel.transform.position)).normalized);
                 if (sunHeight < -0.3 && munHeight > 0.6)
                 {
                     found = true;
@@ -555,11 +599,11 @@ namespace ReDefinition.Probe
             }
             TimeWarp.SetRate(0, true);
             yield return new WaitForSeconds(3f);
-            Vector3d up2 = (vessel.CoMD - vessel.mainBody.position).normalized;
+            Vector3d up2 = (((Vector3d)vessel.transform.position) - vessel.mainBody.position).normalized;
             Debug.Log(Log.Tag + " Probe: light: warped " + (Planetarium.GetUniversalTime() - started).ToString("0", CultureInfo.InvariantCulture)
-                      + " s; the sun at " + Elevation(up2, sun.position - vessel.CoMD) + " degrees, the Mun at "
-                      + Elevation(up2, mun.position - vessel.CoMD) + ", its phase angle "
-                      + Vector3d.Angle(sun.position - mun.position, vessel.CoMD - mun.position).ToString("0", CultureInfo.InvariantCulture) + " degrees.");
+                      + " s; the sun at " + Elevation(up2, sun.position - ((Vector3d)vessel.transform.position)) + " degrees, the Mun at "
+                      + Elevation(up2, mun.position - ((Vector3d)vessel.transform.position)) + ", its phase angle "
+                      + Vector3d.Angle(sun.position - mun.position, ((Vector3d)vessel.transform.position) - mun.position).ToString("0", CultureInfo.InvariantCulture) + " degrees.");
             done(found);
         }
 

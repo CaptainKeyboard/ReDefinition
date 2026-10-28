@@ -56,6 +56,8 @@ namespace ReDefinition.Probe
                                          result => night = result, 4.0 * mun.orbit.period);
             if (night)
             {
+                yield return RaysCloudCheck(folder, mun);
+                yield return CloudMatrix(folder, sun, mun);
                 yield return CloudCalibration(folder, mun);
                 yield return CloudShotsAt(addon, folder, "night", mun, on, moonlight, nightAmbient);
             }
@@ -78,6 +80,7 @@ namespace ReDefinition.Probe
                         yield return CloudShotsAt(addon, folder, "dusk" + depth.ToString("00", CultureInfo.InvariantCulture), mun, on,
                                                   moonlight, nightAmbient);
                 }
+            Debug.Log(Log.Tag + " Probe: light: clouds done.");
         }
 
         // At night, the moon's light added per pixel (EveCloudRelight) against the light the
@@ -307,20 +310,121 @@ namespace ReDefinition.Probe
         {
             bool found = wanted();
             float until = Time.realtimeSinceStartup + 60f;
-            if (!found)
-            {
-                TimeWarp.fetch.Mode = TimeWarp.Modes.HIGH;
-                TimeWarp.SetRate(3, true);
-            }
+            double limit = Planetarium.GetUniversalTime() + 6.0 * 3600.0;
+            bool warping = false;
             while (!found && Time.realtimeSinceStartup < until)
             {
-                yield return null;
+                if (JumpTime && Planetarium.GetUniversalTime() < limit) yield return JumpOn(SlowJumpStep, took => { });
+                else
+                {
+                    if (!warping)
+                    {
+                        warping = true;
+                        TimeWarp.fetch.Mode = TimeWarp.Modes.HIGH;
+                        TimeWarp.SetRate(3, true);
+                    }
+                    yield return null;
+                }
                 found = wanted();
             }
             TimeWarp.SetRate(0, true);
             yield return new WaitForSeconds(3f);
             Debug.Log(Log.Tag + " Probe: light: slow warp; " + what + (found ? "." : " not reached."));
             done(found);
+        }
+
+        // The ground under clouds at night with the clouds in the rays and without. Each is shot twice from 60 m, 25 degrees
+        // down, so that the difference of the pairs shows the denoiser's noise.
+        private static IEnumerator RaysCloudCheck(string folder, CelestialBody mun)
+        {
+            Debug.Log(Log.Tag + " Probe: light: the clouds in the rays, the Mun at " + Elevation(mun).ToString("0.0", CultureInfo.InvariantCulture)
+                      + " degrees; " + EveCloudMoonlight.LayerSunBrightness() + ".");
+            yield return LookTowards(mun, 25f, 60f);
+            foreach (string pass in new[] { "with", "without", "with-again", "without-again" })
+            {
+                RtKsp.NoCloudsInRays = pass.StartsWith("without", StringComparison.Ordinal);
+                yield return ProbeSteps.Frames(150);
+                yield return Shot(folder, "rays-clouds-" + pass);
+            }
+            RtKsp.NoCloudsInRays = false;
+        }
+
+        // EVE's 2D clouds from orbit, the pod at 600 km (-redefinitionProbeOrbit), by the Mun's light at two phases and
+        // heights. The sun is well under the pod's horizon, the Mun high and mostly lit, then low and a crescent.
+        // Each time looks towards the Mun and away from it, 60 degrees down, the clouds' moonlight held off ("before")
+        // and on ("after"). The difference of the two is the light the 2D layers take from the Mun's slot (EveCloudMoonlight).
+        private static IEnumerator CloudsFromOrbit(ReDefinitionAddon addon, string folder)
+        {
+            CelestialBody sun = RtKspMods.StarBody();
+            CelestialBody mun = FlightGlobals.Bodies.Find(b => b.bodyName == SceneProbe.MoonName);
+            if (sun == null || mun == null) yield break;
+            RaytracingMode on = addon.Live.Raytracing == RaytracingMode.Off ? RaytracingMode.Full : addon.Live.Raytracing;
+            float moonlight = addon.Live.RaytracingMoonlight, nightAmbient = addon.Live.RaytracingNightAmbient;
+            Debug.Log(Log.Tag + " Probe: light: 2D clouds from orbit, into " + folder + ".");
+            Set(addon, on, moonlight, nightAmbient);
+            yield return ProbeSteps.Frames(30);
+            // Where the pod stands is its transform's place, as the game's own bodies' are: the centre of mass of a vessel
+            // on rails need not move with the orbit.
+            Func<CelestialBody, float> over = body =>
+            {
+                Vessel pod = FlightGlobals.ActiveVessel;
+                Vector3d at = pod.transform.position;
+                Vector3d up = (at - pod.mainBody.position).normalized;
+                return (float)(90.0 - Vector3d.Angle(up, body.position - at));
+            };
+            Func<float> phase = () => (float)Vector3d.Angle(sun.position - mun.position, (Vector3d)FlightGlobals.ActiveVessel.transform.position - mun.position);
+            var times = new[]
+            {
+                new { Name = "mun-high-gibbous", Test = (Func<bool>)(() => over(sun) < -25f && over(mun) > 30f && phase() < 60f) },
+                new { Name = "mun-mid-quarter", Test = (Func<bool>)(() => over(sun) < -25f && over(mun) > 40f && over(mun) < 60f
+                                                                          && phase() > 60f && phase() < 100f) },
+                new { Name = "mun-low-crescent", Test = (Func<bool>)(() => over(sun) < -25f && over(mun) > 12f && over(mun) < 35f
+                                                                           && phase() > 90f && phase() < 150f) },
+            };
+            foreach (var time in times)
+            {
+                bool found = time.Test();
+                double started = Planetarium.GetUniversalTime();
+                int frames = 0;
+                // Time on rails, 1000 times: a vessel in orbit that physics carries stands still where the game's time is
+                // set on, and only a warp on rails moves it along its orbit.
+                if (!found)
+                {
+                    TimeWarp.fetch.Mode = TimeWarp.Modes.HIGH;
+                    TimeWarp.SetRate(5, true);
+                }
+                while (!found && Planetarium.GetUniversalTime() - started < 4.0 * mun.orbit.period)
+                {
+                    yield return null;
+                    found = time.Test();
+                    if (++frames % 120 == 0)
+                        Debug.Log(Log.Tag + " Probe: light: 2D clouds looking for " + time.Name + ": the sun at " + over(sun).ToString("0", CultureInfo.InvariantCulture)
+                                  + ", the Mun at " + over(mun).ToString("0", CultureInfo.InvariantCulture) + ", phase angle "
+                                  + phase().ToString("0", CultureInfo.InvariantCulture) + ", rate " + TimeWarp.CurrentRate.ToString("0", CultureInfo.InvariantCulture) + ".");
+                }
+                TimeWarp.SetRate(0, true);
+                yield return new WaitForSeconds(3f);
+                Debug.Log(Log.Tag + " Probe: light: 2D clouds " + time.Name + (found ? " found" : " not found") + " after "
+                          + (Planetarium.GetUniversalTime() - started).ToString("0", CultureInfo.InvariantCulture) + " s.");
+                if (!found) continue;
+                Debug.Log(Log.Tag + " Probe: light: 2D clouds " + time.Name + ", the Mun at " + over(mun).ToString("0.0", CultureInfo.InvariantCulture)
+                          + " degrees, its phase angle " + phase().ToString("0", CultureInfo.InvariantCulture) + ", the sun at "
+                          + over(sun).ToString("0.0", CultureInfo.InvariantCulture) + ".");
+                foreach (bool away in new[] { false, true })
+                {
+                    string name = "clouds2d-" + time.Name + (away ? "-away" : "-towards");
+                    yield return LookTowards(mun, 60f, 40f, away);
+                    EveCloudMoonlight.HeldOff = true;
+                    yield return ProbeSteps.Frames(90);
+                    yield return Shot(folder, name + "-before");
+                    EveCloudMoonlight.HeldOff = false;
+                    yield return ProbeSteps.Frames(90);
+                    Debug.Log(Log.Tag + " Probe: light: " + name + ": the clouds' light " + EveCloudMoonlight.Describe() + "; " + EveCloudRelight.Describe()
+                              + "; " + EveCloudMoonlight.LayerSunBrightness() + ".");
+                    yield return Shot(folder, name + "-after");
+                }
+            }
+            Debug.Log(Log.Tag + " Probe: light: 2D clouds done.");
         }
 
         // The cloud shots at one time of CloudShots, by the light of the body named: logged with the body's and the
