@@ -464,7 +464,7 @@ namespace ReDefinition.Probe
                                              () => setting() && Elevation(moon) > 20f && PhaseAngle(moon, sun) < 100f,
                                              result => dusk = result, 4.0 * Math.Max(moon.orbit.period, day));
             if (dusk)
-                foreach (float depth in new[] { 9f, 13f, 17f, 22f })
+                foreach (float depth in new[] { 9f, 13f, 17f, 22f, 30f, 40f, 60f })
                 {
                     bool deep = false;
                     yield return SlowWarpUntil("the sun " + depth + " degrees down", () => Elevation(sun) < -depth, result => deep = result);
