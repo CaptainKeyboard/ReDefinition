@@ -32,8 +32,8 @@ namespace ReDefinition.Window
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionSettingsMigration", message.ToString(),
                 "ReDefinition's settings changed", HighLogic.UISkin, 520f,
                 new DialogGUIHorizontalLayout(0f, 30f, 8f, new RectOffset(), TextAnchor.MiddleCenter,
-                    new DialogGUIButton("Keep the new values", () => MigrationNotice.Clear(OwnSettings.NoticePath), true),
-                    new DialogGUIButton("Take my old values back", () => TakeBack(pending), true)));
+                    new DialogGUIButton("Keep the new values", () => MigrationNotice.Clear(OwnSettings.NoticePath), 220f, 30f, true),
+                    new DialogGUIButton("Take my old values back", () => TakeBack(pending), 220f, 30f, true)));
             UnityMouseEvents.Shield(ScreenFit.Add(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
                 dialog, false, HighLogic.UISkin)));
             Debug.Log(Log.Tag + " Main menu notice about " + pending.Changes.Count + " settings changed by the update from " + pending.From + ".");
