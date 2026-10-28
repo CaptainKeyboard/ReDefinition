@@ -305,6 +305,10 @@ namespace ReDefinition.Probe
                       + " ms, wall " + (1000.0 * wall / Frames).ToString("0.00", CultureInfo.InvariantCulture) + " ms a frame.");
         }
 
+        // How far below the horizon the sun must be for a night. It then reaches no layer, the highest ones included. At 27 degrees
+        // a layer above 70 km on Kerbin is still in its light, which a measure of the moon's light on the clouds took for the moon's.
+        private const float NightDepth = 45f;
+
         // What the moon's light on the clouds costs. At night with the moon up it times the frame, with the raytracing on and off,
         // from the ground towards the clouds and from 14 and 150 km. It times three ways: as it is, without the light per pixel,
         // and without the moon's light on the clouds.
@@ -318,7 +322,7 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: cloud cost, the GPU profiler " + (GpuProfiler.On ? "on" : "OFF") + ".");
             bool night = false;
             yield return WarpUntilCloudy("the sun down, " + moon.bodyName + " high and lit",
-                                         () => Elevation(sun) < -25f && Elevation(moon) > 30f && PhaseAngle(moon, sun) < 100f,
+                                         () => Elevation(sun) < -NightDepth && Elevation(moon) > 30f && PhaseAngle(moon, sun) < 100f,
                                          result => night = result, 4.0 * Math.Max(moon.orbit.period, day));
             if (!night) yield break;
             Vessel vessel = FlightGlobals.ActiveVessel;
@@ -463,7 +467,7 @@ namespace ReDefinition.Probe
             {
                 bool there = false;
                 yield return WarpUntilCloudy("the sun down, " + moon.bodyName + " high and lit",
-                                             () => Elevation(sun) < -25f && Elevation(moon) > 30f && PhaseAngle(moon, sun) < 100f,
+                                             () => Elevation(sun) < -NightDepth && Elevation(moon) > 30f && PhaseAngle(moon, sun) < 100f,
                                              result => there = result, 4.0 * Math.Max(moon.orbit.period, day));
                 if (!there) yield break;
                 Vessel pod = FlightGlobals.ActiveVessel;
@@ -491,7 +495,7 @@ namespace ReDefinition.Probe
                 {
                     bool reached = false;
                     yield return WarpUntilCloudy("the sun down, " + moon.bodyName + " at " + wanted + " degrees",
-                                                 () => Elevation(sun) < -25f && Mathf.Abs(Elevation(moon) - wanted) < 3f && PhaseAngle(moon, sun) < 120f,
+                                                 () => Elevation(sun) < -NightDepth && Mathf.Abs(Elevation(moon) - wanted) < 3f && PhaseAngle(moon, sun) < 120f,
                                                  result => reached = result, 4.0 * Math.Max(moon.orbit.period, day));
                     if (!reached) continue;
                     yield return ProbeSteps.Frames(10);
@@ -514,14 +518,14 @@ namespace ReDefinition.Probe
             float highMoon = FlightGlobals.currentMainBody.bodyName == "Kerbin" ? 30f : 12f;
             bool night = false;
             yield return WarpUntilCloudy("the sun down, " + moon.bodyName + " high and lit",
-                                         () => Elevation(sun) < -25f && Elevation(moon) > highMoon && PhaseAngle(moon, sun) < 100f,
+                                         () => Elevation(sun) < -NightDepth && Elevation(moon) > highMoon && PhaseAngle(moon, sun) < 100f,
                                          result => night = result, 4.0 * Math.Max(moon.orbit.period, day));
             if (night) yield return shotsOnly ? TransitionShots(addon, folder, "night") : CloudRatiosAt(addon, folder, "night", moonlight, nightAmbient);
 
             // The moon low, as in a night with it rising: its light reddened by the air it crosses.
             bool low = false;
             yield return WarpUntilCloudy("the sun down, " + moon.bodyName + " low and lit",
-                                         () => Elevation(sun) < -25f && Elevation(moon) > 8f && Elevation(moon) < 25f && PhaseAngle(moon, sun) < 110f,
+                                         () => Elevation(sun) < -NightDepth && Elevation(moon) > 8f && Elevation(moon) < 25f && PhaseAngle(moon, sun) < 110f,
                                          result => low = result, 4.0 * Math.Max(moon.orbit.period, day));
             if (low) yield return shotsOnly ? TransitionShots(addon, folder, "night-low") : CloudRatiosAt(addon, folder, "night-low", moonlight, nightAmbient);
             Debug.Log(Log.Tag + " Probe: cloud ratios done.");

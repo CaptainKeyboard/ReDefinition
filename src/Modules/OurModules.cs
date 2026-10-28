@@ -404,7 +404,7 @@ namespace ReDefinition.Modules
                 needsProfile: true),
             Percentage("nightClouds", "nightClouds", "Night clouds", 78, 300f,
                 "How bright the clouds are at night in the light of the moons and planets, volumetric and flat\n"
-                  + "layers alike, with or without raytracing. The scale is the one of Moonlight. At 30 %, the\n"
+                  + "layers alike, with or without raytracing. The scale is the one of Moonlight. At 70 %, the\n"
                   + "default, the clouds stand to the ground as they do in the sun. Needs Scatterer and EVE.",
                 settings => ReDefinition.Raytracing.NightClouds.Hooked),
             Percentage("sunReflection", "sunReflection", "Sun reflection", 77, 300f,

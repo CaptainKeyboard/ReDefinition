@@ -23,7 +23,7 @@ upscaler's. The other rows are under *Detail*, in the *Raytracing* group.
 | Moonlight | how brightly the moons light the scene, from 0 to 300 %, in a cool colour, as the eye sees moonlight at night. Their light falls only where the moon is in the sky, with shadows. Only with *Shadows and light* or *Full* |
 | Moon reflection | how strongly water mirrors the moons, from 0 to 500 %. 100 % is the moon as bright in the water as the eye sees it at night. It lights nothing. Only with *Full* |
 | Moon glow | the moons' discs a little brighter in the night sky, with a soft glow round them, the more the darker the sky. It lights nothing, and works without raytracing too |
-| Night clouds | how brightly the moons light the clouds at night, from 0 to 300 %, on the volumetric and the flat layers of every planet with clouds. The scale is that of *Moonlight*; at 30 %, the default, the clouds stand to the ground as they do in the sun. It works without raytracing too, and needs Scatterer and EVE |
+| Night clouds | how brightly the moons light the clouds at night, from 0 to 300 %, on the volumetric and the flat layers of every planet with clouds. The scale is that of *Moonlight*; at 70 %, the default, the clouds stand to the ground as they do in the sun. It works without raytracing too, and needs Scatterer and EVE |
 | Sun reflection | how strongly water mirrors the sun, from 0 to 300 %: the raytraced sun on the sea with *Full*, otherwise Scatterer's own glint. 100 % is Scatterer's |
 | Night light | how much of KSP's own night light stays, from 0 to 100 %: the least light anything gets where neither the sun nor a moon reaches it. Lower makes the night darker, and the moonlight's shadows show more clearly. Only with *Shadows and light* or *Full* |
 

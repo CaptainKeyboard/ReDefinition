@@ -71,11 +71,11 @@ namespace ReDefinition.Modules
         // artistic scale (Raytracing/Ksp/RtReflectors).
         public float RaytracingMoonlight = 10f;
         // How bright the clouds are in the light of the moons and planets at night, in percent of the same scale as
-        // RaytracingMoonlight, with or without the raytracing (Raytracing/Ksp/EveCloudMoonlight). At 30 % the clouds stand to the
-        // ground lit by the moon at the default Moonlight (10 %) as they stand to the ground in the sun: measured 3.0 against
-        // 1.8 to 3.9 by day (2026-10-28).
+        // RaytracingMoonlight, with or without the raytracing (Raytracing/Ksp/EveCloudMoonlight). At 70 % the clouds stand to the
+        // ground as they do in the sun, 3 to 4 against 1.7 to 4.0 by day, and show at about 20 of 255 on the screen. At 30 % they
+        // show at about 9 and are not to be told from the sky (measured at the sun 64 degrees down, 2026-10-28).
         public float NightClouds = DefaultNightClouds;
-        internal const float DefaultNightClouds = 30f;
+        internal const float DefaultNightClouds = 70f;
         // The moons' discs made to stand out in the night sky (Raytracing/Ksp/MoonGlow).
         public bool MoonGlow = true;
         // How strongly water mirrors the moons, in percent of their discs as the eye sees
