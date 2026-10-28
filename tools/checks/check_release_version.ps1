@@ -1,12 +1,11 @@
 # The version of a release against what changed since the last one.
 #
-#   check_release_version.ps1
-#
-# src/Migration/surface.shipped.txt holds the surface of the last release under "# release <version>"; src/Migration/surface.txt is the
-# surface of the build (tools/Surface). Where they differ in a setting, a registration, a profile or the proxy's ini, the
-# version in src/ReDefinition.csproj must be higher than the last release's; where something that was there is gone or changed,
-# at least the next minor version (0.<n+1>.0, and from 1.0 on the next major version). The release package runs it first.
-# It reads text only: the build does not need the game.
+# src/Migration/surface.shipped.txt holds the surface of the last release under "# release <version>".
+# src/Migration/surface.txt is the surface of the build (tools/Surface).
+# Where they differ in a setting, a registration, a profile or the proxy's ini, the version in src/ReDefinition.csproj
+# must be higher than the last release's.
+# Where something is gone or changed, it must be at least the next minor version (0.<n+1>.0), and from 1.0 on the next major one.
+# The release package runs this first. It reads text only: the build does not need the game.
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)

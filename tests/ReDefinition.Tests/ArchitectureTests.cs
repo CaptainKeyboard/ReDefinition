@@ -43,7 +43,7 @@ namespace ReDefinition.Tests
             ["Ui"] = "Core Scaling Upscaler Window",
             ["Upscaler"] = "Api Core Probe Proxy Raytracing Settings",
             ["Vendor"] = "Core Modules Proxy Ui Window",
-            ["Window"] = "Core Hud Modules Proxy Settings Ui Vendor",
+            ["Window"] = "Core Hud Migration Modules Proxy Settings Ui Vendor",
         };
 
         // Every using of another area's namespace in a file of an area is an edge the table allows.
