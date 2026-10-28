@@ -1,0 +1,37 @@
+name: Connectors
+
+# Every commit says what it changed in the connectors (tools/hooks/check_connectors.sh): the same check the commit-msg hook makes,
+# for the commits pushed, so that a commit made without the hook is found too. The build does not run here: it needs KSP's own files.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  trailer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Each pushed commit says what it changed in the connectors
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            range="${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+          elif echo "${{ github.event.before }}" | grep -q -E '^0+$'; then
+            range="HEAD~1..HEAD"
+          else
+            range="${{ github.event.before }}..${{ github.sha }}"
+          fi
+          failed=0
+          # Commits up to the one before the check existed are not asked.
+          for sha in $(git rev-list "$range" --not 94dabff); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/message"
+            git diff-tree --no-commit-id --name-only -r "$sha" > "$RUNNER_TEMP/files"
+            if ! sh tools/hooks/check_connectors.sh "$RUNNER_TEMP/message" "$RUNNER_TEMP/files"; then
+              echo "::error::$(git log -1 --format='%h %s' "$sha")"
+              failed=1
+            fi
+          done
+          exit $failed

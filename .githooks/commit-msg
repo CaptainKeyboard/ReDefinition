@@ -1,0 +1,10 @@
+#!/bin/sh
+# Every commit says what it changed in the connectors (tools/hooks/check_connectors.sh).
+# Set up by the build: git config core.hooksPath .githooks
+root=$(git rev-parse --show-toplevel)
+files=$(mktemp)
+git diff --cached --name-only > "$files"
+sh "$root/tools/hooks/check_connectors.sh" "$1" "$files"
+status=$?
+rm -f "$files"
+exit $status

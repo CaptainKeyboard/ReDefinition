@@ -31,3 +31,15 @@ player's file goes through the steps it has not been through, once, when the gam
    the new one where the player kept the old one, a removed setting leaves the file.
 3. Write the surface anew: `REDEFINITION_UPDATE_SURFACE=1 dotnet test --filter TheWrittenSurface`.
 4. At the release, move the steps into `Released` and write `surface.shipped.txt` from the release's build.
+
+## Every commit says what it changed
+
+- A commit message ends with `Connectors: unchanged` or `Connectors: changed: <what, and what that does to a player's file>`.
+  The connectors are what a player or another mod sees: the settings and their standards, the registrations, the
+  profiles, the proxy's ini, the catalogue of other mods' code. `surface.txt` lists them.
+- `.githooks/commit-msg` checks the line against the staged files (`tools/hooks/check_connectors.sh`). `unchanged` is
+  refused where `surface.txt` changes. `changed` needs `Migrations.cs` in the commit, or the words "no step needed"
+  and the reason. The build sets `core.hooksPath`.
+- `.github/workflows/connectors.yml` makes the same check for pushed commits, so a commit made without the hook is found.
+- What the files do not show -- a setting that keeps its key and standard but means something else -- is for the
+  line to say; it cannot be checked.

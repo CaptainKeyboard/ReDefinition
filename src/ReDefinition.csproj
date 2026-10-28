@@ -161,6 +161,13 @@
     <Error Text="-p:ReleasePackage=true builds the player package and needs -c Release; otherwise it would only put a DLL without FSR's debug checks into the game." />
   </Target>
 
+  <!-- The repository's git hooks (.githooks): every commit says what it changed in the connectors (tools/hooks). Git runs
+       hooks only from the folder core.hooksPath names, so the build sets it; where this is not a git checkout nothing is done. -->
+  <Target Name="InstallGitHooks" BeforeTargets="BeforeBuild" Condition="Exists('$(MSBuildThisFileDirectory)..\.git')">
+    <Exec Command="git config core.hooksPath .githooks" WorkingDirectory="$(MSBuildThisFileDirectory).." IgnoreExitCode="true"
+          StandardOutputImportance="low" StandardErrorImportance="low" />
+  </Target>
+
   <!-- The KSP-AVC version file, generated from the project's version, as
        KSPCommunityFixes generates its own (KSPBuildTools). Built and tested
        against KSP 1.12.5; 1.12.0 and up run the same interfaces of KSP that

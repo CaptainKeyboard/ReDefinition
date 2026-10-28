@@ -1,0 +1,3 @@
+# The hooks and their scripts run in sh: line ends stay LF on every machine.
+.githooks/* text eol=lf
+*.sh text eol=lf
