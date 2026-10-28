@@ -1,4 +1,5 @@
 # The surface of a ReDefinition build, made by tools/Surface. Do not edit by hand.
+# release 0.1.3
 mod.MOD_SETTINGS[deferred].KEY[guiKey].default = LeftControl+LeftAlt+D
 mod.MOD_SETTINGS[deferred].KEY[guiKey].member = Deferred.Deferred.settings.guiKey
 mod.MOD_SETTINGS[deferred].KEY[guiKey].modifier1 = Deferred.Deferred.settings.guiModifierKey1
