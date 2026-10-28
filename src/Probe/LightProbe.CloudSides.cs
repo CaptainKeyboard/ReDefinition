@@ -127,36 +127,121 @@ namespace ReDefinition.Probe
             }
         }
 
-        // The pole's sky and overhead at the sun's lowest on this latitude, measured as the clouds are.
+        // Whether the moon's light changes the auroras' pixels. The moon is turned to 45 degrees up on the side the camera looks to, the
+        // per-pixel light forced on, and the picture taken with the clouds off, on, and on with the moon's light held off. Of the
+        // pixels the clouds change, those the moon's light changes too are weather; the rest are the auroras', and must not change.
+        private static IEnumerator AuroraMoonCheck(string folder, string name, Vector3 up, Vector3 toward)
+        {
+            EveCloudMoonlight.ProbeMoonDirection = (up * 0.7071f + toward * 0.7071f).normalized;
+            EveCloudMoonlight.ProbeShare = 1f;
+            EveCloudRelight.ProbeAlways = true;
+            Color[] off = null, lit = null, held = null;
+            int width = 0, height = 0;
+            CloudsVisible(false);
+            yield return ProbeSteps.Frames(RatioFramesAfterSwitch);
+            yield return ColourShot((p, w, h) => { off = p; width = w; height = h; });
+            CloudsVisible(true);
+            yield return ProbeSteps.Frames(RatioFramesAfterSwitch);
+            yield return ColourShot((p, w, h) => lit = p);
+            SavePng(System.IO.Path.Combine(folder, name + "-moon.png"), lit, width, height);
+            EveCloudMoonlight.HeldOff = true;
+            EveCloudRelight.HeldOff = true;
+            yield return ProbeSteps.Frames(RatioFramesAfterSwitch);
+            yield return ColourShot((p, w, h) => held = p);
+            EveCloudMoonlight.HeldOff = false;
+            EveCloudRelight.HeldOff = false;
+            EveCloudMoonlight.ProbeMoonDirection = Vector3.zero;
+            EveCloudMoonlight.ProbeShare = -1f;
+            EveCloudRelight.ProbeAlways = false;
+            if (off == null || lit == null || held == null || off.Length != lit.Length || off.Length != held.Length) yield break;
+            int weather = 0, aurora = 0;
+            double weatherLit = 0.0, weatherHeld = 0.0, auroraLit = 0.0, auroraHeld = 0.0, worst = 0.0;
+            for (int i = 0; i < lit.Length; i++)
+            {
+                float change = LargestChange(lit[i], off[i]);
+                if (change < 0.002f) continue;
+                float moon = LargestChange(lit[i], held[i]);
+                if (moon > 0.0005f + 0.02f * Mathf.Max(lit[i].r, Mathf.Max(lit[i].g, lit[i].b)))
+                {
+                    weather++;
+                    weatherLit += Luminance(lit[i]);
+                    weatherHeld += Luminance(held[i]);
+                }
+                else
+                {
+                    aurora++;
+                    auroraLit += Luminance(lit[i]);
+                    auroraHeld += Luminance(held[i]);
+                    worst = Math.Max(worst, moon);
+                }
+            }
+            var culture = CultureInfo.InvariantCulture;
+            Debug.Log(Log.Tag + " Probe: aurora moon check " + name + ": " + aurora + " pixels the moon's light leaves alone, luminance "
+                      + (aurora > 0 ? auroraLit / aurora : 0.0).ToString("0.00000", culture) + " with it and "
+                      + (aurora > 0 ? auroraHeld / aurora : 0.0).ToString("0.00000", culture) + " without, at most " + worst.ToString("0.00000", culture)
+                      + " apart; " + weather + " pixels it changes, " + (weather > 0 ? weatherLit / weather : 0.0).ToString("0.00000", culture)
+                      + " with it and " + (weather > 0 ? weatherHeld / weather : 0.0).ToString("0.00000", culture) + " without.");
+        }
+
+        // The auroras at the sun's heights. The pod hangs in the air over -redefinitionProbeHoverLatitude (with -redefinitionProbeOrbit
+        // and -redefinitionProbeHover) and is set down in turn where the sun stands 40, 5, -12 and -25 degrees high. Each time the
+        // camera looks along the line of sight with the strongest aurora coverage, and the clouds are measured as in the other flows.
         private static IEnumerator AuroraView(ReDefinitionAddon addon, string folder)
         {
             CelestialBody sun = RtKspMods.StarBody();
             if (sun == null) yield break;
             Set(addon, RaytracingMode.Light, addon.Live.RaytracingMoonlight, addon.Live.RaytracingNightAmbient);
             yield return ProbeSteps.Frames(RatioFramesAfterMode);
+            double altitude, latitude;
+            bool hanging = LandProbe.HoverAltitude(out altitude) & LandProbe.HoverLatitude(out latitude);
+            if (hanging)
+            {
+                ReDefinitionAddon.Instance.StartCoroutine(LandProbe.Hover(altitude));
+                yield return new WaitForSecondsRealtime(8f);
+            }
             Debug.Log(Log.Tag + " Probe: cloud layers over " + FlightGlobals.currentMainBody.bodyName + ": "
                       + EveCloudMoonlight.DescribeLayers(FlightGlobals.currentMainBody.bodyName) + ".");
-            bool dark = false;
-            yield return WarpUntil("the sun below 20 degrees", () => Elevation(sun) < -20f, result => dark = result, 6.0 * 3600.0);
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            Vector3 up = ((Vector3)(((Vector3d)vessel.transform.position) - vessel.mainBody.position)).normalized;
-            Vector3 north = Vector3.ProjectOnPlane((Vector3)vessel.north, up).normalized;
-            Debug.Log(Log.Tag + " Probe: aurora: the pod at latitude " + vessel.latitude.ToString("0.0", CultureInfo.InvariantCulture)
-                      + ", the sun at " + Elevation(sun).ToString("0.0", CultureInfo.InvariantCulture) + " degrees" + (dark ? "." : ", not dark enough."));
-            // The direction round the horizon with the strongest aurora 45 km up and 150 km away.
-            FindAuroras(vessel.mainBody.bodyName);
-            Vector3 toward = north;
-            float strongest = -1f;
-            for (int step = 0; step < 12; step++)
+            foreach (double elevation in hanging ? new[] { 40.0, 5.0, -12.0, -25.0 } : new[] { double.NaN })
             {
-                Vector3 direction = Quaternion.AngleAxis(30f * step, up) * north;
-                float value = AuroraAt((Vector3)((Vector3d)vessel.transform.position) + direction * 150000f + up * 60000f);
-                Debug.Log(Log.Tag + " Probe: aurora: " + (30 * step) + " degrees from north, coverage " + value.ToString("0.00", CultureInfo.InvariantCulture) + ".");
-                if (value > strongest) { strongest = value; toward = direction; }
+                Vessel vessel = FlightGlobals.ActiveVessel;
+                CelestialBody body = vessel.mainBody;
+                if (hanging)
+                {
+                    LandProbe.HoverAt(vessel, LandProbe.HoverDirection(body, latitude, elevation), altitude);
+                    yield return ProbeSteps.Frames(90);
+                }
+                Vector3 up = ((Vector3)(((Vector3d)vessel.transform.position) - body.position)).normalized;
+                FindAuroras(body.bodyName);
+                // Round the horizon, 12 directions, 50 to 300 km out and 45 km over the ground: the strongest coverage.
+                Vector3d pod = (Vector3d)vessel.transform.position;
+                Vector3 north = Vector3.ProjectOnPlane((Vector3)vessel.north, up).normalized;
+                Vector3 toward = north;
+                float strongest = -1f, climb = 10f;
+                for (int step = 0; step < 12; step++)
+                {
+                    Vector3 direction = Quaternion.AngleAxis(30f * step, up) * north;
+                    for (float distance = 50000f; distance <= 300000f; distance += 25000f)
+                    {
+                        Vector3d around = (pod - body.position) + (Vector3d)direction * distance;
+                        Vector3d point = body.position + around.normalized * (body.Radius + 45000.0);
+                        float value = AuroraAt((Vector3)point);
+                        if (value > strongest)
+                        {
+                            strongest = value;
+                            toward = direction;
+                            climb = Mathf.Asin(Mathf.Clamp(Vector3.Dot(((Vector3)(point - pod)).normalized, up), -1f, 1f)) * Mathf.Rad2Deg;
+                        }
+                    }
+                }
+                string label = "aurora, the sun " + Elevation(sun).ToString("0", CultureInfo.InvariantCulture) + " degrees, latitude "
+                               + vessel.latitude.ToString("0", CultureInfo.InvariantCulture) + ", coverage " + strongest.ToString("0.00", CultureInfo.InvariantCulture)
+                               + " at " + climb.ToString("0", CultureInfo.InvariantCulture) + " degrees up";
+                Debug.Log(Log.Tag + " Probe: " + label + ".");
+                yield return LookAlong(toward, -climb, 60f, "the aurora");
+                string name = "aurora-sun" + (double.IsNaN(elevation) ? "x" : ((int)elevation).ToString(CultureInfo.InvariantCulture));
+                yield return CloudRatio(folder, name, label);
+                yield return AuroraMoonCheck(folder, name, up, toward);
             }
-            Debug.Log(Log.Tag + " Probe: aurora: the strongest coverage " + strongest.ToString("0.00", CultureInfo.InvariantCulture) + ", looked at.");
-            yield return LookAlong(toward, -12f, 60f, "the aurora");
-            yield return CloudRatio(folder, "aurora-view", "aurora, at its strongest direction");
             Debug.Log(Log.Tag + " Probe: aurora done.");
         }
     }

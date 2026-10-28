@@ -51,6 +51,43 @@ namespace ReDefinition.Probe
                    && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out metres);
         }
 
+        // -redefinitionProbeHoverLatitude <degrees>, with the hover: the pod hangs over that latitude instead, at the longitude where
+        // the sun stands -redefinitionProbeHoverSun degrees high (-25 without it), so that the sky is dark at a latitude with auroras.
+        internal static bool HoverLatitude(out double degrees)
+        {
+            degrees = 0.0;
+            return double.TryParse(CommandLine.After("-redefinitionProbeHoverLatitude") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out degrees);
+        }
+
+        // The direction from the body's centre to the point over `latitude` where the sun stands `elevation` degrees high, east of
+        // the sub-solar point. At a latitude where the sun cannot stand so high or so low it is the pole's.
+        internal static Vector3d HoverDirection(CelestialBody body, double latitude, double elevation)
+        {
+            Vector3d axis = body.RotationAxis.normalized;
+            Vector3d toSun = (FlightGlobals.Bodies[0].position - body.position).normalized;
+            double sunAxis = Vector3d.Dot(toSun, axis);
+            Vector3d e1 = (toSun - axis * sunAxis).normalized;
+            Vector3d e2 = Vector3d.Cross(axis, e1);
+            double lat = latitude * Math.PI / 180.0;
+            double cosLat = Math.Cos(lat), sinLat = Math.Sin(lat);
+            double cosSun = Math.Sqrt(Math.Max(0.0, 1.0 - sunAxis * sunAxis));
+            double cosLongitude = cosLat * cosSun > 1e-9 ? (Math.Sin(elevation * Math.PI / 180.0) - sinLat * sunAxis) / (cosLat * cosSun) : 2.0;
+            if (Math.Abs(cosLongitude) > 1.0) return axis * (latitude >= 0.0 ? 1.0 : -1.0);
+            double longitude = Math.Acos(cosLongitude);
+            return (e1 * (cosLat * Math.Cos(longitude)) + e2 * (cosLat * Math.Sin(longitude)) + axis * sinLat).normalized;
+        }
+
+        // Puts the active vessel at rest in the air at that place, upright.
+        internal static void HoverAt(Vessel vessel, Vector3d up, double altitude)
+        {
+            Vector3d place = vessel.mainBody.position + up * (vessel.mainBody.Radius + altitude);
+            vessel.SetPosition(place);
+            vessel.SetRotation(Quaternion.FromToRotation(Vector3.up, (Vector3)up));
+            FloatingOrigin.SetOffset(place);
+            Krakensbane.ResetVelocityFrame(true);
+            vessel.SetWorldVelocity(vessel.mainBody.getRFrmVel(vessel.GetWorldPos3D()));
+        }
+
         // Moves the active vessel to the altitude over the lit side of its body and holds it there, upright, at rest
         // in the air. The sun stands 35 degrees above the horizon there (OrbitPhase). Runs for as long as the flight does.
         internal static IEnumerator Hover(double altitude)
@@ -60,6 +97,13 @@ namespace ReDefinition.Probe
             CelestialBody body = vessel.mainBody;
             Vector3d toSun = (FlightGlobals.Bodies[0].position - body.position).normalized;
             Vector3d up = (QuaternionD.AngleAxis(OrbitPhase, body.RotationAxis) * toSun).normalized;
+            double latitude;
+            if (HoverLatitude(out latitude))
+            {
+                double sun;
+                up = HoverDirection(body, latitude, double.TryParse(CommandLine.After("-redefinitionProbeHoverSun") ?? "", NumberStyles.Float,
+                                                                       CultureInfo.InvariantCulture, out sun) ? sun : -25.0);
+            }
             Vector3d place = body.position + up * (body.Radius + altitude);
             Quaternion upright = Quaternion.FromToRotation(Vector3.up, (Vector3)up);
             vessel.SetPosition(place);
