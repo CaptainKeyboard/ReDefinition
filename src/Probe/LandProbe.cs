@@ -181,6 +181,14 @@ namespace ReDefinition.Probe
             return new Orbit(0.0, e, a, 0.0, bestArgument, mean, ut, body);
         }
 
+        // Where the pod is asked to stand, in degrees north: -redefinitionProbeLandLatitude, the equator without it.
+        private static double Latitude()
+        {
+            double value;
+            string text = CommandLine.After("-redefinitionProbeLandLatitude");
+            return text != null && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out value) ? value : 0.0;
+        }
+
         // Where the pod is asked to stand, in degrees east.
         private static double Longitude()
         {
@@ -201,7 +209,8 @@ namespace ReDefinition.Probe
                 return -1;
             }
             double wanted = Longitude();
-            double[] latitudes = { 0.0, 8.0, -8.0, 16.0, -16.0 };
+            double flat = Latitude();
+            double[] latitudes = { flat, flat + 8.0, flat - 8.0, flat + 16.0, flat - 16.0 };
             for (double away = 0.0; away <= 60.0; away += 2.0)
                 for (int side = 0; side < (away == 0.0 ? 1 : 2); side++)
                     foreach (double lat in latitudes)

@@ -433,6 +433,17 @@ namespace ReDefinition.Probe
                 yield break;
             }
 
+            if (CommandLine.Has("-redefinitionProbeRatioSides"))
+            {
+                yield return CloudSides(addon, folder);
+                yield break;
+            }
+            if (CommandLine.Has("-redefinitionProbeRatioAurora"))
+            {
+                yield return AuroraView(addon, folder);
+                yield break;
+            }
+
             // -redefinitionProbeRatioNight: only the nights, for a look at the night alone.
             bool nightOnly = CommandLine.Has("-redefinitionProbeRatioNight");
             // -redefinitionProbeRatioShots: the views of the transition only, without the measures.
