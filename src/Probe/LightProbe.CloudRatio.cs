@@ -386,7 +386,7 @@ namespace ReDefinition.Probe
                     if (mode == RaytracingMode.Light && time == "night" && height == RatioHeights[0])
                     {
                         OwnSettings original = addon.Live.Clone();
-                        foreach (float percent in new[] { 0f, 30f, 100f })
+                        foreach (float percent in new[] { 0f, 30f, 70f, 100f })
                         {
                             OwnSettings changed = original.Clone();
                             changed.NightClouds = percent;
