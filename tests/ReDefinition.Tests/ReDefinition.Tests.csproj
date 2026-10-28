@@ -28,6 +28,7 @@
        are checked against the interface (SharedFoundationTests). -->
   <ItemGroup>
     <Compile Include="..\..\docs\modders\examples\ReDefinitionApi.cs" Link="ReDefinitionApi.cs" />
+    <Compile Include="..\..\tools\Surface\SurfaceBuilder.cs" Link="SurfaceBuilder.cs" />
   </ItemGroup>
 
   <!-- The game's assemblies the framework's types name, copied beside the tests

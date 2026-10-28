@@ -7,6 +7,7 @@ using FidelityFX.FSR3;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Diagnostics;
+using ReDefinition.Migration;
 using ReDefinition.Raytracing;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
@@ -455,27 +456,95 @@ namespace ReDefinition.Modules
             Text("dashboardKey", x => x.DashboardKey, (x, v) => x.DashboardKey = v, live: true),
         };
 
-        // The settings from the file; defaults where the file or its node is missing, and per key where one is.
+        // The release the file was written by and the steps it has been through (SettingsMigration), as Save writes them: those of a
+        // fresh file, where Load has not read another.
+        private static IDictionary<string, string> stamp = FreshStamp();
+
+        private static IDictionary<string, string> FreshStamp()
+        {
+            var values = new Dictionary<string, string>();
+            SettingsMigration.Fresh(values, Migrations.All, SettingsMigration.Current);
+            return values;
+        }
+
+        // Where the changes of a migration wait for the player's answer.
+        internal static string NoticePath
+        {
+            get { return PluginData.Path("migration-notice.txt"); }
+        }
+
+        // The settings from the file; defaults where the file or its node is missing, and per key where one is. A file from an
+        // earlier release is migrated first (SettingsMigration), and one from a newer release put back as it was before it.
         public static OwnSettings Load()
         {
             OwnSettings settings = new OwnSettings();
+            stamp = FreshStamp();
             if (!File.Exists(Path)) return settings;
 
-            ConfigNode root = ConfigNode.Load(Path);
-            ConfigNode node = root == null ? null : root.GetNode(RootName);
-            if (node == null) return settings;
+            Dictionary<string, string> values = Values(Path);
+            if (values == null) return settings;
+
+            string release = SettingsMigration.From(values);
+            if (SettingsMigration.Compare(release, SettingsMigration.Current) > 0)
+            {
+                if (SettingsMigration.RestoreOlder(Path, SettingsMigration.Current))
+                {
+                    UnityEngine.Debug.Log(Log.Tag + " Settings: the file is from " + release + ", newer than this " + SettingsMigration.Current
+                                          + "; the file from before that release is back, and the newer one stays as settings.cfg.bak-newer.");
+                    values = Values(Path) ?? new Dictionary<string, string>();
+                }
+                else
+                {
+                    UnityEngine.Debug.LogWarning(Log.Tag + " Settings: the file is from " + release + ", newer than this " + SettingsMigration.Current
+                                                 + ", and there is no file from before it to put back; it is read as it is.");
+                }
+            }
+
+            string from = SettingsMigration.From(values);
+            List<SettingsChange> changes = SettingsMigration.Run(values, Migrations.All, SettingsMigration.Current);
+            if (changes.Count > 0)
+            {
+                string problem = SettingsMigration.Backup(Path, from);
+                if (problem != null) UnityEngine.Debug.LogWarning(Log.Tag + " Settings: the file could not be kept as it was (" + problem + ").");
+                foreach (SettingsChange change in changes)
+                    UnityEngine.Debug.Log(Log.Tag + " Settings: " + change.Key + " " + (change.Before ?? "(none)") + " -> " + (change.After ?? "(removed)")
+                                          + ". " + change.Text);
+                MigrationNotice.Write(NoticePath, from, changes);
+            }
+            stamp = new Dictionary<string, string>
+            {
+                { SettingsMigration.VersionKey, values[SettingsMigration.VersionKey] },
+                { SettingsMigration.AppliedKey, values[SettingsMigration.AppliedKey] },
+            };
 
             foreach (Field field in Fields)
-                field.Read(settings, node.GetValue(field.Key));
+            {
+                string text;
+                field.Read(settings, values.TryGetValue(field.Key, out text) ? text : null);
+            }
+            if (changes.Count > 0) settings.Save();
             return settings;
         }
 
-        // Writes every setting to the file, making the folder where it is missing.
+        // The values of the file's ReDefinition node, key to text; null where the file or the node is missing.
+        private static Dictionary<string, string> Values(string path)
+        {
+            ConfigNode root = ConfigNode.Load(path);
+            ConfigNode node = root == null ? null : root.GetNode(RootName);
+            if (node == null) return null;
+            var values = new Dictionary<string, string>();
+            foreach (ConfigNode.Value value in node.values) values[value.name] = value.value;
+            return values;
+        }
+
+        // Writes every setting to the file, making the folder where it is missing, with the release and the steps it has been through.
         public void Save()
         {
             ConfigNode node = new ConfigNode(RootName);
             foreach (Field field in Fields)
                 node.AddValue(field.Key, field.Text(this));
+            foreach (KeyValuePair<string, string> pair in stamp)
+                node.AddValue(pair.Key, pair.Value);
 
             string directory = System.IO.Path.GetDirectoryName(Path);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
