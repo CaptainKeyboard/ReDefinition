@@ -289,6 +289,72 @@ namespace ReDefinition.Probe
             }
         }
 
+        // The frames' GPU time (the proxy's timestamps, with -redefinitionGpuProfile) and wall time over a run of frames at this view.
+        private static IEnumerator FrameCosts(string label)
+        {
+            yield return ProbeSteps.Frames(60);
+            double gpu = 0.0, wall = 0.0;
+            const int Frames = 120;
+            for (int i = 0; i < Frames; i++)
+            {
+                yield return null;
+                wall += Time.unscaledDeltaTime;
+                gpu += GpuProfiler.LastFrameMs;
+            }
+            Debug.Log(Log.Tag + " Probe: cloud cost " + label + ": GPU " + (gpu / Frames).ToString("0.00", CultureInfo.InvariantCulture)
+                      + " ms, wall " + (1000.0 * wall / Frames).ToString("0.00", CultureInfo.InvariantCulture) + " ms a frame.");
+        }
+
+        // What the moon's light on the clouds costs. At night with the moon up it times the frame, with the raytracing on and off,
+        // from the ground towards the clouds and from 14 and 150 km. It times three ways: as it is, without the light per pixel,
+        // and without the moon's light on the clouds.
+        private static IEnumerator CloudPerf(ReDefinitionAddon addon, string folder)
+        {
+            CelestialBody sun = RtKspMods.StarBody();
+            CelestialBody moon = BrightestMoon();
+            if (sun == null || moon == null) yield break;
+            double day = Math.Max(43200.0, 1.2 * FlightGlobals.currentMainBody.solarDayLength);
+            float moonlight = addon.Live.RaytracingMoonlight, nightAmbient = addon.Live.RaytracingNightAmbient;
+            Debug.Log(Log.Tag + " Probe: cloud cost, the GPU profiler " + (GpuProfiler.On ? "on" : "OFF") + ".");
+            bool night = false;
+            yield return WarpUntilCloudy("the sun down, " + moon.bodyName + " high and lit",
+                                         () => Elevation(sun) < -25f && Elevation(moon) > 30f && PhaseAngle(moon, sun) < 100f,
+                                         result => night = result, 4.0 * Math.Max(moon.orbit.period, day));
+            if (!night) yield break;
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            Vector3 up = ((Vector3)(((Vector3d)vessel.transform.position) - vessel.mainBody.position)).normalized;
+            Vector3 flat = Vector3.ProjectOnPlane(Vector3.forward, up).normalized;
+            Vector3 densest;
+            CloudCover(out densest);
+            Vector3 towardsClouds = densest.sqrMagnitude > 0.5f ? densest : flat;
+            var views = new[]
+            {
+                new { Name = "ground, towards the clouds", Direction = towardsClouds, Pitch = -10f, Distance = 60f },
+                new { Name = "14 km", Direction = flat, Pitch = RatioPitch, Distance = 14000f },
+                new { Name = "150 km", Direction = flat, Pitch = RatioPitch, Distance = 150000f },
+            };
+            foreach (RaytracingMode mode in new[] { RaytracingMode.Light, RaytracingMode.Off })
+            {
+                Set(addon, mode, moonlight, nightAmbient);
+                yield return ProbeSteps.Frames(RatioFramesAfterMode);
+                foreach (var view in views)
+                {
+                    yield return LookAlong(view.Direction, view.Pitch, view.Distance, view.Name);
+                    string where = view.Name + ", raytracing " + mode.ToString().ToLowerInvariant();
+                    EveCloudMoonlight.HeldOff = false;
+                    EveCloudRelight.HeldOff = false;
+                    yield return FrameCosts(where + ", the moon's light on");
+                    EveCloudRelight.HeldOff = true;
+                    yield return FrameCosts(where + ", without the light per pixel");
+                    EveCloudRelight.HeldOff = false;
+                    EveCloudMoonlight.HeldOff = true;
+                    yield return FrameCosts(where + ", without the moon's light on the clouds");
+                    EveCloudMoonlight.HeldOff = false;
+                }
+            }
+            Debug.Log(Log.Tag + " Probe: cloud cost done.");
+        }
+
         // The four heights at one light, with the raytracing on and off, the clouds measured at each. `time` names the light.
         private static IEnumerator CloudRatiosAt(ReDefinitionAddon addon, string folder, string time, float moonlight, float nightAmbient)
         {
@@ -356,6 +422,12 @@ namespace ReDefinition.Probe
             yield return ProbeSteps.Frames(30);
             Debug.Log(Log.Tag + " Probe: cloud layers over " + FlightGlobals.currentMainBody.bodyName + ": "
                       + EveCloudMoonlight.DescribeLayers(FlightGlobals.currentMainBody.bodyName) + ".");
+
+            if (CommandLine.Has("-redefinitionProbeRatioPerf"))
+            {
+                yield return CloudPerf(addon, folder);
+                yield break;
+            }
 
             // -redefinitionProbeRatioNight: only the nights, for a look at the night alone.
             bool nightOnly = CommandLine.Has("-redefinitionProbeRatioNight");
