@@ -36,6 +36,7 @@ namespace ReDefinition.Core
         private const string Float = "System.Single";
         private const string Vector3Type = "UnityEngine.Vector3";
         private const string StringType = "System.String";
+        private const string MechJebCore = "MuMech.MechJebCore";
 
         // Full names of the mods' types several entries name.
         private const string EveClouds = "Atmosphere.DeferredRaymarchedVolumetricCloudsRenderer";
@@ -694,11 +695,56 @@ namespace ReDefinition.Core
                 .Tested("c1c52b581bea") // EVE 3.2.2
                 .OnChange(WhenChanged.Keep, "the auroras are told from the clouds by their tint alone");
 
+        // MechJeb as the map window's autopilot flies a route (Autopilot/MechJebDriver): the node executor, the landing and ascent
+        // autopilots, the target and warp controllers and the staging limit, reached through the vessel's master core. MechJeb 2.16 (the
+        // development builds), decompiled: the ascent is PSG and `MechJebCore` has `Hoverslam` and `SmartASS`; the members named here
+        // are those of 2.15 as well, apart from the ascent. Without it the autopilot is greyed out.
+        public static readonly ForeignAssumption MechJebAutopilot =
+            new ForeignAssumption("mechjeb-autopilot", "MechJeb", "MechJeb flying the planner's route")
+                .Type(MechJebCore).Type("MuMech.VesselExtensions")
+                .Method("MuMech.VesselExtensions", "GetMasterMechJeb", "Vessel")
+                .Field(MechJebCore, "Node").Field(MechJebCore, "Landing").Field(MechJebCore, "Target").Field(MechJebCore, "Warp")
+                .Field(MechJebCore, "Staging").Field(MechJebCore, "AscentSettings")
+                .Method(MechJebCore, "GetComputerModule", StringType)
+                .Method("MuMech.MechJebModuleNodeExecutor", "ExecuteOneNode", "System.Object")
+                .Method("MuMech.MechJebModuleNodeExecutor", "ExecuteAllNodes", "System.Object")
+                .Method("MuMech.MechJebModuleNodeExecutor", "Abort")
+                .Field("MuMech.MechJebModuleNodeExecutor", "Autowarp").Field("MuMech.MechJebModuleNodeExecutor", "LeadTime")
+                .Field("MuMech.MechJebModuleNodeExecutor", "State")
+                .Method("MuMech.MechJebModuleLandingAutopilot", "LandAtPositionTarget", "System.Object")
+                .Method("MuMech.MechJebModuleLandingAutopilot", "LandUntargeted", "System.Object")
+                .Method("MuMech.MechJebModuleLandingAutopilot", "StopLanding")
+                .Method("MuMech.MechJebModuleTargetController", "SetPositionTarget", "CelestialBody", Double, Double)
+                .Method("MuMech.MechJebModuleTargetController", "Unset")
+                .Method("MuMech.MechJebModuleWarpController", "WarpToUT", Double, Double)
+                .Method("MuMech.MechJebModuleStagingController", "AutoStageLimitRequest", Int, "System.Object")
+                .Method("MuMech.MechJebModuleStagingController", "AutoStageLimitRemove", "System.Object")
+                .Field("MuMech.MechJebModuleAscentSettings", "DesiredOrbitAltitude")
+                .Field("MuMech.MechJebModuleAscentSettings", "DesiredInclination")
+                .Type("MuMech.MechJebModuleAscentPSGAutopilot")
+                .Tested("a67a902229e5") // MechJeb 2.16.0.0, development build 1771
+                .TestedVersions("2.16.0.0")
+                .OnChange(WhenChanged.Fallback, "the autopilot is greyed out, and the nodes are flown by hand");
+
+        // Parsek as the map window's autopilot sees it (Autopilot/ParsekBridge). Parsek has no API: its flight add-on and recorder are read
+        // through reflection, and a ghost is told by its persistent id. Parsek 0.10.6, source read (a beta: the format is generation 4 and changes).
+        // Nothing of Parsek is written.
+        public static readonly ForeignAssumption ParsekBridge =
+            new ForeignAssumption("parsek-bridge", "Parsek", "the autopilot kept off Parsek's ghosts and in step with its recording")
+                .Type("Parsek.ParsekFlight").Type("Parsek.FlightRecorder").Type("Parsek.GhostMapPresence").Type("Parsek.ParsekScenario")
+                .Method("Parsek.ParsekFlight", "get_Instance")
+                .Field("Parsek.ParsekFlight", "recorder", "Parsek.FlightRecorder")
+                .Method("Parsek.FlightRecorder", "get_IsRecording")
+                .Method("Parsek.GhostMapPresence", "IsGhostMapVessel", "System.UInt32")
+                .Tested("70c3d8442408") // Parsek 0.10.6
+                .TestedVersions("0.10.6.0")
+                .OnChange(WhenChanged.Fallback, "every vessel counts as real, and the window does not show a recording");
+
         // The whole catalogue, in the order the report lists it.
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekBridge,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,
