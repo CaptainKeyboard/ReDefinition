@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using KSP.UI;
 using ReDefinition.Autopilot;
@@ -34,6 +35,8 @@ namespace ReDefinition.Engineer
         private bool failed;
         // What the last press of a button came to, shown under the buttons.
         private string status = "";
+        // The route being flown by MechJeb, while there is one.
+        private RouteFlight flight;
 
         // Whether the panel is up: the map view is on and a vessel is flown.
         private static bool Wanted
@@ -48,6 +51,22 @@ namespace ReDefinition.Engineer
         internal string Status
         {
             get { return status; }
+        }
+
+        // As a press of "Fly route", and whether a flight is under way.
+        internal void FlyNow()
+        {
+            if (view != null && flight == null) FlyOrStop();
+        }
+
+        internal string FlightStatus
+        {
+            get { return flight != null ? flight.Status : status; }
+        }
+
+        internal bool Flying
+        {
+            get { return flight != null; }
         }
 
         // As a press of "Plan nodes".
@@ -191,22 +210,63 @@ namespace ReDefinition.Engineer
         // The buttons that put the next leg of the route in the flight plan as nodes, and take them off, and the line that says what came of it.
         private DialogGUIBase Header(float width)
         {
-            var plan = new DialogGUIButton("Plan nodes", PlanNodes, 150f, 28f, false);
-            var clear = new DialogGUIButton("Clear nodes", ClearNodes, 150f, 28f, false);
-            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, plan, clear);
-            var text = new DialogGUILabel(() => status, width - 12f, 36f);
+            float button = (width - 8f - 6f * 3f) / 4f;
+            var plan = new DialogGUIButton("Plan nodes", PlanNodes, button, 28f, false);
+            var clear = new DialogGUIButton("Clear nodes", ClearNodes, button, 28f, false);
+            var fly = new DialogGUIButton(() => flight != null ? "Stop" : "Fly route", FlyOrStop, button, 28f, false);
+            fly.OptionInteractableCondition = () => flight != null || MechJebDriver.Unavailable == null;
+            fly.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the route with MechJeb, step by step";
+            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, plan, clear, fly);
+            var text = new DialogGUILabel(() => flight != null ? flight.Status : status, width - 12f, 36f);
             return new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text);
+        }
+
+        // Starts the route's flight, or stops the one that is under way.
+        private void FlyOrStop()
+        {
+            if (flight != null)
+            {
+                flight.Cancel();
+                status = "The flight is stopped.";
+                flight = null;
+                return;
+            }
+            List<Destination> route = Route();
+            if (route == null) return;
+            flight = new RouteFlight(FlightGlobals.ActiveVessel, route);
+            StartCoroutine(RunFlight(flight));
+        }
+
+        private IEnumerator RunFlight(RouteFlight running)
+        {
+            yield return running.Run();
+            if (flight == running)
+            {
+                status = running.Status;
+                flight = null;
+            }
         }
 
         // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.
         private void PlanNodes()
+        {
+            List<Destination> route = Route();
+            if (route == null) return;
+            NodePlanner.Result result = LegPlanner.PlanNext(FlightGlobals.ActiveVessel, route);
+            status = result.Ok
+                ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
+                : result.Why;
+        }
+
+        // The planner's route as destinations; null, with the reason in the status, where there is none.
+        private List<Destination> Route()
         {
             IList<RouteStop> stops = view.RouteStops;
             PlannerBodies bodies = view.BodyList;
             if (stops == null || bodies == null)
             {
                 status = "There is no route yet.";
-                return;
+                return null;
             }
             var route = new List<Destination>();
             foreach (RouteStop stop in stops)
@@ -216,10 +276,7 @@ namespace ReDefinition.Engineer
                 CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
                 route.Add(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude });
             }
-            NodePlanner.Result result = LegPlanner.PlanNext(FlightGlobals.ActiveVessel, route);
-            status = result.Ok
-                ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
-                : result.Why;
+            return route;
         }
 
         private void ClearNodes()

@@ -71,18 +71,21 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: fly done.");
         }
 
-        // -redefinitionProbeFlyRoute <body>: the route from the orbit round the home body to a circular orbit of 50 km round that body, flown by
-        // RouteFlight from MechJeb's burns: transfer, correction, capture. Its status is logged as it changes, and the orbit it ends in.
+        // -redefinitionProbeFlyRoute <body>: the route from where the vessel is, the pad or an orbit, to an orbit round that body (50 km, or
+        // -redefinitionProbeRouteAltitude) or, with -redefinitionProbeRouteSurface, its surface. RouteFlight flies it with MechJeb, and the
+        // status is logged as it changes, and where the vessel ends.
         private static IEnumerator FlyRouteShots(string folder, string bodyName)
         {
             yield return ProbeSteps.Frames(60);
             Vessel vessel = FlightGlobals.ActiveVessel;
             var culture = CultureInfo.InvariantCulture;
             CelestialBody target = FlightGlobals.Bodies.Find(b => b.bodyName == bodyName);
+            bool onGround = vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH;
+            double altitude = CommandLine.Int("-redefinitionProbeRouteAltitude", 50000);
             var route = new System.Collections.Generic.List<Destination>
             {
-                new Destination { Body = vessel.mainBody, Altitude = vessel.orbit.PeA },
-                new Destination { Body = target, Altitude = 50000.0 },
+                new Destination { Body = vessel.mainBody, Surface = onGround, Altitude = onGround ? 0.0 : vessel.orbit.PeA },
+                new Destination { Body = target, Surface = CommandLine.Has("-redefinitionProbeRouteSurface"), Altitude = altitude },
             };
             var flight = new RouteFlight(vessel, route);
             IEnumerator run = flight.Run();

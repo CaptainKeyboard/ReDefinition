@@ -99,5 +99,89 @@ namespace ReDefinition.Autopilot
             string state = State(vessel);
             return state != null && state != "IDLE";
         }
+
+        // A module of the vessel's MechJeb unit by the name of the core's field, or null.
+        private static object Module(Vessel vessel, string field)
+        {
+            if (vessel == null || !Available) return null;
+            try
+            {
+                object core = masterOf.Invoke(null, new object[] { vessel });
+                FieldInfo info = core != null ? core.GetType().GetField(field, TypeLookup.Any) : null;
+                return info != null ? info.GetValue(core) : null;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " MechJeb: no " + field + ": " + e.Message);
+                return null;
+            }
+        }
+
+        // Makes us a user of the module, which switches it on; and takes us off its users again, which switches it off where we were the last.
+        private static void Use(object module, bool on)
+        {
+            object pool = module.GetType().GetField("Users", TypeLookup.Any).GetValue(module);
+            MethodInfo method = pool.GetType().GetMethod(on ? "Add" : "Remove", BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly, null, new[] { typeof(object) }, null);
+            method.Invoke(pool, new[] { user });
+        }
+
+        private static bool Enabled(object module)
+        {
+            return module != null && (bool)module.GetType().GetProperty("Enabled", TypeLookup.Any).GetValue(module, null);
+        }
+
+        // Hands the launch to MechJeb's ascent autopilot: up from the pad or the air into a circular orbit at `altitude` metres, the staging its own.
+        internal static bool StartAscent(Vessel vessel, double altitude, double inclination)
+        {
+            object settings = Module(vessel, "AscentSettings");
+            if (settings == null) return false;
+            Type type = settings.GetType();
+            SetValue(type.GetField("DesiredOrbitAltitude").GetValue(settings), altitude);
+            SetValue(type.GetField("DesiredInclination").GetValue(settings), inclination);
+            object ascent = type.GetProperty("AscentAutopilot").GetValue(settings, null);
+            if (ascent == null) return false;
+            Use(ascent, true);
+            return true;
+        }
+
+        // Whether the ascent autopilot is flying.
+        internal static bool AscentBusy(Vessel vessel)
+        {
+            object settings = Module(vessel, "AscentSettings");
+            return settings != null && Enabled(settings.GetType().GetProperty("AscentAutopilot").GetValue(settings, null));
+        }
+
+        internal static void StopAscent(Vessel vessel)
+        {
+            object settings = Module(vessel, "AscentSettings");
+            object ascent = settings != null ? settings.GetType().GetProperty("AscentAutopilot").GetValue(settings, null) : null;
+            if (ascent != null) Use(ascent, false);
+        }
+
+        // The value of one of MechJeb's editable numbers, in its base units.
+        private static void SetValue(object editable, double value)
+        {
+            editable.GetType().GetProperty("Val").SetValue(editable, value, null);
+        }
+
+        // Hands the descent to MechJeb's landing autopilot: the deorbit, the burn that brakes, the legs and chutes, and the touchdown, anywhere.
+        internal static bool StartLanding(Vessel vessel)
+        {
+            object landing = Module(vessel, "Landing");
+            if (landing == null) return false;
+            landing.GetType().GetMethod("LandUntargeted").Invoke(landing, new[] { user });
+            return true;
+        }
+
+        internal static bool LandingBusy(Vessel vessel)
+        {
+            return Enabled(Module(vessel, "Landing"));
+        }
+
+        internal static void StopLanding(Vessel vessel)
+        {
+            object landing = Module(vessel, "Landing");
+            if (landing != null) landing.GetType().GetMethod("StopLanding").Invoke(landing, null);
+        }
     }
 }

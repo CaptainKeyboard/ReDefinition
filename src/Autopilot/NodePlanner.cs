@@ -10,10 +10,21 @@ namespace ReDefinition.Autopilot
         // The least time between now and a burn, in seconds: room to see the node and turn the vessel.
         internal const double LeadTime = 60.0;
 
+        // What a step of a plan is: a burn as a node, a launch into an orbit, or a descent to the ground.
+        internal enum StepKind
+        {
+            Burn,
+            Ascent,
+            Landing,
+        }
+
         // What a plan came to: a burn at a time, and why, or the reason there is none. Ok with a time of zero is a plan that needs no burn.
         internal sealed class Result
         {
             public bool Ok;
+            public StepKind Kind;
+            // The altitude of the orbit an ascent ends in, in metres.
+            public double Altitude;
             // True where the route is flown to its last stop, and there is nothing left to plan.
             public bool Arrived;
             public string Why;
@@ -23,6 +34,16 @@ namespace ReDefinition.Autopilot
             public static Result Failed(string why)
             {
                 return new Result { Why = why };
+            }
+
+            public static Result Ascent(double altitude, string why)
+            {
+                return new Result { Ok = true, Kind = StepKind.Ascent, Altitude = altitude, Why = why };
+            }
+
+            public static Result Landing(string why)
+            {
+                return new Result { Ok = true, Kind = StepKind.Landing, Why = why };
             }
 
             public static Result Done(string why)

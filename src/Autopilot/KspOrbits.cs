@@ -60,11 +60,9 @@ namespace ReDefinition.Autopilot
             solver.UpdateFlightPlan();
         }
 
-        // The first patch round `body` that lies ahead of the vessel: in the flight plan, or else in the chain of conics from its own orbit.
+        // The first patch round `body` that lies ahead of the vessel on the orbit it flies now, nodes left out: the chain of conics from its own.
         internal static Orbit PatchAhead(Vessel vessel, CelestialBody body)
         {
-            Orbit planned = PatchAround(vessel, body);
-            if (planned != null) return planned;
             Orbit patch = vessel.orbit;
             for (int i = 0; i < 8 && patch != null; i++)
             {

@@ -721,8 +721,12 @@ namespace ReDefinition.Core
                 .Method("MuMech.MechJebModuleStagingController", "AutoStageLimitRemove", "System.Object")
                 .Field("MuMech.MechJebModuleAscentSettings", "DesiredOrbitAltitude")
                 .Field("MuMech.MechJebModuleAscentSettings", "DesiredInclination")
+                .Method("MuMech.MechJebModuleAscentSettings", "get_AscentAutopilot")
+                .Method("MuMech.EditableDoubleMult", "set_Val", Double)
+                .Field("MuMech.ComputerModule", "Users").Method("MuMech.ComputerModule", "get_Enabled")
+                .Method("MuMech.UserPool", "Add", "System.Object").Method("MuMech.UserPool", "Remove", "System.Object")
                 .Type("MuMech.MechJebModuleAscentPSGAutopilot")
-                .Tested("a67a902229e5") // MechJeb 2.16.0.0, development build 1771
+                .Tested("69a956b331f3") // MechJeb 2.16.0.0, development build 1771
                 .TestedVersions("2.16.0.0")
                 .OnChange(WhenChanged.Fallback, "the autopilot is greyed out, and the nodes are flown by hand");
 
