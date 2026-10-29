@@ -69,7 +69,7 @@ namespace ReDefinition.Probe
 
         // The autonavigation on a route to a surface, and the probe as the player: the deorbit node is flown, then the vessel is turned
         // retrograde and the throttle opened where the guidance says to brake, and shut near the ground. The guidance is logged as it changes.
-        private static IEnumerator AutoLandRun()
+        private static IEnumerator AutoLandRun(string folder)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             ProbeWatch.Arm(vessel);
@@ -78,6 +78,9 @@ namespace ReDefinition.Probe
             string last = "";
             float nextLine = 0f;
             bool deorbited = false;
+            bool shownHud = false;
+            int shots = 0;
+            float nextShot = 0f;
             float lastChange = started;
             while (Time.realtimeSinceStartup - started < 1500f && !ProbeWatch.Gone(vessel) && !vessel.LandedOrSplashed)
             {
@@ -105,16 +108,31 @@ namespace ReDefinition.Probe
                     WarpToImpact(vessel);
                 }
                 if (deorbited && now.StartsWith("Descent: no engine")) Engines.FireNextStageIfCold(vessel);
-                if (deorbited && now.StartsWith("Descent"))
+                if (deorbited && (now.StartsWith("Descent") || now.StartsWith("Down")))
                 {
-                    FlightGlobals.SetSpeedMode(FlightGlobals.SpeedDisplayModes.Surface);
-                    vessel.Autopilot.Enable(VesselAutopilot.AutopilotMode.Retrograde);
-                    // The player does what the guidance says: the throttle it gives.
-                    // As a pilot does, the brake is not lit before the vessel points retrograde.
-                    bool aligned = vessel.srf_velocity.magnitude < 5.0 || Vector3d.Angle(vessel.GetTransform().up, -vessel.srf_velocity) < 15.0;
-                    FlightInputHandler.state.mainThrottle = aligned ? (float)RouteDriver.Instance.GuidedThrottle : 0f;
+                    if (!shownHud)
+                    {
+                        shownHud = true;
+                        MapView.ExitMapView();
+                        if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+                    }
+                    // The pilot turns the nose steadily to the marker, 40 degrees a second at most, and gives the throttle the gauge asks for, which
+                    // he sets again in every frame.
+                    if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection)
+                    {
+                        Quaternion want = Quaternion.FromToRotation(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) * vessel.GetTransform().rotation;
+                        vessel.SetRotation(Quaternion.RotateTowards(vessel.GetTransform().rotation, want, 40f * Time.deltaTime));
+                    }
+                    FlightInputHandler.state.mainThrottle = (float)RouteDriver.Instance.GuidedThrottle;
+                    if (shots < 3 && Time.realtimeSinceStartup > nextShot && (shots == 0 || RouteDriver.Instance.GuidedThrottle > 0.3))
+                    {
+                        nextShot = Time.realtimeSinceStartup + 8f;
+                        UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "land-hud-" + shots + ".png"));
+                        Debug.Log(Log.Tag + " Probe: auto land: shot " + shots + ": " + now);
+                        shots++;
+                    }
                 }
-                yield return new WaitForSeconds(0.2f);
+                yield return deorbited ? null : new WaitForSeconds(0.2f);
             }
             FlightInputHandler.state.mainThrottle = 0f;
             Debug.Log(Log.Tag + " Probe: auto land: ended " + (ProbeWatch.Lost ? "LOST (" + ProbeWatch.Why + ")" : vessel.situation + ", " + vessel.srfSpeed.ToString("0.0") + " m/s") + ", "
@@ -170,7 +188,7 @@ namespace ReDefinition.Probe
                 }
                 if (CommandLine.Has("-redefinitionProbeMapPlannerAuto"))
                 {
-                    yield return CommandLine.Has("-redefinitionProbeMapPlannerLand") ? AutoLandRun() : AutoNodesRun();
+                    yield return CommandLine.Has("-redefinitionProbeMapPlannerLand") ? AutoLandRun(folder) : AutoNodesRun();
                     Debug.Log(Log.Tag + " Probe: map planner done.");
                     yield break;
                 }

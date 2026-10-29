@@ -87,6 +87,7 @@ namespace ReDefinition.Probe
                 new Destination { Body = vessel.mainBody, Surface = onGround, Altitude = onGround ? 0.0 : vessel.orbit.PeA },
                 new Destination { Body = target, Surface = CommandLine.Has("-redefinitionProbeRouteSurface"), Altitude = altitude },
             };
+            if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(Path.Combine(folder, "flight-trace.csv"));
             var flight = new RouteFlight(vessel, route);
             IEnumerator run = flight.Run();
             float started = Time.realtimeSinceStartup;

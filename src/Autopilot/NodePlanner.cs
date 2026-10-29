@@ -7,6 +7,14 @@ namespace ReDefinition.Autopilot
     // The burns of a leg worked out from the vessel's orbit and put in the flight plan as nodes, each checked against KSP's own patched conics.
     internal static class NodePlanner
     {
+        // Without air the deorbit burn goes on until the periapsis is this part of the body's radius under the ground (MechJeb's untargeted landing,
+        // UntargetedDeorbit: a tenth).
+        private const double UntargetedPeriapsis = 0.1;
+
+        // Where an entry into air has its periapsis, as a part of the air's depth: the vessel meets the air at a shallow angle, which keeps it
+        // from overheating. Without air the periapsis is below the ground.
+        private const double EntryShare = 0.45;
+
         // The smallest correction worth a burn, in m/s: at the distance of a planet the periapsis moves by kilometres for less than that.
         private const double MinCorrection = 0.1;
 
@@ -300,13 +308,27 @@ namespace ReDefinition.Autopilot
             double now = Planetarium.GetUniversalTime();
             double mu = body.gravParameter;
             State here = KspOrbits.StateAt(orbit, now);
+            if (!body.atmosphere) return StopOver(vessel, here, now);
             Burn burn;
-            if (!Maneuvers.ChangeOpposite(here, mu, true, body.Radius * 0.97, out burn)) return Result.Failed("No burn was found.");
+            double lowest = body.atmosphere ? body.Radius + EntryShare * body.atmosphereDepth : body.Radius * (1.0 - UntargetedPeriapsis);
+            if (!Maneuvers.ChangeOpposite(here, mu, true, lowest, out burn)) return Result.Failed("No burn was found.");
             if (burn.Delay < LeadTime) burn = new Burn(burn.Delay + new Conic(here, mu).Period, burn.DeltaV);
             double ut = now + burn.Delay;
             KspOrbits.ClearNodes(vessel);
             if (KspOrbits.AddNode(vessel, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
             return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = "Deorbit: " + burn.Magnitude.ToString("0") + " m/s retrograde at the apoapsis." };
+        }
+
+        // Without air the descent starts with a burn that takes all the orbit's speed away, retrograde, soon. The vessel then falls from where it
+        // stands, with no sideways speed to carry it into a hill, and the guidance brings it down with MechJeb's limit for a straight fall.
+        private static Result StopOver(Vessel vessel, State here, double now)
+        {
+            double delay = 2.0 * LeadTime;
+            State there = Kepler.Propagate(here, delay, vessel.mainBody.gravParameter);
+            V3 deltaV = -there.V;
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, now + delay, deltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            return new Result { Ok = true, UT = now + delay, DeltaV = deltaV, Why = "Stop over the landing: " + deltaV.Length.ToString("0") + " m/s retrograde, all the orbit's speed." };
         }
 
         // The burn that lifts a periapsis that lies in the ground or the air, soon: a burn along the velocity a little ahead, as big as brings the

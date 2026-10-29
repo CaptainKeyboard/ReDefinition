@@ -30,11 +30,21 @@ namespace ReDefinition.Autopilot
             get { return landing.Throttle; }
         }
 
-        // The guidance for a climb or a descent, in every second; nothing for a step with a node.
+        // The guidance for a climb or a descent, made in every frame and written on the board for the flight view; nothing for a step with a node.
         internal void Guide(Vessel vessel)
         {
             if (!guided || vessel == null) return;
-            Status = step == NodePlanner.StepKind.Ascent ? Guidance.Climb(vessel, aim) : landing.Describe(vessel);
+            if (step == NodePlanner.StepKind.Ascent)
+            {
+                double asked, fill;
+                string text;
+                Status = Guidance.Climb(vessel, aim, out asked, out fill, out text);
+                GuidanceBoard.Write(vessel, Status, Guidance.ClimbDirection(vessel), asked, fill, text);
+                return;
+            }
+            Status = landing.Describe(vessel);
+            GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
+                landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel);
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.

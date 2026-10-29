@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReDefinition.Autopilot;
 using ReDefinition.Core;
 using ReDefinition.Hud.Panel;
 using ReDefinition.Hud.Readouts;
@@ -16,6 +17,14 @@ namespace ReDefinition.Hud
         // the way to a target.
         private static GaugeMode ForSituation(ReadoutFrame frame)
         {
+            if (GuidanceBoard.Current(frame.Vessel) && GuidanceBoard.HasBar)
+            {
+                // The landing is a manoeuvre: the countdown to its burn, as for any. Once the guidance asks for thrust, or the burn is due, the bar.
+                ManeuverNode brake = Node(frame.Vessel);
+                bool throttleAsked = GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.02;
+                if (brake != null && !throttleAsked && UntilBurn(brake, frame) > 0.0) return GaugeMode.Burn;
+                return GaugeMode.Guidance;
+            }
             switch (FlightProfiles.Held(frame.Vessel))
             {
                 case PanelSituation.Landing: return GaugeMode.Impact;
@@ -37,8 +46,17 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return ImpactReading(frame);
                 case GaugeMode.Closing: return ClosingReading(frame);
                 case GaugeMode.Attack: return AttackReading(frame);
+                case GaugeMode.Guidance: return GuidanceReading(frame);
                 default: return null;
             }
+        }
+
+        // The bar of the autonavigation: the arc stands over the mark in the middle of the scale where the throttle is to go up, and under it where
+        // it is to go down. In a descent the arc is the speed against the speed it should be, in a climb the throttle asked for against the one given.
+        private static GaugeReading GuidanceReading(ReadoutFrame frame)
+        {
+            if (!GuidanceBoard.Current(frame.Vessel) || !GuidanceBoard.HasBar) return null;
+            return new GaugeReading { Text = GuidanceBoard.BarText, Fill = GuidanceBoard.BarFill, Mark = 0.5, Level = GuidanceBoard.BarLevel };
         }
 
         // The stage as KSP's delta-v simulation has it (DeltaVStageInfo:
@@ -95,6 +113,13 @@ namespace ReDefinition.Hud
         // against what the node asked for as the burn started.
         private static ManeuverNode burnNode;
         private static double burnStart = double.NaN;
+
+        // The seconds until the burn of the node starts, half its length before the node.
+        private static double UntilBurn(ManeuverNode node, ReadoutFrame frame)
+        {
+            double length = BurnLength(frame.Vessel, node.GetBurnVector(frame.Orbit).magnitude);
+            return double.IsNaN(length) ? node.UT - frame.Now : node.UT - frame.Now - length / 2.0;
+        }
 
         // The countdown to the node's burn, then the delta-v left of it; null without a node.
         private static GaugeReading BurnReading(ReadoutFrame frame)

@@ -25,6 +25,8 @@ namespace ReDefinition.Hud
         Impact,
         Closing,
         Attack,
+        // The speed against the speed the autonavigation asks for in a descent.
+        Guidance,
     }
 
     // KSP's vertical speed gauge made a digital gauge: the vertical speed stands
@@ -486,6 +488,7 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return "Time to Impact";
                 case GaugeMode.Closing: return "Closing Speed";
                 case GaugeMode.Attack: return "Angle of Attack";
+                case GaugeMode.Guidance: return "Speed Against Its Limit";
                 default: return "";
             }
         }
@@ -500,6 +503,7 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return "IMPACT";
                 case GaugeMode.Closing: return "CLOSING";
                 case GaugeMode.Attack: return "AOA";
+                case GaugeMode.Guidance: return "SPEED";
                 default: return "";
             }
         }

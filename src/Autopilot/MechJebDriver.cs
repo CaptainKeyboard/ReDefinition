@@ -173,6 +173,37 @@ namespace ReDefinition.Autopilot
             return true;
         }
 
+        // MechJeb's own numbers in its landing, for the probes that measure it: the speed limit of its descent policy, the height its brake ends
+        // at, the acceleration it counts on, and the policy's name. False where its landing is not flying.
+        internal static bool LandingNumbers(Vessel vessel, out double maxAllowed, out double brakeEnd, out double acceleration, out string policy, out string limiter)
+        {
+            maxAllowed = brakeEnd = acceleration = 0.0;
+            policy = "";
+            limiter = "";
+            object landing = Module(vessel, "Landing");
+            object core = null;
+            try
+            {
+                core = masterOf.Invoke(null, new object[] { vessel });
+                if (landing == null || core == null) return false;
+                object policyObject = landing.GetType().GetField("DescentSpeedPolicy").GetValue(landing);
+                if (policyObject == null) return false;
+                policy = policyObject.GetType().Name;
+                maxAllowed = (double)landing.GetType().GetMethod("MaxAllowedSpeed").Invoke(landing, null);
+                brakeEnd = (double)landing.GetType().GetMethod("DecelerationEndAltitude").Invoke(landing, null);
+                object state = core.GetType().GetField("VesselState").GetValue(core);
+                acceleration = (double)state.GetType().GetProperty("LimitedMaxThrustAcceleration").GetValue(state, null);
+                object thrust = core.GetType().GetField("Thrust").GetValue(core);
+                float throttleLimit = (float)thrust.GetType().GetProperty("ThrottleLimit").GetValue(thrust, null);
+                limiter = thrust.GetType().GetField("Limiter").GetValue(thrust) + ":" + throttleLimit.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
         internal static bool LandingBusy(Vessel vessel)
         {
             return Enabled(Module(vessel, "Landing"));

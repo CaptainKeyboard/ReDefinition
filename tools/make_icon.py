@@ -17,6 +17,8 @@ their own background: GameData/ReDefinition/Icons/Planner_*.png.
 The navball's docking marker is an orange ring with ticks and a centre dot, 64x64, on clear:
 GameData/ReDefinition/Icons/Navball_Docking.png.
 
+The guidance marker, a green ring with a diamond, is GameData/ReDefinition/Icons/Navball_Guide.png.
+
 The picture for a page is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,
 where it stands large. It goes to .local/icon.
@@ -556,6 +558,20 @@ def draw_navball_docking():
     return image
 
 
+NAVBALL_GUIDE = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Navball_Guide.png")
+GUIDE_COLOUR = (120, 225, 90, 255)
+
+
+def draw_navball_guide():
+    """The navball's guidance marker at 512: a green ring with a diamond in it, on clear."""
+    size = 512
+    image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.ellipse([60, 60, 452, 452], outline=GUIDE_COLOUR, width=46)
+    draw.polygon([(256, 140), (372, 256), (256, 372), (140, 256)], fill=GUIDE_COLOUR)
+    return image
+
+
 def main():
     """Draw every picture and save it: the toolbar icon, the glyph mask, the button tiles, the planner symbols, the
     flight panel tabs, the docking marker and the planet for a page."""
@@ -588,6 +604,8 @@ def main():
 
     draw_navball_docking().resize((64, 64), Image.LANCZOS).save(NAVBALL_DOCKING)
     print("in the game:", os.path.relpath(NAVBALL_DOCKING, ROOT))
+    draw_navball_guide().resize((64, 64), Image.LANCZOS).save(NAVBALL_GUIDE)
+    print("in the game:", os.path.relpath(NAVBALL_GUIDE, ROOT))
 
     planet = draw_planet()
     os.makedirs(LARGE, exist_ok=True)

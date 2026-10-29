@@ -145,8 +145,16 @@ namespace ReDefinition.Engineer
             else if (!state.Autopilot && state.Autonavigation)
             {
                 follower.Tick(vessel, ReadRoute(vessel));
-                follower.Guide(vessel);
             }
+        }
+
+        // The guidance for a climb or a descent in every frame, for the flight view's marker and gauge.
+        private void LateUpdate()
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null || vessel != followed) return;
+            RouteState state = RouteState.Of(vessel);
+            if (state != null && !state.Autopilot && state.Autonavigation) follower.Guide(vessel);
         }
 
         // The vessel's saved route, read again every few seconds.

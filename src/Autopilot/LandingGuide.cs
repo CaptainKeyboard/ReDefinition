@@ -17,8 +17,13 @@ namespace ReDefinition.Autopilot
         private const double VacuumBrakeEnd = 200.0;
         // The speed, as a part of the limit, from which the brake is lit.
         private const double BrakeAt = 0.9;
-        // How fast the throttle follows the limit, in seconds.
+        // How fast the throttle follows the limit, in seconds: MechJeb's.
         private const double FollowTime = 0.3;
+        // The time the throttle eases over, and the most it changes in a second, as a share of its range, so that it is a curve a pilot can fly.
+        private const double EaseTime = 1.5;
+        private const double MaxChange = 0.5;
+        // The speed a vessel touches down at, in m/s: MechJeb's setting for it.
+        private const double TouchdownSpeed = 0.5;
         private const double MinimumGap = 0.2;
 
         private readonly Queue<ReentrySimulation.Result> ready = new Queue<ReentrySimulation.Result>();
@@ -27,13 +32,60 @@ namespace ReDefinition.Autopilot
         private bool running;
         private long waitMilliseconds;
 
-        // The throttle the last call asked for, 0 to 1.
+        // The throttle the last call asked for, 0 to 1, and the direction to point the nose along, where there is one.
         internal double Throttle { get; private set; }
+        internal Vector3d Direction { get; private set; }
+        internal bool HasDirection { get; private set; }
+        // The bar of the descent: the vertical speed against the speed it should be at this height, over the mark where it is too fast.
+        internal double BarFill { get; private set; }
+        internal string BarText { get; private set; }
+        internal int BarLevel { get; private set; }
+        internal bool HasBar { get; private set; }
 
-        // What the player is to do now, and the throttle for it. The prediction is asked for again as soon as the last one is in.
+        // What the player is to do now, and the throttle and the pointing for it. Without air the descent is straight down. With air it is
+        // MechJeb's: the prediction is asked for again as soon as the last one is in.
         internal string Describe(Vessel vessel)
         {
+            string advice = Advice(vessel);
+            string part;
+            double hottest = Heat.Hottest(vessel, out part);
+            return hottest > 0.8 ? advice + " HOT: " + part + " at " + (hottest * 100.0).ToString("0") + " % of its limit." : advice;
+        }
+
+        // The steps of MechJeb's landing (GPL-3.0). It coasts until the prediction says the brake is to be lit (CoastToDeceleration,
+        // DecelerationBurn) and brakes against the speed limit. At the brake's end it kills the sideways speed in a hover (KillHorizontalVelocity),
+        // and comes down at a speed that falls with the height (FinalDescent).
+        private enum Step
+        {
+            Coast,
+            Brake,
+            Kill,
+            Final,
+        }
+
+        private Step step = Step.Coast;
+        private double smooth;
+        private double smoothedAt = -1.0;
+
+        // The throttle eased towards what is asked, so that it is a curve and not a series of bursts: it follows with a time constant, and it
+        // changes by no more than a share of its range in a second.
+        private double Ease(double asked)
+        {
+            double now = Time.realtimeSinceStartup;
+            double dt = smoothedAt < 0.0 ? 0.0 : Math.Min(0.5, now - smoothedAt);
+            smoothedAt = now;
+            double change = (asked - smooth) * Math.Min(1.0, dt / EaseTime);
+            double most = MaxChange * dt;
+            smooth += Math.Max(-most, Math.Min(most, change));
+            smooth = Math.Max(0.0, Math.Min(1.0, smooth));
+            return smooth;
+        }
+
+        private string Advice(Vessel vessel)
+        {
             Throttle = 0.0;
+            HasDirection = false;
+            HasBar = false;
             CelestialBody body = vessel.mainBody;
             Collect();
             double landing = result != null && result.Outcome == ReentrySimulation.Outcome.LANDED ? result.EndASL : Math.Max(0.0, vessel.terrainAltitude);
@@ -46,39 +98,102 @@ namespace ReDefinition.Autopilot
 
             Vector3d position = vessel.GetWorldPos3D() - body.position;
             Vector3d velocity = vessel.srf_velocity;
+            Vector3d up = position.normalized;
             double speed = velocity.magnitude;
+            double vertical = Vector3d.Dot(velocity, up);
             double above = vessel.altitude - landing;
-            if (above < 30.0 && speed < 5.0) return "Descent: nearly down, touch down gently.";
+            if (above < 3.0 && speed < 3.0) return "Down. Cut the engines.";
             if (!Engines.Running(vessel) && speed > 20.0) return "Descent: no engine is lit, fire the next stage.";
             if (result == null) return "Descent: working out where it lands.";
+            if (vertical > 5.0) step = Step.Coast;
+            HasDirection = true;
             double limit = policy.MaxAllowedSpeed(position, velocity);
-            if (vessel.altitude < decelEnd + 5.0)
-            {
-                double wanted = Math.Max(0.5, Math.Min(8.0, above / 10.0));
-                Throttle = Follow(velocity, position, wanted, gravity, thrust);
-                return "Final descent: kill the sideways speed, lower at " + wanted.ToString("0.0") + " m/s, throttle " + (Throttle * 100.0).ToString("0") + " %, "
-                       + above.ToString("0") + " m up.";
-            }
-            if (speed > BrakeAt * limit)
-            {
-                Throttle = Follow(velocity, position, limit, gravity, thrust);
-                return "Descent: brake, retrograde, throttle " + (Throttle * 100.0).ToString("0") + " %, " + speed.ToString("0") + " m/s, limit " + limit.ToString("0")
-                       + " m/s, " + (above / 1000.0).ToString("0.0") + " km up.";
-            }
-            if (result.Trajectory != null && result.Trajectory.Count > 0)
-            {
-                double seconds = result.Trajectory[0].UT - Planetarium.GetUniversalTime();
-                return "Descent: point retrograde, brake in " + Math.Max(0.0, seconds).ToString("0") + " s, landing at " + (landing / 1000.0).ToString("0.0") + " km altitude.";
-            }
-            return "Descent: point retrograde, the prediction has the brake at the speed limit of " + limit.ToString("0") + " m/s.";
+            if (vessel.heightFromTerrain >= 0f) above = Math.Min(above, vessel.heightFromTerrain);
+            if (vessel.altitude < decelEnd + 5.0 && step != Step.Final) step = UsesAir(vessel, landing) ? Step.Final : Step.Kill;
+            if (step == Step.Kill || step == Step.Final) return Landing(vessel, position, velocity, up, vertical, above, gravity, thrust);
+
+            Direction = -velocity.normalized;
+            double startIn = result.Trajectory != null && result.Trajectory.Count > 0 ? result.Trajectory[0].UT - Planetarium.GetUniversalTime() : double.MaxValue;
+            if (step == Step.Coast && startIn <= 5.0) step = Step.Brake;
+            HasBar = true;
+            BarFill = Math.Max(0.0, Math.Min(1.0, 0.5 * speed / Math.Max(1.0, limit)));
+            BarText = speed.ToString("0") + " m/s";
+            BarLevel = speed > 2.0 * limit ? 2 : speed > 1.15 * limit ? 1 : 0;
+            if (step == Step.Coast)
+                return "Descent: point retrograde, brake in " + (startIn < 1e8 ? Math.Max(0.0, startIn).ToString("0") + " s" : "a while") + ". Landing at "
+                       + (landing / 1000.0).ToString("0.0") + " km altitude.";
+            double limitAfter = policy.MaxAllowedSpeed(position + velocity * Time.fixedDeltaTime, velocity);
+            bool aligned = Vector3d.Dot(vessel.GetTransform().up, Direction) >= 0.75;
+            Throttle = Ease(vertical > 0.0 || !aligned ? 0.0 : Follow(velocity, position, limit, limitAfter, gravity, thrust));
+            return "Descent: throttle " + (Throttle * 100.0).ToString("0") + " %, retrograde, " + speed.ToString("0") + " m/s, limit " + limit.ToString("0") + " m/s, "
+                   + above.ToString("0") + " m up.";
         }
 
-        // The throttle that brings the speed to `limit`: MechJeb's DecelerationBurn.
-        private static double Follow(Vector3d velocity, Vector3d position, double limit, double gravity, double thrust)
+        // The last steps. First the sideways speed is killed in a hover, the vessel pointing a little against it; then the vessel comes down at a
+        // speed that falls with the height, as MechJeb's final descent has it, and touches down slowly.
+        private string Landing(Vessel vessel, Vector3d position, Vector3d velocity, Vector3d up, double vertical, double above, double gravity, double thrust)
+        {
+            Vector3d forward = vessel.GetTransform().up;
+            Vector3d pointing = Vector3d.Exclude(up, forward).normalized;
+            double sideways = (velocity - up * vertical).magnitude;
+            if (step == Step.Kill && Vector3d.Dot(pointing, velocity) > 0.0) step = Step.Final;
+            if (step == Step.Final && above > 300.0)
+            {
+                // Above 300 m the speed is held to the limit of the gravity turn policy, pointing retrograde (FinalDescent).
+                Direction = vertical > 0.0 || velocity.magnitude < 5.0 ? up : -velocity.normalized;
+                double limit = new GravityTurnDescentSpeedPolicy(vessel.mainBody.Radius + (vessel.altitude - above), gravity, thrust).MaxAllowedSpeed(position, velocity);
+                Throttle = Ease(vertical > 0.0 ? 0.0 : Follow(velocity, position, limit, limit, gravity, thrust));
+                HasBar = true;
+                BarFill = Math.Max(0.0, Math.Min(1.0, 0.5 * velocity.magnitude / Math.Max(1.0, limit)));
+                BarText = velocity.magnitude.ToString("0") + " m/s";
+                BarLevel = velocity.magnitude > 2.0 * limit ? 2 : velocity.magnitude > 1.15 * limit ? 1 : 0;
+                return "Final descent: throttle " + (Throttle * 100.0).ToString("0") + " %, " + velocity.magnitude.ToString("0") + " m/s, limit " + limit.ToString("0")
+                       + " m/s, " + above.ToString("0") + " m up.";
+            }
+            if (step == Step.Kill)
+            {
+                Direction = (up + 0.2 * pointing).normalized;
+                double wanted = (0.0 - vertical) / 1.0;
+                double most = -gravity + Vector3d.Dot(forward, up) * thrust;
+                Throttle = Ease(most + gravity > 0.0 ? Math.Max(0.0, Math.Min(1.0, (wanted + gravity) / (most + gravity))) : 0.0);
+                HasBar = true;
+                BarFill = 0.5;
+                BarText = sideways.ToString("0") + " m/s";
+                return "Descent: kill the sideways speed in a hover, " + sideways.ToString("0") + " m/s left, throttle " + (Throttle * 100.0).ToString("0") + " %.";
+            }
+            Direction = sideways > 3.0 ? -velocity.normalized : up;
+            if (sideways >= 5.0)
+            {
+                Throttle = Ease(1.0);
+                return "Descent: the sideways speed is " + sideways.ToString("0") + " m/s. Kill it, retrograde at full throttle.";
+            }
+            double desired = -Math.Min(1.0, above / 300.0) * Math.Sqrt((thrust - gravity) * 2.0 * 300.0) * 0.9;
+            double target = Math.Min(-TouchdownSpeed, desired);
+            if (desired < vertical && vertical < 0.0 && smooth < 0.01)
+            {
+                HasBar = true;
+                BarFill = 0.5 * Math.Max(0.0, Math.Min(1.0, vertical / Math.Min(-0.1, target)));
+                BarText = (-vertical).ToString("0") + " m/s";
+                return "Descent: engines off, falling. Light them when the speed reaches " + (-desired).ToString("0") + " m/s, now " + (-vertical).ToString("0") + " m/s.";
+            }
+            double wantedAccel = (target - vertical) / 1.0;
+            double least = -gravity;
+            double greatest = thrust - gravity;
+            Throttle = Ease(Math.Max(0.0, Math.Min(1.0, (wantedAccel - least) / (greatest - least))));
+            HasBar = true;
+            BarFill = Math.Max(0.0, Math.Min(1.0, 0.5 * vertical / Math.Min(-0.1, target)));
+            BarText = (-vertical).ToString("0.0") + " m/s";
+            BarLevel = vertical < 2.0 * target ? 2 : vertical < 1.15 * target ? 1 : 0;
+            return "Final descent: throttle " + (Throttle * 100.0).ToString("0") + " %, " + (-vertical).ToString("0.0") + " m/s down, wanted " + (-target).ToString("0.0")
+                   + " m/s, " + above.ToString("0") + " m up.";
+        }
+
+        // The throttle that brings the speed to `limit`: MechJeb's DecelerationBurn, with its lead for the limit's own change.
+        private static double Follow(Vector3d velocity, Vector3d position, double limit, double limitAfter, double gravity, double thrust)
         {
             double vertical = Math.Abs(Vector3d.Dot(velocity.normalized, position.normalized));
             double controlled = velocity.magnitude * Math.Sign(Vector3d.Dot(velocity, position));
-            double wanted = (-limit - controlled) / FollowTime;
+            double wanted = (-limit - controlled) / FollowTime + (limit - limitAfter) / Math.Max(0.005, Time.fixedDeltaTime);
             double least = -gravity * vertical;
             double most = thrust - gravity * vertical;
             return most - least > 0.0 ? Math.Max(0.0, Math.Min(1.0, (wanted - least) / (most - least))) : 0.0;

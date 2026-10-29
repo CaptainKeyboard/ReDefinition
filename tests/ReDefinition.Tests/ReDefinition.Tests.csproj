@@ -31,6 +31,11 @@
     <Compile Include="..\..\tools\Surface\SurfaceBuilder.cs" Link="SurfaceBuilder.cs" />
   </ItemGroup>
 
+  <!-- A landing MechJeb flew, recorded with its own speed limit (MechJebLandingReplayTests). -->
+  <ItemGroup>
+    <None Include="Data\mechjeb-landing-trace.csv" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <!-- The game's assemblies the framework's types name, copied beside the tests
        so that the runtime finds them, and never beside the mod. bundled.cfg's tests
        use KSP's own ConfigNode. -->
