@@ -42,6 +42,13 @@ namespace ReDefinition.Autopilot
             }
             if (stop.Body == vessel.mainBody)
                 return vessel.orbit.eccentricity >= 1.0 ? NodePlanner.Capture(vessel) : NodePlanner.ChangeOrbit(vessel, stop.Altitude);
+            if (vessel.orbit.eccentricity >= 1.0 && vessel.orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE)
+                return new NodePlanner.Result { Ok = true, Why = "Leaving " + vessel.mainBody.bodyName + "." };
+            CelestialBody here = vessel.mainBody;
+            // The sun is its own reference body in KSP and has no orbit to leave on.
+            if (here.orbit != null && here.referenceBody != null && here.referenceBody != here
+                && (stop.Body == here.referenceBody || stop.Body.referenceBody == here.referenceBody))
+                return NodePlanner.Eject(vessel, stop.Body, stop.Altitude);
             if (stop.Body.referenceBody != vessel.mainBody)
                 return NodePlanner.Result.Failed("A way from " + vessel.mainBody.bodyName + " to " + stop.Body.bodyName + " is not planned as nodes yet.");
             return KspOrbits.PatchAhead(vessel, stop.Body) != null
@@ -60,12 +67,18 @@ namespace ReDefinition.Autopilot
             return vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH;
         }
 
-        // The stop the vessel is on its way to, where it is at none: the first after the start whose body it is round, or whose body the plan
-        // shows an encounter with; -1 where there is none.
+        // The stop the vessel is on its way to, where it is at none: the first after the start whose body it is round, or whose body the orbit
+        // shows an encounter with. Where it is leaving a body, the first stop at another; round a sun, the first at one of its planets. -1 for none.
         private static int HeadedFor(Vessel vessel, IList<Destination> route)
         {
+            bool leaving = vessel.orbit.eccentricity >= 1.0 && vessel.orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE;
             for (int i = 1; i < route.Count; i++)
-                if (route[i].Body != null && (route[i].Body == vessel.mainBody || KspOrbits.PatchAhead(vessel, route[i].Body) != null)) return i;
+            {
+                CelestialBody body = route[i].Body;
+                if (body == null) continue;
+                if (body == vessel.mainBody || KspOrbits.PatchAhead(vessel, body) != null) return i;
+                if (leaving || body.referenceBody == vessel.mainBody) return i;
+            }
             return -1;
         }
 

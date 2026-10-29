@@ -193,5 +193,49 @@ namespace ReDefinition.Tests
             Assert.AreEqual(33.0, V3.Dot(inertial, at.V.Unit), 1e-9);
             Assert.AreEqual(11.0, V3.Dot(inertial, at.R.Unit), 1e-9);
         }
+
+        // The velocity found for an excess is that of a hyperbola that goes out with it. Taken far away, the vessel's direction and speed are
+        // the excess's, and the speed at the start fits the energy.
+        [TestMethod]
+        public void EjectionVelocityLeavesWithTheExcess()
+        {
+            var place = new V3(Low, 0.0, 0.0);
+            foreach (V3 excess in new[] { new V3(0.0, 1500.0, 0.0), new V3(-900.0, 700.0, 300.0), new V3(400.0, -1200.0, 900.0), new V3(0.0, 0.0, 1000.0) })
+            {
+                V3 velocity = Ejection.VelocityFor(place, excess, Mu, new V3(0.0, 0.0, 1.0));
+                double energy = V3.Dot(velocity, velocity) / 2.0 - Mu / Low;
+                Assert.AreEqual(V3.Dot(excess, excess) / 2.0, energy, 1.0);
+                State far = Kepler.Propagate(new State(place, velocity), 5e8, Mu);
+                V3 expected = excess.Unit;
+                Assert.AreEqual(0.0, (far.V.Unit - expected).Length, 1e-3);
+                Assert.AreEqual(excess.Length, far.V.Length, 5.0);
+            }
+        }
+
+        // From a circular orbit the cheapest burn for an excess in the orbit's plane is where the orbit's velocity points along it: the burn is
+        // prograde there, and its size is that of the escape with that excess.
+        [TestMethod]
+        public void TheCheapestEjectionIsTheOneAlongTheOrbit()
+        {
+            State ship = Circular(Low);
+            V3 excess = new V3(0.0, 1500.0, 0.0);
+            double period = 2.0 * Math.PI * Math.Sqrt(Low * Low * Low / Mu);
+            Burn burn = Ejection.Cheapest(ship, Mu, excess, 0.0, period);
+            double vEscape = Math.Sqrt(1500.0 * 1500.0 + 2.0 * Mu / Low);
+            double vCircular = Math.Sqrt(Mu / Low);
+            Assert.IsTrue(burn.Magnitude < vEscape - vCircular + 60.0, "the burn is " + burn.Magnitude);
+            Assert.IsTrue(burn.Magnitude > vEscape - vCircular - 1.0);
+        }
+
+        // On a hyperbola the time to leave a sphere is where the radius crosses it.
+        [TestMethod]
+        public void TheTimeToLeaveASphereIsWhereTheRadiusCrossesIt()
+        {
+            var place = new V3(Low, 0.0, 0.0);
+            V3 velocity = Ejection.VelocityFor(place, new V3(0.0, 1500.0, 0.0), Mu, new V3(0.0, 0.0, 1.0));
+            double soi = 8.4e7;
+            double time = Ejection.TimeToLeave(new State(place, velocity), Mu, soi);
+            Assert.AreEqual(soi, Kepler.Propagate(new State(place, velocity), time, Mu).R.Length, 10.0);
+        }
     }
 }

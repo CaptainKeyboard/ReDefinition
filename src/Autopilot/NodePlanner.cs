@@ -7,6 +7,9 @@ namespace ReDefinition.Autopilot
     // The burns of a leg worked out from the vessel's orbit and put in the flight plan as nodes, each checked against KSP's own patched conics.
     internal static class NodePlanner
     {
+        // The smallest correction worth a burn, in m/s: at the distance of a planet the periapsis moves by kilometres for less than that.
+        private const double MinCorrection = 0.1;
+
         // The least time between now and a burn, in seconds: room to see the node and turn the vessel.
         internal const double LeadTime = 60.0;
 
@@ -143,6 +146,66 @@ namespace ReDefinition.Autopilot
             };
         }
 
+        // Leaves the body the vessel is round, from a closed orbit, for another: a planet that orbits the same body as this one, or the body
+        // this one orbits. The excess speed comes from a transfer between the two orbits, or from the speed that brings the periapsis at the
+        // body being returned to down to the aim, retrograde. The burn is put in as a node at the cheapest place on the orbit before the time
+        // the vessel must leave the sphere of influence.
+        internal static Result Eject(Vessel vessel, CelestialBody target, double aimAltitude)
+        {
+            Orbit orbit = vessel.orbit;
+            CelestialBody here = vessel.mainBody;
+            CelestialBody parent = here.referenceBody;
+            if (orbit == null || orbit.eccentricity >= 1.0) return Result.Failed("The orbit is not closed.");
+            if (parent == null || (target != parent && target.referenceBody != parent)) return Result.Failed(target.bodyName + " is not reached from " + here.bodyName + " by leaving it.");
+            double now = Planetarium.GetUniversalTime();
+            double mu = here.gravParameter;
+            State ship = KspOrbits.StateAt(orbit, now);
+            double period = orbit.period;
+            State orbiting = KspOrbits.StateAt(here.orbit, now);
+            double leaveGuess = Ejection.TimeToLeave(new State(ship.R, ship.V * 1.5), mu, here.sphereOfInfluence);
+            if (double.IsInfinity(leaveGuess)) return Result.Failed("The sphere of influence of " + here.bodyName + " is not left.");
+            double earliest = leaveGuess + period + LeadTime;
+            V3 excess;
+            double depart;
+            if (target == parent)
+            {
+                double apoapsis = orbiting.R.Length;
+                double periapsis = target.Radius + aimAltitude;
+                double slow = Math.Sqrt(target.gravParameter * (2.0 / apoapsis - 2.0 / (apoapsis + periapsis)));
+                double speed = orbiting.V.Length - slow;
+                if (speed <= 0.0) return Result.Failed("No burn brings the periapsis down to " + aimAltitude.ToString("0") + " m.");
+                excess = orbiting.V.Unit * -speed;
+                depart = earliest;
+            }
+            else
+            {
+                State goal = KspOrbits.StateAt(target.orbit, now);
+                double semiMajor = 0.5 * (orbiting.R.Length + goal.R.Length);
+                double hohmann = Math.PI * Math.Sqrt(semiMajor * semiMajor * semiMajor / parent.gravParameter);
+                double synodic = 1.0 / Math.Abs(1.0 / here.orbit.period - 1.0 / target.orbit.period);
+                Transfer best;
+                if (!Transfers.Cheapest(orbiting, goal, parent.gravParameter, synodic * 1.1, 0.5 * hohmann, 1.5 * hohmann, false, out best, earliest))
+                    return Result.Failed("No transfer to " + target.bodyName + " was found.");
+                excess = best.Departure;
+                depart = best.Delay;
+            }
+            Burn burn = Ejection.Cheapest(ship, mu, excess, depart - leaveGuess - period, period);
+            if (burn.Delay < LeadTime) return Result.Failed("The burn would come too soon.");
+            double ut = now + burn.Delay;
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            if (KspOrbits.PatchAround(vessel, parent) == null)
+            {
+                KspOrbits.ClearNodes(vessel);
+                return Result.Failed("The burn does not leave " + here.bodyName + ".");
+            }
+            return new Result
+            {
+                Ok = true, UT = ut, DeltaV = burn.DeltaV,
+                Why = "Leave " + here.bodyName + " for " + target.bodyName + ": " + burn.Magnitude.ToString("0") + " m/s, excess speed " + excess.Length.ToString("0") + " m/s.",
+            };
+        }
+
         // Brings a transfer back to its aim with one small burn, early on the way. The burn is tried against KSP's own plan until the periapsis
         // at the target is within 3 % or a kilometre of the one asked for. No node where the vessel is on course already.
         internal static Result CorrectCourse(Vessel vessel, CelestialBody target, double aimAltitude)
@@ -181,6 +244,11 @@ namespace ReDefinition.Autopilot
             {
                 KspOrbits.ClearNodes(vessel);
                 return Result.Failed("No correction was found that brings the periapsis to " + aimAltitude.ToString("0") + " m.");
+            }
+            if (burn.magnitude < MinCorrection)
+            {
+                KspOrbits.ClearNodes(vessel);
+                return new Result { Ok = true, Why = "On course, a correction of " + burn.magnitude.ToString("0.00") + " m/s is not worth a burn. Periapsis " + over };
             }
             return new Result
             {

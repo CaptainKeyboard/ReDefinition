@@ -51,7 +51,17 @@ namespace ReDefinition.Autopilot
                     Stop("The vessel is not the one in focus.");
                     yield break;
                 }
-                NodePlanner.Result plan = LegPlanner.PlanNext(vessel, route);
+                NodePlanner.Result plan;
+                try
+                {
+                    plan = LegPlanner.PlanNext(vessel, route);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogError("[ReDefinition] Route: the plan failed: " + e);
+                    Stop("The plan failed: " + e.Message);
+                    yield break;
+                }
                 Debug.Log("[ReDefinition] Route: step " + step + ": " + plan.Why);
                 if (!plan.Ok)
                 {
