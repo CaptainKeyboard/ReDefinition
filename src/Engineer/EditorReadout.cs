@@ -44,20 +44,35 @@ namespace ReDefinition.Engineer
         // Read again: the stock simulation runs by itself as the vessel changes.
         internal static EditorReadout Read()
         {
-            EditorReadout readout = new EditorReadout();
             ShipConstruct ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
-            if (ship == null || ship.parts == null || ship.parts.Count == 0) return readout;
-
-            readout.HasShip = true;
+            if (ship == null || ship.parts == null || ship.parts.Count == 0) return new EditorReadout();
             float dryMass, fuelMass;
             // With the crew and their inventory, as KSP's mass limit counts them
             // (EngineersReport; decompiled).
-            readout.WetMass = ship.GetShipMass(out dryMass, out fuelMass, ShipConstruction.ShipManifest);
+            double wetMass = ship.GetShipMass(out dryMass, out fuelMass, ShipConstruction.ShipManifest);
+            return Build(ship.parts, ship.vesselDeltaV, wetMass, fuelMass);
+        }
+
+        // The same for a vessel in flight: its parts as they are now, with the fuel left in them and KSP's own stages of it.
+        internal static EditorReadout Read(Vessel vessel)
+        {
+            if (vessel == null || vessel.parts == null || vessel.parts.Count == 0) return new EditorReadout();
+            double fuelMass = 0.0;
+            foreach (Part part in vessel.parts)
+                if (part != null) fuelMass += part.GetResourceMass();
+            return Build(vessel.parts, vessel.VesselDeltaV, vessel.GetTotalMass(), fuelMass);
+        }
+
+        // The readout of parts, their stages and their masses.
+        private static EditorReadout Build(List<Part> shipParts, VesselDeltaV deltaV, double wetMass, double fuelMass)
+        {
+            EditorReadout readout = new EditorReadout();
+            readout.HasShip = true;
+            readout.WetMass = wetMass;
             readout.FuelMass = fuelMass;
-            foreach (Part part in ship.parts)
+            foreach (Part part in shipParts)
                 if (part != null && part.Resources.Contains("ElectricCharge")) readout.ElectricCharge += part.Resources["ElectricCharge"].amount;
 
-            VesselDeltaV deltaV = ship.vesselDeltaV;
             List<DeltaVStageInfo> infos = deltaV != null ? deltaV.OperatingStageInfo : null;
             if (infos == null || infos.Count == 0) return readout;
 
@@ -67,12 +82,12 @@ namespace ReDefinition.Engineer
                 if (info != null) rows.Add(RowOf(info));
             rows.Sort((a, b) => a.Number.CompareTo(b.Number));
             readout.Stages = rows;
-            readout.PartFacts = FactsOf(ship.parts, partInfos);
-            HashSet<string> air = AirResources(ship.parts);
-            if (BreathesAir(ship.parts, air))
+            readout.PartFacts = FactsOf(shipParts, partInfos);
+            HashSet<string> air = AirResources(shipParts);
+            if (BreathesAir(shipParts, air))
             {
                 readout.Density = new Dictionary<string, double>();
-                readout.Sim = SimOf(ship.parts, readout.PartFacts, air, readout.Density, TopStart(readout.Stages));
+                readout.Sim = SimOf(shipParts, readout.PartFacts, air, readout.Density, TopStart(readout.Stages));
             }
             return readout;
         }

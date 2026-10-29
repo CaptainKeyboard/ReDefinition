@@ -35,7 +35,7 @@ namespace ReDefinition.Tests
             ["Migration"] = "",
             ["Orbits"] = "",
             ["Modules"] = "Core Dashboard Diagnostics Hud Migration Probe Proxy Raytracing Scenery Settings Upscaler Vendor Window",
-            ["Probe"] = "Core Modules Proxy Raytracing Scenery Settings Ui Window",
+            ["Probe"] = "Core Engineer Modules Proxy Raytracing Scenery Settings Ui Window",
             ["Proxy"] = "Core",
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",
