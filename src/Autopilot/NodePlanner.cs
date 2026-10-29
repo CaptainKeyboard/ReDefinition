@@ -123,10 +123,11 @@ namespace ReDefinition.Autopilot
             double radius = body.Radius + altitude;
             State here = KspOrbits.StateAt(orbit, now);
             var conic = new Conic(here, mu);
+            double safe = body.atmosphere ? body.atmosphereDepth + 1000.0 : 1000.0;
+            if (orbit.PeA < safe && altitude > orbit.PeA) return LiftPeriapsis(vessel, here, mu, body.Radius + Math.Max(altitude, safe));
             double near = Math.Max(2000.0, 0.1 * altitude);
             if (Math.Abs(orbit.PeA - altitude) <= near || Math.Abs(orbit.ApA - altitude) <= near) return Round(vessel, here, mu, Math.Abs(orbit.ApA - altitude) < Math.Abs(orbit.PeA - altitude));
             bool raise = radius > conic.RadiusAt(Math.PI);
-            if (!raise && radius >= conic.RadiusAt(0.0)) return Result.Failed("The orbit already passes that altitude: round it first.");
             Burn first;
             if (!Maneuvers.ChangeOpposite(here, mu, !raise, radius, out first)) return Result.Failed("No burn was found.");
             if (first.Delay < LeadTime) first = new Burn(first.Delay + conic.Period, first.DeltaV);
@@ -287,6 +288,29 @@ namespace ReDefinition.Autopilot
                 Ok = true, UT = ut, DeltaV = deltaV,
                 Why = "Capture at " + body.bodyName + ": " + deltaV.Length.ToString("0") + " m/s at the periapsis, " + ((at.R.Length - body.Radius) / 1000.0).ToString("0.#") + " km up.",
             };
+        }
+
+        // The burn that lifts a periapsis that lies in the ground or the air, soon: a burn along the velocity a little ahead, as big as brings the
+        // periapsis to `radius`. Waiting for the apoapsis could mean passing the periapsis first.
+        private static Result LiftPeriapsis(Vessel vessel, State here, double mu, double radius)
+        {
+            double delay = 2.0 * LeadTime;
+            State there = Kepler.Propagate(here, delay, mu);
+            double low = 0.0, high = 4000.0;
+            for (int i = 0; i < 60; i++)
+            {
+                double mid = 0.5 * (low + high);
+                var after = new State(there.R, there.V + there.V.Unit * mid);
+                var conic = new Conic(after, mu);
+                double periapsis = conic.Closed ? conic.RadiusAt(0.0) : double.PositiveInfinity;
+                if (periapsis < radius) low = mid;
+                else high = mid;
+            }
+            V3 deltaV = there.V.Unit * (0.5 * (low + high));
+            double ut = Planetarium.GetUniversalTime() + delay;
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, ut, deltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            return new Result { Ok = true, UT = ut, DeltaV = deltaV, Why = "Lift the periapsis out of the ground: " + deltaV.Length.ToString("0") + " m/s." };
         }
 
         // The second burn of a change of orbit, or the whole of one that is one apsis from done: the orbit rounded at the apsis at the altitude.
