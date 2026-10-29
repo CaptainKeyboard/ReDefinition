@@ -15,6 +15,16 @@ namespace ReDefinition.Autopilot
             return false;
         }
 
+        // Whether an engine gives thrust now: what the burn is, whoever holds the throttle.
+        internal static bool Burning(Vessel vessel)
+        {
+            if (vessel == null) return false;
+            foreach (Part part in vessel.parts)
+                foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                    if (engine.finalThrust > 0.01f) return true;
+            return false;
+        }
+
         // The delta-v the propellant on board gives: the best vacuum specific impulse of its engines on the whole mass, by the rocket equation. It
         // counts every tank, the stages not yet fired too, so it is the most the vessel could give.
         internal static double DeltaV(Vessel vessel)

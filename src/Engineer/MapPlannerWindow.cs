@@ -35,8 +35,6 @@ namespace ReDefinition.Engineer
         private bool failed;
         // What the last press of a button came to, shown under the buttons.
         private string status = "";
-        // The route being flown by MechJeb, while there is one.
-        private RouteFlight flight;
 
         // Whether the panel is up: the map view is on and a vessel is flown.
         private static bool Wanted
@@ -56,17 +54,17 @@ namespace ReDefinition.Engineer
         // As a press of "Fly route", and whether a flight is under way.
         internal void FlyNow()
         {
-            if (view != null && flight == null) FlyOrStop();
+            if (view != null && !Flying) FlyOrStop();
         }
 
         internal string FlightStatus
         {
-            get { return flight != null ? flight.Status : status; }
+            get { return RouteDriver.Instance != null && RouteDriver.Instance.Flying ? RouteDriver.Instance.Status : status; }
         }
 
         internal bool Flying
         {
-            get { return flight != null; }
+            get { return RouteDriver.Instance != null && RouteDriver.Instance.Flying; }
         }
 
         // As a press of "Plan nodes".
@@ -86,6 +84,7 @@ namespace ReDefinition.Engineer
             stops[1].Body = index;
             stops[1].Kind = StopKind.Orbit;
             stops[1].Altitude = altitude;
+            view.SaveNow();
             return true;
         }
 
@@ -207,44 +206,44 @@ namespace ReDefinition.Engineer
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
-        // The buttons that put the next leg of the route in the flight plan as nodes, and take them off, and the line that says what came of it.
+        // The two switches, the autonavigation and the autopilot, and the line that says what the route is doing.
         private DialogGUIBase Header(float width)
         {
-            float button = (width - 8f - 6f * 3f) / 4f;
-            var plan = new DialogGUIButton("Plan nodes", PlanNodes, button, 28f, false);
-            var clear = new DialogGUIButton("Clear nodes", ClearNodes, button, 28f, false);
-            var fly = new DialogGUIButton(() => flight != null ? "Stop" : "Fly route", FlyOrStop, button, 28f, false);
-            fly.OptionInteractableCondition = () => flight != null || MechJebDriver.Unavailable == null;
-            fly.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the route with MechJeb, step by step";
-            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, plan, clear, fly);
-            var text = new DialogGUILabel(() => flight != null ? flight.Status : status, width - 12f, 36f);
+            float button = (width - 8f - 6f) / 2f;
+            var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Autonavigation</color>" : "Autonavigation", ToggleNavigation, button, 28f, false);
+            navigation.OptionInteractableCondition = () => !Flying;
+            navigation.tooltipText = "Plan the route and keep the plan up to date while you fly it yourself";
+            var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
+            pilot.OptionInteractableCondition = () => Flying || MechJebDriver.Unavailable == null;
+            pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the whole route with MechJeb";
+            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot);
+            var text = new DialogGUILabel(() => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : status, width - 12f, 36f);
             return new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text);
         }
 
         // Starts the route's flight, or stops the one that is under way.
         private void FlyOrStop()
         {
-            if (flight != null)
+            if (RouteDriver.Instance == null) return;
+            if (Flying)
             {
-                flight.Cancel();
-                status = "The flight is stopped.";
-                flight = null;
+                RouteDriver.Instance.StopFlight(FlightGlobals.ActiveVessel);
                 return;
             }
             List<Destination> route = Route();
-            if (route == null) return;
-            flight = new RouteFlight(FlightGlobals.ActiveVessel, route);
-            StartCoroutine(RunFlight(flight));
+            if (route != null) RouteDriver.Instance.StartFlight(FlightGlobals.ActiveVessel, route);
         }
 
-        private IEnumerator RunFlight(RouteFlight running)
+        // Whether the route is planned for the player: by the autonavigation, and by the autopilot, which includes it.
+        private static bool NavigationOn()
         {
-            yield return running.Run();
-            if (flight == running)
-            {
-                status = running.Status;
-                flight = null;
-            }
+            RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
+            return state != null && (state.Autonavigation || state.Autopilot);
+        }
+
+        private void ToggleNavigation()
+        {
+            if (RouteDriver.Instance != null) RouteDriver.Instance.SetAutonavigation(FlightGlobals.ActiveVessel, !NavigationOn());
         }
 
         // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.
@@ -261,28 +260,9 @@ namespace ReDefinition.Engineer
         // The planner's route as destinations; null, with the reason in the status, where there is none.
         private List<Destination> Route()
         {
-            IList<RouteStop> stops = view.RouteStops;
-            PlannerBodies bodies = view.BodyList;
-            if (stops == null || bodies == null)
-            {
-                status = "There is no route yet.";
-                return null;
-            }
-            var route = new List<Destination>();
-            foreach (RouteStop stop in stops)
-            {
-                if (stop.Kind == StopKind.Entry || stop.Kind == StopKind.Transfer) continue;
-                string id = stop.Body >= 0 && stop.Body < bodies.Bodies.Count ? bodies.Bodies[stop.Body].Id : null;
-                CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
-                route.Add(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude });
-            }
+            List<Destination> route = RouteSource.FromStops(view.RouteStops, view.BodyList);
+            if (route == null) status = "There is no route yet.";
             return route;
-        }
-
-        private void ClearNodes()
-        {
-            if (FlightGlobals.ActiveVessel != null) KspOrbits.ClearNodes(FlightGlobals.ActiveVessel);
-            status = "The nodes are cleared.";
         }
 
         private static RectTransform NewRect(string name, RectTransform parent)

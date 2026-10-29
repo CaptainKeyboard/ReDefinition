@@ -9,6 +9,7 @@ namespace ReDefinition.Autopilot
     internal sealed class RouteFlight
     {
         private const int MaxSteps = 24;
+        private const int MaxFailures = 3;
         // How much more delta-v than the plan's the vessel must carry: a burn is flown a little off, and a landing costs more than the orbit's speed.
         private const double BurnMargin = 1.05;
         private const double LandingMargin = 1.25;
@@ -44,6 +45,7 @@ namespace ReDefinition.Autopilot
                 Stop(MechJebDriver.Unavailable ?? "The vessel has no MechJeb unit.");
                 yield break;
             }
+            int failures = 0;
             for (int step = 0; step < MaxSteps && !cancelled; step++)
             {
                 if (vessel == null || vessel != FlightGlobals.ActiveVessel)
@@ -65,9 +67,17 @@ namespace ReDefinition.Autopilot
                 Debug.Log("[ReDefinition] Route: step " + step + ": " + plan.Why);
                 if (!plan.Ok)
                 {
-                    Stop(plan.Why);
-                    yield break;
+                    // A plan can fail for a moment, as with a vessel just loaded: tried again a few times before the flight stops.
+                    if (++failures >= MaxFailures)
+                    {
+                        Stop(plan.Why);
+                        yield break;
+                    }
+                    Status = plan.Why + " Trying again.";
+                    yield return new WaitForSeconds(4f);
+                    continue;
                 }
+                failures = 0;
                 if (plan.Arrived)
                 {
                     Arrived = true;

@@ -359,6 +359,12 @@ namespace ReDefinition.Engineer
         }
 
         // The plan changed: the texts are made again, the plan is saved after SaveDelay and worked out again.
+        // Writes the plan to the file now, for the probes, which change the route behind the rows' backs.
+        internal void SaveNow()
+        {
+            if (state != null && vessel != null && bodies != null) state.Save(vessel, bodies);
+        }
+
         private void Changed()
         {
             textVersion++;
