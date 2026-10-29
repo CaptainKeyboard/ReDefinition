@@ -22,7 +22,15 @@ namespace ReDefinition.Probe
             DontDestroyOnLoad(host);
             FlightTrace trace = host.AddComponent<FlightTrace>();
             trace.path = file;
-            File.WriteAllText(file, "ut,met,situation,height,asl,speed,vertical,sideways,throttle,thrust,mass,nose_off,warp,mj_limit,mj_brake_end,mj_accel,mj_policy,mj_limiter\n");
+            File.WriteAllText(file, "ut,met,situation,height,asl,speed,vertical,sideways,throttle,thrust,mass,nose_off,warp,mj_limit,mj_brake_end,mj_accel,mj_policy,mj_limiter,asked,guidance\n");
+        }
+
+        // The first words of what the guidance says now, without the commas, to tell the step it is in.
+        private static string Guidance(Vessel vessel)
+        {
+            string text = ReDefinition.Autopilot.GuidanceBoard.Current(vessel) ? ReDefinition.Autopilot.GuidanceBoard.Line : "";
+            if (text == null) return "";
+            return (text.Length > 40 ? text.Substring(0, 40) : text).Replace(',', ';');
         }
 
         private void FixedUpdate()
@@ -59,7 +67,9 @@ namespace ReDefinition.Probe
             string policy, limiter;
             bool known = ReDefinition.Autopilot.MechJebDriver.LandingNumbers(vessel, out limit, out brakeEnd, out accel, out policy, out limiter);
             line.Append(known ? limit.ToString("0.0", culture) : "").Append(',').Append(known ? brakeEnd.ToString("0.0", culture) : "").Append(',')
-                .Append(known ? accel.ToString("0.00", culture) : "").Append(',').Append(policy).Append(',').Append(limiter).Append('\n');
+                .Append(known ? accel.ToString("0.00", culture) : "").Append(',').Append(policy).Append(',').Append(limiter).Append(',')
+                .Append(ReDefinition.Engineer.RouteDriver.Instance != null ? ReDefinition.Engineer.RouteDriver.Instance.GuidedThrottle.ToString("0.000", culture) : "").Append(',')
+                .Append(Guidance(vessel)).Append('\n');
             File.AppendAllText(path, line.ToString());
         }
     }

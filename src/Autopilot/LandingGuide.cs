@@ -19,9 +19,9 @@ namespace ReDefinition.Autopilot
         private const double BrakeAt = 0.9;
         // How fast the throttle follows the limit, in seconds: MechJeb's.
         private const double FollowTime = 0.3;
-        // The time the throttle eases over, and the most it changes in a second, as a share of its range, so that it is a curve a pilot can fly.
-        private const double EaseTime = 1.5;
-        private const double MaxChange = 0.5;
+        // The most the throttle changes in a second, as a share of its range, so that it is a curve a pilot can fly. It is no lag: a lag in the
+        // loop that holds a hover makes the vessel swing up and down.
+        private const double MaxChange = 1.5;
         // The speed a vessel touches down at, in m/s: MechJeb's setting for it.
         private const double TouchdownSpeed = 0.5;
         private const double MinimumGap = 0.2;
@@ -64,19 +64,19 @@ namespace ReDefinition.Autopilot
         }
 
         private Step step = Step.Coast;
+        // Set once the final descent has lit the engines, and kept, as MechJeb keeps it, so that the engines do not go on and off at the boundary.
+        private bool finalLit;
         private double smooth;
         private double smoothedAt = -1.0;
 
-        // The throttle eased towards what is asked, so that it is a curve and not a series of bursts: it follows with a time constant, and it
-        // changes by no more than a share of its range in a second.
+        // The throttle moved towards what is asked by no more than a share of its range in a second, so that it is a curve and not a series of bursts.
         private double Ease(double asked)
         {
             double now = Time.realtimeSinceStartup;
             double dt = smoothedAt < 0.0 ? 0.0 : Math.Min(0.5, now - smoothedAt);
             smoothedAt = now;
-            double change = (asked - smooth) * Math.Min(1.0, dt / EaseTime);
             double most = MaxChange * dt;
-            smooth += Math.Max(-most, Math.Min(most, change));
+            smooth += Math.Max(-most, Math.Min(most, asked - smooth));
             smooth = Math.Max(0.0, Math.Min(1.0, smooth));
             return smooth;
         }
@@ -86,6 +86,11 @@ namespace ReDefinition.Autopilot
             Throttle = 0.0;
             HasDirection = false;
             HasBar = false;
+            if (vessel.LandedOrSplashed)
+            {
+                step = Step.Coast;
+                finalLit = false;
+            }
             CelestialBody body = vessel.mainBody;
             Collect();
             double landing = result != null && result.Outcome == ReentrySimulation.Outcome.LANDED ? result.EndASL : Math.Max(0.0, vessel.terrainAltitude);
@@ -105,7 +110,6 @@ namespace ReDefinition.Autopilot
             if (above < 3.0 && speed < 3.0) return "Down. Cut the engines.";
             if (!Engines.Running(vessel) && speed > 20.0) return "Descent: no engine is lit, fire the next stage.";
             if (result == null) return "Descent: working out where it lands.";
-            if (vertical > 5.0) step = Step.Coast;
             HasDirection = true;
             double limit = policy.MaxAllowedSpeed(position, velocity);
             if (vessel.heightFromTerrain >= 0f) above = Math.Min(above, vessel.heightFromTerrain);
@@ -169,8 +173,10 @@ namespace ReDefinition.Autopilot
             }
             double desired = -Math.Min(1.0, above / 300.0) * Math.Sqrt((thrust - gravity) * 2.0 * 300.0) * 0.9;
             double target = Math.Min(-TouchdownSpeed, desired);
-            if (desired < vertical && vertical < 0.0 && smooth < 0.01)
+            if (desired >= vertical) finalLit = true;
+            if (!finalLit)
             {
+                Throttle = Ease(0.0);
                 HasBar = true;
                 BarFill = 0.5 * Math.Max(0.0, Math.Min(1.0, vertical / Math.Min(-0.1, target)));
                 BarText = (-vertical).ToString("0") + " m/s";

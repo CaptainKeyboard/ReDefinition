@@ -73,6 +73,7 @@ namespace ReDefinition.Probe
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             ProbeWatch.Arm(vessel);
+            if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(System.IO.Path.Combine(folder, "flight-trace.csv"));
             RouteDriver.Instance.SetAutonavigation(vessel, true);
             float started = Time.realtimeSinceStartup;
             string last = "";
@@ -91,7 +92,7 @@ namespace ReDefinition.Probe
                     Debug.Log(Log.Tag + " " + ProbeWatch.LostLine + ": the status did not change for four minutes (" + now + ").");
                     yield break;
                 }
-                if (now != last && (!now.StartsWith("Descent") || Time.realtimeSinceStartup > nextLine))
+                if (now != last && (!(now.StartsWith("Descent") || now.StartsWith("Final")) || Time.realtimeSinceStartup > nextLine))
                 {
                     Debug.Log(Log.Tag + " Probe: auto land: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s]");
                     last = now;
@@ -108,7 +109,7 @@ namespace ReDefinition.Probe
                     WarpToImpact(vessel);
                 }
                 if (deorbited && now.StartsWith("Descent: no engine")) Engines.FireNextStageIfCold(vessel);
-                if (deorbited && (now.StartsWith("Descent") || now.StartsWith("Down")))
+                if (deorbited && (now.StartsWith("Descent") || now.StartsWith("Final") || now.StartsWith("Down")))
                 {
                     if (!shownHud)
                     {
@@ -122,6 +123,8 @@ namespace ReDefinition.Probe
                     {
                         Quaternion want = Quaternion.FromToRotation(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) * vessel.GetTransform().rotation;
                         vessel.SetRotation(Quaternion.RotateTowards(vessel.GetTransform().rotation, want, 40f * Time.deltaTime));
+                        foreach (Part part in vessel.parts)
+                            if (part.Rigidbody != null) part.Rigidbody.angularVelocity = Vector3.zero;
                     }
                     FlightInputHandler.state.mainThrottle = (float)RouteDriver.Instance.GuidedThrottle;
                     if (shots < 3 && Time.realtimeSinceStartup > nextShot && (shots == 0 || RouteDriver.Instance.GuidedThrottle > 0.3))
