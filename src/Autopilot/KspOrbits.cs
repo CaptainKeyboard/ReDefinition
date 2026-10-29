@@ -60,6 +60,20 @@ namespace ReDefinition.Autopilot
             solver.UpdateFlightPlan();
         }
 
+        // The first patch round `body` that lies ahead of the vessel: in the flight plan, or else in the chain of conics from its own orbit.
+        internal static Orbit PatchAhead(Vessel vessel, CelestialBody body)
+        {
+            Orbit planned = PatchAround(vessel, body);
+            if (planned != null) return planned;
+            Orbit patch = vessel.orbit;
+            for (int i = 0; i < 8 && patch != null; i++)
+            {
+                if (patch.referenceBody == body && i > 0) return patch;
+                patch = patch.patchEndTransition != Orbit.PatchTransitionType.FINAL ? patch.nextPatch : null;
+            }
+            return null;
+        }
+
         // The patch of the flight plan round `body`, the first one; null where the plan does not reach it.
         internal static Orbit PatchAround(Vessel vessel, CelestialBody body)
         {

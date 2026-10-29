@@ -71,6 +71,44 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: fly done.");
         }
 
+        // -redefinitionProbeFlyRoute <body>: the route from the orbit round the home body to a circular orbit of 50 km round that body, flown by
+        // RouteFlight from MechJeb's burns: transfer, correction, capture. Its status is logged as it changes, and the orbit it ends in.
+        private static IEnumerator FlyRouteShots(string folder, string bodyName)
+        {
+            yield return ProbeSteps.Frames(60);
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            var culture = CultureInfo.InvariantCulture;
+            CelestialBody target = FlightGlobals.Bodies.Find(b => b.bodyName == bodyName);
+            var route = new System.Collections.Generic.List<Destination>
+            {
+                new Destination { Body = vessel.mainBody, Altitude = vessel.orbit.PeA },
+                new Destination { Body = target, Altitude = 50000.0 },
+            };
+            var flight = new RouteFlight(vessel, route);
+            IEnumerator run = flight.Run();
+            float started = Time.realtimeSinceStartup;
+            string last = "";
+            float nextLine = 0f;
+            while (!flight.Finished && Time.realtimeSinceStartup - started < 1500f)
+            {
+                if (!run.MoveNext()) break;
+                if (flight.Status != last || Time.realtimeSinceStartup > nextLine)
+                {
+                    Debug.Log(Log.Tag + " Probe: route: " + flight.Status + " [" + vessel.mainBody.bodyName + ", " + vessel.orbit.PeA.ToString("0", culture) + " x " + vessel.orbit.ApA.ToString("0", culture) + " m, warp " + TimeWarp.CurrentRateIndex + "]");
+                    last = flight.Status;
+                    nextLine = Time.realtimeSinceStartup + 15f;
+                }
+                yield return run.Current;
+            }
+            Debug.Log(Log.Tag + " Probe: route: ended, arrived " + flight.Arrived + ", " + flight.Status + " In " + vessel.mainBody.bodyName + " at " + vessel.orbit.PeA.ToString("0", culture) + " x " + vessel.orbit.ApA.ToString("0", culture) + " m.");
+            MapView.EnterMapView();
+            yield return ProbeSteps.Frames(90);
+            UnityEngine.ScreenCapture.CaptureScreenshot(Path.Combine(folder, "route-" + bodyName + ".png"));
+            yield return ProbeSteps.Frames(5);
+            MapView.ExitMapView();
+            Debug.Log(Log.Tag + " Probe: route done.");
+        }
+
         private static IEnumerator NodeShots(string folder)
         {
             yield return ProbeSteps.Frames(60);

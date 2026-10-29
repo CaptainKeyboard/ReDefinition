@@ -10,10 +10,12 @@ namespace ReDefinition.Autopilot
         // The least time between now and a burn, in seconds: room to see the node and turn the vessel.
         internal const double LeadTime = 60.0;
 
-        // What a plan came to: a burn at a time, and why, or the reason there is none.
+        // What a plan came to: a burn at a time, and why, or the reason there is none. Ok with a time of zero is a plan that needs no burn.
         internal sealed class Result
         {
             public bool Ok;
+            // True where the route is flown to its last stop, and there is nothing left to plan.
+            public bool Arrived;
             public string Why;
             public double UT;
             public V3 DeltaV;
@@ -21,6 +23,11 @@ namespace ReDefinition.Autopilot
             public static Result Failed(string why)
             {
                 return new Result { Why = why };
+            }
+
+            public static Result Done(string why)
+            {
+                return new Result { Ok = true, Arrived = true, Why = why };
             }
         }
 
@@ -92,6 +99,8 @@ namespace ReDefinition.Autopilot
             double radius = body.Radius + altitude;
             State here = KspOrbits.StateAt(orbit, now);
             var conic = new Conic(here, mu);
+            double near = Math.Max(2000.0, 0.1 * altitude);
+            if (Math.Abs(orbit.PeA - altitude) <= near || Math.Abs(orbit.ApA - altitude) <= near) return Round(vessel, here, mu, Math.Abs(orbit.ApA - altitude) < Math.Abs(orbit.PeA - altitude));
             bool raise = radius > conic.RadiusAt(Math.PI);
             if (!raise && radius >= conic.RadiusAt(0.0)) return Result.Failed("The orbit already passes that altitude: round it first.");
             Burn first;
@@ -111,6 +120,96 @@ namespace ReDefinition.Autopilot
                 Ok = true, UT = firstUT, DeltaV = first.DeltaV,
                 Why = "Orbit at " + (altitude / 1000.0).ToString("0.#") + " km: two burns, " + total.ToString("0") + " m/s.",
             };
+        }
+
+        // Brings a transfer back to its aim with one small burn, early on the way. The burn is tried against KSP's own plan until the periapsis
+        // at the target is within 3 % or a kilometre of the one asked for. No node where the vessel is on course already.
+        internal static Result CorrectCourse(Vessel vessel, CelestialBody target, double aimAltitude)
+        {
+            KspOrbits.ClearNodes(vessel);
+            Orbit patch = KspOrbits.PatchAhead(vessel, target);
+            if (patch == null) return Result.Failed("The plan has no encounter with " + target.bodyName + ".");
+            double aim = target.Radius + aimAltitude;
+            double tolerance = Math.Max(1000.0, 0.03 * aimAltitude);
+            string over = (patch.PeR - target.Radius).ToString("0") + " m over " + target.bodyName + ".";
+            if (Math.Abs(patch.PeR - aim) <= tolerance) return new Result { Ok = true, Why = "On course, periapsis " + over };
+            double at = Planetarium.GetUniversalTime() + 2.0 * LeadTime;
+            if (at >= vessel.orbit.EndUT) return Result.Failed("The encounter is too close for a correction.");
+            PatchedConicSolver solver = vessel.patchedConicSolver;
+            ManeuverNode node = solver.AddManeuverNode(at);
+            Vector3d burn = Vector3d.zero;
+            double periapsis = PeriapsisWith(vessel, node, target, burn);
+            for (int pass = 0; pass < 8 && !double.IsNaN(periapsis) && Math.Abs(periapsis - aim) > 0.5 * tolerance; pass++)
+            {
+                const double probe = 0.2;
+                var slope = new Vector3d(0.0, 0.0, 0.0);
+                for (int axis = 0; axis < 3; axis++)
+                {
+                    Vector3d nudged = burn;
+                    nudged[axis] += probe;
+                    double other = PeriapsisWith(vessel, node, target, nudged);
+                    if (!double.IsNaN(other)) slope[axis] = (other - periapsis) / probe;
+                }
+                if (slope.sqrMagnitude < 1e-12) break;
+                Vector3d step = slope * ((aim - periapsis) / slope.sqrMagnitude);
+                if (step.magnitude > 20.0) step = step.normalized * 20.0;
+                burn += step;
+                periapsis = PeriapsisWith(vessel, node, target, burn);
+            }
+            if (double.IsNaN(periapsis) || Math.Abs(periapsis - aim) > tolerance)
+            {
+                KspOrbits.ClearNodes(vessel);
+                return Result.Failed("No correction was found that brings the periapsis to " + aimAltitude.ToString("0") + " m.");
+            }
+            return new Result
+            {
+                Ok = true, UT = at, DeltaV = KspOrbits.ToV3(burn),
+                Why = "Correction of " + burn.magnitude.ToString("0.0") + " m/s, periapsis " + (periapsis - target.Radius).ToString("0") + " m over " + target.bodyName + ".",
+            };
+        }
+
+        // The periapsis at the target that KSP's plan shows with the node given that burn (in the node's axes); NaN where the plan has no encounter.
+        private static double PeriapsisWith(Vessel vessel, ManeuverNode node, CelestialBody target, Vector3d burn)
+        {
+            node.DeltaV = burn;
+            vessel.patchedConicSolver.UpdateFlightPlan();
+            Orbit patch = KspOrbits.PatchAround(vessel, target);
+            return patch != null ? patch.PeR : double.NaN;
+        }
+
+        // The burn that rounds a vessel on an open orbit round the body into a circle at its periapsis, put in as a node there: the capture, with
+        // the periapsis chosen when the transfer was made.
+        internal static Result Capture(Vessel vessel)
+        {
+            Orbit orbit = vessel.orbit;
+            CelestialBody body = vessel.mainBody;
+            if (orbit == null || orbit.eccentricity < 1.0) return Result.Failed("The orbit is not open.");
+            double toPeriapsis = orbit.timeToPe;
+            if (toPeriapsis < LeadTime) return Result.Failed("The periapsis is past or too close for a burn.");
+            double ut = Planetarium.GetUniversalTime() + toPeriapsis;
+            State at = KspOrbits.StateAt(orbit, ut);
+            double speed = at.V.Length;
+            double circular = Math.Sqrt(body.gravParameter / at.R.Length);
+            V3 deltaV = at.V.Unit * (circular - speed);
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, ut, deltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            return new Result
+            {
+                Ok = true, UT = ut, DeltaV = deltaV,
+                Why = "Capture at " + body.bodyName + ": " + deltaV.Length.ToString("0") + " m/s at the periapsis, " + ((at.R.Length - body.Radius) / 1000.0).ToString("0.#") + " km up.",
+            };
+        }
+
+        // The second burn of a change of orbit, or the whole of one that is one apsis from done: the orbit rounded at the apsis at the altitude.
+        private static Result Round(Vessel vessel, State here, double mu, bool atApoapsis)
+        {
+            Burn burn;
+            if (!Maneuvers.Circularize(here, mu, atApoapsis, out burn)) return Result.Failed("No burn was found.");
+            if (burn.Delay < LeadTime) burn = new Burn(burn.Delay + new Conic(here, mu).Period, burn.DeltaV);
+            double ut = Planetarium.GetUniversalTime() + burn.Delay;
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = "Round the orbit at the " + (atApoapsis ? "apoapsis" : "periapsis") + ": " + burn.Magnitude.ToString("0") + " m/s." };
         }
 
         // One try: a transfer that aims at the point `offset` from the target, put in as the vessel's only node. The patch of the plan round
