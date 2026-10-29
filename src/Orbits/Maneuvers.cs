@@ -74,21 +74,29 @@ namespace ReDefinition.Orbits
             return true;
         }
 
-        // A change of velocity in KSP's maneuver node frame: radial out, normal, prograde, at a state.
-        internal static V3 ToNodeFrame(State at, V3 deltaV)
+        // The three directions of KSP's maneuver node frame at a state: radial out, normal (the orbit's own, north for an eastward orbit) and
+        // prograde. Unity's world is left-handed, so there the cross product of position and velocity points the other way: `leftHanded`.
+        private static void NodeAxes(State at, bool leftHanded, out V3 radial, out V3 normal, out V3 prograde)
         {
-            V3 prograde = at.V.Unit;
-            V3 normal = V3.Cross(at.R, at.V).Unit;
-            V3 radial = V3.Cross(prograde, normal);
+            prograde = at.V.Unit;
+            V3 out0 = at.R.Unit;
+            radial = (out0 - prograde * V3.Dot(out0, prograde)).Unit;
+            normal = V3.Cross(at.R, at.V).Unit * (leftHanded ? -1.0 : 1.0);
+        }
+
+        // A change of velocity in KSP's maneuver node frame: radial out, normal, prograde, at a state.
+        internal static V3 ToNodeFrame(State at, V3 deltaV, bool leftHanded = false)
+        {
+            V3 radial, normal, prograde;
+            NodeAxes(at, leftHanded, out radial, out normal, out prograde);
             return new V3(V3.Dot(deltaV, radial), V3.Dot(deltaV, normal), V3.Dot(deltaV, prograde));
         }
 
         // The other way: a change of velocity from the node frame to the inertial one.
-        internal static V3 FromNodeFrame(State at, V3 nodeDeltaV)
+        internal static V3 FromNodeFrame(State at, V3 nodeDeltaV, bool leftHanded = false)
         {
-            V3 prograde = at.V.Unit;
-            V3 normal = V3.Cross(at.R, at.V).Unit;
-            V3 radial = V3.Cross(prograde, normal);
+            V3 radial, normal, prograde;
+            NodeAxes(at, leftHanded, out radial, out normal, out prograde);
             return radial * nodeDeltaV.X + normal * nodeDeltaV.Y + prograde * nodeDeltaV.Z;
         }
     }

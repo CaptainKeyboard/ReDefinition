@@ -166,6 +166,21 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, V3.Angle(normal, target.Unit), 1e-9);
         }
 
+        // In Unity's left-handed world the node's normal points the other way from the cross product of position and velocity.
+        // The radial and prograde axes do not change, and a burn goes there and back in that frame too.
+        [TestMethod]
+        public void TheNodeFrameInALeftHandedWorldFlipsTheNormal()
+        {
+            State at = Circular(Low, 0.7);
+            V3 normal = V3.Cross(at.R, at.V).Unit;
+            V3 normalBurn = Maneuvers.FromNodeFrame(at, new V3(0.0, 1.0, 0.0), true);
+            Assert.AreEqual(-1.0, V3.Dot(normalBurn, normal), 1e-9);
+            Assert.AreEqual(1.0, V3.Dot(Maneuvers.FromNodeFrame(at, new V3(1.0, 0.0, 0.0), true), at.R.Unit), 1e-9);
+            Assert.AreEqual(1.0, V3.Dot(Maneuvers.FromNodeFrame(at, new V3(0.0, 0.0, 1.0), true), at.V.Unit), 1e-9);
+            var burn = new V3(5.0, -6.0, 7.0);
+            Assert.AreEqual(0.0, (Maneuvers.ToNodeFrame(at, Maneuvers.FromNodeFrame(at, burn, true), true) - burn).Length, 1e-9);
+        }
+
         // A burn in the node frame, radial out, normal and prograde, goes there and back.
         [TestMethod]
         public void TheNodeFrameGoesThereAndBack()

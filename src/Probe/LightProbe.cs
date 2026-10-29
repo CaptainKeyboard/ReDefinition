@@ -87,6 +87,11 @@ namespace ReDefinition.Probe
                     yield return CloudShots(addon, folder);
                     yield break;
                 }
+                if (CommandLine.Has(NodesArgument))
+                {
+                    yield return NodeShots(folder);
+                    yield break;
+                }
                 if (CommandLine.Has(MapPlannerArgument))
                 {
                     yield return MapPlannerShots(folder);
