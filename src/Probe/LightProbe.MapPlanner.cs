@@ -21,6 +21,18 @@ namespace ReDefinition.Probe
             yield return ProbeSteps.Frames(180);
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner.png"));
             yield return ProbeSteps.Frames(5);
+            if (MapPlannerWindow.Instance != null && FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING)
+            {
+                string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";
+                Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + " set: " + MapPlannerWindow.Instance.SetDestination(wanted, 30000.0));
+                MapPlannerWindow.Instance.PlanNow();
+                Debug.Log(Log.Tag + " Probe: map planner: " + MapPlannerWindow.Instance.Status);
+                yield return ProbeSteps.Frames(120);
+                foreach (Orbit patch in FlightGlobals.ActiveVessel.patchedConicSolver.flightPlan)
+                    Debug.Log(Log.Tag + " Probe: map planner:   patch round " + patch.referenceBody.bodyName + ", periapsis " + patch.PeA.ToString("0") + " m.");
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-planned.png"));
+                yield return ProbeSteps.Frames(5);
+            }
             Debug.Log(Log.Tag + " Probe: map planner done.");
         }
     }

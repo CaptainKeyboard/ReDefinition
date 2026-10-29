@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using KSP.UI;
+using ReDefinition.Autopilot;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using UnityEngine;
@@ -31,6 +32,8 @@ namespace ReDefinition.Engineer
         private bool open;
         private float slide;
         private bool failed;
+        // What the last press of a button came to, shown under the buttons.
+        private string status = "";
 
         // Whether the panel is up: the map view is on and a vessel is flown.
         private static bool Wanted
@@ -38,8 +41,39 @@ namespace ReDefinition.Engineer
             get { return MapView.MapIsEnabled && FlightGlobals.ActiveVessel != null && HighLogic.LoadedSceneIsFlight; }
         }
 
-        // Asked for by the probes: the panel open and out, without a click.
+        // Asked for by the probes: the panel open and out, without a click; the window itself, and what its last button came to.
         internal static bool OpenAtOnce;
+        internal static MapPlannerWindow Instance;
+
+        internal string Status
+        {
+            get { return status; }
+        }
+
+        // As a press of "Plan nodes".
+        internal void PlanNow()
+        {
+            if (view != null) PlanNodes();
+        }
+
+        // For the probes: the route's second stop set to an orbit round a body, as the player sets it with the rows.
+        internal bool SetDestination(string bodyName, double altitude)
+        {
+            IList<RouteStop> stops = view != null ? view.RouteStops : null;
+            PlannerBodies bodies = view != null ? view.BodyList : null;
+            if (stops == null || bodies == null || stops.Count < 2) return false;
+            int index = bodies.Bodies.FindIndex(b => b.Id == bodyName);
+            if (index < 0) return false;
+            stops[1].Body = index;
+            stops[1].Kind = StopKind.Orbit;
+            stops[1].Altitude = altitude;
+            return true;
+        }
+
+        private void Awake()
+        {
+            Instance = this;
+        }
 
         private void Update()
         {
@@ -103,6 +137,7 @@ namespace ReDefinition.Engineer
             float rowWidth = PlannerWidgets.RowRoom(listWidth);
             view = new PlannerView(host, rowWidth);
             var rows = new List<DialogGUIBase>();
+            rows.Add(Header(rowWidth));
             rows.AddRange(view.Rows());
             TooltipText.WrapAll(rows);
             UiHygiene.DeferInteractable(rows);
@@ -153,6 +188,46 @@ namespace ReDefinition.Engineer
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
+        // The buttons that put the next leg of the route in the flight plan as nodes, and take them off, and the line that says what came of it.
+        private DialogGUIBase Header(float width)
+        {
+            var plan = new DialogGUIButton("Plan nodes", PlanNodes, 150f, 28f, false);
+            var clear = new DialogGUIButton("Clear nodes", ClearNodes, 150f, 28f, false);
+            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, plan, clear);
+            var text = new DialogGUILabel(() => status, width - 12f, 36f);
+            return new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text);
+        }
+
+        // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.
+        private void PlanNodes()
+        {
+            IList<RouteStop> stops = view.RouteStops;
+            PlannerBodies bodies = view.BodyList;
+            if (stops == null || bodies == null)
+            {
+                status = "There is no route yet.";
+                return;
+            }
+            var route = new List<Destination>();
+            foreach (RouteStop stop in stops)
+            {
+                if (stop.Kind == StopKind.Entry || stop.Kind == StopKind.Transfer) continue;
+                string id = stop.Body >= 0 && stop.Body < bodies.Bodies.Count ? bodies.Bodies[stop.Body].Id : null;
+                CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
+                route.Add(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude });
+            }
+            NodePlanner.Result result = LegPlanner.PlanNext(FlightGlobals.ActiveVessel, route);
+            status = result.Ok
+                ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
+                : result.Why;
+        }
+
+        private void ClearNodes()
+        {
+            if (FlightGlobals.ActiveVessel != null) KspOrbits.ClearNodes(FlightGlobals.ActiveVessel);
+            status = "The nodes are cleared.";
+        }
+
         private static RectTransform NewRect(string name, RectTransform parent)
         {
             var go = new GameObject(name, typeof(RectTransform));
@@ -164,6 +239,7 @@ namespace ReDefinition.Engineer
 
         private void OnDestroy()
         {
+            if (Instance == this) Instance = null;
             if (view != null) view.Dispose();
             if (root != null) Destroy(root);
         }

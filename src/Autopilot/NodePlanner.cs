@@ -7,6 +7,9 @@ namespace ReDefinition.Autopilot
     // The burns of a leg worked out from the vessel's orbit and put in the flight plan as nodes, each checked against KSP's own patched conics.
     internal static class NodePlanner
     {
+        // The least time between now and a burn, in seconds: room to see the node and turn the vessel.
+        internal const double LeadTime = 60.0;
+
         // What a plan came to: a burn at a time, and why, or the reason there is none.
         internal sealed class Result
         {
@@ -40,7 +43,7 @@ namespace ReDefinition.Autopilot
             double maxDelay = Math.Min(synodic * 1.2, 20.0 * parent.rotationPeriod);
 
             Transfer best;
-            if (!Transfers.Cheapest(ship, goal, mu, maxDelay, 0.5 * hohmann, 1.5 * hohmann, false, out best))
+            if (!Transfers.Cheapest(ship, goal, mu, maxDelay, 0.5 * hohmann, 1.5 * hohmann, false, out best, LeadTime))
                 return Result.Failed("No transfer was found.");
             double aim = target.Radius + periapsisAltitude;
             double excess = best.Arrival.Length;
@@ -75,6 +78,39 @@ namespace ReDefinition.Autopilot
             }
             KspOrbits.ClearNodes(vessel);
             return result;
+        }
+
+        // A new circular orbit at `altitude` metres, from the vessel's: a burn at the apsis that raises or lowers the opposite one to it, and a
+        // burn there that rounds the orbit, both put in as nodes. The vessel must be on a closed orbit that does not already pass the altitude.
+        internal static Result ChangeOrbit(Vessel vessel, double altitude)
+        {
+            Orbit orbit = vessel.orbit;
+            CelestialBody body = vessel.mainBody;
+            if (orbit == null || orbit.eccentricity >= 1.0) return Result.Failed("The orbit is not closed.");
+            double now = Planetarium.GetUniversalTime();
+            double mu = body.gravParameter;
+            double radius = body.Radius + altitude;
+            State here = KspOrbits.StateAt(orbit, now);
+            var conic = new Conic(here, mu);
+            bool raise = radius > conic.RadiusAt(Math.PI);
+            if (!raise && radius >= conic.RadiusAt(0.0)) return Result.Failed("The orbit already passes that altitude: round it first.");
+            Burn first;
+            if (!Maneuvers.ChangeOpposite(here, mu, !raise, radius, out first)) return Result.Failed("No burn was found.");
+            if (first.Delay < LeadTime) first = new Burn(first.Delay + conic.Period, first.DeltaV);
+            double firstUT = now + first.Delay;
+            State before = Kepler.Propagate(here, first.Delay, mu);
+            var after = new State(before.R, before.V + first.DeltaV);
+            Burn second;
+            if (!Maneuvers.Circularize(after, mu, raise, out second)) return Result.Failed("No second burn was found.");
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, firstUT, first.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            KspOrbits.AddNode(vessel, firstUT + second.Delay, second.DeltaV);
+            double total = first.Magnitude + second.Magnitude;
+            return new Result
+            {
+                Ok = true, UT = firstUT, DeltaV = first.DeltaV,
+                Why = "Orbit at " + (altitude / 1000.0).ToString("0.#") + " km: two burns, " + total.ToString("0") + " m/s.",
+            };
         }
 
         // One try: a transfer that aims at the point `offset` from the target, put in as the vessel's only node. The patch of the plan round

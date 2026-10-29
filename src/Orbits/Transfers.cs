@@ -23,12 +23,12 @@ namespace ReDefinition.Orbits
         // seconds, the flight takes between `minFlight` and `maxFlight`. With `withArrival` the cost counts the change of velocity at the target too
         // (a rendezvous); without it the cost is the leaving burn (an intercept, where a capture burn follows). False where none is found.
         internal static bool Cheapest(State ship, State target, double mu, double maxDelay, double minFlight, double maxFlight,
-                                      bool withArrival, out Transfer best)
+                                      bool withArrival, out Transfer best, double minDelay = 0.0)
         {
             best = new Transfer();
             V3 normal = V3.Cross(ship.R, ship.V);
             double bestCost = double.PositiveInfinity;
-            double delayLow = 0.0, delayHigh = maxDelay, flightLow = minFlight, flightHigh = maxFlight;
+            double delayLow = minDelay, delayHigh = Math.Max(maxDelay, minDelay), flightLow = minFlight, flightHigh = maxFlight;
             int steps = 120;
             for (int pass = 0; pass < 7; pass++)
             {
@@ -58,8 +58,8 @@ namespace ReDefinition.Orbits
                     }
                 }
                 if (double.IsInfinity(bestCost)) return false;
-                delayLow = Math.Max(0.0, best.Delay - 2.0 * delayStep);
-                delayHigh = Math.Min(maxDelay, best.Delay + 2.0 * delayStep);
+                delayLow = Math.Max(minDelay, best.Delay - 2.0 * delayStep);
+                delayHigh = Math.Min(Math.Max(maxDelay, minDelay), best.Delay + 2.0 * delayStep);
                 flightLow = Math.Max(minFlight, best.FlightTime - 2.0 * flightStep);
                 flightHigh = Math.Min(maxFlight, best.FlightTime + 2.0 * flightStep);
                 steps = 20;

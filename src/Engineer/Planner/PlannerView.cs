@@ -69,6 +69,17 @@ namespace ReDefinition.Engineer
             host.WatchVessel(OnVesselChanged, OnVesselFresh);
         }
 
+        // The route the plan holds and the bodies it was made for; null before the plan is loaded.
+        internal IList<RouteStop> RouteStops
+        {
+            get { return state != null ? state.Stops : null; }
+        }
+
+        internal PlannerBodies BodyList
+        {
+            get { return bodies; }
+        }
+
         // Once the rows are created: symbols on the buttons, the bars' images.
         internal void Finish()
         {
