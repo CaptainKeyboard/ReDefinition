@@ -14,6 +14,63 @@ namespace ReDefinition.Probe
     {
         internal const string NodesArgument = "-redefinitionProbeNodes";
 
+        // -redefinitionProbeFly <body>: the transfer to that body put in as a node and handed to MechJeb, watched until it is done, and the
+        // plan KSP shows afterwards.
+        private static IEnumerator FlyShots(string folder, string bodyName)
+        {
+            yield return ProbeSteps.Frames(60);
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            var culture = CultureInfo.InvariantCulture;
+            Debug.Log(Log.Tag + " Probe: fly: " + vessel.vesselName + ", " + vessel.parts.Count + " parts, " + vessel.GetTotalMass().ToString("0.00", culture)
+                      + " t, MechJeb " + (MechJebDriver.Available ? "available" : "not available: " + MechJebDriver.Unavailable)
+                      + ", can fly " + MechJebDriver.CanFly(vessel) + ".");
+            CelestialBody target = FlightGlobals.Bodies.Find(b => b.bodyName == bodyName);
+            NodePlanner.Result result = NodePlanner.TransferToBody(vessel, target, 50000.0);
+            Debug.Log(Log.Tag + " Probe: fly: plan " + (result.Ok ? "ok, " + result.DeltaV.Length.ToString("0.0", culture) + " m/s, in " + (result.UT - Planetarium.GetUniversalTime()).ToString("0", culture) + " s. " : "failed. ") + result.Why);
+            if (!result.Ok || !MechJebDriver.ExecuteNode(vessel, true))
+            {
+                Debug.Log(Log.Tag + " Probe: fly done.");
+                yield break;
+            }
+            float started = Time.realtimeSinceStartup;
+            string last = "";
+            float nextLine = 0f, nextStage = 0f;
+            while (MechJebDriver.Busy(vessel) && Time.realtimeSinceStartup - started < 900f)
+            {
+                string state = MechJebDriver.State(vessel);
+                if ((state == "LEAD" || state == "BURN") && Time.realtimeSinceStartup > nextStage)
+                {
+                    nextStage = Time.realtimeSinceStartup + 2f;
+                    if (!Engines.Running(vessel)) Debug.Log(Log.Tag + " Probe: fly: no engine runs, the next stage is fired: " + Engines.FireNextStageIfCold(vessel) + ".");
+                }
+                if (state != last || Time.realtimeSinceStartup > nextLine)
+                {
+                    Debug.Log(Log.Tag + " Probe: fly: " + state + ", to the burn " + (result.UT - Planetarium.GetUniversalTime()).ToString("0", culture) + " s, warp " + TimeWarp.CurrentRateIndex
+                              + ", nodes " + vessel.patchedConicSolver.maneuverNodes.Count + ", engine " + Engines.Running(vessel) + ", orbit " + vessel.orbit.PeA.ToString("0", culture) + " x " + vessel.orbit.ApA.ToString("0", culture) + " m.");
+                    last = state;
+                    nextLine = Time.realtimeSinceStartup + 10f;
+                }
+                yield return ProbeSteps.Frames(10);
+            }
+            Debug.Log(Log.Tag + " Probe: fly: finished after " + (Time.realtimeSinceStartup - started).ToString("0", culture) + " s, " + (MechJebDriver.Busy(vessel) ? "still busy" : "idle")
+                      + ", orbit " + vessel.orbit.PeA.ToString("0", culture) + " x " + vessel.orbit.ApA.ToString("0", culture) + " m round " + vessel.mainBody.bodyName + ".");
+            vessel.patchedConicSolver.UpdateFlightPlan();
+            foreach (Orbit patch in vessel.patchedConicSolver.flightPlan)
+                Debug.Log(Log.Tag + " Probe: fly:   patch round " + patch.referenceBody.bodyName + ", periapsis " + patch.PeA.ToString("0", culture) + " m.");
+            Orbit now = vessel.orbit;
+            while (now != null && now.nextPatch != null && now.patchEndTransition != Orbit.PatchTransitionType.FINAL)
+            {
+                now = now.nextPatch;
+                Debug.Log(Log.Tag + " Probe: fly:   next patch round " + now.referenceBody.bodyName + ", periapsis " + now.PeA.ToString("0", culture) + " m.");
+            }
+            MapView.EnterMapView();
+            yield return ProbeSteps.Frames(90);
+            UnityEngine.ScreenCapture.CaptureScreenshot(Path.Combine(folder, "fly-" + bodyName + ".png"));
+            yield return ProbeSteps.Frames(5);
+            MapView.ExitMapView();
+            Debug.Log(Log.Tag + " Probe: fly done.");
+        }
+
         private static IEnumerator NodeShots(string folder)
         {
             yield return ProbeSteps.Frames(60);

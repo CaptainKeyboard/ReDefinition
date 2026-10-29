@@ -33,7 +33,7 @@ namespace ReDefinition.Tests
             ["Hud"] = "Core Engineer Modules Ui Window",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Migration"] = "",
-            ["Autopilot"] = "Orbits",
+            ["Autopilot"] = "Core Orbits",
             ["Orbits"] = "",
             ["Modules"] = "Core Dashboard Diagnostics Hud Migration Probe Proxy Raytracing Scenery Settings Upscaler Vendor Window",
             ["Probe"] = "Autopilot Core Engineer Modules Orbits Proxy Raytracing Scenery Settings Ui Window",

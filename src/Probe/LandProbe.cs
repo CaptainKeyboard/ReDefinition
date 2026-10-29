@@ -184,8 +184,8 @@ namespace ReDefinition.Probe
                 }
             }
             game.flightState.protoVessels.RemoveAll(v => v.vesselName == VesselName);
-            ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
             Orbit orbit = entry ?? new Orbit(0.0, 0.0, semiMajorAxis, 0.0, 0.0, bestAnomaly, ut, body);
+            ConfigNode part = ProtoVessel.CreatePartNode("mk1pod.v2", ShipConstruction.GetUniqueFlightID(game.flightState));
             ConfigNode node = ProtoVessel.CreateVesselNode(VesselName, VesselType.Ship, orbit, 0, new[] { part });
             node.SetValue("sit", Vessel.Situations.ORBITING.ToString());
             node.SetValue("landed", "False");
@@ -195,6 +195,45 @@ namespace ReDefinition.Probe
                       + " m, " + (bestAnomaly * 180.0 / Math.PI).ToString("0", CultureInfo.InvariantCulture) + " degrees from the periapsis, "
                       + bestAngle.ToString("0", CultureInfo.InvariantCulture) + " degrees from the sub-solar point.");
             return game.flightState.protoVessels.Count - 1;
+        }
+
+        // Whether the launched craft was put in its orbit already, so that the flight that follows measures it.
+        internal static bool CraftInOrbitDone;
+
+        // -redefinitionProbeCraftOrbit <body>: the vessel launched from the pad, put in a circular equatorial orbit round the body
+        // (-redefinitionProbeOrbitAltitude, 100 km without it). Its saved copy is given the orbit and the situation, and the flight is
+        // started again on it. True where the flight is started again, and this one is over.
+        internal static bool CraftToOrbit()
+        {
+            string bodyName = CommandLine.After("-redefinitionProbeCraftOrbit");
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            CelestialBody body = bodyName != null ? FlightGlobals.Bodies.Find(b => b.bodyName == bodyName) : null;
+            if (CraftInOrbitDone || vessel == null || body == null) return false;
+            double altitude;
+            string text = CommandLine.After("-redefinitionProbeOrbitAltitude");
+            if (text == null || !double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out altitude)) altitude = 100000.0;
+            Game game = HighLogic.CurrentGame.Updated();
+            double ut = Planetarium.GetUniversalTime();
+            var orbit = new Orbit(0.0, 0.0, body.Radius + altitude, 0.0, 0.0, 0.0, ut, body);
+            var node = new ConfigNode("VESSEL");
+            vessel.BackupVessel().Save(node);
+            node.SetValue("sit", Vessel.Situations.ORBITING.ToString());
+            node.SetValue("landed", "False");
+            node.SetValue("splashed", "False");
+            node.SetValue("skipGroundPositioning", "True");
+            node.SetValue("landedAt", "");
+            node.SetValue("displaylandedAt", "");
+            node.RemoveNode("ORBIT");
+            var orbitNode = new ConfigNode("ORBIT");
+            new OrbitSnapshot(orbit).Save(orbitNode);
+            node.AddNode(orbitNode);
+            game.flightState.protoVessels.RemoveAll(v => v.vesselID == vessel.id);
+            game.flightState.protoVessels.Add(new ProtoVessel(node, game));
+            CraftInOrbitDone = true;
+            Debug.Log(Log.Tag + " Probe: orbit: " + vessel.vesselName + " with " + vessel.parts.Count + " parts put in an orbit round " + bodyName + " at "
+                      + altitude.ToString("0", CultureInfo.InvariantCulture) + " m, the flight started again.");
+            FlightDriver.StartAndFocusVessel(game, game.flightState.protoVessels.Count - 1);
+            return true;
         }
 
         // An equatorial orbit that comes down into the air as a return from the Mun's height does: its periapsis

@@ -87,6 +87,11 @@ namespace ReDefinition.Probe
                     yield return CloudShots(addon, folder);
                     yield break;
                 }
+                if (CommandLine.Has(NodesArgument) && CommandLine.After("-redefinitionProbeFly") != null)
+                {
+                    yield return FlyShots(folder, CommandLine.After("-redefinitionProbeFly"));
+                    yield break;
+                }
                 if (CommandLine.Has(NodesArgument))
                 {
                     yield return NodeShots(folder);

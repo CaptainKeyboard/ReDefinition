@@ -504,6 +504,7 @@ namespace ReDefinition.Probe
             if (!SceneProbe.Requested || !probeFlight) yield break;
             yield return WaitForFlight();
             Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
+            if (LandProbe.CraftToOrbit()) yield break;
             if (CommandLine.Has(SceneProbe.StayArgument))
             {
                 yield return StayMode();
