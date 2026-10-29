@@ -117,16 +117,7 @@ namespace ReDefinition.Probe
                         MapView.ExitMapView();
                         if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
                     }
-                    // The pilot turns the nose steadily to the marker, 40 degrees a second at most, and gives the throttle the gauge asks for, which
-                    // he sets again in every frame.
-                    if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection)
-                    {
-                        Quaternion want = Quaternion.FromToRotation(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) * vessel.GetTransform().rotation;
-                        vessel.SetRotation(Quaternion.RotateTowards(vessel.GetTransform().rotation, want, 40f * Time.deltaTime));
-                        foreach (Part part in vessel.parts)
-                            if (part.Rigidbody != null) part.Rigidbody.angularVelocity = Vector3.zero;
-                    }
-                    FlightInputHandler.state.mainThrottle = (float)RouteDriver.Instance.GuidedThrottle;
+                    StandIn(vessel, RouteDriver.Instance.GuidedThrottle);
                     if (shots < 3 && Time.realtimeSinceStartup > nextShot && (shots == 0 || RouteDriver.Instance.GuidedThrottle > 0.3))
                     {
                         nextShot = Time.realtimeSinceStartup + 8f;
@@ -140,6 +131,94 @@ namespace ReDefinition.Probe
             FlightInputHandler.state.mainThrottle = 0f;
             Debug.Log(Log.Tag + " Probe: auto land: ended " + (ProbeWatch.Lost ? "LOST (" + ProbeWatch.Why + ")" : vessel.situation + ", " + vessel.srfSpeed.ToString("0.0") + " m/s") + ", "
                       + RouteDriver.Instance.Status);
+        }
+
+        // The pilot as the player is: the nose is turned steadily to the marker, 40 degrees a second at most, and the throttle is the one the
+        // gauge asks for, set again in every frame.
+        private static void StandIn(Vessel vessel, double throttle)
+        {
+            if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection)
+            {
+                Quaternion want = Quaternion.FromToRotation(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) * vessel.GetTransform().rotation;
+                vessel.SetRotation(Quaternion.RotateTowards(vessel.GetTransform().rotation, want, 40f * Time.deltaTime));
+                foreach (Part part in vessel.parts)
+                    if (part.Rigidbody != null) part.Rigidbody.angularVelocity = Vector3.zero;
+            }
+            FlightInputHandler.state.mainThrottle = (float)throttle;
+        }
+
+        // The autonavigation from the pad to an orbit, and the probe as the player. The first stage is lit, the nose follows the marker, and the
+        // throttle is the one the guidance asks for. A stage is fired where none is running. MechJeb burns the nodes that follow the climb.
+        private static IEnumerator AutoClimbRun(string folder)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            ProbeWatch.Arm(vessel);
+            if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(System.IO.Path.Combine(folder, "flight-trace.csv"));
+            RouteDriver.Instance.SetAutonavigation(vessel, true);
+            MapView.ExitMapView();
+            if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            float started = Time.realtimeSinceStartup;
+            string last = "";
+            float nextLine = 0f;
+            float nextShot = 5f;
+            int shots = 0;
+            bool burned = false;
+            while (Time.realtimeSinceStartup - started < 1500f && !ProbeWatch.Gone(vessel))
+            {
+                string now = RouteDriver.Instance.Status;
+                if (now != last && Time.realtimeSinceStartup > nextLine)
+                {
+                    Debug.Log(Log.Tag + " Probe: auto climb: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, apoapsis "
+                              + vessel.orbit.ApA.ToString("0") + " m]");
+                    last = now;
+                    nextLine = Time.realtimeSinceStartup + 5f;
+                }
+                PatchedConicSolver solver = vessel.patchedConicSolver;
+                if (now.StartsWith("Climb"))
+                {
+                    if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.05 && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                    StandIn(vessel, GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0);
+                    if (shots < 4 && Time.realtimeSinceStartup - started > nextShot)
+                    {
+                        nextShot += 25f;
+                        UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "climb-hud-" + shots + ".png"));
+                        Debug.Log(Log.Tag + " Probe: auto climb: shot " + shots + ": " + now);
+                        shots++;
+                    }
+                }
+                else if (solver.maneuverNodes.Count > 0 && !MechJebDriver.Busy(vessel) && vessel.situation != Vessel.Situations.FLYING)
+                {
+                    FlightInputHandler.state.mainThrottle = 0f;
+                    burned = true;
+                    Debug.Log(Log.Tag + " Probe: auto climb: the player flies the burn, " + solver.maneuverNodes[0].DeltaV.magnitude.ToString("0.0") + " m/s.");
+                    if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                    MechJebDriver.ExecuteNode(vessel, true);
+                    float nextState = 0f;
+                    float nextStage = 0f;
+                    while (MechJebDriver.Busy(vessel) && !ProbeWatch.Gone(vessel))
+                    {
+                        string state = MechJebDriver.State(vessel);
+                        if ((state == "LEAD" || state == "BURN") && Time.realtimeSinceStartup > nextStage)
+                        {
+                            nextStage = Time.realtimeSinceStartup + 2f;
+                            if (!Engines.Running(vessel) && !Engines.FireNextStageIfCold(vessel)) MechJebDriver.Abort(vessel);
+                        }
+                        if (Time.realtimeSinceStartup > nextState)
+                        {
+                            nextState = Time.realtimeSinceStartup + 15f;
+                            Debug.Log(Log.Tag + " Probe: auto climb: MechJeb " + MechJebDriver.State(vessel) + ", node in " + (solver.maneuverNodes.Count > 0
+                                      ? (solver.maneuverNodes[0].UT - Planetarium.GetUniversalTime()).ToString("0") : "-") + " s, warp " + TimeWarp.CurrentRateIndex + ", throttle "
+                                      + vessel.ctrlState.mainThrottle.ToString("0.00") + ", " + Engines.Report(vessel));
+                        }
+                        yield return new WaitForSeconds(0.5f);
+                    }
+                }
+                else if (burned && vessel.orbit.PeA > 70000.0) break;
+                yield return null;
+            }
+            FlightInputHandler.state.mainThrottle = 0f;
+            Debug.Log(Log.Tag + " Probe: auto climb: ended " + (ProbeWatch.Lost ? "LOST (" + ProbeWatch.Why + ")" : vessel.situation.ToString()) + ", orbit " + vessel.orbit.PeA.ToString("0")
+                      + " x " + vessel.orbit.ApA.ToString("0") + " m, " + RouteDriver.Instance.Status);
         }
 
         // What the autopilot does with the vessel that was loaded again while it flew: the flight goes on, to the end.
@@ -172,6 +251,14 @@ namespace ReDefinition.Probe
             yield return ProbeSteps.Frames(180);
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner.png"));
             yield return ProbeSteps.Frames(5);
+            if (MapPlannerWindow.Instance != null && CommandLine.Has("-redefinitionProbeMapPlannerClimb"))
+            {
+                string wantedBody = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Kerbin";
+                Debug.Log(Log.Tag + " Probe: map planner: destination " + wantedBody + " set: " + MapPlannerWindow.Instance.SetDestination(wantedBody, 100000.0));
+                yield return AutoClimbRun(folder);
+                Debug.Log(Log.Tag + " Probe: map planner done.");
+                yield break;
+            }
             if (MapPlannerWindow.Instance != null && FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING)
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";

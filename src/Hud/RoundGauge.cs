@@ -488,9 +488,15 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return "Time to Impact";
                 case GaugeMode.Closing: return "Closing Speed";
                 case GaugeMode.Attack: return "Angle of Attack";
-                case GaugeMode.Guidance: return "Speed Against Its Limit";
+                case GaugeMode.Guidance: return OnThrottle() ? "Throttle To Give" : "Speed Against Its Limit";
                 default: return "";
             }
+        }
+
+        // Whether the guidance bar is the throttle, in the climb, and not a speed: the text of the bar says it in percent.
+        private static bool OnThrottle()
+        {
+            return Autopilot.GuidanceBoard.BarText != null && Autopilot.GuidanceBoard.BarText.EndsWith("%");
         }
 
         // The mode's name on the face, in capitals.
@@ -503,7 +509,7 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return "IMPACT";
                 case GaugeMode.Closing: return "CLOSING";
                 case GaugeMode.Attack: return "AOA";
-                case GaugeMode.Guidance: return "SPEED";
+                case GaugeMode.Guidance: return OnThrottle() ? "THROTTLE" : "SPEED";
                 default: return "";
             }
         }
