@@ -62,9 +62,9 @@ namespace ReDefinition.Probe
                     impact = t;
                     break;
                 }
-            if (impact < 150.0) return;
-            Debug.Log(Log.Tag + " Probe: auto land: the impact is in " + impact.ToString("0") + " s, warped to two minutes before.");
-            TimeWarp.fetch.WarpTo(now + impact - 120.0);
+            if (impact < 400.0) return;
+            Debug.Log(Log.Tag + " Probe: auto land: the impact is in " + impact.ToString("0") + " s, warped to five minutes before.");
+            TimeWarp.fetch.WarpTo(now + impact - 300.0);
         }
 
         // The autonavigation on a route to a surface, and the probe as the player: the deorbit node is flown, then the vessel is turned
@@ -110,9 +110,9 @@ namespace ReDefinition.Probe
                     FlightGlobals.SetSpeedMode(FlightGlobals.SpeedDisplayModes.Surface);
                     vessel.Autopilot.Enable(VesselAutopilot.AutopilotMode.Retrograde);
                     // The player does what the guidance says: the throttle it gives.
-                    double limit, throttle, height;
-                    bool known = Guidance.Limit(vessel, out limit, out throttle, out height);
-                    FlightInputHandler.state.mainThrottle = known ? (float)throttle : 0f;
+                    // As a pilot does, the brake is not lit before the vessel points retrograde.
+                    bool aligned = vessel.srf_velocity.magnitude < 5.0 || Vector3d.Angle(vessel.GetTransform().up, -vessel.srf_velocity) < 15.0;
+                    FlightInputHandler.state.mainThrottle = aligned ? (float)RouteDriver.Instance.GuidedThrottle : 0f;
                 }
                 yield return new WaitForSeconds(0.2f);
             }

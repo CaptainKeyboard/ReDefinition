@@ -19,15 +19,22 @@ namespace ReDefinition.Autopilot
         internal string Status = "";
 
         // The step the last plan was, and for a climb the altitude it ends at.
+        private readonly LandingGuide landing = new LandingGuide();
         private NodePlanner.StepKind step = NodePlanner.StepKind.Burn;
         private bool guided;
         private double aim;
+
+        // The throttle the guidance asks for in the descent, 0 to 1.
+        internal double Throttle
+        {
+            get { return landing.Throttle; }
+        }
 
         // The guidance for a climb or a descent, in every second; nothing for a step with a node.
         internal void Guide(Vessel vessel)
         {
             if (!guided || vessel == null) return;
-            Status = step == NodePlanner.StepKind.Ascent ? Guidance.Climb(vessel, aim) : Guidance.Descent(vessel);
+            Status = step == NodePlanner.StepKind.Ascent ? Guidance.Climb(vessel, aim) : landing.Describe(vessel);
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.

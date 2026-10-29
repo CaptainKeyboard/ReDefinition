@@ -40,6 +40,12 @@ namespace ReDefinition.Engineer
             get { return flight != null; }
         }
 
+        // The throttle the descent guidance asks for, for the probes that fly as the player does.
+        internal double GuidedThrottle
+        {
+            get { return follower.Throttle; }
+        }
+
         private void Awake()
         {
             Instance = this;
