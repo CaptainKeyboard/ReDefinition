@@ -92,8 +92,14 @@ namespace ReDefinition.Probe
             float started = Time.realtimeSinceStartup;
             string last = "";
             float nextLine = 0f;
+            ProbeWatch.Arm(vessel);
             while (!flight.Finished && Time.realtimeSinceStartup - started < 1500f)
             {
+                if (ProbeWatch.Gone(vessel))
+                {
+                    flight.Cancel();
+                    break;
+                }
                 if (!run.MoveNext()) break;
                 if (flight.Status != last || Time.realtimeSinceStartup > nextLine)
                 {

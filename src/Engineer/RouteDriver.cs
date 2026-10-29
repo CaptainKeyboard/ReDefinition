@@ -139,6 +139,7 @@ namespace ReDefinition.Engineer
             else if (!state.Autopilot && state.Autonavigation)
             {
                 follower.Tick(vessel, ReadRoute(vessel));
+                follower.Guide(vessel);
             }
         }
 

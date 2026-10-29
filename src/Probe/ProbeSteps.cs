@@ -13,6 +13,31 @@ namespace ReDefinition.Probe
         // The name of KSP's flight camera that draws the scene.
         internal const string SceneCameraName = "Camera 00";
 
+        // The line a probe writes when its flow threw an exception, which the scripts that run the probes end on.
+        internal const string FailedLine = "Probe: failed";
+
+        // Runs a flow so that an exception in it, or in a flow it runs inside it, is written to the log as a line the scripts end on, at once.
+        // An exception in a coroutine ends it with no sign but the log's exception, and a probe waiting for its closing line would wait for ever.
+        internal static IEnumerator Safe(IEnumerator flow, string name)
+        {
+            while (true)
+            {
+                object current;
+                try
+                {
+                    if (!flow.MoveNext()) yield break;
+                    current = flow.Current;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError(Core.Log.Tag + " " + FailedLine + ": " + name + ": " + e);
+                    yield break;
+                }
+                IEnumerator nested = current as IEnumerator;
+                yield return nested != null ? Safe(nested, name) : current;
+            }
+        }
+
         // Waits the given number of frames.
         internal static IEnumerator Frames(int count)
         {

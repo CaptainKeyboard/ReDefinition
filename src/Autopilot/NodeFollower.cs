@@ -15,8 +15,20 @@ namespace ReDefinition.Autopilot
         private string signature = "";
         private float lastPlan = -1000f;
 
-        // What the last plan came to, for the window.
+        // What the last plan came to, for the window; where the step has no node, the guidance for it, made again in every call.
         internal string Status = "";
+
+        // The step the last plan was, and for a climb the altitude it ends at.
+        private NodePlanner.StepKind step = NodePlanner.StepKind.Burn;
+        private bool guided;
+        private double aim;
+
+        // The guidance for a climb or a descent, in every second; nothing for a step with a node.
+        internal void Guide(Vessel vessel)
+        {
+            if (!guided || vessel == null) return;
+            Status = step == NodePlanner.StepKind.Ascent ? Guidance.Climb(vessel, aim) : Guidance.Descent(vessel);
+        }
 
         // Called now and then for the vessel; plans where one of the triggers holds.
         internal void Tick(Vessel vessel, IList<Destination> route)
@@ -29,9 +41,13 @@ namespace ReDefinition.Autopilot
             if (now == signature && !missed) return;
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
-            NodePlanner.Result plan = LegPlanner.PlanNext(vessel, route);
+            NodePlanner.Result plan = LegPlanner.PlanNext(vessel, route, true);
+            step = plan.Kind;
+            aim = plan.Altitude;
+            guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing);
             Status = plan.Why;
             Debug.Log("[ReDefinition] Route: nodes: " + plan.Why);
+            if (guided) Guide(vessel);
         }
 
         // The orbit and the route in a text: the body, the apsides to fifty metres and the plane to a tenth of a degree, the body of the next

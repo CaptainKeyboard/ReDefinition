@@ -48,7 +48,12 @@ namespace ReDefinition.Autopilot
             int failures = 0;
             for (int step = 0; step < MaxSteps && !cancelled; step++)
             {
-                if (vessel == null || vessel != FlightGlobals.ActiveVessel)
+                if (Lost)
+                {
+                    Stop("The vessel was lost.");
+                    yield break;
+                }
+                if (vessel != FlightGlobals.ActiveVessel)
                 {
                     Stop("The vessel is not the one in focus.");
                     yield break;
@@ -138,6 +143,12 @@ namespace ReDefinition.Autopilot
             if (!cancelled && !Finished) Stop("The route took more steps than it should.");
         }
 
+        // Whether the vessel is gone: destroyed, or not there.
+        private bool Lost
+        {
+            get { return vessel == null || vessel.state == Vessel.State.DEAD; }
+        }
+
         // Whether the vessel carries the delta-v asked for; if not, the flight stops, with the reason.
         private bool Enough(double needed, string what)
         {
@@ -157,7 +168,7 @@ namespace ReDefinition.Autopilot
                 yield return new WaitForSeconds(2f);
                 if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
             }
-            while (!cancelled && MechJebDriver.AscentBusy(vessel) && Time.realtimeSinceStartup - started < 1200f)
+            while (!cancelled && !Lost && MechJebDriver.AscentBusy(vessel) && Time.realtimeSinceStartup - started < 1200f)
             {
                 Status = "Ascent: " + (vessel.altitude / 1000.0).ToString("0.0") + " km, " + vessel.verticalSpeed.ToString("0") + " m/s up.";
                 Note();
@@ -171,7 +182,7 @@ namespace ReDefinition.Autopilot
         {
             float started = Time.realtimeSinceStartup;
             float still = 0f;
-            while (!cancelled && MechJebDriver.LandingBusy(vessel) && Time.realtimeSinceStartup - started < 1500f)
+            while (!cancelled && !Lost && MechJebDriver.LandingBusy(vessel) && Time.realtimeSinceStartup - started < 1500f)
             {
                 Status = "Landing: " + (vessel.heightFromTerrain >= 0f ? vessel.heightFromTerrain.ToString("0") : vessel.altitude.ToString("0")) + " m up, " + vessel.srfSpeed.ToString("0") + " m/s.";
                 Note();
@@ -189,7 +200,7 @@ namespace ReDefinition.Autopilot
         private IEnumerator Burn(NodePlanner.Result plan)
         {
             float nextStage = 0f;
-            while (!cancelled && MechJebDriver.Busy(vessel))
+            while (!cancelled && !Lost && MechJebDriver.Busy(vessel))
             {
                 string state = MechJebDriver.State(vessel);
                 Status = "Burn: " + state + ", " + KSPUtil.PrintTimeCompact(plan.UT - Planetarium.GetUniversalTime(), false) + " to the node.";

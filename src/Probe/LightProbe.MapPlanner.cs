@@ -4,6 +4,7 @@ using KSP.UI;
 using ReDefinition.Autopilot;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
+using ReDefinition.Orbits;
 using UnityEngine;
 
 namespace ReDefinition.Probe
@@ -21,11 +22,12 @@ namespace ReDefinition.Probe
         private static IEnumerator AutoNodesRun()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
+            ProbeWatch.Arm(vessel);
             RouteDriver.Instance.SetAutonavigation(vessel, true);
             float started = Time.realtimeSinceStartup;
             string last = "";
             int burns = 0;
-            while (Time.realtimeSinceStartup - started < 900f && burns < 2)
+            while (Time.realtimeSinceStartup - started < 900f && burns < 2 && !ProbeWatch.Gone(vessel))
             {
                 string now = RouteDriver.Instance.Status;
                 if (now != last)
@@ -47,12 +49,85 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: auto nodes: ended, " + RouteDriver.Instance.Status);
         }
 
+        // Time is warped to two minutes before the vessel meets the ground, as the orbit says: the descent is not played in real time.
+        private static void WarpToImpact(Vessel vessel)
+        {
+            double now = Planetarium.GetUniversalTime();
+            State state = KspOrbits.StateAt(vessel.orbit, now);
+            double ground = vessel.mainBody.Radius + 3000.0;
+            double impact = -1.0;
+            for (double t = 0.0; t < vessel.orbit.period; t += 5.0)
+                if (Kepler.Propagate(state, t, vessel.mainBody.gravParameter).R.Length <= ground)
+                {
+                    impact = t;
+                    break;
+                }
+            if (impact < 150.0) return;
+            Debug.Log(Log.Tag + " Probe: auto land: the impact is in " + impact.ToString("0") + " s, warped to two minutes before.");
+            TimeWarp.fetch.WarpTo(now + impact - 120.0);
+        }
+
+        // The autonavigation on a route to a surface, and the probe as the player: the deorbit node is flown, then the vessel is turned
+        // retrograde and the throttle opened where the guidance says to brake, and shut near the ground. The guidance is logged as it changes.
+        private static IEnumerator AutoLandRun()
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            ProbeWatch.Arm(vessel);
+            RouteDriver.Instance.SetAutonavigation(vessel, true);
+            float started = Time.realtimeSinceStartup;
+            string last = "";
+            float nextLine = 0f;
+            bool deorbited = false;
+            float lastChange = started;
+            while (Time.realtimeSinceStartup - started < 1500f && !ProbeWatch.Gone(vessel) && !vessel.LandedOrSplashed)
+            {
+                string now = RouteDriver.Instance.Status;
+                if (now != last) lastChange = Time.realtimeSinceStartup;
+                if (Time.realtimeSinceStartup - lastChange > 240f)
+                {
+                    Debug.Log(Log.Tag + " " + ProbeWatch.LostLine + ": the status did not change for four minutes (" + now + ").");
+                    yield break;
+                }
+                if (now != last && (!now.StartsWith("Descent") || Time.realtimeSinceStartup > nextLine))
+                {
+                    Debug.Log(Log.Tag + " Probe: auto land: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s]");
+                    last = now;
+                    nextLine = Time.realtimeSinceStartup + 10f;
+                }
+                PatchedConicSolver solver = vessel.patchedConicSolver;
+                if (!deorbited && solver.maneuverNodes.Count > 0 && !MechJebDriver.Busy(vessel))
+                {
+                    deorbited = true;
+                    Debug.Log(Log.Tag + " Probe: auto land: the player flies the deorbit burn, " + solver.maneuverNodes[0].DeltaV.magnitude.ToString("0.0") + " m/s.");
+                    if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                    MechJebDriver.ExecuteNode(vessel, true);
+                    while (MechJebDriver.Busy(vessel) && !ProbeWatch.Gone(vessel)) yield return new WaitForSeconds(0.5f);
+                    WarpToImpact(vessel);
+                }
+                if (deorbited && now.StartsWith("Descent: no engine")) Engines.FireNextStageIfCold(vessel);
+                if (deorbited && now.StartsWith("Descent"))
+                {
+                    FlightGlobals.SetSpeedMode(FlightGlobals.SpeedDisplayModes.Surface);
+                    vessel.Autopilot.Enable(VesselAutopilot.AutopilotMode.Retrograde);
+                    // The player does what the guidance says: the throttle it gives.
+                    double limit, throttle, height;
+                    bool known = Guidance.Limit(vessel, out limit, out throttle, out height);
+                    FlightInputHandler.state.mainThrottle = known ? (float)throttle : 0f;
+                }
+                yield return new WaitForSeconds(0.2f);
+            }
+            FlightInputHandler.state.mainThrottle = 0f;
+            Debug.Log(Log.Tag + " Probe: auto land: ended " + (ProbeWatch.Lost ? "LOST (" + ProbeWatch.Why + ")" : vessel.situation + ", " + vessel.srfSpeed.ToString("0.0") + " m/s") + ", "
+                      + RouteDriver.Instance.Status);
+        }
+
         // What the autopilot does with the vessel that was loaded again while it flew: the flight goes on, to the end.
         private static IEnumerator ResumedFlight()
         {
             float started = Time.realtimeSinceStartup;
             string last = "";
-            while (Time.realtimeSinceStartup - started < 1200f)
+            ProbeWatch.Arm(FlightGlobals.ActiveVessel);
+            while (Time.realtimeSinceStartup - started < 1200f && !ProbeWatch.Gone(FlightGlobals.ActiveVessel))
             {
                 string now = RouteDriver.Instance != null ? RouteDriver.Instance.Status : "";
                 if (now != last)
@@ -79,7 +154,9 @@ namespace ReDefinition.Probe
             if (MapPlannerWindow.Instance != null && FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING)
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";
-                Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + " set: " + MapPlannerWindow.Instance.SetDestination(wanted, 30000.0));
+                bool landOn = CommandLine.Has("-redefinitionProbeMapPlannerLand");
+                Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + (landOn ? " (the surface)" : "") + " set: "
+                          + (landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted) : MapPlannerWindow.Instance.SetDestination(wanted, 30000.0)));
                 if (!ResumeDone && !CommandLine.Has("-redefinitionProbeMapPlannerAuto"))
                 {
                     MapPlannerWindow.Instance.PlanNow();
@@ -93,7 +170,7 @@ namespace ReDefinition.Probe
                 }
                 if (CommandLine.Has("-redefinitionProbeMapPlannerAuto"))
                 {
-                    yield return AutoNodesRun();
+                    yield return CommandLine.Has("-redefinitionProbeMapPlannerLand") ? AutoLandRun() : AutoNodesRun();
                     Debug.Log(Log.Tag + " Probe: map planner done.");
                     yield break;
                 }
@@ -103,8 +180,10 @@ namespace ReDefinition.Probe
                     float started = Time.realtimeSinceStartup;
                     string last = "";
                     bool shot = false;
+                    ProbeWatch.Arm(FlightGlobals.ActiveVessel);
                     while (MapPlannerWindow.Instance.Flying && Time.realtimeSinceStartup - started < 1500f)
                     {
+                        if (ProbeWatch.Gone(FlightGlobals.ActiveVessel)) break;
                         string now = MapPlannerWindow.Instance.FlightStatus;
                         if (now != last)
                         {

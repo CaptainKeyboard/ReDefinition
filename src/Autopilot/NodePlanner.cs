@@ -123,10 +123,10 @@ namespace ReDefinition.Autopilot
             double radius = body.Radius + altitude;
             State here = KspOrbits.StateAt(orbit, now);
             var conic = new Conic(here, mu);
-            double safe = body.atmosphere ? body.atmosphereDepth + 1000.0 : 1000.0;
-            if (orbit.PeA < safe && altitude > orbit.PeA) return LiftPeriapsis(vessel, here, mu, body.Radius + Math.Max(altitude, safe));
             double near = Math.Max(2000.0, 0.1 * altitude);
             if (Math.Abs(orbit.PeA - altitude) <= near || Math.Abs(orbit.ApA - altitude) <= near) return Round(vessel, here, mu, Math.Abs(orbit.ApA - altitude) < Math.Abs(orbit.PeA - altitude));
+            double safe = body.atmosphere ? body.atmosphereDepth + 1000.0 : 1000.0;
+            if (orbit.PeA < safe && altitude > orbit.PeA) return LiftPeriapsis(vessel, here, mu, body.Radius + Math.Max(altitude, safe));
             bool raise = radius > conic.RadiusAt(Math.PI);
             Burn first;
             if (!Maneuvers.ChangeOpposite(here, mu, !raise, radius, out first)) return Result.Failed("No burn was found.");
@@ -288,6 +288,25 @@ namespace ReDefinition.Autopilot
                 Ok = true, UT = ut, DeltaV = deltaV,
                 Why = "Capture at " + body.bodyName + ": " + deltaV.Length.ToString("0") + " m/s at the periapsis, " + ((at.R.Length - body.Radius) / 1000.0).ToString("0.#") + " km up.",
             };
+        }
+
+        // The burn that brings a vessel in a closed orbit down: retrograde at the apoapsis, as much as puts the periapsis below the ground by
+        // a few per cent of the body's radius. The descent then meets the ground at a shallow angle. Put in as a node.
+        internal static Result Deorbit(Vessel vessel)
+        {
+            Orbit orbit = vessel.orbit;
+            CelestialBody body = vessel.mainBody;
+            if (orbit == null || orbit.eccentricity >= 1.0) return Result.Failed("The orbit is not closed.");
+            double now = Planetarium.GetUniversalTime();
+            double mu = body.gravParameter;
+            State here = KspOrbits.StateAt(orbit, now);
+            Burn burn;
+            if (!Maneuvers.ChangeOpposite(here, mu, true, body.Radius * 0.97, out burn)) return Result.Failed("No burn was found.");
+            if (burn.Delay < LeadTime) burn = new Burn(burn.Delay + new Conic(here, mu).Period, burn.DeltaV);
+            double ut = now + burn.Delay;
+            KspOrbits.ClearNodes(vessel);
+            if (KspOrbits.AddNode(vessel, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
+            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = "Deorbit: " + burn.Magnitude.ToString("0") + " m/s retrograde at the apoapsis." };
         }
 
         // The burn that lifts a periapsis that lies in the ground or the air, soon: a burn along the velocity a little ahead, as big as brings the

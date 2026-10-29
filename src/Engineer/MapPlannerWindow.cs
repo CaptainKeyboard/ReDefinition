@@ -88,6 +88,21 @@ namespace ReDefinition.Engineer
             return true;
         }
 
+        // For the probes: the route's second stop set to the surface of a body.
+        internal bool SetSurfaceDestination(string bodyName)
+        {
+            IList<RouteStop> stops = view != null ? view.RouteStops : null;
+            PlannerBodies bodies = view != null ? view.BodyList : null;
+            if (stops == null || bodies == null || stops.Count < 2) return false;
+            int index = bodies.Bodies.FindIndex(b => b.Id == bodyName);
+            if (index < 0) return false;
+            stops[1].Body = index;
+            stops[1].Kind = StopKind.Surface;
+            stops[1].Altitude = 0.0;
+            view.SaveNow();
+            return true;
+        }
+
         private void Awake()
         {
             Instance = this;

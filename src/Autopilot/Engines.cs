@@ -15,6 +15,19 @@ namespace ReDefinition.Autopilot
             return false;
         }
 
+        // The acceleration the engines that are lit give, or those of the stage to fire next where none is lit, at full thrust, in m/s2.
+        internal static double Acceleration(Vessel vessel)
+        {
+            double thrust = 0.0;
+            bool lit = Running(vessel);
+            foreach (Part part in vessel.parts)
+                foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
+                    if (lit ? engine.EngineIgnited && !engine.flameout : part.inverseStage == StageManager.CurrentStage - 1)
+                        thrust += engine.maxThrust * engine.thrustPercentage / 100.0;
+            double mass = vessel.GetTotalMass();
+            return mass > 0.0 ? thrust / mass : 0.0;
+        }
+
         // Whether an engine gives thrust now: what the burn is, whoever holds the throttle.
         internal static bool Burning(Vessel vessel)
         {

@@ -555,7 +555,7 @@ namespace ReDefinition.Probe
             if (LightProbe.Requested)
             {
                 Detach();
-                yield return LightProbe.Run(folder);
+                yield return ProbeSteps.Safe(LightProbe.Run(folder), "light probe");
                 yield return ProbeSteps.QuitAfter(1f);
                 yield break;
             }

@@ -16,8 +16,8 @@ namespace ReDefinition.Autopilot
     internal static class LegPlanner
     {
         // Plans the next step of the leg to the first stop the vessel has not reached: a launch, a burn as a node, a descent, or the reason
-        // where there is none yet.
-        internal static NodePlanner.Result PlanNext(Vessel vessel, IList<Destination> route)
+        // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
+        internal static NodePlanner.Result PlanNext(Vessel vessel, IList<Destination> route, bool forPlayer = false)
         {
             if (vessel == null || route == null || route.Count < 2) return NodePlanner.Result.Failed("There is no route.");
             int last = -1;
@@ -28,16 +28,22 @@ namespace ReDefinition.Autopilot
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
-            if (OnTheGround(vessel) || vessel.situation == Vessel.Situations.FLYING)
+            bool landing = stop.Surface && stop.Body == vessel.mainBody && !OnTheGround(vessel);
+            double aim = stop.Body == vessel.mainBody ? stop.Altitude : Parking(vessel.mainBody);
+            bool climbing = vessel.situation == Vessel.Situations.SUB_ORBITAL && vessel.orbit.PeA < 0.0 && vessel.orbit.ApA < 0.98 * aim;
+            if (!landing && (OnTheGround(vessel) || vessel.situation == Vessel.Situations.FLYING || climbing))
             {
                 if (stop.Body == vessel.mainBody && stop.Surface) return NodePlanner.Result.Failed("A hop on the surface is not planned yet.");
-                double altitude = stop.Body == vessel.mainBody ? stop.Altitude : Parking(vessel.mainBody);
-                return NodePlanner.Result.Ascent(altitude, "Launch into an orbit " + (altitude / 1000.0).ToString("0.#") + " km over " + vessel.mainBody.bodyName + ".");
+                return NodePlanner.Result.Ascent(aim, "Launch into an orbit " + (aim / 1000.0).ToString("0.#") + " km over " + vessel.mainBody.bodyName + ".");
             }
             if (stop.Surface)
             {
                 if (stop.Body == vessel.mainBody)
-                    return vessel.orbit.eccentricity >= 1.0 ? NodePlanner.Capture(vessel) : NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
+                {
+                    if (vessel.orbit.eccentricity >= 1.0) return NodePlanner.Capture(vessel);
+                    if (forPlayer && vessel.orbit.PeA > 0.0) return NodePlanner.Deorbit(vessel);
+                    return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
+                }
                 stop = new Destination { Body = stop.Body, Altitude = Parking(stop.Body) };
             }
             if (stop.Body == vessel.mainBody)
