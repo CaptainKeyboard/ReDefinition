@@ -262,7 +262,7 @@ namespace ReDefinition.Engineer
                 rate = System.Math.Max(rate, row.ElectricRate);
             }
             if (charge <= 0.0) return;
-            double held = owner.Readout != null ? owner.Readout.ElectricCharge : 0.0;
+            double held = host.Readout != null ? host.Readout.ElectricCharge : 0.0;
             string text = "Electric charge: " + rate.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "/s, "
                           + charge.ToString("N0", System.Globalization.CultureInfo.InvariantCulture) + " over the burns; the vessel holds "
                           + held.ToString("N0", System.Globalization.CultureInfo.InvariantCulture);

@@ -215,7 +215,7 @@ namespace ReDefinition.Engineer
         // "Mass 45.20 t   Fuel 33.10 t   Δv 5,230 m/s".
         private string VesselText()
         {
-            EditorReadout readout = owner.Readout;
+            EditorReadout readout = host.Readout;
             if (readout == null || !readout.HasShip) return "";
             // The planner's stages: its own, with the jets' part of the launch, where an
             // engine breathes air.

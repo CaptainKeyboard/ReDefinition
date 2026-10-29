@@ -106,7 +106,7 @@ namespace ReDefinition.Engineer
             float reach = Mathf.Max(0f, -content.offsetMax.x - EdgeGap);
             float listWidth = Mathf.Max(200f, frame.sizeDelta.x + content.sizeDelta.x + reach);
             float width = PlannerWidgets.RowRoom(listWidth);
-            view = new PlannerView(owner, width);
+            view = new PlannerView(new EditorPlannerHost(owner), width);
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.AddRange(view.Rows());
             TooltipText.WrapAll(rows);

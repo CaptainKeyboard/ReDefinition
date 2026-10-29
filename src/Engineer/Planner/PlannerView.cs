@@ -18,8 +18,8 @@ namespace ReDefinition.Engineer
         private const float SaveDelay = 1.5f;
         private const double AltitudeStep = 10000.0;
 
-        // The planner add-on, whose readout of the vessel the plan is worked out from.
-        private readonly EditorEngineer owner;
+        // The window the planner sits in, whose readout of the vessel the plan is worked out from.
+        private readonly IPlannerHost host;
         // The rows' width, and the parts' boxes around them, a margin wider on each side.
         private readonly float width;
         private readonly float outer;
@@ -61,13 +61,12 @@ namespace ReDefinition.Engineer
         private int plannedAir = -1;
 
         // `width`: the room the panel gives the rows' boxes.
-        internal PlannerView(EditorEngineer owner, float width)
+        internal PlannerView(IPlannerHost host, float width)
         {
-            this.owner = owner;
+            this.host = host;
             outer = width;
             this.width = width - 2f * BoxMargin;
-            GameEvents.onEditorLoad.Add(OnEditorLoad);
-            GameEvents.onEditorRestart.Add(OnEditorRestart);
+            host.WatchVessel(OnVesselChanged, OnVesselFresh);
         }
 
         // Once the rows are created: symbols on the buttons, the bars' images.
@@ -76,22 +75,21 @@ namespace ReDefinition.Engineer
             after.Run();
         }
 
-        // The planner goes with the editor: the plan saved where it waits for it, KSP's events let go.
+        // The planner goes with its window: the plan saved where it waits for it, the host's events let go.
         internal void Dispose()
         {
             Flush();
-            GameEvents.onEditorLoad.Remove(OnEditorLoad);
-            GameEvents.onEditorRestart.Remove(OnEditorRestart);
+            host.StopWatching();
         }
 
-        // A craft merged into the vessel keeps the plan.
-        private void OnEditorLoad(ShipConstruct ship, KSP.UI.Screens.CraftBrowserDialog.LoadType type)
+        // Another vessel is in the window: its plan is loaded.
+        private void OnVesselChanged()
         {
-            if (type != KSP.UI.Screens.CraftBrowserDialog.LoadType.Merge) reload = true;
+            reload = true;
         }
 
-        // KSP started a new vessel: its plan is loaded, and the planner adds the sections it finds by itself again.
-        private void OnEditorRestart()
+        // A new vessel was begun: its plan is loaded, and the planner adds the sections it finds by itself again.
+        private void OnVesselFresh()
         {
             reload = true;
             fresh = true;
@@ -108,7 +106,7 @@ namespace ReDefinition.Engineer
             bool input = Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.anyKeyDown;
             if (input || inputLastTick) textVersion++;
             inputLastTick = input;
-            string name = VesselName();
+            string name = host.VesselName();
             if (bodies == null)
             {
                 bodies = PlannerBodies.Read();
@@ -143,9 +141,9 @@ namespace ReDefinition.Engineer
                 state.Save(vessel, bodies);
                 saveAt = -1f;
             }
-            if (!dirty && owner.Readout == evaluated) return;
+            if (!dirty && host.Readout == evaluated) return;
             dirty = false;
-            evaluated = owner.Readout;
+            evaluated = host.Readout;
             Evaluate();
         }
 
@@ -260,7 +258,7 @@ namespace ReDefinition.Engineer
         private void Evaluate()
         {
             textVersion++;
-            EditorReadout readout = owner.Readout ?? new EditorReadout();
+            EditorReadout readout = host.Readout ?? new EditorReadout();
             stageLabels.Clear();
             // The planner's own simulation only where the vessel or the launch changed.
             PlannerBody launch = LaunchSurface();
@@ -347,13 +345,6 @@ namespace ReDefinition.Engineer
         private int Slot(int leg, StepRole role)
         {
             return Worked() && leg >= 0 && leg < MaxStops ? slots[leg, (int)role] : -1;
-        }
-
-        // The vessel's name in the editor; "Untitled" where it has none yet.
-        private static string VesselName()
-        {
-            ShipConstruct ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
-            return ship != null && !string.IsNullOrEmpty(ship.shipName) ? ship.shipName : "Untitled";
         }
 
         // The plan changed: the texts are made again, the plan is saved after SaveDelay and worked out again.
