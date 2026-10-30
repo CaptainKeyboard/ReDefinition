@@ -133,6 +133,8 @@ namespace ReDefinition.Autopilot.Flight
                         yield return new WaitForSeconds(1f);
                     }
                     double needed = LandingPrediction.DeltaVNeeded(vessel);
+                    Debug.Log("[ReDefinition] Route: the landing needs " + needed.ToString("0") + " m/s by the simulation; the vessel has "
+                              + (vessel.VesselDeltaV != null ? vessel.VesselDeltaV.TotalDeltaVVac.ToString("0") : "?") + " m/s in vacuum.");
                     if (double.IsPositiveInfinity(needed))
                     {
                         Stop("The engines are too weak to brake against the gravity here.");
@@ -366,6 +368,7 @@ namespace ReDefinition.Autopilot.Flight
             double toPeriapsis = vessel.orbit.timeToPe - NodePlanner.LeadTime;
             if (toPeriapsis > 30.0) TimeWarp.fetch.WarpTo(Planetarium.GetUniversalTime() + toPeriapsis);
             bool entered = false;
+            bool guarding = false;
             double peak = 0.0;
             while (!cancelled && !Lost && Time.realtimeSinceStartup - started < 1800f)
             {
@@ -376,6 +379,12 @@ namespace ReDefinition.Autopilot.Flight
                 if (inAir) peak = System.Math.Max(peak, share);
                 // Retrograde, the heat shield first; but where a part is at its limit the vessel climbs out, nose away from the ground, on full thrust.
                 bool climbing = inAir && Heat.TemperatureThrottle(share) < 1.0;
+                if (climbing != guarding)
+                {
+                    guarding = climbing;
+                    Debug.Log("[ReDefinition] Route: the heat guard " + (climbing ? "acts" : "lets go") + ": " + hottest + " at " + (share * 100.0).ToString("0") + " % of its limit, "
+                              + vessel.altitude.ToString("0") + " m up, " + vessel.srfSpeed.ToString("0") + " m/s; thrust " + (climbing ? "full, nose away from the ground." : "off."));
+                }
                 if (vessel.Autopilot != null && vessel.Autopilot.Enabled)
                     vessel.Autopilot.SetMode(climbing ? VesselAutopilot.AutopilotMode.RadialOut : VesselAutopilot.AutopilotMode.Retrograde);
                 FlightInputHandler.state.mainThrottle = climbing ? 1f : 0f;

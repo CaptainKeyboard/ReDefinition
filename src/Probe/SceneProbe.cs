@@ -371,8 +371,14 @@ namespace ReDefinition.Probe
             // The new launch the probe asked for (StagingProbe), once the space centre stands.
             if (SceneProbe.Requested && StagingProbe.Pending)
             {
-                StagingProbe.Pending = false;
                 yield return new WaitForSeconds(5f);
+                // -redefinitionProbeTargetCraft: the target goes up first (TargetProbe); Pending stays set for the launch after it.
+                if (TargetProbe.Wanted)
+                {
+                    if (!TargetProbe.Launch()) Application.Quit();
+                    yield break;
+                }
+                StagingProbe.Pending = false;
                 if (!StagingProbe.Launch(HighLogic.CurrentGame)) Application.Quit();
                 yield break;
             }
@@ -508,7 +514,7 @@ namespace ReDefinition.Probe
         private IEnumerator Start()
         {
             // A new launch (StagingProbe) is the probe's flight whatever save folder KSP names then.
-            bool probeFlight = HighLogic.SaveFolder == SceneProbe.SaveFolder || StagingProbe.Launched;
+            bool probeFlight = HighLogic.SaveFolder == SceneProbe.SaveFolder || StagingProbe.Launched || TargetProbe.Active;
             if (SceneProbe.Requested && !probeFlight)
                 Debug.Log(Log.Tag + " Probe: flight of the save " + HighLogic.SaveFolder + ", not the probe's; left alone.");
             if (!SceneProbe.Requested || !probeFlight) yield break;
@@ -516,6 +522,7 @@ namespace ReDefinition.Probe
             if (ParsekLeave.Resumed) yield break;
             yield return WaitForFlight();
             Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
+            if (TargetProbe.Step()) yield break;
             if (LandProbe.CraftToOrbit()) yield break;
             if (CommandLine.Has(SceneProbe.StayArgument))
             {

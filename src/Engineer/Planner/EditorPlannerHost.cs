@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Autopilot.Planning;
 
 namespace ReDefinition.Engineer
 {
@@ -22,6 +23,12 @@ namespace ReDefinition.Engineer
         {
             ShipConstruct ship = EditorLogic.fetch != null ? EditorLogic.fetch.ship : null;
             return ship != null && !string.IsNullOrEmpty(ship.shipName) ? ship.shipName : "Untitled";
+        }
+
+        // The editor has no flight to plan.
+        public RoutePlan Plan
+        {
+            get { return null; }
         }
 
         public void WatchVessel(Action changed, Action fresh)

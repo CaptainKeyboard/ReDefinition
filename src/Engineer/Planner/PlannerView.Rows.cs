@@ -10,8 +10,8 @@ namespace ReDefinition.Engineer
     // route as a line of destinations, and between each two the steps that follow
     // from it. Each step shows a bar (its length the step's delta-v, its colours the stages that
     // pay for it, red what none covers). It also shows who flies it, the choices it offers, and in
-    // red what stands in its way. Under the route is the bar of the whole route. Then come the fuel plan,
-    // the steps with what each needs and leaves, each opening to its stages, and the thrust part. A chosen
+    // red what stands in its way. Under the route is the bar of the whole route. Then come the flight plan the Plan button
+    // works out in flight, the fuel plan, the steps with what each needs and leaves, each opening to its stages, and the thrust part. A chosen
     // option is lit in its text rather than by the skin's pressed state. A fixed
     // number of rows, shown as the plan needs them.
     internal sealed partial class PlannerView
@@ -91,6 +91,8 @@ namespace ReDefinition.Engineer
             rows.AddRange(Section("Route", () => routeShown, () => { routeShown = !routeShown; textVersion++; },
                 "The destinations and the steps between them.", RouteSummary, route));
 
+            rows.AddRange(Section("Flight plan", () => planShown, () => { planShown = !planShown; textVersion++; },
+                "The burns and orbits of the route as the Plan button in flight works them out from the vessel.", PlanSummary, FlightPlanRows()));
             rows.AddRange(Section("Fuel plan", () => fuelShown, () => { fuelShown = !fuelShown; textVersion++; },
                 "The delta-v each step needs and what remains after it.", FuelSummary, FuelRows()));
             rows.AddRange(Section("Thrust", () => thrustShown, () => { thrustShown = !thrustShown; textVersion++; },

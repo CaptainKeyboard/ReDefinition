@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Autopilot.Planning;
 using UnityEngine;
 
 namespace ReDefinition.Engineer
@@ -15,6 +16,8 @@ namespace ReDefinition.Engineer
         private float nextRead;
         private bool dirty = true;
         private Action changed;
+        // The plan the window held when this vessel became the active one; it belongs to the vessel before.
+        private RoutePlan foreignPlan;
 
         public EditorReadout Readout
         {
@@ -25,6 +28,16 @@ namespace ReDefinition.Engineer
         public string VesselName()
         {
             return vessel != null && !string.IsNullOrEmpty(vessel.vesselName) ? vessel.vesselName : "Untitled";
+        }
+
+        // The map window's last whole plan, unless it was made for a vessel flown before this one.
+        public RoutePlan Plan
+        {
+            get
+            {
+                RoutePlan plan = MapPlannerWindow.Instance != null ? MapPlannerWindow.Instance.WholePlan : null;
+                return plan == foreignPlan ? null : plan;
+            }
         }
 
         public void WatchVessel(Action changed, Action fresh)
@@ -50,6 +63,8 @@ namespace ReDefinition.Engineer
             {
                 vessel = active;
                 dirty = true;
+                // `WholePlan` is not cleared when the vessel changes; the one it holds now is not this vessel's.
+                foreignPlan = MapPlannerWindow.Instance != null ? MapPlannerWindow.Instance.WholePlan : null;
                 if (changed != null) changed();
             }
             if (!dirty && Time.unscaledTime < nextRead) return;

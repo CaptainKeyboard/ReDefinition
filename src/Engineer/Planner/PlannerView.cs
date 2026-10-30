@@ -152,6 +152,7 @@ namespace ReDefinition.Engineer
                 state.Save(vessel, bodies);
                 saveAt = -1f;
             }
+            NoticePlan();
             if (!dirty && host.Readout == evaluated) return;
             dirty = false;
             evaluated = host.Readout;

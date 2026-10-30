@@ -82,6 +82,8 @@ namespace ReDefinition.Engineer
         internal void PlanAllNow()
         {
             List<Destination> route = Route();
+            // A plan that could not be made again leaves no old plan standing.
+            WholePlan = null;
             if (route == null || FlightGlobals.ActiveVessel == null) return;
             view.SaveNow();
             WholePlan = RouteSimulation.Run(FlightGlobals.ActiveVessel, route);

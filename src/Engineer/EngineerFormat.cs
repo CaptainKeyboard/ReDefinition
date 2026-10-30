@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace ReDefinition.Engineer
@@ -37,6 +38,41 @@ namespace ReDefinition.Engineer
         internal static string Ratio(double value)
         {
             return Clean(value).ToString("0.00", Invariant);
+        }
+
+        // Kilometres, as an altitude is given on the map: 85 km, 12.4 km, 1,234 km.
+        internal static string Distance(double metres)
+        {
+            double km = Clean(metres) / 1000.0;
+            string text = km.ToString(Math.Abs(km) >= 100.0 ? "#,0" : "#,0.#", Invariant);
+            // A value that rounds to nothing has no sign.
+            if (text == "-0") text = "0";
+            return text + " km";
+        }
+
+        // A text broken at spaces into lines of at most `chars` characters; a word longer than a line is cut. No text gives no lines.
+        internal static List<string> Wrap(string text, int chars)
+        {
+            List<string> lines = new List<string>();
+            if (string.IsNullOrEmpty(text)) return lines;
+            chars = Math.Max(chars, 8);
+            string line = "";
+            foreach (string word in text.Split(' '))
+            {
+                string rest = word;
+                while (rest.Length > chars)
+                {
+                    if (line.Length > 0) { lines.Add(line); line = ""; }
+                    lines.Add(rest.Substring(0, chars));
+                    rest = rest.Substring(chars);
+                }
+                if (rest.Length == 0) continue;
+                if (line.Length == 0) line = rest;
+                else if (line.Length + 1 + rest.Length <= chars) line += " " + rest;
+                else { lines.Add(line); line = rest; }
+            }
+            if (line.Length > 0) lines.Add(line);
+            return lines;
         }
 
         // Whole seconds, as KSP gives specific impulse.

@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Autopilot.Planning;
 
 namespace ReDefinition.Engineer
 {
@@ -11,6 +12,9 @@ namespace ReDefinition.Engineer
 
         // The name the vessel's plan is kept under; "Untitled" where it has none yet.
         string VesselName();
+
+        // The route worked out from the vessel to its last stop (the Plan button in flight); null where there is none, as in the editor.
+        RoutePlan Plan { get; }
 
         // Calls `changed` where another vessel, or the same one anew, is in the window, and `fresh` where a new vessel was begun.
         void WatchVessel(Action changed, Action fresh);

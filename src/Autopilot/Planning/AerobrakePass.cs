@@ -12,6 +12,8 @@ namespace ReDefinition.Autopilot.Planning
     // through the air is refused, with the figures.
     internal static class AerobrakePass
     {
+        private static readonly double ProbeHeatLimitScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbeHeatLimitScale", 1f);
+
         // The most halvings, so that a body whose pressure gives no height cannot keep it searching.
         private const int MostHalvings = 40;
         // The part of the pressure's height the pass is found to.
@@ -105,7 +107,8 @@ namespace ReDefinition.Autopilot.Planning
             // keeps. The bound is above what the game does, so a pass that clears it needs no measurement. After a pass has been flown, what the
             // game showed of it over the bound scales the next, which may then go deeper.
             double calibration = PassHeat.Calibration(vessel);
-            double heatLimit = (1.0 - Heat.TemperatureMargin) / (double.IsNaN(calibration) ? 1.0 : calibration);
+            // A probe's switch widens the heat the plan allows, to fly a pass the live guard then has to act on; 1 otherwise.
+            double heatLimit = (1.0 - Heat.TemperatureMargin) / (double.IsNaN(calibration) ? 1.0 : calibration) * ProbeHeatLimitScale;
             Func<Pass, bool> within = pass => pass.Pressure <= pressureLimit && pass.Gees <= geeLimit && pass.Heat <= heatLimit;
             double known = Precision * ScaleHeight(body);
             double shallow = body.atmosphereDepth, deep = 0.0;
