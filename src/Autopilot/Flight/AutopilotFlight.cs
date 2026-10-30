@@ -324,17 +324,16 @@ namespace ReDefinition.Autopilot.Flight
             string name = vessel.vesselName;
             var before = new HashSet<System.Guid>();
             foreach (Vessel other in FlightGlobals.Vessels) before.Add(other.id);
-            foreach (Part part in vessel.parts)
+            Part separator = section.FindOn(vessel);
+            if (separator != null)
             {
-                if (part.persistentId != section.SeparatorId) continue;
-                foreach (ModuleDecouplerBase decoupler in part.FindModulesImplementing<ModuleDecouplerBase>())
+                foreach (ModuleDecouplerBase decoupler in separator.FindModulesImplementing<ModuleDecouplerBase>())
                     if (!decoupler.isDecoupled) decoupler.Decouple();
-                foreach (ModuleDockingNode port in part.FindModulesImplementing<ModuleDockingNode>())
+                foreach (ModuleDockingNode port in separator.FindModulesImplementing<ModuleDockingNode>())
                 {
                     if (port.state.StartsWith("PreAttached")) port.Decouple();
                     else if (port.state.StartsWith("Docked")) port.Undock();
                 }
-                break;
             }
             yield return new WaitForSeconds(2f);
             Vessel apart = null;
@@ -454,7 +453,7 @@ namespace ReDefinition.Autopilot.Flight
             if (Time.realtimeSinceStartup < nextNote) return;
             nextNote = Time.realtimeSinceStartup + 10f;
             Debug.Log("[ReDefinition] Route: " + Status + " [" + Engines.Report(vessel) + "]" + (Status.StartsWith("Landing") ? " MechJeb: " + MechJebDriver.LandingStatus(vessel)
-                      + ", throttle " + FlightInputHandler.state.mainThrottle.ToString("0.00") + ", warp " + TimeWarp.CurrentRate + "x" : ""));
+                      + ", throttle " + vessel.ctrlState.mainThrottle.ToString("0.00") + ", warp " + TimeWarp.CurrentRate + "x" : ""));
         }
 
         private void Stop(string why)

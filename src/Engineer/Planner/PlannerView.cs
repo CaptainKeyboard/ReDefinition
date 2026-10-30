@@ -295,6 +295,7 @@ namespace ReDefinition.Engineer
 
             Detect(readout.PartFacts);
             steps = RouteSteps.Build(bodies.Bodies, PickedStops(), RouteSections(), state.PlaneChanges);
+            TakeFlightPlan();
             for (int leg = 0; leg < MaxStops; leg++)
                 for (int role = 0; role < RouteStop.Roles; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
@@ -363,6 +364,13 @@ namespace ReDefinition.Engineer
         // Writes the plan to the file now, for the probes, which change the route behind the rows' backs.
         internal void SaveNow()
         {
+            // The sections let go at the stops are worked out with the plan: a change not yet worked out would be saved without them.
+            if (dirty && Ready())
+            {
+                dirty = false;
+                evaluated = host.Readout;
+                Evaluate();
+            }
             if (state != null && vessel != null && bodies != null) state.Save(vessel, bodies);
         }
 
@@ -531,6 +539,12 @@ namespace ReDefinition.Engineer
             if (!Shown(index) || !HasAtmosphere(index)) return;
             state.Stops[index].UseAtmosphere = !state.Stops[index].UseAtmosphere;
             Changed();
+        }
+
+        // As a press of the plus: for the probes, which have no row to press.
+        internal void AddStopNow()
+        {
+            AddStop();
         }
 
         // A new stop where the route ends: the same body, in its low orbit.

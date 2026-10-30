@@ -31,6 +31,10 @@ namespace ReDefinition.Autopilot.Planning
         {
             public bool Ok;
             public StepKind Kind;
+            // The stop of the route the step leads to, by its index in the route; -1 where the step belongs to none.
+            public int Goal = -1;
+            // Whether the vessel was at the stop before the one the step leads to, so that the burns to it are all still to come.
+            public bool FromStop;
             // The altitude of the orbit an ascent ends in, in metres.
             public double Altitude;
             // True where the route is flown to its last stop, and there is nothing left to plan.

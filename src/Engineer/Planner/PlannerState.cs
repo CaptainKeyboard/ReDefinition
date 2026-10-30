@@ -227,6 +227,8 @@ namespace ReDefinition.Engineer
                 releaseNode.AddValue("stop", release.Stop);
                 releaseNode.AddValue("name", release.Section.Name);
                 releaseNode.AddValue("separator", release.Section.SeparatorId);
+                releaseNode.AddValue("index", release.Section.Index);
+                if (release.Section.Title != null) releaseNode.AddValue("title", release.Section.Title);
                 releaseNode.AddValue("docking", release.Section.Docking);
             }
             foreach (RouteStop stop in Stops)
@@ -356,9 +358,15 @@ namespace ReDefinition.Engineer
                     if (!int.TryParse(releaseNode.GetValue("stop"), out at) || at < 0 || at >= state.Stops.Count) continue;
                     if (!uint.TryParse(releaseNode.GetValue("separator"), out separator) || separator == 0u) continue;
                     bool.TryParse(releaseNode.GetValue("docking"), out docking);
+                    int index;
+                    if (!int.TryParse(releaseNode.GetValue("index"), out index)) index = -1;
                     state.Releases.Add(new StopRelease
                     {
-                        Stop = at, Section = new SectionRelease { Name = releaseNode.GetValue("name") ?? "Satellite", SeparatorId = separator, Docking = docking },
+                        Stop = at,
+                        Section = new SectionRelease
+                        {
+                            Name = releaseNode.GetValue("name") ?? "Satellite", SeparatorId = separator, Docking = docking, Index = index, Title = releaseNode.GetValue("title"),
+                        },
                     });
                 }
             return state;

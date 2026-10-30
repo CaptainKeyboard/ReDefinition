@@ -17,6 +17,8 @@ namespace ReDefinition.Engineer
             for (int at = 0; at < stops.Count; at++)
             {
                 RouteStop stop = stops[at];
+                // The stops after the first one without a body are not picked yet.
+                if (stop.Body < 0) break;
                 if (stop.Kind == StopKind.Entry || stop.Kind == StopKind.Transfer) continue;
                 string id = stop.Body >= 0 && stop.Body < bodies.Bodies.Count ? bodies.Bodies[stop.Body].Id : null;
                 CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
@@ -24,6 +26,7 @@ namespace ReDefinition.Engineer
                 if (releasesAt != null) destination.Releases = releasesAt(at);
                 route.Add(destination);
             }
+            if (route.Count == 0) return null;
             MeetTarget(route);
             return route.Count >= 2 ? route : null;
         }

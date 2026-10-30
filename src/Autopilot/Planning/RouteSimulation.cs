@@ -8,6 +8,8 @@ namespace ReDefinition.Autopilot.Planning
     internal sealed class PlannedStep
     {
         public NodePlanner.StepKind Kind;
+        // The stop of the route the step leads to, by its index in the route.
+        public int Goal;
         // The UT of the burn; zero for a step that is not a burn (a descent, a pass through the air, a release).
         public double UT;
         // The burn in the axes of the maneuver node it is put in as.
@@ -31,8 +33,36 @@ namespace ReDefinition.Autopilot.Planning
         public readonly List<PlannedLeg> Legs = new List<PlannedLeg>();
         // The delta-v of all the burns in the plan, in m/s.
         public double DeltaV;
+        // The route the plan was made for, as SignatureOf has it; a plan is not the one of a route whose signature differs.
+        public string Signature;
+        // The first stop the plan leads to, and whether the vessel was at the one before it.
+        // Where it was not, the leg is under way and the burns already flown are not in the plan. -1 where the plan has no step.
+        public int FirstGoal = -1;
+        public bool FirstGoalWhole;
         // The UT the plan ends at: the end of its last burn, or of the last orbit it flies.
         public double EndUT;
+        // The delta-v of the burns that lead to the stop at `goal`, in m/s.
+        public double DeltaVOf(int goal)
+        {
+            double total = 0.0;
+            foreach (PlannedStep step in Steps)
+                if (step.Goal == goal && step.Kind == NodePlanner.StepKind.Burn) total += step.DeltaV.Length;
+            return total;
+        }
+
+        // The stops of a route as a text: the body, whether it is landed on, the altitude and how the air is used, up to the first stop without a body.
+        internal static string SignatureOf(IList<Destination> route)
+        {
+            var text = new System.Text.StringBuilder();
+            if (route != null)
+                foreach (Destination stop in route)
+                {
+                    if (stop.Body == null) break;
+                    text.Append(stop.Body.bodyName).Append(stop.Surface ? "/s/" : "/o/").Append(stop.Altitude.ToString("0")).Append(stop.Direct ? "/d" : "").Append(stop.Aerobrake ? "/a" : "").Append(';');
+                }
+            return text.ToString();
+        }
+
         // Why the plan does not reach the last stop (the vessel lands, a pass through the air, no way found); null where it does.
         public string Ended;
         // Whether a step could not be planned, or the plan did not move on: the plan ends in a state the vessel does not reach.
@@ -47,7 +77,7 @@ namespace ReDefinition.Autopilot.Planning
         // starts from, which MechJeb's landing leaves by itself.
         internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false)
         {
-            var plan = new RoutePlan();
+            var plan = new RoutePlan { Signature = RoutePlan.SignatureOf(route) };
             if (vessel == null || route == null || route.Count < 2 || vessel.patchedConicSolver == null)
             {
                 plan.Failed = true;
@@ -72,6 +102,11 @@ namespace ReDefinition.Autopilot.Planning
                         break;
                     }
                     NodePlanner.Result result = LegPlanner.PlanNext(frame, route, forPlayer);
+                    if (plan.FirstGoal < 0 && result.Goal >= 0)
+                    {
+                        plan.FirstGoal = result.Goal;
+                        plan.FirstGoalWhole = result.FromStop;
+                    }
                     if (!result.Ok)
                     {
                         plan.Failed = true;
@@ -81,7 +116,7 @@ namespace ReDefinition.Autopilot.Planning
                     if (result.Arrived) break;
                     if (result.Kind != NodePlanner.StepKind.Burn)
                     {
-                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Why = result.Why });
+                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why });
                         plan.Ended = result.Why;
                         break;
                     }
@@ -99,7 +134,7 @@ namespace ReDefinition.Autopilot.Planning
                         if (node.UT <= frame.Now + Frame.AfterNode) continue;
                         plan.Steps.Add(new PlannedStep
                         {
-                            Kind = result.Kind, UT = node.UT, DeltaV = new V3(node.DeltaV.x, node.DeltaV.y, node.DeltaV.z),
+                            Kind = result.Kind, Goal = result.Goal, UT = node.UT, DeltaV = new V3(node.DeltaV.x, node.DeltaV.y, node.DeltaV.z),
                             Why = first ? result.Why : "The next burn of: " + result.Why,
                         });
                         first = false;

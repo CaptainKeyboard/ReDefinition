@@ -139,6 +139,27 @@ namespace ReDefinition.Engineer
             return true;
         }
 
+        // For the probes: the route's second stop an orbit round a body and its third the surface of it, where a satellite stays in the orbit.
+        internal bool SetOrbitThenSurface(string bodyName, double altitude, bool useAtmosphere = false)
+        {
+            IList<RouteStop> stops = view != null ? view.RouteStops : null;
+            PlannerBodies bodies = view != null ? view.BodyList : null;
+            if (stops == null || bodies == null || stops.Count < 2) return false;
+            int index = bodies.Bodies.FindIndex(b => b.Id == bodyName);
+            if (index < 0) return false;
+            stops[1].Body = index;
+            stops[1].Kind = StopKind.Orbit;
+            stops[1].Altitude = altitude;
+            if (stops.Count < 3) view.AddStopNow();
+            if (stops.Count < 3) return false;
+            stops[2].Body = index;
+            stops[2].Kind = StopKind.Surface;
+            stops[2].Altitude = 0.0;
+            stops[2].UseAtmosphere = useAtmosphere;
+            view.SaveNow();
+            return true;
+        }
+
         private void Awake()
         {
             Instance = this;

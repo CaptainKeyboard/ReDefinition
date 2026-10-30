@@ -13,14 +13,23 @@ namespace ReDefinition.Autopilot.Planning
         internal static NodePlanner.Result PlanNext(Frame frame, IList<Destination> route, bool forPlayer = false, bool keepCourse = false)
         {
             string note;
-            NodePlanner.Result result = Plan(frame, route, forPlayer, keepCourse, out note);
+            int goal;
+            bool fromStop;
+            NodePlanner.Result result = Plan(frame, route, forPlayer, keepCourse, out note, out goal, out fromStop);
+            if (result.Goal < 0)
+            {
+                result.Goal = goal;
+                result.FromStop = fromStop;
+            }
             if (note != null && result.Ok && result.Why != null) result.Why = note + result.Why;
             return result;
         }
 
-        private static NodePlanner.Result Plan(Frame frame, IList<Destination> route, bool forPlayer, bool keepCourse, out string note)
+        private static NodePlanner.Result Plan(Frame frame, IList<Destination> route, bool forPlayer, bool keepCourse, out string note, out int goal, out bool fromStop)
         {
             note = null;
+            goal = -1;
+            fromStop = false;
             if (frame == null || route == null || route.Count < 2) return NodePlanner.Result.Failed("There is no route.");
             int last = -1;
             for (int i = 0; i < route.Count; i++)
@@ -33,6 +42,8 @@ namespace ReDefinition.Autopilot.Planning
             if (last + 1 >= route.Count) return NodePlanner.Result.Done("The vessel is at the last stop.");
             int next = last >= 0 ? last + 1 : HeadedFor(frame, route);
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
+            goal = next;
+            fromStop = last >= 0;
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
             // Where the air would load the vessel beyond what it takes, the stop is reached by burning, as a stop that does not use the air.
@@ -161,8 +172,10 @@ namespace ReDefinition.Autopilot.Planning
         {
             if (stop.Releases == null) return null;
             foreach (SectionRelease release in stop.Releases)
-                foreach (Part part in vessel.parts)
-                    if (part.persistentId == release.SeparatorId && !Separated(part)) return release;
+            {
+                Part part = release.FindOn(vessel);
+                if (part != null && !Separated(part)) return release;
+            }
             return null;
         }
 

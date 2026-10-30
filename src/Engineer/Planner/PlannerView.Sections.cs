@@ -196,7 +196,12 @@ namespace ReDefinition.Engineer
             {
                 if (section.Plan.Kind != SectionKind.Satellite || DeployStop(section.Plan) != stop) continue;
                 uint separator = VesselShape.SeparatorId(section.Group);
-                if (separator != 0u) releases.Add(new SectionRelease { Name = section.Name, SeparatorId = separator, Docking = section.Group.DockingPort });
+                if (separator == 0u) continue;
+                int at = parts.FindIndex(fact => fact.Id == separator);
+                releases.Add(new SectionRelease
+                {
+                    Name = section.Name, SeparatorId = separator, Docking = section.Group.DockingPort, Index = at, Title = at >= 0 ? parts[at].Title : null,
+                });
             }
             return releases;
         }

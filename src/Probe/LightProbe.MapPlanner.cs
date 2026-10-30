@@ -75,11 +75,14 @@ namespace ReDefinition.Probe
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";
                 bool landOn = CommandLine.Has("-redefinitionProbeMapPlannerLand");
+                // The flag -redefinitionProbeMapPlannerOrbitStop makes the route an orbit round the destination first and the landing after it.
+                bool orbitStop = landOn && CommandLine.Has("-redefinitionProbeMapPlannerOrbitStop");
                 string from = CommandLine.After("-redefinitionProbeMapPlannerFrom");
                 if (from != null)
                     Debug.Log(Log.Tag + " Probe: map planner: start " + from + " set: " + MapPlannerWindow.Instance.SetStart(from, FlightGlobals.ActiveVessel.orbit.PeA));
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + (landOn ? " (the surface)" : "") + " set: "
-                          + (landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted, CommandLine.Has("-redefinitionProbeMapPlannerAir"), CommandLine.Has("-redefinitionProbeMapPlannerOrbitFirst"))
+                          + (orbitStop ? MapPlannerWindow.Instance.SetOrbitThenSurface(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "60000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))
+                           : landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted, CommandLine.Has("-redefinitionProbeMapPlannerAir"), CommandLine.Has("-redefinitionProbeMapPlannerOrbitFirst"))
                                     : MapPlannerWindow.Instance.SetDestination(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "30000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))));
                 if (CommandLine.Has("-redefinitionProbeTargetVessel"))
                 {

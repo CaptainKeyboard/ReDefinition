@@ -43,7 +43,36 @@ namespace ReDefinition.Engineer
             if (plan == noticedPlan) return;
             noticedPlan = plan;
             textVersion++;
+            dirty = true;
             if (plan != null) planShown = true;
+        }
+
+        // Where the flight has a plan made as nodes for this route, the way across to a stop takes the delta-v of the plan's burns that lead to it.
+        // The closed form's lines are scaled to their sum, so that their names and orbits stay. The launch and the landing are not nodes and stay
+        // as they are. So does a step flown by a section, a step a section leaves or docks on, and a way split in two burns. A plan made for another
+        // route is not used.
+        private void TakeFlightPlan()
+        {
+            RoutePlan plan = host.Plan;
+            if (plan == null || plan.Failed || plan.Steps.Count == 0 || bodies == null) return;
+            List<RouteStop> picked = PickedStops();
+            List<Destination> route = RouteSource.FromStops(picked, bodies);
+            if (route == null || RoutePlan.SignatureOf(route) != plan.Signature) return;
+            // The index of a stop in the route the plan was made for: the entries and transfers the autopilot flies through are not stops of it.
+            var destination = new int[picked.Count];
+            int count = 0;
+            for (int i = 0; i < picked.Count; i++)
+                destination[i] = picked[i].Kind == StopKind.Entry || picked[i].Kind == StopKind.Transfer ? -1 : count++;
+            foreach (RouteStep step in steps)
+            {
+                if (step.Role != StepRole.Transfer || step.Flyer.Kind != FlyerKind.Ship || step.Separates || step.Docks || step.Gone.Count > 0) continue;
+                if (step.Goal >= picked.Count || destination[step.Goal] < 0 || steps.Exists(other => other.Goal == step.Goal && other.Role == StepRole.Arrive)) continue;
+                if (destination[step.Goal] == plan.FirstGoal && !plan.FirstGoalWhole) continue;
+                double nodes = plan.DeltaVOf(destination[step.Goal]);
+                double closed = step.Leg.DeltaV;
+                if (nodes <= 0.0 || closed <= 0.0) continue;
+                foreach (LegLine line in step.Leg.Lines) line.DeltaV *= nodes / closed;
+            }
         }
 
         // "5 steps, 3,210 m/s", in red where the plan failed; empty without a plan.
