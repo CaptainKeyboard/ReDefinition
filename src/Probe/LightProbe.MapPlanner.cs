@@ -102,6 +102,20 @@ namespace ReDefinition.Probe
                     MapPlannerWindow.Instance.PlanAllNow();
                     RoutePlan whole = MapPlannerWindow.Instance.WholePlan;
                     Debug.Log(Log.Tag + " Probe: whole plan: " + MapPlannerWindow.Instance.Status);
+                    // The window with its flight plan section and the route drawn on the map, as the player sees them.
+                    yield return ProbeSteps.Frames(120);
+                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-whole-plan.png"));
+                    yield return ProbeSteps.Frames(10);
+                    // And the same from the Sun, where the transfer between the planets shows.
+                    MapObject sun = PlanetariumCamera.fetch.targets.Find(t => t.celestialBody != null && t.celestialBody == Planetarium.fetch.Sun);
+                    if (sun != null)
+                    {
+                        PlanetariumCamera.fetch.SetTarget(sun);
+                        PlanetariumCamera.fetch.SetDistance(5e7f);
+                        yield return ProbeSteps.Frames(120);
+                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-whole-plan-sun.png"));
+                        yield return ProbeSteps.Frames(10);
+                    }
                     if (whole != null)
                     {
                         foreach (PlannedStep step in whole.Steps)

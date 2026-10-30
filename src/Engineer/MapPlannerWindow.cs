@@ -88,7 +88,7 @@ namespace ReDefinition.Engineer
             view.SaveNow();
             WholePlan = RouteSimulation.Run(FlightGlobals.ActiveVessel, route);
             if (RoutePreview.Instance != null) RoutePreview.Instance.Show(WholePlan);
-            status = WholePlan.Steps.Count + " step(s), " + WholePlan.DeltaV.ToString("0") + " m/s" + (WholePlan.Ended != null ? "; " + WholePlan.Ended : "; the last stop is reached") + ".";
+            status = WholePlan.Steps.Count + " step(s), " + WholePlan.DeltaV.ToString("0") + " m/s" + (WholePlan.Ended != null ? "; " + WholePlan.Ended.TrimEnd('.') : "; the last stop is reached") + ".";
         }
 
         // For the probes: the route's first stop set to an orbit round a body, where the vessel starts.

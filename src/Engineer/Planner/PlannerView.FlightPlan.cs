@@ -8,9 +8,10 @@ namespace ReDefinition.Engineer
     // are single-line labels; a long text is broken into several of them, since a label of changing text has no height of its own.
     internal sealed partial class PlannerView
     {
-        // The most rows the plan takes, the width one character is taken to need, and what shows where there is no plan.
+        // The most rows the plan takes, the width one character is taken to need, and what shows where there is no plan. The width was measured on a
+        // screenshot of the window: a row of 58 characters filled three quarters of the width.
         private const int MaxPlanLines = 60;
-        private const float PlanCharWidth = 7f;
+        private const float PlanCharWidth = 5.8f;
         private const string NoPlanHint = "The flight plan is worked out in flight: press Plan in the flight.";
 
         private bool planShown;
@@ -45,13 +46,13 @@ namespace ReDefinition.Engineer
             if (plan != null) planShown = true;
         }
 
-        // "5 steps, 3,210 m/s", in red where the plan failed and orange where it ends short of the last stop; empty without a plan.
+        // "5 steps, 3,210 m/s", in red where the plan failed; empty without a plan.
         private string PlanSummary()
         {
             RoutePlan plan = host.Plan;
             if (plan == null) return "";
             string text = plan.Steps.Count + (plan.Steps.Count == 1 ? " step, " : " steps, ") + EngineerFormat.Speed(plan.DeltaV);
-            string colour = plan.Failed ? Problem : plan.Ended != null ? Warning : Good;
+            string colour = plan.Failed ? Problem : Good;
             return "<color=" + colour + ">" + text + "</color>";
         }
 
@@ -81,7 +82,7 @@ namespace ReDefinition.Engineer
 
             AddWrapped("Total " + EngineerFormat.Speed(plan.DeltaV) + " in " + plan.Steps.Count + (plan.Steps.Count == 1 ? " step" : " steps"), null, null);
             if (plan.Failed) AddWrapped(plan.Ended ?? "The plan failed.", Problem, Problem);
-            else if (plan.Ended != null) AddWrapped("Ends before the last stop: " + plan.Ended, Warning, Warning);
+            else if (plan.Ended != null) AddWrapped("Then flown in the flight: " + plan.Ended, Good, Good);
             else AddWrapped("Reaches the last stop.", Good, Good);
 
             foreach (PlannedStep step in plan.Steps) AddWrapped(PlanStepText(step, now), null, Dim);
