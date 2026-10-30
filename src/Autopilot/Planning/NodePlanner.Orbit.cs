@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Landing;
 using ReDefinition.Orbits;
 using UnityEngine;
 
@@ -51,8 +52,8 @@ namespace ReDefinition.Autopilot.Planning
             Orbit orbit = frame.Orbit;
             CelestialBody body = frame.Body;
             if (orbit == null || orbit.eccentricity < 1.0) return Result.Failed("The orbit is not open.");
-            double toPeriapsis = orbit.timeToPe;
-            if (toPeriapsis < LeadTime) return Result.Failed("The periapsis is past or too close for a burn.");
+            double toPeriapsis = orbit.NextPeriapsisTime(frame.Now) - frame.Now;
+            if (double.IsNaN(toPeriapsis) || toPeriapsis < LeadTime) return Result.Failed("The periapsis is past or too close for a burn.");
             double ut = frame.Now + toPeriapsis;
             State at = KspOrbits.StateAt(orbit, ut);
             double speed = at.V.Length;

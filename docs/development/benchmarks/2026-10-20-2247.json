@@ -1,6 +1,7 @@
 {
  "date": "2026-10-20T22:47:05",
  "stamp": "2026-10-20-2247",
+ "groups": ["main"],
  "finished": "2026-10-20T23:33:55",
  "git": {
   "commit": "a0913cb1b9daaa3de36310537eb5c801faeac738",

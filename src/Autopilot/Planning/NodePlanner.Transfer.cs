@@ -128,6 +128,7 @@ namespace ReDefinition.Autopilot.Planning
         // at the target is within 3 % or a kilometre of the one asked for. No node where the vessel is on course already.
         internal static Result CorrectCourse(Frame frame, CelestialBody target, double aimAltitude, bool keepCourse = false)
         {
+            if (frame.Solver == null) return Result.Failed("The vessel has no flight plan.");
             KspOrbits.ClearNodes(frame);
             Orbit patch = KspOrbits.PatchAhead(frame, target);
             if (patch == null) return Result.Failed("The plan has no encounter with " + target.bodyName + ".");

@@ -797,9 +797,11 @@ namespace ReDefinition.Core
                 .Field("Parsek.OrbitSegment", "meanAnomalyAtEpoch").Field("Parsek.OrbitSegment", "epoch").Field("Parsek.OrbitSegment", "bodyName")
                 .Type("Parsek.RecordingSchema").Field("Parsek.RecordingSchema", "CurrentRecordingFormatVersion")
                 .Field("Parsek.RecordingSchema", "CurrentRecordingSchemaGeneration")
-                .Method("Parsek.RecordingStore", "CommitTree", "Parsek.RecordingTree")
+                .Method("Parsek.RecordingStore", "CommitTree", "Parsek.RecordingTree").Method("Parsek.RecordingStore", "get_CommittedRecordings")
+                .Type("Parsek.ClaimedVesselRemoval").Type("Parsek.LiveClaimedVesselRemovalTarget").Type("Parsek.IClaimedVesselRemovalTarget")
+                .Method("Parsek.ClaimedVesselRemoval", "Remove", "Parsek.IClaimedVesselRemovalTarget", "System.String")
                 .Method("Parsek.VesselSpawner", "TryBackupSnapshot", "Vessel")
-                .Tested("e97fdaa6e7f7") // Parsek 0.10.6
+                .Tested("6944d73899a1") // Parsek 0.10.6
                 .TestedVersions("0.10.6.0")
                 .OnChange(WhenChanged.Fallback, "the route is not recorded for Parsek, and the flight stops when the player leaves");
 

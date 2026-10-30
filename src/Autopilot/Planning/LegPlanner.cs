@@ -74,7 +74,9 @@ namespace ReDefinition.Autopilot.Planning
                 if (frame.Orbit.eccentricity < 1.0)
                 {
                     if (!stop.Aerobrake || !(frame.Orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(frame, stop.Altitude);
-                    // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds.
+                    // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds. A plan
+                    // ahead does not simulate the pass: it ends there.
+                    if (frame.Ahead) return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis, in a pass at the periapsis.");
                     string why;
                     double pass = AerobrakePass.FromOrbit(frame.Vessel, stop.Altitude, out why);
                     if (pass < 0.0) return NodePlanner.Result.Failed(why);
@@ -100,7 +102,7 @@ namespace ReDefinition.Autopilot.Planning
             Orbit encounter = KspOrbits.PatchAhead(frame, stop.Body);
             if (encounter == null) return NodePlanner.TransferToBody(frame, stop.Body, Aim(stop));
             double entry = Aim(stop);
-            if (stop.Direct || stop.Aerobrake)
+            if (!frame.Ahead && (stop.Direct || stop.Aerobrake))
             {
                 // The periapsis to aim at is the depth of a pass the vessel takes, found by simulating it, and none where the air would break it.
                 string why;

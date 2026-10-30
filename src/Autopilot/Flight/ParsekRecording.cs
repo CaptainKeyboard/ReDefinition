@@ -18,17 +18,22 @@ namespace ReDefinition.Autopilot.Flight
         private const int FormatVersion = 1;
         private const int SchemaGeneration = 4;
 
-        // Commits a recording of the plan: the orbits it flies from now to its end, and the delta-v of its burns. Null where it was committed; else
-        // the reason it was not.
-        internal static string CommitPlan(Vessel vessel, RoutePlan plan)
+        // Commits a recording of the plan: the orbits it flies from now to its end, and the delta-v of its burns. With `takeVesselOut` the vessel
+        // is then taken out of the world as Parsek takes out a vessel its recording stands for: the recording shows it as a ghost, and puts it back
+        // on the orbit it ends on. Null where it was committed; else the reason it was not.
+        internal static string CommitPlan(Vessel vessel, RoutePlan plan, bool takeVesselOut = false)
         {
             if (plan == null || plan.Legs.Count == 0) return plan != null && plan.Ended != null ? plan.Ended : "The plan has no orbit to record.";
-            return Commit(vessel, plan.Legs, plan.DeltaV);
+            if (plan.Failed) return "The plan does not reach a state to record: " + plan.Ended;
+            // The vessel is put on the last orbit: it must be a closed one over the ground, not the climb of an ascent or the approach to a pass.
+            Orbit end = plan.Legs[plan.Legs.Count - 1].Orbit;
+            if (end.eccentricity >= 1.0 || end.PeR <= end.referenceBody.Radius) return "The plan ends " + plan.Ended + " It is not on an orbit to put the vessel on.";
+            return Commit(vessel, plan.Legs, plan.DeltaV, takeVesselOut);
         }
 
         // Commits a recording of the legs for the vessel. The vessel ends on the last leg's orbit, with the fuel the burns of deltaV take from it.
         // Null where it was committed; else the reason it was not.
-        internal static string Commit(Vessel vessel, IList<PlannedLeg> legs, double deltaV)
+        internal static string Commit(Vessel vessel, IList<PlannedLeg> legs, double deltaV, bool takeVesselOut = false)
         {
             if (!ForeignAssumptions.ParsekRecording.Holds) return "Parsek is not there, or is a build the recording was not checked against.";
             if (vessel == null || legs == null || legs.Count == 0) return "There is no route to record.";
@@ -49,8 +54,21 @@ namespace ReDefinition.Autopilot.Flight
                 Type spawner = TypeLookup.Find("Parsek.VesselSpawner");
                 MethodInfo backup = spawner.GetMethod("TryBackupSnapshot", TypeLookup.Any, null, new[] { typeof(Vessel) }, null);
                 MethodInfo commit = store.GetMethod("CommitTree", TypeLookup.Any, null, new[] { treeType }, null);
+                // Whether the vessel can be taken out is known before anything is committed.
+                MethodInfo remove = null;
+                ConstructorInfo target = null;
+                if (takeVesselOut)
+                {
+                    Type removal = TypeLookup.Find("Parsek.ClaimedVesselRemoval");
+                    Type liveTarget = TypeLookup.Find("Parsek.LiveClaimedVesselRemovalTarget");
+                    Type contract = TypeLookup.Find("Parsek.IClaimedVesselRemovalTarget");
+                    remove = removal != null && contract != null ? removal.GetMethod("Remove", TypeLookup.Any, null, new[] { contract, typeof(string) }, null) : null;
+                    target = liveTarget != null ? liveTarget.GetConstructor(TypeLookup.Any, null, new[] { typeof(Vessel), typeof(ProtoVessel), typeof(IList<ProtoVessel>) }, null) : null;
+                    if (remove == null || target == null) return "Parsek cannot take the vessel out of the world in this build.";
+                }
                 ConfigNode source = (ConfigNode)backup.Invoke(null, new object[] { vessel });
                 if (source == null) return "Parsek could not take the vessel's snapshot.";
+                if (takeVesselOut) KeepSnapshot(vessel, source);
                 ConfigNode snapshot = source.CreateCopy();
                 ConfigNode ghost = source.CreateCopy();
                 Fuel.Burn(vessel, snapshot, deltaV);
@@ -62,7 +80,10 @@ namespace ReDefinition.Autopilot.Flight
                 Set(recording, "RecordingId", id);
                 Set(recording, "TreeId", id);
                 Set(recording, "VesselName", vessel.vesselName);
-                Set(recording, "VesselPersistentId", vessel.persistentId);
+                // Not the vessel's own id: with it Parsek takes the recording for the flight of the vessel that is there, makes it the one it records,
+                // and puts the vessel back where it was when the flight is left. Parsek's own test derives one the same way.
+                uint other = vessel.persistentId ^ 0x5A5AA5A5u;
+                Set(recording, "VesselPersistentId", other != 0u && other != vessel.persistentId ? other : 950001u);
                 Set(recording, "TerminalStateValue", Enum.Parse(terminalType, "Orbiting"));
                 Set(recording, "TerminalOrbitInclination", last.Orbit.inclination);
                 Set(recording, "TerminalOrbitEccentricity", last.Orbit.eccentricity);
@@ -77,8 +98,9 @@ namespace ReDefinition.Autopilot.Flight
 
                 IList segments = ListOf(recording, "OrbitSegments");
                 foreach (PlannedLeg leg in legs) segments.Add(Segment(segmentType, leg));
-                // One point at the end: Parsek carries the terminal orbit forward to the UT it is played at from it.
-                ListOf(recording, "Points").Add(Point(pointType, last));
+                // One point at the end: Parsek carries the terminal orbit forward to the UT it is played at from it. The space centre plays no
+                // recording that ends in an orbit; the tracking station and the flight do.
+                ListOf(recording, "Points").Add(Point(pointType, last.Orbit, last.EndUT));
 
                 object tree = Activator.CreateInstance(treeType);
                 Set(tree, "Id", id);
@@ -87,8 +109,15 @@ namespace ReDefinition.Autopilot.Flight
                 Set(tree, "ActiveRecordingId", id);
                 ((IDictionary)Get(tree, "Recordings"))[id] = recording;
                 commit.Invoke(null, new[] { tree });
+                if (!Committed(store, recordingType, id)) return "Parsek did not keep the recording.";
                 Debug.Log(Log.Tag + " Parsek has a recording of the route: " + legs.Count + " leg(s) from UT " + legs[0].StartUT.ToString("0") + " to "
                           + last.EndUT.ToString("0") + ".");
+                if (takeVesselOut)
+                {
+                    object removal = target.Invoke(new object[] { vessel, vessel.protoVessel, HighLogic.CurrentGame.flightState.protoVessels });
+                    remove.Invoke(null, new[] { removal, "ReDefinition route" });
+                    Debug.Log(Log.Tag + " " + vessel.vesselName + " is out of the world; Parsek puts it back where the recording ends.");
+                }
                 return null;
             }
             catch (Exception e)
@@ -96,6 +125,27 @@ namespace ReDefinition.Autopilot.Flight
                 Debug.LogWarning(Log.Tag + " The recording for Parsek failed: " + e);
                 return "The recording for Parsek failed: " + e.Message;
             }
+        }
+
+        // The snapshot of the vessel in a file of its own, before it is taken out of the world: what the player gets it back from if the recording is lost.
+        private static void KeepSnapshot(Vessel vessel, ConfigNode snapshot)
+        {
+            string name = string.Concat(vessel.vesselName.Split(System.IO.Path.GetInvalidFileNameChars()));
+            string path = PluginData.Path(System.IO.Path.Combine("route-backups", name + "-" + Planetarium.GetUniversalTime().ToString("0") + ".cfg"));
+            System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
+            snapshot.Save(path);
+            Debug.Log(Log.Tag + " The vessel's snapshot is kept in " + path + ".");
+        }
+
+        // Whether the store holds a recording of that id among those committed.
+        private static bool Committed(Type store, Type recordingType, string id)
+        {
+            IEnumerable list = store.GetProperty("CommittedRecordings", TypeLookup.Any).GetValue(null, null) as IEnumerable;
+            if (list == null) return false;
+            FieldInfo field = recordingType.GetField("RecordingId", TypeLookup.Any);
+            foreach (object item in list)
+                if ((string)field.GetValue(item) == id) return true;
+            return false;
         }
 
         private static object Segment(Type type, PlannedLeg leg)
@@ -114,18 +164,18 @@ namespace ReDefinition.Autopilot.Flight
             return segment;
         }
 
-        // The point where the last leg ends, as latitude, longitude and altitude over the body, the body turned on from now to then.
-        private static object Point(Type type, PlannedLeg last)
+        // The point on the orbit at `ut`, as latitude, longitude and altitude over the body, the body turned on from now to then.
+        private static object Point(Type type, Orbit orbit, double ut)
         {
-            CelestialBody body = last.Orbit.referenceBody;
-            Vector3d relative = last.Orbit.getRelativePositionAtUT(last.EndUT).xzy;
-            Vector3d velocity = last.Orbit.getOrbitalVelocityAtUT(last.EndUT).xzy;
+            CelestialBody body = orbit.referenceBody;
+            Vector3d relative = orbit.getRelativePositionAtUT(ut).xzy;
+            Vector3d velocity = orbit.getOrbitalVelocityAtUT(ut).xzy;
             double latitude = body.GetLatitude(body.position + relative);
-            double turned = body.rotationPeriod > 0.0 ? (last.EndUT - Planetarium.GetUniversalTime()) / body.rotationPeriod * 360.0 : 0.0;
+            double turned = body.rotationPeriod > 0.0 ? (ut - Planetarium.GetUniversalTime()) / body.rotationPeriod * 360.0 : 0.0;
             double longitude = body.GetLongitude(body.position + relative) - turned;
-            longitude = ((longitude + 540.0) % 360.0) - 180.0;
+            longitude = (((longitude + 180.0) % 360.0) + 360.0) % 360.0 - 180.0;
             object point = Activator.CreateInstance(type);
-            Set(point, "ut", last.EndUT);
+            Set(point, "ut", ut);
             Set(point, "latitude", latitude);
             Set(point, "longitude", longitude);
             Set(point, "altitude", relative.magnitude - body.Radius);

@@ -1,0 +1,91 @@
+using System.Collections;
+using System.Linq;
+using ReDefinition.Core;
+using UnityEngine;
+
+namespace ReDefinition.Probe
+{
+    // What the flight probe hands to the tracking station: the vessel was taken out of the world and recorded for Parsek, and its recording ends
+    // at EndUT.
+    internal static class ParsekLeave
+    {
+        internal static bool Active;
+        internal static string Name;
+        internal static double EndUT;
+        // Where the flight probe goes: the tracking station, or, with -redefinitionProbeParsekLeaveTo KSC, the space centre.
+        internal static GameScenes Scene = GameScenes.TRACKSTATION;
+        // Set once the time was warped in the space centre: the tracking station is then only looked at, with -redefinitionProbeParsekThenStation.
+        internal static bool Second;
+    }
+
+    // -redefinitionProbeParsekLeave: the flight probe left with a recording, and in the tracking station the time is warped past its end.
+    // The vessels of that name are told as they are there: Parsek's ghost on the way, and the vessel it puts back at the end.
+    [KSPAddon(KSPAddon.Startup.TrackingStation, false)]
+    internal sealed class ParsekLeaveProbe : MonoBehaviour
+    {
+        private IEnumerator Start()
+        {
+            return ParsekLeaveWatch.Run();
+        }
+    }
+
+    // The same in the space centre.
+    [KSPAddon(KSPAddon.Startup.SpaceCentre, false)]
+    internal sealed class ParsekLeaveCentreProbe : MonoBehaviour
+    {
+        private IEnumerator Start()
+        {
+            return ParsekLeaveWatch.Run();
+        }
+    }
+
+    internal static class ParsekLeaveWatch
+    {
+        internal static IEnumerator Run()
+        {
+            if (ParsekLeave.Second)
+            {
+                ParsekLeave.Second = false;
+                yield return new WaitForSeconds(15f);
+                Tell("in the tracking station after the space centre");
+                Debug.Log(Log.Tag + " Probe: leave done.");
+                yield break;
+            }
+            if (!ParsekLeave.Active) yield break;
+            ParsekLeave.Active = false;
+            yield return new WaitForSeconds(8f);
+            Tell("on arrival");
+            TimeWarp.fetch.WarpTo(ParsekLeave.EndUT + 120.0);
+            float started = Time.realtimeSinceStartup;
+            float next = 0f;
+            while (Planetarium.GetUniversalTime() < ParsekLeave.EndUT + 60.0 && Time.realtimeSinceStartup - started < 900f)
+            {
+                if (Time.realtimeSinceStartup > next)
+                {
+                    next = Time.realtimeSinceStartup + 30f;
+                    Tell("on the way");
+                }
+                yield return new WaitForSeconds(1f);
+            }
+            yield return new WaitForSeconds(15f);
+            Tell("after the end");
+            if (CommandLine.Has("-redefinitionProbeParsekThenStation") && HighLogic.LoadedScene == GameScenes.SPACECENTER)
+            {
+                ParsekLeave.Second = true;
+                HighLogic.LoadScene(GameScenes.TRACKSTATION);
+                yield break;
+            }
+            Debug.Log(Log.Tag + " Probe: leave done.");
+        }
+
+        private static void Tell(string when)
+        {
+            var found = FlightGlobals.Vessels.Where(v => v.vesselName.StartsWith(ParsekLeave.Name) || v.mainBody.bodyName == "Duna").ToList();
+            Debug.Log(Log.Tag + " Probe: leave: " + when + ", UT " + Planetarium.GetUniversalTime().ToString("0") + " (the recording ends at " + ParsekLeave.EndUT.ToString("0")
+                      + "): " + found.Count + " vessel(s) named " + ParsekLeave.Name + " or round Duna.");
+            foreach (Vessel v in found)
+                Debug.Log(Log.Tag + " Probe: leave:   " + v.vesselName + " (pid " + v.persistentId + "), " + v.situation + ", round " + v.mainBody.bodyName + ", " + v.orbit.PeA.ToString("0") + " x " + v.orbit.ApA.ToString("0")
+                          + " m, " + v.protoVessel.protoPartSnapshots.Count + " parts.");
+        }
+    }
+}

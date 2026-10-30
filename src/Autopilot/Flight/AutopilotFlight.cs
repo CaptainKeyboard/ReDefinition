@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Autopilot.Planning;
+using ReDefinition.Core;
 
 namespace ReDefinition.Autopilot.Flight
 {
@@ -33,6 +34,7 @@ namespace ReDefinition.Autopilot.Flight
         {
             cancelled = true;
             MechJebDriver.Abort(vessel);
+            ParsekBridge.StopRecording();
         }
 
         // The flight as a coroutine: run it from a behaviour.
@@ -231,7 +233,7 @@ namespace ReDefinition.Autopilot.Flight
                 if (vessel.radarAltitude < 50.0)
                     Debug.Log("[ReDefinition] Route: touchdown: altitude " + vessel.altitude.ToString("0.0") + ", terrain " + vessel.terrainAltitude.ToString("0.0")
                               + ", above it " + vessel.radarAltitude.ToString("0.0") + ", raycast " + vessel.heightFromTerrain.ToString("0.0") + ", " + vessel.srfSpeed.ToString("0.0")
-                              + " m/s, " + vessel.situation + ".");
+                              + " m/s, " + vessel.situation + ", ground below " + GroundBelow() + ", PQS " + (vessel.mainBody.pqsController != null && vessel.mainBody.pqsController.isActive ? "active" : "off") + ".");
                 still = vessel.LandedOrSplashed && vessel.srfSpeed < 0.5 ? still + 0.5f : 0f;
                 if (still >= 3f) break;
                 yield return new WaitForSeconds(0.5f);
@@ -359,6 +361,15 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // The status into KSP.log, at most every 10 s, so that a flight can be followed afterwards.
+        // The ground under the vessel on the terrain layer, as a ray finds it: its distance, or none. The physics' own view of the ground.
+        private string GroundBelow()
+        {
+            if (CommandLine.Has("-redefinitionProbeNoGroundRay")) return "not asked";
+            RaycastHit hit;
+            Vector3 up = FlightGlobals.getUpAxis(vessel.CoM);
+            return Physics.Raycast(vessel.CoM, -up, out hit, 500f, 1 << 15) ? hit.distance.ToString("0.0") + " m" : "none";
+        }
+
         private void Note()
         {
             if (Time.realtimeSinceStartup < nextNote) return;

@@ -87,6 +87,7 @@ namespace ReDefinition.Autopilot.Flight
         // asks to commit it when the flight is left. False where Parsek is not there, is a build the code was not checked against, or already records.
         internal static bool StartRecording()
         {
+            started = false;
             if (!ForeignAssumptions.ParsekStart.Holds || CommandLine.Has("-redefinitionNoParsekRecording")) return false;
             try
             {

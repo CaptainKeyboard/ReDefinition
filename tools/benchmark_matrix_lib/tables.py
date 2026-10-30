@@ -4,8 +4,8 @@ from .scenarios import scenario_key
 
 
 def record_groups(record):
-    """The groups a record covers: those it names, the main matrix for a record from before there were groups."""
-    return record.get("groups") or [MAIN_GROUP]
+    """The groups a record covers."""
+    return record["groups"]
 
 
 def rows_of(record, group=None):

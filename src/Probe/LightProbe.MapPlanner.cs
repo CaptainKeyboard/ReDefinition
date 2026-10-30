@@ -96,6 +96,22 @@ namespace ReDefinition.Probe
                         if (CommandLine.Has("-redefinitionProbeParsekCommit"))
                             Debug.Log(Log.Tag + " Probe: whole plan: Parsek: " + (ParsekRecording.CommitPlan(FlightGlobals.ActiveVessel, whole) ?? "committed"));
                     }
+                    if (CommandLine.Has("-redefinitionProbeParsekLeave") && whole != null)
+                    {
+                        Vessel leaving = FlightGlobals.ActiveVessel;
+                        string problem = ParsekRecording.CommitPlan(leaving, whole, true);
+                        Debug.Log(Log.Tag + " Probe: whole plan: Parsek, vessel taken out: " + (problem ?? "done"));
+                        if (problem == null)
+                        {
+                            ParsekLeave.Name = leaving.vesselName;
+                            ParsekLeave.EndUT = whole.EndUT;
+                            ParsekLeave.Active = true;
+                            yield return ProbeSteps.Frames(30);
+                            ParsekLeave.Scene = CommandLine.After("-redefinitionProbeParsekLeaveTo") == "KSC" ? GameScenes.SPACECENTER : GameScenes.TRACKSTATION;
+                            HighLogic.LoadScene(ParsekLeave.Scene);
+                            yield break;
+                        }
+                    }
                     Debug.Log(Log.Tag + " Probe: map planner done.");
                     yield break;
                 }

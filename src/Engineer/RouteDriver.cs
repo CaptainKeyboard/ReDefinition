@@ -62,11 +62,11 @@ namespace ReDefinition.Engineer
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             RouteState state = RouteState.Of(vessel);
-            if (scene == GameScenes.FLIGHT || vessel == null || state == null || !state.Autopilot || route == null) return;
+            if ((scene != GameScenes.SPACECENTER && scene != GameScenes.TRACKSTATION) || vessel == null || state == null || !state.Autopilot || route == null) return;
             try
             {
                 RoutePlan plan = RouteSimulation.Run(vessel, route);
-                string problem = ParsekRecording.CommitPlan(vessel, plan);
+                string problem = ParsekRecording.CommitPlan(vessel, plan, true);
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; Parsek: " + (problem ?? "recorded") + ".");
             }
             catch (System.Exception e)
