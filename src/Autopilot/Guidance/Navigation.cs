@@ -103,7 +103,7 @@ namespace ReDefinition.Autopilot.Guidance
             text.Append('|').Append(vessel.parts.Count);
             if (orbit.patchEndTransition != Orbit.PatchTransitionType.FINAL && orbit.nextPatch != null) text.Append('|').Append(orbit.nextPatch.referenceBody.bodyName);
             foreach (Destination stop in route)
-                text.Append('|').Append(stop.Body != null ? stop.Body.bodyName : "-").Append(stop.Surface ? 'S' : 'O').Append(stop.Altitude);
+                text.Append('|').Append(stop.Body != null ? stop.Body.bodyName : "-").Append(stop.Surface ? 'S' : 'O').Append(stop.Altitude).Append(stop.MeetWith);
             return text.ToString();
         }
     }

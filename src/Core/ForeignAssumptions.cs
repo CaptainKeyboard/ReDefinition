@@ -730,6 +730,20 @@ namespace ReDefinition.Core
                 .TestedVersions("2.16.0.0")
                 .OnChange(WhenChanged.Fallback, "the autopilot is greyed out, and the nodes are flown by hand");
 
+        // The autopilot meets a vessel and docks with it through MechJeb's rendezvous and docking autopilots (Autopilot/MechJebDriver). They are
+        // modules of the master core that GetComputerModule finds by the class's name; the target controller takes the vessel or port to meet.
+        // MechJeb 2.16, source read (MechJebModuleRendezvousAutopilot, MechJebModuleDockingAutopilot, MechJebModuleTargetController).
+        public static readonly ForeignAssumption MechJebRendezvous =
+            new ForeignAssumption("mechjeb-rendezvous", "MechJeb", "the autopilot meets another vessel and docks with it")
+                .Type("MuMech.MechJebModuleRendezvousAutopilot").Type("MuMech.MechJebModuleDockingAutopilot").Type("MuMech.MechJebModuleTargetController")
+                .Field("MuMech.MechJebCore", "Target")
+                .Method("MuMech.MechJebCore", "GetComputerModule", "System.String")
+                .Method("MuMech.MechJebModuleTargetController", "Set", "ITargetable")
+                .Field("MuMech.MechJebModuleRendezvousAutopilot", "desiredDistance")
+                .Tested("02286d128350") // MechJeb 2.16.0.0, development build 1771
+                .TestedVersions("2.16.0.0")
+                .OnChange(WhenChanged.Fallback, "the route stops at the orbit instead of meeting the target");
+
         // Parsek's ghosts as the autopilot tells them (Autopilot/ParsekBridge). Parsek has no API: a ghost is told by its persistent id through
         // reflection. Parsek 0.10.6, source read (a beta: the format is generation 4 and changes). Nothing of Parsek is written. Each further
         // thing the autopilot takes from Parsek gets an entry of its own, so that a change in one switches off that one alone.
@@ -798,10 +812,13 @@ namespace ReDefinition.Core
                 .Type("Parsek.RecordingSchema").Field("Parsek.RecordingSchema", "CurrentRecordingFormatVersion")
                 .Field("Parsek.RecordingSchema", "CurrentRecordingSchemaGeneration")
                 .Method("Parsek.RecordingStore", "CommitTree", "Parsek.RecordingTree").Method("Parsek.RecordingStore", "get_CommittedRecordings")
+                .Method("Parsek.RecordingStore", "MarkTreeAsApplied", "Parsek.RecordingTree").Method("Parsek.Recording", "get_StartUT")
+                .Type("Parsek.PlaybackScopeTracker").Method("Parsek.PlaybackScopeTracker", "NotePlayhead", "System.String", "System.Double", "System.Double")
+                .Type("Parsek.LedgerOrchestrator").Method("Parsek.LedgerOrchestrator", "NotifyLedgerTreeCommitted", "Parsek.RecordingTree")
                 .Type("Parsek.ClaimedVesselRemoval").Type("Parsek.LiveClaimedVesselRemovalTarget").Type("Parsek.IClaimedVesselRemovalTarget")
                 .Method("Parsek.ClaimedVesselRemoval", "Remove", "Parsek.IClaimedVesselRemovalTarget", "System.String")
                 .Method("Parsek.VesselSpawner", "TryBackupSnapshot", "Vessel")
-                .Tested("6944d73899a1") // Parsek 0.10.6
+                .Tested("5f90828888ca") // Parsek 0.10.6
                 .TestedVersions("0.10.6.0")
                 .OnChange(WhenChanged.Fallback, "the route is not recorded for Parsek, and the flight stops when the player leaves");
 
@@ -809,7 +826,7 @@ namespace ReDefinition.Core
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, MechJebRendezvous, ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,

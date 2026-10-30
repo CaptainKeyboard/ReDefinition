@@ -23,6 +23,7 @@ namespace ReDefinition.Autopilot.Planning
             Landing,
             Aerobrake,
             Release,
+            Rendezvous,
         }
 
         // What a plan came to: a burn at a time, and why, or the reason there is none. Ok with a time of zero is a plan that needs no burn.
@@ -58,6 +59,15 @@ namespace ReDefinition.Autopilot.Planning
             // A correction of the course: how far the periapsis was from the one aimed at before the burn, in metres.
             public bool Correction;
             public double Error;
+
+            // The vessel to meet, and the docking port to dock with where there is one (its part's persistent id), for a Rendezvous step.
+            public System.Guid Target;
+            public uint Port;
+
+            public static Result Rendezvous(System.Guid target, uint port, string why)
+            {
+                return new Result { Ok = true, Kind = StepKind.Rendezvous, Target = target, Port = port, Why = why };
+            }
 
             public static Result Release(SectionRelease section, string why)
             {

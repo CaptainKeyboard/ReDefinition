@@ -25,6 +25,7 @@ foreign.kopernicus-star = Kopernicus
 foreign.maneuver-node-evolved = Maneuver Node Evolved
 foreign.mechjeb-autopilot = MechJeb
 foreign.mechjeb-loading-screen = MechJeb
+foreign.mechjeb-rendezvous = MechJeb
 foreign.parallax-scatters = Parallax
 foreign.parallax-tessellation = Parallax
 foreign.parsek-ghost = Parsek

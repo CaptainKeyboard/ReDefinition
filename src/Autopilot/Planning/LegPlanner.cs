@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReDefinition.Autopilot.Flight;
 using UnityEngine;
 
 namespace ReDefinition.Autopilot.Planning
@@ -42,7 +43,7 @@ namespace ReDefinition.Autopilot.Planning
                 {
                     note = "The air is not used: " + refused + " ";
                     Debug.Log("[ReDefinition] Route: " + note);
-                    stop = new Destination { Body = stop.Body, Surface = stop.Surface, Altitude = stop.Altitude };
+                    stop = new Destination { Body = stop.Body, Surface = stop.Surface, Altitude = stop.Altitude, MeetWith = stop.MeetWith, DockWith = stop.DockWith, Releases = stop.Releases };
                 }
             }
             bool landing = stop.Surface && stop.Body == frame.Body && !frame.OnGround;
@@ -73,6 +74,9 @@ namespace ReDefinition.Autopilot.Planning
             {
                 if (frame.Orbit.eccentricity < 1.0)
                 {
+                    // The last stop is met with a vessel: MechJeb's rendezvous brings the vessel there, from wherever it is in the orbit round the body.
+                    Vessel meet = stop.MeetWith != System.Guid.Empty ? MeetingTarget(frame, stop) : null;
+                    if (meet != null) return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, (stop.DockWith != 0u ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
                     if (!stop.Aerobrake || !(frame.Orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(frame, stop.Altitude);
                     // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds. A plan
                     // ahead does not simulate the pass: it ends there.
@@ -110,6 +114,35 @@ namespace ReDefinition.Autopilot.Planning
                 if (entry < 0.0) return NodePlanner.Result.Failed(why);
             }
             return NodePlanner.CorrectCourse(frame, stop.Body, entry, keepCourse);
+        }
+
+        // The vessel the stop is met with, if it is there and round the body the vessel is round; null where it is not, or the meeting is done.
+        private static Vessel MeetingTarget(Frame frame, Destination stop)
+        {
+            Vessel target = FlightGlobals.Vessels.Find(v => v.id == stop.MeetWith);
+            if (target == null || target.mainBody != frame.Body) return null;
+            // A plan ahead ends at the meeting; the vessel itself is judged by what it has done.
+            return !frame.Ahead && Done(frame.Vessel, target, stop) ? null : target;
+        }
+
+        // Whether the stop's meeting is done: the vessel is docked with the port, where the stop docks, else it has met the target.
+        private static bool Done(Vessel vessel, Vessel target, Destination stop)
+        {
+            if (stop.DockWith != 0u) return vessel.parts.Exists(p => p.persistentId == stop.DockWith);
+            return Met(vessel, target);
+        }
+
+        // Whether the vessel has met the target, as MechJeb's rendezvous counts it: nearer than the distance it was asked for, and nearly at rest to
+        // it (MechJebModuleRendezvousAutopilot, Drive). The distance and the speed are those MechJeb's target controller gives.
+        internal static bool Met(Vessel vessel, Vessel target)
+        {
+            double distance, speed;
+            if (!MechJebDriver.TargetRange(vessel, out distance, out speed))
+            {
+                distance = (target.GetWorldPos3D() - vessel.GetWorldPos3D()).magnitude;
+                speed = (target.obt_velocity - vessel.obt_velocity).magnitude;
+            }
+            return distance < MechJebDriver.RendezvousDistance(vessel) * 1.05 + 2.0 && speed < 1.0;
         }
 
         // The first section of the stop that has not been let go: its separating part is still on the vessel and has not separated.
@@ -206,6 +239,14 @@ namespace ReDefinition.Autopilot.Planning
             if (stop.Body != frame.Body) return false;
             if (stop.Surface) return index == 0 || frame.OnGround;
             if (frame.OnGround || frame.Orbit.eccentricity >= 1.0) return false;
+            // A stop that is met with a vessel is reached when they have met, or when the target is gone because they docked.
+            if (!frame.Ahead && stop.MeetWith != System.Guid.Empty)
+            {
+                Vessel target = FlightGlobals.Vessels.Find(v => v.id == stop.MeetWith);
+                if (target != null && target.mainBody == frame.Body) return Done(frame.Vessel, target, stop);
+                // With the target gone, a docking is done where the port is now a part of the vessel; else the orbit is judged as for any stop.
+                if (stop.DockWith != 0u && frame.Vessel.parts.Exists(p => p.persistentId == stop.DockWith)) return true;
+            }
             double tolerance = System.Math.Max(2000.0, 0.1 * stop.Altitude);
             return System.Math.Abs(frame.Orbit.PeA - stop.Altitude) <= tolerance && System.Math.Abs(frame.Orbit.ApA - stop.Altitude) <= tolerance;
         }

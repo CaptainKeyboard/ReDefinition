@@ -117,6 +117,159 @@ namespace ReDefinition.Autopilot.Flight
             }
         }
 
+        // A module of the master core by its class's name, which the core's GetComputerModule finds; null where there is none.
+        private static object ComputerModule(Vessel vessel, string name)
+        {
+            if (vessel == null || !Available) return null;
+            try
+            {
+                object core = masterOf.Invoke(null, new object[] { vessel });
+                MethodInfo get = core != null ? core.GetType().GetMethod("GetComputerModule", TypeLookup.Any, null, new[] { typeof(string) }, null) : null;
+                return get != null ? get.Invoke(core, new object[] { name }) : null;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " MechJeb: no " + name + ": " + e.Message);
+                return null;
+            }
+        }
+
+        // The vessel or port MechJeb flies to: its target controller takes it, which is also KSP's target.
+        private static bool SetTarget(Vessel vessel, ITargetable target)
+        {
+            object targeting = Module(vessel, "Target");
+            MethodInfo set = targeting != null ? targeting.GetType().GetMethod("Set", TypeLookup.Any, null, new[] { typeof(ITargetable) }, null) : null;
+            if (set == null) return false;
+            set.Invoke(targeting, new object[] { target });
+            return true;
+        }
+
+        // Hands the meeting with a vessel to MechJeb's rendezvous autopilot, which plans and flies its own burns and warps with the node executor's
+        // autowarp. It ends by itself; whether it met the target is judged apart.
+        internal static bool StartRendezvous(Vessel vessel, Vessel target)
+        {
+            if (!ForeignAssumptions.MechJebRendezvous.Holds) return false;
+            object module = ComputerModule(vessel, "MechJebModuleRendezvousAutopilot");
+            object executor = Executor(vessel);
+            if (module == null || executor == null || !SetTarget(vessel, target)) return false;
+            autowarpField.SetValue(executor, true);
+            Use(module, true);
+            return Enabled(module);
+        }
+
+        internal static bool RendezvousBusy(Vessel vessel)
+        {
+            return Enabled(ComputerModule(vessel, "MechJebModuleRendezvousAutopilot"));
+        }
+
+        internal static void StopRendezvous(Vessel vessel)
+        {
+            object module = ComputerModule(vessel, "MechJebModuleRendezvousAutopilot");
+            if (module != null) Use(module, false);
+        }
+
+        // The distance MechJeb's rendezvous brings the vessel to, as it is set in the unit; its own default is a hundred metres.
+        internal static double RendezvousDistance(Vessel vessel)
+        {
+            return EditableOf(ComputerModule(vessel, "MechJebModuleRendezvousAutopilot"), "desiredDistance", 100.0);
+        }
+
+        // How many orbits MechJeb's rendezvous may take to bring the vessel to the target, as it is set in the unit (its default is five).
+        internal static double RendezvousOrbits(Vessel vessel)
+        {
+            return EditableOf(ComputerModule(vessel, "MechJebModuleRendezvousAutopilot"), "maxPhasingOrbits", 5.0);
+        }
+
+        // The speed MechJeb's docking approaches at, as it is set in the unit (its default is one metre a second).
+        internal static double DockingSpeed(Vessel vessel)
+        {
+            return EditableOf(ComputerModule(vessel, "MechJebModuleDockingAutopilot"), "speedLimit", 1.0);
+        }
+
+        // The value of one of a module's editable numbers; the fallback where it is not there.
+        private static double EditableOf(object module, string field, double fallback)
+        {
+            try
+            {
+                FieldInfo info = module != null ? module.GetType().GetField(field, TypeLookup.Any) : null;
+                object editable = info != null ? info.GetValue(module) : null;
+                PropertyInfo value = editable != null ? editable.GetType().GetProperty("Val") : null;
+                return value != null ? (double)value.GetValue(editable, null) : fallback;
+            }
+            catch (Exception)
+            {
+                return fallback;
+            }
+        }
+
+        // How far the target is and how fast it moves against the vessel, as MechJeb's target controller measures them (between the reference
+        // parts, which is what its rendezvous ends by); false where the controller does not say.
+        internal static bool TargetRange(Vessel vessel, out double distance, out double speed)
+        {
+            distance = speed = 0.0;
+            try
+            {
+                object targeting = Module(vessel, "Target");
+                if (targeting == null) return false;
+                Type type = targeting.GetType();
+                distance = (double)type.GetProperty("Distance").GetValue(targeting, null);
+                speed = ((Vector3d)type.GetProperty("RelativeVelocity").GetValue(targeting, null)).magnitude;
+                return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        // Hands the docking to MechJeb's docking autopilot: the vessel's own port made the one it is controlled from, the target's port the target.
+        internal static bool StartDocking(Vessel vessel, Vessel targetVessel, uint targetPort)
+        {
+            if (!ForeignAssumptions.MechJebRendezvous.Holds) return false;
+            object module = ComputerModule(vessel, "MechJebModuleDockingAutopilot");
+            ModuleDockingNode target = null;
+            ModuleDockingNode own = null;
+            foreach (Part part in targetVessel.parts)
+                if (part.persistentId == targetPort) target = part.FindModuleImplementing<ModuleDockingNode>();
+            if (module == null || target == null || target.state != "Ready") return false;
+            // The port of the vessel's own that suits the target's and lies nearest to it.
+            double nearest = double.MaxValue;
+            foreach (Part part in vessel.parts)
+            {
+                ModuleDockingNode port = part.FindModuleImplementing<ModuleDockingNode>();
+                if (port == null || port.state != "Ready" || port.nodeType != target.nodeType || (port.gendered && port.genderFemale == target.genderFemale)) continue;
+                double distance = (part.transform.position - target.part.transform.position).magnitude;
+                if (distance >= nearest) continue;
+                nearest = distance;
+                own = port;
+            }
+            if (own == null || !HasRcs(vessel)) return false;
+            own.MakeReferenceTransform();
+            if (!SetTarget(vessel, target)) return false;
+            Use(module, true);
+            return Enabled(module);
+        }
+
+        // Whether the vessel has an RCS thruster with propellant: MechJeb's docking moves the vessel by it alone.
+        private static bool HasRcs(Vessel vessel)
+        {
+            foreach (Part part in vessel.parts)
+                foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                    if (rcs.rcsEnabled && !rcs.flameout && rcs.isEnabled) return true;
+            return false;
+        }
+
+        internal static bool DockingBusy(Vessel vessel)
+        {
+            return Enabled(ComputerModule(vessel, "MechJebModuleDockingAutopilot"));
+        }
+
+        internal static void StopDocking(Vessel vessel)
+        {
+            object module = ComputerModule(vessel, "MechJebModuleDockingAutopilot");
+            if (module != null) Use(module, false);
+        }
+
         // Makes us a user of the module, which switches it on; and takes us off its users again, which switches it off where we were the last.
         private static void Use(object module, bool on)
         {
@@ -210,6 +363,16 @@ namespace ReDefinition.Autopilot.Flight
         internal static bool LandingBusy(Vessel vessel)
         {
             return Enabled(Module(vessel, "Landing"));
+        }
+
+        // What MechJeb's landing is doing: the step it is in and the status that step gives, for the log.
+        internal static string LandingStatus(Vessel vessel)
+        {
+            object landing = Module(vessel, "Landing");
+            if (landing == null) return "no landing module";
+            object step = landing.GetType().GetProperty("CurrentStep").GetValue(landing, null);
+            object status = landing.GetType().GetProperty("Status").GetValue(landing, null);
+            return (step != null ? step.GetType().Name : "no step") + ", \"" + status + "\"";
         }
 
         internal static void StopLanding(Vessel vessel)

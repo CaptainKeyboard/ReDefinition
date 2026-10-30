@@ -81,6 +81,22 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + (landOn ? " (the surface)" : "") + " set: "
                           + (landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted, CommandLine.Has("-redefinitionProbeMapPlannerAir"), CommandLine.Has("-redefinitionProbeMapPlannerOrbitFirst"))
                                     : MapPlannerWindow.Instance.SetDestination(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "30000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))));
+                if (CommandLine.Has("-redefinitionProbeTargetVessel"))
+                {
+                    // The route ends with a meeting: another vessel in an orbit round the same body is made the target.
+                    Vessel active = FlightGlobals.ActiveVessel;
+                    Vessel other = FlightGlobals.Vessels.Find(v => v != active && v.mainBody == active.mainBody && v.situation == Vessel.Situations.ORBITING);
+                    ModuleDockingNode port = null;
+                    if (other != null && CommandLine.Has("-redefinitionProbeTargetPort"))
+                        foreach (Part part in other.parts)
+                        {
+                            ModuleDockingNode candidate = part.FindModuleImplementing<ModuleDockingNode>();
+                            if (candidate != null && candidate.state == "Ready") port = candidate;
+                        }
+                    if (port != null) FlightGlobals.fetch.SetVesselTarget(port);
+                    else if (other != null) FlightGlobals.fetch.SetVesselTarget(other);
+                    Debug.Log(Log.Tag + " Probe: map planner: target " + (other != null ? other.vesselName + " (pid " + other.persistentId + "), " + other.orbit.PeA.ToString("0") + " x " + other.orbit.ApA.ToString("0") + " m" : "none"));
+                }
                 if (CommandLine.Has("-redefinitionProbePlanAll"))
                 {
                     MapPlannerWindow.Instance.PlanAllNow();
@@ -104,6 +120,7 @@ namespace ReDefinition.Probe
                         Debug.Log(Log.Tag + " Probe: whole plan: Parsek, vessel taken out: " + (problem ?? "done"));
                         if (problem == null)
                         {
+                            ParsekLeave.RemovedPid = leaving.persistentId;
                             ParsekLeave.Name = leaving.vesselName;
                             ParsekLeave.EndUT = whole.EndUT;
                             ParsekLeave.Active = true;

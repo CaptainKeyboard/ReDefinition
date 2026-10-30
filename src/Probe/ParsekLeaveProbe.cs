@@ -12,10 +12,14 @@ namespace ReDefinition.Probe
         internal static bool Active;
         internal static string Name;
         internal static double EndUT;
+        // The persistent id of the vessel taken out of the world, to tell it among the vessels in the other scene.
+        internal static uint RemovedPid;
         // Where the flight probe goes: the tracking station, or, with -redefinitionProbeParsekLeaveTo KSC, the space centre.
         internal static GameScenes Scene = GameScenes.TRACKSTATION;
         // Set once the time was warped in the space centre: the tracking station is then only looked at, with -redefinitionProbeParsekThenStation.
         internal static bool Second;
+        // Set once the vessel Parsek put back is flown: the scene probe leaves that flight alone.
+        internal static bool Resumed;
     }
 
     // -redefinitionProbeParsekLeave: the flight probe left with a recording, and in the tracking station the time is warped past its end.
@@ -75,6 +79,7 @@ namespace ReDefinition.Probe
                 Game game = HighLogic.CurrentGame.Updated();
                 int index = game.flightState.protoVessels.FindIndex(p => p.orbitSnapShot != null && p.orbitSnapShot.ReferenceBodyIndex == FlightGlobals.Bodies.FindIndex(b => b.bodyName == "Duna"));
                 Debug.Log(Log.Tag + " Probe: leave: the vessel round Duna is flown (" + index + ").");
+                ParsekLeave.Resumed = true;
                 if (index >= 0) FlightDriver.StartAndFocusVessel(game, index);
                 yield break;
             }
@@ -104,7 +109,8 @@ namespace ReDefinition.Probe
                       + "): " + found.Count + " vessel(s) named " + ParsekLeave.Name + " or round Duna.");
             foreach (Vessel v in found)
                 Debug.Log(Log.Tag + " Probe: leave:   " + v.vesselName + " (pid " + v.persistentId + "), " + v.situation + ", round " + v.mainBody.bodyName + ", " + v.orbit.PeA.ToString("0") + " x " + v.orbit.ApA.ToString("0")
-                          + " m, " + v.protoVessel.protoPartSnapshots.Count + " parts, the autopilot " + AutopilotOn(v) + ".");
+                          + " m, " + v.protoVessel.protoPartSnapshots.Count + " parts, the autopilot " + AutopilotOn(v) + ", crew " + string.Join("/", v.protoVessel.GetVesselCrew().Select(c => c.name).ToArray())
+                          + (v.persistentId == ParsekLeave.RemovedPid ? ", THE REMOVED ONE" : "") + ".");
         }
     }
 }

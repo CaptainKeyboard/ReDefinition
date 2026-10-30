@@ -13,6 +13,10 @@ namespace ReDefinition.Autopilot.Planning
         public bool Direct;
         public bool Aerobrake;
         public double PassAltitude;
+        // A vessel the last orbit of the route is met with: the player's target when the route is made. With Dock the target is a docking port and the
+        // vessel docks with it. Empty where the stop is not a meeting.
+        public System.Guid MeetWith;
+        public uint DockWith;
         // The sections that stay at this stop and are let go there: a satellite, by the part that separates it.
         public List<SectionRelease> Releases = new List<SectionRelease>();
     }

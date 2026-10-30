@@ -28,9 +28,13 @@ namespace ReDefinition.Autopilot
             return Math.Max(0.0, (1.0 - hottestShare) / TemperatureMargin);
         }
 
+        private static readonly double ProbeScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbeHeatShareScale", 1f);
+
         // The hottest part's temperature against its limit; the part's name comes with it. Zero for a vessel with no part that has a limit.
         internal static double Hottest(Vessel vessel, out string name)
         {
+            // A probe's switch makes the parts count as hotter, to see the live guard act where the plan allowed the pass; 1 otherwise.
+            double scale = ProbeScale;
             double worst = 0.0;
             name = "";
             foreach (Part part in vessel.parts)
@@ -38,6 +42,7 @@ namespace ReDefinition.Autopilot
                 // A part burns where its inside or its skin goes over its limit.
                 double share = part.maxTemp > 0.0 ? part.temperature / part.maxTemp : 0.0;
                 if (part.skinMaxTemp > 0.0) share = Math.Max(share, part.skinTemperature / part.skinMaxTemp);
+                share *= scale;
                 if (share <= worst) continue;
                 worst = share;
                 name = part.partInfo != null ? part.partInfo.title : part.name;

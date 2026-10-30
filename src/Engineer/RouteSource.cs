@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Planning;
+using ReDefinition.Core;
 
 namespace ReDefinition.Engineer
 {
@@ -23,7 +24,24 @@ namespace ReDefinition.Engineer
                 if (releasesAt != null) destination.Releases = releasesAt(at);
                 route.Add(destination);
             }
+            MeetTarget(route);
             return route.Count >= 2 ? route : null;
+        }
+
+        // The last orbit of the route is met with the vessel the player has as the target, in the orbit round that stop's body: the target's
+        // vessel, and the docking port where the target is one. Nothing where there is no such target.
+        private static void MeetTarget(List<Destination> route)
+        {
+            ITargetable target = FlightGlobals.fetch != null ? FlightGlobals.fetch.VesselTarget : null;
+            Vessel vessel = target != null ? target.GetVessel() : null;
+            Destination last = route[route.Count - 1];
+            if (!ForeignAssumptions.MechJebRendezvous.Holds) return;
+            if (vessel == null || last.Surface || last.Body == null || vessel.mainBody != last.Body || vessel == FlightGlobals.ActiveVessel) return;
+            // Only a vessel in an orbit can be met.
+            if (vessel.orbit == null || vessel.orbit.eccentricity >= 1.0 || vessel.LandedOrSplashed) return;
+            last.MeetWith = vessel.id;
+            ModuleDockingNode port = target as ModuleDockingNode;
+            last.DockWith = port != null ? port.part.persistentId : 0u;
         }
 
         // How the planner has the stop arrived at, as the planner's own steps read it (RouteSteps.Across). A landing that uses the air goes straight

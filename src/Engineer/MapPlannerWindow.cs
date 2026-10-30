@@ -85,6 +85,7 @@ namespace ReDefinition.Engineer
             if (route == null || FlightGlobals.ActiveVessel == null) return;
             view.SaveNow();
             WholePlan = RouteSimulation.Run(FlightGlobals.ActiveVessel, route);
+            if (RoutePreview.Instance != null) RoutePreview.Instance.Show(WholePlan);
             status = WholePlan.Steps.Count + " step(s), " + WholePlan.DeltaV.ToString("0") + " m/s" + (WholePlan.Ended != null ? "; " + WholePlan.Ended : "; the last stop is reached") + ".";
         }
 
@@ -254,10 +255,10 @@ namespace ReDefinition.Engineer
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
-        // The two switches, the navigation and the autopilot, and the line that says what the route is doing.
+        // The two switches, the navigation and the autopilot, the button that plans the whole route, and the line that says what the route is doing.
         private DialogGUIBase Header(float width)
         {
-            float button = (width - 8f - 6f) / 2f;
+            float button = (width - 8f - 12f) / 3f;
             var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Navigation</color>" : "Navigation", ToggleNavigation, button, 28f, false);
             navigation.OptionInteractableCondition = () => !Flying;
             navigation.tooltipText = "Plan the route and keep the plan up to date while you fly it yourself"
@@ -265,7 +266,10 @@ namespace ReDefinition.Engineer
             var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
             pilot.OptionInteractableCondition = () => Flying || MechJebDriver.Unavailable == null;
             pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the whole route with MechJeb";
-            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot);
+            var whole = new DialogGUIButton("Plan", PlanAllNow, button, 28f, false);
+            whole.OptionInteractableCondition = () => !Flying;
+            whole.tooltipText = "Plan the whole route from here and draw it on the map";
+            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot, whole);
             var text = new DialogGUILabel(() => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : status, width - 12f, 36f);
             // What Parsek does with the flight, where it is there: a line that is empty otherwise.
             var parsek = new DialogGUILabel(() => ParsekBridge.RecordingState ?? "", width - 12f, 18f);

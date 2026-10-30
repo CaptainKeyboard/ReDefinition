@@ -14,6 +14,9 @@ namespace ReDefinition.Autopilot.Flight
     // TryBuildSyntheticKeepVesselTree, Parsek 0.10.7, source read) and committed with RecordingStore.CommitTree.
     internal static class ParsekRecording
     {
+        // What the ids of the recordings made here begin with.
+        private const string IdPrefix = "redefinition-";
+
         // The format and schema generation of a recording that the code was written for (Parsek's RecordingSchema).
         private const int FormatVersion = 1;
         private const int SchemaGeneration = 4;
@@ -54,6 +57,10 @@ namespace ReDefinition.Autopilot.Flight
                 Type spawner = TypeLookup.Find("Parsek.VesselSpawner");
                 MethodInfo backup = spawner.GetMethod("TryBackupSnapshot", TypeLookup.Any, null, new[] { typeof(Vessel) }, null);
                 MethodInfo commit = store.GetMethod("CommitTree", TypeLookup.Any, null, new[] { treeType }, null);
+                MethodInfo applied = store.GetMethod("MarkTreeAsApplied", TypeLookup.Any, null, new[] { treeType }, null);
+                Type ledger = TypeLookup.Find("Parsek.LedgerOrchestrator");
+                MethodInfo notify = ledger != null ? ledger.GetMethod("NotifyLedgerTreeCommitted", TypeLookup.Any, null, new[] { treeType }, null) : null;
+                if (applied == null || notify == null) return "Parsek cannot file the recording in its ledger in this build.";
                 // Whether the vessel can be taken out is known before anything is committed.
                 MethodInfo remove = null;
                 ConstructorInfo target = null;
@@ -75,7 +82,7 @@ namespace ReDefinition.Autopilot.Flight
                 Fuel.Burn(vessel, ghost, deltaV);
 
                 PlannedLeg last = legs[legs.Count - 1];
-                string id = "redefinition-" + DateTime.UtcNow.Ticks;
+                string id = IdPrefix + DateTime.UtcNow.Ticks;
                 object recording = Activator.CreateInstance(recordingType);
                 Set(recording, "RecordingId", id);
                 Set(recording, "TreeId", id);
@@ -110,12 +117,33 @@ namespace ReDefinition.Autopilot.Flight
                 ((IDictionary)Get(tree, "Recordings"))[id] = recording;
                 commit.Invoke(null, new[] { tree });
                 if (!Committed(store, recordingType, id)) return "Parsek did not keep the recording.";
+                KeepInScope();
+                // As Parsek's own commit goes on: the recording is marked as applied, and filed in the ledger, where the crew is reserved for it.
+                try
+                {
+                    applied.Invoke(null, new[] { tree });
+                    notify.Invoke(null, new[] { tree });
+                }
+                catch (Exception e)
+                {
+                    // The recording is kept; what is left of the ledger is filed by Parsek when the game is loaded again.
+                    Debug.LogWarning(Log.Tag + " The recording could not be filed in Parsek's ledger: " + e);
+                }
                 Debug.Log(Log.Tag + " Parsek has a recording of the route: " + legs.Count + " leg(s) from UT " + legs[0].StartUT.ToString("0") + " to "
                           + last.EndUT.ToString("0") + ".");
                 if (takeVesselOut)
                 {
                     object removal = target.Invoke(new object[] { vessel, vessel.protoVessel, HighLogic.CurrentGame.flightState.protoVessels });
                     remove.Invoke(null, new[] { removal, "ReDefinition route" });
+                    // The game is saved with the vessel gone: a scene that is loaded from the saved game would bring the vessel back.
+                    try
+                    {
+                        GamePersistence.SaveGame("persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning(Log.Tag + " The game could not be saved after the vessel was taken out: " + e.Message);
+                    }
                     Debug.Log(Log.Tag + " " + vessel.vesselName + " is out of the world; Parsek puts it back where the recording ends.");
                 }
                 return null;
@@ -124,6 +152,36 @@ namespace ReDefinition.Autopilot.Flight
             {
                 Debug.LogWarning(Log.Tag + " The recording for Parsek failed: " + e);
                 return "The recording for Parsek failed: " + e.Message;
+            }
+        }
+
+        // Parsek puts a vessel back at the end of a recording only if the recording was in its replay scope. That is, it was seen at its start,
+        // or within two seconds of it. A recording not seen so is taken for past, and nothing of it is played. The scope is kept in memory only.
+        // So every recording made here is told to the scope from its own start, whatever the time is, when it is committed and at each scene's start.
+        internal static void KeepInScope()
+        {
+            if (!ForeignAssumptions.ParsekRecording.Holds) return;
+            try
+            {
+                Type store = TypeLookup.Find("Parsek.RecordingStore");
+                Type recordingType = TypeLookup.Find("Parsek.Recording");
+                Type tracker = TypeLookup.Find("Parsek.PlaybackScopeTracker");
+                MethodInfo note = tracker.GetMethod("NotePlayhead", TypeLookup.Any, null, new[] { typeof(string), typeof(double), typeof(double) }, null);
+                IEnumerable list = store.GetProperty("CommittedRecordings", TypeLookup.Any).GetValue(null, null) as IEnumerable;
+                FieldInfo idField = recordingType.GetField("RecordingId", TypeLookup.Any);
+                PropertyInfo startProperty = recordingType.GetProperty("StartUT", TypeLookup.Any);
+                if (note == null || list == null) return;
+                foreach (object item in list)
+                {
+                    string id = (string)idField.GetValue(item);
+                    if (id == null || !id.StartsWith(IdPrefix)) continue;
+                    double start = (double)startProperty.GetValue(item, null);
+                    note.Invoke(null, new object[] { id, start, start });
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " Parsek could not be told the recordings are in scope: " + e.Message);
             }
         }
 

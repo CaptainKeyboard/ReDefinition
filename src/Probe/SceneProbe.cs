@@ -512,6 +512,8 @@ namespace ReDefinition.Probe
             if (SceneProbe.Requested && !probeFlight)
                 Debug.Log(Log.Tag + " Probe: flight of the save " + HighLogic.SaveFolder + ", not the probe's; left alone.");
             if (!SceneProbe.Requested || !probeFlight) yield break;
+            // The vessel Parsek put back is flown by the route probe, which is the measurement.
+            if (ParsekLeave.Resumed) yield break;
             yield return WaitForFlight();
             Debug.Log(Log.Tag + " Probe: in flight with " + FlightGlobals.ActiveVessel.vesselName + ".");
             if (LandProbe.CraftToOrbit()) yield break;

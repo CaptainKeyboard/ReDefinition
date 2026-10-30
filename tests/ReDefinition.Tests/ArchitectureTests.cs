@@ -28,7 +28,7 @@ namespace ReDefinition.Tests
             ["Core"] = "",
             ["Dashboard"] = "Autopilot Core Engineer Modules",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
-            ["Engineer"] = "Autopilot Core Hud Ui Window",
+            ["Engineer"] = "Autopilot Core Hud Scaling Ui Window",
             ["Fsr3"] = "Upscaler",
             ["Hud"] = "Autopilot Core Engineer Modules Ui Window",
             ["Menu"] = "Core Modules Probe Upscaler",

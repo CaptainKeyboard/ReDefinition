@@ -34,6 +34,8 @@ namespace ReDefinition.Autopilot.Flight
         {
             cancelled = true;
             MechJebDriver.Abort(vessel);
+            MechJebDriver.StopRendezvous(vessel);
+            MechJebDriver.StopDocking(vessel);
             ParsekBridge.StopRecording();
         }
 
@@ -145,6 +147,43 @@ namespace ReDefinition.Autopilot.Flight
                     yield return Descend();
                     continue;
                 }
+                if (plan.Kind == NodePlanner.StepKind.Rendezvous)
+                {
+                    Status = plan.Why;
+                    Vessel target = FlightGlobals.Vessels.Find(v => v.id == plan.Target);
+                    // The engines the rendezvous burns with must be lit, and a target that is not in an orbit cannot be met.
+                    if (!Engines.Running(vessel))
+                    {
+                        Engines.FireNextStageIfCold(vessel);
+                        yield return new WaitForSeconds(1f);
+                    }
+                    if (target == null || target.orbit == null || target.orbit.eccentricity >= 1.0 || target.LandedOrSplashed || !MechJebDriver.StartRendezvous(vessel, target))
+                    {
+                        Stop("MechJeb would not start the rendezvous.");
+                        yield break;
+                    }
+                    yield return Meet(target);
+                    MechJebDriver.StopRendezvous(vessel);
+                    if (plan.Port != 0u && !cancelled && !Lost && target != null && LegPlanner.Met(vessel, target))
+                    {
+                        if (!MechJebDriver.StartDocking(vessel, target, plan.Port))
+                        {
+                            Stop("MechJeb would not start the docking: it needs a free port that suits the target's, and RCS.");
+                            yield break;
+                        }
+                        yield return Dock(target);
+                        // The two vessels are one after the docking, and the one that is left goes on; the other is gone.
+                        if (vessel == null || vessel.state == Vessel.State.DEAD)
+                        {
+                            Arrived = true;
+                            Stop("Docked.");
+                            yield break;
+                        }
+                        MechJebDriver.StopDocking(vessel);
+                        if (vessel != FlightGlobals.ActiveVessel) yield break;
+                    }
+                    continue;
+                }
                 if (plan.Kind == NodePlanner.StepKind.Release)
                 {
                     Status = plan.Why;
@@ -242,6 +281,35 @@ namespace ReDefinition.Autopilot.Flight
             // MechJeb ends the landing a moment before KSP calls the vessel landed: not planned again from the air.
             for (float waited = 0f; !cancelled && !vessel.LandedOrSplashed && waited < 10f && vessel.heightFromTerrain < 100f; waited += 0.5f)
                 yield return new WaitForSeconds(0.5f);
+        }
+
+        // MechJeb's rendezvous runs until it ends by itself: the vessel is near the target at rest to it, or it found no way. The distance and the
+        // relative speed are told on the way.
+        // It is given as many orbits as MechJeb's own limit on the orbits of a rendezvous, and two more.
+        private IEnumerator Meet(Vessel target)
+        {
+            double until = Planetarium.GetUniversalTime() + (MechJebDriver.RendezvousOrbits(vessel) + 2.0) * vessel.orbit.period;
+            while (!cancelled && !Lost && target != null && MechJebDriver.RendezvousBusy(vessel) && Planetarium.GetUniversalTime() < until)
+            {
+                Status = "Rendezvous: " + ((target.GetWorldPos3D() - vessel.GetWorldPos3D()).magnitude / 1000.0).ToString("0.0") + " km, "
+                         + (target.obt_velocity - vessel.obt_velocity).magnitude.ToString("0.0") + " m/s to " + target.vesselName + ".";
+                Note();
+                yield return new WaitForSeconds(1f);
+            }
+        }
+
+        // MechJeb's docking runs until the ports have coupled, or it gives up; the vessel that is in focus afterwards is the one that goes on.
+        // It is given twice the time the distance takes at MechJeb's docking speed.
+        private IEnumerator Dock(Vessel target)
+        {
+            double speed = System.Math.Max(MechJebDriver.DockingSpeed(vessel), 0.1);
+            double until = Planetarium.GetUniversalTime() + 2.0 * (target.GetWorldPos3D() - vessel.GetWorldPos3D()).magnitude / speed;
+            while (!cancelled && !Lost && vessel != null && MechJebDriver.DockingBusy(vessel) && Planetarium.GetUniversalTime() < until)
+            {
+                Status = "Docking.";
+                Note();
+                yield return new WaitForSeconds(1f);
+            }
         }
 
         // Lets a section go: its decoupler fires, or its docking port undocks. Of the two vessels that are then there, the one with a MechJeb unit
@@ -374,7 +442,8 @@ namespace ReDefinition.Autopilot.Flight
         {
             if (Time.realtimeSinceStartup < nextNote) return;
             nextNote = Time.realtimeSinceStartup + 10f;
-            Debug.Log("[ReDefinition] Route: " + Status + " [" + Engines.Report(vessel) + "]");
+            Debug.Log("[ReDefinition] Route: " + Status + " [" + Engines.Report(vessel) + "]" + (Status.StartsWith("Landing") ? " MechJeb: " + MechJebDriver.LandingStatus(vessel)
+                      + ", throttle " + FlightInputHandler.state.mainThrottle.ToString("0.00") + ", warp " + TimeWarp.CurrentRate + "x" : ""));
         }
 
         private void Stop(string why)
