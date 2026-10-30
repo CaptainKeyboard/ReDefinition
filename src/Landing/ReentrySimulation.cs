@@ -600,29 +600,9 @@ namespace ReDefinition.Landing
             return temperature;
         }
 
-        // The game's heating constants, as the bound of the flux takes them.
-        private static HeatConstants HeatConstantsNow()
-        {
-            return new HeatConstants
-            {
-                MachFactor = PhysicsGlobals.MachConvectionFactor,
-                MachDensityExponent = PhysicsGlobals.MachConvectionDensityExponent,
-                MachVelocityExponent = PhysicsGlobals.MachConvectionVelocityExponent,
-                TurbulentStart = PhysicsGlobals.TurbulentConvectionStart,
-                TurbulentEnd = PhysicsGlobals.TurbulentConvectionEnd,
-                TurbulentMultiplier = PhysicsGlobals.TurbulentConvectionMult,
-                LerpStartMach = PhysicsGlobals.NewtonianMachTempLerpStartMach,
-                LerpEndMach = PhysicsGlobals.NewtonianMachTempLerpEndMach,
-                LerpExponent = PhysicsGlobals.NewtonianMachTempLerpExponent,
-                LowMachTemperatureFactor = PhysicsGlobals.NewtonianTemperatureFactor,
-                HighMachTemperatureScalar = PhysicsGlobals.MachTemperatureScalar,
-                HighMachTemperatureExponent = PhysicsGlobals.MachTemperatureVelocityExponent,
-            };
-        }
-
         private double ConvectiveFluxBoundKW(double airDensity, double speed, double mach)
         {
-            return HeatBound.FluxKW(airDensity, speed, mach, HighLogic.CurrentGame.Parameters.Difficulty.ReentryHeatScale * _mainBody.shockTemperatureMultiplier, HeatConstantsNow());
+            return HeatBound.FluxKW(airDensity, speed, mach, HeatBound.TemperatureScale(_mainBody), HeatBound.FromGame());
         }
 
         private double ShockTemperature(double velocity, double mach)

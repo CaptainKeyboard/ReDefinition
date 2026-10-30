@@ -13,7 +13,6 @@ namespace ReDefinition.Autopilot.Guidance
     internal sealed class Navigation
     {
         private const float MinGap = 30f;
-        private const double MissedAfter = 60.0;
 
         private string signature = "";
         private float lastPlan = -1000f;
@@ -45,6 +44,12 @@ namespace ReDefinition.Autopilot.Guidance
                 GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text);
                 return;
             }
+            if (step == NodePlanner.StepKind.Release)
+            {
+                // The line the plan gave stands; it is told on the board until the section has gone.
+                GuidanceBoard.Write(vessel, Status, null, null);
+                return;
+            }
             if (step == NodePlanner.StepKind.Aerobrake)
             {
                 string part;
@@ -65,17 +70,26 @@ namespace ReDefinition.Autopilot.Guidance
             if (vessel.situation == Vessel.Situations.FLYING || Engines.Burning(vessel) || MechJebDriver.Busy(vessel)) return;
             string now = Signature(vessel, route);
             PatchedConicSolver solver = vessel.patchedConicSolver;
-            bool missed = solver != null && solver.maneuverNodes.Count > 0 && solver.maneuverNodes[0].UT < Planetarium.GetUniversalTime() - MissedAfter;
+            bool missed = solver != null && solver.maneuverNodes.Count > 0 && Missed(vessel, solver.maneuverNodes[0]);
             if (now == signature && !missed) return;
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
             NodePlanner.Result plan = LegPlanner.PlanNext(vessel, route, true);
             step = plan.Kind;
             aim = plan.Altitude;
-            guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing || plan.Kind == NodePlanner.StepKind.Aerobrake);
+            guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing || plan.Kind == NodePlanner.StepKind.Aerobrake
+                                 || plan.Kind == NodePlanner.StepKind.Release);
             Status = plan.Why;
             Debug.Log("[ReDefinition] Route: nodes: " + plan.Why);
             if (guided) Guide(vessel);
+        }
+
+        // Whether the node was missed: its burn, which is centred on the node, would be over by now with the engines the vessel has.
+        private static bool Missed(Vessel vessel, ManeuverNode node)
+        {
+            double acceleration = Engines.Acceleration(vessel);
+            double burn = acceleration > 0.0 ? node.GetBurnVector(vessel.orbit).magnitude / acceleration : 0.0;
+            return node.UT + 0.5 * burn < Planetarium.GetUniversalTime();
         }
 
         // The orbit and the route in a text: the body, the apsides to fifty metres and the plane to a tenth of a degree, the body of the next
@@ -86,6 +100,7 @@ namespace ReDefinition.Autopilot.Guidance
             var text = new StringBuilder();
             text.Append(vessel.mainBody.bodyName).Append('|').Append(System.Math.Round(orbit.PeA / 50.0)).Append('|').Append(System.Math.Round(orbit.ApA / 50.0));
             text.Append('|').Append(System.Math.Round(orbit.inclination, 1)).Append('|').Append(vessel.situation);
+            text.Append('|').Append(vessel.parts.Count);
             if (orbit.patchEndTransition != Orbit.PatchTransitionType.FINAL && orbit.nextPatch != null) text.Append('|').Append(orbit.nextPatch.referenceBody.bodyName);
             foreach (Destination stop in route)
                 text.Append('|').Append(stop.Body != null ? stop.Body.bodyName : "-").Append(stop.Surface ? 'S' : 'O').Append(stop.Altitude);

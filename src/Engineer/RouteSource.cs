@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Planning;
@@ -8,16 +9,19 @@ namespace ReDefinition.Engineer
     internal static class RouteSource
     {
         // The stops as destinations: a stop the autopilot flies through (an entry, a transfer) is left out. Null where there are fewer than two.
-        internal static List<Destination> FromStops(IList<RouteStop> stops, PlannerBodies bodies)
+        internal static List<Destination> FromStops(IList<RouteStop> stops, PlannerBodies bodies, Func<int, List<SectionRelease>> releasesAt = null)
         {
             if (stops == null || bodies == null) return null;
             var route = new List<Destination>();
-            foreach (RouteStop stop in stops)
+            for (int at = 0; at < stops.Count; at++)
             {
+                RouteStop stop = stops[at];
                 if (stop.Kind == StopKind.Entry || stop.Kind == StopKind.Transfer) continue;
                 string id = stop.Body >= 0 && stop.Body < bodies.Bodies.Count ? bodies.Bodies[stop.Body].Id : null;
                 CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
-                route.Add(Arrival(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude }, stop, bodies));
+                Destination destination = Arrival(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude }, stop, bodies);
+                if (releasesAt != null) destination.Releases = releasesAt(at);
+                route.Add(destination);
             }
             return route.Count >= 2 ? route : null;
         }
@@ -41,7 +45,7 @@ namespace ReDefinition.Engineer
         {
             PlannerBodies bodies = PlannerBodies.Read();
             PlannerState state = PlannerState.Load(vesselName, bodies);
-            return FromStops(state.Stops, bodies);
+            return FromStops(state.Stops, bodies, state.ReleasesAt);
         }
     }
 }

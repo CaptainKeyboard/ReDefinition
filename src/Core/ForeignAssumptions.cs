@@ -740,11 +740,37 @@ namespace ReDefinition.Core
                 .Tested("10d2995d828d") // Parsek 0.10.6
                 .OnChange(WhenChanged.Fallback, "every vessel counts as real");
 
+        // Parsek's recorder as the map window shows it: whether this flight is being recorded, and how many recordings are kept. Both are read, nothing
+        // is started or stopped. Parsek 0.10.6, source read: ParsekFlight.Instance holds the flight's recorder, whose IsRecording says it,
+        // and RecordingStore.CommittedRecordings is the list of the recordings that were committed.
+        public static readonly ForeignAssumption ParsekRecorder =
+            new ForeignAssumption("parsek-recorder", "Parsek", "the map window says whether Parsek records the flight")
+                .Type("Parsek.ParsekFlight").Type("Parsek.FlightRecorder").Type("Parsek.RecordingStore")
+                .Method("Parsek.ParsekFlight", "get_Instance")
+                .Field("Parsek.ParsekFlight", "recorder", "Parsek.FlightRecorder")
+                .Method("Parsek.FlightRecorder", "get_IsRecording")
+                .Method("Parsek.RecordingStore", "get_CommittedRecordings")
+                .Tested("dd556c4ede68") // Parsek 0.10.6
+                .OnChange(WhenChanged.Fallback, "the window does not say whether Parsek records");
+
+        // The autopilot has Parsek record the flight it flies, which Parsek does by itself only for a launch. Parsek 0.10.6, source read:
+        // ParsekFlight.StartRecording(suppressStartScreenMessage, fromPrelaunchTransition) begins the recording of the active vessel in the flight's
+        // recorder, and FlightRecorder.IsRecording says whether one runs. Parsek's own merge dialog commits it when the flight is left.
+        public static readonly ForeignAssumption ParsekStart =
+            new ForeignAssumption("parsek-start", "Parsek", "the autopilot has Parsek record its flight")
+                .Type("Parsek.ParsekFlight").Type("Parsek.FlightRecorder")
+                .Method("Parsek.ParsekFlight", "get_Instance")
+                .Method("Parsek.ParsekFlight", "StartRecording", "System.Boolean", "System.Boolean")
+                .Field("Parsek.ParsekFlight", "recorder", "Parsek.FlightRecorder")
+                .Method("Parsek.FlightRecorder", "get_IsRecording")
+                .Tested("1f633d761b0e") // Parsek 0.10.6
+                .OnChange(WhenChanged.Fallback, "Parsek is not asked to record the autopilot's flight");
+
         // The whole catalogue, in the order the report lists it.
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekGhost,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekGhost, ParsekRecorder, ParsekStart,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,

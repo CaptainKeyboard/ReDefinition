@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Core;
+using ReDefinition.Landing;
 
 namespace ReDefinition.Autopilot.Planning
 {
@@ -9,6 +10,41 @@ namespace ReDefinition.Autopilot.Planning
     // limit. After a pass the share the game showed is set against the share predicted, which judges the next.
     internal static class PassHeat
     {
+        // Whether the game's heating is the one the bound of the flux is worked from. The bound is checked against what the game reports on the
+        // vessel's parts whenever it is in air at a speed the bound covers, a few times over. A mod that changes the heating, or a new build of
+        // the game, can put the game's flux over it. Then no pass through the air is judged by it, and the air is not used until the game is
+        // started again.
+        internal static bool ModelHolds
+        {
+            get { return !modelBroken; }
+        }
+
+        internal static string ModelProblem
+        {
+            get { return "the heating of this game is not the one the check of a pass knows (a mod changes it?)"; }
+        }
+
+        private static bool modelBroken;
+        private static int overTheBound;
+        private const int SamplesToBreak = 5;
+
+        // Takes one sample of the game's flux on the parts against the bound; called about once a second in flight.
+        internal static void Watch(Vessel vessel)
+        {
+            if (modelBroken || vessel == null || vessel.mainBody == null || !vessel.mainBody.atmosphere || vessel.atmDensity <= 0.0) return;
+            if (vessel.mach < PhysicsGlobals.NewtonianMachTempLerpStartMach) return;
+            double bound = HeatBound.FluxKW(vessel.atmDensity, vessel.srfSpeed, vessel.mach, HeatBound.TemperatureScale(vessel.mainBody), HeatBound.FromGame());
+            bool over = false;
+            foreach (Part part in vessel.parts)
+                if (part.exposedArea > 0.05 && part.thermalConvectionFlux > bound * part.exposedArea) over = true;
+            overTheBound = over ? overTheBound + 1 : Math.Max(0, overTheBound - 1);
+            if (overTheBound < SamplesToBreak) return;
+            modelBroken = true;
+            string text = "ReDefinition: " + ModelProblem + ". Passes through the air are not flown.";
+            UnityEngine.Debug.LogWarning(Log.Tag + " " + text);
+            ScreenMessages.PostScreenMessage(text, 12f, ScreenMessageStyle.UPPER_CENTER);
+        }
+
         // One line in the log of what the game says of the heat on the vessel's hottest exposed part, with the air round it. These are the figures
         // the bound of the flux is checked against; tests/ReDefinition.Tests/Data/heat-flux-points.csv is made of them.
         internal static void LogFlux(Vessel vessel)

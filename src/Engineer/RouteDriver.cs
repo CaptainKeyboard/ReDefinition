@@ -117,6 +117,7 @@ namespace ReDefinition.Engineer
             next = Time.realtimeSinceStartup + Interval;
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null || !vessel.loaded) return;
+            PassHeat.Watch(vessel);
             if (vessel != followed)
             {
                 if (flight != null) flight.Cancel();
@@ -135,7 +136,12 @@ namespace ReDefinition.Engineer
                 return;
             }
             if (Time.realtimeSinceStartup - seen < Settle) return;
-            if (state.Autopilot && flight == null && MechJebDriver.CanFly(vessel))
+            if (state.Autopilot && flight == null && !MechJebDriver.CanFly(vessel))
+            {
+                status = MechJebDriver.Unavailable ?? "The vessel has no MechJeb unit to fly the route.";
+                state.Autopilot = false;
+            }
+            else if (state.Autopilot && flight == null)
             {
                 if (ReadRoute(vessel) == null)
                 {

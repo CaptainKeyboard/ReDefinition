@@ -254,7 +254,9 @@ namespace ReDefinition.Engineer
             pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the whole route with MechJeb";
             var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot);
             var text = new DialogGUILabel(() => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : status, width - 12f, 36f);
-            return new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text);
+            // What Parsek does with the flight, where it is there: a line that is empty otherwise.
+            var parsek = new DialogGUILabel(() => ParsekBridge.RecordingState ?? "", width - 12f, 18f);
+            return new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text, parsek);
         }
 
         // Starts the route's flight, or stops the one that is under way.
@@ -296,7 +298,7 @@ namespace ReDefinition.Engineer
         // The planner's route as destinations; null, with the reason in the status, where there is none.
         private List<Destination> Route()
         {
-            List<Destination> route = RouteSource.FromStops(view.RouteStops, view.BodyList);
+            List<Destination> route = RouteSource.FromStops(view.RouteStops, view.BodyList, view.ReleasesAt);
             if (route == null) status = "There is no route yet.";
             return route;
         }

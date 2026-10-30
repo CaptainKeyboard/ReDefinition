@@ -11,8 +11,9 @@ namespace ReDefinition.Autopilot.Planning
         // landing, UntargetedDeorbit: a tenth).
         private const double UntargetedPeriapsis = 0.1;
 
-        // The least time between now and a burn, in seconds: room to see the node and turn the vessel.
-        internal const double LeadTime = 60.0;
+        // The least time between now and a burn, in seconds: the time MechJeb's rendezvous planner puts its first burn ahead (MechJebModuleRendezvousGuidance,
+        // leadTime).
+        internal const double LeadTime = 30.0;
 
         // What a step of a plan is: a burn as a node, a launch into an orbit, or a descent to the ground.
         internal enum StepKind
@@ -21,6 +22,7 @@ namespace ReDefinition.Autopilot.Planning
             Ascent,
             Landing,
             Aerobrake,
+            Release,
         }
 
         // What a plan came to: a burn at a time, and why, or the reason there is none. Ok with a time of zero is a plan that needs no burn.
@@ -49,6 +51,17 @@ namespace ReDefinition.Autopilot.Planning
             public static Result Landing(string why)
             {
                 return new Result { Ok = true, Kind = StepKind.Landing, Why = why };
+            }
+
+            // The part to separate, for a Release step.
+            public SectionRelease Section;
+            // A correction of the course: how far the periapsis was from the one aimed at before the burn, in metres.
+            public bool Correction;
+            public double Error;
+
+            public static Result Release(SectionRelease section, string why)
+            {
+                return new Result { Ok = true, Kind = StepKind.Release, Section = section, Why = why };
             }
 
             public static Result Aerobrake(string why)

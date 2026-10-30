@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Autopilot.Planning;
 
 namespace ReDefinition.Autopilot.Flight
@@ -9,7 +10,6 @@ namespace ReDefinition.Autopilot.Flight
     // the burn left the vessel, until the last stop. Between burns the time is warped to the next change of orbit.
     internal sealed class AutopilotFlight
     {
-        private const int MaxSteps = 24;
         private const int MaxFailures = 3;
 
         private readonly Vessel vessel;
@@ -43,8 +43,13 @@ namespace ReDefinition.Autopilot.Flight
                 Stop(MechJebDriver.Unavailable ?? "The vessel has no MechJeb unit.");
                 yield break;
             }
+            ParsekBridge.StartRecording();
             int failures = 0;
-            for (int step = 0; step < MaxSteps && !cancelled; step++)
+            // A correction of the course is made again only while it brings the periapsis nearer: a burn too small for the engines to give exactly
+            // would otherwise be made over and over.
+            double lastError = double.NaN;
+            bool keepCourse = false;
+            for (int step = 0; !cancelled; step++)
             {
                 if (Lost)
                 {
@@ -59,7 +64,8 @@ namespace ReDefinition.Autopilot.Flight
                 NodePlanner.Result plan;
                 try
                 {
-                    plan = LegPlanner.PlanNext(vessel, route);
+                    plan = LegPlanner.PlanNext(vessel, route, false, keepCourse);
+                    keepCourse = false;
                 }
                 catch (System.Exception e)
                 {
@@ -68,6 +74,22 @@ namespace ReDefinition.Autopilot.Flight
                     yield break;
                 }
                 Debug.Log("[ReDefinition] Route: step " + step + ": " + plan.Why);
+                if (plan.Correction)
+                {
+                    if (!double.IsNaN(lastError) && plan.Error >= lastError)
+                    {
+                        // The last correction did not help: the course is kept as it is, and the plan goes on from there.
+                        KspOrbits.ClearNodes(vessel);
+                        keepCourse = true;
+                        lastError = double.NaN;
+                        continue;
+                    }
+                    lastError = plan.Error;
+                }
+                else
+                {
+                    lastError = double.NaN;
+                }
                 if (!plan.Ok)
                 {
                     // A plan can fail for a moment, as with a vessel just loaded: tried again a few times before the flight stops.
@@ -106,12 +128,26 @@ namespace ReDefinition.Autopilot.Flight
                         Engines.FireNextStageIfCold(vessel);
                         yield return new WaitForSeconds(1f);
                     }
+                    double needed = LandingPrediction.DeltaVNeeded(vessel);
+                    if (double.IsPositiveInfinity(needed))
+                    {
+                        Stop("The engines are too weak to brake against the gravity here.");
+                        yield break;
+                    }
+                    if (!double.IsNaN(needed) && !Enough(needed, "the landing")) yield break;
                     if (!MechJebDriver.StartLanding(vessel))
                     {
                         Stop("MechJeb would not start the landing.");
                         yield break;
                     }
                     yield return Descend();
+                    continue;
+                }
+                if (plan.Kind == NodePlanner.StepKind.Release)
+                {
+                    Status = plan.Why;
+                    yield return Release(plan.Section);
+                    if (vessel != FlightGlobals.ActiveVessel) yield break;
                     continue;
                 }
                 if (plan.Kind == NodePlanner.StepKind.Aerobrake)
@@ -144,7 +180,6 @@ namespace ReDefinition.Autopilot.Flight
                 }
                 yield return Burn(plan);
             }
-            if (!cancelled && !Finished) Stop("The route took more steps than it should.");
         }
 
         // Whether the vessel is gone: destroyed, or not there.
@@ -200,6 +235,51 @@ namespace ReDefinition.Autopilot.Flight
             // MechJeb ends the landing a moment before KSP calls the vessel landed: not planned again from the air.
             for (float waited = 0f; !cancelled && !vessel.LandedOrSplashed && waited < 10f && vessel.heightFromTerrain < 100f; waited += 0.5f)
                 yield return new WaitForSeconds(0.5f);
+        }
+
+        // Lets a section go: its decoupler fires, or its docking port undocks. Of the two vessels that are then there, the one with a MechJeb unit
+        // goes on with the route, or the heavier where both or neither have one. It takes the vessel's name and the autopilot's state, and is put
+        // in focus where it is not. The section's vessel is named for the section.
+        private IEnumerator Release(SectionRelease section)
+        {
+            string name = vessel.vesselName;
+            var before = new HashSet<System.Guid>();
+            foreach (Vessel other in FlightGlobals.Vessels) before.Add(other.id);
+            foreach (Part part in vessel.parts)
+            {
+                if (part.persistentId != section.SeparatorId) continue;
+                foreach (ModuleDecouplerBase decoupler in part.FindModulesImplementing<ModuleDecouplerBase>())
+                    if (!decoupler.isDecoupled) decoupler.Decouple();
+                foreach (ModuleDockingNode port in part.FindModulesImplementing<ModuleDockingNode>())
+                {
+                    if (port.state.StartsWith("PreAttached")) port.Decouple();
+                    else if (port.state.StartsWith("Docked")) port.Undock();
+                }
+                break;
+            }
+            yield return new WaitForSeconds(2f);
+            Vessel apart = null;
+            foreach (Vessel other in FlightGlobals.Vessels)
+                if (!before.Contains(other.id) && other.loaded && Vector3d.Distance(other.GetWorldPos3D(), vessel.GetWorldPos3D()) < 500.0) apart = other;
+            if (apart == null) yield break;
+            // The one MechJeb can fly goes on with the route; where both or neither can, the heavier.
+            bool apartFlies = MechJebDriver.CanFly(apart);
+            bool vesselFlies = MechJebDriver.CanFly(vessel);
+            Vessel carrier = apartFlies != vesselFlies ? (apartFlies ? apart : vessel) : apart.GetTotalMass() > vessel.GetTotalMass() ? apart : vessel;
+            Vessel released = carrier == vessel ? apart : vessel;
+            released.vesselName = name + " " + section.Name;
+            carrier.vesselName = name;
+            if (carrier == vessel) yield break;
+            RouteState from = RouteState.Of(vessel);
+            RouteState to = RouteState.Of(carrier);
+            if (from != null && to != null)
+            {
+                to.Autopilot = from.Autopilot;
+                to.Navigation = from.Navigation;
+                from.Autopilot = false;
+                from.Navigation = false;
+            }
+            FlightGlobals.SetActiveVessel(carrier);
         }
 
         // The pass through the air that slows the vessel: it is warped to a minute before the periapsis, held retrograde on the stock SAS, and waited

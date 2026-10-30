@@ -130,6 +130,16 @@ namespace ReDefinition.Probe
                 Application.Quit();
                 yield break;
             }
+            // -redefinitionProbeScenario <name>: the flight of that save (Scenario), in the vessel it was left in.
+            Game scenario = Scenario.Load();
+            if (scenario != null)
+            {
+                HighLogic.SaveFolder = SceneProbe.SaveFolder;
+                HighLogic.CurrentGame = scenario;
+                Debug.Log(Log.Tag + " Probe: the flight of the scenario " + CommandLine.After(Scenario.LoadArgument) + ".");
+                FlightDriver.StartAndFocusVessel(scenario, scenario.flightState.activeVesselIdx);
+                yield break;
+            }
             // -redefinitionProbeUniversalTime <seconds>: the game's time, to put the moons in a phase.
             string universalTime = CommandLine.After("-redefinitionProbeUniversalTime");
             if (universalTime != null) game.flightState.universalTime = double.Parse(universalTime, CultureInfo.InvariantCulture);

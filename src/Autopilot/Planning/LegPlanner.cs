@@ -7,26 +7,28 @@ namespace ReDefinition.Autopilot.Planning
     // after it is handed to the planner that knows how to fly it.
     internal static class LegPlanner
     {
-        // How far over the periapsis a deorbit burn aims at the periapsis may lie before the burn is made again, in metres.
-        private const double DeorbitMargin = 1000.0;
-
         // Plans the next step of the leg to the first stop the vessel has not reached: a launch, a burn as a node, a descent, or the reason
         // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
-        internal static NodePlanner.Result PlanNext(Vessel vessel, IList<Destination> route, bool forPlayer = false)
+        internal static NodePlanner.Result PlanNext(Vessel vessel, IList<Destination> route, bool forPlayer = false, bool keepCourse = false)
         {
             string note;
-            NodePlanner.Result result = Plan(vessel, route, forPlayer, out note);
+            NodePlanner.Result result = Plan(vessel, route, forPlayer, keepCourse, out note);
             if (note != null && result.Ok && result.Why != null) result.Why = note + result.Why;
             return result;
         }
 
-        private static NodePlanner.Result Plan(Vessel vessel, IList<Destination> route, bool forPlayer, out string note)
+        private static NodePlanner.Result Plan(Vessel vessel, IList<Destination> route, bool forPlayer, bool keepCourse, out string note)
         {
             note = null;
             if (vessel == null || route == null || route.Count < 2) return NodePlanner.Result.Failed("There is no route.");
             int last = -1;
             for (int i = 0; i < route.Count; i++)
                 if (Passed(vessel, route[i], i)) last = i;
+            if (last >= 0)
+            {
+                SectionRelease pending = PendingRelease(vessel, route[last]);
+                if (pending != null) return NodePlanner.Result.Release(pending, "Let the " + pending.Name.ToLowerInvariant() + " go: separate it.");
+            }
             if (last + 1 >= route.Count) return NodePlanner.Result.Done("The vessel is at the last stop.");
             int next = last >= 0 ? last + 1 : HeadedFor(vessel, route);
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
@@ -60,7 +62,9 @@ namespace ReDefinition.Autopilot.Planning
                         if (stop.Direct) return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + " straight from the approach.");
                         return stop.Aerobrake ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.") : NodePlanner.Capture(vessel);
                     }
-                    if (forPlayer && vessel.orbit.PeA > NodePlanner.DeorbitAltitude(vessel.mainBody) + DeorbitMargin) return NodePlanner.Deorbit(vessel);
+                    // MechJeb's landing starts from an orbit whose periapsis is under the ground (MechJebModuleLandingAutopilot, StartLanding) and
+                    // deorbits otherwise.
+                    if (forPlayer && vessel.orbit.PeA >= 0.0) return NodePlanner.Deorbit(vessel);
                     return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
                 }
                 stop = new Destination { Body = stop.Body, Altitude = LowOrbit(stop.Body), Direct = stop.Direct, Aerobrake = stop.Aerobrake, PassAltitude = stop.PassAltitude };
@@ -103,13 +107,34 @@ namespace ReDefinition.Autopilot.Planning
                 entry = AerobrakePass.FromApproach(vessel, encounter, stop.Direct, out why);
                 if (entry < 0.0) return NodePlanner.Result.Failed(why);
             }
-            return NodePlanner.CorrectCourse(vessel, stop.Body, entry);
+            return NodePlanner.CorrectCourse(vessel, stop.Body, entry, keepCourse);
+        }
+
+        // The first section of the stop that has not been let go: its separating part is still on the vessel and has not separated.
+        private static SectionRelease PendingRelease(Vessel vessel, Destination stop)
+        {
+            if (stop.Releases == null) return null;
+            foreach (SectionRelease release in stop.Releases)
+                foreach (Part part in vessel.parts)
+                    if (part.persistentId == release.SeparatorId && !Separated(part)) return release;
+            return null;
+        }
+
+        // Whether the part has separated: a decoupler that has fired, or a docking port that has undocked.
+        private static bool Separated(Part part)
+        {
+            foreach (ModuleDecouplerBase decoupler in part.FindModulesImplementing<ModuleDecouplerBase>())
+                if (!decoupler.isDecoupled) return false;
+            foreach (ModuleDockingNode port in part.FindModulesImplementing<ModuleDockingNode>())
+                if (port.state != "Ready" && port.state != "Disengage") return false;
+            return true;
         }
 
         // Why the air cannot be used to arrive at the stop, or null where it can. Null as well where there is not yet an approach to judge it by.
         // The judge is the pass the vessel would take on the approach, or from the orbit it is in: it must not load the vessel beyond its limits.
         private static string AirRefused(Vessel vessel, Destination stop)
         {
+            if (!PassHeat.ModelHolds) return PassHeat.ModelProblem + ".";
             string why = null;
             Orbit approach = null;
             if (stop.Body == vessel.mainBody) approach = vessel.orbit;

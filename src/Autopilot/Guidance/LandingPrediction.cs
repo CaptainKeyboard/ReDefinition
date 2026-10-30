@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Landing;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -105,6 +106,65 @@ namespace ReDefinition.Autopilot.Guidance
                 coefficient += area / 6f;
             }
             return coefficient * PhysicsGlobals.DragCubeMultiplier;
+        }
+
+        // The delta-v a landing from the vessel's orbit takes, as the descent's simulation has it. It is the deorbit burn that puts the periapsis
+        // under the ground, and what the simulation says the descent expends after it, with the air's help where there is air. It is infinite
+        // where the engines are too weak to brake, and NaN where the simulation gives no landing.
+        internal static double DeltaVNeeded(Vessel vessel)
+        {
+            CelestialBody body = vessel.mainBody;
+            Orbit orbit = vessel.orbit;
+            if (orbit == null || vessel.LandedOrSplashed) return double.NaN;
+            double thrust = Engines.Acceleration(vessel);
+            double gravity = body.GeeASL * 9.81;
+            if (thrust <= gravity) return double.PositiveInfinity;
+            Orbit start = orbit;
+            double startUT = orbit.StartUT;
+            double deorbit = 0.0;
+            double lowest = body.Radius + NodePlanner.DeorbitAltitude(body);
+            if (orbit.eccentricity < 1.0 && orbit.PeR > lowest)
+            {
+                // The burn at the apoapsis, retrograde, to an orbit whose periapsis is under the ground; the descent is simulated from there.
+                startUT = Planetarium.GetUniversalTime() + orbit.timeToAp;
+                Vector3d position = orbit.getRelativePositionAtUT(startUT);
+                Vector3d direction = orbit.getOrbitalVelocityAtUT(startUT).normalized;
+                double radius = position.magnitude;
+                double after = Math.Sqrt(body.gravParameter * (2.0 / radius - 2.0 / (radius + lowest)));
+                deorbit = orbit.getOrbitalVelocityAtUT(startUT).magnitude - after;
+                start = new Orbit();
+                start.UpdateFromStateVectors(position, direction * after, body, startUT);
+            }
+            double landing = 0.0;
+            double descent = double.NaN;
+            for (int pass = 0; pass < 2; pass++)
+            {
+                double decelEnd = BrakeEnd(vessel, landing);
+                IDescentSpeedPolicy policy = Policy(vessel, landing, decelEnd, gravity, thrust);
+                ReentrySimulation.SimCurves curves = ReentrySimulation.SimCurves.Borrow(body);
+                SimulatedVessel simulated = SimulatedVessel.Borrow(vessel, curves, startUT, -1);
+                ReentrySimulation simulation = ReentrySimulation.Borrow(start, startUT, simulated, curves, policy, decelEnd, thrust, 3.0, landing, false, 0.2,
+                    Time.fixedDeltaTime, 1.0, false);
+                ReentrySimulation.Result result = null;
+                try
+                {
+                    result = simulation.RunSimulation();
+                    if (result.Outcome != ReentrySimulation.Outcome.LANDED) return double.NaN;
+                    descent = result.DeltaVExpended;
+                    landing = body.TerrainAltitude(result.EndPosition.Latitude, result.EndPosition.Longitude);
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning("[ReDefinition] The delta-v of the landing could not be simulated: " + e.Message);
+                    return double.NaN;
+                }
+                finally
+                {
+                    simulation.Release();
+                    if (result != null) result.Release();
+                }
+            }
+            return deorbit + descent;
         }
 
         // Starts the prediction again where the last is in.

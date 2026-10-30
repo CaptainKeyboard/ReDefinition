@@ -13,5 +13,16 @@ namespace ReDefinition.Autopilot.Planning
         public bool Direct;
         public bool Aerobrake;
         public double PassAltitude;
+        // The sections that stay at this stop and are let go there: a satellite, by the part that separates it.
+        public List<SectionRelease> Releases = new List<SectionRelease>();
+    }
+
+    // A section of the vessel that stays where the route has it: its name as the planner shows it, and the decoupler or docking port, by its
+    // persistent id, whose separating lets it go.
+    internal sealed class SectionRelease
+    {
+        public string Name;
+        public uint SeparatorId;
+        public bool Docking;
     }
 }

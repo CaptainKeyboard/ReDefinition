@@ -38,6 +38,13 @@ namespace ReDefinition.Probe
                       + FlightGlobals.ActiveVessel.orbit.ApA.ToString("0") + " m.");
         }
 
+        // Whether the vessel is marked as flown by the autopilot: after a section is let go the flight goes on in the carrier, which takes a moment to start.
+        private static bool FlownByAutopilot(Vessel vessel)
+        {
+            RouteState state = RouteState.Of(vessel);
+            return state != null && state.Autopilot;
+        }
+
         private static IEnumerator MapPlannerShots(string folder)
         {
             MapPlannerWindow.OpenAtOnce = true;
@@ -61,7 +68,8 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: map planner done.");
                 yield break;
             }
-            if (MapPlannerWindow.Instance != null && FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING)
+            Debug.Log(Log.Tag + " Probe: map planner: the window " + (MapPlannerWindow.Instance != null ? "is there" : "is missing") + ", the vessel is " + FlightGlobals.ActiveVessel.situation + ".");
+            if (MapPlannerWindow.Instance != null && (FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING || FlightGlobals.ActiveVessel.situation == Vessel.Situations.ESCAPING))
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";
                 bool landOn = CommandLine.Has("-redefinitionProbeMapPlannerLand");
@@ -95,10 +103,11 @@ namespace ReDefinition.Probe
                     string last = "";
                     bool shot = false;
                     ProbeWatch.Arm(FlightGlobals.ActiveVessel);
-                    while (MapPlannerWindow.Instance.Flying && Time.realtimeSinceStartup - started < 3600f)
+                    while ((MapPlannerWindow.Instance.Flying || FlownByAutopilot(FlightGlobals.ActiveVessel)) && Time.realtimeSinceStartup - started < 3600f)
                     {
                         if (ProbeWatch.Gone(FlightGlobals.ActiveVessel)) break;
                         string now = MapPlannerWindow.Instance.FlightStatus;
+                        Scenario.Watch(now);
                         if (now != last)
                         {
                             Debug.Log(Log.Tag + " Probe: map planner: flight: " + now);

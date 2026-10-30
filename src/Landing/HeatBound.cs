@@ -27,6 +27,32 @@ namespace ReDefinition.Landing
     // (tests/ReDefinition.Tests/Data/heat-flux-points.csv) it never came under the flux the game reported, which was 13 to 27 % of it.
     internal static class HeatBound
     {
+        // The game's heating constants as they are now, which a mod may have changed.
+        internal static HeatConstants FromGame()
+        {
+            return new HeatConstants
+            {
+                MachFactor = PhysicsGlobals.MachConvectionFactor,
+                MachDensityExponent = PhysicsGlobals.MachConvectionDensityExponent,
+                MachVelocityExponent = PhysicsGlobals.MachConvectionVelocityExponent,
+                TurbulentStart = PhysicsGlobals.TurbulentConvectionStart,
+                TurbulentEnd = PhysicsGlobals.TurbulentConvectionEnd,
+                TurbulentMultiplier = PhysicsGlobals.TurbulentConvectionMult,
+                LerpStartMach = PhysicsGlobals.NewtonianMachTempLerpStartMach,
+                LerpEndMach = PhysicsGlobals.NewtonianMachTempLerpEndMach,
+                LerpExponent = PhysicsGlobals.NewtonianMachTempLerpExponent,
+                LowMachTemperatureFactor = PhysicsGlobals.NewtonianTemperatureFactor,
+                HighMachTemperatureScalar = PhysicsGlobals.MachTemperatureScalar,
+                HighMachTemperatureExponent = PhysicsGlobals.MachTemperatureVelocityExponent,
+            };
+        }
+
+        // What the difficulty's heat and the body's own multiplier scale the shock temperature by.
+        internal static double TemperatureScale(CelestialBody body)
+        {
+            return HighLogic.CurrentGame.Parameters.Difficulty.ReentryHeatScale * body.shockTemperatureMultiplier;
+        }
+
         // The temperature of the shock at this speed, before the difficulty's heat and the body's own multiplier scale it.
         internal static double ShockTemperature(double speed, double mach, HeatConstants constants)
         {

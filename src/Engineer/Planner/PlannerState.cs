@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -22,6 +23,13 @@ namespace ReDefinition.Engineer
         public int DeployAt = -1;
     }
 
+    // A section let go at a stop: the stop's index in the plan, and the section.
+    internal sealed class StopRelease
+    {
+        public int Stop;
+        public SectionRelease Section;
+    }
+
     // One vessel's plan: its route, with who flies to each destination and the
     // choices for the steps before it, the stages saved or dropped on each step, the
     // margin, whether plane changes count, and the vessel's sections. Kept per vessel
@@ -38,9 +46,18 @@ namespace ReDefinition.Engineer
         public double Margin = 0.1;
         public bool PlaneChanges = true;
         public readonly List<PlannedSection> Sections = new List<PlannedSection>();
+        // The satellites let go at the stops, by the part that separates them, as the planner last worked them out; kept so that a flight that
+        // is loaded again still knows what is to be let go.
+        public readonly List<StopRelease> Releases = new List<StopRelease>();
         // The kinds the planner adds by itself that the player took away.
         public readonly HashSet<SectionKind> Dismissed = new HashSet<SectionKind>();
         private int nextId = 1;
+
+        // The sections that are let go at the stop at this index.
+        internal List<SectionRelease> ReleasesAt(int stop)
+        {
+            return Releases.FindAll(release => release.Stop == stop).ConvertAll(release => release.Section);
+        }
 
         // The ids of the capsule, the satellite and the lander the planner finds, as
         // long as they are its own; the player's sections count up from 1.
@@ -202,6 +219,14 @@ namespace ReDefinition.Engineer
                 sectionNode.AddValue("group", section.Group);
                 sectionNode.AddValue("deployAt", section.DeployAt);
             }
+            foreach (StopRelease release in Releases)
+            {
+                ConfigNode releaseNode = node.AddNode("RELEASE");
+                releaseNode.AddValue("stop", release.Stop);
+                releaseNode.AddValue("name", release.Section.Name);
+                releaseNode.AddValue("separator", release.Section.SeparatorId);
+                releaseNode.AddValue("docking", release.Section.Docking);
+            }
             foreach (RouteStop stop in Stops)
             {
                 ConfigNode stopNode = node.AddNode("STOP");
@@ -320,6 +345,20 @@ namespace ReDefinition.Engineer
             // With a stop gone, a satellite's destination is not the one it was set to.
             if (skipped)
                 foreach (PlannedSection section in state.Sections) section.DeployAt = -1;
+            else
+                foreach (ConfigNode releaseNode in node.GetNodes("RELEASE"))
+                {
+                    int at;
+                    uint separator;
+                    bool docking;
+                    if (!int.TryParse(releaseNode.GetValue("stop"), out at) || at < 0 || at >= state.Stops.Count) continue;
+                    if (!uint.TryParse(releaseNode.GetValue("separator"), out separator) || separator == 0u) continue;
+                    bool.TryParse(releaseNode.GetValue("docking"), out docking);
+                    state.Releases.Add(new StopRelease
+                    {
+                        Stop = at, Section = new SectionRelease { Name = releaseNode.GetValue("name") ?? "Satellite", SeparatorId = separator, Docking = docking },
+                    });
+                }
             return state;
         }
     }

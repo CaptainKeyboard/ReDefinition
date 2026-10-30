@@ -126,7 +126,7 @@ namespace ReDefinition.Autopilot.Planning
 
         // Brings a transfer back to its aim with one small burn, early on the way. The burn is tried against KSP's own plan until the periapsis
         // at the target is within 3 % or a kilometre of the one asked for. No node where the vessel is on course already.
-        internal static Result CorrectCourse(Vessel vessel, CelestialBody target, double aimAltitude)
+        internal static Result CorrectCourse(Vessel vessel, CelestialBody target, double aimAltitude, bool keepCourse = false)
         {
             KspOrbits.ClearNodes(vessel);
             Orbit patch = KspOrbits.PatchAhead(vessel, target);
@@ -135,6 +135,7 @@ namespace ReDefinition.Autopilot.Planning
             double tolerance = Math.Max(1000.0, 0.03 * aimAltitude);
             string over = (patch.PeR - target.Radius).ToString("0") + " m over " + target.bodyName + ".";
             if (Math.Abs(patch.PeR - aim) <= tolerance) return new Result { Ok = true, Why = "On course, periapsis " + over };
+            if (keepCourse) return new Result { Ok = true, Why = "The course is kept, periapsis " + over };
             double at = Planetarium.GetUniversalTime() + 2.0 * LeadTime;
             if (at >= vessel.orbit.EndUT) return Result.Failed("The encounter is too close for a correction.");
             PatchedConicSolver solver = vessel.patchedConicSolver;
@@ -165,7 +166,7 @@ namespace ReDefinition.Autopilot.Planning
             }
             return new Result
             {
-                Ok = true, UT = at, DeltaV = KspOrbits.ToV3(burn),
+                Ok = true, UT = at, DeltaV = KspOrbits.ToV3(burn), Correction = true, Error = Math.Abs(patch.PeR - aim),
                 Why = "Correction of " + burn.magnitude.ToString("0.0") + " m/s, periapsis " + (periapsis - target.Radius).ToString("0") + " m over " + target.bodyName + ".",
             };
         }

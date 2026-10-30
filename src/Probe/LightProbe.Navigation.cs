@@ -29,6 +29,7 @@ namespace ReDefinition.Probe
             while (Time.realtimeSinceStartup - started < 900f && burns < 2 && !ProbeWatch.Gone(vessel))
             {
                 string now = RouteDriver.Instance.Status;
+                Scenario.Watch(now);
                 if (now != last)
                 {
                     Debug.Log(Log.Tag + " Probe: auto nodes: " + now);

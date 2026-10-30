@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReDefinition.Autopilot.Planning;
 using UnityEngine;
 
 namespace ReDefinition.Engineer
@@ -124,6 +125,10 @@ namespace ReDefinition.Engineer
                 section.Docks = section.Plan.Kind == SectionKind.Lander && section.CanDock;
             }
 
+            state.Releases.Clear();
+            for (int stop = 0; stop < state.Stops.Count; stop++)
+                foreach (SectionRelease release in ReleasesAt(stop)) state.Releases.Add(new StopRelease { Stop = stop, Section = release });
+
             partGroups = new int[facts.Count];
             for (int i = 0; i < facts.Count; i++)
             {
@@ -181,6 +186,19 @@ namespace ReDefinition.Engineer
                 case SectionKind.Lander: return detectedLander;
                 default: return null;
             }
+        }
+
+        // The sections that stay at the stop at this index and are let go there: each valid satellite, by the part that separates it.
+        internal List<SectionRelease> ReleasesAt(int stop)
+        {
+            var releases = new List<SectionRelease>();
+            foreach (LiveSection section in valid)
+            {
+                if (section.Plan.Kind != SectionKind.Satellite || DeployStop(section.Plan) != stop) continue;
+                uint separator = VesselShape.SeparatorId(section.Group);
+                if (separator != 0u) releases.Add(new SectionRelease { Name = section.Name, SeparatorId = separator, Docking = section.Group.DockingPort });
+            }
+            return releases;
         }
 
         // Where a satellite stays: the player's destination, or the first orbit the

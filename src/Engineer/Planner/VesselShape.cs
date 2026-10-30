@@ -126,6 +126,14 @@ namespace ReDefinition.Engineer
     // falls into the rest and the sections by them (Split). Free of Unity, tested.
     internal static class VesselShape
     {
+        // The id of the part a group is cut off by: the group's key is that part's id and the side it keeps. Zero where the key says none.
+        internal static uint SeparatorId(PartGroupChoice group)
+        {
+            uint id;
+            int colon = group != null && group.Key != null ? group.Key.IndexOf(':') : -1;
+            return colon > 0 && uint.TryParse(group.Key.Substring(0, colon), out id) ? id : 0u;
+        }
+
         // Every side of every decoupler and docking port the player can pick as a section, trimmed as above, each side once.
         internal static List<PartGroupChoice> Candidates(IList<PartFacts> parts)
         {
