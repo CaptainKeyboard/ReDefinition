@@ -182,6 +182,17 @@ namespace ReDefinition.Probe
                             FlightDriver.StartAndFocusVessel(game, index);
                             yield break;
                         }
+                        // -redefinitionProbeLeaveAtBurn: the flight is left, as the player would, while MechJeb burns; the route driver does the rest.
+                        if (CommandLine.Has("-redefinitionProbeLeaveAtBurn") && now.StartsWith("Burn: BURN") && Time.realtimeSinceStartup - started > 5f)
+                        {
+                            Debug.Log(Log.Tag + " Probe: the flight is left at a burn: " + now);
+                            ParsekLeave.Name = FlightGlobals.ActiveVessel.vesselName;
+                            ParsekLeave.RemovedPid = FlightGlobals.ActiveVessel.persistentId;
+                            ParsekLeave.Scene = GameScenes.TRACKSTATION;
+                            ParsekLeave.Active = true;
+                            HighLogic.LoadScene(GameScenes.TRACKSTATION);
+                            yield break;
+                        }
                         if (!shot && now.StartsWith("Burn"))
                         {
                             shot = true;

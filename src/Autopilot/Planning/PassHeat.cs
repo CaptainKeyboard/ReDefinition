@@ -32,7 +32,9 @@ namespace ReDefinition.Autopilot.Planning
         internal static void Watch(Vessel vessel)
         {
             if (modelBroken || vessel == null || vessel.mainBody == null || !vessel.mainBody.atmosphere || vessel.atmDensity <= 0.0) return;
-            if (vessel.mach < PhysicsGlobals.NewtonianMachTempLerpStartMach) return;
+            // Only where the game uses the hypersonic law alone: the bound was checked against points at Mach 7 to 9. Between the start and the end of the
+            // blend it is not checked, and a powered landing at the top of the air tripped the check there on Kerbin and on Duna.
+            if (vessel.mach < PhysicsGlobals.NewtonianMachTempLerpEndMach) return;
             double bound = HeatBound.FluxKW(vessel.atmDensity, vessel.srfSpeed, vessel.mach, HeatBound.TemperatureScale(vessel.mainBody), HeatBound.FromGame());
             bool over = false;
             foreach (Part part in vessel.parts)

@@ -58,6 +58,8 @@ namespace ReDefinition.Probe
             if (!ParsekLeave.Active) yield break;
             ParsekLeave.Active = false;
             yield return new WaitForSeconds(8f);
+            // The flight was left by the flight probe at a burn: the recording was made by the route driver, and its end is Parsek's.
+            if (ParsekLeave.EndUT <= 0.0) ParsekLeave.EndUT = ReDefinition.Autopilot.Flight.ParsekRecording.LatestEnd();
             Tell("on arrival");
             TimeWarp.fetch.WarpTo(ParsekLeave.EndUT + 120.0);
             float started = Time.realtimeSinceStartup;
@@ -75,10 +77,10 @@ namespace ReDefinition.Probe
             Tell("after the end");
             if (CommandLine.Has("-redefinitionProbeParsekResume"))
             {
-                // Flies the vessel Parsek put back round Duna: the autopilot on it goes on with the route.
+                // Flies the vessel Parsek put back round the destination: the autopilot on it goes on with the route.
                 Game game = HighLogic.CurrentGame.Updated();
-                int index = game.flightState.protoVessels.FindIndex(p => p.orbitSnapShot != null && p.orbitSnapShot.ReferenceBodyIndex == FlightGlobals.Bodies.FindIndex(b => b.bodyName == "Duna"));
-                Debug.Log(Log.Tag + " Probe: leave: the vessel round Duna is flown (" + index + ").");
+                int index = game.flightState.protoVessels.FindIndex(p => p.orbitSnapShot != null && p.orbitSnapShot.ReferenceBodyIndex == FlightGlobals.Bodies.FindIndex(b => b.bodyName == Destination));
+                Debug.Log(Log.Tag + " Probe: leave: the vessel round " + Destination + " is flown (" + index + ").");
                 ParsekLeave.Resumed = true;
                 if (index >= 0) FlightDriver.StartAndFocusVessel(game, index);
                 yield break;
@@ -104,11 +106,17 @@ namespace ReDefinition.Probe
             return state == null ? "has no route state" : state.GetValue("autopilot") == "True" ? "is on" : "is off";
         }
 
+        // The body the route ends at: where Parsek puts the vessel back.
+        private static string Destination
+        {
+            get { return CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Duna"; }
+        }
+
         private static void Tell(string when)
         {
-            var found = FlightGlobals.Vessels.Where(v => v.vesselName.StartsWith(ParsekLeave.Name) || v.mainBody.bodyName == "Duna").ToList();
+            var found = FlightGlobals.Vessels.Where(v => v.vesselName.StartsWith(ParsekLeave.Name) || v.mainBody.bodyName == Destination).ToList();
             Debug.Log(Log.Tag + " Probe: leave: " + when + ", UT " + Planetarium.GetUniversalTime().ToString("0") + " (the recording ends at " + ParsekLeave.EndUT.ToString("0")
-                      + "): " + found.Count + " vessel(s) named " + ParsekLeave.Name + " or round Duna.");
+                      + "): " + found.Count + " vessel(s) named " + ParsekLeave.Name + " or round " + Destination + ".");
             foreach (Vessel v in found)
                 Debug.Log(Log.Tag + " Probe: leave:   " + v.vesselName + " (pid " + v.persistentId + "), " + v.situation + ", round " + v.mainBody.bodyName + ", " + v.orbit.PeA.ToString("0") + " x " + v.orbit.ApA.ToString("0")
                           + " m, " + v.protoVessel.protoPartSnapshots.Count + " parts, the autopilot " + AutopilotOn(v) + ", crew " + string.Join("/", v.protoVessel.GetVesselCrew().Select(c => c.name).ToArray())

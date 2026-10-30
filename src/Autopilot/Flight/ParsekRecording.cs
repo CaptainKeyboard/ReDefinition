@@ -185,6 +185,32 @@ namespace ReDefinition.Autopilot.Flight
             }
         }
 
+        // The UT the latest of the recordings made here ends at; zero where there is none. For the probes, which read it after the flight is left.
+        internal static double LatestEnd()
+        {
+            double latest = 0.0;
+            if (!ForeignAssumptions.ParsekRecording.Holds) return latest;
+            try
+            {
+                Type store = TypeLookup.Find("Parsek.RecordingStore");
+                Type recordingType = TypeLookup.Find("Parsek.Recording");
+                IEnumerable list = store.GetProperty("CommittedRecordings", TypeLookup.Any).GetValue(null, null) as IEnumerable;
+                FieldInfo idField = recordingType.GetField("RecordingId", TypeLookup.Any);
+                PropertyInfo end = recordingType.GetProperty("EndUT", TypeLookup.Any);
+                if (list == null) return latest;
+                foreach (object item in list)
+                {
+                    string id = (string)idField.GetValue(item);
+                    if (id != null && id.StartsWith(IdPrefix)) latest = Math.Max(latest, (double)end.GetValue(item, null));
+                }
+            }
+            catch (Exception)
+            {
+                return 0.0;
+            }
+            return latest;
+        }
+
         // The snapshot of the vessel in a file of its own, before it is taken out of the world: what the player gets it back from if the recording is lost.
         private static void KeepSnapshot(Vessel vessel, ConfigNode snapshot)
         {

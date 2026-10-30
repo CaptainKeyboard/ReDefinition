@@ -65,7 +65,8 @@ namespace ReDefinition.Probe
 
         private static void Mark(string why)
         {
-            if (Lost) return;
+            // A vessel taken out of the world on purpose, to be put back by Parsek, is not lost.
+            if (Lost || ParsekLeave.Active) return;
             Lost = true;
             Why = why;
             Debug.Log(Log.Tag + " " + LostLine + ": " + why + ".");

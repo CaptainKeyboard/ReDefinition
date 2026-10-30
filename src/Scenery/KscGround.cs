@@ -179,7 +179,8 @@ namespace ReDefinition.Scenery
             notReady = "Parallax's terrain material not found with its textures";
             if (parallax == null) return false;
             if (colours == null && !MakeColours()) return false;
-            Debug.Log(Log.Tag + " Space centre lawns: drawn as Parallax's terrain (" + parallax.name + ", " + parallax.GetTexture("_MainTexMid").name
+            Texture mid = parallax.GetTexture("_MainTexMid");
+            Debug.Log(Log.Tag + " Space centre lawns: drawn as Parallax's terrain (" + parallax.name + ", " + (mid != null ? mid.name : "no mid texture")
                       + "; the terrain's colours under them " + colours.width + " x " + colours.height + " texels of "
                       + ColourTexel.ToString("0", System.Globalization.CultureInfo.InvariantCulture) + " m, mean " + lawnVertexColour + "; " + Census() + ").");
             return true;
