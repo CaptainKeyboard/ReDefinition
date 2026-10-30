@@ -1,14 +1,15 @@
 using System.Collections;
 using KSP.UI.Screens.Flight;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Hud
 {
-    // Where the autonavigation asks the nose to point in a climb or a descent: a green marker on the navball in that direction. It is made
+    // Where the navigation asks the nose to point in a climb or a descent: a green marker on the navball in that direction. It is made
     // in the way of the docking marker, a copy of the target's marker with a picture of its own, placed and faded the same way. It is shown
-    // while the autonavigation has a direction to ask for. With the nose on it the vessel points as asked.
+    // while the navigation has a direction to ask for. With the nose on it the vessel points as asked.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballGuideMarker : MonoBehaviour
     {
@@ -40,7 +41,7 @@ namespace ReDefinition.Hud
             copy.SetActive(false);
         }
 
-        // While the autonavigation has a direction: the marker placed and faded there; hidden otherwise.
+        // While the navigation has a direction: the marker placed and faded there; hidden otherwise.
         private void LateUpdate()
         {
             if (marker == null || navBall == null) return;

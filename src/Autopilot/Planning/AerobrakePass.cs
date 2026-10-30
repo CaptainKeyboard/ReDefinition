@@ -2,7 +2,7 @@ using System;
 using ReDefinition.Landing;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Planning
 {
     // How deep a pass through the air must dip, found by simulating it with the descent's simulation (MechJeb's ReentrySimulation, which ends a
     // run where the vessel leaves the air again). The height is found by halving between the ground and the top of the air. It is found to a
@@ -16,12 +16,6 @@ namespace ReDefinition.Autopilot
         private const int MostHalvings = 40;
         // The part of the pressure's height the pass is found to.
         private const double Precision = 0.05;
-        // The settling temperature of the hottest part over its limit, above which a pass is refused. The settling temperature is a flat-plate
-        // bound. On a Mun return through Kerbin's air it came out at twice the skin temperature the game showed on the hottest part (203 % of
-        // its limit against 101 %). A part at twice its limit by the bound is therefore at it by the game's model. Below that the flight's live
-        // guard holds.
-        private const double HeatBound = 2.0;
-
         // What one simulated pass came to.
         private struct Pass
         {
@@ -107,7 +101,12 @@ namespace ReDefinition.Autopilot
             why = null;
             double pressureLimit = Heat.MaxDynamicPressure / 1000.0;
             double geeLimit = GeeLimit(vessel);
-            Func<Pass, bool> within = pass => pass.Pressure <= pressureLimit && pass.Gees <= geeLimit && pass.Heat <= HeatBound;
+            // The heat: the hottest part's settling temperature under the bound of the flux may go to its limit less the margin the thrust controller
+            // keeps. The bound is above what the game does, so a pass that clears it needs no measurement. After a pass has been flown, what the
+            // game showed of it over the bound scales the next, which may then go deeper.
+            double calibration = PassHeat.Calibration(vessel);
+            double heatLimit = (1.0 - Heat.TemperatureMargin) / (double.IsNaN(calibration) ? 1.0 : calibration);
+            Func<Pass, bool> within = pass => pass.Pressure <= pressureLimit && pass.Gees <= geeLimit && pass.Heat <= heatLimit;
             double known = Precision * ScaleHeight(body);
             double shallow = body.atmosphereDepth, deep = 0.0;
             Pass top = run(shallow);
@@ -119,13 +118,8 @@ namespace ReDefinition.Autopilot
                 else deep = middle;
             }
             Pass atDeep = run(deep);
-            if (enough(atDeep) && within(atDeep))
-            {
-                Debug.Log("[ReDefinition] Aerobrake: a pass at " + deep.ToString("0") + " m is " + atDeep.Pressure.ToString("0.0") + " kPa, " + atDeep.Gees.ToString("0.0") + " g, "
-                          + (atDeep.Heat * 100.0).ToString("0") + " % heat by the bound.");
-                return deep;
-            }
-            // No pass that does it is within the limits: the shallowest that still brakes loads the vessel least, and several of them in turn do it.
+            bool deepFits = enough(atDeep) && within(atDeep);
+            // The shallowest pass that still brakes loads the vessel least, and several of them in turn do it.
             double skipping = shallow, braking = deep;
             for (int i = 0; i < MostHalvings && skipping - braking > known; i++)
             {
@@ -134,19 +128,32 @@ namespace ReDefinition.Autopilot
                 else braking = middle;
             }
             Pass atBraking = run(braking);
+            bool brakingFits = partly(atBraking) && within(atBraking);
             Debug.Log("[ReDefinition] Aerobrake: the pass that does it, at " + deep.ToString("0") + " m, is " + atDeep.Pressure.ToString("0.0") + " kPa, " + atDeep.Gees.ToString("0.0")
                       + " g, " + (atDeep.Heat * 100.0).ToString("0") + " % heat by the bound; the shallowest that brakes, at " + braking.ToString("0") + " m, " + atBraking.Pressure.ToString("0.0")
-                      + " kPa, " + atBraking.Gees.ToString("0.0") + " g, " + (atBraking.Heat * 100.0).ToString("0") + " %.");
-            if (partly(atBraking) && within(atBraking))
+                      + " kPa, " + atBraking.Gees.ToString("0.0") + " g, " + (atBraking.Heat * 100.0).ToString("0") + " %. Bound " + (heatLimit * 100.0).ToString("0") + " %"
+                      + (double.IsNaN(calibration) ? ", not yet measured." : ", measured " + calibration.ToString("0.00") + "."));
+            // Before a pass has been measured the vessel is walked in, as a spacecraft is in the air of Mars: the shallowest pass that brakes goes first,
+            // and what it shows judges the deeper ones.
+            if (double.IsNaN(calibration) && brakingFits)
             {
-                Debug.Log("[ReDefinition] Aerobrake: no pass does it in one go within the limits; the shallowest that brakes, at " + braking.ToString("0") + " m, is "
-                          + atBraking.Pressure.ToString("0.0") + " kPa, " + atBraking.Gees.ToString("0.0") + " g, " + (atBraking.Heat * 100.0).ToString("0") + " % heat by the bound.");
+                PassHeat.LastPredicted = atBraking.Heat;
+                return braking;
+            }
+            if (deepFits)
+            {
+                PassHeat.LastPredicted = atDeep.Heat;
+                return deep;
+            }
+            if (brakingFits)
+            {
+                PassHeat.LastPredicted = atBraking.Heat;
                 return braking;
             }
             if (enough(atDeep))
                 why = "The air of " + body.bodyName + " would load the vessel with " + atDeep.Pressure.ToString("0") + " kPa, " + atDeep.Gees.ToString("0") + " g and heat to "
                       + (atDeep.Heat * 100.0).ToString("0") + " % of a part's limit, over what it takes (" + pressureLimit.ToString("0") + " kPa, " + geeLimit.ToString("0")
-                      + " g, " + (HeatBound * 100.0).ToString("0") + " %). Slow it before it goes in.";
+                      + " g, " + (heatLimit * 100.0).ToString("0") + " %). Slow it before it goes in.";
             else
                 why = "No pass through the air of " + body.bodyName + " does what is asked of it.";
             return -1.0;
@@ -186,7 +193,7 @@ namespace ReDefinition.Autopilot
             try
             {
                 result = simulation.RunSimulation();
-                var pass = new Pass { Pressure = result.MaxDynamicPressurekPa, Gees = result.MaxDragGees, Apoapsis = double.MaxValue, Heat = Heat.PassShare(vessel, result.MaxHeatParameter) };
+                var pass = new Pass { Pressure = result.MaxDynamicPressurekPa, Gees = result.MaxDragGees, Apoapsis = double.MaxValue, Heat = PassHeat.PassShare(vessel, result.MaxConvectiveFluxKW) };
                 if (result.Outcome == ReentrySimulation.Outcome.LANDED) pass.Landed = true;
                 else if (result.Outcome == ReentrySimulation.Outcome.AEROBRAKED)
                 {

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 

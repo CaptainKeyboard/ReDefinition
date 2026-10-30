@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using ReDefinition.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Planning
 {
     // KSP's orbits and maneuver nodes seen by the orbit maths (src/Orbits). A state is taken in Unity's world axes, centred on the body, which do
     // not turn with it: the same frame the nodes' burn vectors are in. That frame is left-handed (Maneuvers.ToNodeFrame knows).

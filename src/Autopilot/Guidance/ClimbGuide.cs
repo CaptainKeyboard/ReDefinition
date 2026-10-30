@@ -1,12 +1,13 @@
 using System;
 using UnityEngine;
+using ReDefinition.Autopilot;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Guidance
 {
-    // What the autonavigation tells the player where there is no node to put in: how to fly the climb to an orbit. The values come from the
+    // What the navigation tells the player where there is no node to put in: how to fly the climb to an orbit. The values come from the
     // vessel's state in every second, from a gravity turn that is flat when the air is passed. The descent is told by LandingGuide. It does not
     // need MechJeb.
-    internal static class Guidance
+    internal static class ClimbGuide
     {
         // MechJeb's classic ascent path with its automatic values (MechJebModuleAscentSettings and MechJebModuleAscentClassicAutopilot, GPL-3.0). The
         // climb is straight up until the height or the speed of the turn's start, in air a twentieth of its depth, and 99 m/s. The pitch then

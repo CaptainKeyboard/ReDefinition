@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using KSP.UI;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using UnityEngine;
@@ -239,11 +241,11 @@ namespace ReDefinition.Engineer
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
-        // The two switches, the autonavigation and the autopilot, and the line that says what the route is doing.
+        // The two switches, the navigation and the autopilot, and the line that says what the route is doing.
         private DialogGUIBase Header(float width)
         {
             float button = (width - 8f - 6f) / 2f;
-            var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Autonavigation</color>" : "Autonavigation", ToggleNavigation, button, 28f, false);
+            var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Navigation</color>" : "Navigation", ToggleNavigation, button, 28f, false);
             navigation.OptionInteractableCondition = () => !Flying;
             navigation.tooltipText = "Plan the route and keep the plan up to date while you fly it yourself"
                                      + (ParsekBridge.Unavailable != null ? ". " + ParsekBridge.Unavailable : "");
@@ -268,16 +270,16 @@ namespace ReDefinition.Engineer
             if (route != null) RouteDriver.Instance.StartFlight(FlightGlobals.ActiveVessel, route);
         }
 
-        // Whether the route is planned for the player: by the autonavigation, and by the autopilot, which includes it.
+        // Whether the route is planned for the player: by the navigation, and by the autopilot, which includes it.
         private static bool NavigationOn()
         {
             RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
-            return state != null && (state.Autonavigation || state.Autopilot);
+            return state != null && (state.Navigation || state.Autopilot);
         }
 
         private void ToggleNavigation()
         {
-            if (RouteDriver.Instance != null) RouteDriver.Instance.SetAutonavigation(FlightGlobals.ActiveVessel, !NavigationOn());
+            if (RouteDriver.Instance != null) RouteDriver.Instance.SetNavigation(FlightGlobals.ActiveVessel, !NavigationOn());
         }
 
         // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.

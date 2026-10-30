@@ -1,6 +1,9 @@
 using System.Collections;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -19,8 +22,8 @@ namespace ReDefinition.Engineer
 
         internal static RouteDriver Instance;
 
-        private RouteFlight flight;
-        private NodeFollower follower = new NodeFollower();
+        private AutopilotFlight flight;
+        private Navigation follower = new Navigation();
         private Vessel followed;
         private float next;
         // When the vessel in focus was first seen: nothing is done to a vessel just loaded before it has settled.
@@ -82,22 +85,22 @@ namespace ReDefinition.Engineer
         }
 
         // The route planned and kept up to date for the player to fly, or not; the nodes it made go when it is switched off.
-        internal void SetAutonavigation(Vessel vessel, bool on)
+        internal void SetNavigation(Vessel vessel, bool on)
         {
             RouteState state = RouteState.Of(vessel);
             if (state == null) return;
-            state.Autonavigation = on;
-            follower = new NodeFollower();
+            state.Navigation = on;
+            follower = new Navigation();
             if (!on && !state.Autopilot) KspOrbits.ClearNodes(vessel);
         }
 
         private void Begin(Vessel vessel, RouteState state, List<Destination> destinations)
         {
-            flight = new RouteFlight(vessel, destinations);
+            flight = new AutopilotFlight(vessel, destinations);
             StartCoroutine(Run(flight, state));
         }
 
-        private IEnumerator Run(RouteFlight running, RouteState state)
+        private IEnumerator Run(AutopilotFlight running, RouteState state)
         {
             yield return running.Run();
             if (flight == running)
@@ -120,7 +123,7 @@ namespace ReDefinition.Engineer
                 flight = null;
                 followed = vessel;
                 seen = Time.realtimeSinceStartup;
-                follower = new NodeFollower();
+                follower = new Navigation();
                 route = null;
                 routeRead = -1000f;
             }
@@ -143,7 +146,7 @@ namespace ReDefinition.Engineer
                 Debug.Log(Log.Tag + " Route: the flight goes on for " + vessel.vesselName + ".");
                 Begin(vessel, state, route);
             }
-            else if (!state.Autopilot && state.Autonavigation)
+            else if (!state.Autopilot && state.Navigation)
             {
                 follower.Tick(vessel, ReadRoute(vessel));
             }
@@ -155,7 +158,7 @@ namespace ReDefinition.Engineer
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (vessel == null || vessel != followed) return;
             RouteState state = RouteState.Of(vessel);
-            if (state != null && !state.Autopilot && state.Autonavigation) follower.Guide(vessel);
+            if (state != null && !state.Autopilot && state.Navigation) follower.Guide(vessel);
         }
 
         // The vessel's saved route, read again every few seconds.

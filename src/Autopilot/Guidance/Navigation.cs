@@ -1,13 +1,16 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Planning;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Guidance
 {
     // Keeps the nodes of the route's next step on the vessel while the player flies the burns. The plan is made again when the orbit has
     // changed (a burn done, or flown a little off), when a node was missed, and when the route was edited. It does not plan during a burn
     // or in the air, nor more often than every thirty seconds, so that a plan that cannot be made is not tried over and over.
-    internal sealed class NodeFollower
+    internal sealed class Navigation
     {
         private const float MinGap = 30f;
         private const double MissedAfter = 60.0;
@@ -38,8 +41,8 @@ namespace ReDefinition.Autopilot
             {
                 double asked, fill;
                 string text;
-                Status = Guidance.Climb(vessel, aim, out asked, out fill, out text);
-                GuidanceBoard.Write(vessel, Status, Guidance.ClimbDirection(vessel, aim), asked, fill, text);
+                Status = ClimbGuide.Climb(vessel, aim, out asked, out fill, out text);
+                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text);
                 return;
             }
             if (step == NodePlanner.StepKind.Aerobrake)

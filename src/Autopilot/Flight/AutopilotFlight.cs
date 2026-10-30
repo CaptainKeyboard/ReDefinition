@@ -1,12 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using ReDefinition.Autopilot.Planning;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Flight
 {
     // A route flown by MechJeb: the next step is planned as a node, handed to MechJeb, waited for, and the route planned again from where
     // the burn left the vessel, until the last stop. Between burns the time is warped to the next change of orbit.
-    internal sealed class RouteFlight
+    internal sealed class AutopilotFlight
     {
         private const int MaxSteps = 24;
         private const int MaxFailures = 3;
@@ -21,7 +22,7 @@ namespace ReDefinition.Autopilot
         internal bool Arrived;
         internal bool Finished;
 
-        internal RouteFlight(Vessel vessel, IList<Destination> route)
+        internal AutopilotFlight(Vessel vessel, IList<Destination> route)
         {
             this.vessel = vessel;
             this.route = route;
@@ -210,12 +211,14 @@ namespace ReDefinition.Autopilot
             double toPeriapsis = vessel.orbit.timeToPe - NodePlanner.LeadTime;
             if (toPeriapsis > 30.0) TimeWarp.fetch.WarpTo(Planetarium.GetUniversalTime() + toPeriapsis);
             bool entered = false;
+            double peak = 0.0;
             while (!cancelled && !Lost && Time.realtimeSinceStartup - started < 1800f)
             {
                 bool inAir = vessel.situation == Vessel.Situations.FLYING;
                 entered |= inAir;
                 string hottest;
                 double share = Heat.Hottest(vessel, out hottest);
+                if (inAir) peak = System.Math.Max(peak, share);
                 // Retrograde, the heat shield first; but where a part is at its limit the vessel climbs out, nose away from the ground, on full thrust.
                 bool climbing = inAir && Heat.TemperatureThrottle(share) < 1.0;
                 if (vessel.Autopilot != null && vessel.Autopilot.Enabled)
@@ -224,12 +227,13 @@ namespace ReDefinition.Autopilot
                 if (climbing && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
                 Status = inAir ? "Aerobrake: in the air at " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, " + hottest + " at "
                                  + (share * 100.0).ToString("0") + " % of its limit." : "Aerobrake: waiting for the periapsis.";
-                if (inAir) Heat.LogFlux(vessel);
+                if (inAir) PassHeat.LogFlux(vessel);
                 if (entered && !inAir) break;
                 yield return new WaitForSeconds(1f);
             }
             FlightInputHandler.state.mainThrottle = 0f;
             vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
+            if (entered) PassHeat.Learn(vessel, peak);
         }
 
         // Waits while MechJeb flies the node, lighting the next stage where no engine runs for the burn.

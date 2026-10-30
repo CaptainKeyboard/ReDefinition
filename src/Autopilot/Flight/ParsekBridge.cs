@@ -3,7 +3,7 @@ using System.Reflection;
 using UnityEngine;
 using ReDefinition.Core;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Flight
 {
     // What the autopilot needs to know of Parsek, read through reflection behind the parsek-ghost assumption; nothing of Parsek is written.
     // A vessel Parsek replays from a recording, a ghost, takes no nodes and no orders: the plan leaves it alone.

@@ -2,6 +2,8 @@ using System.Collections;
 using System.Globalization;
 using System.IO;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Orbits;
 using UnityEngine;
@@ -72,7 +74,7 @@ namespace ReDefinition.Probe
         }
 
         // -redefinitionProbeFlyRoute <body>: the route from where the vessel is, the pad or an orbit, to an orbit round that body (50 km, or
-        // -redefinitionProbeRouteAltitude) or, with -redefinitionProbeRouteSurface, its surface. RouteFlight flies it with MechJeb, and the
+        // -redefinitionProbeRouteAltitude) or, with -redefinitionProbeRouteSurface, its surface. AutopilotFlight flies it with MechJeb, and the
         // status is logged as it changes, and where the vessel ends.
         private static IEnumerator FlyRouteShots(string folder, string bodyName)
         {
@@ -88,7 +90,7 @@ namespace ReDefinition.Probe
                 new Destination { Body = target, Surface = CommandLine.Has("-redefinitionProbeRouteSurface"), Altitude = altitude },
             };
             if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(Path.Combine(folder, "flight-trace.csv"));
-            var flight = new RouteFlight(vessel, route);
+            var flight = new AutopilotFlight(vessel, route);
             IEnumerator run = flight.Run();
             float started = Time.realtimeSinceStartup;
             string last = "";

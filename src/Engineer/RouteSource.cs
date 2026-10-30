@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Planning;
 
 namespace ReDefinition.Engineer
 {

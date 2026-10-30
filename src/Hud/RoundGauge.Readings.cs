@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Core;
 using ReDefinition.Hud.Panel;
 using ReDefinition.Hud.Readouts;
@@ -51,7 +52,7 @@ namespace ReDefinition.Hud
             }
         }
 
-        // The bar of the autonavigation: the arc stands over the mark in the middle of the scale where the throttle is to go up, and under it where
+        // The bar of the navigation: the arc stands over the mark in the middle of the scale where the throttle is to go up, and under it where
         // it is to go down. In a descent the arc is the speed against the speed it should be, in a climb the throttle asked for against the one given.
         private static GaugeReading GuidanceReading(ReadoutFrame frame)
         {

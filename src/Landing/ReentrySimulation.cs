@@ -71,7 +71,7 @@ namespace ReDefinition.Landing
 
         private double _maxDragGees;
         private double _maxDynamicPressurekPa;
-        private double _maxHeatParameter;
+        private double _maxConvectiveFluxKW;
         private double _deltaVExpended;
         private List<AbsoluteVector> _trajectory;
 
@@ -163,7 +163,7 @@ namespace ReDefinition.Landing
 
             _maxDragGees = 0;
             _maxDynamicPressurekPa = 0;
-            _maxHeatParameter = 0;
+            _maxConvectiveFluxKW = 0;
             _deltaVExpended = 0;
             _trajectory = ListPool<AbsoluteVector>.Instance.Borrow();
 
@@ -238,7 +238,7 @@ namespace ReDefinition.Landing
                 _result.TimeToComplete = _t - _inputUT;
                 _result.MaxDragGees = _maxDragGees;
                 _result.MaxDynamicPressurekPa = _maxDynamicPressurekPa;
-                _result.MaxHeatParameter = _maxHeatParameter;
+                _result.MaxConvectiveFluxKW = _maxConvectiveFluxKW;
                 _result.DeltaVExpended = _deltaVExpended;
                 _result.EndPosition = _referenceFrame.ToAbsolute(_x, _t);
                 _result.EndVelocity = _referenceFrame.ToAbsolute(_v, _t);
@@ -450,8 +450,7 @@ namespace ReDefinition.Landing
 
             float dynamicPressurekPa = (float)(0.0005 * airDensity * airVel.sqrMagnitude);
             _maxDynamicPressurekPa = Math.Max(_maxDynamicPressurekPa, dynamicPressurekPa);
-            _maxHeatParameter = Math.Max(_maxHeatParameter,
-                Math.Pow(airDensity, PhysicsGlobals.MachConvectionDensityExponent) * Math.Pow(airVel.magnitude, PhysicsGlobals.MachConvectionVelocityExponent));
+            _maxConvectiveFluxKW = Math.Max(_maxConvectiveFluxKW, ConvectiveFluxBoundKW(airDensity, airVel.magnitude, mach));
 
             double pseudoReynolds = airDensity * airVel.magnitude;
             double pseudoReDragMult = _simCurves.DragCurvePseudoReynolds.Evaluate((float)pseudoReynolds);
@@ -601,6 +600,31 @@ namespace ReDefinition.Landing
             return temperature;
         }
 
+        // The game's heating constants, as the bound of the flux takes them.
+        private static HeatConstants HeatConstantsNow()
+        {
+            return new HeatConstants
+            {
+                MachFactor = PhysicsGlobals.MachConvectionFactor,
+                MachDensityExponent = PhysicsGlobals.MachConvectionDensityExponent,
+                MachVelocityExponent = PhysicsGlobals.MachConvectionVelocityExponent,
+                TurbulentStart = PhysicsGlobals.TurbulentConvectionStart,
+                TurbulentEnd = PhysicsGlobals.TurbulentConvectionEnd,
+                TurbulentMultiplier = PhysicsGlobals.TurbulentConvectionMult,
+                LerpStartMach = PhysicsGlobals.NewtonianMachTempLerpStartMach,
+                LerpEndMach = PhysicsGlobals.NewtonianMachTempLerpEndMach,
+                LerpExponent = PhysicsGlobals.NewtonianMachTempLerpExponent,
+                LowMachTemperatureFactor = PhysicsGlobals.NewtonianTemperatureFactor,
+                HighMachTemperatureScalar = PhysicsGlobals.MachTemperatureScalar,
+                HighMachTemperatureExponent = PhysicsGlobals.MachTemperatureVelocityExponent,
+            };
+        }
+
+        private double ConvectiveFluxBoundKW(double airDensity, double speed, double mach)
+        {
+            return HeatBound.FluxKW(airDensity, speed, mach, HighLogic.CurrentGame.Parameters.Difficulty.ReentryHeatScale * _mainBody.shockTemperatureMultiplier, HeatConstantsNow());
+        }
+
         private double ShockTemperature(double velocity, double mach)
         {
             double newtonianTemperatureFactor = velocity * PhysicsGlobals.NewtonianTemperatureFactor;
@@ -691,7 +715,7 @@ namespace ReDefinition.Landing
 
             public double MaxDragGees;
             public double MaxDynamicPressurekPa;
-            public double MaxHeatParameter;
+            public double MaxConvectiveFluxKW;
             public double DeltaVExpended;
 
             public bool MultiplierHasError;

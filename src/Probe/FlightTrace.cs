@@ -2,6 +2,8 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEngine;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Guidance;
 
 namespace ReDefinition.Probe
 {
@@ -32,7 +34,7 @@ namespace ReDefinition.Probe
         // The first words of what the guidance says now, without the commas, to tell the step it is in.
         private static string Guidance(Vessel vessel)
         {
-            string text = ReDefinition.Autopilot.GuidanceBoard.Current(vessel) ? ReDefinition.Autopilot.GuidanceBoard.Line : "";
+            string text = GuidanceBoard.Current(vessel) ? GuidanceBoard.Line : "";
             if (text == null) return "";
             return (text.Length > 40 ? text.Substring(0, 40) : text).Replace(',', ';');
         }
@@ -69,7 +71,7 @@ namespace ReDefinition.Probe
                 .Append(TimeWarp.CurrentRateIndex).Append(',');
             double limit, brakeEnd, accel;
             string policy, limiter;
-            bool known = ReDefinition.Autopilot.MechJebDriver.LandingNumbers(vessel, out limit, out brakeEnd, out accel, out policy, out limiter);
+            bool known = MechJebDriver.LandingNumbers(vessel, out limit, out brakeEnd, out accel, out policy, out limiter);
             line.Append(known ? limit.ToString("0.0", culture) : "").Append(',').Append(known ? brakeEnd.ToString("0.0", culture) : "").Append(',')
                 .Append(known ? accel.ToString("0.00", culture) : "").Append(',').Append(policy).Append(',').Append(limiter).Append(',')
                 .Append(ReDefinition.Engineer.RouteDriver.Instance != null ? ReDefinition.Engineer.RouteDriver.Instance.GuidedThrottle.ToString("0.000", culture) : "").Append(',')

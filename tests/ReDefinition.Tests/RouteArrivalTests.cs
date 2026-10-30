@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Engineer;
 
 namespace ReDefinition.Tests

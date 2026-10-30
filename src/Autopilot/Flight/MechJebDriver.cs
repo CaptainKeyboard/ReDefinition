@@ -3,7 +3,7 @@ using System.Reflection;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Flight
 {
     // MechJeb as the hand that flies the nodes: its node executor aligns, warps to the burn, burns and stops. Reached through the vessel's master
     // core and reflection, behind the MechJebAutopilot assumption; without MechJeb, or with a build that does not match, nothing here is available.
@@ -169,6 +169,9 @@ namespace ReDefinition.Autopilot
         {
             object landing = Module(vessel, "Landing");
             if (landing == null) return false;
+            // MechJeb's landing warps through the coast to the brake only where its node executor's autowarp is on, which the burns set.
+            object executor = Executor(vessel);
+            if (executor != null) autowarpField.SetValue(executor, true);
             landing.GetType().GetMethod("LandUntargeted").Invoke(landing, new[] { user });
             return true;
         }

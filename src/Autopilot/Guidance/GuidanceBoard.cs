@@ -1,9 +1,9 @@
 using UnityEngine;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Autopilot.Guidance
 {
-    // What the autonavigation tells the player to do now, in the flight view: where to point, how much throttle to give, and a line that says it.
-    // The autonavigation writes it in every frame of a climb or a descent; the navball's marker and the round gauge read it. It is stale
+    // What the navigation tells the player to do now, in the flight view: where to point, how much throttle to give, and a line that says it.
+    // The navigation writes it in every frame of a climb or a descent; the navball's marker and the round gauge read it. It is stale
     // when nothing wrote it for a moment, or for another vessel.
     internal static class GuidanceBoard
     {

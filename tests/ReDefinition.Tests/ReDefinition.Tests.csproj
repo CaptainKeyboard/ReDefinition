@@ -34,6 +34,7 @@
   <!-- A landing MechJeb flew, recorded with its own speed limit (MechJebLandingReplayTests). -->
   <ItemGroup>
     <None Include="Data\mechjeb-landing-trace.csv" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Data\heat-flux-points.csv" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <!-- The game's assemblies the framework's types name, copied beside the tests
