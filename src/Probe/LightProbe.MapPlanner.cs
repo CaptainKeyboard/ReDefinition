@@ -54,7 +54,7 @@ namespace ReDefinition.Probe
         {
             double now = Planetarium.GetUniversalTime();
             State state = KspOrbits.StateAt(vessel.orbit, now);
-            double ground = vessel.mainBody.Radius + 3000.0;
+            double ground = vessel.mainBody.Radius + (vessel.mainBody.atmosphere ? vessel.mainBody.atmosphereDepth : 3000.0);
             double impact = -1.0;
             for (double t = 0.0; t < vessel.orbit.period; t += 5.0)
                 if (Kepler.Propagate(state, t, vessel.mainBody.gravParameter).R.Length <= ground)
@@ -109,7 +109,11 @@ namespace ReDefinition.Probe
                     WarpToImpact(vessel);
                 }
                 if (deorbited && now.StartsWith("Descent: no engine")) Engines.FireNextStageIfCold(vessel);
-                if (deorbited && (now.StartsWith("Descent") || now.StartsWith("Final") || now.StartsWith("Down")))
+                if (deorbited && now.StartsWith("Parachutes"))
+                    foreach (Part part in vessel.parts)
+                        foreach (ModuleParachute chute in part.FindModulesImplementing<ModuleParachute>())
+                            if (chute.deploymentState == ModuleParachute.deploymentStates.STOWED) chute.Deploy();
+                if (deorbited && (now.StartsWith("Descent") || now.StartsWith("Final") || now.StartsWith("Down") || now.StartsWith("Parachutes")))
                 {
                     if (!shownHud)
                     {
@@ -256,6 +260,12 @@ namespace ReDefinition.Probe
                 string wantedBody = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Kerbin";
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wantedBody + " set: " + MapPlannerWindow.Instance.SetDestination(wantedBody, 100000.0));
                 yield return AutoClimbRun(folder);
+                if (CommandLine.Has("-redefinitionProbeMapPlannerThenLand") && !ProbeWatch.Lost && FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING)
+                {
+                    yield return ProbeSteps.Frames(120);
+                    Debug.Log(Log.Tag + " Probe: map planner: destination " + wantedBody + " (the surface) set: " + MapPlannerWindow.Instance.SetSurfaceDestination(wantedBody));
+                    yield return AutoLandRun(folder);
+                }
                 Debug.Log(Log.Tag + " Probe: map planner done.");
                 yield break;
             }

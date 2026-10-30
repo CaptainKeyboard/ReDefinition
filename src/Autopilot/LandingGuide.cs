@@ -47,6 +47,8 @@ namespace ReDefinition.Autopilot
         internal string Describe(Vessel vessel)
         {
             string advice = Advice(vessel);
+            if (!vessel.LandedOrSplashed && result != null && ChutesToDeploy(vessel, result.Outcome == ReentrySimulation.Outcome.LANDED ? result.EndASL : 0.0))
+                advice = "Parachutes: let them out now. " + advice;
             string part;
             double hottest = Heat.Hottest(vessel, out part);
             return hottest > 0.8 ? advice + " HOT: " + part + " at " + (hottest * 100.0).ToString("0") + " % of its limit." : advice;
@@ -210,14 +212,14 @@ namespace ReDefinition.Autopilot
         {
             CelestialBody body = vessel.mainBody;
             if (!UsesAir(vessel, landing)) return VacuumBrakeEnd + landing;
-            return 1.1 * DragLength(body, landing, AverageDrag(vessel), vessel.GetTotalMass()) + landing;
+            return 1.1 * DragLength(body, landing, AverageDrag(vessel) + ParachuteDrag(vessel), vessel.GetTotalMass()) + landing;
         }
 
         // MechJeb's test: the air brakes the vessel before it reaches the ground where the drag length at the site is under 0.7 of the air's height.
         private static bool UsesAir(Vessel vessel, double landing)
         {
             CelestialBody body = vessel.mainBody;
-            return body.atmosphere && DragLength(body, landing, AverageDrag(vessel), vessel.GetTotalMass()) < 0.7 * body.atmosphereDepth;
+            return body.atmosphere && DragLength(body, landing, AverageDrag(vessel) + ParachuteDrag(vessel), vessel.GetTotalMass()) < 0.7 * body.atmosphereDepth;
         }
 
         private static IDescentSpeedPolicy Policy(Vessel vessel, double landing, double decelEnd, double gravity, double thrust)
@@ -235,6 +237,39 @@ namespace ReDefinition.Autopilot
             double density = FlightGlobals.getAtmDensity(FlightGlobals.getStaticPressure(position, body), FlightGlobals.getExternalTemperature(position, body));
             if (density <= 0.0) return double.MaxValue;
             return mass / (0.0005 * PhysicsGlobals.DragMultiplier * density * drag);
+        }
+
+        // What the parachutes add to the drag when they are all out: the most the deployed shape has over the packed one (MechJeb's
+        // ParachuteAddedDragCoef; not the exact number, but good enough).
+        private static double ParachuteDrag(Vessel vessel)
+        {
+            if (!vessel.mainBody.atmosphere) return 0.0;
+            float added = 0f;
+            foreach (Part part in vessel.parts)
+                foreach (ModuleParachute chute in part.FindModulesImplementing<ModuleParachute>())
+                {
+                    float most = 0f;
+                    foreach (DragCube cube in chute.part.DragCubes.Cubes)
+                    {
+                        if (cube.Name != "DEPLOYED") continue;
+                        for (int face = 0; face < 6; face++) most = Mathf.Max(most, chute.part.DragCubes.WeightedDrag[face] - cube.Weight * cube.Drag[face]);
+                    }
+                    added += most;
+                }
+            return added * PhysicsGlobals.DragCubeMultiplier;
+        }
+
+        // The parachutes that are packed, and may be let out now without tearing: where the vessel is under the height they are set to open at
+        // over the landing site (MechJeb's DeployParachutes).
+        internal static bool ChutesToDeploy(Vessel vessel, double landing)
+        {
+            if (!vessel.mainBody.atmosphere) return false;
+            foreach (Part part in vessel.parts)
+                foreach (ModuleParachute chute in part.FindModulesImplementing<ModuleParachute>())
+                    if (chute.deploymentState == ModuleParachute.deploymentStates.STOWED && chute.deploymentSafeState == ModuleParachute.deploymentSafeStates.SAFE
+                        && chute.deployAltitude + landing > vessel.altitude)
+                        return true;
+            return false;
         }
 
         // An average drag for the whole vessel: far from exact, and quick (MechJeb's VesselAverageDrag).

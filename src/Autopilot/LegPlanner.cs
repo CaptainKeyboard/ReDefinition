@@ -15,6 +15,9 @@ namespace ReDefinition.Autopilot
     // after it is handed to the planner that knows how to fly it.
     internal static class LegPlanner
     {
+        // How far over the periapsis a deorbit burn aims a periapsis in the air may lie before the burn is made again, in metres.
+        private const double DeorbitMargin = 1000.0;
+
         // Plans the next step of the leg to the first stop the vessel has not reached: a launch, a burn as a node, a descent, or the reason
         // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
         internal static NodePlanner.Result PlanNext(Vessel vessel, IList<Destination> route, bool forPlayer = false)
@@ -41,7 +44,8 @@ namespace ReDefinition.Autopilot
                 if (stop.Body == vessel.mainBody)
                 {
                     if (vessel.orbit.eccentricity >= 1.0) return NodePlanner.Capture(vessel);
-                    if (forPlayer && vessel.orbit.PeA > 0.0) return NodePlanner.Deorbit(vessel);
+                    bool high = vessel.mainBody.atmosphere ? vessel.orbit.PeA > NodePlanner.DeorbitAltitude(vessel.mainBody) + DeorbitMargin : vessel.orbit.PeA > 0.0;
+                    if (forPlayer && high) return NodePlanner.Deorbit(vessel);
                     return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
                 }
                 stop = new Destination { Body = stop.Body, Altitude = Parking(stop.Body) };

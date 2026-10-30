@@ -12,12 +12,16 @@ namespace ReDefinition.Probe
     {
         private const float Gap = 0.5f;
 
+        private static bool begun;
+
         private string path;
         private float next;
 
         // Starts the trace into the file, with its head line.
         internal static void Begin(string file)
         {
+            if (begun) return;
+            begun = true;
             var host = new GameObject("ReDefinitionFlightTrace");
             DontDestroyOnLoad(host);
             FlightTrace trace = host.AddComponent<FlightTrace>();

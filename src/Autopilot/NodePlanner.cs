@@ -298,6 +298,12 @@ namespace ReDefinition.Autopilot
             };
         }
 
+        // The height over the ground the deorbit burn puts the periapsis at: in the air, a share of its depth; without air, under the ground.
+        internal static double DeorbitAltitude(CelestialBody body)
+        {
+            return body.atmosphere ? EntryShare * body.atmosphereDepth : -UntargetedPeriapsis * body.Radius;
+        }
+
         // The burn that brings a vessel in a closed orbit down: retrograde at the apoapsis, as much as puts the periapsis below the ground. Without
         // air that is a tenth of the body's radius, as MechJeb's untargeted landing has it. The descent then meets the ground at a shallow angle.
         // Put in as a node.
