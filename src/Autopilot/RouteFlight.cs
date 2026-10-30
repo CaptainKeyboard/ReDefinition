@@ -10,9 +10,6 @@ namespace ReDefinition.Autopilot
     {
         private const int MaxSteps = 24;
         private const int MaxFailures = 3;
-        // How much more delta-v than the plan's the vessel must carry: a burn is flown a little off, and a landing costs more than the orbit's speed.
-        private const double BurnMargin = 1.05;
-        private const double LandingMargin = 1.25;
 
         private readonly Vessel vessel;
         private readonly IList<Destination> route;
@@ -103,11 +100,6 @@ namespace ReDefinition.Autopilot
                 if (plan.Kind == NodePlanner.StepKind.Landing)
                 {
                     Status = plan.Why;
-                    double circular = System.Math.Sqrt(vessel.mainBody.gravParameter / vessel.orbit.radius);
-                    if (!Enough(circular * LandingMargin, "the landing"))
-                    {
-                        yield break;
-                    }
                     if (!Engines.Running(vessel))
                     {
                         Engines.FireNextStageIfCold(vessel);
@@ -128,7 +120,7 @@ namespace ReDefinition.Autopilot
                     continue;
                 }
                 Status = plan.Why;
-                if (!Enough(plan.DeltaV.Length * BurnMargin, "the burn"))
+                if (!Enough(plan.DeltaV.Length, "the burn"))
                 {
                     KspOrbits.ClearNodes(vessel);
                     yield break;
@@ -149,10 +141,12 @@ namespace ReDefinition.Autopilot
             get { return vessel == null || vessel.state == Vessel.State.DEAD; }
         }
 
-        // Whether the vessel carries the delta-v asked for; if not, the flight stops, with the reason.
+        // Whether the vessel carries the delta-v asked for, as the game works it out stage by stage; if not, the flight stops, with the reason. Where
+        // the game has no figure yet, the flight goes on.
         private bool Enough(double needed, string what)
         {
-            double have = Engines.DeltaV(vessel);
+            if (vessel.VesselDeltaV == null) return true;
+            double have = vessel.VesselDeltaV.TotalDeltaVVac;
             if (have >= needed) return true;
             Stop("Not enough delta-v for " + what + ": " + needed.ToString("0") + " m/s needed, " + have.ToString("0") + " m/s on board.");
             return false;

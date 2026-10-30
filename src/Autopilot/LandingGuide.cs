@@ -15,8 +15,6 @@ namespace ReDefinition.Autopilot
     {
         // The vessel's brake ends this high over the landing site where there is no air to brake in; a controlled descent follows.
         private const double VacuumBrakeEnd = 200.0;
-        // The speed, as a part of the limit, from which the brake is lit.
-        private const double BrakeAt = 0.9;
         // How fast the throttle follows the limit, in seconds: MechJeb's.
         private const double FollowTime = 0.3;
         // The most the throttle changes in a second, as a share of its range, so that it is a curve a pilot can fly. It is no lag: a lag in the
@@ -24,7 +22,6 @@ namespace ReDefinition.Autopilot
         private const double MaxChange = 1.5;
         // The speed a vessel touches down at, in m/s: MechJeb's setting for it.
         private const double TouchdownSpeed = 0.5;
-        private const double MinimumGap = 0.2;
 
         private readonly Queue<ReentrySimulation.Result> ready = new Queue<ReentrySimulation.Result>();
         private readonly Stopwatch clock = new Stopwatch();

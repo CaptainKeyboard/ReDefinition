@@ -8,26 +8,54 @@ namespace ReDefinition.Autopilot
     // need MechJeb.
     internal static class Guidance
     {
-        // Where the pitch reaches the horizon, as a part of the air's depth; for a body without air, a fixed height in metres.
-        private const double TurnEndInAir = 0.55;
-        private const double TurnEndWithoutAir = 12000.0;
-        // The height over which the climb goes straight up, and the speed it needs for the turn to begin.
-        private const double VerticalHeight = 250.0;
-        private const double TurnSpeed = 60.0;
+        // MechJeb's classic ascent path with its automatic values (MechJebModuleAscentSettings and MechJebModuleAscentClassicAutopilot, GPL-3.0). The
+        // climb is straight up until the height or the speed of the turn's start, in air a twentieth of its depth, and 99 m/s. The pitch then
+        // falls from 90 degrees to the horizon at the turn's end, along a curve with this exponent.
+        private const double TurnShapeExponent = 0.4;
+        private const double AutoTurnPercent = 0.05;
+        private const double AutoTurnSpeedFactor = 18.5;
+        // Where the turn ends: in air this share of its depth, without air this share of the orbit's height, and not above 30 km.
+        private const double TurnEndShare = 0.85;
+        private const double TurnEndWithoutAirLimit = 30000.0;
+        // Without air the turn starts this high over the ground, in metres.
+        private const double TurnStartOverGround = 25.0;
+
+        // The height the turn really started at: where the speed for it was reached under the height for it, as MechJeb remembers it.
+        private static double actualTurnStart;
+        private static Guid turnVessel;
+
+        // The pitch to fly now, in degrees over the horizon, for a climb to an orbit at `aimAltitude`.
+        private static double Pitch(Vessel vessel, double aimAltitude)
+        {
+            CelestialBody body = vessel.mainBody;
+            if (turnVessel != vessel.id || vessel.LandedOrSplashed)
+            {
+                turnVessel = vessel.id;
+                actualTurnStart = 0.0;
+            }
+            double start = body.atmosphere ? body.atmosphereDepth * AutoTurnPercent : vessel.terrainAltitude + TurnStartOverGround;
+            double startSpeed = body.atmosphere ? AutoTurnSpeedFactor * AutoTurnSpeedFactor * AutoTurnSpeedFactor * 0.015625 : double.PositiveInfinity;
+            double end = body.atmosphere ? Math.Min(body.atmosphereDepth * TurnEndShare, aimAltitude) : Math.Min(TurnEndWithoutAirLimit, aimAltitude * TurnEndShare);
+            double height = vessel.altitude;
+            actualTurnStart = Math.Min(actualTurnStart, start);
+            if (height < start && vessel.srfSpeed < startSpeed)
+            {
+                actualTurnStart = Math.Max(actualTurnStart, height);
+                return 90.0;
+            }
+            if (height > end) return 0.0;
+            double fraction = Math.Pow((height - actualTurnStart) / (end - actualTurnStart), TurnShapeExponent);
+            return Math.Max(0.01, Math.Min(89.99, 90.0 - fraction * 90.0));
+        }
 
         // The direction to point along in the climb: up and over, as high as the pitch is, towards the heading.
-        internal static Vector3d ClimbDirection(Vessel vessel)
+        internal static Vector3d ClimbDirection(Vessel vessel, double aimAltitude)
         {
             CelestialBody body = vessel.mainBody;
             Vector3d up = (vessel.GetWorldPos3D() - body.position).normalized;
             Vector3d north = Vector3d.Exclude(up, body.RotationAxis).normalized;
             Vector3d east = Vector3d.Cross(up, north).normalized;
-            double height = vessel.altitude;
-            double turnEnd = body.atmosphere ? TurnEndInAir * body.atmosphereDepth : TurnEndWithoutAir;
-            double pitch = 90.0;
-            if (height > VerticalHeight && vessel.srfSpeed > TurnSpeed)
-                pitch = 90.0 * (1.0 - Math.Sqrt(Math.Min(1.0, (height - VerticalHeight) / (turnEnd - VerticalHeight))));
-            double radians = pitch * Math.PI / 180.0;
+            double radians = Pitch(vessel, aimAltitude) * Math.PI / 180.0;
             return up * Math.Sin(radians) + east * Math.Cos(radians);
         }
 
@@ -36,12 +64,7 @@ namespace ReDefinition.Autopilot
         // asked for against the throttle given: over its mark the throttle is to go up, under it down.
         internal static string Climb(Vessel vessel, double aimAltitude, out double asked, out double barFill, out string barText)
         {
-            CelestialBody body = vessel.mainBody;
-            double height = vessel.altitude;
-            double turnEnd = body.atmosphere ? TurnEndInAir * body.atmosphereDepth : TurnEndWithoutAir;
-            double pitch = 90.0;
-            if (height > VerticalHeight && vessel.srfSpeed > TurnSpeed)
-                pitch = 90.0 * (1.0 - Math.Sqrt(Math.Min(1.0, (height - VerticalHeight) / (turnEnd - VerticalHeight))));
+            double pitch = Pitch(vessel, aimAltitude);
             double latitude = vessel.latitude * Math.PI / 180.0;
             double heading = 90.0;
             double inclination = 0.0;

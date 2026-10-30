@@ -39,7 +39,7 @@ namespace ReDefinition.Autopilot
                 double asked, fill;
                 string text;
                 Status = Guidance.Climb(vessel, aim, out asked, out fill, out text);
-                GuidanceBoard.Write(vessel, Status, Guidance.ClimbDirection(vessel), asked, fill, text);
+                GuidanceBoard.Write(vessel, Status, Guidance.ClimbDirection(vessel, aim), asked, fill, text);
                 return;
             }
             Status = landing.Describe(vessel);

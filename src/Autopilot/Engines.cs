@@ -15,30 +15,25 @@ namespace ReDefinition.Autopilot
             return false;
         }
 
-        // How much of the nominal thrust the engines gave when last measured, and before a measurement a share that leaves room. Engines that
-        // are lit may be starved of fuel or limited, and give less than their maximum says.
-        private const double UnmeasuredShare = 0.75;
-        private static double measuredShare = UnmeasuredShare;
-
-        // The acceleration the engines that are lit give, or those of the stage to fire next where none is lit, at full thrust, in m/s2. It is
-        // the nominal thrust of the engines times the share they last gave, which is measured whenever the throttle is up.
+        // The acceleration the engines that are lit give, or those of the stage to fire next where none is lit, at full thrust, in m/s2. Each
+        // engine gives its fuel flow times its specific impulse at the air pressure there is now. An engine made for a vacuum gives little at
+        // the ground. This is how MechJeb's vessel state has it (VesselState.cs, GPL-3.0).
         internal static double Acceleration(Vessel vessel)
         {
             double thrust = 0.0;
-            double actual = 0.0;
             bool lit = Running(vessel);
+            float pressure = (float)(vessel.staticPressurekPa * PhysicsGlobals.KpaToAtmospheres);
             foreach (Part part in vessel.parts)
                 foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
                     if (lit ? engine.EngineIgnited && !engine.flameout : part.inverseStage == StageManager.CurrentStage - 1)
                     {
-                        thrust += engine.maxThrust * engine.thrustPercentage / 100.0;
-                        actual += engine.finalThrust;
+                        double isp = engine.atmosphereCurve.Evaluate(pressure);
+                        double most = engine.maxFuelFlow * engine.flowMultiplier * isp * engine.g;
+                        double least = engine.minFuelFlow * engine.flowMultiplier * isp * engine.g;
+                        thrust += least + (most - least) * engine.thrustPercentage / 100.0;
                     }
-            float throttle = FlightInputHandler.state.mainThrottle;
-            if (lit && throttle > 0.2f && thrust > 0.0)
-                measuredShare += (System.Math.Max(0.2, System.Math.Min(1.0, actual / (throttle * thrust))) - measuredShare) * 0.1;
             double mass = vessel.GetTotalMass();
-            return mass > 0.0 ? thrust * measuredShare / mass : 0.0;
+            return mass > 0.0 ? thrust / mass : 0.0;
         }
 
         // Whether an engine gives thrust now: what the burn is, whoever holds the throttle.
@@ -49,25 +44,6 @@ namespace ReDefinition.Autopilot
                 foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
                     if (engine.finalThrust > 0.01f) return true;
             return false;
-        }
-
-        // The delta-v the propellant on board gives: the best vacuum specific impulse of its engines on the whole mass, by the rocket equation. It
-        // counts every tank, the stages not yet fired too, so it is the most the vessel could give.
-        internal static double DeltaV(Vessel vessel)
-        {
-            double propellant = 0.0;
-            double isp = 0.0;
-            foreach (Part part in vessel.parts)
-            {
-                foreach (PartResource resource in part.Resources)
-                    if (resource.resourceName == "LiquidFuel" || resource.resourceName == "Oxidizer" || resource.resourceName == "SolidFuel")
-                        propellant += resource.amount * resource.info.density;
-                foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
-                    isp = System.Math.Max(isp, engine.atmosphereCurve.Evaluate(0f));
-            }
-            double mass = vessel.GetTotalMass();
-            if (propellant <= 0.0 || isp <= 0.0 || propellant >= mass) return 0.0;
-            return isp * 9.80665 * System.Math.Log(mass / (mass - propellant));
         }
 
         // The fuel the vessel carries, in units of liquid fuel, and the throttle: what a log line says about a burn.
