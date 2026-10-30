@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using KSP.UI.Screens;
+using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Engineer;
 using UnityEngine;
 
 namespace ReDefinition.Dashboard
@@ -174,6 +177,18 @@ namespace ReDefinition.Dashboard
             };
             readers["o.nodeLead"] = (v, a) => nodeLead * 100;
             readers["n.speed"] = (v, a) => SpeedShown(v);
+            // The navigation: where it asks the nose to point (given as n.maneuver is), the throttle it asks for, the bar of the round gauge with its
+            // text and level, and the line that says what to do. All are null while it has nothing for this vessel. g.route is what the route is
+            // doing, with g.navigation and g.autopilot for the two switches.
+            readers["n.guide"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasDirection ? Local(v, GuidanceBoard.Direction) : null;
+            readers["g.line"] = (v, a) => GuidanceBoard.Current(v) ? GuidanceBoard.Line : null;
+            readers["g.throttle"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasThrottle ? (object)GuidanceBoard.Throttle : null;
+            readers["g.barFill"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.BarFill : null;
+            readers["g.barText"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? GuidanceBoard.BarText : null;
+            readers["g.barLevel"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.BarLevel : null;
+            readers["g.route"] = (v, a) => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : null;
+            readers["g.navigation"] = (v, a) => RouteState.Of(v) != null && RouteState.Of(v).Navigation;
+            readers["g.autopilot"] = (v, a) => RouteState.Of(v) != null && RouteState.Of(v).Autopilot;
             readers["n.steerTarget"] = (v, a) => FlyByWire.Target;       // where a navball drag turns the vessel, or null
             readers["n.steerTargetTop"] = (v, a) => FlyByWire.TargetTop; // where its top will point there, or null
             readers["n.steerAltitude"] = (v, a) => FlyByWire.TargetAltitude; // the turn is done by this altitude, or null

@@ -22,18 +22,23 @@ namespace ReDefinition.Autopilot
         {
             double thrust = 0.0;
             bool lit = Running(vessel);
-            float pressure = (float)(vessel.staticPressurekPa * PhysicsGlobals.KpaToAtmospheres);
+            double pressure = vessel.staticPressurekPa * PhysicsGlobals.KpaToAtmospheres;
             foreach (Part part in vessel.parts)
                 foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
                     if (lit ? engine.EngineIgnited && !engine.flameout : part.inverseStage == StageManager.CurrentStage - 1)
-                    {
-                        double isp = engine.atmosphereCurve.Evaluate(pressure);
-                        double most = engine.maxFuelFlow * engine.flowMultiplier * isp * engine.g;
-                        double least = engine.minFuelFlow * engine.flowMultiplier * isp * engine.g;
-                        thrust += least + (most - least) * engine.thrustPercentage / 100.0;
-                    }
+                        thrust += FullThrust(engine, pressure);
             double mass = vessel.GetTotalMass();
             return mass > 0.0 ? thrust / mass : 0.0;
+        }
+
+        // What one engine gives at full throttle at an air pressure (in atmospheres), at its thrust limit, in kN. It is the fuel flow times the
+        // specific impulse at that pressure times g0, as MechJeb's vessel state and the game work it out. A vacuum engine gives little at the ground.
+        internal static double FullThrust(ModuleEngines engine, double pressureAtmospheres)
+        {
+            double isp = engine.atmosphereCurve != null ? engine.atmosphereCurve.Evaluate((float)pressureAtmospheres) : 0.0;
+            double most = engine.maxFuelFlow * engine.flowMultiplier * isp * engine.g;
+            double least = engine.minFuelFlow * engine.flowMultiplier * isp * engine.g;
+            return least + (most - least) * engine.thrustPercentage / 100.0;
         }
 
         // Whether an engine gives thrust now: what the burn is, whoever holds the throttle.

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReDefinition.Autopilot;
 using UnityEngine;
 
 namespace ReDefinition.Hud.Readouts
@@ -57,10 +58,7 @@ namespace ReDefinition.Hud.Readouts
         // NaN until worked out for the refresh.
         private double maxThrust = double.NaN;
 
-        // What the engines lit now give at full throttle where the vessel is, in kN.
-        // It is each engine's full fuel flow times its Isp at the pressure here times g0,
-        // at its thrust limit (ModuleEngines: maxFuelFlow, atmosphereCurve,
-        // thrustPercentage), as KSP works an engine's thrust out.
+        // What the engines lit now give at full throttle where the vessel is, in kN, each by Engines.FullThrust.
         internal double MaxThrust
         {
             get
@@ -73,8 +71,7 @@ namespace ReDefinition.Hud.Readouts
                     {
                         ModuleEngines engine = part.Modules[m] as ModuleEngines;
                         if (engine == null || !engine.EngineIgnited || !engine.isOperational || engine.flameout) continue;
-                        double isp = engine.atmosphereCurve != null ? engine.atmosphereCurve.Evaluate((float)pressure) : 0.0;
-                        sum += engine.maxFuelFlow * isp * engine.g * engine.thrustPercentage * 0.01;
+                        sum += Engines.FullThrust(engine, pressure);
                     }
                 return maxThrust = sum;
             }
@@ -209,17 +206,7 @@ namespace ReDefinition.Hud.Readouts
         // The part nearest its temperature limit, by the higher share of its inside's and its skin's.
         private double FindHottest(out string name)
         {
-            double worst = 0.0;
-            name = "";
-            foreach (Part part in Vessel.parts)
-            {
-                double share = Math.Max(part.maxTemp > 0.0 ? part.temperature / part.maxTemp : 0.0,
-                                        part.skinMaxTemp > 0.0 ? part.skinTemperature / part.skinMaxTemp : 0.0);
-                if (share <= worst) continue;
-                worst = share;
-                name = part.partInfo != null ? part.partInfo.title : part.name;
-            }
-            return worst;
+            return Heat.Hottest(Vessel, out name);
         }
 
         // ------------------------------------------------------------- nodes
