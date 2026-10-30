@@ -223,6 +223,29 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // Hands the docking to MechJeb's docking autopilot: the vessel's own port made the one it is controlled from, the target's port the target.
+        // The persistent id of a free port of the target's that one of the vessel's own free ports suits, the nearest such; zero where there is none.
+        // The target must be loaded for its ports to be read.
+        internal static uint FreeTargetPort(Vessel vessel, Vessel targetVessel)
+        {
+            uint found = 0u;
+            double nearest = double.MaxValue;
+            foreach (Part part in targetVessel.parts)
+            {
+                ModuleDockingNode target = part.FindModuleImplementing<ModuleDockingNode>();
+                if (target == null || target.state != "Ready") continue;
+                foreach (Part own in vessel.parts)
+                {
+                    ModuleDockingNode port = own.FindModuleImplementing<ModuleDockingNode>();
+                    if (port == null || port.state != "Ready" || port.nodeType != target.nodeType || (port.gendered && port.genderFemale == target.genderFemale)) continue;
+                    double distance = (own.transform.position - part.transform.position).magnitude;
+                    if (distance >= nearest) continue;
+                    nearest = distance;
+                    found = part.persistentId;
+                }
+            }
+            return found;
+        }
+
         internal static bool StartDocking(Vessel vessel, Vessel targetVessel, uint targetPort)
         {
             if (!ForeignAssumptions.MechJebRendezvous.Holds) return false;

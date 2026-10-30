@@ -63,6 +63,9 @@ namespace ReDefinition.Engineer
             Vessel vessel = FlightGlobals.ActiveVessel;
             RouteState state = RouteState.Of(vessel);
             if ((scene != GameScenes.SPACECENTER && scene != GameScenes.TRACKSTATION) || vessel == null || state == null || !state.Autopilot || route == null) return;
+            // A burn that is under way ends here: the vessel is recorded, and put back, without thrust, and the route is planned again from its orbit.
+            if (flight != null) flight.Cancel();
+            FlightInputHandler.state.mainThrottle = 0f;
             try
             {
                 RoutePlan plan = RouteSimulation.Run(vessel, route);

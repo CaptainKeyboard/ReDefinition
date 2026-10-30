@@ -64,9 +64,12 @@ namespace ReDefinition.Autopilot.Planning
             public System.Guid Target;
             public uint Port;
 
-            public static Result Rendezvous(System.Guid target, uint port, string why)
+            // Whether the step ends with a docking, at the port above or, where it is zero, at a free one of the target's.
+            public bool Dock;
+
+            public static Result Rendezvous(System.Guid target, uint port, bool dock, string why)
             {
-                return new Result { Ok = true, Kind = StepKind.Rendezvous, Target = target, Port = port, Why = why };
+                return new Result { Ok = true, Kind = StepKind.Rendezvous, Target = target, Port = port, Dock = dock, Why = why };
             }
 
             public static Result Release(SectionRelease section, string why)

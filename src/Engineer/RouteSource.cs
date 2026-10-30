@@ -42,6 +42,8 @@ namespace ReDefinition.Engineer
             last.MeetWith = vessel.id;
             ModuleDockingNode port = target as ModuleDockingNode;
             last.DockWith = port != null ? port.part.persistentId : 0u;
+            // A port as the target means a docking; a probe's switch asks for one with a vessel as the target.
+            last.Dock = port != null || CommandLine.Has("-redefinitionProbeDock");
         }
 
         // How the planner has the stop arrived at, as the planner's own steps read it (RouteSteps.Across). A landing that uses the air goes straight

@@ -166,9 +166,11 @@ namespace ReDefinition.Autopilot.Flight
                     }
                     yield return Meet(target);
                     MechJebDriver.StopRendezvous(vessel);
-                    if (plan.Port != 0u && !cancelled && !Lost && target != null && LegPlanner.Met(vessel, target))
+                    if ((plan.Port != 0u || plan.Dock) && !cancelled && !Lost && target != null && LegPlanner.Met(vessel, target))
                     {
-                        if (!MechJebDriver.StartDocking(vessel, target, plan.Port))
+                        // The target is loaded now, so its ports can be read: the free one that suits the vessel's own is the one to dock at.
+                        uint port = plan.Port != 0u ? plan.Port : MechJebDriver.FreeTargetPort(vessel, target);
+                        if (port == 0u || !MechJebDriver.StartDocking(vessel, target, port))
                         {
                             Stop("MechJeb would not start the docking: it needs a free port that suits the target's, and RCS.");
                             yield break;

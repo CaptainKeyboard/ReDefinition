@@ -86,6 +86,8 @@ namespace ReDefinition.Probe
             if (CommandLine.Has("-redefinitionProbeParsekThenStation") && HighLogic.LoadedScene == GameScenes.SPACECENTER)
             {
                 ParsekLeave.Second = true;
+                // The tracking station building saves the game before the scene is loaded, which keeps the time.
+                GamePersistence.SaveGame("persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
                 HighLogic.LoadScene(GameScenes.TRACKSTATION);
                 yield break;
             }

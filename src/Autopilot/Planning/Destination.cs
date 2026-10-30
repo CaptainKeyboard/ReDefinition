@@ -17,6 +17,9 @@ namespace ReDefinition.Autopilot.Planning
         // vessel docks with it. Empty where the stop is not a meeting.
         public System.Guid MeetWith;
         public uint DockWith;
+        // The vessel docks with the target after the meeting, at a free port of the target's that suits one of its own: the port is chosen
+        // when the target is loaded, which it is only near. DockWith names the port where the player chose one.
+        public bool Dock;
         // The sections that stay at this stop and are let go there: a satellite, by the part that separates it.
         public List<SectionRelease> Releases = new List<SectionRelease>();
     }

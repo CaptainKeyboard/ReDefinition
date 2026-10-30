@@ -76,7 +76,7 @@ namespace ReDefinition.Autopilot.Planning
                 {
                     // The last stop is met with a vessel: MechJeb's rendezvous brings the vessel there, from wherever it is in the orbit round the body.
                     Vessel meet = stop.MeetWith != System.Guid.Empty ? MeetingTarget(frame, stop) : null;
-                    if (meet != null) return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, (stop.DockWith != 0u ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
+                    if (meet != null) return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, stop.Dock, (stop.Dock ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
                     if (!stop.Aerobrake || !(frame.Orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(frame, stop.Altitude);
                     // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds. A plan
                     // ahead does not simulate the pass: it ends there.
@@ -129,7 +129,18 @@ namespace ReDefinition.Autopilot.Planning
         private static bool Done(Vessel vessel, Vessel target, Destination stop)
         {
             if (stop.DockWith != 0u) return vessel.parts.Exists(p => p.persistentId == stop.DockWith);
+            if (stop.Dock) return Docked(vessel);
             return Met(vessel, target);
+        }
+
+        // Whether one of the vessel's docking ports is docked: its state says so.
+        internal static bool Docked(Vessel vessel)
+        {
+            return vessel.parts.Exists(p =>
+            {
+                ModuleDockingNode port = p.FindModuleImplementing<ModuleDockingNode>();
+                return port != null && port.state != null && port.state.StartsWith("Docked");
+            });
         }
 
         // Whether the vessel has met the target, as MechJeb's rendezvous counts it: nearer than the distance it was asked for, and nearly at rest to
@@ -246,6 +257,7 @@ namespace ReDefinition.Autopilot.Planning
                 if (target != null && target.mainBody == frame.Body) return Done(frame.Vessel, target, stop);
                 // With the target gone, a docking is done where the port is now a part of the vessel; else the orbit is judged as for any stop.
                 if (stop.DockWith != 0u && frame.Vessel.parts.Exists(p => p.persistentId == stop.DockWith)) return true;
+                if (stop.Dock && Docked(frame.Vessel)) return true;
             }
             double tolerance = System.Math.Max(2000.0, 0.1 * stop.Altitude);
             return System.Math.Abs(frame.Orbit.PeA - stop.Altitude) <= tolerance && System.Math.Abs(frame.Orbit.ApA - stop.Altitude) <= tolerance;
