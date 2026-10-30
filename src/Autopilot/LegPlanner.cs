@@ -32,7 +32,7 @@ namespace ReDefinition.Autopilot
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
             bool landing = stop.Surface && stop.Body == vessel.mainBody && !OnTheGround(vessel);
-            double aim = stop.Body == vessel.mainBody ? stop.Altitude : Parking(vessel.mainBody);
+            double aim = stop.Body == vessel.mainBody ? stop.Altitude : LowOrbit(vessel.mainBody);
             bool climbing = vessel.situation == Vessel.Situations.SUB_ORBITAL && vessel.orbit.PeA < 0.0 && vessel.orbit.ApA < 0.98 * aim;
             if (!landing && (OnTheGround(vessel) || vessel.situation == Vessel.Situations.FLYING || climbing))
             {
@@ -48,7 +48,7 @@ namespace ReDefinition.Autopilot
                     if (forPlayer && high) return NodePlanner.Deorbit(vessel);
                     return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
                 }
-                stop = new Destination { Body = stop.Body, Altitude = Parking(stop.Body) };
+                stop = new Destination { Body = stop.Body, Altitude = LowOrbit(stop.Body) };
             }
             if (stop.Body == vessel.mainBody)
                 return vessel.orbit.eccentricity >= 1.0 ? NodePlanner.Capture(vessel) : NodePlanner.ChangeOrbit(vessel, stop.Altitude);
@@ -66,10 +66,28 @@ namespace ReDefinition.Autopilot
                 : NodePlanner.TransferToBody(vessel, stop.Body, stop.Altitude);
         }
 
-        // The altitude of the orbit a vessel waits in before it goes on or comes down: clear of the air by 30 km, and 25 km at least.
-        internal static double Parking(CelestialBody body)
+        // In metres: a low orbit's height over the atmosphere, and over the highest ground of a body without air.
+        private const double LowOrbitMargin = 10000.0;
+        private const double TerrainMargin = 5000.0;
+
+        // The altitude of a body's low orbit, which the planner shows for a stop and the autopilot flies where the route gives none. It lies above
+        // the atmosphere, or above the highest ground where the body has terrain; a twentieth of the radius otherwise, and the same margin.
+        // It is inside the body's sphere of influence, in whole kilometres.
+        internal static double LowOrbit(CelestialBody body)
         {
-            return System.Math.Max(25000.0, body.atmosphere ? body.atmosphereDepth + 30000.0 : 0.0);
+            double altitude;
+            if (body.atmosphere)
+            {
+                altitude = body.atmosphereDepth + LowOrbitMargin;
+            }
+            else
+            {
+                double highest = body.pqsController != null ? body.pqsController.radiusMax - body.Radius : 0.0;
+                altitude = highest > 0.0 ? highest + TerrainMargin : body.Radius * 0.05 + TerrainMargin;
+            }
+            if (body.sphereOfInfluence > 0.0 && body.Radius + altitude > body.sphereOfInfluence)
+                altitude = System.Math.Max(1000.0, (body.sphereOfInfluence - body.Radius) / 2.0);
+            return System.Math.Ceiling(altitude / 1000.0) * 1000.0;
         }
 
         private static bool OnTheGround(Vessel vessel)

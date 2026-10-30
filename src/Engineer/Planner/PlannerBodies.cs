@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using ReDefinition.Autopilot;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -16,9 +17,6 @@ namespace ReDefinition.Engineer
         public readonly List<int> Order = new List<int>();
         public int Home;
 
-        // In metres: a low orbit's height over the atmosphere, and over the highest ground of a body without air.
-        private const double LowOrbitMargin = 10000.0;
-        private const double TerrainMargin = 5000.0;
         // Whether the low orbits went to the log yet: once per game.
         private static bool logged;
 
@@ -51,7 +49,7 @@ namespace ReDefinition.Engineer
                     SemiMajorAxis = body.orbit != null ? body.orbit.semiMajorAxis : 0.0,
                     Inclination = body.orbit != null ? body.orbit.inclination : 0.0,
                     SphereOfInfluence = body.sphereOfInfluence > 0.0 ? body.sphereOfInfluence : double.PositiveInfinity,
-                    LowOrbitAltitude = LowOrbit(body),
+                    LowOrbitAltitude = LegPlanner.LowOrbit(body),
                     Oxygen = body.atmosphere && body.atmosphereContainsOxygen,
                     SpeedOfSound = HighSpeedOfSound(body),
                 });
@@ -102,26 +100,6 @@ namespace ReDefinition.Engineer
                 if (Bodies[i].Parent == body && i != body) moons.Add(i);
             moons.Sort((a, b) => Bodies[a].SemiMajorAxis.CompareTo(Bodies[b].SemiMajorAxis));
             foreach (int moon in moons) AddWithMoons(moon);
-        }
-
-        // Above the atmosphere, or above the highest ground where the terrain is
-        // known; a twentieth of the radius and the same margin otherwise. In
-        // whole kilometres.
-        private static double LowOrbit(CelestialBody body)
-        {
-            double altitude;
-            if (body.atmosphere)
-            {
-                altitude = body.atmosphereDepth + LowOrbitMargin;
-            }
-            else
-            {
-                double highest = body.pqsController != null ? body.pqsController.radiusMax - body.Radius : 0.0;
-                altitude = highest > 0.0 ? highest + TerrainMargin : body.Radius * 0.05 + TerrainMargin;
-            }
-            if (body.sphereOfInfluence > 0.0 && body.Radius + altitude > body.sphereOfInfluence)
-                altitude = Math.Max(1000.0, (body.sphereOfInfluence - body.Radius) / 2.0);
-            return Math.Ceiling(altitude / 1000.0) * 1000.0;
         }
 
         // By the name the game knows the body by, whatever the language.

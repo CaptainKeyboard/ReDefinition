@@ -3,7 +3,7 @@ using System;
 namespace ReDefinition.Orbits
 {
     // Leaving a body: the velocity at a place that carries a vessel out of the body's gravity with a given velocity at infinity, and the cheapest
-    // place on a parking orbit to burn it.
+    // place on the orbit it leaves from to burn it.
     internal static class Ejection
     {
         // The velocity at `position` (relative to the body, parameter `mu`) of the hyperbola whose velocity at infinity is `excess`. The hyperbola
