@@ -27,6 +27,15 @@ namespace ReDefinition.Autopilot
         // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
         internal static NodePlanner.Result PlanNext(Vessel vessel, IList<Destination> route, bool forPlayer = false)
         {
+            string note;
+            NodePlanner.Result result = Plan(vessel, route, forPlayer, out note);
+            if (note != null && result.Ok && result.Why != null) result.Why = note + result.Why;
+            return result;
+        }
+
+        private static NodePlanner.Result Plan(Vessel vessel, IList<Destination> route, bool forPlayer, out string note)
+        {
+            note = null;
             if (vessel == null || route == null || route.Count < 2) return NodePlanner.Result.Failed("There is no route.");
             int last = -1;
             for (int i = 0; i < route.Count; i++)
@@ -36,6 +45,17 @@ namespace ReDefinition.Autopilot
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
+            // Where the air would load the vessel beyond what it takes, the stop is reached by burning, as a stop that does not use the air.
+            if (stop.Direct || stop.Aerobrake)
+            {
+                string refused = AirRefused(vessel, stop);
+                if (refused != null)
+                {
+                    note = "The air is not used: " + refused + " ";
+                    Debug.Log("[ReDefinition] Route: " + note);
+                    stop = new Destination { Body = stop.Body, Surface = stop.Surface, Altitude = stop.Altitude };
+                }
+            }
             bool landing = stop.Surface && stop.Body == vessel.mainBody && !OnTheGround(vessel);
             double aim = stop.Body == vessel.mainBody ? stop.Altitude : LowOrbit(vessel.mainBody);
             bool climbing = vessel.situation == Vessel.Situations.SUB_ORBITAL && vessel.orbit.PeA < 0.0 && vessel.orbit.ApA < 0.98 * aim;
@@ -65,7 +85,7 @@ namespace ReDefinition.Autopilot
                     if (!stop.Aerobrake || !(vessel.orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(vessel, stop.Altitude);
                     // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds.
                     string why;
-                    double pass = AerobrakePass.Choose(vessel, stop.Altitude, out why);
+                    double pass = AerobrakePass.FromOrbit(vessel, stop.Altitude, out why);
                     if (pass < 0.0) return NodePlanner.Result.Failed(why);
                     double tolerance = System.Math.Max(1000.0, 0.03 * pass);
                     if (vessel.orbit.PeA < pass - tolerance) return NodePlanner.LiftToAirPass(vessel, pass);
@@ -86,9 +106,37 @@ namespace ReDefinition.Autopilot
                 return NodePlanner.Eject(vessel, stop.Body, Aim(stop));
             if (stop.Body.referenceBody != vessel.mainBody)
                 return NodePlanner.Result.Failed("A way from " + vessel.mainBody.bodyName + " to " + stop.Body.bodyName + " is not planned as nodes yet.");
-            return KspOrbits.PatchAhead(vessel, stop.Body) != null
-                ? NodePlanner.CorrectCourse(vessel, stop.Body, Aim(stop))
-                : NodePlanner.TransferToBody(vessel, stop.Body, Aim(stop));
+            Orbit encounter = KspOrbits.PatchAhead(vessel, stop.Body);
+            if (encounter == null) return NodePlanner.TransferToBody(vessel, stop.Body, Aim(stop));
+            double entry = Aim(stop);
+            if (stop.Direct || stop.Aerobrake)
+            {
+                // The periapsis to aim at is the depth of a pass the vessel takes, found by simulating it, and none where the air would break it.
+                string why;
+                entry = AerobrakePass.FromApproach(vessel, encounter, stop.Direct, out why);
+                if (entry < 0.0) return NodePlanner.Result.Failed(why);
+            }
+            return NodePlanner.CorrectCourse(vessel, stop.Body, entry);
+        }
+
+        // Why the air cannot be used to arrive at the stop, or null where it can, or where there is not yet an approach to judge it by: the pass the
+        // vessel would take on the approach, or from the orbit it is in, would load it beyond its limits.
+        private static string AirRefused(Vessel vessel, Destination stop)
+        {
+            string why = null;
+            Orbit approach = null;
+            if (stop.Body == vessel.mainBody) approach = vessel.orbit;
+            else if (stop.Body.referenceBody == vessel.mainBody) approach = KspOrbits.PatchAhead(vessel, stop.Body);
+            if (approach == null) return null;
+            if (approach.eccentricity >= 1.0) AerobrakePass.FromApproach(vessel, approach, stop.Direct, out why);
+            else if (stop.Aerobrake && vessel.orbit.ApA > LowOrbitOf(stop) + NodePlanner.Near(LowOrbitOf(stop))) AerobrakePass.FromOrbit(vessel, LowOrbitOf(stop), out why);
+            return why;
+        }
+
+        // The altitude of the orbit the stop is reached in: its own, or the body's low orbit for a landing.
+        private static double LowOrbitOf(Destination stop)
+        {
+            return stop.Surface ? LowOrbit(stop.Body) : stop.Altitude;
         }
 
         // The height over the body the way across aims its periapsis at: the pass through the air where the arrival uses it, else the orbit.

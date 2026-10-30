@@ -212,13 +212,23 @@ namespace ReDefinition.Autopilot
             bool entered = false;
             while (!cancelled && !Lost && Time.realtimeSinceStartup - started < 1800f)
             {
-                if (vessel.Autopilot != null && vessel.Autopilot.Enabled) vessel.Autopilot.SetMode(VesselAutopilot.AutopilotMode.Retrograde);
                 bool inAir = vessel.situation == Vessel.Situations.FLYING;
                 entered |= inAir;
-                Status = inAir ? "Aerobrake: in the air at " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s." : "Aerobrake: waiting for the periapsis.";
+                string hottest;
+                double share = Heat.Hottest(vessel, out hottest);
+                // Retrograde, the heat shield first; but where a part is at its limit the vessel climbs out, nose away from the ground, on full thrust.
+                bool climbing = inAir && Heat.TemperatureThrottle(share) < 1.0;
+                if (vessel.Autopilot != null && vessel.Autopilot.Enabled)
+                    vessel.Autopilot.SetMode(climbing ? VesselAutopilot.AutopilotMode.RadialOut : VesselAutopilot.AutopilotMode.Retrograde);
+                FlightInputHandler.state.mainThrottle = climbing ? 1f : 0f;
+                if (climbing && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                Status = inAir ? "Aerobrake: in the air at " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, " + hottest + " at "
+                                 + (share * 100.0).ToString("0") + " % of its limit." : "Aerobrake: waiting for the periapsis.";
+                if (inAir) Heat.LogFlux(vessel);
                 if (entered && !inAir) break;
                 yield return new WaitForSeconds(1f);
             }
+            FlightInputHandler.state.mainThrottle = 0f;
             vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
         }
 

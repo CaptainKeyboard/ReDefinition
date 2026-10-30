@@ -70,6 +70,8 @@ namespace ReDefinition.Landing
         private Vector3 _lastRecordedDrag;
 
         private double _maxDragGees;
+        private double _maxDynamicPressurekPa;
+        private double _maxHeatParameter;
         private double _deltaVExpended;
         private List<AbsoluteVector> _trajectory;
 
@@ -160,6 +162,8 @@ namespace ReDefinition.Landing
             }
 
             _maxDragGees = 0;
+            _maxDynamicPressurekPa = 0;
+            _maxHeatParameter = 0;
             _deltaVExpended = 0;
             _trajectory = ListPool<AbsoluteVector>.Instance.Borrow();
 
@@ -233,6 +237,8 @@ namespace ReDefinition.Landing
                 _result.EndUT = _t;
                 _result.TimeToComplete = _t - _inputUT;
                 _result.MaxDragGees = _maxDragGees;
+                _result.MaxDynamicPressurekPa = _maxDynamicPressurekPa;
+                _result.MaxHeatParameter = _maxHeatParameter;
                 _result.DeltaVExpended = _deltaVExpended;
                 _result.EndPosition = _referenceFrame.ToAbsolute(_x, _t);
                 _result.EndVelocity = _referenceFrame.ToAbsolute(_v, _t);
@@ -443,6 +449,9 @@ namespace ReDefinition.Landing
             float mach = Mathf.Min((float)(airVel.magnitude / speedOfSound), 50f);
 
             float dynamicPressurekPa = (float)(0.0005 * airDensity * airVel.sqrMagnitude);
+            _maxDynamicPressurekPa = Math.Max(_maxDynamicPressurekPa, dynamicPressurekPa);
+            _maxHeatParameter = Math.Max(_maxHeatParameter,
+                Math.Pow(airDensity, PhysicsGlobals.MachConvectionDensityExponent) * Math.Pow(airVel.magnitude, PhysicsGlobals.MachConvectionVelocityExponent));
 
             double pseudoReynolds = airDensity * airVel.magnitude;
             double pseudoReDragMult = _simCurves.DragCurvePseudoReynolds.Evaluate((float)pseudoReynolds);
@@ -681,6 +690,8 @@ namespace ReDefinition.Landing
             public List<AbsoluteVector> Trajectory;
 
             public double MaxDragGees;
+            public double MaxDynamicPressurekPa;
+            public double MaxHeatParameter;
             public double DeltaVExpended;
 
             public bool MultiplierHasError;

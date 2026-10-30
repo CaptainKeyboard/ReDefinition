@@ -11,9 +11,6 @@ namespace ReDefinition.Autopilot
         // landing, UntargetedDeorbit: a tenth).
         private const double UntargetedPeriapsis = 0.1;
 
-        // The smallest correction worth a burn, in m/s: at the distance of a planet the periapsis moves by kilometres for less than that.
-        private const double MinCorrection = 0.1;
-
         // The least time between now and a burn, in seconds: room to see the node and turn the vessel.
         internal const double LeadTime = 60.0;
 
@@ -262,11 +259,6 @@ namespace ReDefinition.Autopilot
             {
                 KspOrbits.ClearNodes(vessel);
                 return Result.Failed("No correction was found that brings the periapsis to " + aimAltitude.ToString("0") + " m.");
-            }
-            if (burn.magnitude < MinCorrection)
-            {
-                KspOrbits.ClearNodes(vessel);
-                return new Result { Ok = true, Why = "On course, a correction of " + burn.magnitude.ToString("0.00") + " m/s is not worth a burn. Periapsis " + over };
             }
             return new Result
             {
