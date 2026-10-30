@@ -273,8 +273,12 @@ namespace ReDefinition.Probe
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";
                 bool landOn = CommandLine.Has("-redefinitionProbeMapPlannerLand");
+                string from = CommandLine.After("-redefinitionProbeMapPlannerFrom");
+                if (from != null)
+                    Debug.Log(Log.Tag + " Probe: map planner: start " + from + " set: " + MapPlannerWindow.Instance.SetStart(from, FlightGlobals.ActiveVessel.orbit.PeA));
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + (landOn ? " (the surface)" : "") + " set: "
-                          + (landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted) : MapPlannerWindow.Instance.SetDestination(wanted, 30000.0)));
+                          + (landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted, CommandLine.Has("-redefinitionProbeMapPlannerAir"), CommandLine.Has("-redefinitionProbeMapPlannerOrbitFirst"))
+                                    : MapPlannerWindow.Instance.SetDestination(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "30000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))));
                 if (!ResumeDone && !CommandLine.Has("-redefinitionProbeMapPlannerAuto"))
                 {
                     MapPlannerWindow.Instance.PlanNow();
@@ -299,7 +303,7 @@ namespace ReDefinition.Probe
                     string last = "";
                     bool shot = false;
                     ProbeWatch.Arm(FlightGlobals.ActiveVessel);
-                    while (MapPlannerWindow.Instance.Flying && Time.realtimeSinceStartup - started < 1500f)
+                    while (MapPlannerWindow.Instance.Flying && Time.realtimeSinceStartup - started < 3600f)
                     {
                         if (ProbeWatch.Gone(FlightGlobals.ActiveVessel)) break;
                         string now = MapPlannerWindow.Instance.FlightStatus;

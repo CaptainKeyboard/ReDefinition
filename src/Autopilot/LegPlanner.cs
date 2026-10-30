@@ -9,6 +9,11 @@ namespace ReDefinition.Autopilot
         public CelestialBody Body;
         public bool Surface;
         public double Altitude;
+        // Arriving through the air: straight into it for a landing, or into it to brake and then out into the orbit. PassAltitude is how high
+        // over the ground the pass has its periapsis, in metres, where the arrival uses the air.
+        public bool Direct;
+        public bool Aerobrake;
+        public double PassAltitude;
     }
 
     // The next leg of a route from where the vessel is, planned as nodes. The stop the vessel has reached is found, and the leg to the one
@@ -43,26 +48,53 @@ namespace ReDefinition.Autopilot
             {
                 if (stop.Body == vessel.mainBody)
                 {
-                    if (vessel.orbit.eccentricity >= 1.0) return NodePlanner.Capture(vessel);
+                    if (vessel.orbit.eccentricity >= 1.0)
+                    {
+                        if (stop.Direct) return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + " straight from the approach.");
+                        return stop.Aerobrake ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.") : NodePlanner.Capture(vessel);
+                    }
                     if (forPlayer && vessel.orbit.PeA > NodePlanner.DeorbitAltitude(vessel.mainBody) + DeorbitMargin) return NodePlanner.Deorbit(vessel);
                     return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
                 }
-                stop = new Destination { Body = stop.Body, Altitude = LowOrbit(stop.Body) };
+                stop = new Destination { Body = stop.Body, Altitude = LowOrbit(stop.Body), Direct = stop.Direct, Aerobrake = stop.Aerobrake, PassAltitude = stop.PassAltitude };
             }
             if (stop.Body == vessel.mainBody)
-                return vessel.orbit.eccentricity >= 1.0 ? NodePlanner.Capture(vessel) : NodePlanner.ChangeOrbit(vessel, stop.Altitude);
+            {
+                if (vessel.orbit.eccentricity < 1.0)
+                {
+                    if (!stop.Aerobrake || !(vessel.orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(vessel, stop.Altitude);
+                    // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds.
+                    string why;
+                    double pass = AerobrakePass.Choose(vessel, stop.Altitude, out why);
+                    if (pass < 0.0) return NodePlanner.Result.Failed(why);
+                    double tolerance = System.Math.Max(1000.0, 0.03 * pass);
+                    if (vessel.orbit.PeA < pass - tolerance) return NodePlanner.LiftToAirPass(vessel, pass);
+                    if (vessel.orbit.PeA > pass + tolerance && vessel.orbit.PeA >= vessel.mainBody.atmosphereDepth)
+                        return NodePlanner.Deorbit(vessel, vessel.mainBody.Radius + pass, "Lower the periapsis into the air for the aerobraking pass");
+                    return vessel.orbit.PeA < vessel.mainBody.atmosphereDepth
+                        ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis at the periapsis, a pass at " + (pass / 1000.0).ToString("0.#") + " km.")
+                        : NodePlanner.ChangeOrbit(vessel, stop.Altitude);
+                }
+                return stop.Aerobrake ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.") : NodePlanner.Capture(vessel);
+            }
             if (vessel.orbit.eccentricity >= 1.0 && vessel.orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE)
                 return new NodePlanner.Result { Ok = true, Why = "Leaving " + vessel.mainBody.bodyName + "." };
             CelestialBody here = vessel.mainBody;
             // The sun is its own reference body in KSP and has no orbit to leave on.
             if (here.orbit != null && here.referenceBody != null && here.referenceBody != here
                 && (stop.Body == here.referenceBody || stop.Body.referenceBody == here.referenceBody))
-                return NodePlanner.Eject(vessel, stop.Body, stop.Altitude);
+                return NodePlanner.Eject(vessel, stop.Body, Aim(stop));
             if (stop.Body.referenceBody != vessel.mainBody)
                 return NodePlanner.Result.Failed("A way from " + vessel.mainBody.bodyName + " to " + stop.Body.bodyName + " is not planned as nodes yet.");
             return KspOrbits.PatchAhead(vessel, stop.Body) != null
-                ? NodePlanner.CorrectCourse(vessel, stop.Body, stop.Altitude)
-                : NodePlanner.TransferToBody(vessel, stop.Body, stop.Altitude);
+                ? NodePlanner.CorrectCourse(vessel, stop.Body, Aim(stop))
+                : NodePlanner.TransferToBody(vessel, stop.Body, Aim(stop));
+        }
+
+        // The height over the body the way across aims its periapsis at: the pass through the air where the arrival uses it, else the orbit.
+        private static double Aim(Destination stop)
+        {
+            return stop.PassAltitude > 0.0 ? stop.PassAltitude : stop.Altitude;
         }
 
         // In metres: a low orbit's height over the atmosphere, and over the highest ground of a body without air.

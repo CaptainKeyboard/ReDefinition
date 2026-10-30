@@ -73,8 +73,23 @@ namespace ReDefinition.Engineer
             if (view != null) PlanNodes();
         }
 
+        // For the probes: the route's first stop set to an orbit round a body, where the vessel starts.
+        internal bool SetStart(string bodyName, double altitude)
+        {
+            IList<RouteStop> stops = view != null ? view.RouteStops : null;
+            PlannerBodies bodies = view != null ? view.BodyList : null;
+            if (stops == null || bodies == null || stops.Count < 2) return false;
+            int index = bodies.Bodies.FindIndex(b => b.Id == bodyName);
+            if (index < 0) return false;
+            stops[0].Body = index;
+            stops[0].Kind = StopKind.Orbit;
+            stops[0].Altitude = altitude;
+            view.SaveNow();
+            return true;
+        }
+
         // For the probes: the route's second stop set to an orbit round a body, as the player sets it with the rows.
-        internal bool SetDestination(string bodyName, double altitude)
+        internal bool SetDestination(string bodyName, double altitude, bool useAtmosphere = false)
         {
             IList<RouteStop> stops = view != null ? view.RouteStops : null;
             PlannerBodies bodies = view != null ? view.BodyList : null;
@@ -84,12 +99,13 @@ namespace ReDefinition.Engineer
             stops[1].Body = index;
             stops[1].Kind = StopKind.Orbit;
             stops[1].Altitude = altitude;
+            stops[1].UseAtmosphere = useAtmosphere;
             view.SaveNow();
             return true;
         }
 
         // For the probes: the route's second stop set to the surface of a body.
-        internal bool SetSurfaceDestination(string bodyName)
+        internal bool SetSurfaceDestination(string bodyName, bool useAtmosphere = false, bool orbitFirst = false)
         {
             IList<RouteStop> stops = view != null ? view.RouteStops : null;
             PlannerBodies bodies = view != null ? view.BodyList : null;
@@ -99,6 +115,8 @@ namespace ReDefinition.Engineer
             stops[1].Body = index;
             stops[1].Kind = StopKind.Surface;
             stops[1].Altitude = 0.0;
+            stops[1].UseAtmosphere = useAtmosphere;
+            stops[1].OrbitFirst = orbitFirst;
             view.SaveNow();
             return true;
         }

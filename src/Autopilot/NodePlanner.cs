@@ -23,6 +23,7 @@ namespace ReDefinition.Autopilot
             Burn,
             Ascent,
             Landing,
+            Aerobrake,
         }
 
         // What a plan came to: a burn at a time, and why, or the reason there is none. Ok with a time of zero is a plan that needs no burn.
@@ -53,10 +54,22 @@ namespace ReDefinition.Autopilot
                 return new Result { Ok = true, Kind = StepKind.Landing, Why = why };
             }
 
+            public static Result Aerobrake(string why)
+            {
+                return new Result { Ok = true, Kind = StepKind.Aerobrake, Why = why };
+            }
+
             public static Result Done(string why)
             {
                 return new Result { Ok = true, Arrived = true, Why = why };
             }
+        }
+
+        // How far an apsis may lie from the altitude of an orbit and still count as on it, in metres: a tenth of the altitude, and two kilometres
+        // at least.
+        internal static double Near(double altitude)
+        {
+            return Math.Max(2000.0, 0.1 * altitude);
         }
 
         // A transfer from the vessel's orbit to a moon or a planet that orbits the same body, put in as a node. It leaves within the next
@@ -127,7 +140,7 @@ namespace ReDefinition.Autopilot
             double radius = body.Radius + altitude;
             State here = KspOrbits.StateAt(orbit, now);
             var conic = new Conic(here, mu);
-            double near = Math.Max(2000.0, 0.1 * altitude);
+            double near = Near(altitude);
             if (Math.Abs(orbit.PeA - altitude) <= near || Math.Abs(orbit.ApA - altitude) <= near) return Round(vessel, here, mu, Math.Abs(orbit.ApA - altitude) < Math.Abs(orbit.PeA - altitude));
             double safe = body.atmosphere ? body.atmosphereDepth + 1000.0 : 1000.0;
             if (orbit.PeA < safe && altitude > orbit.PeA) return LiftPeriapsis(vessel, here, mu, body.Radius + Math.Max(altitude, safe));
@@ -305,6 +318,12 @@ namespace ReDefinition.Autopilot
         // Put in as a node.
         internal static Result Deorbit(Vessel vessel)
         {
+            return Deorbit(vessel, vessel.mainBody.Radius * (1.0 - UntargetedPeriapsis), "Deorbit");
+        }
+
+        // The same burn to a periapsis at another radius, for a pass through the air that lowers the apoapsis, with the name the plan gives it.
+        internal static Result Deorbit(Vessel vessel, double periapsisRadius, string name)
+        {
             Orbit orbit = vessel.orbit;
             CelestialBody body = vessel.mainBody;
             if (orbit == null || orbit.eccentricity >= 1.0) return Result.Failed("The orbit is not closed.");
@@ -312,13 +331,23 @@ namespace ReDefinition.Autopilot
             double mu = body.gravParameter;
             State here = KspOrbits.StateAt(orbit, now);
             Burn burn;
-            double lowest = body.Radius * (1.0 - UntargetedPeriapsis);
-            if (!Maneuvers.ChangeOpposite(here, mu, true, lowest, out burn)) return Result.Failed("No burn was found.");
+            if (!Maneuvers.ChangeOpposite(here, mu, true, periapsisRadius, out burn)) return Result.Failed("No burn was found.");
             if (burn.Delay < LeadTime) burn = new Burn(burn.Delay + new Conic(here, mu).Period, burn.DeltaV);
             double ut = now + burn.Delay;
             KspOrbits.ClearNodes(vessel);
             if (KspOrbits.AddNode(vessel, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
-            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = "Deorbit: " + burn.Magnitude.ToString("0") + " m/s retrograde at the apoapsis." };
+            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = name + ": " + burn.Magnitude.ToString("0") + " m/s retrograde at the apoapsis." };
+        }
+
+        // The burn that lifts a periapsis that lies too deep to the height of a pass through the air, for an aerobraking pass that slows the vessel.
+        internal static Result LiftToAirPass(Vessel vessel, double passAltitude)
+        {
+            CelestialBody body = vessel.mainBody;
+            if (vessel.orbit == null || vessel.orbit.eccentricity >= 1.0) return Result.Failed("The orbit is not closed.");
+            State here = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
+            Result result = LiftPeriapsis(vessel, here, body.gravParameter, body.Radius + passAltitude);
+            if (result.Ok) result.Why = "Lift the periapsis to " + (passAltitude / 1000.0).ToString("0.#") + " km, into the air, for the aerobraking pass: " + result.DeltaV.Length.ToString("0") + " m/s.";
+            return result;
         }
 
         // The burn that lifts a periapsis that lies in the ground or the air, soon: a burn along the velocity a little ahead, as big as brings the

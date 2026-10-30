@@ -16,9 +16,23 @@ namespace ReDefinition.Engineer
                 if (stop.Kind == StopKind.Entry || stop.Kind == StopKind.Transfer) continue;
                 string id = stop.Body >= 0 && stop.Body < bodies.Bodies.Count ? bodies.Bodies[stop.Body].Id : null;
                 CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
-                route.Add(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude });
+                route.Add(Arrival(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude }, stop, bodies));
             }
             return route.Count >= 2 ? route : null;
+        }
+
+        // How the planner has the stop arrived at, as the planner's own steps read it (RouteSteps.Across). A landing that uses the air goes straight
+        // into it, or into an orbit first by aerobraking; an orbit that uses the air is reached by aerobraking. Both dip into the air as far as
+        // the planner's pass does.
+        internal static Destination Arrival(Destination destination, RouteStop stop, PlannerBodies bodies)
+        {
+            if (stop.Body < 0 || stop.Body >= bodies.Bodies.Count) return destination;
+            PlannerBody body = bodies.Bodies[stop.Body];
+            if (!stop.UseAtmosphere || !body.HasAtmosphere) return destination;
+            destination.Direct = stop.Kind == StopKind.Surface && !stop.OrbitFirst;
+            destination.Aerobrake = !destination.Direct;
+            destination.PassAltitude = body.AtmosphereDepth * RoutePlanner.AerobrakeDepth;
+            return destination;
         }
 
         // The route the vessel's plan was saved with, from the file; null where it has none.

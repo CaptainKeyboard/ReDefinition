@@ -42,6 +42,14 @@ namespace ReDefinition.Autopilot
                 GuidanceBoard.Write(vessel, Status, Guidance.ClimbDirection(vessel, aim), asked, fill, text);
                 return;
             }
+            if (step == NodePlanner.StepKind.Aerobrake)
+            {
+                string part;
+                double hottest = Heat.Hottest(vessel, out part);
+                Status = "Aerobrake: point retrograde and let the air slow the vessel" + (hottest > 0.8 ? ". HOT: " + part + " at " + (hottest * 100.0).ToString("0") + " % of its limit." : ".");
+                GuidanceBoard.Write(vessel, Status, vessel.srf_velocity.sqrMagnitude > 1.0 ? -vessel.srf_velocity.normalized : (Vector3d?)null, null);
+                return;
+            }
             Status = landing.Describe(vessel);
             GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
                 landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel);
@@ -61,7 +69,7 @@ namespace ReDefinition.Autopilot
             NodePlanner.Result plan = LegPlanner.PlanNext(vessel, route, true);
             step = plan.Kind;
             aim = plan.Altitude;
-            guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing);
+            guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing || plan.Kind == NodePlanner.StepKind.Aerobrake);
             Status = plan.Why;
             Debug.Log("[ReDefinition] Route: nodes: " + plan.Why);
             if (guided) Guide(vessel);

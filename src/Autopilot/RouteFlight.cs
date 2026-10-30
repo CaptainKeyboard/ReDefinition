@@ -113,6 +113,17 @@ namespace ReDefinition.Autopilot
                     yield return Descend();
                     continue;
                 }
+                if (plan.Kind == NodePlanner.StepKind.Aerobrake)
+                {
+                    Status = plan.Why;
+                    yield return Aerobrake();
+                    if (!cancelled && !Lost && vessel.orbit.eccentricity >= 1.0)
+                    {
+                        Stop("The pass through the air did not slow the vessel into an orbit.");
+                        yield break;
+                    }
+                    continue;
+                }
                 if (plan.UT <= 0.0)
                 {
                     Status = plan.Why + " Warping to the next change of orbit.";
@@ -188,6 +199,27 @@ namespace ReDefinition.Autopilot
             // MechJeb ends the landing a moment before KSP calls the vessel landed: not planned again from the air.
             for (float waited = 0f; !cancelled && !vessel.LandedOrSplashed && waited < 10f && vessel.heightFromTerrain < 100f; waited += 0.5f)
                 yield return new WaitForSeconds(0.5f);
+        }
+
+        // The pass through the air that slows the vessel: it is warped to a minute before the periapsis, held retrograde on the stock SAS, and waited
+        // for until it is out of the air on a closed orbit.
+        private IEnumerator Aerobrake()
+        {
+            vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
+            float started = Time.realtimeSinceStartup;
+            double toPeriapsis = vessel.orbit.timeToPe - NodePlanner.LeadTime;
+            if (toPeriapsis > 30.0) TimeWarp.fetch.WarpTo(Planetarium.GetUniversalTime() + toPeriapsis);
+            bool entered = false;
+            while (!cancelled && !Lost && Time.realtimeSinceStartup - started < 1800f)
+            {
+                if (vessel.Autopilot != null && vessel.Autopilot.Enabled) vessel.Autopilot.SetMode(VesselAutopilot.AutopilotMode.Retrograde);
+                bool inAir = vessel.situation == Vessel.Situations.FLYING;
+                entered |= inAir;
+                Status = inAir ? "Aerobrake: in the air at " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s." : "Aerobrake: waiting for the periapsis.";
+                if (entered && !inAir) break;
+                yield return new WaitForSeconds(1f);
+            }
+            vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, false);
         }
 
         // Waits while MechJeb flies the node, lighting the next stage where no engine runs for the burn.

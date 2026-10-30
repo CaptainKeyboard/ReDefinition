@@ -169,7 +169,7 @@ namespace ReDefinition.Engineer
         // What is left after aerobraking: raising the periapsis out of the air.
         private const double AerobrakeShare = 0.03;
         // Where an aerobraking pass dips to, as a share of the atmosphere's depth.
-        private const double AerobrakeDepth = 0.5;
+        internal const double AerobrakeDepth = 0.5;
 
         // What each step from one stop to the next costs.
         internal static List<Leg> Legs(IList<PlannerBody> bodies, IList<RouteStop> stops, bool planeChanges)
