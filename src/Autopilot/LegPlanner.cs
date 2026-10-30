@@ -119,8 +119,8 @@ namespace ReDefinition.Autopilot
             return NodePlanner.CorrectCourse(vessel, stop.Body, entry);
         }
 
-        // Why the air cannot be used to arrive at the stop, or null where it can, or where there is not yet an approach to judge it by: the pass the
-        // vessel would take on the approach, or from the orbit it is in, would load it beyond its limits.
+        // Why the air cannot be used to arrive at the stop, or null where it can. Null as well where there is not yet an approach to judge it by.
+        // The judge is the pass the vessel would take on the approach, or from the orbit it is in: it must not load the vessel beyond its limits.
         private static string AirRefused(Vessel vessel, Destination stop)
         {
             string why = null;
