@@ -730,25 +730,21 @@ namespace ReDefinition.Core
                 .TestedVersions("2.16.0.0")
                 .OnChange(WhenChanged.Fallback, "the autopilot is greyed out, and the nodes are flown by hand");
 
-        // Parsek as the map window's autopilot sees it (Autopilot/ParsekBridge). Parsek has no API: its flight add-on and recorder are read
-        // through reflection, and a ghost is told by its persistent id. Parsek 0.10.6, source read (a beta: the format is generation 4 and changes).
-        // Nothing of Parsek is written.
-        public static readonly ForeignAssumption ParsekBridge =
-            new ForeignAssumption("parsek-bridge", "Parsek", "the autopilot kept off Parsek's ghosts and in step with its recording")
-                .Type("Parsek.ParsekFlight").Type("Parsek.FlightRecorder").Type("Parsek.GhostMapPresence").Type("Parsek.ParsekScenario")
-                .Method("Parsek.ParsekFlight", "get_Instance")
-                .Field("Parsek.ParsekFlight", "recorder", "Parsek.FlightRecorder")
-                .Method("Parsek.FlightRecorder", "get_IsRecording")
+        // Parsek's ghosts as the autopilot tells them (Autopilot/ParsekBridge). Parsek has no API: a ghost is told by its persistent id through
+        // reflection. Parsek 0.10.6, source read (a beta: the format is generation 4 and changes). Nothing of Parsek is written. Each further
+        // thing the autopilot takes from Parsek gets an entry of its own, so that a change in one switches off that one alone.
+        public static readonly ForeignAssumption ParsekGhost =
+            new ForeignAssumption("parsek-ghost", "Parsek", "the autopilot kept off Parsek's ghosts")
+                .Type("Parsek.GhostMapPresence")
                 .Method("Parsek.GhostMapPresence", "IsGhostMapVessel", "System.UInt32")
-                .Tested("70c3d8442408") // Parsek 0.10.6
-                .TestedVersions("0.10.6.0")
-                .OnChange(WhenChanged.Fallback, "every vessel counts as real, and the window does not show a recording");
+                .Tested("10d2995d828d") // Parsek 0.10.6
+                .OnChange(WhenChanged.Fallback, "every vessel counts as real");
 
         // The whole catalogue, in the order the report lists it.
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekBridge,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekGhost,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,

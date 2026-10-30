@@ -49,6 +49,7 @@ namespace ReDefinition.Engineer
         private void Awake()
         {
             Instance = this;
+            ParsekBridge.WarnOnce();
         }
 
         private void OnDestroy()

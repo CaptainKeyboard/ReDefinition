@@ -227,7 +227,8 @@ namespace ReDefinition.Engineer
             float button = (width - 8f - 6f) / 2f;
             var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Autonavigation</color>" : "Autonavigation", ToggleNavigation, button, 28f, false);
             navigation.OptionInteractableCondition = () => !Flying;
-            navigation.tooltipText = "Plan the route and keep the plan up to date while you fly it yourself";
+            navigation.tooltipText = "Plan the route and keep the plan up to date while you fly it yourself"
+                                     + (ParsekBridge.Unavailable != null ? ". " + ParsekBridge.Unavailable : "");
             var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
             pilot.OptionInteractableCondition = () => Flying || MechJebDriver.Unavailable == null;
             pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the whole route with MechJeb";
