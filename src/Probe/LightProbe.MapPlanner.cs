@@ -99,6 +99,7 @@ namespace ReDefinition.Probe
                     if (CommandLine.Has("-redefinitionProbeParsekLeave") && whole != null)
                     {
                         Vessel leaving = FlightGlobals.ActiveVessel;
+                        RouteState.Of(leaving).Autopilot = true;
                         string problem = ParsekRecording.CommitPlan(leaving, whole, true);
                         Debug.Log(Log.Tag + " Probe: whole plan: Parsek, vessel taken out: " + (problem ?? "done"));
                         if (problem == null)

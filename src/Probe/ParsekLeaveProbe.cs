@@ -69,6 +69,15 @@ namespace ReDefinition.Probe
             }
             yield return new WaitForSeconds(15f);
             Tell("after the end");
+            if (CommandLine.Has("-redefinitionProbeParsekResume"))
+            {
+                // Flies the vessel Parsek put back round Duna: the autopilot on it goes on with the route.
+                Game game = HighLogic.CurrentGame.Updated();
+                int index = game.flightState.protoVessels.FindIndex(p => p.orbitSnapShot != null && p.orbitSnapShot.ReferenceBodyIndex == FlightGlobals.Bodies.FindIndex(b => b.bodyName == "Duna"));
+                Debug.Log(Log.Tag + " Probe: leave: the vessel round Duna is flown (" + index + ").");
+                if (index >= 0) FlightDriver.StartAndFocusVessel(game, index);
+                yield break;
+            }
             if (CommandLine.Has("-redefinitionProbeParsekThenStation") && HighLogic.LoadedScene == GameScenes.SPACECENTER)
             {
                 ParsekLeave.Second = true;
@@ -78,6 +87,16 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: leave done.");
         }
 
+        // What the vessel's saved route state says: on, off, or not there.
+        private static string AutopilotOn(Vessel vessel)
+        {
+            var node = new ConfigNode();
+            vessel.protoVessel.Save(node);
+            ConfigNode modules = node.GetNode("VESSELMODULES");
+            ConfigNode state = modules != null ? modules.GetNode("RouteState") : null;
+            return state == null ? "has no route state" : state.GetValue("autopilot") == "True" ? "is on" : "is off";
+        }
+
         private static void Tell(string when)
         {
             var found = FlightGlobals.Vessels.Where(v => v.vesselName.StartsWith(ParsekLeave.Name) || v.mainBody.bodyName == "Duna").ToList();
@@ -85,7 +104,7 @@ namespace ReDefinition.Probe
                       + "): " + found.Count + " vessel(s) named " + ParsekLeave.Name + " or round Duna.");
             foreach (Vessel v in found)
                 Debug.Log(Log.Tag + " Probe: leave:   " + v.vesselName + " (pid " + v.persistentId + "), " + v.situation + ", round " + v.mainBody.bodyName + ", " + v.orbit.PeA.ToString("0") + " x " + v.orbit.ApA.ToString("0")
-                          + " m, " + v.protoVessel.protoPartSnapshots.Count + " parts.");
+                          + " m, " + v.protoVessel.protoPartSnapshots.Count + " parts, the autopilot " + AutopilotOn(v) + ".");
         }
     }
 }

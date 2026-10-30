@@ -83,6 +83,7 @@ namespace ReDefinition.Engineer
         {
             List<Destination> route = Route();
             if (route == null || FlightGlobals.ActiveVessel == null) return;
+            view.SaveNow();
             WholePlan = RouteSimulation.Run(FlightGlobals.ActiveVessel, route);
             status = WholePlan.Steps.Count + " step(s), " + WholePlan.DeltaV.ToString("0") + " m/s" + (WholePlan.Ended != null ? "; " + WholePlan.Ended : "; the last stop is reached") + ".";
         }

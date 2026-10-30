@@ -1,3 +1,4 @@
+using KSP.Localization;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -171,10 +172,11 @@ namespace ReDefinition.Engineer
             }
         }
 
-        // The vessel's name as the file keeps it: escaped, since a config file
-        // reads "//" as the start of a comment.
+        // The vessel's name as the file keeps it. A stock craft has the name the game shows: a vessel launched from it is named by the
+        // localisation key (#autoLOC_...), and the editor has the text. It is escaped, since a config file reads "//" as the start of a comment.
         internal static string Key(string vessel)
         {
+            if (vessel != null && vessel.StartsWith("#autoLOC")) vessel = Localizer.Format(vessel);
             return Uri.EscapeDataString(vessel ?? "");
         }
 
