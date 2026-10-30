@@ -64,7 +64,7 @@ namespace ReDefinition.Autopilot.Flight
                 NodePlanner.Result plan;
                 try
                 {
-                    plan = LegPlanner.PlanNext(vessel, route, false, keepCourse);
+                    plan = LegPlanner.PlanNext(new Frame(vessel), route, false, keepCourse);
                     keepCourse = false;
                 }
                 catch (System.Exception e)
@@ -227,6 +227,11 @@ namespace ReDefinition.Autopilot.Flight
             {
                 Status = "Landing: " + (vessel.heightFromTerrain >= 0f ? vessel.heightFromTerrain.ToString("0") : vessel.altitude.ToString("0")) + " m up, " + vessel.srfSpeed.ToString("0") + " m/s.";
                 Note();
+                // The last metres: the three heights KSP has, told apart, for a vessel that sinks into the ground.
+                if (vessel.radarAltitude < 50.0)
+                    Debug.Log("[ReDefinition] Route: touchdown: altitude " + vessel.altitude.ToString("0.0") + ", terrain " + vessel.terrainAltitude.ToString("0.0")
+                              + ", above it " + vessel.radarAltitude.ToString("0.0") + ", raycast " + vessel.heightFromTerrain.ToString("0.0") + ", " + vessel.srfSpeed.ToString("0.0")
+                              + " m/s, " + vessel.situation + ".");
                 still = vessel.LandedOrSplashed && vessel.srfSpeed < 0.5 ? still + 0.5f : 0f;
                 if (still >= 3f) break;
                 yield return new WaitForSeconds(0.5f);
@@ -365,6 +370,7 @@ namespace ReDefinition.Autopilot.Flight
         {
             Status = why;
             Finished = true;
+            ParsekBridge.StopRecording();
         }
     }
 }

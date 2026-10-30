@@ -2,6 +2,8 @@ using System.Collections;
 using System.IO;
 using KSP.UI;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
 using ReDefinition.Orbits;
@@ -79,6 +81,24 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wanted + (landOn ? " (the surface)" : "") + " set: "
                           + (landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted, CommandLine.Has("-redefinitionProbeMapPlannerAir"), CommandLine.Has("-redefinitionProbeMapPlannerOrbitFirst"))
                                     : MapPlannerWindow.Instance.SetDestination(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "30000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))));
+                if (CommandLine.Has("-redefinitionProbePlanAll"))
+                {
+                    MapPlannerWindow.Instance.PlanAllNow();
+                    RoutePlan whole = MapPlannerWindow.Instance.WholePlan;
+                    Debug.Log(Log.Tag + " Probe: whole plan: " + MapPlannerWindow.Instance.Status);
+                    if (whole != null)
+                    {
+                        foreach (PlannedStep step in whole.Steps)
+                            Debug.Log(Log.Tag + " Probe: whole plan: step " + step.Kind + " at UT " + step.UT.ToString("0") + ", " + step.DeltaV.Length.ToString("0.0") + " m/s: " + step.Why);
+                        foreach (PlannedLeg leg in whole.Legs)
+                            Debug.Log(Log.Tag + " Probe: whole plan: leg round " + leg.Orbit.referenceBody.bodyName + " from UT " + leg.StartUT.ToString("0") + " to " + leg.EndUT.ToString("0")
+                                      + ", " + leg.Orbit.PeA.ToString("0") + " x " + leg.Orbit.ApA.ToString("0") + " m.");
+                        if (CommandLine.Has("-redefinitionProbeParsekCommit"))
+                            Debug.Log(Log.Tag + " Probe: whole plan: Parsek: " + (ParsekRecording.CommitPlan(FlightGlobals.ActiveVessel, whole) ?? "committed"));
+                    }
+                    Debug.Log(Log.Tag + " Probe: map planner done.");
+                    yield break;
+                }
                 if (!ResumeDone && !CommandLine.Has("-redefinitionProbeMapPlannerAuto"))
                 {
                     MapPlannerWindow.Instance.PlanNow();
@@ -108,6 +128,12 @@ namespace ReDefinition.Probe
                         if (ProbeWatch.Gone(FlightGlobals.ActiveVessel)) break;
                         string now = MapPlannerWindow.Instance.FlightStatus;
                         Scenario.Watch(now);
+                        // The map view stays open in this probe; a landing is flown from the flight view, as a player does.
+                        if (now.StartsWith("Landing") && MapView.MapIsEnabled && !CommandLine.Has("-redefinitionProbeKeepMap"))
+                        {
+                            MapView.ExitMapView();
+                            Debug.Log(Log.Tag + " Probe: map planner: the map view is left for the landing.");
+                        }
                         if (now != last)
                         {
                             Debug.Log(Log.Tag + " Probe: map planner: flight: " + now);

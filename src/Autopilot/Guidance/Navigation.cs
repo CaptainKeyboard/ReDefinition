@@ -74,7 +74,7 @@ namespace ReDefinition.Autopilot.Guidance
             if (now == signature && !missed) return;
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
-            NodePlanner.Result plan = LegPlanner.PlanNext(vessel, route, true);
+            NodePlanner.Result plan = LegPlanner.PlanNext(new Frame(vessel), route, true);
             step = plan.Kind;
             aim = plan.Altitude;
             guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing || plan.Kind == NodePlanner.StepKind.Aerobrake

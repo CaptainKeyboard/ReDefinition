@@ -27,7 +27,7 @@ namespace ReDefinition.Probe
                       + " t, MechJeb " + (MechJebDriver.Available ? "available" : "not available: " + MechJebDriver.Unavailable)
                       + ", can fly " + MechJebDriver.CanFly(vessel) + ".");
             CelestialBody target = FlightGlobals.Bodies.Find(b => b.bodyName == bodyName);
-            NodePlanner.Result result = NodePlanner.TransferToBody(vessel, target, 50000.0);
+            NodePlanner.Result result = NodePlanner.TransferToBody(new Frame(vessel), target, 50000.0);
             Debug.Log(Log.Tag + " Probe: fly: plan " + (result.Ok ? "ok, " + result.DeltaV.Length.ToString("0.0", culture) + " m/s, in " + (result.UT - Planetarium.GetUniversalTime()).ToString("0", culture) + " s. " : "failed. ") + result.Why);
             if (!result.Ok || !MechJebDriver.ExecuteNode(vessel, true))
             {
@@ -149,7 +149,7 @@ namespace ReDefinition.Probe
             {
                 CelestialBody target = FlightGlobals.Bodies.Find(b => b.bodyName == name);
                 if (target == null) continue;
-                NodePlanner.Result result = NodePlanner.TransferToBody(vessel, target, 50000.0);
+                NodePlanner.Result result = NodePlanner.TransferToBody(new Frame(vessel), target, 50000.0);
                 string text = result.Ok
                     ? "ok, leaves in " + (result.UT - Planetarium.GetUniversalTime()).ToString("0", culture) + " s, " + result.DeltaV.Length.ToString("0.0", culture) + " m/s. " + result.Why
                     : "no: " + result.Why;

@@ -25,13 +25,10 @@
 	const HANDHELD = { 1: [["ballpanel", "ctl", "agpanel", "flight", "thr"]], 2: [["ballpanel", "flight"], ["ctl", "agpanel", "thr"]], 3: [["ballpanel"], ["ctl", "agpanel"], ["flight", "thr"]] };
 	const PRESETS = { default: STANDARD, defaultMirrored: mirror(STANDARD), handheld: HANDHELD, handheldMirrored: mirror(HANDHELD) };
 	const PRESET_NAMES = { default: "Default", defaultMirrored: "Default (Mirrored)", handheld: "Handheld", handheldMirrored: "Handheld (Mirrored)", custom: "Custom" };
-	// Names from before 0.30.
-	const OLD_PRESETS = { standard: "default", mirrored: "defaultMirrored", navleft: "handheld", navright: "handheldMirrored" };
 	// The choice is kept per browser; in iCUE it comes from the widget's settings (panelLayout).
 	const LAYOUT_KEY = "kspdashboard.layout";
 	const layout = { preset: "default", rows: "auto", custom: null };
 	if (served) try { Object.assign(layout, JSON.parse(localStorage.getItem(LAYOUT_KEY)) || {}); } catch (e) { /* no storage: the default */ }
-	layout.preset = OLD_PRESETS[layout.preset] || layout.preset;
 	// Keeps the layout choice in the browser's storage, where there is one.
 	const saveLayout = () => { try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch (e) { /* kept for this visit only */ } };
 	// The arrangement shown: the custom one once edited, else the chosen preset's (Default for an unknown one).
@@ -87,7 +84,6 @@
 		// onDataUpdated; the variable need not be a property of window, so it is read by its name.
 		/* global panelLayout */
 		let v = typeof panelLayout === "string" ? panelLayout : (payload && payload.settings && payload.settings.panelLayout) || null;
-		v = OLD_PRESETS[v] || v;
 		if (served || !v || !PRESETS[v] || v === layout.preset) return;
 		layout.preset = v;
 		fitScreen();

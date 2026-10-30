@@ -75,6 +75,18 @@ namespace ReDefinition.Engineer
             if (view != null) PlanNodes();
         }
 
+        // The whole route worked out from the vessel as it is, step after step, with the orbits that follow; null before it has been.
+        internal RoutePlan WholePlan { get; private set; }
+
+        // Plans the whole route at once, to its last stop or as far as the plan reaches, and says how far that is in the status.
+        internal void PlanAllNow()
+        {
+            List<Destination> route = Route();
+            if (route == null || FlightGlobals.ActiveVessel == null) return;
+            WholePlan = RouteSimulation.Run(FlightGlobals.ActiveVessel, route);
+            status = WholePlan.Steps.Count + " step(s), " + WholePlan.DeltaV.ToString("0") + " m/s" + (WholePlan.Ended != null ? "; " + WholePlan.Ended : "; the last stop is reached") + ".";
+        }
+
         // For the probes: the route's first stop set to an orbit round a body, where the vessel starts.
         internal bool SetStart(string bodyName, double altitude)
         {
@@ -289,7 +301,7 @@ namespace ReDefinition.Engineer
         {
             List<Destination> route = Route();
             if (route == null) return;
-            NodePlanner.Result result = LegPlanner.PlanNext(FlightGlobals.ActiveVessel, route);
+            NodePlanner.Result result = LegPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route);
             status = result.Ok
                 ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
                 : result.Why;

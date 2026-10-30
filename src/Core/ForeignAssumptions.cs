@@ -738,6 +738,7 @@ namespace ReDefinition.Core
                 .Type("Parsek.GhostMapPresence")
                 .Method("Parsek.GhostMapPresence", "IsGhostMapVessel", "System.UInt32")
                 .Tested("10d2995d828d") // Parsek 0.10.6
+                .TestedVersions("0.10.6.0")
                 .OnChange(WhenChanged.Fallback, "every vessel counts as real");
 
         // Parsek's recorder as the map window shows it: whether this flight is being recorded, and how many recordings are kept. Both are read, nothing
@@ -751,26 +752,62 @@ namespace ReDefinition.Core
                 .Method("Parsek.FlightRecorder", "get_IsRecording")
                 .Method("Parsek.RecordingStore", "get_CommittedRecordings")
                 .Tested("dd556c4ede68") // Parsek 0.10.6
+                .TestedVersions("0.10.6.0")
                 .OnChange(WhenChanged.Fallback, "the window does not say whether Parsek records");
 
-        // The autopilot has Parsek record the flight it flies, which Parsek does by itself only for a launch. Parsek 0.10.6, source read:
-        // ParsekFlight.StartRecording(suppressStartScreenMessage, fromPrelaunchTransition) begins the recording of the active vessel in the flight's
-        // recorder, and FlightRecorder.IsRecording says whether one runs. Parsek's own merge dialog commits it when the flight is left.
+        // The autopilot has Parsek record the flight it flies, which Parsek does by itself only for a launch, and ends the recording with the route.
+        // Parsek 0.10.6, source read: ParsekFlight.StartRecording(suppressStartScreenMessage, fromPrelaunchTransition) begins the recording of the
+        // active vessel in the flight's recorder, FlightRecorder.IsRecording says whether one runs, and ParsekFlight.StopRecording ends it. Parsek's
+        // own merge dialog commits it when the flight is left.
         public static readonly ForeignAssumption ParsekStart =
             new ForeignAssumption("parsek-start", "Parsek", "the autopilot has Parsek record its flight")
                 .Type("Parsek.ParsekFlight").Type("Parsek.FlightRecorder")
                 .Method("Parsek.ParsekFlight", "get_Instance")
-                .Method("Parsek.ParsekFlight", "StartRecording", "System.Boolean", "System.Boolean")
+                .Method("Parsek.ParsekFlight", "StartRecording", "System.Boolean", "System.Boolean").Method("Parsek.ParsekFlight", "StopRecording")
                 .Field("Parsek.ParsekFlight", "recorder", "Parsek.FlightRecorder")
                 .Method("Parsek.FlightRecorder", "get_IsRecording")
-                .Tested("1f633d761b0e") // Parsek 0.10.6
+                .Tested("fe44ccbb6097") // Parsek 0.10.6
+                .TestedVersions("0.10.6.0")
                 .OnChange(WhenChanged.Fallback, "Parsek is not asked to record the autopilot's flight");
+
+        // A recording of the route made ahead of the flight (Autopilot/ParsekRecording). It is built the way Parsek's own in-game test builds one
+        // and committed with RecordingStore.CommitTree. Parsek then plays it, and puts the vessel back at its end when the player is not in the flight.
+        // Parsek 0.10.6 (source of 0.10.7 read): Recording and TrajectoryPoint and OrbitSegment hold their data in public fields, a terminal orbit is Keplerian
+        // elements in degrees and radians, and VesselSpawner.TryBackupSnapshot makes the vessel's snapshot.
+        public static readonly ForeignAssumption ParsekRecording =
+            new ForeignAssumption("parsek-recording", "Parsek", "the route is recorded ahead of the flight, for Parsek to play when the player leaves")
+                .Type("Parsek.Recording").Type("Parsek.RecordingTree").Type("Parsek.TrajectoryPoint").Type("Parsek.OrbitSegment")
+                .Type("Parsek.TerminalState").Type("Parsek.RecordingStore").Type("Parsek.VesselSpawner")
+                .Field("Parsek.Recording", "RecordingId").Field("Parsek.Recording", "TreeId").Field("Parsek.Recording", "VesselName")
+                .Field("Parsek.Recording", "VesselPersistentId").Field("Parsek.Recording", "TerminalStateValue")
+                .Field("Parsek.Recording", "TerminalOrbitInclination").Field("Parsek.Recording", "TerminalOrbitEccentricity")
+                .Field("Parsek.Recording", "TerminalOrbitSemiMajorAxis").Field("Parsek.Recording", "TerminalOrbitLAN")
+                .Field("Parsek.Recording", "TerminalOrbitArgumentOfPeriapsis").Field("Parsek.Recording", "TerminalOrbitMeanAnomalyAtEpoch")
+                .Field("Parsek.Recording", "TerminalOrbitEpoch").Field("Parsek.Recording", "TerminalOrbitBody")
+                .Field("Parsek.Recording", "VesselSnapshot").Field("Parsek.Recording", "GhostVisualSnapshot")
+                .Field("Parsek.Recording", "Points").Field("Parsek.Recording", "OrbitSegments")
+                .Field("Parsek.RecordingTree", "Id").Field("Parsek.RecordingTree", "TreeName").Field("Parsek.RecordingTree", "RootRecordingId")
+                .Field("Parsek.RecordingTree", "ActiveRecordingId").Field("Parsek.RecordingTree", "Recordings")
+                .Field("Parsek.TrajectoryPoint", "ut").Field("Parsek.TrajectoryPoint", "latitude").Field("Parsek.TrajectoryPoint", "longitude")
+                .Field("Parsek.TrajectoryPoint", "altitude").Field("Parsek.TrajectoryPoint", "rotation").Field("Parsek.TrajectoryPoint", "velocity")
+                .Field("Parsek.TrajectoryPoint", "bodyName")
+                .Field("Parsek.OrbitSegment", "startUT").Field("Parsek.OrbitSegment", "endUT").Field("Parsek.OrbitSegment", "inclination")
+                .Field("Parsek.OrbitSegment", "eccentricity").Field("Parsek.OrbitSegment", "semiMajorAxis")
+                .Field("Parsek.OrbitSegment", "longitudeOfAscendingNode").Field("Parsek.OrbitSegment", "argumentOfPeriapsis")
+                .Field("Parsek.OrbitSegment", "meanAnomalyAtEpoch").Field("Parsek.OrbitSegment", "epoch").Field("Parsek.OrbitSegment", "bodyName")
+                .Type("Parsek.RecordingSchema").Field("Parsek.RecordingSchema", "CurrentRecordingFormatVersion")
+                .Field("Parsek.RecordingSchema", "CurrentRecordingSchemaGeneration")
+                .Method("Parsek.RecordingStore", "CommitTree", "Parsek.RecordingTree")
+                .Method("Parsek.VesselSpawner", "TryBackupSnapshot", "Vessel")
+                .Tested("e97fdaa6e7f7") // Parsek 0.10.6
+                .TestedVersions("0.10.6.0")
+                .OnChange(WhenChanged.Fallback, "the route is not recorded for Parsek, and the flight stops when the player leaves");
 
         // The whole catalogue, in the order the report lists it.
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekGhost, ParsekRecorder, ParsekStart,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,

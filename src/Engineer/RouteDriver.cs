@@ -53,10 +53,31 @@ namespace ReDefinition.Engineer
         {
             Instance = this;
             ParsekBridge.WarnOnce();
+            GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
+        }
+
+        // The player leaves the flight with the autopilot on: the rest of the route is planned and given to Parsek as a recording, which Parsek
+        // plays, and puts the vessel back at its end, while the player is away.
+        private void OnSceneLoadRequested(GameScenes scene)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            RouteState state = RouteState.Of(vessel);
+            if (scene == GameScenes.FLIGHT || vessel == null || state == null || !state.Autopilot || route == null) return;
+            try
+            {
+                RoutePlan plan = RouteSimulation.Run(vessel, route);
+                string problem = ParsekRecording.CommitPlan(vessel, plan);
+                Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; Parsek: " + (problem ?? "recorded") + ".");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " Route: the plan for Parsek failed: " + e);
+            }
         }
 
         private void OnDestroy()
         {
+            GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
             if (Instance == this) Instance = null;
             if (flight != null) flight.Cancel();
         }

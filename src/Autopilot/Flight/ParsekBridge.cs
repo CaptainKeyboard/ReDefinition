@@ -19,10 +19,13 @@ namespace ReDefinition.Autopilot.Flight
         {
             get
             {
-                ForeignAssumption assumption = ForeignAssumptions.ParsekGhost;
-                if (assumption.State == ForeignState.Absent || assumption.Holds) return null;
-                return "Parsek " + assumption.Version + " is not a build the autopilot was checked against (" + assumption.Problem
-                       + "): its ghosts count as real vessels.";
+                // The first of the things taken from Parsek that does not hold names the problem; the others fail alone, each to its own fallback.
+                foreach (ForeignAssumption assumption in new[] { ForeignAssumptions.ParsekGhost, ForeignAssumptions.ParsekRecorder, ForeignAssumptions.ParsekStart, ForeignAssumptions.ParsekRecording })
+                {
+                    if (assumption.State == ForeignState.Absent || assumption.Holds) continue;
+                    return "Parsek " + assumption.Version + " is not a build the autopilot was checked against (" + assumption.Problem + "): " + assumption.Fallback + ".";
+                }
+                return null;
             }
         }
 
@@ -78,11 +81,13 @@ namespace ReDefinition.Autopilot.Flight
             }
         }
 
+        private static bool started;
+
         // Has Parsek record the flight, where it does not already: the only thing of Parsek's the autopilot starts. Parsek ends the recording and
         // asks to commit it when the flight is left. False where Parsek is not there, is a build the code was not checked against, or already records.
         internal static bool StartRecording()
         {
-            if (!ForeignAssumptions.ParsekStart.Holds) return false;
+            if (!ForeignAssumptions.ParsekStart.Holds || CommandLine.Has("-redefinitionNoParsekRecording")) return false;
             try
             {
                 Type flight = TypeLookup.Find("Parsek.ParsekFlight");
@@ -97,6 +102,7 @@ namespace ReDefinition.Autopilot.Flight
                 object now = held.GetValue(parsek);
                 if (now != null && (bool)running.GetValue(now, null)) return false;
                 start.Invoke(parsek, new object[] { false, false });
+                started = true;
                 Debug.Log(Log.Tag + " Parsek is asked to record the flight.");
                 return true;
             }
@@ -104,6 +110,27 @@ namespace ReDefinition.Autopilot.Flight
             {
                 Debug.LogWarning(Log.Tag + " Parsek could not be asked to record: " + e.Message);
                 return false;
+            }
+        }
+
+        // Ends the recording the autopilot started, at the end of its route; a recording that was running before is left to Parsek.
+        internal static void StopRecording()
+        {
+            if (!started) return;
+            started = false;
+            try
+            {
+                Type flight = TypeLookup.Find("Parsek.ParsekFlight");
+                PropertyInfo current = flight != null ? flight.GetProperty("Instance", TypeLookup.Any) : null;
+                MethodInfo stop = flight != null ? flight.GetMethod("StopRecording", TypeLookup.Any, null, Type.EmptyTypes, null) : null;
+                object parsek = current != null ? current.GetValue(null, null) : null;
+                if (parsek == null || stop == null) return;
+                stop.Invoke(parsek, null);
+                Debug.Log(Log.Tag + " Parsek is asked to end the recording of the flight.");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " Parsek could not be asked to end the recording: " + e.Message);
             }
         }
 

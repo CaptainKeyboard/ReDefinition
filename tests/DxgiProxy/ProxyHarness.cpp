@@ -966,27 +966,7 @@ namespace
 {
     // The latency brake's controller (BrakeController.h) against a frame loop in which the
     // sleep takes the waits away: the GPU is 10 ms behind the CPU, so a frame meets
-    // 10 ms less the sleep in waits. Without a GPU. The controller as it was before the hitch
-    // bound moved off the smoothed frame time is run beside it, for the numbers.
-    struct OldBrake
-    {
-        // The sleep and the smoothed work of a frame, in ms, as BrakeController has them.
-        double sleepMs = 0.0, frameMs = 0.0;
-        // The old step: the hitch bound and the counted waits from the frame time smoothed with this frame in it.
-        void Update(double wallMs, double waitedMs, double targetMs)
-        {
-            const double work = wallMs > sleepMs ? wallMs - sleepMs : wallMs;
-            frameMs = frameMs == 0.0 ? work : frameMs * 0.9 + work * 0.1;
-            const double target = targetMs > 0.5 ? targetMs : 0.5;
-            const double counted = waitedMs < frameMs ? waitedMs : frameMs;
-            sleepMs += 0.2 * (counted - target);
-            if (sleepMs < 0.0)
-                sleepMs = 0.0;
-            if (sleepMs > frameMs * 0.5)
-                sleepMs = frameMs * 0.5;
-        }
-    };
-
+    // 10 ms less the sleep in waits. Without a GPU.
     // What one controller did in RunBrake.
     template <typename Controller>
     struct BrakeRun
@@ -1044,27 +1024,20 @@ namespace
         return run;
     }
 
-    // The brake controller against the old one: where it settles, what a 500 ms hitch does, and whether it
-    // follows a real slowdown; 1 on a failure.
+    // The brake controller: where it settles, what a 500 ms hitch does, and whether it follows a real slowdown; 1 on a failure.
     int RunBrakeControllerChecks()
     {
         const double work = 16.0;
         const double target = 4.0;
-        double newStep = 0.0;
-        double oldStep = 0.0;
+        double step = 0.0;
         const BrakeRun<redefinition::BrakeController> now =
-            RunBrake<redefinition::BrakeController>(10.0, work, target, 500.0, &newStep);
-        const BrakeRun<OldBrake> before = RunBrake<OldBrake>(10.0, work, target, 500.0, &oldStep);
-        printf("      brake controller, steady: sleep %.2f ms (before %.2f), frame %.2f ms (before %.2f)\n", now.settledSleep,
-               before.settledSleep, now.settledFrame, before.settledFrame);
-        printf("      brake controller, a 500 ms hitch: frame time %.1f ms (before %.1f), sleep %.2f ms (before %.2f), peak"
-               " %.2f ms (before %.2f), settled again after %d frames (before %d)\n",
-               now.frameAfterHitch, before.frameAfterHitch, now.sleepAfterHitch, before.sleepAfterHitch, now.peakSleep,
-               before.peakSleep, now.framesBack, before.framesBack);
-        printf("      brake controller, work doubling from %.0f ms: average %.1f ms after 60 frames (before %.1f)\n", work, newStep,
-               oldStep);
-        // The key behaviour is kept: the sleep settles where the waits left equal the target.
-        if (std::fabs(now.settledSleep - (10.0 - target)) > 0.2 || std::fabs(now.settledSleep - before.settledSleep) > 0.05)
+            RunBrake<redefinition::BrakeController>(10.0, work, target, 500.0, &step);
+        printf("      brake controller, steady: sleep %.2f ms, frame %.2f ms\n", now.settledSleep, now.settledFrame);
+        printf("      brake controller, a 500 ms hitch: frame time %.1f ms, sleep %.2f ms, peak %.2f ms, settled again after %d frames\n",
+               now.frameAfterHitch, now.sleepAfterHitch, now.peakSleep, now.framesBack);
+        printf("      brake controller, work doubling from %.0f ms: average %.1f ms after 60 frames\n", work, step);
+        // The key behaviour: the sleep settles where the waits left equal the target.
+        if (std::fabs(now.settledSleep - (10.0 - target)) > 0.2)
         {
             printf("FAIL  the brake no longer settles where the waits left equal the target\n");
             return 1;
@@ -1081,13 +1054,13 @@ namespace
             printf("FAIL  a 500 ms hitch added %.2f ms to the brake's sleep\n", now.peakSleep - now.settledSleep);
             return 1;
         }
-        // A real slowdown is followed, as before.
-        if (newStep < work * 2.0 * 0.95)
+        // A real slowdown is followed.
+        if (step < work * 2.0 * 0.95)
         {
-            printf("FAIL  the brake's frame time did not follow the work doubling (%.1f ms)\n", newStep);
+            printf("FAIL  the brake's frame time did not follow the work doubling (%.1f ms)\n", step);
             return 1;
         }
-        printf("PASS  the brake controller: settles as before, a 500 ms hitch counts as a frame's worth\n");
+        printf("PASS  the brake controller: settles where the waits equal the target, a 500 ms hitch counts as a frame's worth\n");
         return 0;
     }
 }
