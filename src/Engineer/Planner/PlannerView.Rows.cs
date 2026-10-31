@@ -74,8 +74,8 @@ namespace ReDefinition.Engineer
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(StockOffRow());
             if (Controls != null)
-                rows.AddRange(Section("Plan", () => controlsShown, () => { controlsShown = !controlsShown; textVersion++; },
-                    "Plan the whole route from here, and turn on the navigation or the autopilot once it is planned.", PlanSummary, PlanControlRows()));
+                rows.AddRange(Section("Guidance", () => controlsShown, () => { controlsShown = !controlsShown; textVersion++; },
+                    "What flies the route: the navigation keeps the plan up to date while you fly, the autopilot flies it.", GuidanceSummary, GuidanceRows()));
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
@@ -170,14 +170,11 @@ namespace ReDefinition.Engineer
             DialogGUILabel label = new DialogGUILabel("Fuel margin", 84f, RowHeight);
             label.tooltipText = "Extra delta-v added to every step as a reserve for piloting losses and corrections.";
             DialogGUISlider margin = new DialogGUISlider(() => (float)(Ready() ? state.Margin * 100.0 : 10.0), 0f, 50f, true,
-                width - 84f - 44f - 136f - 6f * 3f - RowEnd, RowHeight, SetMargin);
+                width - 84f - 44f - 6f * 2f - RowEnd, RowHeight, SetMargin);
             margin.tooltipText = label.tooltipText;
-            DialogGUIToggle planes = new DialogGUIToggle(() => Ready() && state.PlaneChanges, "Plane changes", SetPlaneChanges, 136f);
-            planes.tooltipText = "Add the delta-v to match the target's orbital inclination on each transfer, such as 6° for "
-                                 + "Minmus. Off, all orbits are taken as lying in one plane.";
             return new GatedRow(width, RowHeight + 4f, 6f, new RectOffset(), TextAnchor.MiddleLeft,
                 label, margin,
-                new DialogGUILabel(Text(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %"), 44f), planes);
+                new DialogGUILabel(Text(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %"), 44f));
         }
 
         // -------------------------------------------------------------- sections

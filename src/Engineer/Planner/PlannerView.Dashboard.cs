@@ -59,7 +59,6 @@ namespace ReDefinition.Engineer
             shot["sections"] = sections;
             shot["canAddSection"] = state.Sections.Count < MaxSections;
             shot["margin"] = Math.Round(state.Margin * 100.0);
-            shot["planes"] = state.PlaneChanges;
 
             var stops = new List<object>();
             for (int i = 0; i < state.Stops.Count; i++)
@@ -268,7 +267,6 @@ namespace ReDefinition.Engineer
             switch (name)
             {
                 case "margin": SetMargin((float)Number(args, 0)); return true;
-                case "planes": SetPlaneChanges(a != 0); return true;
                 case "kind": SetKind(a, b == (int)StopKind.Surface ? StopKind.Surface : StopKind.Orbit); return true;
                 case "altitude": SetAltitude(a, args.Length > 1 ? args[1] : ""); return true;
                 case "altitudeStep": StepAltitude(a, b < 0 ? -1 : 1); return true;

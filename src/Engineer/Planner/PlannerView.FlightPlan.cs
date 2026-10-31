@@ -12,7 +12,7 @@ namespace ReDefinition.Engineer
         // screenshot of the window: a row of 58 characters filled three quarters of the width.
         private const int MaxPlanLines = 60;
         private const float PlanCharWidth = 5.8f;
-        private const string NoPlanHint = "The flight plan is worked out in flight: press Plan route.";
+        private const string NoPlanHint = "The route has no plan yet: it needs a start and a destination.";
 
         private bool planShown;
 
@@ -76,6 +76,12 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // What Parsek does with the flight, where Parsek is there.
+        private void AddParsekLine()
+        {
+            if (Controls != null && !string.IsNullOrEmpty(Controls.ParsekLine)) AddWrapped(Controls.ParsekLine, Dim, Dim);
+        }
+
         // "5 steps, 3,210 m/s", in red where the plan failed; empty without a plan.
         private string PlanSummary()
         {
@@ -104,9 +110,12 @@ namespace ReDefinition.Engineer
             linedPlan = plan;
             linedAt = now;
             planLines.Clear();
+            if (Controls != null && !string.IsNullOrEmpty(Controls.Status))
+                AddWrapped(Controls.Status, Controls.Flying ? Good : Dim, Controls.Flying ? Good : Dim);
             if (plan == null)
             {
                 AddWrapped(NoPlanHint, Dim, Dim);
+                AddParsekLine();
                 return;
             }
 
@@ -120,6 +129,7 @@ namespace ReDefinition.Engineer
             if (plan.Legs.Count > 0) planLines.Add(Coloured("Orbits", Dim));
             foreach (PlannedLeg leg in plan.Legs) AddWrapped(PlanLegText(leg.Orbit), null, Dim);
 
+            AddParsekLine();
             if (planLines.Count > MaxPlanLines)
             {
                 int more = planLines.Count - (MaxPlanLines - 1);

@@ -1,12 +1,11 @@
 using System;
-using System.Collections;
 using KSP.UI.Screens;
 using ReDefinition.Ui;
 using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // The planner's button in KSP's own toolbar, which shows in the map view and slides the planner's panel in and out. A click tells the
+    // The planner's button among the game's own toolbar buttons (the top group, not the mods' below it), which shows in the map view and slides the planner's panel in and out. A click tells the
     // window; the window tells the button where the panel was opened or shut another way.
     internal sealed class MapPlannerButton
     {
@@ -42,7 +41,7 @@ namespace ReDefinition.Engineer
             registered = false;
             GameEvents.onGUIApplicationLauncherReady.Remove(Add);
             GameEvents.onGUIApplicationLauncherDestroyed.Remove(Forget);
-            if (button != null && ApplicationLauncher.Instance != null) ApplicationLauncher.Instance.RemoveModApplication(button);
+            if (button != null && ApplicationLauncher.Instance != null) ApplicationLauncher.Instance.RemoveApplication(button);
             button = null;
             if (icon != null) UnityEngine.Object.Destroy(icon);
             icon = null;
@@ -61,35 +60,12 @@ namespace ReDefinition.Engineer
         {
             if (button != null || ApplicationLauncher.Instance == null) return;
             if (icon == null) icon = Draw();
-            button = ApplicationLauncher.Instance.AddModApplication(() => setOpen(true), () => setOpen(false), null, null, null, null,
-                ApplicationLauncher.AppScenes.MAPVIEW, icon);
-            if (button != null && button.gameObject != null) UiHygiene.Tooltip(button.gameObject, Tooltip);
-            KeepFirst();
-            Show(open);
-        }
-
-        // The button at the front of the toolbar, in what the launcher shows and in the list it keeps, as ReDefinition's settings button is.
-        // The launcher scrolls where mods crowd it, and a button at its end is not seen. Only this one is moved, and a failure leaves
-        // the toolbar as it was.
-        private void KeepFirst()
-        {
+            button = ApplicationLauncher.Instance.AddApplication(() => setOpen(true), () => setOpen(false), null, null, null, null, icon);
             if (button == null) return;
-            try
-            {
-                if (button.gameObject != null && button.gameObject.transform.GetSiblingIndex() != 0) button.gameObject.transform.SetAsFirstSibling();
-                ApplicationLauncher launcher = ApplicationLauncher.Instance;
-                IList list = launcher != null ? Window.ToolbarTakeover.ModList(launcher) : null;
-                if (list == null || list.Count < 2) return;
-                int at = list.IndexOf(button);
-                if (at <= 0) return;
-                list.RemoveAt(at);
-                list.Insert(0, button);
-            }
-            catch (Exception e)
-            {
-                Core.CompatibilityLog.Warn("planner-toolbar-first", "The planner's toolbar button could not be moved to the front ("
-                                           + Core.CompatibilityLog.Reason(e) + "); it stays where the launcher put it.");
-            }
+            // The game's own buttons are in every scene unless told: this one is in the map view.
+            button.VisibleInScenes = ApplicationLauncher.AppScenes.MAPVIEW;
+            if (button.gameObject != null) UiHygiene.Tooltip(button.gameObject, Tooltip);
+            Show(open);
         }
 
         private void Forget()
@@ -97,14 +73,14 @@ namespace ReDefinition.Engineer
             button = null;
         }
 
-        // A route of three points joined by a line, light on a dark ground: the stand-in until the mod ships an icon file.
+        // A route of three points joined by a line, white on nothing, as the game's own toolbar icons are drawn.
         private static Texture2D Draw()
         {
             var texture = new Texture2D(IconSize, IconSize, TextureFormat.ARGB32, false);
             texture.name = "ReDefinitionPlannerIcon";
             texture.filterMode = FilterMode.Bilinear;
-            Color ground = new Color(0.10f, 0.13f, 0.18f, 0.90f);
-            Color route = new Color(0.55f, 0.85f, 1.00f, 1f);
+            Color ground = new Color(1f, 1f, 1f, 0f);
+            Color route = Color.white;
             var pixels = new Color[IconSize * IconSize];
             for (int i = 0; i < pixels.Length; i++) pixels[i] = ground;
             Vector2[] points = { new Vector2(8f, 10f), new Vector2(19f, 26f), new Vector2(30f, 14f) };

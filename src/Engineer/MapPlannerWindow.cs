@@ -108,11 +108,53 @@ namespace ReDefinition.Engineer
             List<Destination> route = Route();
             // A plan that could not be made again leaves no old plan standing.
             WholePlan = null;
-            if (route == null || FlightGlobals.ActiveVessel == null) return;
+            if (route == null || FlightGlobals.ActiveVessel == null)
+            {
+                if (RoutePreview.Instance != null) RoutePreview.Instance.Hide();
+                return;
+            }
             view.SaveNow();
+            long run = PlannerTiming.Start();
             WholePlan = RouteSimulation.Run(FlightGlobals.ActiveVessel, route);
+            PlannerTiming.Stop("RouteSimulation.Run", run);
             if (RoutePreview.Instance != null) RoutePreview.Instance.Show(WholePlan);
             status = WholePlan.Steps.Count + " step(s), " + WholePlan.DeltaV.ToString("0") + " m/s" + (WholePlan.Ended != null ? "; " + WholePlan.Ended.TrimEnd('.') : "; the last stop is reached") + ".";
+        }
+
+        // What the whole plan was made for: the vessel, the route and where the vessel is in its orbit. The planner plans again when it changes.
+        private string plannedFor;
+        private string seenFor;
+        private float seenAt;
+        private float nextPlanAt;
+
+        // The route is planned as a whole by the planner itself, as the closed-form figures are: when the route or the vessel's orbit changes.
+        // Not while the autopilot flies, not in the air, and not while an engine burns, since the plan is made out of the vessel's own flight plan.
+        private void PlanByItself()
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null || view == null || Flying || Time.unscaledTime < nextPlanAt) return;
+            bool resting = vessel.situation == Vessel.Situations.PRELAUNCH || vessel.situation == Vessel.Situations.LANDED
+                           || vessel.situation == Vessel.Situations.SPLASHED || vessel.situation == Vessel.Situations.ORBITING
+                           || vessel.situation == Vessel.Situations.ESCAPING;
+            if (!resting || vessel.ctrlState.mainThrottle > 0.01f) return;
+            List<Destination> route = RouteSource.FromStops(view.RouteStops, view.BodyList, view.ReleasesAt);
+            var key = new System.Text.StringBuilder();
+            key.Append(vessel.id).Append('|').Append(RoutePlan.SignatureOf(route)).Append(vessel.situation);
+            if (route != null)
+                foreach (Destination stop in route) key.Append('|').Append(stop.Releases != null ? stop.Releases.Count : 0).Append(stop.MeetWith);
+            if (vessel.orbit != null && vessel.orbit.referenceBody != null && vessel.situation != Vessel.Situations.PRELAUNCH)
+                key.Append('|').Append(vessel.orbit.referenceBody.bodyName).Append((long)(vessel.orbit.PeA / 1000.0)).Append('/').Append((long)(vessel.orbit.ApA / 1000.0));
+            // Made once the route has stood still for a second, so that typing an altitude does not make it at every key: it takes about half a second.
+            string now = key.ToString();
+            if (now != seenFor)
+            {
+                seenFor = now;
+                seenAt = Time.unscaledTime;
+            }
+            if (now == plannedFor || Time.unscaledTime - seenAt < 1f) return;
+            plannedFor = now;
+            nextPlanAt = Time.unscaledTime + 2f;
+            PlanAllNow();
         }
 
         // For the probes: the route's first stop set to an orbit round a body, where the vessel starts.
@@ -242,6 +284,7 @@ namespace ReDefinition.Engineer
             {
                 view.Keep(root);
                 view.Tick();
+                PlanByItself();
                 long listing = PlannerTiming.Start();
                 list.Update();
                 PlannerTiming.Stop("list.Update", listing);
@@ -345,9 +388,14 @@ namespace ReDefinition.Engineer
             get { return Flying; }
         }
 
+        // The navigation alone: the autopilot includes it, and is shown on its own.
         public bool NavigationOn
         {
-            get { return NavigationState(); }
+            get
+            {
+                RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
+                return state != null && state.Navigation && !Flying;
+            }
         }
 
         // What the route is doing; else what the last press came to, unless that is the plan itself, which the part's heading already says.
@@ -371,23 +419,19 @@ namespace ReDefinition.Engineer
             get { return MechJebDriver.Unavailable; }
         }
 
-        public string NavigationNote
-        {
-            get { return ParsekBridge.Unavailable; }
-        }
-
-        public void PlanRoute()
-        {
-            PlanAllNow();
-        }
-
+        // Each switch turns the other off: the navigation stops a flight and takes the plan over, the autopilot flies where the navigation was.
         public void ToggleNavigation()
         {
-            if (RouteDriver.Instance != null) RouteDriver.Instance.SetNavigation(FlightGlobals.ActiveVessel, !NavigationState());
+            if (RouteDriver.Instance == null) return;
+            bool on = !NavigationOn;
+            if (Flying) RouteDriver.Instance.StopFlight(FlightGlobals.ActiveVessel);
+            RouteDriver.Instance.SetNavigation(FlightGlobals.ActiveVessel, on);
         }
 
         public void ToggleAutopilot()
         {
+            if (RouteDriver.Instance == null) return;
+            if (!Flying) RouteDriver.Instance.SetNavigation(FlightGlobals.ActiveVessel, false);
             FlyOrStop();
         }
 
@@ -402,13 +446,6 @@ namespace ReDefinition.Engineer
             }
             List<Destination> route = Route();
             if (route != null) RouteDriver.Instance.StartFlight(FlightGlobals.ActiveVessel, route);
-        }
-
-        // Whether the route is planned for the player: by the navigation, and by the autopilot, which includes it.
-        private static bool NavigationState()
-        {
-            RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
-            return state != null && (state.Navigation || state.Autopilot);
         }
 
         // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.

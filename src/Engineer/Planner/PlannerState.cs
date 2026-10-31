@@ -41,11 +41,10 @@ namespace ReDefinition.Engineer
         // The group key of a section the planner finds by itself, rather than one the player picked.
         internal const string Automatic = "Automatic";
 
-        // The route, the start first; the margin over the route's delta-v, 0.1 for ten per cent; whether plane changes count;
+        // The route, the start first; the margin over the route's delta-v, 0.1 for ten per cent;
         // the sections, with the planner's found ones once kept.
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
-        public bool PlaneChanges = true;
         public readonly List<PlannedSection> Sections = new List<PlannedSection>();
         // The satellites let go at the stops, by the part that separates them, as the planner last worked them out; kept so that a flight that
         // is loaded again still knows what is to be let go.
@@ -210,7 +209,6 @@ namespace ReDefinition.Engineer
             ConfigNode node = new ConfigNode("PLAN");
             node.AddValue("vessel", Key(vessel));
             node.AddValue("margin", Margin.ToString("0.00", CultureInfo.InvariantCulture));
-            node.AddValue("planeChanges", PlaneChanges);
             node.AddValue("nextSection", nextId);
             foreach (SectionKind kind in Dismissed) node.AddValue("dismissed", kind);
             foreach (PlannedSection section in Sections)
@@ -273,8 +271,6 @@ namespace ReDefinition.Engineer
             double margin;
             if (double.TryParse(node.GetValue("margin"), NumberStyles.Float, CultureInfo.InvariantCulture, out margin))
                 state.Margin = Math.Max(0.0, Math.Min(margin, 1.0));
-            bool planes;
-            if (bool.TryParse(node.GetValue("planeChanges"), out planes)) state.PlaneChanges = planes;
             foreach (string dismissed in node.GetValues("dismissed"))
                 if (Enum.IsDefined(typeof(SectionKind), dismissed)) state.Dismissed.Add((SectionKind)Enum.Parse(typeof(SectionKind), dismissed));
             foreach (ConfigNode sectionNode in node.GetNodes("SECTION"))

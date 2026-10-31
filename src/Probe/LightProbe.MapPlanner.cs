@@ -124,7 +124,9 @@ namespace ReDefinition.Probe
                 }
                 if (CommandLine.Has("-redefinitionProbePlanAll"))
                 {
-                    MapPlannerWindow.Instance.PlanAllNow();
+                    // The flag -redefinitionProbePlanAuto leaves the planning to the planner, which makes the plan by itself, and waits for it.
+                    if (CommandLine.Has("-redefinitionProbePlanAuto")) yield return new WaitForSeconds(8f);
+                    else MapPlannerWindow.Instance.PlanAllNow();
                     RoutePlan whole = MapPlannerWindow.Instance.WholePlan;
                     Debug.Log(Log.Tag + " Probe: whole plan: " + MapPlannerWindow.Instance.Status);
                     // The window with its flight plan section and the route drawn on the map, as the player sees them.

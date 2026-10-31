@@ -347,7 +347,7 @@ namespace ReDefinition.Engineer
             Detect(readout.PartFacts);
             PlannerTiming.Stop("Eval.detect", t);
             t = PlannerTiming.Start();
-            steps = RouteSteps.Build(bodies.Bodies, PickedStops(), RouteSections(), state.PlaneChanges);
+            steps = RouteSteps.Build(bodies.Bodies, PickedStops(), RouteSections(), true);
             PlannerTiming.Stop("Eval.steps", t);
             t = PlannerTiming.Start();
             TakeFlightPlan();
@@ -915,14 +915,6 @@ namespace ReDefinition.Engineer
             double margin = Math.Round(percent) / 100.0;
             if (!Ready() || Math.Abs(margin - state.Margin) < 1e-6) return;
             state.Margin = margin;
-            Changed();
-        }
-
-        // Plane changes count on the way across, or no longer do.
-        private void SetPlaneChanges(bool on)
-        {
-            if (!Ready() || on == state.PlaneChanges) return;
-            state.PlaneChanges = on;
             Changed();
         }
 
