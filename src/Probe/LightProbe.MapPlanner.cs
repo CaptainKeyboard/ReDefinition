@@ -54,11 +54,22 @@ namespace ReDefinition.Probe
             MapPlannerWindow.OpenAtOnce = !closed;
             yield return ProbeSteps.Frames(30);
             MapView.EnterMapView();
+            if (!closed && MapPlannerWindow.Instance != null) MapPlannerWindow.Instance.OpenNow();
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
             yield return ProbeSteps.Frames(180);
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, closed ? "map-planner-closed.png" : "map-planner.png"));
             yield return ProbeSteps.Frames(5);
             // The flag -redefinitionProbeMapPlannerHold keeps the panel open this many seconds first, for the timing of the planner.
+            // The flag -redefinitionProbeMapPlannerMoreStops adds that many stops to the route, which makes the panel again for the longer route.
+            string moreStops = CommandLine.After("-redefinitionProbeMapPlannerMoreStops");
+            if (moreStops != null && !closed && MapPlannerWindow.Instance != null)
+            {
+                yield return new WaitForSeconds(3f);
+                MapPlannerWindow.Instance.AddStops(int.Parse(moreStops));
+                yield return new WaitForSeconds(8f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-more.png"));
+                yield return ProbeSteps.Frames(5);
+            }
             string firstHold = CommandLine.After("-redefinitionProbeMapPlannerHold");
             if (firstHold != null && !closed) yield return new WaitForSeconds(float.Parse(firstHold, System.Globalization.CultureInfo.InvariantCulture));
             if (closed)

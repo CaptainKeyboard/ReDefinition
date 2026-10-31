@@ -21,7 +21,7 @@ namespace ReDefinition.Engineer
     public class MapPlannerWindow : MonoBehaviour
     {
         // The panel's width, the tab's, and the room left above, below and at its right for KSP's own bars and the toolbar column, in canvas units.
-        private const float PanelWidth = 460f, TabWidth = 64f, TabHeight = 30f, TopMargin = 96f, BottomMargin = 70f, RightMargin = 56f;
+        private const float PanelWidth = 460f, TabWidth = 84f, TabHeight = 30f, TopMargin = 96f, BottomMargin = 70f, RightMargin = 56f;
 
         // Seconds the panel takes to slide.
         private const float SlideTime = 0.2f;
@@ -37,7 +37,11 @@ namespace ReDefinition.Engineer
         private DialogGUIBase tab;
         private bool open;
         private float slide;
+        // How many rows the panel is made with (PlannerPool); the panel is made again, larger, where the route needs more.
+        private int level;
         private bool failed;
+        // Whether the panel was out in the last frame, for the frame it goes in.
+        private bool wasShown;
         // What the last press of a button came to, shown under the buttons.
         private string status = "";
 
@@ -204,7 +208,16 @@ namespace ReDefinition.Engineer
                 }
                 if (OpenAtOnce) open = true;
             }
+            if (view != null && view.RequiredLevel > level)
+            {
+                Rebuild(view.RequiredLevel);
+                return;
+            }
             if (root.activeSelf != wanted) root.SetActive(wanted);
+            // Out of the panel's way: its lists, marks and typing lock go where it shuts or the map closes.
+            bool shownNow = wanted && (open || slide > 0f);
+            if (wasShown && !shownNow && view != null) view.Flush();
+            wasShown = shownNow;
             if (!wanted) return;
 
             long update = PlannerTiming.Start();
@@ -238,8 +251,6 @@ namespace ReDefinition.Engineer
             root.layer = LayerMask.NameToLayer("UI");
             RectTransform rootRect = (RectTransform)root.transform;
             rootRect.SetParent(MainCanvasUtil.MainCanvas.transform, false);
-            // Made while it is off, the thousands of elements are not laid out one by one as they come; Update switches it on after.
-            root.SetActive(false);
             rootRect.anchorMin = Vector2.zero;
             rootRect.anchorMax = Vector2.one;
             rootRect.offsetMin = rootRect.offsetMax = Vector2.zero;
@@ -252,13 +263,24 @@ namespace ReDefinition.Engineer
 
             Image back = frame.gameObject.AddComponent<Image>();
             frameBack = back;
-            back.color = new Color(0.05f, 0.07f, 0.1f, 0.88f);
+            // The game's own window sprite where the skin has one, as the editor's panel has through its copy of the crew panel, so that a theme
+            // that replaces the sprite's texture reaches it; a flat colour where it has none.
+            Sprite windowSprite = skin.window != null && skin.window.normal != null ? skin.window.normal.background : null;
+            if (windowSprite != null)
+            {
+                back.sprite = windowSprite;
+                back.type = Image.Type.Sliced;
+                back.color = new Color(1f, 1f, 1f, 0.95f);
+            }
+            else back.color = new Color(0.05f, 0.07f, 0.1f, 0.88f);
             back.raycastTarget = true;
+            EscapeGuard.Own(frame.gameObject);
+            UnityMouseEvents.ShieldFrame(frame, () => slide > 0f);
 
             long build = PlannerTiming.Start();
             float listWidth = PanelWidth - 6f;
             float rowWidth = PlannerWidgets.RowRoom(listWidth);
-            view = new PlannerView(host, rowWidth);
+            view = new PlannerView(host, rowWidth, level);
             var rows = new List<DialogGUIBase>();
             rows.Add(Header(rowWidth));
             rows.AddRange(view.Rows());
@@ -301,7 +323,8 @@ namespace ReDefinition.Engineer
             tabHolder.pivot = new Vector2(1f, 1f);
             tabHolder.sizeDelta = new Vector2(TabWidth, TabHeight);
             tabHolder.anchoredPosition = new Vector2(0f, -16f);
-            var button = new DialogGUIButton("Plan", () => open = !open, TabWidth, TabHeight, false);
+            var button = new DialogGUIButton("Planner", () => open = !open, TabWidth, TabHeight, false);
+            button.tooltipText = "Route Planner";
             tab = button;
             var tabLayouts = new Stack<Transform>();
             tabLayouts.Push(tabHolder);
@@ -314,8 +337,11 @@ namespace ReDefinition.Engineer
                 buttonRect.offsetMin = buttonRect.offsetMax = Vector2.zero;
             }
             UiHygiene.MouseOnly(tab.uiItem);
-            // One pass over the rows while the panel is still off, which switches the rows that are not shown off at no cost: each of them is off
-            // as its parent is. Switched on first, thousands of them would be switched off one by one in the first frame.
+            DialogTooltips.Attach(new[] { tab });
+            // Off until the panel slides out; the tab, which is not under it, stays.
+            frameContent.gameObject.SetActive(false);
+            // One pass over the rows before the panel is first shown, which switches the rows that are not shown off here, once, and not in the first
+            // frame the panel is out. KSP's elements find their text and image components only while they are active, so the panel is made switched on.
             build = PlannerTiming.Start();
             list.Update();
             PlannerTiming.Stop("Build.prime", build);
@@ -333,7 +359,7 @@ namespace ReDefinition.Engineer
             var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
             pilot.OptionInteractableCondition = () => Flying || MechJebDriver.Unavailable == null;
             pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the whole route with MechJeb";
-            var whole = new DialogGUIButton("Plan", PlanAllNow, button, 28f, false);
+            var whole = new DialogGUIButton("Plan route", PlanAllNow, button, 28f, false);
             whole.OptionInteractableCondition = () => !Flying;
             whole.tooltipText = "Plan the whole route from here and draw it on the map";
             var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot, whole);
@@ -394,6 +420,40 @@ namespace ReDefinition.Engineer
             var rect = (RectTransform)go.transform;
             rect.SetParent(parent, false);
             return rect;
+        }
+
+        // For the probes: `count` stops added to the route, as the plus does.
+        internal void AddStops(int count)
+        {
+            for (int i = 0; i < count && view != null; i++) view.AddStopNow();
+        }
+
+        // For the probes: the panel out, whether it was made before they asked or not.
+        internal void OpenNow()
+        {
+            open = true;
+        }
+
+        // The route drawn on the map and the plan behind it are those of a vessel that is no longer flown.
+        internal void ForgetPlan()
+        {
+            WholePlan = null;
+            if (RoutePreview.Instance != null) RoutePreview.Instance.Hide();
+        }
+
+        // The route outgrew the rows: the panel goes, with its plan saved, and is made again in the next frame for the larger route. It stays open
+        // as it was, since the window's own state is not the panel's.
+        private void Rebuild(int needed)
+        {
+            Debug.Log(Log.Tag + " The planner in the map view is made again for a longer route (rows for level " + needed + " of " + PlannerPool.Full + ").");
+            level = needed;
+            if (view != null) view.Dispose();
+            if (root != null) Destroy(root);
+            view = null;
+            root = null;
+            list = null;
+            tab = null;
+            frame = null;
         }
 
         private void OnDestroy()

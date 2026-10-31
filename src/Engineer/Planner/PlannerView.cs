@@ -46,7 +46,7 @@ namespace ReDefinition.Engineer
         // for each leg (the way from one destination to the next) and role the step
         // there, -1 where there is none.
         private List<RouteStep> steps = new List<RouteStep>();
-        private readonly int[,] slots = new int[MaxStops, RouteStop.Roles];
+        private readonly int[,] slots;
         private List<string>[] warnings = new List<string>[0];
         private StageBudget.Result budget;
         // The stages with delta-v, in firing order, and all of them.
@@ -60,12 +60,52 @@ namespace ReDefinition.Engineer
         private List<StageRow> plannedStages = new List<StageRow>();
         private int plannedAir = -1;
 
-        // `width`: the room the panel gives the rows' boxes.
-        internal PlannerView(IPlannerHost host, float width)
+        // How many rows are made, by PlannerPool's level, and the level the route needs: where it is above the one the rows are made for, the
+        // window makes the planner again.
+        private readonly int level;
+        private readonly PlannerPool pool;
+        private int requiredLevel;
+
+        // The stops, steps and stages the rows are made for.
+        private int MaxStops
+        {
+            get { return pool.Stops; }
+        }
+
+        private int MaxFuelSteps
+        {
+            get { return pool.Steps; }
+        }
+
+        private int MaxStepStages
+        {
+            get { return pool.Stages; }
+        }
+
+        internal int Level
+        {
+            get { return level; }
+        }
+
+        internal int RequiredLevel
+        {
+            get { return requiredLevel; }
+        }
+
+        // `width`: the room the panel gives the rows' boxes; `level`: how many rows are made (PlannerPool), the full size where none is given.
+        internal PlannerView(IPlannerHost host, float width, int level = -1)
         {
             this.host = host;
             outer = width;
             this.width = width - 2f * BoxMargin;
+            this.level = level < 0 ? PlannerPool.Full : level;
+            pool = PlannerPool.Of(this.level);
+            stepBars = new SegmentBar[pool.Stops, RouteStop.Roles];
+            more = new bool[pool.Stops, RouteStop.Roles];
+            barFillers = new Sizer[pool.Stops, RouteStop.Roles];
+            slots = new int[pool.Stops, RouteStop.Roles];
+            bodyButtons = new DialogGUIBase[pool.Stops];
+            fuelSwatches = new SegmentBar[pool.Steps, pool.Stages];
             host.WatchVessel(OnVesselChanged, OnVesselFresh);
         }
 
@@ -341,6 +381,9 @@ namespace ReDefinition.Engineer
             UpdateBars();
             Mark();
             PlannerTiming.Stop("Eval.bars", t);
+            int mostStages = 0;
+            for (int i = 0; i < steps.Count; i++) mostStages = System.Math.Max(mostStages, FuelStageCount(i, RowScope.Shown));
+            requiredLevel = PlannerPool.Needed(state.Stops.Count, steps.Count, mostStages);
             PlannerTiming.Stop("Eval", whole);
         }
 
@@ -485,7 +528,7 @@ namespace ReDefinition.Engineer
         }
 
         // The body buttons of the stops, for the list to fold out under.
-        private readonly DialogGUIBase[] bodyButtons = new DialogGUIBase[MaxStops];
+        private readonly DialogGUIBase[] bodyButtons;
 
         // Folds the list of bodies out under the stop's body button.
         private void PickBody(int index)
@@ -575,7 +618,7 @@ namespace ReDefinition.Engineer
         // A new stop where the route ends: the same body, in its low orbit.
         private void AddStop()
         {
-            if (!Ready() || state.Stops.Count >= MaxStops) return;
+            if (!Ready() || state.Stops.Count >= HardStops) return;
             RouteStop last = state.Stops[state.Stops.Count - 1];
             if (last.Body < 0) return;
             state.Stops.Add(new RouteStop

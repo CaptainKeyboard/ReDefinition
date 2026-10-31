@@ -58,7 +58,7 @@ namespace ReDefinition.Engineer
                 int notes = entry.Notes.Count - (!double.IsNaN(entry.Turn) && !TurnSlow(entry) ? 1 : 0);
                 if (step.Leg.DeltaV <= 0.5 || (!entry.Twr && entry.Burns.Count == 0 && notes == 0)) continue;
                 thrustOf[i] = entry;
-                if (thrustSteps.Count < MaxFuelSteps) thrustSteps.Add(entry);
+                if (thrustSteps.Count < HardFuelSteps) thrustSteps.Add(entry);
             }
             string turns = turnLog.ToString();
             if (turns != turnLogged)

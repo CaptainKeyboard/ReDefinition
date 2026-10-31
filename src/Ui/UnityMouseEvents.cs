@@ -256,12 +256,49 @@ namespace ReDefinition.Ui
             return ImguiWindow.Contains(new Vector2(mouse.x, Screen.height - mouse.y));
         }
 
-        // Whether the cursor is over one of ReDefinition's windows: a screen-holding dialog, the diagnostics window, or a
-        // shielded dialog on a canvas that shows.
+        // A panel of ReDefinition's that is no dialog: clicks on its frame stay on it while `shown` says it is there.
+        private sealed class ShieldedFrame
+        {
+            public RectTransform Frame;
+            public Func<bool> Shown;
+        }
+
+        private static readonly List<ShieldedFrame> frames = new List<ShieldedFrame>();
+
+        internal static void ShieldFrame(RectTransform frame, Func<bool> shown)
+        {
+            frames.RemoveAll(old => old.Frame == null);
+            if (frame != null && !frames.Exists(old => old.Frame == frame)) frames.Add(new ShieldedFrame { Frame = frame, Shown = shown });
+        }
+
+        // Whether the cursor is over a panel registered with ShieldFrame that shows.
+        private static bool OverShieldedFrame(Vector3 mouse)
+        {
+            for (int i = frames.Count - 1; i >= 0; i--)
+            {
+                ShieldedFrame shielded = frames[i];
+                if (shielded.Frame == null)
+                {
+                    frames.RemoveAt(i);
+                    continue;
+                }
+                if (!shielded.Frame.gameObject.activeInHierarchy || (shielded.Shown != null && !shielded.Shown())) continue;
+                Canvas canvas = shielded.Frame.GetComponentInParent<Canvas>();
+                Canvas root = canvas != null ? canvas.rootCanvas : null;
+                if (root == null || !root.isActiveAndEnabled) continue;
+                Camera eye = root.renderMode != RenderMode.ScreenSpaceOverlay ? root.worldCamera : null;
+                if (RectTransformUtility.RectangleContainsScreenPoint(shielded.Frame, mouse, eye)) return true;
+            }
+            return false;
+        }
+
+        // Whether the cursor is over one of ReDefinition's windows: a screen-holding dialog, the diagnostics window, a
+        // panel of its own, or a shielded dialog on a canvas that shows.
         private static bool OverShieldedWindow()
         {
             if (screens.Count > 0 && ScreenShielded()) return true;
             Vector3 mouse = Input.mousePosition;
+            if (frames.Count > 0 && OverShieldedFrame(mouse)) return true;
             // The diagnostics window, drawn by IMGUI: GUI coordinates run down from
             // the top of the screen. As the last OnGUI left it, a frame before this.
             if (ImguiWindow.width > 0f && ImguiWindow.Contains(new Vector2(mouse.x, Screen.height - mouse.y))) return true;

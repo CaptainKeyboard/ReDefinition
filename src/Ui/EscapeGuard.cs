@@ -54,6 +54,13 @@ namespace ReDefinition.Ui
             if (dialog != null && !own.Contains(dialog.gameObject)) own.Add(dialog.gameObject);
         }
 
+        // The same for a window that is not a PopupDialog: any object of ReDefinition's whose text fields count.
+        internal static void Own(GameObject window)
+        {
+            own.RemoveAll(gone => gone == null);
+            if (window != null && !own.Contains(window)) own.Add(window);
+        }
+
         // Every frame, before the captures' own polls.
         internal static void Poll()
         {

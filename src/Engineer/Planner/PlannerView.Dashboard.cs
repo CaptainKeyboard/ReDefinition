@@ -79,7 +79,7 @@ namespace ReDefinition.Engineer
                 stops.Add(stop);
             }
             shot["stops"] = stops;
-            shot["canAddStop"] = state.Stops.Count < MaxStops && PickedStops().Count == state.Stops.Count;
+            shot["canAddStop"] = state.Stops.Count < HardStops && PickedStops().Count == state.Stops.Count;
             shot["nextLetter"] = Letter(state.Stops.Count);
             shot["hasSections"] = HasSections();
             if (!Worked()) return shot;

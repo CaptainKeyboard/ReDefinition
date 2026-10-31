@@ -16,15 +16,13 @@ namespace ReDefinition.Engineer
         // each with what it gives there, what it keeps after, its thrust against the
         // weight it pushes, and whether it is used there and dropped after it. A stage
         // gone before a step, dropped or burnt out, is no longer among its stages.
-        private const int MaxFuelSteps = 30;
-        private const int MaxStepStages = 10;
         private const float FuelNeeds = 72f;
         private const float FuelLeft = 80f;
         private const float StageGives = 72f;
         private const float StageKeeps = 104f;
         private const float StageTwr = 40f;
         private const float UseButton = 48f;
-        private readonly SegmentBar[,] fuelSwatches = new SegmentBar[MaxFuelSteps, MaxStepStages];
+        private readonly SegmentBar[,] fuelSwatches;
         // The steps open, by destination and role.
         private readonly HashSet<int> fuelOpen = new HashSet<int>();
         private bool fuelShown;

@@ -65,6 +65,7 @@ namespace ReDefinition.Engineer
                 dirty = true;
                 // `WholePlan` is not cleared when the vessel changes; the one it holds now is not this vessel's.
                 foreignPlan = MapPlannerWindow.Instance != null ? MapPlannerWindow.Instance.WholePlan : null;
+                if (MapPlannerWindow.Instance != null) MapPlannerWindow.Instance.ForgetPlan();
                 if (changed != null) changed();
             }
             if (!dirty && Time.unscaledTime < nextRead) return;

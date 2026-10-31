@@ -18,7 +18,10 @@ namespace ReDefinition.Engineer
     {
         // How many stops, stages and bar pieces the fixed rows are made for; in units, the icons' size, the timeline's
         // column and a stop's letter.
-        private const int MaxStops = 11;
+        // The most stops a route has, the most steps the fuel plan and the thrust check show, and the most stages of a step: the full size.
+        private const int HardStops = 11;
+        private const int HardFuelSteps = 30;
+        private const int HardStepStages = 10;
         private const int MaxStages = 30;
         private const int MaxPieces = 24;
         private const float Icon = 24f;
@@ -51,15 +54,15 @@ namespace ReDefinition.Engineer
         private const string Dim = "#9a9a9a";
 
         // Each step's bar, by leg and role; the altitude fields, for the typing lock; the roles in the order their steps come.
-        private readonly SegmentBar[,] stepBars = new SegmentBar[MaxStops, RouteStop.Roles];
+        private readonly SegmentBar[,] stepBars;
         private readonly List<DialogGUITextInput> altitudeFields = new List<DialogGUITextInput>();
         private static readonly StepRole[] Roles = { StepRole.Launch, StepRole.Transfer, StepRole.Arrive, StepRole.Land };
         // The steps whose further choices are open ("...").
-        private readonly bool[,] more = new bool[MaxStops, RouteStop.Roles];
+        private readonly bool[,] more;
         // After each step's bar, the room its bar leaves, so that the figure stands in
         // one column: the scroll list stretches its rows under its bar, and a flexible
         // space would push the figure there.
-        private readonly Sizer[,] barFillers = new Sizer[MaxStops, RouteStop.Roles];
+        private readonly Sizer[,] barFillers;
         private SegmentBar totalBar;
 
         // Every row of the planner, made once: the note while KSP's delta-v simulation is off, then the Craft, Route, Fuel
@@ -328,7 +331,7 @@ namespace ReDefinition.Engineer
                 new DialogGUILabel(Text(() => "<b><color=" + Dim + ">" + (Ready() ? Letter(state.Stops.Count) : "") + "</color></b>"), LetterWidth),
                 add);
             // Once every destination has its body.
-            row.OptionEnabledCondition = () => Ready() && state.Stops.Count < MaxStops && PickedStops().Count == state.Stops.Count;
+            row.OptionEnabledCondition = () => Ready() && state.Stops.Count < HardStops && PickedStops().Count == state.Stops.Count;
             return row;
         }
 
