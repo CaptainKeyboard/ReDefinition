@@ -112,6 +112,13 @@ namespace ReDefinition.Engineer
         // saves it once SaveDelay has passed, and works it out again where something it rests on changed.
         internal void Tick()
         {
+            long tick = PlannerTiming.Start();
+            TickWork();
+            PlannerTiming.Stop("view.Tick", tick);
+        }
+
+        private void TickWork()
+        {
             // In this frame and the next: the button a click releases may answer after the
             // labels took their text in this one, in whichever order Unity runs the two.
             bool input = Input.GetMouseButtonUp(0) || Input.GetMouseButtonUp(1) || Input.anyKeyDown;
@@ -269,6 +276,8 @@ namespace ReDefinition.Engineer
         // which step, the thrust checks, each step's warnings, the bars and the marks on the vessel.
         private void Evaluate()
         {
+            long whole = PlannerTiming.Start();
+            long t = whole;
             textVersion++;
             EditorReadout readout = host.Readout ?? new EditorReadout();
             stageLabels.Clear();
@@ -293,9 +302,17 @@ namespace ReDefinition.Engineer
                 allStages = ClampedLaunch.Parallel(allStages, readout.PartFacts, stageLabels, LaunchGravity(), LaunchBody());
             stages = allStages.FindAll(row => row.DeltaVVacuum > 0.5);
 
+            PlannerTiming.Stop("Eval.stages", t);
+            t = PlannerTiming.Start();
             Detect(readout.PartFacts);
+            PlannerTiming.Stop("Eval.detect", t);
+            t = PlannerTiming.Start();
             steps = RouteSteps.Build(bodies.Bodies, PickedStops(), RouteSections(), state.PlaneChanges);
+            PlannerTiming.Stop("Eval.steps", t);
+            t = PlannerTiming.Start();
             TakeFlightPlan();
+            PlannerTiming.Stop("Eval.takePlan", t);
+            t = PlannerTiming.Start();
             for (int leg = 0; leg < MaxStops; leg++)
                 for (int role = 0; role < RouteStop.Roles; role++) slots[leg, role] = -1;
             for (int i = 0; i < steps.Count; i++)
@@ -312,11 +329,19 @@ namespace ReDefinition.Engineer
                 });
             budget = StageBudget.Allocate(available, BudgetSteps(), state.Margin, plans,
                 VesselShape.Split(available, parts, valid.ConvertAll(section => section.Group)));
+            PlannerTiming.Stop("Eval.budget", t);
+            t = PlannerTiming.Start();
             UpdateThrust();
+            PlannerTiming.Stop("Eval.thrust", t);
+            t = PlannerTiming.Start();
             warnings = new List<string>[steps.Count];
             for (int i = 0; i < steps.Count; i++) warnings[i] = StepWarnings(i);
+            PlannerTiming.Stop("Eval.warnings", t);
+            t = PlannerTiming.Start();
             UpdateBars();
             Mark();
+            PlannerTiming.Stop("Eval.bars", t);
+            PlannerTiming.Stop("Eval", whole);
         }
 
         // At the surface of the route's first stop, where the vessel lifts off.

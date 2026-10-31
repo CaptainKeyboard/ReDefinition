@@ -147,6 +147,9 @@ namespace ReDefinition.Probe
                             yield break;
                         }
                     }
+                    // The flag -redefinitionProbeMapPlannerHold keeps the window open this many seconds, for the timing of the planner.
+                    string hold = CommandLine.After("-redefinitionProbeMapPlannerHold");
+                    if (hold != null) yield return new WaitForSeconds(float.Parse(hold, System.Globalization.CultureInfo.InvariantCulture));
                     Debug.Log(Log.Tag + " Probe: map planner done.");
                     yield break;
                 }

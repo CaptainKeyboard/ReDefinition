@@ -75,11 +75,11 @@ namespace ReDefinition.Engineer
                 DimLabel("Has", FuelLeft),
             };
             if (TurnFits) heads.Add(DimLabel("Turns 90°", TurnColumn));
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout names = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 heads.ToArray());
             names.OptionEnabledCondition = () => thrustShown && Worked() && thrustSteps.Count > 0;
             yield return names;
-            DialogGUIHorizontalLayout none = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout none = new GatedRow(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("No burns on the route.", width - Timeline));
             none.OptionEnabledCondition = () => thrustShown && Worked() && thrustSteps.Count == 0;
             yield return none;
@@ -128,12 +128,12 @@ namespace ReDefinition.Engineer
             if (TurnFits) cells.Add(new DialogGUILabel(Text(() => TurnText(ThrustAt(row, RowScope.Shown))), TurnColumn));
             cells.Add(new DialogGUISpace(room));
             cells.Add(open);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout line = new GatedRow(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 cells.ToArray());
             line.OptionEnabledCondition = () => ThrustAt(row, RowScope.Shown) != null;
             yield return line;
 
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout names = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Mass", MassColumn),
                 DimLabel("Isp", IspColumn), DimLabel("Start", TwrColumn), DimLabel("End", TwrColumn), DimLabel("In air", TwrColumn),
                 DimLabel("Thrust", ThrustColumn), DimLabel("Burns", BurnColumn));
@@ -143,7 +143,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxStepStages; i++)
             {
                 int stage = i;
-                DialogGUIHorizontalLayout use = new DialogGUIHorizontalLayout(width, RowHeight + 2f, Gap, new RectOffset(),
+                DialogGUIHorizontalLayout use = new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f),
                     new DialogGUILabel(Text(() => ThrustStageName(OpenThrust(row, RowScope.Shown), stage)), StageName_),
                     new DialogGUILabel(Text(() => StageMassText(OpenThrust(row, RowScope.Shown), stage)), MassColumn),
@@ -158,7 +158,7 @@ namespace ReDefinition.Engineer
             }
 
             // Its RCS, as a stage of its own.
-            DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, RowHeight + 2f, Gap, new RectOffset(),
+            DialogGUIHorizontalLayout rcs = new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_),
                 new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => EngineerFormat.Mass(info.Mass))), MassColumn),
                 new DialogGUILabel(Text(() => RcsCell(OpenThrust(row, RowScope.Shown), info => EngineerFormat.Isp(info.Isp))), IspColumn),
@@ -173,7 +173,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxFuelLines; i++)
             {
                 int burn = i;
-                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+                DialogGUIHorizontalLayout text = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUISpace(Timeline + Swatch + 4f), new DialogGUILabel(Text(() => BurnName_(OpenThrust(row, RowScope.Shown), burn)), BurnName),
                     new DialogGUILabel(Text(() => BurnText(OpenThrust(row, RowScope.Shown), burn)), width - Timeline - Swatch - 4f - BurnName - Gap * 2f - RowEnd));
                 text.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null && burn < OpenThrust(row, RowScope.Shown).Burns.Count;
@@ -183,7 +183,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxNotes; i++)
             {
                 int note = i;
-                DialogGUIHorizontalLayout text = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+                DialogGUIHorizontalLayout text = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUISpace(Timeline + Swatch + 4f),
                     new DialogGUILabel(Text(() => OpenThrust(row, RowScope.Shown) != null && note < OpenThrust(row, RowScope.Shown).Notes.Count ? OpenThrust(row, RowScope.Shown).Notes[note] : ""),
                         width - Timeline - Swatch - 4f - 4f - RowEnd));
@@ -191,7 +191,7 @@ namespace ReDefinition.Engineer
                 yield return text;
             }
 
-            DialogGUIHorizontalLayout body = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout body = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f),
                 new DialogGUILabel(Text(() => ThrustBodyText(OpenThrust(row, RowScope.Shown))), width - Timeline - Swatch - 4f - 4f - RowEnd));
             body.OptionEnabledCondition = () => OpenThrust(row, RowScope.Shown) != null;

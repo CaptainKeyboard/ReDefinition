@@ -68,7 +68,9 @@ namespace ReDefinition.Engineer
                 if (changed != null) changed();
             }
             if (!dirty && Time.unscaledTime < nextRead) return;
+            long read = PlannerTiming.Start();
             readout = EditorReadout.Read(vessel);
+            PlannerTiming.Stop("host.Read", read);
             nextRead = Time.unscaledTime + ReadEvery;
             dirty = false;
         }

@@ -32,7 +32,7 @@ namespace ReDefinition.Engineer
         // The fuel plan's rows: the columns' names, each step's rows, and how many steps more than it shows.
         private IEnumerable<DialogGUIBase> FuelRows()
         {
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout names = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), DimLabel("Step", Place), DimLabel("Flown by", VehicleButton), DimLabel("Needs", FuelNeeds),
                 DimLabel("Left after", FuelLeft));
             names.OptionEnabledCondition = () => fuelShown && Worked() && steps.Count > 0;
@@ -40,7 +40,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxFuelSteps; i++)
                 foreach (DialogGUIBase row in FuelStepRows(i))
                     yield return row;
-            DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout more = new GatedRow(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline),
                 new DialogGUILabel(Text(() => "<color=" + Dim + ">" + (steps.Count - MaxFuelSteps) + " more steps</color>"), width - Timeline));
             more.OptionEnabledCondition = () => fuelShown && Worked() && steps.Count > MaxFuelSteps;
@@ -107,14 +107,14 @@ namespace ReDefinition.Engineer
             DialogGUISpace noOpen = new DialogGUISpace(Square);
             noOpen.OptionEnabledCondition = () => !FuelStepShown(step, RowScope.Shown);
             float room = Mathf.Max(0f, StepLineRoom);
-            DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout row = new GatedRow(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => FuelPlace(step, RowScope.Shown)), Place),
                 new DialogGUILabel(Text(() => FuelFlyer(step, RowScope.Shown)), VehicleButton), new DialogGUILabel(Text(() => FuelNeedsText(step, RowScope.Shown)), FuelNeeds),
                 new DialogGUILabel(Text(() => FuelLeftText(step, RowScope.Shown)), FuelLeft), new DialogGUISpace(room), open, noOpen);
             row.OptionEnabledCondition = () => FuelStepShown(step, RowScope.Shown);
             yield return row;
 
-            DialogGUIHorizontalLayout names = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout names = new GatedRow(width, RowHeight, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("Stage", StageName_), DimLabel("Gives", StageGives), DimLabel("Keeps", StageKeeps),
                 DimLabel("TWR", StageTwr));
             names.OptionEnabledCondition = () => FuelIsOpen(step, RowScope.Shown) && FuelStage(step, 0, RowScope.Shown) != null;
@@ -124,12 +124,12 @@ namespace ReDefinition.Engineer
                 yield return FuelStageRow(step, i);
             // Its RCS, as a stage of its own: it gives the step nothing and keeps the
             // delta-v its propellant gives what flies it.
-            DialogGUIHorizontalLayout rcs = new DialogGUIHorizontalLayout(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout rcs = new GatedRow(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f), DimLabel("RCS", StageName_), DimLabel("0", StageGives),
                 new DialogGUILabel(Text(() => RcsAt(step) != null ? EngineerFormat.Speed(RcsAt(step).DeltaV) : ""), StageKeeps));
             rcs.OptionEnabledCondition = () => FuelIsOpen(step, RowScope.Shown) && RcsAt(step) != null;
             yield return rcs;
-            DialogGUIHorizontalLayout more = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout more = new GatedRow(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline + Swatch + 4f),
                 new DialogGUILabel(Text(() => "<color=" + Dim + ">" + (FuelStageCount(step, RowScope.Shown) - MaxStepStages) + " more stages</color>"),
                     width - Timeline - Swatch - 4f));
@@ -141,7 +141,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxFuelLines; i++)
             {
                 int line = i;
-                DialogGUIHorizontalLayout detail = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(),
+                DialogGUIHorizontalLayout detail = new GatedRow(width, RowHeight, Gap, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel(Text(() => FuelLineName(step, line, RowScope.Shown)), Place + VehicleButton + 4f),
                     new DialogGUILabel(Text(() => FuelLineValue(step, line, RowScope.Shown)), FuelNeeds));
                 detail.OptionEnabledCondition = () => FuelIsOpen(step, RowScope.Shown) && line < FuelLines(step, RowScope.Shown).Count;
@@ -150,7 +150,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxWarnings; i++)
             {
                 int line = i;
-                DialogGUIHorizontalLayout warning = new DialogGUIHorizontalLayout(width, RowHeight, Gap, new RectOffset(),
+                DialogGUIHorizontalLayout warning = new GatedRow(width, RowHeight, Gap, new RectOffset(),
                     TextAnchor.MiddleLeft, new DialogGUISpace(Timeline),
                     new DialogGUILabel(Text(() => "<color=" + Problem + ">" + FuelWarning(step, line, RowScope.Shown) + "</color>"), width - Timeline - 4f - RowEnd));
                 warning.OptionEnabledCondition = () => FuelIsOpen(step, RowScope.Shown) && FuelWarning(step, line, RowScope.Shown).Length > 0;
@@ -265,7 +265,7 @@ namespace ReDefinition.Engineer
             };
             float room = Mathf.Max(0f, width - Timeline - Swatch - StageName_ - StageGives - StageKeeps - StageTwr - UseButton - DropButton
                                        - Gap * 8f - RowEnd);
-            DialogGUIHorizontalLayout line = new DialogGUIHorizontalLayout(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
+            DialogGUIHorizontalLayout line = new GatedRow(width, Square + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
                 new DialogGUISpace(Timeline), swatch.Layout, new DialogGUILabel(Text(() => ColouredStage(number())), StageName_),
                 new DialogGUILabel(Text(() => StageGivesText(step, row, RowScope.Shown)), StageGives), new DialogGUILabel(Text(() => StageKeepsText(step, row, RowScope.Shown)), StageKeeps),
                 new DialogGUILabel(Text(() => StageTwrText(step, row, RowScope.Shown)), StageTwr), new DialogGUISpace(room), use, drop);

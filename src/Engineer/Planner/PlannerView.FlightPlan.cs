@@ -29,7 +29,7 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < MaxPlanLines; i++)
             {
                 int line = i;
-                DialogGUIHorizontalLayout row = new DialogGUIHorizontalLayout(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
+                DialogGUIHorizontalLayout row = new GatedRow(width, RowHeight, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                     new DialogGUILabel(() => PlanLine(line), width - RowEnd, RowHeight));
                 row.OptionEnabledCondition = () => PlanLine(line).Length > 0;
                 yield return row;

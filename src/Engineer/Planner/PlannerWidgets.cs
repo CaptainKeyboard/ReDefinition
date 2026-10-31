@@ -369,7 +369,7 @@ namespace ReDefinition.Engineer
                 pieces[i] = new DialogGUIImage(new Vector2(1f, height), Vector2.zero, Color.white, Texture2D.whiteTexture);
                 pieces[i].OptionEnabledCondition = () => widths[at] >= 1f;
             }
-            Layout = new DialogGUIHorizontalLayout(false, false, 1f, new RectOffset(), TextAnchor.MiddleLeft, pieces);
+            Layout = new GatedRow(false, false, 1f, new RectOffset(), TextAnchor.MiddleLeft, pieces);
             after.Add(Reach);
         }
 
@@ -519,11 +519,11 @@ namespace ReDefinition.Engineer
                 button.tooltipText = TooltipText.Wrap(choice.Tooltip);
                 if (choice.Hover != null) hovers.Add(new KeyValuePair<DialogGUIButton, Choice>(button, picked));
                 rows.Add(choice.Indent > 0f
-                    ? new DialogGUIHorizontalLayout(rowWidth, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
+                    ? new GatedRow(rowWidth, RowHeight, 0f, new RectOffset((int)choice.Indent, 0, 0, 0),
                         TextAnchor.MiddleLeft, button)
                     : (DialogGUIBase)button);
             }
-            DialogGUIVerticalLayout layout = new DialogGUIVerticalLayout(rowWidth, -1f, 2f, new RectOffset(4, 4, 4, 4),
+            DialogGUIVerticalLayout layout = new GatedColumn(rowWidth, -1f, 2f, new RectOffset(4, 4, 4, 4),
                 TextAnchor.UpperLeft, rows.ToArray());
             DialogGUIBase content = layout;
             DialogGUIScrollList scroll = null;
@@ -534,7 +534,7 @@ namespace ReDefinition.Engineer
                     layout,
                 };
                 scroll = new DialogGUIScrollList(new Vector2(width + 8f, height), false, true,
-                    new DialogGUIVerticalLayout(rowWidth, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft, sized.ToArray()));
+                    new GatedColumn(rowWidth, -1f, 0f, new RectOffset(), TextAnchor.UpperLeft, sized.ToArray()));
                 content = scroll;
             }
             Stack<Transform> layouts = new Stack<Transform>();

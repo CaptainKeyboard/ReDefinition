@@ -187,7 +187,9 @@ namespace ReDefinition.Engineer
             if (root.activeSelf != wanted) root.SetActive(wanted);
             if (!wanted) return;
 
-            host.Tick();
+            long update = PlannerTiming.Start();
+            // The vessel is read only for a panel that is open or opening.
+            if (open || slide > 0f) host.Tick();
             slide = Mathf.MoveTowards(slide, open ? 1f : 0f, Time.unscaledDeltaTime / SlideTime);
             float hidden = PanelWidth + RightMargin;
             frame.anchoredPosition = new Vector2(Mathf.Lerp(hidden, -RightMargin, Mathf.SmoothStep(0f, 1f, slide)), (BottomMargin - TopMargin) / 2f);
@@ -196,8 +198,11 @@ namespace ReDefinition.Engineer
             {
                 view.Keep(root);
                 view.Tick();
+                long listing = PlannerTiming.Start();
                 list.Update();
+                PlannerTiming.Stop("list.Update", listing);
             }
+            PlannerTiming.Stop("window.Update", update);
         }
 
         // The panel made under the main canvas: a frame at the right edge, the tab on its left, and the planner's rows in a scroll list.
