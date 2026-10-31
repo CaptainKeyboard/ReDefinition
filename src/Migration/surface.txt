@@ -1783,6 +1783,7 @@ mod.MOD_SETTINGS[waterfall].detect = Waterfall.Settings
 mod.MOD_SETTINGS[waterfall].version = 0.11.0.0
 own.autoAltimeter = True
 own.autoExposure = True
+own.backgroundRoute = True
 own.cameraListKey = None
 own.crewSlotButtons = True
 own.dashboardKey = 

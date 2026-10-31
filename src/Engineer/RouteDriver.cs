@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Background;
 using ReDefinition.Autopilot.Flight;
 using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Autopilot.Planning;
@@ -54,26 +55,54 @@ namespace ReDefinition.Engineer
             Instance = this;
             ParsekBridge.WarnOnce();
             GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
+            GameEvents.onGamePause.Add(OnPause);
         }
 
-        // The player leaves the flight with the autopilot on: the rest of the route is planned and given to Parsek as a recording, which Parsek
-        // plays, and puts the vessel back at its end, while the player is away.
+        // The pause menu is where the flight is left from, and it saves the game before the scene is asked for: the route is kept for the background by then.
+        private void OnPause()
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            RouteState state = RouteState.Of(vessel);
+            if (vessel == null || state == null || !state.Autopilot || route == null || FlightGlobals.ready == false) return;
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            if (addon == null || !addon.Live.BackgroundRoute) return;
+            try
+            {
+                string problem = BackgroundRoutes.Hand(vessel, RouteSimulation.Run(vessel, route));
+                Debug.Log(Log.Tag + " Route: the pause menu is open with the autopilot on; background: " + (problem ?? "kept") + ".");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " Route: the plan for the background failed: " + e);
+            }
+        }
+
+        // The player leaves the flight with the autopilot on: the rest of the route is planned. The vessel flies it in the background
+        // (BackgroundRoutes), or Parsek plays it as a recording and puts the vessel back at its end.
         private void OnSceneLoadRequested(GameScenes scene)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             RouteState state = RouteState.Of(vessel);
-            if ((scene != GameScenes.SPACECENTER && scene != GameScenes.TRACKSTATION) || vessel == null || state == null || !state.Autopilot || route == null) return;
+            if ((scene != GameScenes.SPACECENTER && scene != GameScenes.TRACKSTATION) || vessel == null || state == null) return;
+            if (!state.Autopilot || route == null)
+            {
+                BackgroundRoutes.Cancel(vessel);
+                return;
+            }
             // A burn that is under way ends here: the vessel is recorded, and put back, without thrust, and the route is planned again from its orbit.
             if (flight != null) flight.Cancel();
             FlightInputHandler.state.mainThrottle = 0f;
             try
             {
                 RoutePlan plan = RouteSimulation.Run(vessel, route);
-                // Where the plan ends is where the vessel is put back: the count goes on from there.
+                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+                bool parsek = addon != null && !addon.Live.BackgroundRoute;
+                // Parsek puts the vessel back where the plan ends, and the count goes on from there; a vessel that flies on itself is counted from where it is.
                 RouteState own = RouteState.Of(vessel);
-                if (own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);
-                string problem = ParsekRecording.CommitPlan(vessel, plan, true);
-                Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; Parsek: " + (problem ?? "recorded") + ".");
+                if (parsek && own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);
+                string problem = parsek ? ParsekRecording.CommitPlan(vessel, plan, true) : BackgroundRoutes.Hand(vessel, plan);
+                Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; "
+                          + (parsek ? "Parsek: " : "background: ") + (problem ?? "kept") + ".");
             }
             catch (System.Exception e)
             {
@@ -84,6 +113,7 @@ namespace ReDefinition.Engineer
         private void OnDestroy()
         {
             GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
+            GameEvents.onGamePause.Remove(OnPause);
             if (Instance == this) Instance = null;
             if (flight != null) flight.Cancel();
         }

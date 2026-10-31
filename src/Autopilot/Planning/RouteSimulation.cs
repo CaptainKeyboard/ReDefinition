@@ -35,6 +35,8 @@ namespace ReDefinition.Autopilot.Planning
         public double DeltaV;
         // The last stop of the route the plan reaches, by its index; the count the vessel goes on with where it is taken out of the world.
         public int Reached = -1;
+        // The stops reached when each state of the plan was met: its UT and the last stop reached by then.
+        public readonly List<KeyValuePair<double, int>> ReachedAt = new List<KeyValuePair<double, int>>();
         // The route the plan was made for, as SignatureOf has it; a plan is not the one of a route whose signature differs.
         public string Signature;
         // The first stop the plan leads to, and whether the vessel was at the one before it.
@@ -110,6 +112,7 @@ namespace ReDefinition.Autopilot.Planning
                     }
                     NodePlanner.Result result = LegPlanner.PlanNext(frame, route, forPlayer, false, progress);
                     if (atStart == -2) atStart = progress.Reached;
+                    plan.ReachedAt.Add(new KeyValuePair<double, int>(frame.Now, progress.Reached));
                     if (plan.FirstGoal < 0 && result.Goal >= 0)
                     {
                         plan.FirstGoal = result.Goal;

@@ -178,6 +178,8 @@ namespace ReDefinition.Modules
         public bool StagingResetAsks = true;
         // The crew slot buttons in the staging stack's look (Hud/CrewSlotButtons).
         public bool CrewSlotButtons = true;
+        // The route flown on by the vessel itself while the player is away, in place of a recording for Parsek (Autopilot/Background/BackgroundRoutes).
+        public bool BackgroundRoute = true;
         // Better Time Warp's button in the time panel (Hud/TimeWarpBar).
         public bool TimeWarpPanelButton = true;
 
@@ -411,6 +413,7 @@ namespace ReDefinition.Modules
             Bool("hudTooltips", x => x.HudTooltips, (x, v) => x.HudTooltips = v, true),
             Bool("stagingResetAsks", x => x.StagingResetAsks, (x, v) => x.StagingResetAsks = v, true),
             Bool("crewSlotButtons", x => x.CrewSlotButtons, (x, v) => x.CrewSlotButtons = v, true),
+            Bool("backgroundRoute", x => x.BackgroundRoute, (x, v) => x.BackgroundRoute = v, true),
             Bool("timeWarpPanelButton", x => x.TimeWarpPanelButton, (x, v) => x.TimeWarpPanelButton = v, true),
             Bool("techniqueAuto", x => x.BackendAuto, (x, v) => x.BackendAuto = v, true),
             Bool("qualityAuto", x => x.QualityAuto, (x, v) => x.QualityAuto = v, true),

@@ -670,6 +670,11 @@ namespace ReDefinition.Modules
                 row: SettingCategory.Gameplay,
                 section: "Flight",
                 takesEffect: ApplyWindow.NextScene),
+            Toggle("backgroundRoute", "Autopilot route in the background", 119,
+                "When you leave a flight with the autopilot on, the vessel stays real and flies the rest of the route while you are away. "
+                  + "Off, the route is recorded for Parsek, which plays it as a ghost and puts the vessel back at its end.",
+                row: SettingCategory.Gameplay,
+                section: "Flight"),
             // Only with the mod, as its toolbar switch (SettingsWindow.ButtonRows).
             Toggle("timeWarpPanelButton", "Better Time Warp in the time panel", 118,
                 "With Better Time Warp installed, its button stands at the end of the time panel's warp row instead "

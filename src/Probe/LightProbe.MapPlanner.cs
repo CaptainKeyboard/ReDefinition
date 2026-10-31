@@ -3,6 +3,7 @@ using System.IO;
 using KSP.UI;
 using KSP.UI.Screens;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Background;
 using ReDefinition.Autopilot.Flight;
 using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Autopilot.Planning;
@@ -194,6 +195,29 @@ namespace ReDefinition.Probe
                                       + ", " + leg.Orbit.PeA.ToString("0") + " x " + leg.Orbit.ApA.ToString("0") + " m.");
                         if (CommandLine.Has("-redefinitionProbeParsekCommit"))
                             Debug.Log(Log.Tag + " Probe: whole plan: Parsek: " + (ParsekRecording.CommitPlan(FlightGlobals.ActiveVessel, whole) ?? "committed"));
+                    }
+                    if (CommandLine.Has("-redefinitionProbeBackgroundLeave") && whole != null)
+                    {
+                        // The vessel stays in the world with its route kept for the background; the other scene warps past the plan's end.
+                        Vessel leaving = FlightGlobals.ActiveVessel;
+                        RouteState.Of(leaving).Autopilot = true;
+                        double extra;
+                        if (double.TryParse(CommandLine.After("-redefinitionProbeExtraClearance") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out extra)) BackgroundRoutes.ExtraClearance = extra;
+                        BackgroundRoutes.TrustHeight = !CommandLine.Has("-redefinitionProbeCheckGround");
+                        string problem = BackgroundRoutes.Hand(leaving, whole);
+                        Debug.Log(Log.Tag + " Probe: whole plan: background route: " + (problem ?? "kept"));
+                        if (problem == null)
+                        {
+                            // The pause menu saves the game as the scene is left; the probe does the same.
+                            GamePersistence.SaveGame("persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
+                            ParsekLeave.Name = leaving.vesselName;
+                            ParsekLeave.EndUT = System.Math.Max(whole.EndUT, BackgroundRoutes.LastStep(leaving));
+                            ParsekLeave.Active = true;
+                            yield return ProbeSteps.Frames(30);
+                            ParsekLeave.Scene = CommandLine.After("-redefinitionProbeParsekLeaveTo") == "KSC" ? GameScenes.SPACECENTER : GameScenes.TRACKSTATION;
+                            HighLogic.LoadScene(ParsekLeave.Scene);
+                            yield break;
+                        }
                     }
                     if (CommandLine.Has("-redefinitionProbeParsekLeave") && whole != null)
                     {

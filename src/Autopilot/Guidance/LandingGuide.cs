@@ -17,7 +17,7 @@ namespace ReDefinition.Autopilot.Guidance
         // loop that holds a hover makes the vessel swing up and down.
         private const double MaxChange = 1.5;
         // The speed a vessel touches down at, in m/s: MechJeb's setting for it.
-        private const double TouchdownSpeed = 0.5;
+        internal const double TouchdownSpeed = 0.5;
 
         private readonly LandingPrediction prediction = new LandingPrediction();
 

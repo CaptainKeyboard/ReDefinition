@@ -36,16 +36,19 @@ namespace ReDefinition.Autopilot.Planning
             for (int i = 0; i < route.Count; i++)
                 if (Passed(frame, route[i], i) && (progress == null || !Repeats(route, i) || progress.Reached >= i - 1)) last = i;
             if (progress != null && last > progress.Reached) progress.Reached = last;
-            if (last >= 0 && !frame.Ahead)
+            // A vessel that is at no stop, and has come from one, is on its way from the last stop it reached.
+            int at = last;
+            if (progress != null && at < 0 && progress.Reached > last) last = progress.Reached;
+            if (at >= 0 && !frame.Ahead)
             {
-                SectionRelease pending = PendingRelease(frame.Vessel, route[last]);
+                SectionRelease pending = PendingRelease(frame.Vessel, route[at]);
                 if (pending != null) return NodePlanner.Result.Release(pending, "Let the " + pending.Name.ToLowerInvariant() + " go: separate it.");
             }
             if (last + 1 >= route.Count) return NodePlanner.Result.Done("The vessel is at the last stop.");
             int next = last >= 0 ? last + 1 : HeadedFor(frame, route);
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
             goal = next;
-            fromStop = last >= 0;
+            fromStop = at >= 0;
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
             // Where the air would load the vessel beyond what it takes, the stop is reached by burning, as a stop that does not use the air.
