@@ -133,7 +133,9 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: map planner done.");
                 yield break;
             }
-            if (MapPlannerWindow.Instance != null && (FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING || FlightGlobals.ActiveVessel.situation == Vessel.Situations.ESCAPING))
+            // The flag -redefinitionProbePadClimb makes the route start on the pad, where the vessel is, and go up from there.
+            bool onThePad = CommandLine.Has("-redefinitionProbePadClimb") && FlightGlobals.ActiveVessel.situation == Vessel.Situations.PRELAUNCH;
+            if (MapPlannerWindow.Instance != null && (onThePad || FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING || FlightGlobals.ActiveVessel.situation == Vessel.Situations.ESCAPING))
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";
                 bool landOn = CommandLine.Has("-redefinitionProbeMapPlannerLand");
@@ -204,7 +206,17 @@ namespace ReDefinition.Probe
                         double extra;
                         if (double.TryParse(CommandLine.After("-redefinitionProbeExtraClearance") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out extra)) BackgroundRoutes.ExtraClearance = extra;
                         BackgroundRoutes.TrustHeight = !CommandLine.Has("-redefinitionProbeCheckGround");
-                        string problem = BackgroundRoutes.Hand(leaving, whole);
+                        ParsekLeave.PartCount = leaving.parts.Count;
+                        // The flag -redefinitionProbeViaPause leaves as the player does: the pause menu opens, and the scene is asked for with the time standing still.
+                        string problem;
+                        if (CommandLine.Has("-redefinitionProbeViaPause") && RouteDriver.Instance != null)
+                        {
+                            RouteDriver.Instance.Remember(MapPlannerWindow.Instance.Route());
+                            FlightDriver.SetPause(true);
+                            yield return new WaitForSecondsRealtime(1f);
+                            problem = BackgroundRoutes.Holds(leaving) ? null : "the route was not kept when the pause menu opened";
+                        }
+                        else problem = BackgroundRoutes.Hand(leaving, whole, MapPlannerWindow.Instance.Route(), new BackgroundFigures());
                         Debug.Log(Log.Tag + " Probe: whole plan: background route: " + (problem ?? "kept"));
                         if (problem == null)
                         {

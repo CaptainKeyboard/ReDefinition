@@ -33,6 +33,44 @@ namespace ReDefinition.Autopilot.Background
             // earlier, before the game finds the vessel under the ground and destroys it.
             public bool Land;
             public double GroundUT;
+            public TouchdownSite Site;
+            // False for a step that only lets parts go: the orbit is then the vessel's own.
+            public bool Orbital = true;
+            // The share each part keeps of its propellant, by its persistent id, where the burn is shared over the vessel's stages.
+            public readonly Dictionary<uint, double> Keeps = new Dictionary<uint, double>();
+            // The parts let go in the step, in groups that become vessels.
+            public readonly List<Cut> Cuts = new List<Cut>();
+        }
+
+        // Parts let go of the vessel: by their persistent ids, with the name and the kind of the vessel they make.
+        private sealed class Cut
+        {
+            public string Name = "";
+            public VesselType Type = VesselType.Debris;
+            public readonly List<uint> Parts = new List<uint>();
+        }
+
+        // What a burn costs the vessel: the stages' propellant where KSP's stages of it are known, else one tank for all.
+        private sealed class Budget
+        {
+            public Tank Tank;
+            public IBurnShare Stages;
+            public string Name = "";
+
+            public void Apply(Step step, double deltaV)
+            {
+                if (Stages == null)
+                {
+                    step.Keep = Tank.Burn(deltaV);
+                    return;
+                }
+                var gone = new List<uint>();
+                Stages.Burn(deltaV, step.Keeps, gone);
+                if (gone.Count == 0) return;
+                var cut = new Cut { Name = Name + " Debris", Type = VesselType.Debris };
+                cut.Parts.AddRange(gone);
+                step.Cuts.Add(cut);
+            }
         }
 
         // The propellant left and the vessel's mass, as the burns of the plan use them up.
@@ -60,7 +98,7 @@ namespace ReDefinition.Autopilot.Background
         internal static double ExtraClearance;
         internal static bool TrustHeight = true;
         // How long a vessel set down is let down, in seconds, and the vessels in it with the time they began.
-        private const float SettleTime = 90f;
+        private const float SettleTime = 60f;
         private readonly Dictionary<Guid, float> settling = new Dictionary<Guid, float>();
 
         // A vessel's route: its steps in the order of their times, and the propellants its engines burn.
@@ -82,6 +120,8 @@ namespace ReDefinition.Autopilot.Background
             // Where the vessel stands once it is set down: latitude, longitude and the height of its reference point. Its orbit is kept to this until it is loaded.
             public bool Down;
             public double DownLatitude, DownLongitude, DownHeight;
+            // Why the route cannot be flown in the background, where it cannot.
+            public string Problem;
         }
 
         private readonly List<Entry> entries = new List<Entry>();
@@ -112,10 +152,12 @@ namespace ReDefinition.Autopilot.Background
 
         // Keeps the plan's orbits for the vessel as steps, where the autopilot is to go on without the player. The plan's first leg is the orbit the vessel
         // is on; each later leg starts with a burn. Null where it was kept; else why not.
-        internal static string Hand(Vessel vessel, RoutePlan plan)
+        internal static string Hand(Vessel vessel, RoutePlan plan, IList<Destination> route = null, IVesselFigures figures = null)
         {
-            if (plan == null || plan.Legs.Count < 2) return "The plan has no burn to fly.";
-            Entry entry = Build(vessel, plan);
+            bool climb = plan != null && plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null;
+            if (plan == null || (plan.Legs.Count < 2 && !climb)) return "The plan has no burn to fly.";
+            Entry entry = Build(vessel, plan, route, figures);
+            if (entry.Problem != null) return entry.Problem;
             if (entry.Steps.Count == 0) return "The plan has no orbit to go on to.";
             Staged.RemoveAll(old => old.Vessel == vessel.id);
             Staged.Add(entry);
@@ -125,6 +167,17 @@ namespace ReDefinition.Autopilot.Background
             // The game takes the scenarios as they are now into the scene that follows.
             if (HighLogic.CurrentGame != null) HighLogic.CurrentGame.scenarios = ScenarioRunner.GetUpdatedProtoModules();
             return null;
+        }
+
+        // Whether a route is kept for the vessel that is still to be flown.
+        internal static bool Holds(Vessel vessel)
+        {
+            foreach (Entry entry in Staged)
+                if (entry.Vessel == vessel.id && entry.Steps.Count > 0) return true;
+            if (Instance != null)
+                foreach (Entry entry in Instance.entries)
+                    if (entry.Vessel == vessel.id && entry.Steps.Count > 0 && !entry.Left) return true;
+            return false;
         }
 
         // The UT of the last step kept for the vessel, zero where there is none.
@@ -169,10 +222,10 @@ namespace ReDefinition.Autopilot.Background
             Staged.Clear();
         }
 
-        private static Entry Build(Vessel vessel, RoutePlan plan)
+        private static Entry Build(Vessel vessel, RoutePlan plan, IList<Destination> route, IVesselFigures figures)
         {
             var entry = new Entry { Vessel = vessel.id, Name = vessel.vesselName, Key = plan.Signature ?? "" };
-            entry.Lowest = LowestPoint(vessel, out entry.Footprint);
+            entry.Lowest = LowestPoint(vessel, out entry.Footprint, null);
             RouteState own = RouteState.Of(vessel);
             if (own != null && own.Progress.Key == entry.Key) entry.Reached = own.Progress.Reached;
             // What the engines burn: the propellants with a mass. Electric charge and intake air are not used up by a burn.
@@ -191,6 +244,39 @@ namespace ReDefinition.Autopilot.Background
             // The exhaust speed that gives the vessel's delta-v from its propellant, where KSP has worked that out; else that of its best engine.
             double total = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.TotalDeltaVVac : 0.0;
             if (total > 0.0 && tank.Propellant > 0.0 && tank.Mass > tank.Propellant) tank.Exhaust = total / Math.Log(tank.Mass / (tank.Mass - tank.Propellant));
+            var budget = new Budget { Tank = tank, Name = vessel.vesselName };
+            IBurnShare stages = figures != null ? figures.StagesOf(vessel) : null;
+            if (stages != null && stages.Ready) budget.Stages = stages;
+            // A launch from the ground ends in the orbit asked for, and the rest of the route is planned from there.
+            if (plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null && figures != null && vessel.mainBody.pqsController != null)
+            {
+                PlannedStep climb = plan.Steps[0];
+                double launch = figures.LaunchDeltaV(vessel.mainBody, climb.Altitude);
+                var ascent = new Step { Why = "ascent, " + launch.ToString("0") + " m/s", Reached = entry.Reached };
+                double began = stages != null ? stages.Elapsed : 0.0;
+                budget.Apply(ascent, launch);
+                if (stages != null && stages.Short > 0.0)
+                {
+                    entry.Problem = "The vessel does not have the delta-v for the launch: it is short of " + stages.Short.ToString("0") + " m/s.";
+                    return entry;
+                }
+                // The time of the burn: the stages' own, and where they are not known the time the vessel needs at its thrust.
+                double burnTime = stages != null && stages.Ready ? stages.Elapsed - began : 0.0;
+                if (burnTime <= 0.0) burnTime = Math.Max(60.0, launch / Math.Max(1.0, (vessel.VesselDeltaV != null ? vessel.VesselDeltaV.TotalDeltaVVac : launch) / 600.0));
+                double endUT;
+                Orbit orbit = AscentOrbit.Make(vessel, climb.Altitude, burnTime, out endUT);
+                ascent.UT = endUT;
+                ascent.Body = vessel.mainBody.bodyName;
+                ascent.Inclination = orbit.inclination;
+                ascent.Eccentricity = orbit.eccentricity;
+                ascent.SemiMajorAxis = orbit.semiMajorAxis;
+                ascent.Lan = orbit.LAN;
+                ascent.ArgumentOfPeriapsis = orbit.argumentOfPeriapsis;
+                ascent.MeanAnomaly = orbit.meanAnomalyAtEpoch;
+                ascent.Epoch = orbit.epoch;
+                entry.Steps.Add(ascent);
+                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT);
+            }
             var burnt2 = new HashSet<PlannedStep>();
             for (int i = 1; i < plan.Legs.Count; i++)
             {
@@ -206,9 +292,13 @@ namespace ReDefinition.Autopilot.Background
                 int reached = entry.Reached;
                 foreach (KeyValuePair<double, int> met in plan.ReachedAt)
                     if (met.Key <= leg.StartUT + 1.0) reached = Math.Max(reached, met.Value);
-                entry.Steps.Add(Elements(leg.Orbit, leg.StartUT, tank.Burn(deltaV), deltaV.ToString("0") + " m/s", reached));
+                Step flown = Elements(leg.Orbit, leg.StartUT, deltaV.ToString("0") + " m/s", reached);
+                budget.Apply(flown, deltaV);
+                entry.Steps.Add(flown);
             }
-            AddTouchdown(entry, plan, tank);
+            AddReleases(vessel, entry, plan);
+            AddTouchdown(vessel, entry, plan, budget);
+            if (stages != null && stages.Short > 0.0) Debug.LogWarning(Log.Tag + " Route: " + vessel.vesselName + " is short of " + stages.Short.ToString("0") + " m/s for the plan.");
             if (entry.Steps.Count > 0)
                 Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " flies on in the background: " + entry.Steps.Count + " step(s) up to UT " + entry.Steps[entry.Steps.Count - 1].UT.ToString("0") + ".");
             return entry;
@@ -241,11 +331,13 @@ namespace ReDefinition.Autopilot.Background
         }
 
         // How far the vessel's solid parts reach below its reference point along its up axis, in m: the lowest corner of any collider's bounds.
-        private static double LowestPoint(Vessel vessel, out double footprint)
+        private static double LowestPoint(Vessel vessel, out double footprint, ICollection<uint> except)
         {
             double lowest = 0.0;
             Vector3 low = Vector3.zero, high = Vector3.zero;
             foreach (Part part in vessel.parts)
+            {
+                if (except != null && except.Contains(part.persistentId)) continue;
                 foreach (Collider collider in part.GetComponentsInChildren<Collider>())
                 {
                     if (collider.isTrigger || !collider.enabled) continue;
@@ -259,6 +351,7 @@ namespace ReDefinition.Autopilot.Background
                         high = Vector3.Max(high, local);
                     }
                 }
+            }
             Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " reaches from " + low.ToString("0.0") + " to " + high.ToString("0.0") + " in its own axes, up is " + (Vector3)vessel.vesselTransform.up
                       + " against the way up " + (Vector3)vessel.upAxis + ".");
             footprint = Math.Max(Math.Max(-low.x, high.x), Math.Max(-low.z, high.z));
@@ -283,31 +376,61 @@ namespace ReDefinition.Autopilot.Background
                 double limit = LandingGuide.TouchdownSpeed, speed = vessel.verticalSpeed;
                 if (speed < -limit) vessel.ChangeWorldVelocity(vessel.upAxis * (-limit - speed));
                 else if (speed > limit) vessel.ChangeWorldVelocity(-vessel.upAxis * (speed - limit));
+                // It does not slide or turn meanwhile: ground a few metres off, or the water, would tip a tall vessel over before it has settled.
+                Vector3d sideways = vessel.srf_velocity - vessel.upAxis * Vector3d.Dot(vessel.srf_velocity, vessel.upAxis);
+                vessel.ChangeWorldVelocity(-sideways);
+                foreach (Part part in vessel.parts)
+                    if (part.Rigidbody != null) part.Rigidbody.angularVelocity = Vector3.zero;
             }
             foreach (Guid id in done) settling.Remove(id);
         }
 
         // The orbit as a step from the UT on.
-        private static Step Elements(Orbit orbit, double ut, double keep, string why, int reached)
+        private static Step Elements(Orbit orbit, double ut, string why, int reached)
         {
             return new Step
             {
                 Reached = reached, UT = ut, Body = orbit.referenceBody.bodyName, Inclination = orbit.inclination, Eccentricity = orbit.eccentricity,
                 SemiMajorAxis = orbit.semiMajorAxis, Lan = orbit.LAN, ArgumentOfPeriapsis = orbit.argumentOfPeriapsis, MeanAnomaly = orbit.meanAnomalyAtEpoch,
-                Epoch = orbit.epoch, Keep = keep, Why = why,
+                Epoch = orbit.epoch, Why = why,
             };
+        }
+
+        // The sections the plan lets go at its stops are steps of their own, at the time of the state they are let go in.
+        private static void AddReleases(Vessel vessel, Entry entry, RoutePlan plan)
+        {
+            foreach (PlannedStep planned in plan.Steps)
+            {
+                if (planned.Kind != NodePlanner.StepKind.Release || planned.Section == null) continue;
+                Part separator = planned.Section.FindOn(vessel);
+                if (separator == null) continue;
+                var cut = new Cut { Name = vessel.vesselName + " " + planned.Section.Name, Type = VesselType.Probe };
+                cut.Parts.AddRange(VesselDetach.SectionAway(vessel, separator));
+                int reached = entry.Reached;
+                foreach (KeyValuePair<double, int> met in plan.ReachedAt)
+                    if (met.Key <= planned.At + 1.0) reached = Math.Max(reached, met.Value);
+                var step = new Step { Orbital = false, UT = planned.At, Reached = reached, Why = "release of the " + planned.Section.Name.ToLowerInvariant() };
+                step.Cuts.Add(cut);
+                int place = entry.Steps.FindLastIndex(other => other.UT <= planned.At) + 1;
+                entry.Steps.Insert(place, step);
+            }
         }
 
         // A plan that ends in a landing is carried to the ground. From an orbit that stays above it, a burn at the orbit's start brings the periapsis
         // down to it. The vessel touches down where the orbit meets the ground. A body with air takes the vessel down on its parachutes.
         // An airless one costs the speed the vessel arrives with, the delta-v of a landing burn.
-        private static void AddTouchdown(Entry entry, RoutePlan plan, Tank tank)
+        private static void AddTouchdown(Vessel vessel, Entry entry, RoutePlan plan, Budget budget)
         {
             PlannedStep last = plan.Steps.Count > 0 ? plan.Steps[plan.Steps.Count - 1] : null;
             if (last == null || last.Kind != NodePlanner.StepKind.Landing || plan.Legs.Count == 0) return;
             PlannedLeg leg = plan.Legs[plan.Legs.Count - 1];
             Orbit orbit = leg.Orbit;
             CelestialBody body = orbit != null ? orbit.referenceBody : null;
+            // What is left of the vessel by then is what stands on the ground: the parts let go on the way do not reach down.
+            var let = new HashSet<uint>();
+            foreach (Step before in entry.Steps)
+                foreach (Cut cut in before.Cuts) foreach (uint part in cut.Parts) let.Add(part);
+            if (let.Count > 0) entry.Lowest = LowestPoint(vessel, out entry.Footprint, let);
             if (body == null || body.pqsController == null || !body.hasSolidSurface) return;
             double from = leg.StartUT;
             // The ground is met at the periapsis or before it; a periapsis within a metre of the ground is that.
@@ -320,7 +443,9 @@ namespace ReDefinition.Autopilot.Background
                 var descent = new Orbit();
                 descent.UpdateFromStateVectors(at, speed.normalized * wanted, body, from);
                 double burn = Math.Abs(speed.magnitude - wanted);
-                entry.Steps.Add(Elements(descent, from, tank.Burn(burn), "deorbit, " + burn.ToString("0") + " m/s", entry.Steps.Count > 0 ? entry.Steps[entry.Steps.Count - 1].Reached : entry.Reached));
+                Step deorbit = Elements(descent, from, "deorbit, " + burn.ToString("0") + " m/s", entry.Steps.Count > 0 ? entry.Steps[entry.Steps.Count - 1].Reached : entry.Reached);
+                budget.Apply(deorbit, burn);
+                entry.Steps.Add(deorbit);
                 orbit = descent;
             }
             double periapsis = orbit.NextPeriapsisTime(from);
@@ -332,15 +457,24 @@ namespace ReDefinition.Autopilot.Background
             double high = FallsTo(orbit, from, periapsis, body.Radius);
             for (int round = 0; round < 4; round++)
             {
-                double latitude, longitude, altitude;
-                body.GetLatLonAlt(body.position + orbit.getRelativePositionAtUT(high).xzy, out latitude, out longitude, out altitude);
-                longitude += 360.0 * body.rotPeriodRecip * (now - high);
-                high = FallsTo(orbit, from, periapsis, body.Radius + Math.Max(0.0, body.TerrainAltitude(latitude, longitude, true)));
+                double roundLatitude, roundLongitude, roundAltitude;
+                body.GetLatLonAlt(body.position + orbit.getRelativePositionAtUT(high).xzy, out roundLatitude, out roundLongitude, out roundAltitude);
+                roundLongitude += 360.0 * body.rotPeriodRecip * (now - high);
+                high = FallsTo(orbit, from, periapsis, body.Radius + Math.Max(0.0, body.TerrainAltitude(roundLatitude, roundLongitude, true)));
             }
+            // The place is found now, while the vessel and the route are at hand; the body has turned from the time of the touchdown to now.
+            double latitude, longitude, altitude;
+            body.GetLatLonAlt(body.position + orbit.getRelativePositionAtUT(high).xzy, out latitude, out longitude, out altitude);
+            if (body.rotates) longitude += 360.0 * body.rotPeriodRecip * (now - high);
+            longitude = longitude - 360.0 * Math.Floor((longitude + 180.0) / 360.0);
+            TouchdownSite site = Touchdown.Find(body, latitude, longitude, entry.Lowest, entry.Footprint, Clearance + ExtraClearance);
+            if (!site.Found) return;
             double arrival = body.atmosphere ? 0.0 : orbit.getOrbitalSpeedAtDistance(body.Radius);
-            Step touch = Elements(orbit, trigger, tank.Burn(arrival), "landing, " + arrival.ToString("0") + " m/s", last.Goal);
+            Step touch = Elements(orbit, trigger, "landing, " + arrival.ToString("0") + " m/s", last.Goal);
+            budget.Apply(touch, arrival);
             touch.Land = true;
             touch.GroundUT = high;
+            touch.Site = site;
             entry.Steps.Add(touch);
         }
 
@@ -397,26 +531,71 @@ namespace ReDefinition.Autopilot.Background
         // The vessel on the orbit of the step from its time, with the propellant it leaves.
         private static bool Make(Vessel vessel, Entry entry, Step step)
         {
+            if (!step.Orbital)
+            {
+                Let(vessel, entry, step);
+                Debug.Log(Log.Tag + " Route: " + entry.Name + " made " + step.Why + " at UT " + step.UT.ToString("0") + ".");
+                return true;
+            }
             CelestialBody body = FlightGlobals.Bodies.Find(b => b.bodyName == step.Body);
             if (body == null) return false;
             var orbit = new Orbit(step.Inclination, step.Eccentricity, step.SemiMajorAxis, step.Lan, step.ArgumentOfPeriapsis, step.MeanAnomaly, step.Epoch, body);
             if (step.Land) return Touch(vessel, entry, step, body, orbit);
             vessel.orbitDriver.orbit.UpdateFromOrbitAtUT(orbit, step.UT, body);
             vessel.orbitDriver.UpdateOrbit();
+            if (vessel.situation == Vessel.Situations.PRELAUNCH || vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.SUB_ORBITAL)
+                InOrbit(vessel);
             vessel.protoVessel.orbitSnapShot = new OrbitSnapshot(vessel.orbitDriver.orbit);
-            Spend(vessel, entry, step.Keep);
+            Let(vessel, entry, step);
             Debug.Log(Log.Tag + " Route: " + entry.Name + " flew its burn of " + step.Why + " at UT " + step.UT.ToString("0") + " and is now round " + step.Body
                       + " (made " + (Planetarium.GetUniversalTime() - step.UT).ToString("0.00", CultureInfo.InvariantCulture) + " s late).");
             return true;
         }
 
-        // The propellant the vessel's tanks keep after a burn, as a share of what they hold.
-        private static void Spend(Vessel vessel, Entry entry, double keep)
+        // A vessel that was on the ground or in the air is in an orbit now: the vessel and its saved copy say so, and the orbit is flown by the game again.
+        private static void InOrbit(Vessel vessel)
         {
-            if (keep >= 1.0) return;
+            vessel.situation = Vessel.Situations.ORBITING;
+            vessel.Landed = false;
+            vessel.Splashed = false;
+            vessel.skipGroundPositioning = false;
+            vessel.vesselSpawning = false;
+            vessel.orbitDriver.updateMode = OrbitDriver.UpdateMode.UPDATE;
+            ProtoVessel proto = vessel.protoVessel;
+            proto.situation = Vessel.Situations.ORBITING;
+            proto.landed = false;
+            proto.splashed = false;
+            proto.skipGroundPositioning = false;
+            proto.vesselSpawning = false;
+            proto.landedAt = "";
+            proto.displaylandedAt = "";
+        }
+
+        // What a step does to the vessel besides its orbit: the propellant its tanks keep after the burn, and the parts let go.
+        private static void Let(Vessel vessel, Entry entry, Step step)
+        {
             foreach (ProtoPartSnapshot part in vessel.protoVessel.protoPartSnapshots)
+            {
+                double keep;
+                if (!step.Keeps.TryGetValue(part.persistentId, out keep)) keep = step.Keep;
+                if (keep >= 1.0) continue;
                 foreach (ProtoPartResourceSnapshot resource in part.resources)
                     if (entry.Propellants.Contains(resource.resourceName)) resource.amount *= keep;
+            }
+            foreach (Cut cut in step.Cuts)
+            {
+                try
+                {
+                    if (VesselDetach.Apply(vessel, cut.Parts, cut.Name, cut.Type))
+                        Debug.Log(Log.Tag + " Route: " + entry.Name + " let go " + cut.Parts.Count + " part(s) as " + cut.Name + ".");
+                    else
+                        Debug.LogWarning(Log.Tag + " Route: " + entry.Name + " could not let go " + cut.Name + ".");
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning(Log.Tag + " Route: " + entry.Name + " could not let go " + cut.Name + ": " + e);
+                }
+            }
         }
 
         // The orbit of a vessel that stands on the ground: the point it is fixed to, moving with the body. The game takes the vessel's speed from this orbit
@@ -432,17 +611,13 @@ namespace ReDefinition.Autopilot.Background
         // from the body's terrain. The game sets it on the ground when it is loaded, as it does a vessel that was saved on the ground.
         private static bool Touch(Vessel vessel, Entry entry, Step step, CelestialBody body, Orbit descent)
         {
+            // The parts let go at the touchdown fall on their own: they go before the vessel is set on the ground.
+            Let(vessel, entry, step);
             double now = Planetarium.GetUniversalTime();
-            double latitude, longitude, altitude;
-            body.GetLatLonAlt(body.position + descent.getRelativePositionAtUT(step.GroundUT).xzy, out latitude, out longitude, out altitude);
-            // The body has turned from the time of the touchdown to now: the same point of the orbit lies that much further west.
-            if (body.rotates) longitude += 360.0 * body.rotPeriodRecip * (now - step.GroundUT);
-            longitude = longitude - 360.0 * Math.Floor((longitude + 180.0) / 360.0);
-            TouchdownSite site = Touchdown.Find(body, latitude, longitude, entry.Lowest, entry.Footprint, Clearance + ExtraClearance);
+            TouchdownSite site = step.Site;
             double ground = site.Ground, height = site.Height;
             bool water = site.Water;
-            latitude = site.Latitude;
-            longitude = site.Longitude;
+            double latitude = site.Latitude, longitude = site.Longitude;
             // In the world's axes, with the body's turn: the vessel's position, its speed with the ground, and the way up.
             Vector3d surface = body.GetWorldSurfacePosition(latitude, longitude, height) - body.position;
             entry.Down = true;
@@ -485,7 +660,6 @@ namespace ReDefinition.Autopilot.Background
             proto.landedAt = "";
             proto.displaylandedAt = "";
             proto.orbitSnapShot = new OrbitSnapshot(vessel.orbitDriver.orbit);
-            Spend(vessel, entry, step.Keep);
             Debug.Log(Log.Tag + " Route: " + entry.Name + " set down on " + body.bodyName + " at " + latitude.ToString("0.00", CultureInfo.InvariantCulture) + ", "
                       + longitude.ToString("0.00", CultureInfo.InvariantCulture) + (water ? " on the water" : ", " + ground.ToString("0") + " m up") + ", reference point at " + height.ToString("0.0", CultureInfo.InvariantCulture) + " m, " + entry.Lowest.ToString("0.0", CultureInfo.InvariantCulture) + " m over the lowest part, the ground "
                       + site.Tilt.ToString("0.0", CultureInfo.InvariantCulture) + " degrees steep, uneven by " + site.Score.ToString("0.0", CultureInfo.InvariantCulture) + " degrees, " + site.Shift.ToString("0") + " m from where the descent met it.");
@@ -524,8 +698,37 @@ namespace ReDefinition.Autopilot.Background
                     step.Epoch = Read(node2, "epoch");
                     step.Keep = Read(node2, "keep", 1.0);
                     step.Reached = (int)Read(node2, "reached", -1.0);
+                    step.Orbital = !node2.HasValue("letgo");
+                    foreach (string kept in node2.GetValues("kept"))
+                    {
+                        string[] pieces = kept.Split(' ');
+                        uint id;
+                        double share;
+                        if (pieces.Length == 2 && uint.TryParse(pieces[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out id)
+                            && double.TryParse(pieces[1], NumberStyles.Float, CultureInfo.InvariantCulture, out share)) step.Keeps[id] = share;
+                    }
+                    foreach (ConfigNode cutNode in node2.GetNodes("CUT"))
+                    {
+                        var cut = new Cut { Name = cutNode.GetValue("name") ?? "" };
+                        try { cut.Type = (VesselType)Enum.Parse(typeof(VesselType), cutNode.GetValue("type") ?? "Debris"); } catch (Exception) { cut.Type = VesselType.Debris; }
+                        foreach (string part in cutNode.GetValues("part"))
+                        {
+                            uint id;
+                            if (uint.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out id)) cut.Parts.Add(id);
+                        }
+                        step.Cuts.Add(cut);
+                    }
                     step.Land = node2.HasValue("land");
                     step.GroundUT = Read(node2, "ground");
+                    if (step.Land)
+                    {
+                        step.Site = new TouchdownSite
+                        {
+                            Latitude = Read(node2, "siteLatitude"), Longitude = Read(node2, "siteLongitude"), Height = Read(node2, "siteHeight"), Ground = Read(node2, "siteGround"),
+                            Tilt = Read(node2, "siteTilt"), Score = Read(node2, "siteScore"), Shift = Read(node2, "siteShift"), Found = true,
+                            Water = node2.GetValue("siteWater") == "True", Rotation = KSPUtil.ParseQuaternion(node2.GetValue("siteRotation") ?? "0,0,0,1"),
+                        };
+                    }
                     entry.Steps.Add(step);
                 }
                 entry.Left = true;
@@ -555,7 +758,7 @@ namespace ReDefinition.Autopilot.Background
                 foreach (Step step in entry.Steps)
                 {
                     ConfigNode node2 = route.AddNode("STEP");
-                    node2.AddValue("body", step.Body);
+                    node2.AddValue("body", step.Body ?? "");
                     node2.AddValue("why", step.Why);
                     Write(node2, "ut", step.UT);
                     Write(node2, "inc", step.Inclination);
@@ -567,10 +770,29 @@ namespace ReDefinition.Autopilot.Background
                     Write(node2, "epoch", step.Epoch);
                     Write(node2, "keep", step.Keep);
                     node2.AddValue("reached", step.Reached);
+                    if (!step.Orbital) node2.AddValue("letgo", true);
+                    foreach (KeyValuePair<uint, double> kept in step.Keeps)
+                        node2.AddValue("kept", kept.Key.ToString(CultureInfo.InvariantCulture) + " " + kept.Value.ToString("R", CultureInfo.InvariantCulture));
+                    foreach (Cut cut in step.Cuts)
+                    {
+                        ConfigNode cutNode = node2.AddNode("CUT");
+                        cutNode.AddValue("name", cut.Name);
+                        cutNode.AddValue("type", cut.Type.ToString());
+                        foreach (uint part in cut.Parts) cutNode.AddValue("part", part.ToString(CultureInfo.InvariantCulture));
+                    }
                     if (step.Land)
                     {
                         node2.AddValue("land", true);
                         Write(node2, "ground", step.GroundUT);
+                        Write(node2, "siteLatitude", step.Site.Latitude);
+                        Write(node2, "siteLongitude", step.Site.Longitude);
+                        Write(node2, "siteHeight", step.Site.Height);
+                        Write(node2, "siteGround", step.Site.Ground);
+                        Write(node2, "siteTilt", step.Site.Tilt);
+                        Write(node2, "siteScore", step.Site.Score);
+                        Write(node2, "siteShift", step.Site.Shift);
+                        node2.AddValue("siteWater", step.Site.Water);
+                        node2.AddValue("siteRotation", KSPUtil.WriteQuaternion(step.Site.Rotation));
                     }
                 }
             }

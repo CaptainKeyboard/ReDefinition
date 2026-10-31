@@ -6,7 +6,7 @@ namespace ReDefinition.Autopilot.Planning
 {
     // The next leg of a route from where the vessel is, planned as nodes. The stop the vessel has reached is found, and the leg to the one
     // after it is handed to the planner that knows how to fly it.
-    internal static class LegPlanner
+    internal static class NextStepPlanner
     {
         // Plans the next step of the leg to the first stop the vessel has not reached: a launch, a burn as a node, a descent, or the reason
         // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
@@ -39,9 +39,9 @@ namespace ReDefinition.Autopilot.Planning
             // A vessel that is at no stop, and has come from one, is on its way from the last stop it reached.
             int at = last;
             if (progress != null && at < 0 && progress.Reached > last) last = progress.Reached;
-            if (at >= 0 && !frame.Ahead)
+            if (at >= 0 && (!frame.Ahead || progress != null))
             {
-                SectionRelease pending = PendingRelease(frame.Vessel, route[at]);
+                SectionRelease pending = PendingRelease(frame.Vessel, route[at], progress);
                 if (pending != null) return NodePlanner.Result.Release(pending, "Let the " + pending.Name.ToLowerInvariant() + " go: separate it.");
             }
             if (last + 1 >= route.Count) return NodePlanner.Result.Done("The vessel is at the last stop.");
@@ -173,11 +173,12 @@ namespace ReDefinition.Autopilot.Planning
         }
 
         // The first section of the stop that has not been let go: its separating part is still on the vessel and has not separated.
-        private static SectionRelease PendingRelease(Vessel vessel, Destination stop)
+        private static SectionRelease PendingRelease(Vessel vessel, Destination stop, RouteProgress progress = null)
         {
             if (stop.Releases == null) return null;
             foreach (SectionRelease release in stop.Releases)
             {
+                if (progress != null && progress.Released.Contains(release.SeparatorId)) continue;
                 Part part = release.FindOn(vessel);
                 if (part != null && !Separated(part)) return release;
             }

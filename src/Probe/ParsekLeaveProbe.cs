@@ -21,6 +21,8 @@ namespace ReDefinition.Probe
         internal static bool Second;
         // Set once the vessel Parsek put back is flown: the scene probe leaves that flight alone.
         internal static bool Resumed;
+        // The parts the vessel had when the route was handed over: a landing that breaks some is a failure.
+        internal static int PartCount;
     }
 
     // -redefinitionProbeParsekLeave: the flight probe left with a recording, and in the tracking station the time is warped past its end.
@@ -65,19 +67,22 @@ namespace ReDefinition.Probe
             if (!ParsekLeave.Resumed || !CommandLine.Has("-redefinitionProbeResumeLanded")) yield break;
             while (FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.packed) yield return null;
             Unpacked(FlightGlobals.ActiveVessel);
-            // Every second for the first 40: what the game does with the vessel after it has set it on the ground.
-            for (int second = 0; second < 40; second++)
+            // Every second for the first 80 (the vessel is let down for the first 60): what the game does with the vessel after it has set it on the ground.
+            for (int second = 0; second < 80; second++)
             {
                 yield return new WaitForSeconds(1f);
                 Vessel flown = FlightGlobals.ActiveVessel;
                 Debug.Log(Log.Tag + " Probe: resumed: state: " + flown.situation + ", round " + flown.mainBody.bodyName + ", " + flown.latitude.ToString("0.000") + ", " + flown.longitude.ToString("0.000")
                           + ", " + flown.altitude.ToString("0.0") + " m up, " + flown.heightFromTerrain.ToString("0.0") + " m over the ground, speed " + flown.srfSpeed.ToString("0.00")
-                          + " m/s (" + flown.verticalSpeed.ToString("0.0") + " up), " + flown.parts.Count + " parts, packed " + flown.packed + ", crew " + flown.GetCrewCount() + ".");
+                          + " m/s (" + flown.verticalSpeed.ToString("0.0") + " up), tilt " + Vector3.Angle(flown.vesselTransform.up, (Vector3)flown.upAxis).ToString("0") + " degrees, " + flown.parts.Count + " parts, packed " + flown.packed + ", crew " + flown.GetCrewCount() + ".");
                 // A vessel set down by the background route stands still on the ground, a few metres over it at most, or floats at the water level.
                 bool stands = flown.situation == Vessel.Situations.LANDED ? flown.heightFromTerrain <= 20f : flown.situation == Vessel.Situations.SPLASHED && Math.Abs(flown.altitude) <= 15.0;
-                if (second == 39 && (!stands || flown.srfSpeed > 2.0))
+                // A rocket stands on its engines or its legs on the ground, and lies on the water.
+                float tilt = Vector3.Angle(flown.vesselTransform.up, (Vector3)flown.upAxis);
+                if (second == 79 && (!stands || flown.srfSpeed > 2.0 || (flown.situation == Vessel.Situations.LANDED && tilt > 30f) || flown.parts.Count < 1))
                 {
-                    ParsekLeaveWatch.Fail("the vessel set down does not stand: " + flown.situation + ", " + flown.srfSpeed.ToString("0.0") + " m/s, " + flown.heightFromTerrain.ToString("0.0") + " m over the ground");
+                    ParsekLeaveWatch.Fail("the vessel set down does not stand: " + flown.situation + ", " + flown.srfSpeed.ToString("0.0") + " m/s, " + flown.heightFromTerrain.ToString("0.0")
+                                          + " m over the ground, tilted " + tilt.ToString("0") + " degrees, " + flown.parts.Count + " parts");
                     yield break;
                 }
             }
@@ -117,6 +122,23 @@ namespace ReDefinition.Probe
             }
             yield return new WaitForSeconds(15f);
             int found = Tell("after the end");
+            // Parts that were let go are vessels of their own: all of them together are the parts the vessel had.
+            int total = 0;
+            foreach (Vessel each in FlightGlobals.Vessels)
+                if (each.vesselName.StartsWith(ParsekLeave.Name)) total += each.protoVessel.protoPartSnapshots.Count;
+            Debug.Log(Log.Tag + " Probe: leave: the vessels named " + ParsekLeave.Name + " hold " + total + " of " + ParsekLeave.PartCount + " parts.");
+            // -redefinitionProbeExpectOrbit <body>: a vessel of the name is in an orbit round that body when the route is over.
+            string expected = CommandLine.After("-redefinitionProbeExpectOrbit");
+            if (expected != null && !FlightGlobals.Vessels.Any(v => v.vesselName.StartsWith(ParsekLeave.Name) && v.situation == Vessel.Situations.ORBITING && v.mainBody.bodyName == expected))
+            {
+                Fail("no vessel named " + ParsekLeave.Name + " is in an orbit round " + expected + " after the route");
+                yield break;
+            }
+            if (ParsekLeave.PartCount > 0 && total != ParsekLeave.PartCount)
+            {
+                Fail("the parts of the vessels named " + ParsekLeave.Name + " add up to " + total + ", the vessel had " + ParsekLeave.PartCount);
+                yield break;
+            }
             if (CommandLine.Has("-redefinitionProbeResumeLanded") && !FlightGlobals.Vessels.Any(v => v.vesselName.StartsWith(ParsekLeave.Name) && (v.situation == Vessel.Situations.LANDED || v.situation == Vessel.Situations.SPLASHED)))
             {
                 Fail("after the end of the route no vessel named " + ParsekLeave.Name + " stands on the ground or the water (" + found + " vessel(s) found)");

@@ -31,6 +31,12 @@ namespace ReDefinition.Engineer
         private float seen;
         private float routeRead = -1000f;
         private List<Destination> route;
+
+        // The route the driver holds for the flight, as the planner has it: a probe that leaves the flight as the player does gives it here.
+        internal void Remember(List<Destination> destinations)
+        {
+            route = destinations;
+        }
         private string status = "";
 
         // What the flight or the nodes did last, for the window.
@@ -68,7 +74,7 @@ namespace ReDefinition.Engineer
             if (addon == null || !addon.Live.BackgroundRoute) return;
             try
             {
-                string problem = BackgroundRoutes.Hand(vessel, RouteSimulation.Run(vessel, route));
+                string problem = BackgroundRoutes.Hand(vessel, RouteSimulation.Run(vessel, route), route, new BackgroundFigures());
                 Debug.Log(Log.Tag + " Route: the pause menu is open with the autopilot on; background: " + (problem ?? "kept") + ".");
             }
             catch (System.Exception e)
@@ -90,8 +96,16 @@ namespace ReDefinition.Engineer
                 return;
             }
             // A burn that is under way ends here: the vessel is recorded, and put back, without thrust, and the route is planned again from its orbit.
+            bool burning = flight != null;
             if (flight != null) flight.Cancel();
             FlightInputHandler.state.mainThrottle = 0f;
+            ReDefinitionAddon setting = ReDefinitionAddon.Instance;
+            // The route was kept when the pause menu opened; the time stands still now, which a plan of a launch cannot be made in.
+            if (!burning && setting != null && setting.Live.BackgroundRoute && BackgroundRoutes.Holds(vessel))
+            {
+                Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; the route kept when the pause menu opened stays.");
+                return;
+            }
             try
             {
                 RoutePlan plan = RouteSimulation.Run(vessel, route);
@@ -100,7 +114,7 @@ namespace ReDefinition.Engineer
                 // Parsek puts the vessel back where the plan ends, and the count goes on from there; a vessel that flies on itself is counted from where it is.
                 RouteState own = RouteState.Of(vessel);
                 if (parsek && own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);
-                string problem = parsek ? ParsekRecording.CommitPlan(vessel, plan, true) : BackgroundRoutes.Hand(vessel, plan);
+                string problem = parsek ? ParsekRecording.CommitPlan(vessel, plan, true) : BackgroundRoutes.Hand(vessel, plan, route, new BackgroundFigures());
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; "
                           + (parsek ? "Parsek: " : "background: ") + (problem ?? "kept") + ".");
             }

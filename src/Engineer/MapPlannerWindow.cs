@@ -477,14 +477,14 @@ namespace ReDefinition.Engineer
             List<Destination> route = Route();
             if (route == null) return;
             RouteState own = RouteState.Of(FlightGlobals.ActiveVessel);
-            NodePlanner.Result result = LegPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, false, false, own != null ? own.ProgressFor(route) : null);
+            NodePlanner.Result result = NextStepPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, false, false, own != null ? own.ProgressFor(route) : null);
             status = result.Ok
                 ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
                 : result.Why;
         }
 
         // The planner's route as destinations; null, with the reason in the status, where there is none.
-        private List<Destination> Route()
+        internal List<Destination> Route()
         {
             List<Destination> route = RouteSource.FromStops(view.RouteStops, view.BodyList, view.ReleasesAt);
             if (route == null) status = "There is no route yet.";

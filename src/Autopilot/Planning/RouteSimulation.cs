@@ -12,6 +12,12 @@ namespace ReDefinition.Autopilot.Planning
         public int Goal;
         // The UT of the burn; zero for a step that is not a burn (a descent, a pass through the air, a release).
         public double UT;
+        // The UT the step is made at: a burn's, and for a release the time of the state it is made in. Zero for a step that has no time.
+        public double At;
+        // The section a release lets go.
+        public SectionRelease Section;
+        // The altitude of the orbit an ascent ends in, in m.
+        public double Altitude;
         // The burn in the axes of the maneuver node it is put in as.
         public V3 DeltaV;
         public string Why;
@@ -79,7 +85,8 @@ namespace ReDefinition.Autopilot.Planning
     {
         // With `forPlayer` the deorbit of a landing is a burn of the plan, as the player flies it; without, the plan ends in the orbit the landing
         // starts from, which MechJeb's landing leaves by itself.
-        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false)
+        // With `from` the plan starts in that orbit at `fromUT`, as if the vessel were there: the launch of an ascent is not flown by the plan.
+        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false, Orbit from = null, double fromUT = 0.0)
         {
             var plan = new RoutePlan { Signature = RoutePlan.SignatureOf(route) };
             if (vessel == null || route == null || route.Count < 2 || vessel.patchedConicSolver == null)
@@ -92,9 +99,22 @@ namespace ReDefinition.Autopilot.Planning
             var held = new List<KeyValuePair<double, Vector3d>>();
             foreach (ManeuverNode node in vessel.patchedConicSolver.maneuverNodes) held.Add(new KeyValuePair<double, Vector3d>(node.UT, node.DeltaV));
             KspOrbits.ClearNodes(vessel);
+            // The vessel's own orbit, put back when the plan is done.
+            Vector3d ownPosition = Vector3d.zero, ownVelocity = Vector3d.zero;
+            double ownTime = Planetarium.GetUniversalTime();
+            CelestialBody ownBody = vessel.orbit.referenceBody;
+            bool swapped = false;
             try
             {
-                Frame frame = new Frame(vessel);
+                if (from != null)
+                {
+                    ownPosition = vessel.orbit.getRelativePositionAtUT(ownTime);
+                    ownVelocity = vessel.orbit.getOrbitalVelocityAtUT(ownTime);
+                    swapped = true;
+                    vessel.orbit.UpdateFromOrbitAtUT(from, fromUT, from.referenceBody);
+                    vessel.patchedConicSolver.Update();
+                }
+                Frame frame = swapped ? new Frame(vessel).At(fromUT) : new Frame(vessel);
                 // Counted from where the vessel is, on a copy: the plan does not move the vessel's own count.
                 RouteState own = RouteState.Of(vessel);
                 RouteProgress progress = new RouteProgress { Reached = own != null ? own.ProgressFor(route).Reached : -1, Key = plan.Signature };
@@ -104,13 +124,13 @@ namespace ReDefinition.Autopilot.Planning
                 int atStart = -2;
                 while (true)
                 {
-                    if (!seen.Add(StateKey(frame)))
+                    if (!seen.Add(StateKey(frame) + "|" + progress.Released.Count))
                     {
                         plan.Failed = true;
                         plan.Ended = "The plan does not move on.";
                         break;
                     }
-                    NodePlanner.Result result = LegPlanner.PlanNext(frame, route, forPlayer, false, progress);
+                    NodePlanner.Result result = NextStepPlanner.PlanNext(frame, route, forPlayer, false, progress);
                     if (atStart == -2) atStart = progress.Reached;
                     plan.ReachedAt.Add(new KeyValuePair<double, int>(frame.Now, progress.Reached));
                     if (plan.FirstGoal < 0 && result.Goal >= 0)
@@ -125,9 +145,16 @@ namespace ReDefinition.Autopilot.Planning
                         break;
                     }
                     if (result.Arrived) break;
+                    if (result.Kind == NodePlanner.StepKind.Release && frame.Ahead && result.Section != null && progress.Released.Add(result.Section.SeparatorId))
+                    {
+                        // The section goes at the stop, and the plan goes on from the same state with the vessel lighter.
+                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, Section = result.Section, At = frame.Now });
+                        frame = frame.At(frame.Now);
+                        continue;
+                    }
                     if (result.Kind != NodePlanner.StepKind.Burn)
                     {
-                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why });
+                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, Altitude = result.Altitude });
                         plan.Ended = result.Why;
                         break;
                     }
@@ -145,7 +172,7 @@ namespace ReDefinition.Autopilot.Planning
                         if (node.UT <= frame.Now + Frame.AfterNode) continue;
                         plan.Steps.Add(new PlannedStep
                         {
-                            Kind = result.Kind, Goal = result.Goal, UT = node.UT, DeltaV = new V3(node.DeltaV.x, node.DeltaV.y, node.DeltaV.z),
+                            Kind = result.Kind, Goal = result.Goal, UT = node.UT, At = node.UT, DeltaV = new V3(node.DeltaV.x, node.DeltaV.y, node.DeltaV.z),
                             Why = first ? result.Why : "The next burn of: " + result.Why,
                         });
                         first = false;
@@ -159,6 +186,11 @@ namespace ReDefinition.Autopilot.Planning
             finally
             {
                 KspOrbits.ClearNodes(vessel);
+                if (swapped)
+                {
+                    vessel.orbit.UpdateFromStateVectors(ownPosition, ownVelocity, ownBody, ownTime);
+                    vessel.patchedConicSolver.Update();
+                }
                 foreach (KeyValuePair<double, Vector3d> node in held)
                 {
                     vessel.patchedConicSolver.AddManeuverNode(node.Key).DeltaV = node.Value;

@@ -75,7 +75,7 @@ namespace ReDefinition.Autopilot.Guidance
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
             RouteState own = RouteState.Of(vessel);
-            NodePlanner.Result plan = LegPlanner.PlanNext(new Frame(vessel), route, true, false, own != null ? own.ProgressFor(route) : null);
+            NodePlanner.Result plan = NextStepPlanner.PlanNext(new Frame(vessel), route, true, false, own != null ? own.ProgressFor(route) : null);
             step = plan.Kind;
             aim = plan.Altitude;
             guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing || plan.Kind == NodePlanner.StepKind.Aerobrake

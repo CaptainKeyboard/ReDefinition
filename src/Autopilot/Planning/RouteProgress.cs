@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace ReDefinition.Autopilot.Planning
 {
     // How far along its route a vessel has come: the last stop it has reached, for the route it was counted for. A stop the route comes back to,
@@ -8,5 +10,7 @@ namespace ReDefinition.Autopilot.Planning
         public int Reached = -1;
         // The route it was counted for (RoutePlan.SignatureOf): another route starts the count again.
         public string Key = "";
+        // The sections a plan ahead has let go, by the persistent id of the part that separates them: the vessel itself does not change in a plan.
+        public readonly HashSet<uint> Released = new HashSet<uint>();
     }
 }

@@ -50,7 +50,7 @@ namespace ReDefinition.Engineer
                     SemiMajorAxis = body.orbit != null ? body.orbit.semiMajorAxis : 0.0,
                     Inclination = body.orbit != null ? body.orbit.inclination : 0.0,
                     SphereOfInfluence = body.sphereOfInfluence > 0.0 ? body.sphereOfInfluence : double.PositiveInfinity,
-                    LowOrbitAltitude = LegPlanner.LowOrbit(body),
+                    LowOrbitAltitude = NextStepPlanner.LowOrbit(body),
                     Oxygen = body.atmosphere && body.atmosphereContainsOxygen,
                     SpeedOfSound = HighSpeedOfSound(body),
                 });

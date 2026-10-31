@@ -69,7 +69,7 @@ namespace ReDefinition.Autopilot.Flight
                 try
                 {
                     RouteState own = RouteState.Of(vessel);
-                    plan = LegPlanner.PlanNext(new Frame(vessel), route, false, keepCourse, own != null ? own.ProgressFor(route) : null);
+                    plan = NextStepPlanner.PlanNext(new Frame(vessel), route, false, keepCourse, own != null ? own.ProgressFor(route) : null);
                     keepCourse = false;
                 }
                 catch (System.Exception e)
@@ -167,7 +167,7 @@ namespace ReDefinition.Autopilot.Flight
                     }
                     yield return Meet(target);
                     MechJebDriver.StopRendezvous(vessel);
-                    if ((plan.Port != 0u || plan.Dock) && !cancelled && !Lost && target != null && LegPlanner.Met(vessel, target))
+                    if ((plan.Port != 0u || plan.Dock) && !cancelled && !Lost && target != null && NextStepPlanner.Met(vessel, target))
                     {
                         // The target is loaded now, so its ports can be read: the free one that suits the vessel's own is the one to dock at.
                         uint port = plan.Port != 0u ? plan.Port : MechJebDriver.FreeTargetPort(vessel, target);

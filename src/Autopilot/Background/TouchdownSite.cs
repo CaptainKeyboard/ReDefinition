@@ -18,6 +18,8 @@ namespace ReDefinition.Autopilot.Background
         // How far the site lies from the point the descent met the ground, in m.
         public double Shift;
         public bool Water;
+        // False where no place was found.
+        public bool Found;
         // The vessel's rotation relative to the body's surface.
         public Quaternion Rotation;
     }
@@ -42,11 +44,17 @@ namespace ReDefinition.Autopilot.Background
             double centre = Ground(body, latitude, longitude);
             if (body.ocean && centre < 0.0)
             {
-                Vector3 up = (Vector3)body.GetSurfaceNVector(latitude, longitude);
+                // A tall vessel does not stand up on the water: it falls over, and what hits the water with its top breaks. It lies on the water,
+                // its axis to the east, with its widest side down. A low one, a capsule, floats upright.
+                double dLon = 1.0 / (body.Radius * Math.Max(0.01, Math.Cos(latitude * Math.PI / 180.0))) * 180.0 / Math.PI;
+                Vector3 axis = lowest > 3.0 * Math.Max(1.0, footprint)
+                    ? (Vector3)(body.GetWorldSurfacePosition(latitude, longitude + dLon, 0.0) - body.GetWorldSurfacePosition(latitude, longitude - dLon, 0.0)).normalized
+                    : (Vector3)body.GetSurfaceNVector(latitude, longitude);
+                bool flat = lowest > 3.0 * Math.Max(1.0, footprint);
                 return new TouchdownSite
                 {
-                    Latitude = latitude, Longitude = longitude, Height = lowest, Ground = centre, Water = true,
-                    Rotation = Quaternion.Inverse(body.bodyTransform.rotation) * Quaternion.FromToRotation(Vector3.up, up),
+                    Latitude = latitude, Longitude = longitude, Height = (flat ? Math.Max(1.0, footprint) : lowest) + clearance, Ground = centre, Water = true, Found = true,
+                    Rotation = Quaternion.Inverse(body.bodyTransform.rotation) * Quaternion.FromToRotation(Vector3.up, axis),
                 };
             }
             var offsets = new List<Vector2>();
@@ -63,6 +71,7 @@ namespace ReDefinition.Autopilot.Background
                 if (body.ocean && Ground(body, la, lo) < 0.0) continue;
                 TouchdownSite site = At(body, la, lo, lowest, Math.Max(1.0, footprint), clearance);
                 site.Shift = offset.magnitude;
+                site.Found = true;
                 if (!found || site.Score < best.Score - 0.01)
                 {
                     best = site;
@@ -71,6 +80,7 @@ namespace ReDefinition.Autopilot.Background
                 if (best.Score <= FlatDegrees) break;
             }
             best.Ground = centre;
+            best.Found = found;
             return best;
         }
 
