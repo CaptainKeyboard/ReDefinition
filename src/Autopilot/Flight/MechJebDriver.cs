@@ -86,7 +86,8 @@ namespace ReDefinition.Autopilot.Flight
             if (executor != null) executor.GetType().GetMethod("Abort").Invoke(executor, null);
         }
 
-        // What the executor is doing: IDLE when it is not flying a node, else INITIAL_WARP, ALIGNING, WARPING, LEAD or BURN; null with no MechJeb.
+        // What the executor is doing: IDLE when it is not flying a node, else LEAD or BURN, or the steps before them (WARPALIGN in 2.15,
+        // INITIAL_WARP, ALIGNING and WARPING in 2.16); null with no MechJeb.
         internal static string State(Vessel vessel)
         {
             object executor = Executor(vessel);
@@ -371,7 +372,9 @@ namespace ReDefinition.Autopilot.Flight
                 maxAllowed = (double)landing.GetType().GetMethod("MaxAllowedSpeed").Invoke(landing, null);
                 brakeEnd = (double)landing.GetType().GetMethod("DecelerationEndAltitude").Invoke(landing, null);
                 object state = core.GetType().GetField("VesselState").GetValue(core);
-                acceleration = (double)state.GetType().GetProperty("LimitedMaxThrustAcceleration").GetValue(state, null);
+                // Named LimitedMaxThrustAcceleration in MechJeb 2.16 and limitedMaxThrustAccel in 2.15.
+                System.Reflection.PropertyInfo limited = state.GetType().GetProperty("LimitedMaxThrustAcceleration") ?? state.GetType().GetProperty("limitedMaxThrustAccel");
+                acceleration = (double)limited.GetValue(state, null);
                 object thrust = core.GetType().GetField("Thrust").GetValue(core);
                 float throttleLimit = (float)thrust.GetType().GetProperty("ThrottleLimit").GetValue(thrust, null);
                 limiter = thrust.GetType().GetField("Limiter").GetValue(thrust) + ":" + throttleLimit.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);

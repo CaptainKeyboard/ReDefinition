@@ -696,9 +696,9 @@ namespace ReDefinition.Core
                 .OnChange(WhenChanged.Keep, "the auroras are told from the clouds by their tint alone");
 
         // MechJeb as the map window's autopilot flies a route (Autopilot/MechJebDriver): the node executor, the landing and ascent
-        // autopilots, the target and warp controllers and the staging limit, reached through the vessel's master core. MechJeb 2.16 (the
-        // development builds), decompiled: the ascent is PSG and `MechJebCore` has `Hoverslam` and `SmartASS`; the members named here
-        // are those of 2.15 as well, apart from the ascent. Without it the autopilot is greyed out.
+        // autopilots, the target and warp controllers and the staging limit, reached through the vessel's master core. MechJeb 2.15.4.0, the
+        // stable release, and 2.16 (the development builds), decompiled: the members named here are the same in both. The ascent is PVG in
+        // 2.15 and PSG in 2.16, and is reached through the settings' AscentAutopilot, which both have. Without it the autopilot is greyed out.
         public static readonly ForeignAssumption MechJebAutopilot =
             new ForeignAssumption("mechjeb-autopilot", "MechJeb", "MechJeb flying the planner's route")
                 .Type(MechJebCore).Type("MuMech.VesselExtensions")
@@ -725,14 +725,14 @@ namespace ReDefinition.Core
                 .Method("MuMech.EditableDoubleMult", "set_Val", Double)
                 .Field("MuMech.ComputerModule", "Users").Method("MuMech.ComputerModule", "get_Enabled")
                 .Method("MuMech.UserPool", "Add", "System.Object").Method("MuMech.UserPool", "Remove", "System.Object")
-                .Type("MuMech.MechJebModuleAscentPSGAutopilot")
-                .Tested("69a956b331f3") // MechJeb 2.16.0.0, development build 1771
-                .TestedVersions("2.16.0.0")
+                .Tested("69a956b331f3", "e28434d47a4d") // MechJeb 2.16.0.0, development build 1771; 2.15.4.0
+                .TestedVersions("2.15.4.0", "2.16.0.0")
                 .OnChange(WhenChanged.Fallback, "the autopilot is greyed out, and the nodes are flown by hand");
 
         // The autopilot meets a vessel and docks with it through MechJeb's rendezvous and docking autopilots (Autopilot/MechJebDriver). They are
         // modules of the master core that GetComputerModule finds by the class's name; the target controller takes the vessel or port to meet.
-        // MechJeb 2.16, source read (MechJebModuleRendezvousAutopilot, MechJebModuleDockingAutopilot, MechJebModuleTargetController).
+        // MechJeb 2.15.4.0 and 2.16, source read (MechJebModuleRendezvousAutopilot, MechJebModuleDockingAutopilot, MechJebModuleTargetController):
+        // the two differ in the names of the vessel state's members only.
         public static readonly ForeignAssumption MechJebRendezvous =
             new ForeignAssumption("mechjeb-rendezvous", "MechJeb", "the autopilot meets another vessel and docks with it")
                 .Type("MuMech.MechJebModuleRendezvousAutopilot").Type("MuMech.MechJebModuleDockingAutopilot").Type("MuMech.MechJebModuleTargetController")
@@ -740,8 +740,8 @@ namespace ReDefinition.Core
                 .Method("MuMech.MechJebCore", "GetComputerModule", "System.String")
                 .Method("MuMech.MechJebModuleTargetController", "Set", "ITargetable")
                 .Field("MuMech.MechJebModuleRendezvousAutopilot", "desiredDistance")
-                .Tested("02286d128350") // MechJeb 2.16.0.0, development build 1771
-                .TestedVersions("2.16.0.0")
+                .Tested("02286d128350", "6614bed5fc17") // MechJeb 2.16.0.0, development build 1771; 2.15.4.0
+                .TestedVersions("2.15.4.0", "2.16.0.0")
                 .OnChange(WhenChanged.Fallback, "the route stops at the orbit instead of meeting the target");
 
         // Parsek's ghosts as the autopilot tells them (Autopilot/ParsekBridge). Parsek has no API: a ghost is told by its persistent id through

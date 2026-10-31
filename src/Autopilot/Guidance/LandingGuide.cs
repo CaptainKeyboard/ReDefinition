@@ -126,6 +126,16 @@ namespace ReDefinition.Autopilot.Guidance
                    + above.ToString("0") + " m up.";
         }
 
+        // The height over which MechJeb's final descent ramps the speed down: 200 m up to MechJeb 2.15, 300 m in 2.16.
+        private static double RampHeight
+        {
+            get
+            {
+                string version = ReDefinition.Core.ForeignAssumptions.MechJebAutopilot.Version;
+                return version != null && version.StartsWith("2.16") ? 300.0 : 200.0;
+            }
+        }
+
         // The last steps. First the sideways speed is killed in a hover, the vessel pointing a little against it; then the vessel comes down at a
         // speed that falls with the height, as MechJeb's final descent has it, and touches down slowly.
         private string Landing(Vessel vessel, Vector3d position, Vector3d velocity, Vector3d up, double vertical, double above, double gravity, double thrust)
@@ -164,7 +174,8 @@ namespace ReDefinition.Autopilot.Guidance
                 Throttle = Ease(1.0);
                 return "Descent: the sideways speed is " + sideways.ToString("0") + " m/s. Kill it, retrograde at full throttle.";
             }
-            double desired = -Math.Min(1.0, above / 300.0) * Math.Sqrt((thrust - gravity) * 2.0 * 300.0) * 0.9;
+            double ramp = RampHeight;
+            double desired = -Math.Min(1.0, above / ramp) * Math.Sqrt((thrust - gravity) * 2.0 * ramp) * 0.9;
             double target = Math.Min(-TouchdownSpeed, desired);
             if (desired >= vertical) finalLit = true;
             if (!finalLit)
