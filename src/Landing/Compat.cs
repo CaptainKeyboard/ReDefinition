@@ -63,6 +63,13 @@ namespace ReDefinition.Landing
             return o.eccentricity < 1.0 ? ut + Clamp2Pi(-mean) / o.meanMotion : ut - mean / o.meanMotion;
         }
 
+        // The next time at the apoapsis of a closed orbit, within one period.
+        public static double NextApoapsisTime(this Orbit o, double ut)
+        {
+            double apoapsis = o.NextPeriapsisTime(ut) + 0.5 * o.period;
+            return apoapsis - o.period >= ut ? apoapsis - o.period : apoapsis;
+        }
+
         // An orbit from a position and a velocity in the world's axes, with the argument of periapsis made right where the game's own leaves it
         // undefined by rounding.
         public static Orbit OrbitFromStateVectors(Vector3d position, Vector3d velocity, CelestialBody body, double ut)

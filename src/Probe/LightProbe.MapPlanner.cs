@@ -155,7 +155,12 @@ namespace ReDefinition.Probe
                 {
                     // The route ends with a meeting: another vessel in an orbit round the same body is made the target.
                     Vessel active = FlightGlobals.ActiveVessel;
-                    Vessel other = FlightGlobals.Vessels.Find(v => v != active && v.mainBody == active.mainBody && v.situation == Vessel.Situations.ORBITING);
+                    // The orbiter whose plane is the nearest to the vessel's: a meeting with a polar one is not what the probe is after.
+                    Vessel other = null;
+                    foreach (Vessel candidate in FlightGlobals.Vessels)
+                        if (candidate != active && candidate.mainBody == active.mainBody && candidate.situation == Vessel.Situations.ORBITING
+                            && (other == null || System.Math.Abs(candidate.orbit.inclination - active.orbit.inclination) < System.Math.Abs(other.orbit.inclination - active.orbit.inclination)))
+                            other = candidate;
                     ModuleDockingNode port = null;
                     if (other != null && CommandLine.Has("-redefinitionProbeTargetPort"))
                         foreach (Part part in other.parts)
@@ -230,7 +235,11 @@ namespace ReDefinition.Probe
                             yield return new WaitForSecondsRealtime(1f);
                             problem = BackgroundRoutes.Holds(leaving, MapPlannerWindow.Instance.Route()) ? null : "the route was not kept when the pause menu opened";
                         }
-                        else problem = BackgroundRoutes.Hand(leaving, whole, MapPlannerWindow.Instance.Route(), new BackgroundFigures());
+                        else
+                        {
+                            whole = BackgroundRoutes.PlanFor(leaving, MapPlannerWindow.Instance.Route());
+                            problem = BackgroundRoutes.Hand(leaving, whole, MapPlannerWindow.Instance.Route(), new BackgroundFigures());
+                        }
                         Debug.Log(Log.Tag + " Probe: whole plan: background route: " + (problem ?? "kept"));
                         if (problem == null)
                         {

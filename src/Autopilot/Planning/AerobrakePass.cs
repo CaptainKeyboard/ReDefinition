@@ -13,6 +13,8 @@ namespace ReDefinition.Autopilot.Planning
     internal static class AerobrakePass
     {
         private static readonly double ProbeHeatLimitScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbeHeatLimitScale", 1f);
+        // The same for the dynamic pressure a pass may load the vessel with.
+        private static readonly double ProbePressureLimitScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbePressureLimitScale", 1f);
 
         // The most halvings, so that a body whose pressure gives no height cannot keep it searching.
         private const int MostHalvings = 40;
@@ -25,6 +27,10 @@ namespace ReDefinition.Autopilot.Planning
             public bool Landed;
             public bool Captured;
             public double Apoapsis;
+            // Where the vessel leaves the air for the first time, its speed there, and when; HasExit is false where the simulation found none.
+            public bool HasExit;
+            public Vector3d ExitPosition, ExitVelocity;
+            public double ExitUT;
             // The most the pass loads the vessel: dynamic pressure in kPa, and g-force.
             public double Pressure;
             public double Gees;
@@ -39,17 +45,16 @@ namespace ReDefinition.Autopilot.Planning
 
         // The pass from a closed orbit, whose air is to bring its apoapsis down to `targetApoapsis`: the height to dip to over the ground, in
         // metres, or a negative number with `why` set. A pass too shallow to do it in one still counts, for the passes that follow go on.
-        internal static double FromOrbit(Vessel vessel, double targetApoapsis, out string why)
+        internal static double FromOrbit(Vessel vessel, Orbit orbit, double now, double targetApoapsis, out string why)
         {
             why = null;
-            CelestialBody body = vessel.mainBody;
-            Orbit orbit = vessel.orbit;
-            if (!body.atmosphere || orbit == null || orbit.eccentricity >= 1.0)
+            CelestialBody body = orbit != null ? orbit.referenceBody : null;
+            if (body == null || !body.atmosphere || orbit.eccentricity >= 1.0)
             {
                 why = "There is no closed orbit to aerobrake from.";
                 return -1.0;
             }
-            double apoapsisUT = Planetarium.GetUniversalTime() + orbit.timeToAp;
+            double apoapsisUT = orbit.NextApoapsisTime(now);
             Vector3d position = orbit.getRelativePositionAtUT(apoapsisUT);
             Vector3d direction = orbit.getOrbitalVelocityAtUT(apoapsisUT).normalized;
             double allowed = targetApoapsis + NodePlanner.Near(targetApoapsis);
@@ -101,7 +106,7 @@ namespace ReDefinition.Autopilot.Planning
             Func<Pass, bool> partly, out string why)
         {
             why = null;
-            double pressureLimit = Heat.MaxDynamicPressure / 1000.0;
+            double pressureLimit = Heat.MaxDynamicPressure / 1000.0 * ProbePressureLimitScale;
             double geeLimit = GeeLimit(vessel);
             // The heat: the hottest part's settling temperature under the bound of the flux may go to its limit less the margin the thrust controller
             // keeps. The bound is above what the game does, so a pass that clears it needs no measurement. After a pass has been flown, what the
@@ -186,6 +191,64 @@ namespace ReDefinition.Autopilot.Planning
             return 0.5 * (low + high);
         }
 
+        // The pass of the vessel along `orbit` from `now` on, flown in the simulation: the orbit it leaves the air in, and when. False with `why` set where the
+        // pass ends on the ground, or skips out of the air on an open orbit. The vessel is taken as it is now; the pass loads were judged when its depth was found.
+        // `entryUT` is when the vessel reaches the top of the air on the way in.
+        internal static bool Fly(Vessel vessel, Orbit orbit, double now, out Orbit exit, out double exitUT, out double entryUT, out string why)
+        {
+            exit = null;
+            exitUT = 0.0;
+            entryUT = 0.0;
+            why = null;
+            CelestialBody body = orbit != null ? orbit.referenceBody : null;
+            if (body == null || !body.atmosphere)
+            {
+                why = "There is no air to fly a pass through.";
+                return false;
+            }
+            // From a little above the air on the way in, where the periapsis is the deepest point.
+            double above = body.Radius + body.atmosphereDepth + ScaleHeight(body);
+            // An orbit that does not reach that high is entered from its apoapsis.
+            if (orbit.eccentricity < 1.0) above = Math.Min(above, orbit.ApR - 1.0);
+            double from = Math.Max(now, orbit.StartUT);
+            double periapsisUT = orbit.NextPeriapsisTime(from);
+            // The time from there to the periapsis, from the orbit's shape alone: the game's own count starts from where the orbit object stands.
+            double anomaly = orbit.TrueAnomalyAtRadius(above);
+            double before = double.IsNaN(anomaly) ? 0.0 : Math.Abs(orbit.GetMeanAnomaly(orbit.GetEccentricAnomaly(anomaly))) / orbit.meanMotion;
+            Pass pass = Run(vessel, body, orbit, Math.Max(from, periapsisUT - before));
+            if (pass.Landed)
+            {
+                why = "The pass through the air of " + body.bodyName + " ends on the ground.";
+                return false;
+            }
+            if (!pass.HasExit || double.IsNaN(pass.ExitVelocity.sqrMagnitude) || double.IsNaN(pass.ExitPosition.sqrMagnitude))
+            {
+                why = "The pass through the air of " + body.bodyName + " could not be flown in the simulation.";
+                return false;
+            }
+            // The orbit is made only of a speed under the escape speed there: the game's own solver is not asked about an open one.
+            double radius = (pass.ExitPosition - body.position).magnitude;
+            if (pass.ExitVelocity.magnitude >= Math.Sqrt(2.0 * body.gravParameter / radius))
+            {
+                why = "The vessel skips out of the air of " + body.bodyName + " and is not captured.";
+                return false;
+            }
+            Orbit made = Compat.OrbitFromStateVectors(pass.ExitPosition, pass.ExitVelocity, body, pass.ExitUT);
+            if (made.eccentricity >= 1.0 || made.ApR >= body.sphereOfInfluence)
+            {
+                why = "The vessel skips out of the air of " + body.bodyName + " and is not captured.";
+                return false;
+            }
+            Debug.Log("[ReDefinition] Aerobrake: the pass through the air of " + body.bodyName + " at UT " + periapsisUT.ToString("0") + " loads " + pass.Pressure.ToString("0.0") + " kPa, "
+                      + pass.Gees.ToString("0.0") + " g, " + (pass.Heat * 100.0).ToString("0") + " % heat by the bound; the vessel leaves it at UT " + pass.ExitUT.ToString("0")
+                      + " with the apoapsis at " + (made.ApA / 1000.0).ToString("0") + " km.");
+            exit = made;
+            exitUT = pass.ExitUT;
+            double topAnomaly = orbit.TrueAnomalyAtRadius(body.Radius + body.atmosphereDepth);
+            entryUT = double.IsNaN(topAnomaly) ? exitUT : periapsisUT - Math.Abs(orbit.GetMeanAnomaly(orbit.GetEccentricAnomaly(topAnomaly))) / orbit.meanMotion;
+            return true;
+        }
+
         // The simulated pass of the vessel along the orbit, from the time given.
         private static Pass Run(Vessel vessel, CelestialBody body, Orbit orbit, double startUT)
         {
@@ -201,6 +264,14 @@ namespace ReDefinition.Autopilot.Planning
                 else if (result.Outcome == ReentrySimulation.Outcome.AEROBRAKED)
                 {
                     Orbit end = result.EndOrbit();
+                    // The simulation goes on for several orbits; the vessel leaves the air for the first time where it is said to have aerobraked.
+                    if (result.AeroBrake)
+                    {
+                        pass.HasExit = true;
+                        pass.ExitPosition = result.WorldAeroBrakePosition();
+                        pass.ExitVelocity = result.WorldAeroBrakeVelocity();
+                        pass.ExitUT = result.AeroBrakeUT;
+                    }
                     if (end.eccentricity < 1.0)
                     {
                         pass.Captured = true;

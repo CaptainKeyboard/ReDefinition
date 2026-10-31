@@ -18,6 +18,12 @@ namespace ReDefinition.Autopilot.Planning
         public SectionRelease Section;
         // The altitude of the orbit an ascent ends in, in m.
         public double Altitude;
+        // The vessel a meeting is made with, the docking port of it (its part's persistent id, zero for any), and whether the step ends with a docking.
+        public System.Guid Target;
+        public uint Port;
+        public bool Dock;
+        // Whether a pass through the air was flown in the simulation: the plan goes on from the orbit it leaves the air in.
+        public bool Flown;
         // The burn in the axes of the maneuver node it is put in as.
         public V3 DeltaV;
         public string Why;
@@ -29,6 +35,8 @@ namespace ReDefinition.Autopilot.Planning
         public Orbit Orbit;
         public double StartUT;
         public double EndUT;
+        // Whether the orbit begins where a pass through the air ends: no burn made it.
+        public bool Air;
     }
 
     // The route worked out from the vessel to its last stop, step after step: the plan the navigation guides along, the autopilot flies, the map
@@ -73,6 +81,9 @@ namespace ReDefinition.Autopilot.Planning
             return text.ToString();
         }
 
+        // Why a pass through the air of a plan flown without the player cannot be made, where it cannot: the vessel is not taken through it.
+        public string AirProblem;
+
         // Why the plan does not reach the last stop (the vessel lands, a pass through the air, no way found); null where it does.
         public string Ended;
         // Whether a step could not be planned, or the plan did not move on: the plan ends in a state the vessel does not reach.
@@ -86,7 +97,10 @@ namespace ReDefinition.Autopilot.Planning
         // With `forPlayer` the deorbit of a landing is a burn of the plan, as the player flies it; without, the plan ends in the orbit the landing
         // starts from, which MechJeb's landing leaves by itself.
         // With `from` the plan starts in that orbit at `fromUT`, as if the vessel were there: the launch of an ascent is not flown by the plan.
-        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false, Orbit from = null, double fromUT = 0.0, int reachedAtStart = int.MinValue)
+        // With `airPasses` the passes through the air are flown in the simulation, and the plan goes on from the orbit each leaves the air in: a plan
+        // the vessel flies without the player. Without, a pass ends the plan.
+        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false, Orbit from = null, double fromUT = 0.0, int reachedAtStart = int.MinValue,
+                                      bool airPasses = false)
         {
             var plan = new RoutePlan { Signature = RoutePlan.SignatureOf(route) };
             if (vessel == null || route == null || route.Count < 2 || vessel.patchedConicSolver == null)
@@ -114,7 +128,13 @@ namespace ReDefinition.Autopilot.Planning
                     vessel.orbit.UpdateFromOrbitAtUT(from, fromUT, from.referenceBody);
                     vessel.patchedConicSolver.Update();
                 }
-                Frame frame = swapped ? new Frame(vessel).At(fromUT) : new Frame(vessel);
+                Frame frame = swapped ? new Frame(vessel, airPasses).At(fromUT) : new Frame(vessel, airPasses);
+                int passes = 0;
+                // From where the flight plan is collected into the plan's legs, and the UT a leg begins at where a pass through the air ended.
+                double collectedFrom = ownTime;
+                double airLegAt = -1.0;
+                Orbit airOrbit = null;
+                double airEntryUT = -1.0;
                 // Counted from where the vessel is, on a copy: the plan does not move the vessel's own count.
                 RouteState own = RouteState.Of(vessel);
                 RouteProgress progress = new RouteProgress { Reached = reachedAtStart != int.MinValue ? reachedAtStart : own != null ? own.ProgressFor(route).Reached : -1, Key = plan.Signature };
@@ -132,6 +152,9 @@ namespace ReDefinition.Autopilot.Planning
                     }
                     NodePlanner.Result result = NextStepPlanner.PlanNext(frame, route, forPlayer, false, progress);
                     if (atStart == -2) atStart = progress.Reached;
+                    if (airPasses)
+                        Debug.Log("[ReDefinition] Route: air plan at UT " + frame.Now.ToString("0") + " on " + frame.Orbit.PeA.ToString("0") + " x " + frame.Orbit.ApA.ToString("0") + " m round "
+                                  + frame.Body.bodyName + ": " + result.Kind + (result.UT > 0.0 ? " at UT " + result.UT.ToString("0") : "") + ", " + result.Why);
                     plan.ReachedAt.Add(new KeyValuePair<double, int>(frame.Now, progress.Reached));
                     if (plan.FirstGoal < 0 && result.Goal >= 0)
                     {
@@ -152,9 +175,49 @@ namespace ReDefinition.Autopilot.Planning
                         frame = frame.At(frame.Now);
                         continue;
                     }
+                    if (result.Kind == NodePlanner.StepKind.Aerobrake && airPasses)
+                    {
+                        // The pass is flown in the simulation, and the plan goes on from the orbit the vessel leaves the air in.
+                        Orbit exit;
+                        double exitUT, entryUT;
+                        string why;
+                        Debug.Log("[ReDefinition] Route: pass " + (passes + 1) + " through the air at UT " + frame.Now.ToString("0") + " from " + frame.Orbit.PeA.ToString("0") + " x " + frame.Orbit.ApA.ToString("0")
+                                  + " m round " + frame.Body.bodyName + ": " + result.Why);
+                        if (++passes > MostPasses)
+                        {
+                            plan.AirProblem = "The air does not bring the vessel down in " + MostPasses + " passes.";
+                        }
+                        else if (!AerobrakePass.Fly(vessel, frame.Orbit, frame.Now, out exit, out exitUT, out entryUT, out why))
+                        {
+                            plan.AirProblem = why;
+                        }
+                        else
+                        {
+                            plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, At = exitUT, Flown = true });
+                            TakeLegs(vessel, plan, collectedFrom, frame.Now, airLegAt, airOrbit, airEntryUT);
+                            KspOrbits.ClearNodes(vessel);
+                            if (!swapped)
+                            {
+                                ownPosition = vessel.orbit.getRelativePositionAtUT(ownTime);
+                                ownVelocity = vessel.orbit.getOrbitalVelocityAtUT(ownTime);
+                                swapped = true;
+                            }
+                            vessel.orbit.UpdateFromOrbitAtUT(exit, exitUT, exit.referenceBody);
+                            vessel.patchedConicSolver.Update();
+                            collectedFrom = exitUT;
+                            airLegAt = exitUT;
+                            airEntryUT = entryUT;
+                            airOrbit = new Orbit(exit.inclination, exit.eccentricity, exit.semiMajorAxis, exit.LAN, exit.argumentOfPeriapsis, exit.meanAnomalyAtEpoch, exit.epoch, exit.referenceBody);
+                            frame = new Frame(vessel, airPasses).At(exitUT);
+                            continue;
+                        }
+                        plan.Failed = true;
+                        plan.Ended = plan.AirProblem;
+                        break;
+                    }
                     if (result.Kind != NodePlanner.StepKind.Burn)
                     {
-                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, Altitude = result.Altitude });
+                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, Altitude = result.Altitude, Target = result.Target, Port = result.Port, Dock = result.Dock });
                         plan.Ended = result.Why;
                         break;
                     }
@@ -180,8 +243,8 @@ namespace ReDefinition.Autopilot.Planning
                     frame = next;
                 }
                 plan.Reached = progress.Reached;
-                if (!swapped && own != null && atStart > own.ProgressFor(route).Reached) own.ProgressFor(route).Reached = atStart;
-                Collect(vessel, frame, plan);
+                if (from == null && own != null && atStart > own.ProgressFor(route).Reached) own.ProgressFor(route).Reached = atStart;
+                Collect(vessel, frame, plan, collectedFrom, airLegAt, airOrbit, airEntryUT);
             }
             finally
             {
@@ -223,20 +286,46 @@ namespace ReDefinition.Autopilot.Planning
             return orbit.EndUT > frame.Now ? frame.At(orbit.EndUT) : null;
         }
 
-        // The orbits of the flight plan, the delta-v of its nodes, and where the plan ends, taken into the plan. The plan ends on the orbit after
-        // its last burn. KSP cuts a patch short after one revolution where the next node lies further off, so each orbit is flown until the next begins.
-        private static void Collect(Vessel vessel, Frame end, RoutePlan plan)
+        // The most passes through the air a plan flown without the player makes before it is refused.
+        private const int MostPasses = 12;
+
+        // The patches of the flight plan from `from` to `until` as legs, and the delta-v of its nodes taken into the plan.
+        // With `later` only the patches that begin after `from`: the orbit the vessel is on at `from` is taken in by the caller.
+        private static void CollectPatches(Vessel vessel, double from, double until, RoutePlan plan, bool later)
         {
-            double now = Planetarium.GetUniversalTime();
-            plan.EndUT = end.Now;
             foreach (ManeuverNode node in vessel.patchedConicSolver.maneuverNodes) plan.DeltaV += node.DeltaV.magnitude;
             foreach (Orbit patch in vessel.patchedConicSolver.flightPlan)
             {
-                if (patch == null || patch.EndUT <= now || patch.StartUT > plan.EndUT + Frame.AfterNode) continue;
+                if (patch == null || patch.StartUT > until + Frame.AfterNode || (later ? patch.StartUT <= from + Frame.AfterNode : patch.EndUT <= from)) continue;
                 var copy = new Orbit(patch.inclination, patch.eccentricity, patch.semiMajorAxis, patch.LAN, patch.argumentOfPeriapsis,
                     patch.meanAnomalyAtEpoch, patch.epoch, patch.referenceBody);
-                plan.Legs.Add(new PlannedLeg { Orbit = copy, StartUT = System.Math.Max(patch.StartUT, now), EndUT = patch.EndUT });
+                plan.Legs.Add(new PlannedLeg { Orbit = copy, StartUT = System.Math.Max(patch.StartUT, from), EndUT = patch.EndUT });
             }
+        }
+
+        // The legs of the flight plan from `from` to `until`. Where a pass through the air ended at `airAt`, the first is the orbit it left the air in; the
+        // solver's patch for the vessel's orbit does not say the start of that. The game destroys an unloaded vessel that is in the air while the flight scene
+        // is on, so the vessel is put out of the air as it goes in. From the top of the air it is on the orbit it leaves in, as it will be seconds later.
+        private static void TakeLegs(Vessel vessel, RoutePlan plan, double from, double until, double airAt, Orbit airOrbit, double entryUT)
+        {
+            bool air = airAt >= 0.0 && airOrbit != null;
+            double lastStart = plan.Legs.Count > 0 ? plan.Legs[plan.Legs.Count - 1].StartUT : double.NegativeInfinity;
+            if (air && airAt - entryUT > 2.0 && entryUT > lastStart + Frame.AfterNode)
+            {
+                Orbit early = new Orbit(airOrbit.inclination, airOrbit.eccentricity, airOrbit.semiMajorAxis, airOrbit.LAN, airOrbit.argumentOfPeriapsis,
+                                        airOrbit.meanAnomalyAtEpoch, airOrbit.epoch - (airAt - entryUT), airOrbit.referenceBody);
+                plan.Legs.Add(new PlannedLeg { Orbit = early, StartUT = entryUT, EndUT = airAt, Air = true });
+            }
+            if (air) plan.Legs.Add(new PlannedLeg { Orbit = airOrbit, StartUT = airAt, EndUT = airAt, Air = true });
+            CollectPatches(vessel, from, until, plan, air);
+        }
+
+        // The orbits of the flight plan, the delta-v of its nodes, and where the plan ends, taken into the plan. The plan ends on the orbit after
+        // its last burn. KSP cuts a patch short after one revolution where the next node lies further off, so each orbit is flown until the next begins.
+        private static void Collect(Vessel vessel, Frame end, RoutePlan plan, double from, double airAt, Orbit airOrbit, double entryUT)
+        {
+            plan.EndUT = end.Now;
+            TakeLegs(vessel, plan, from, plan.EndUT, airAt, airOrbit, entryUT);
             for (int i = 0; i < plan.Legs.Count; i++)
             {
                 PlannedLeg leg = plan.Legs[i];

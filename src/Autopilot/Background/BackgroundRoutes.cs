@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using ReDefinition.Autopilot.Flight;
 using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Landing;
+using ReDefinition.Orbits;
 using UnityEngine;
 
 namespace ReDefinition.Autopilot.Background
@@ -104,6 +106,8 @@ namespace ReDefinition.Autopilot.Background
             public float Began;
             // When the vessel came to rest, or -1 while it moves: it is let go three seconds after.
             public float RestSince = -1f;
+            // Whether the landing legs have been put out.
+            public bool LegsOut;
         }
 
         private readonly Dictionary<Guid, Settle> settling = new Dictionary<Guid, Settle>();
@@ -182,13 +186,20 @@ namespace ReDefinition.Autopilot.Background
                              + " at " + vessel.altitude.ToString("0") + " m.");
         }
 
+        // The plan the vessel flies without the player: the route from where the vessel is, with the passes through the air flown in the simulation.
+        internal static RoutePlan PlanFor(Vessel vessel, IList<Destination> route)
+        {
+            return RouteSimulation.Run(vessel, route, false, null, 0.0, int.MinValue, true);
+        }
+
         // Keeps the plan's orbits for the vessel as steps, where the autopilot is to go on without the player. The plan's first leg is the orbit the vessel
         // is on; each later leg starts with a burn. Null where it was kept; else why not.
         internal static string Hand(Vessel vessel, RoutePlan plan, IList<Destination> route = null, IVesselFigures figures = null)
         {
             bool climb = plan != null && plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null;
             bool lets = plan != null && plan.Steps.Exists(step => step.Kind == NodePlanner.StepKind.Release);
-            if (plan == null || (plan.Legs.Count < 2 && !climb && !lets)) return "The plan has no burn to fly.";
+            bool meets = plan != null && plan.Steps.Exists(step => step.Kind == NodePlanner.StepKind.Rendezvous);
+            if (plan == null || (plan.Legs.Count < 2 && !climb && !lets && !meets)) return "The plan has no burn to fly.";
             Entry entry = Build(vessel, plan, route, figures);
             if (entry.Problem != null) return entry.Problem;
             if (entry.Steps.Count == 0) return "The plan has no orbit to go on to.";
@@ -295,7 +306,7 @@ namespace ReDefinition.Autopilot.Background
                 double endUT;
                 Vector3d site = vessel.GetWorldPos3D() - vessel.mainBody.position;
                 if (!Launch(vessel, entry, budget, stages, figures, vessel.mainBody, plan.Steps[0].Altitude, site, Planetarium.GetUniversalTime(), entry.Reached, out orbit, out endUT, 0.0, true)) return entry;
-                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT);
+                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT, int.MinValue, true);
             }
             // The route in pieces: the orbits up to a landing, and, where the route goes on from the ground, the launch from it and the pieces after.
             for (int round = 0; round < 6; round++)
@@ -317,7 +328,7 @@ namespace ReDefinition.Autopilot.Background
                 double endUT;
                 Vector3d site = body.GetWorldSurfacePosition(touch.Site.Latitude, touch.Site.Longitude, touch.Site.Height) - body.position;
                 if (!Launch(vessel, entry, budget, stages, figures, body, altitude, site, Planetarium.GetUniversalTime(), landing.Goal, out orbit, out endUT, touch.GroundUT + 1.0, false)) break;
-                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT, landing.Goal);
+                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT, landing.Goal, true);
             }
             if (stages != null && stages.Short > 0.0) Debug.LogWarning(Log.Tag + " Route: " + vessel.vesselName + " is short of " + stages.Short.ToString("0") + " m/s for the plan.");
             if (entry.Steps.Count > 0)
@@ -361,9 +372,53 @@ namespace ReDefinition.Autopilot.Background
             return true;
         }
 
+        // A meeting with a vessel in an orbit as a step. The cost is the cheapest transfer to where the target is on arrival. The vessel is then in the
+        // target's orbit, a little behind it, at rest to it. A docking is not made without the player: the step ends at the meeting.
+        private static void AddMeeting(Vessel vessel, Entry entry, RoutePlan plan, Budget budget, PlannedStep end)
+        {
+            // A plan with no burn has no leg of its own: the meeting is made from the orbit the vessel is on.
+            Orbit ours = plan.Legs.Count > 0 ? plan.Legs[plan.Legs.Count - 1].Orbit : vessel.orbit;
+            double startsAt = plan.Legs.Count > 0 ? plan.Legs[plan.Legs.Count - 1].StartUT : Planetarium.GetUniversalTime();
+            CelestialBody body = ours != null ? ours.referenceBody : null;
+            Vessel target = FlightGlobals.Vessels.Find(v => v.id == end.Target);
+            if (body == null || target == null || target.orbit == null || target.orbit.referenceBody != body || target.orbit.eccentricity >= 1.0 || target.LandedOrSplashed)
+            {
+                entry.Problem = "The vessel to meet is not in an orbit round " + (body != null ? body.bodyName : "the body") + ".";
+                return;
+            }
+            double start = Math.Max(plan.EndUT, startsAt);
+            double ourPeriod = ours.eccentricity < 1.0 ? ours.period : target.orbit.period;
+            double hohmann = Math.PI * Math.Sqrt(Math.Pow(0.5 * (ours.semiMajorAxis + target.orbit.semiMajorAxis), 3.0) / body.gravParameter);
+            // MechJeb's rendezvous waits up to the orbits it is set to for the phasing.
+            double wait = (MechJebDriver.RendezvousOrbits(vessel) + 1.0) * Math.Max(ourPeriod, target.orbit.period);
+            Transfer best;
+            if (!Transfers.Cheapest(KspOrbits.StateAt(ours, start), KspOrbits.StateAt(target.orbit, start), body.gravParameter, wait, 0.5 * hohmann, Math.Max(1.5 * hohmann, 1.05 * Math.Max(ourPeriod, target.orbit.period)), true, out best))
+            {
+                entry.Problem = "No way to " + target.vesselName + " was found in " + MechJebDriver.RendezvousOrbits(vessel).ToString("0") + " orbits.";
+                return;
+            }
+            double arrival = start + best.Delay + best.FlightTime;
+            // In the orbit of the target, the distance MechJeb's rendezvous ends at behind it.
+            Orbit shape = target.orbit;
+            double behind = MechJebDriver.RendezvousDistance(vessel) * shape.getRelativePositionAtUT(arrival).magnitude / (shape.semiMajorAxis * shape.semiMajorAxis * Math.Sqrt(1.0 - shape.eccentricity * shape.eccentricity));
+            var meeting = new Orbit(target.orbit.inclination, target.orbit.eccentricity, target.orbit.semiMajorAxis, target.orbit.LAN, target.orbit.argumentOfPeriapsis,
+                                    target.orbit.meanAnomalyAtEpoch - behind, target.orbit.epoch, body);
+            double cost = best.Total(true);
+            int reached = entry.Steps.Count > 0 ? entry.Steps[entry.Steps.Count - 1].Reached : entry.Reached;
+            // A docking is still to be made; a meeting alone is the stop.
+            Step step = Elements(meeting, arrival, "meeting with " + target.vesselName + ", " + cost.ToString("0") + " m/s", end.Dock ? reached : Math.Max(reached, end.Goal));
+            budget.Apply(step, cost);
+            entry.Steps.Add(step);
+        }
+
         // The orbits of a plan as steps, with the releases in them, and the landing it ends in: the step of the touchdown, or null where it ends otherwise.
         private static Step AddSegment(Vessel vessel, Entry entry, RoutePlan plan, Budget budget, IBurnShare stages, IList<Destination> route, IVesselFigures figures)
         {
+            if (plan.AirProblem != null)
+            {
+                entry.Problem = plan.AirProblem;
+                return null;
+            }
             var burnt2 = new HashSet<PlannedStep>();
             List<Letting> lettings = PlanReleases(vessel, plan);
             int letNext = 0;
@@ -387,16 +442,21 @@ namespace ReDefinition.Autopilot.Background
                 int reached = entry.Reached;
                 foreach (KeyValuePair<double, int> met in plan.ReachedAt)
                     if (met.Key <= leg.StartUT + 1.0) reached = Math.Max(reached, met.Value);
-                Step flown = Elements(leg.Orbit, leg.StartUT, deltaV.ToString("0") + " m/s", reached);
+                Step flown = Elements(leg.Orbit, leg.StartUT, leg.Air ? "pass through the air" : deltaV.ToString("0") + " m/s", reached);
                 budget.Apply(flown, deltaV);
                 entry.Steps.Add(flown);
             }
             AddReleases(entry, plan, lettings);
-            // A route that ends in a pass through the air or a meeting is not flown without the player: the vessel would be left where the plan stops.
             PlannedStep end = plan.Steps.Count > 0 ? plan.Steps[plan.Steps.Count - 1] : null;
-            if (end != null && (end.Kind == NodePlanner.StepKind.Aerobrake || end.Kind == NodePlanner.StepKind.Rendezvous))
+            // A pass through the air that the plan did not fly is not made without the player: the vessel would be left where the plan stops.
+            if (end != null && end.Kind == NodePlanner.StepKind.Aerobrake && !end.Flown)
             {
-                entry.Problem = end.Kind == NodePlanner.StepKind.Aerobrake ? "The route ends in a pass through the air to slow down, which is flown with the vessel loaded." : "The route ends in a meeting with another vessel, which is flown with the vessel loaded.";
+                entry.Problem = "The route ends in a pass through the air to slow down, which is flown with the vessel loaded.";
+                return null;
+            }
+            if (end != null && end.Kind == NodePlanner.StepKind.Rendezvous)
+            {
+                AddMeeting(vessel, entry, plan, budget, end);
                 return null;
             }
             return AddTouchdown(vessel, entry, plan, budget, route, figures);
@@ -456,6 +516,26 @@ namespace ReDefinition.Autopilot.Background
             return -lowest;
         }
 
+        // The landing legs that are in are put out as the vessel comes down, as a lander has them out when it lands. Symmetry partners go with the leg that is toggled.
+        private static void PutLegsOut(Vessel vessel)
+        {
+            foreach (Part part in vessel.parts)
+                foreach (ModuleWheels.ModuleWheelDeployment legs in part.FindModulesImplementing<ModuleWheels.ModuleWheelDeployment>())
+                {
+                    try
+                    {
+                        if (legs.fsm == null || !legs.fsm.Started || legs.fsm.CurrentState == null || legs.fsm.CurrentState != legs.st_retracted) continue;
+                        if (part.ShieldedFromAirstream && !legs.shieldedCanDeploy) continue;
+                        legs.EventToggle();
+                        Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " puts the legs of " + part.partInfo.title + " out.");
+                    }
+                    catch (Exception e)
+                    {
+                        Debug.LogWarning(Log.Tag + " Route: the legs of " + part.partInfo.title + " could not be put out: " + e.Message);
+                    }
+                }
+        }
+
         // A vessel set down is first looked at on the ground it will stand on, and then let down on it at the speed of a landing.
         private void FixedUpdate()
         {
@@ -477,6 +557,11 @@ namespace ReDefinition.Autopilot.Background
                     continue;
                 }
                 if (vessel.packed) continue;
+                if (!began.Value.LegsOut)
+                {
+                    began.Value.LegsOut = true;
+                    PutLegsOut(vessel);
+                }
                 double limit = LandingGuide.TouchdownSpeed, speed = vessel.verticalSpeed;
                 if (speed < -limit) vessel.ChangeWorldVelocity(vessel.upAxis * (-limit - speed));
                 else if (speed > limit) vessel.ChangeWorldVelocity(-vessel.upAxis * (speed - limit));

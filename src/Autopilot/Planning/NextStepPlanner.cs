@@ -52,7 +52,7 @@ namespace ReDefinition.Autopilot.Planning
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
             // Where the air would load the vessel beyond what it takes, the stop is reached by burning, as a stop that does not use the air.
-            if (!frame.Ahead && (stop.Direct || stop.Aerobrake))
+            if ((!frame.Ahead || frame.Passes) && (stop.Direct || stop.Aerobrake))
             {
                 string refused = AirRefused(frame, stop);
                 if (refused != null)
@@ -95,10 +95,10 @@ namespace ReDefinition.Autopilot.Planning
                     if (meet != null) return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, stop.Dock, (stop.Dock ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
                     if (!stop.Aerobrake || !(frame.Orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(frame, stop.Altitude);
                     // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds. A plan
-                    // ahead does not simulate the pass: it ends there.
-                    if (frame.Ahead) return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis, in a pass at the periapsis.");
+                    // ahead does not simulate the pass unless it is flown without the player: it ends there.
+                    if (frame.Ahead && !frame.Passes) return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis, in a pass at the periapsis.");
                     string why;
-                    double pass = AerobrakePass.FromOrbit(frame.Vessel, stop.Altitude, out why);
+                    double pass = AerobrakePass.FromOrbit(frame.Vessel, frame.Orbit, frame.Now, stop.Altitude, out why);
                     if (pass < 0.0) return NodePlanner.Result.Failed(why);
                     double tolerance = System.Math.Max(1000.0, 0.03 * pass);
                     if (frame.Orbit.PeA < pass - tolerance) return NodePlanner.LiftToAirPass(frame, pass);
@@ -122,7 +122,7 @@ namespace ReDefinition.Autopilot.Planning
             Orbit encounter = KspOrbits.PatchAhead(frame, stop.Body);
             if (encounter == null) return NodePlanner.TransferToBody(frame, stop.Body, Aim(stop));
             double entry = Aim(stop);
-            if (!frame.Ahead && (stop.Direct || stop.Aerobrake))
+            if ((!frame.Ahead || frame.Passes) && (stop.Direct || stop.Aerobrake))
             {
                 // The periapsis to aim at is the depth of a pass the vessel takes, found by simulating it, and none where the air would break it.
                 string why;
@@ -206,7 +206,7 @@ namespace ReDefinition.Autopilot.Planning
             else if (stop.Body.referenceBody == frame.Body) approach = KspOrbits.PatchAhead(frame, stop.Body);
             if (approach == null) return null;
             if (approach.eccentricity >= 1.0) AerobrakePass.FromApproach(frame.Vessel, approach, stop.Direct, out why);
-            else if (stop.Aerobrake && frame.Orbit.ApA > LowOrbitOf(stop) + NodePlanner.Near(LowOrbitOf(stop))) AerobrakePass.FromOrbit(frame.Vessel, LowOrbitOf(stop), out why);
+            else if (stop.Aerobrake && frame.Orbit.ApA > LowOrbitOf(stop) + NodePlanner.Near(LowOrbitOf(stop))) AerobrakePass.FromOrbit(frame.Vessel, frame.Orbit, frame.Now, LowOrbitOf(stop), out why);
             return why;
         }
 

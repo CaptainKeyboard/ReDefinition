@@ -24,7 +24,8 @@ namespace ReDefinition.Autopilot.Planning
             double near = Near(altitude);
             if (Math.Abs(orbit.PeA - altitude) <= near || Math.Abs(orbit.ApA - altitude) <= near) return Round(frame, here, mu, Math.Abs(orbit.ApA - altitude) < Math.Abs(orbit.PeA - altitude));
             double safe = body.atmosphere ? body.atmosphereDepth + 1000.0 : 1000.0;
-            if (orbit.PeA < safe && altitude > orbit.PeA) return LiftPeriapsis(frame, here, mu, body.Radius + Math.Max(altitude, safe));
+            // A plan ahead that is flown without the player has left the air by the apoapsis, and lifts the periapsis there.
+            if (orbit.PeA < safe && altitude > orbit.PeA && !(frame.Passes && frame.Ahead && body.atmosphere)) return LiftPeriapsis(frame, here, mu, body.Radius + Math.Max(altitude, safe));
             bool raise = radius > conic.RadiusAt(Math.PI);
             Burn first;
             if (!Maneuvers.ChangeOpposite(here, mu, !raise, radius, out first)) return Result.Failed("No burn was found.");
@@ -97,7 +98,7 @@ namespace ReDefinition.Autopilot.Planning
             double ut = now + burn.Delay;
             KspOrbits.ClearNodes(frame);
             if (KspOrbits.AddNode(frame, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
-            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = name + ": " + burn.Magnitude.ToString("0") + " m/s retrograde at the apoapsis." };
+            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = name + ": " + burn.Magnitude.ToString("0") + " m/s " + (V3.Dot(burn.DeltaV, Kepler.Propagate(here, burn.Delay, mu).V) < 0.0 ? "retrograde" : "prograde") + " at the apoapsis." };
         }
 
         // The burn that lifts a periapsis that lies too deep to the height of a pass through the air, for an aerobraking pass that slows the vessel.
@@ -105,6 +106,8 @@ namespace ReDefinition.Autopilot.Planning
         {
             CelestialBody body = frame.Body;
             if (frame.Orbit == null || frame.Orbit.eccentricity >= 1.0) return Result.Failed("The orbit is not closed.");
+            if (frame.Passes && frame.Ahead && body.atmosphere)
+                return Deorbit(frame, body.Radius + passAltitude, "Lift the periapsis to " + (passAltitude / 1000.0).ToString("0.#") + " km, into the air, for the aerobraking pass");
             State here = KspOrbits.StateAt(frame.Orbit, frame.Now);
             Result result = LiftPeriapsis(frame, here, body.gravParameter, body.Radius + passAltitude);
             if (result.Ok) result.Why = "Lift the periapsis to " + (passAltitude / 1000.0).ToString("0.#") + " km, into the air, for the aerobraking pass: " + result.DeltaV.Length.ToString("0") + " m/s.";

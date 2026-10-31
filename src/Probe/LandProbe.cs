@@ -215,6 +215,13 @@ namespace ReDefinition.Probe
             Game game = HighLogic.CurrentGame.Updated();
             double ut = Planetarium.GetUniversalTime();
             var orbit = new Orbit(0.0, 0.0, body.Radius + altitude, 0.0, 0.0, 0.0, ut, body);
+            // With -redefinitionProbeOrbitApoapsis (an altitude) the orbit is an ellipse from the altitude up to it, the vessel at its apoapsis.
+            double apoapsis;
+            if (double.TryParse(CommandLine.After("-redefinitionProbeOrbitApoapsis") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out apoapsis) && apoapsis > altitude)
+            {
+                double rp = body.Radius + altitude, ra = body.Radius + apoapsis;
+                orbit = new Orbit(0.0, (ra - rp) / (ra + rp), 0.5 * (rp + ra), 0.0, 0.0, Math.PI, ut, body);
+            }
             var node = new ConfigNode("VESSEL");
             vessel.BackupVessel().Save(node);
             node.SetValue("sit", Vessel.Situations.ORBITING.ToString());

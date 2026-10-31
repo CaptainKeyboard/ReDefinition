@@ -82,7 +82,7 @@ namespace ReDefinition.Engineer
             if (Burning(vessel) || vessel.situation == Vessel.Situations.FLYING || BackgroundRoutes.Holds(vessel, route)) return;
             try
             {
-                string problem = BackgroundRoutes.Hand(vessel, RouteSimulation.Run(vessel, route), route, new BackgroundFigures());
+                string problem = BackgroundRoutes.Hand(vessel, BackgroundRoutes.PlanFor(vessel, route), route, new BackgroundFigures());
                 Debug.Log(Log.Tag + " Route: the pause menu is open with the autopilot on; background: " + (problem ?? "kept") + ".");
                 if (problem != null) ScreenMessages.PostScreenMessage("The route is not flown while you are away: " + problem, 12f, ScreenMessageStyle.UPPER_CENTER);
             }
@@ -117,9 +117,10 @@ namespace ReDefinition.Engineer
             }
             try
             {
-                RoutePlan plan = RouteSimulation.Run(vessel, route);
                 ReDefinitionAddon addon = ReDefinitionAddon.Instance;
                 bool parsek = addon != null && !addon.Live.BackgroundRoute;
+                // Parsek is given the plan as the map shows it; the vessel that flies on itself, the plan with its passes through the air.
+                RoutePlan plan = parsek ? RouteSimulation.Run(vessel, route) : BackgroundRoutes.PlanFor(vessel, route);
                 // Parsek puts the vessel back where the plan ends, and the count goes on from there; a vessel that flies on itself is counted from where it is.
                 RouteState own = RouteState.Of(vessel);
                 if (parsek && own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);

@@ -15,24 +15,29 @@ namespace ReDefinition.Autopilot.Planning
         internal readonly double Now;
         // Whether the state lies in the plan ahead of the vessel rather than being the vessel's own.
         internal readonly bool Ahead;
+        // Whether the passes through the air are simulated and flown in the plan: a plan the vessel flies without the player. A plan for the map
+        // ends at a pass, which the flight itself judges as it comes.
+        internal readonly bool Passes;
 
-        internal Frame(Vessel vessel)
+        internal Frame(Vessel vessel, bool passes = false)
         {
             Vessel = vessel;
             Now = Planetarium.GetUniversalTime();
+            Passes = passes;
         }
 
-        private Frame(Vessel vessel, double ut)
+        private Frame(Vessel vessel, double ut, bool passes)
         {
             Vessel = vessel;
             Now = ut;
             Ahead = true;
+            Passes = passes;
         }
 
         // The state at `ut` on the flight plan, after the nodes that come before it.
         internal Frame At(double ut)
         {
-            return new Frame(Vessel, ut);
+            return new Frame(Vessel, ut, Passes);
         }
 
         // The orbit the vessel is on in this state: its own, or the patch of the flight plan that covers the time.
