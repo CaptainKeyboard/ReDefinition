@@ -1,0 +1,14 @@
+[
+  { "name": "MechJeb2", "repo": "MuMech/MechJeb2", "tested": "2.15.4.0", "note": "2.16 dev build 1771 is also checked; dev builds are not compared" },
+  { "name": "Parsek", "repo": "vl3c/Parsek", "tested": "0.10.6", "note": "a beta: the recording format changes" },
+  { "name": "Parallax Continued", "repo": "Gameslinx/Parallax-Continued", "tested": "1.0.0", "note": "1.1.0 draws the space centre's ground itself" },
+  { "name": "Scatterer", "repo": "LGhassen/Scatterer", "tested": "0.908", "tag_regex": "^0[.]0", "note": "GitHub has no release of the 0.908 line: compare by hand where it is published" },
+  { "name": "EVE (Redux, volumetric)", "repo": "LGhassen/EnvironmentalVisualEnhancements", "tested": "3.2.2", "note": "GitHub has no release of the 3.2 line: compare by hand where it is published" },
+  { "name": "Deferred", "repo": "LGhassen/Deferred", "tested": "1.3.5", "note": "" },
+  { "name": "Firefly", "repo": "M1rageDev/Firefly", "tested": "1.0.6", "note": "" },
+  { "name": "TUFX", "repo": "KSPModStewards/TUFX", "tested": "1.1.1", "note": "" },
+  { "name": "Waterfall", "repo": "KSPModStewards/Waterfall", "tested": "0.11.0", "note": "" },
+  { "name": "Distant Object Enhancement", "repo": "net-lisias-ksp/DistantObject", "tested": "2.2.1.7", "note": "" },
+  { "name": "Persistent Rotation", "repo": "linuxgurugamer/PersistentRotation", "tested": "1.9.2.1", "note": "" },
+  { "name": "HarmonyKSP", "repo": "KSPModdingLibs/HarmonyKSP", "tested": "2.2.1", "note": "needed by the mod itself" }
+]
