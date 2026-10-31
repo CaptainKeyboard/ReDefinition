@@ -73,6 +73,9 @@ namespace ReDefinition.Engineer
             headerTints.Clear();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(StockOffRow());
+            if (Controls != null)
+                rows.AddRange(Section("Plan", () => controlsShown, () => { controlsShown = !controlsShown; textVersion++; },
+                    "Plan the whole route from here, and turn on the navigation or the autopilot once it is planned.", PlanSummary, PlanControlRows()));
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
             for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));

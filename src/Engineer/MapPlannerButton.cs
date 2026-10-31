@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using KSP.UI.Screens;
 using ReDefinition.Ui;
 using UnityEngine;
@@ -63,7 +64,32 @@ namespace ReDefinition.Engineer
             button = ApplicationLauncher.Instance.AddModApplication(() => setOpen(true), () => setOpen(false), null, null, null, null,
                 ApplicationLauncher.AppScenes.MAPVIEW, icon);
             if (button != null && button.gameObject != null) UiHygiene.Tooltip(button.gameObject, Tooltip);
+            KeepFirst();
             Show(open);
+        }
+
+        // The button at the front of the toolbar, in what the launcher shows and in the list it keeps, as ReDefinition's settings button is.
+        // The launcher scrolls where mods crowd it, and a button at its end is not seen. Only this one is moved, and a failure leaves
+        // the toolbar as it was.
+        private void KeepFirst()
+        {
+            if (button == null) return;
+            try
+            {
+                if (button.gameObject != null && button.gameObject.transform.GetSiblingIndex() != 0) button.gameObject.transform.SetAsFirstSibling();
+                ApplicationLauncher launcher = ApplicationLauncher.Instance;
+                IList list = launcher != null ? Window.ToolbarTakeover.ModList(launcher) : null;
+                if (list == null || list.Count < 2) return;
+                int at = list.IndexOf(button);
+                if (at <= 0) return;
+                list.RemoveAt(at);
+                list.Insert(0, button);
+            }
+            catch (Exception e)
+            {
+                Core.CompatibilityLog.Warn("planner-toolbar-first", "The planner's toolbar button could not be moved to the front ("
+                                           + Core.CompatibilityLog.Reason(e) + "); it stays where the launcher put it.");
+            }
         }
 
         private void Forget()

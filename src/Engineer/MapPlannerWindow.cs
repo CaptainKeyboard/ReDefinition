@@ -18,7 +18,7 @@ namespace ReDefinition.Engineer
     // It is made once the flight scene has a vessel, out of KSP's own elements: the rows are dialog rows (DialogGUIBase) created into a scroll
     // list in a frame of its own, on the main canvas.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class MapPlannerWindow : MonoBehaviour
+    public class MapPlannerWindow : MonoBehaviour, IPlanControls
     {
         // The panel's width, and the room left above, below and at its right for KSP's own bars and the toolbar column, in canvas units.
         private const float PanelWidth = 460f, TopMargin = 96f, BottomMargin = 70f, RightMargin = 56f;
@@ -289,8 +289,7 @@ namespace ReDefinition.Engineer
             float rowWidth = PlannerWidgets.RowRoom(listWidth);
             view = new PlannerView(host, rowWidth, level);
             var rows = new List<DialogGUIBase>();
-            rows.Add(Header(rowWidth));
-            view.PlanActions = PlanActions(view.RowWidth);
+            view.Controls = this;
             rows.AddRange(view.Rows());
             TooltipText.WrapAll(rows);
             UiHygiene.DeferInteractable(rows);
@@ -335,39 +334,61 @@ namespace ReDefinition.Engineer
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
-        // The button that plans the whole route, and the lines that say what the route is doing.
-        private DialogGUIBase Header(float width)
-        {
-            var whole = new DialogGUIButton("Plan route", PlanAllNow, width - 8f, 28f, false);
-            whole.OptionInteractableCondition = () => !Flying;
-            whole.tooltipText = "Plan the whole route from here and draw it on the map";
-            var buttons = new GatedRow(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, whole);
-            var text = new DialogGUILabel(() => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : status, width - 12f, 36f);
-            // What Parsek does with the flight, where it is there: a line that is empty otherwise.
-            var parsek = new DialogGUILabel(() => ParsekBridge.RecordingState ?? "", width - 12f, 18f);
-            return new GatedColumn(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text, parsek);
-        }
-
-        // Whether a whole plan was made and reaches somewhere: what the navigation and the autopilot work from.
-        private bool PlanReady
+        // What the planner's Plan part asks of the window (IPlanControls).
+        public bool PlanReady
         {
             get { return WholePlan != null && !WholePlan.Failed; }
         }
 
-        // The two switches of the flight plan, which turn on only once the route is planned: the navigation, which keeps the plan up to date
-        // while the player flies it, and the autopilot, which flies it.
-        private DialogGUIBase PlanActions(float width)
+        bool IPlanControls.Flying
         {
-            float button = (width - 8f - 6f) / 2f;
-            var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Navigation</color>" : "Navigation", ToggleNavigation, button, 28f, false);
-            navigation.OptionInteractableCondition = () => !Flying && (NavigationOn() || PlanReady);
-            navigation.tooltipText = "Keep the plan up to date while you fly it yourself" + (PlanReady ? "" : ", once the route is planned")
-                                     + (ParsekBridge.Unavailable != null ? ". " + ParsekBridge.Unavailable : "");
-            var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
-            pilot.OptionInteractableCondition = () => Flying || (PlanReady && MechJebDriver.Unavailable == null);
-            pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable
-                                : PlanReady ? "Fly the whole route with MechJeb" : "Fly the whole route with MechJeb, once the route is planned";
-            return new GatedRow(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot);
+            get { return Flying; }
+        }
+
+        public bool NavigationOn
+        {
+            get { return NavigationState(); }
+        }
+
+        // What the route is doing; else what the last press came to, unless that is the plan itself, which the part's heading already says.
+        string IPlanControls.Status
+        {
+            get
+            {
+                if (RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0) return RouteDriver.Instance.Status;
+                return PlanReady ? "" : status;
+            }
+        }
+
+        // What Parsek does with the flight, where it is there: empty otherwise.
+        public string ParsekLine
+        {
+            get { return ParsekBridge.RecordingState ?? ""; }
+        }
+
+        public string AutopilotProblem
+        {
+            get { return MechJebDriver.Unavailable; }
+        }
+
+        public string NavigationNote
+        {
+            get { return ParsekBridge.Unavailable; }
+        }
+
+        public void PlanRoute()
+        {
+            PlanAllNow();
+        }
+
+        public void ToggleNavigation()
+        {
+            if (RouteDriver.Instance != null) RouteDriver.Instance.SetNavigation(FlightGlobals.ActiveVessel, !NavigationState());
+        }
+
+        public void ToggleAutopilot()
+        {
+            FlyOrStop();
         }
 
         // Starts the route's flight, or stops the one that is under way.
@@ -384,15 +405,10 @@ namespace ReDefinition.Engineer
         }
 
         // Whether the route is planned for the player: by the navigation, and by the autopilot, which includes it.
-        private static bool NavigationOn()
+        private static bool NavigationState()
         {
             RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
             return state != null && (state.Navigation || state.Autopilot);
-        }
-
-        private void ToggleNavigation()
-        {
-            if (RouteDriver.Instance != null) RouteDriver.Instance.SetNavigation(FlightGlobals.ActiveVessel, !NavigationOn());
         }
 
         // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.

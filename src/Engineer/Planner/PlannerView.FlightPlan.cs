@@ -16,14 +16,6 @@ namespace ReDefinition.Engineer
 
         private bool planShown;
 
-        // The row of switches the window puts at the top of the part, which need the plan; null where the host has none (the editor).
-        internal DialogGUIBase PlanActions;
-
-        // The rows' width, for what the window puts among them.
-        internal float RowWidth
-        {
-            get { return width; }
-        }
         // The plan the heading's summary was made for.
         private RoutePlan noticedPlan;
         // The rows' texts, the plan and the UT they were made for.
@@ -35,7 +27,6 @@ namespace ReDefinition.Engineer
         // The rows: one label each, shown while it has a text.
         private IEnumerable<DialogGUIBase> FlightPlanRows()
         {
-            if (PlanActions != null) yield return PlanActions;
             for (int i = 0; i < MaxPlanLines; i++)
             {
                 int line = i;
