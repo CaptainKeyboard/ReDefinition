@@ -145,6 +145,9 @@ namespace ReDefinition.Probe
                           + (orbitStop ? MapPlannerWindow.Instance.SetOrbitThenSurface(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "60000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))
                            : landOn ? MapPlannerWindow.Instance.SetSurfaceDestination(wanted, CommandLine.Has("-redefinitionProbeMapPlannerAir"), CommandLine.Has("-redefinitionProbeMapPlannerOrbitFirst"))
                                     : MapPlannerWindow.Instance.SetDestination(wanted, double.Parse(CommandLine.After("-redefinitionProbeMapPlannerAltitude") ?? "30000"), CommandLine.Has("-redefinitionProbeMapPlannerAir"))));
+                // The flag -redefinitionProbeThirdStop names a body whose surface the route ends on, as a round trip does.
+                string third = CommandLine.After("-redefinitionProbeThirdStop");
+                if (third != null) Debug.Log(Log.Tag + " Probe: map planner: third stop " + third + " set: " + MapPlannerWindow.Instance.SetLastStop(third));
                 if (CommandLine.Has("-redefinitionProbeTargetVessel"))
                 {
                     // The route ends with a meeting: another vessel in an orbit round the same body is made the target.

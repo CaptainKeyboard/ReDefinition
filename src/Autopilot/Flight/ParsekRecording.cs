@@ -27,11 +27,29 @@ namespace ReDefinition.Autopilot.Flight
         internal static string CommitPlan(Vessel vessel, RoutePlan plan, bool takeVesselOut = false)
         {
             if (plan == null || plan.Legs.Count == 0) return plan != null && plan.Ended != null ? plan.Ended : "The plan has no orbit to record.";
-            if (plan.Failed) return "The plan does not reach a state to record: " + plan.Ended;
+            IList<PlannedLeg> legs = plan.Legs;
+            double deltaV = plan.DeltaV;
+            if (plan.Failed)
+            {
+                // A plan that fails after some of its steps is recorded as far as its last closed orbit, and the vessel goes on from there with the
+                // autopilot, which plans the rest where it is.
+                int last = -1;
+                for (int i = 0; i < legs.Count; i++)
+                    if (legs[i].Orbit.eccentricity < 1.0 && legs[i].Orbit.PeR > legs[i].Orbit.referenceBody.Radius) last = i;
+                double until = last >= 0 ? legs[last].EndUT - 1.0 : 0.0;
+                double burnt = 0.0;
+                foreach (PlannedStep step in plan.Steps)
+                    if (step.Kind == NodePlanner.StepKind.Burn && step.UT < until) burnt += step.DeltaV.Length;
+                if (last < 0 || burnt <= 0.0) return "The plan does not reach a state to record: " + plan.Ended;
+                var kept = new List<PlannedLeg>();
+                for (int i = 0; i <= last; i++) kept.Add(legs[i]);
+                legs = kept;
+                deltaV = burnt;
+            }
             // The vessel is put on the last orbit: it must be a closed one over the ground, not the climb of an ascent or the approach to a pass.
-            Orbit end = plan.Legs[plan.Legs.Count - 1].Orbit;
+            Orbit end = legs[legs.Count - 1].Orbit;
             if (end.eccentricity >= 1.0 || end.PeR <= end.referenceBody.Radius) return "The plan ends " + plan.Ended + " It is not on an orbit to put the vessel on.";
-            return Commit(vessel, plan.Legs, plan.DeltaV, takeVesselOut);
+            return Commit(vessel, legs, deltaV, takeVesselOut);
         }
 
         // Commits a recording of the legs for the vessel. The vessel ends on the last leg's orbit, with the fuel the burns of deltaV take from it.

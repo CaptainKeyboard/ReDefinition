@@ -27,7 +27,7 @@ namespace ReDefinition.Autopilot.Planning
             double maxDelay = Math.Min(synodic * 1.2, 20.0 * parent.rotationPeriod);
 
             Transfer best;
-            if (!Transfers.Cheapest(ship, goal, mu, maxDelay, 0.5 * hohmann, 1.5 * hohmann, false, out best, LeadTime))
+            if (!Transfers.Cheapest(ship, goal, mu, maxDelay, 0.5 * hohmann, 1.0 * hohmann, false, out best, LeadTime))
                 return Result.Failed("No transfer was found.");
             double aim = target.Radius + periapsisAltitude;
             double excess = best.Arrival.Length;
