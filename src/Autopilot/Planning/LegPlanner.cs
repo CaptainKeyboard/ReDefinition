@@ -10,12 +10,13 @@ namespace ReDefinition.Autopilot.Planning
     {
         // Plans the next step of the leg to the first stop the vessel has not reached: a launch, a burn as a node, a descent, or the reason
         // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
-        internal static NodePlanner.Result PlanNext(Frame frame, IList<Destination> route, bool forPlayer = false, bool keepCourse = false)
+        internal static NodePlanner.Result PlanNext(Frame frame, IList<Destination> route, bool forPlayer = false, bool keepCourse = false,
+                                                    RouteProgress progress = null)
         {
             string note;
             int goal;
             bool fromStop;
-            NodePlanner.Result result = Plan(frame, route, forPlayer, keepCourse, out note, out goal, out fromStop);
+            NodePlanner.Result result = Plan(frame, route, forPlayer, keepCourse, progress, out note, out goal, out fromStop);
             if (result.Goal < 0)
             {
                 result.Goal = goal;
@@ -25,7 +26,7 @@ namespace ReDefinition.Autopilot.Planning
             return result;
         }
 
-        private static NodePlanner.Result Plan(Frame frame, IList<Destination> route, bool forPlayer, bool keepCourse, out string note, out int goal, out bool fromStop)
+        private static NodePlanner.Result Plan(Frame frame, IList<Destination> route, bool forPlayer, bool keepCourse, RouteProgress progress, out string note, out int goal, out bool fromStop)
         {
             note = null;
             goal = -1;
@@ -33,7 +34,8 @@ namespace ReDefinition.Autopilot.Planning
             if (frame == null || route == null || route.Count < 2) return NodePlanner.Result.Failed("There is no route.");
             int last = -1;
             for (int i = 0; i < route.Count; i++)
-                if (Passed(frame, route[i], i)) last = i;
+                if (Passed(frame, route[i], i) && (progress == null || !Repeats(route, i) || progress.Reached >= i - 1)) last = i;
+            if (progress != null && last > progress.Reached) progress.Reached = last;
             if (last >= 0 && !frame.Ahead)
             {
                 SectionRelease pending = PendingRelease(frame.Vessel, route[last]);
@@ -254,6 +256,16 @@ namespace ReDefinition.Autopilot.Planning
                 if (leaving || body.referenceBody == frame.Body) return i;
             }
             return -1;
+        }
+
+        // Whether the stop is one the route has had before: the same place as an earlier stop, where a round trip comes back to its start. A surface
+        // has no altitude to tell by.
+        private static bool Repeats(IList<Destination> route, int index)
+        {
+            Destination stop = route[index];
+            for (int i = 0; i < index; i++)
+                if (route[i].Body == stop.Body && route[i].Surface == stop.Surface && (stop.Surface || System.Math.Abs(route[i].Altitude - stop.Altitude) < 1.0)) return true;
+            return false;
         }
 
         // Whether the vessel is at or past a stop. The first stop, a surface, is left behind wherever the vessel is round its body. A later

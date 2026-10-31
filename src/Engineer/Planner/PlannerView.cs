@@ -351,6 +351,7 @@ namespace ReDefinition.Engineer
             PlannerTiming.Stop("Eval.steps", t);
             t = PlannerTiming.Start();
             TakeFlightPlan();
+            TakeFlightState();
             PlannerTiming.Stop("Eval.takePlan", t);
             t = PlannerTiming.Start();
             for (int leg = 0; leg < MaxStops; leg++)

@@ -33,6 +33,8 @@ namespace ReDefinition.Autopilot.Planning
         public readonly List<PlannedLeg> Legs = new List<PlannedLeg>();
         // The delta-v of all the burns in the plan, in m/s.
         public double DeltaV;
+        // The last stop of the route the plan reaches, by its index; the count the vessel goes on with where it is taken out of the world.
+        public int Reached = -1;
         // The route the plan was made for, as SignatureOf has it; a plan is not the one of a route whose signature differs.
         public string Signature;
         // The first stop the plan leads to, and whether the vessel was at the one before it.
@@ -91,8 +93,13 @@ namespace ReDefinition.Autopilot.Planning
             try
             {
                 Frame frame = new Frame(vessel);
+                // Counted from where the vessel is, on a copy: the plan does not move the vessel's own count.
+                RouteState own = RouteState.Of(vessel);
+                RouteProgress progress = new RouteProgress { Reached = own != null ? own.ProgressFor(route).Reached : -1, Key = plan.Signature };
                 // The states the plan has been in: one met again is a plan that goes round in a circle.
                 var seen = new HashSet<string>();
+                // How far along the vessel is, as the plan's first step found it; the vessel's own count goes up to it.
+                int atStart = -2;
                 while (true)
                 {
                     if (!seen.Add(StateKey(frame)))
@@ -101,7 +108,8 @@ namespace ReDefinition.Autopilot.Planning
                         plan.Ended = "The plan does not move on.";
                         break;
                     }
-                    NodePlanner.Result result = LegPlanner.PlanNext(frame, route, forPlayer);
+                    NodePlanner.Result result = LegPlanner.PlanNext(frame, route, forPlayer, false, progress);
+                    if (atStart == -2) atStart = progress.Reached;
                     if (plan.FirstGoal < 0 && result.Goal >= 0)
                     {
                         plan.FirstGoal = result.Goal;
@@ -141,6 +149,8 @@ namespace ReDefinition.Autopilot.Planning
                     }
                     frame = next;
                 }
+                plan.Reached = progress.Reached;
+                if (own != null && atStart > own.ProgressFor(route).Reached) own.ProgressFor(route).Reached = atStart;
                 Collect(vessel, frame, plan);
             }
             finally

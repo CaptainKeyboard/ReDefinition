@@ -68,7 +68,8 @@ namespace ReDefinition.Autopilot.Flight
                 NodePlanner.Result plan;
                 try
                 {
-                    plan = LegPlanner.PlanNext(new Frame(vessel), route, false, keepCourse);
+                    RouteState own = RouteState.Of(vessel);
+                    plan = LegPlanner.PlanNext(new Frame(vessel), route, false, keepCourse, own != null ? own.ProgressFor(route) : null);
                     keepCourse = false;
                 }
                 catch (System.Exception e)
@@ -244,16 +245,16 @@ namespace ReDefinition.Autopilot.Flight
             return false;
         }
 
-        // Waits while MechJeb's ascent flies: it stops itself in the orbit. On the pad the first stage is fired here, which MechJeb leaves to
-        // the player's launch button; after that its own staging takes over.
+        // Waits while MechJeb's ascent flies: it stops itself in the orbit. On the pad it waits for the player's launch, the first stage, which
+        // MechJeb leaves to the launch button; the autopilot stays on meanwhile, and after the launch MechJeb's own staging takes over.
         private IEnumerator Ascend()
         {
-            float started = Time.realtimeSinceStartup;
-            if (vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH)
+            while (!cancelled && !Lost && (vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH) && !Engines.Running(vessel))
             {
-                yield return new WaitForSeconds(2f);
-                if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                Status = "Ascent: waiting for the launch. Stage to start the engines.";
+                yield return new WaitForSeconds(0.5f);
             }
+            float started = Time.realtimeSinceStartup;
             while (!cancelled && !Lost && MechJebDriver.AscentBusy(vessel) && Time.realtimeSinceStartup - started < 1200f)
             {
                 Status = "Ascent: " + (vessel.altitude / 1000.0).ToString("0.0") + " km, " + vessel.verticalSpeed.ToString("0") + " m/s up.";

@@ -69,6 +69,9 @@ namespace ReDefinition.Engineer
             try
             {
                 RoutePlan plan = RouteSimulation.Run(vessel, route);
+                // Where the plan ends is where the vessel is put back: the count goes on from there.
+                RouteState own = RouteState.Of(vessel);
+                if (own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);
                 string problem = ParsekRecording.CommitPlan(vessel, plan, true);
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; Parsek: " + (problem ?? "recorded") + ".");
             }

@@ -76,6 +76,41 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Where the vessel is on its route: the steps to the stops it has reached are done and need nothing more, and the climb it is in the middle
+        // of needs what is left of it. The closed form counts every step from its start, which is where the vessel stood on the pad: in flight it
+        // told the vessel it lacked the fuel for a climb it had flown. What is left of the climb is the part of the orbital speed not yet reached.
+        private void TakeFlightState()
+        {
+            if (Controls == null || bodies == null) return;
+            List<RouteStop> picked = PickedStops();
+            var destination = new int[picked.Count];
+            int count = 0;
+            for (int i = 0; i < picked.Count; i++)
+                destination[i] = picked[i].Kind == StopKind.Entry || picked[i].Kind == StopKind.Transfer ? -1 : count++;
+            double speed = Controls.LaunchSpeed;
+            int reached = Controls.Reached;
+            // Up from the first stop, a surface, before the count has been made.
+            if (reached < 0 && speed > 0.0 && picked.Count > 0 && picked[0].Kind == StopKind.Surface) reached = 0;
+            if (reached < 0) return;
+            foreach (RouteStep step in steps)
+            {
+                if (step.Goal <= 0 || step.Goal >= picked.Count || destination[step.Goal] < 0) continue;
+                int stop = destination[step.Goal];
+                double share = 1.0;
+                if (stop <= reached) share = 0.0;
+                else if (step.Role == StepRole.Launch && stop == reached + 1 && speed > 0.0)
+                {
+                    RouteStop from = picked[step.Goal - 1];
+                    if (from.Body < 0 || from.Body >= bodies.Bodies.Count) continue;
+                    PlannerBody body = bodies.Bodies[from.Body];
+                    double circular = System.Math.Sqrt(body.Mu / (body.Radius + body.LowOrbitAltitude));
+                    share = System.Math.Max(0.0, System.Math.Min(1.0, 1.0 - speed / circular));
+                }
+                if (share >= 1.0) continue;
+                foreach (LegLine line in step.Leg.Lines) line.DeltaV *= share;
+            }
+        }
+
         // What Parsek does with the flight, where Parsek is there.
         private void AddParsekLine()
         {

@@ -1,8 +1,10 @@
 using System.Collections;
 using System.IO;
 using KSP.UI;
+using KSP.UI.Screens;
 using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
@@ -93,6 +95,43 @@ namespace ReDefinition.Probe
                 yield break;
             }
             Debug.Log(Log.Tag + " Probe: map planner: the window " + (MapPlannerWindow.Instance != null ? "is there" : "is missing") + ", the vessel is " + FlightGlobals.ActiveVessel.situation + ".");
+            // The flag -redefinitionProbePadRoute: the route starts on the pad and comes back to it, the planner plans it, and the navigation is turned on.
+            if (CommandLine.Has("-redefinitionProbePadRoute") && MapPlannerWindow.Instance != null)
+            {
+                yield return new WaitForSeconds(2f);
+                Debug.Log(Log.Tag + " Probe: pad route: last stop set " + MapPlannerWindow.Instance.SetLastStop("Kerbin"));
+                yield return new WaitForSeconds(8f);
+                RoutePlan pad = MapPlannerWindow.Instance.WholePlan;
+                Debug.Log(Log.Tag + " Probe: pad route: plan " + (pad == null ? "none" : pad.Steps.Count + " step(s), " + pad.DeltaV.ToString("0") + " m/s, reached " + pad.Reached + ", " + (pad.Ended ?? "no end")));
+                if (pad != null) foreach (PlannedStep step in pad.Steps) Debug.Log(Log.Tag + " Probe: pad route: step " + step.Kind + " goal " + step.Goal + ": " + step.Why);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-pad.png"));
+                yield return ProbeSteps.Frames(5);
+                // The flag -redefinitionProbeFlightBudget flies straight up on full thrust and shows the planner's figures high in the air.
+                if (CommandLine.Has("-redefinitionProbeFlightBudget"))
+                {
+                    FlightInputHandler.state.mainThrottle = 1f;
+                    StageManager.ActivateNextStage();
+                    float lifted = Time.realtimeSinceStartup;
+                    while (FlightGlobals.ActiveVessel.altitude < 14000.0 && Time.realtimeSinceStartup - lifted < 120f) yield return new WaitForSeconds(1f);
+                    FlightInputHandler.state.mainThrottle = 0f;
+                    MapView.EnterMapView();
+                    MapPlannerWindow.Instance.OpenNow();
+                    yield return new WaitForSeconds(6f);
+                    Debug.Log(Log.Tag + " Probe: pad route: in flight at " + FlightGlobals.ActiveVessel.altitude.ToString("0") + " m, " + FlightGlobals.ActiveVessel.obt_speed.ToString("0") + " m/s.");
+                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-flight.png"));
+                    yield return ProbeSteps.Frames(5);
+                    Debug.Log(Log.Tag + " Probe: map planner done.");
+                    yield break;
+                }
+                MapPlannerWindow.Instance.ToggleNavigation();
+                MapView.ExitMapView();
+                yield return new WaitForSeconds(6f);
+                Debug.Log(Log.Tag + " Probe: pad route: guidance " + (GuidanceBoard.Current(FlightGlobals.ActiveVessel) ? GuidanceBoard.Line + " | bar " + GuidanceBoard.HasBar + " " + GuidanceBoard.BarFill.ToString("0.00") + " " + GuidanceBoard.BarText : "none"));
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "pad-navigation.png"));
+                yield return ProbeSteps.Frames(5);
+                Debug.Log(Log.Tag + " Probe: map planner done.");
+                yield break;
+            }
             if (MapPlannerWindow.Instance != null && (FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING || FlightGlobals.ActiveVessel.situation == Vessel.Situations.ESCAPING))
             {
                 string wanted = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Minmus";

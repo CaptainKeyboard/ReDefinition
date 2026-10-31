@@ -414,6 +414,29 @@ namespace ReDefinition.Engineer
             get { return ParsekBridge.RecordingState ?? ""; }
         }
 
+        // The vessel's count of the stops it has come to: the progress of the route as the planner has it.
+        public int Reached
+        {
+            get
+            {
+                RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
+                List<Destination> route = view != null ? RouteSource.FromStops(view.RouteStops, view.BodyList, view.ReleasesAt) : null;
+                return state != null && route != null ? state.ProgressFor(route).Reached : -1;
+            }
+        }
+
+        // On its way up: in the air and not yet in an orbit.
+        public double LaunchSpeed
+        {
+            get
+            {
+                Vessel vessel = FlightGlobals.ActiveVessel;
+                if (vessel == null || vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.PRELAUNCH || vessel.orbit == null) return 0.0;
+                if (vessel.situation == Vessel.Situations.ORBITING || vessel.situation == Vessel.Situations.ESCAPING) return 0.0;
+                return vessel.obt_speed;
+            }
+        }
+
         public string AutopilotProblem
         {
             get { return MechJebDriver.Unavailable; }
@@ -453,7 +476,8 @@ namespace ReDefinition.Engineer
         {
             List<Destination> route = Route();
             if (route == null) return;
-            NodePlanner.Result result = LegPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route);
+            RouteState own = RouteState.Of(FlightGlobals.ActiveVessel);
+            NodePlanner.Result result = LegPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, false, false, own != null ? own.ProgressFor(route) : null);
             status = result.Ok
                 ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
                 : result.Why;
@@ -474,6 +498,23 @@ namespace ReDefinition.Engineer
             var rect = (RectTransform)go.transform;
             rect.SetParent(parent, false);
             return rect;
+        }
+
+        // For the probes: a third stop on a body, on its surface, as a round trip ends where it began.
+        internal bool SetLastStop(string bodyName)
+        {
+            IList<RouteStop> stops = view != null ? view.RouteStops : null;
+            PlannerBodies bodies = view != null ? view.BodyList : null;
+            if (stops == null || bodies == null || stops.Count < 2) return false;
+            int index = bodies.Bodies.FindIndex(b => b.Id == bodyName);
+            if (index < 0) return false;
+            if (stops.Count < 3) view.AddStopNow();
+            if (stops.Count < 3) return false;
+            stops[2].Body = index;
+            stops[2].Kind = StopKind.Surface;
+            stops[2].Altitude = 0.0;
+            view.SaveNow();
+            return true;
         }
 
         // For the probes: `count` stops added to the route, as the plus does.

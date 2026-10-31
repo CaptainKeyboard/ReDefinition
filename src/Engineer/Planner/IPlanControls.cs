@@ -14,6 +14,10 @@ namespace ReDefinition.Engineer
         string ParsekLine { get; }
         // Why the autopilot cannot be used here (a mod missing); null where it can.
         string AutopilotProblem { get; }
+        // The last stop of the route the vessel has reached, by its index; -1 before the first.
+        // And how fast it moves round the body, in m/s, while it is on its way up from a surface: 0 on the ground and in orbit.
+        int Reached { get; }
+        double LaunchSpeed { get; }
         // Each switch turns the other off.
         void ToggleNavigation();
         void ToggleAutopilot();
