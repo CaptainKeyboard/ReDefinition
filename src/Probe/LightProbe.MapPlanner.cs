@@ -49,13 +49,24 @@ namespace ReDefinition.Probe
 
         private static IEnumerator MapPlannerShots(string folder)
         {
-            MapPlannerWindow.OpenAtOnce = true;
+            // The flag -redefinitionProbeMapPlannerClosed leaves the panel shut and shoots the map as the player first sees it.
+            bool closed = CommandLine.Has("-redefinitionProbeMapPlannerClosed");
+            MapPlannerWindow.OpenAtOnce = !closed;
             yield return ProbeSteps.Frames(30);
             MapView.EnterMapView();
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
             yield return ProbeSteps.Frames(180);
-            ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner.png"));
+            ScreenCapture.CaptureScreenshot(Path.Combine(folder, closed ? "map-planner-closed.png" : "map-planner.png"));
             yield return ProbeSteps.Frames(5);
+            // The flag -redefinitionProbeMapPlannerHold keeps the panel open this many seconds first, for the timing of the planner.
+            string firstHold = CommandLine.After("-redefinitionProbeMapPlannerHold");
+            if (firstHold != null && !closed) yield return new WaitForSeconds(float.Parse(firstHold, System.Globalization.CultureInfo.InvariantCulture));
+            if (closed)
+            {
+                yield return new WaitForSeconds(12f);
+                Debug.Log(Log.Tag + " Probe: map planner: shot with the panel shut.");
+                yield break;
+            }
             if (MapPlannerWindow.Instance != null && CommandLine.Has("-redefinitionProbeMapPlannerClimb"))
             {
                 string wantedBody = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Kerbin";

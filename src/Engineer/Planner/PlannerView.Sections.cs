@@ -146,6 +146,16 @@ namespace ReDefinition.Engineer
             {
                 detectedLogged = found;
                 Debug.Log(Core.Log.Tag + " Planner found from " + facts.Count + " parts: " + found + ".");
+                if (detectedCapsule != null && !detectedCapsule.Parachute)
+                {
+                    var members = new List<string>();
+                    foreach (int member in detectedCapsule.Members) members.Add(facts[member].Title + " (stage " + facts[member].DecoupleStage + ")");
+                    var chutes = new List<string>();
+                    foreach (PartFacts fact in facts)
+                        if (fact.Parachute) chutes.Add(fact.Title + " (stage " + fact.DecoupleStage + ")");
+                    Debug.Log(Core.Log.Tag + " Planner: the capsule has no parachute: it holds " + string.Join(", ", members.ToArray())
+                              + "; the vessel's parachutes: " + (chutes.Count > 0 ? string.Join(", ", chutes.ToArray()) : "none") + ".");
+                }
             }
         }
 

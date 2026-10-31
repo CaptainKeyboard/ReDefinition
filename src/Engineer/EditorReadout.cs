@@ -98,6 +98,14 @@ namespace ReDefinition.Engineer
         // the LEG type (ModuleWheelBase.wheelType); a docking port separates by its
         // ModuleDockingNode, a radial decoupler by ModuleAnchoredDecoupler, any other
         // decoupler by ModuleDecouple.
+        // Whether the part has one of RealChute's modules, which are named RealChute and then what they are for.
+        private static bool IsRealChute(Part part)
+        {
+            for (int i = 0; i < part.Modules.Count; i++)
+                if (part.Modules[i].moduleName != null && part.Modules[i].moduleName.StartsWith("RealChute")) return true;
+            return false;
+        }
+
         private static List<PartFacts> FactsOf(List<Part> parts, List<DeltaVPartInfo> partInfos)
         {
             Dictionary<Part, DeltaVPartInfo> infos = new Dictionary<Part, DeltaVPartInfo>();
@@ -156,8 +164,8 @@ namespace ReDefinition.Engineer
                     Command = part.HasModuleImplementing<ModuleCommand>(),
                     Engine = HasThrust(part),
                     Legs = legs,
-                    // RealChute's parachutes are a module of their own.
-                    Parachute = part.HasModuleImplementing<ModuleParachute>() || part.Modules.Contains("RealChuteModule"),
+                    // RealChute's parachutes are a module of their own: RealChuteModule, or RealChuteFAR where FAR is installed.
+                    Parachute = part.HasModuleImplementing<ModuleParachute>() || IsRealChute(part),
                     HeatShield = part.HasModuleImplementing<ModuleAblator>(),
                     Lift = part.HasModuleImplementing<ModuleLiftingSurface>() && !part.HasModuleImplementing<ModuleCommand>()
                            && !part.HasModuleImplementing<ModuleAblator>(),

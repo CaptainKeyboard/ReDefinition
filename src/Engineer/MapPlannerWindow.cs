@@ -30,6 +30,9 @@ namespace ReDefinition.Engineer
         private PlannerView view;
         private GameObject root;
         private RectTransform frame;
+        // The panel's background and rows, which are off while the panel is shut so that only its tab shows.
+        private Image frameBack;
+        private RectTransform frameContent;
         private DialogGUIBase list;
         private DialogGUIBase tab;
         private bool open;
@@ -42,6 +45,23 @@ namespace ReDefinition.Engineer
         private static bool Wanted
         {
             get { return MapView.MapIsEnabled && FlightGlobals.ActiveVessel != null && HighLogic.LoadedSceneIsFlight; }
+        }
+
+        // Whether the panel may be made before the map is opened: some seconds into the flight, with the vessel resting or in orbit and its engines
+        // off. Making it takes seconds (about fifteen thousand dialog elements), which is better spent where nothing is flown than when the map is opened.
+        private const float PrebuildAfter = 4f;
+
+        private static bool QuietFlight
+        {
+            get
+            {
+                Vessel vessel = FlightGlobals.ActiveVessel;
+                if (vessel == null || !HighLogic.LoadedSceneIsFlight || Time.timeSinceLevelLoad < PrebuildAfter) return false;
+                bool resting = vessel.situation == Vessel.Situations.PRELAUNCH || vessel.situation == Vessel.Situations.LANDED
+                               || vessel.situation == Vessel.Situations.SPLASHED || vessel.situation == Vessel.Situations.ORBITING
+                               || vessel.situation == Vessel.Situations.ESCAPING;
+                return resting && vessel.ctrlState.mainThrottle < 0.01f;
+            }
         }
 
         // Asked for by the probes: the panel open and out, without a click; the window itself, and what its last button came to.
@@ -171,7 +191,7 @@ namespace ReDefinition.Engineer
             bool wanted = Wanted;
             if (root == null)
             {
-                if (!wanted) return;
+                if (!wanted && !QuietFlight) return;
                 try
                 {
                     Build();
@@ -191,7 +211,11 @@ namespace ReDefinition.Engineer
             // The vessel is read only for a panel that is open or opening.
             if (open || slide > 0f) host.Tick();
             slide = Mathf.MoveTowards(slide, open ? 1f : 0f, Time.unscaledDeltaTime / SlideTime);
-            float hidden = PanelWidth + RightMargin;
+            // Shut, the panel's left edge is where the margin ends and its tab, on that edge, stands in the margin beside the stock toolbar.
+            float hidden = PanelWidth - RightMargin;
+            bool bodyShown = slide > 0f;
+            if (frameBack.enabled != bodyShown) frameBack.enabled = bodyShown;
+            if (frameContent.gameObject.activeSelf != bodyShown) frameContent.gameObject.SetActive(bodyShown);
             frame.anchoredPosition = new Vector2(Mathf.Lerp(hidden, -RightMargin, Mathf.SmoothStep(0f, 1f, slide)), (BottomMargin - TopMargin) / 2f);
             if (tab != null) tab.Update();
             if (slide > 0f)
@@ -214,6 +238,8 @@ namespace ReDefinition.Engineer
             root.layer = LayerMask.NameToLayer("UI");
             RectTransform rootRect = (RectTransform)root.transform;
             rootRect.SetParent(MainCanvasUtil.MainCanvas.transform, false);
+            // Made while it is off, the thousands of elements are not laid out one by one as they come; Update switches it on after.
+            root.SetActive(false);
             rootRect.anchorMin = Vector2.zero;
             rootRect.anchorMax = Vector2.one;
             rootRect.offsetMin = rootRect.offsetMax = Vector2.zero;
@@ -225,9 +251,11 @@ namespace ReDefinition.Engineer
             frame.sizeDelta = new Vector2(PanelWidth, -(TopMargin + BottomMargin));
 
             Image back = frame.gameObject.AddComponent<Image>();
+            frameBack = back;
             back.color = new Color(0.05f, 0.07f, 0.1f, 0.88f);
             back.raycastTarget = true;
 
+            long build = PlannerTiming.Start();
             float listWidth = PanelWidth - 6f;
             float rowWidth = PlannerWidgets.RowRoom(listWidth);
             view = new PlannerView(host, rowWidth);
@@ -236,11 +264,14 @@ namespace ReDefinition.Engineer
             rows.AddRange(view.Rows());
             TooltipText.WrapAll(rows);
             UiHygiene.DeferInteractable(rows);
+            PlannerTiming.Stop("Build.rows", build);
+            build = PlannerTiming.Start();
             var layout = new DialogGUIVerticalLayout(rowWidth, -1f, 0f, new RectOffset(0, 0, 0, 12), TextAnchor.UpperLeft, rows.ToArray());
             float height = Screen.height / GameSettings.UI_SCALE - TopMargin - BottomMargin - 8f;
             var scroll = new DialogGUIScrollList(new Vector2(listWidth, Mathf.Max(200f, height)), false, true, layout);
             list = scroll;
             RectTransform content = NewRect("Content", frame);
+            frameContent = content;
             content.anchorMin = Vector2.zero;
             content.anchorMax = Vector2.one;
             content.offsetMin = new Vector2(3f, 3f);
@@ -248,6 +279,8 @@ namespace ReDefinition.Engineer
             var layouts = new Stack<Transform>();
             layouts.Push(content);
             list.Create(ref layouts, skin);
+            PlannerTiming.Stop("Build.create", build);
+            build = PlannerTiming.Start();
             DialogTooltips.Attach(new[] { list });
             RectTransform listRect = list.uiItem != null ? list.uiItem.transform as RectTransform : null;
             if (listRect != null)
@@ -260,6 +293,7 @@ namespace ReDefinition.Engineer
             view.Finish();
             ScrollThrough.Apply(list.uiItem);
             UiHygiene.MouseOnly(list.uiItem);
+            PlannerTiming.Stop("Build.settle", build);
 
             // The tab: a button on the panel's left edge, near the top, which goes out with the panel.
             RectTransform tabHolder = NewRect("Tab", frame);
@@ -280,6 +314,11 @@ namespace ReDefinition.Engineer
                 buttonRect.offsetMin = buttonRect.offsetMax = Vector2.zero;
             }
             UiHygiene.MouseOnly(tab.uiItem);
+            // One pass over the rows while the panel is still off, which switches the rows that are not shown off at no cost: each of them is off
+            // as its parent is. Switched on first, thousands of them would be switched off one by one in the first frame.
+            build = PlannerTiming.Start();
+            list.Update();
+            PlannerTiming.Stop("Build.prime", build);
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
