@@ -29,7 +29,7 @@ and upscaler code and the real proxy, and it checks the images.
 - `RtTurnUpscale` renders the turn at a smaller size with the upscaler's jitter and keeps the
   upscaled frame. `tools/analyze_upscale_turn.py` compares it.
 - The stubs stand in for what the linked code asks of the game. `GameStubs.cs` has the GPU
-  profiler, `ProxyLoad`, `KscGround` and `RtKspMods`. `DeferredStub.cs` names Deferred's main type,
+  profiler, `ProxyLoad` and `RtKspMods`. `DeferredStub.cs` names Deferred's main type,
   and `UpscalerRigStub.cs` has the rig's sharpness ceiling.
 
 Run it with Unity 2019.4.18f1 at `C:\Program Files\Unity\Editor\Unity.exe` and a built proxy:

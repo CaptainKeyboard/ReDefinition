@@ -51,11 +51,10 @@ namespace ReDefinition.Raytracing
                    && (material.HasProperty(AtlasId) || material.HasProperty(LowTexId));
         }
 
-        // KSP's space centre ground shaders, or one drawn as Parallax's terrain, with their blend mask.
+        // KSP's space centre ground shaders, with their blend mask.
         private static bool Ksc(Material material)
         {
-            return (NamedLike(material.shader, KscShaders, "KSP/Scenery/Diffuse Ground KSC")
-                    || Scenery.KscGround.Draws(material))
+            return NamedLike(material.shader, KscShaders, "KSP/Scenery/Diffuse Ground KSC")
                    && material.HasProperty(BlendMaskId);
         }
 
@@ -150,15 +149,12 @@ namespace ReDefinition.Raytracing
         // The ground (KSP/Scenery/Diffuse Ground KSC and its variants) has no vertex colour. It has grass,
         // _NearGrassTexture times _GrassColor, and _TarmacTexture at uv0, mixed by _BlendMaskTexture's red at uv1
         // (both with their _ST). Here the averages are mixed by the mask at the vertex, so paths narrower than the
-        // mesh's spacing blur into the grass. Drawn as Parallax's terrain (Scenery/KscGround), its grass is the
-        // meadow's mean colour there.
+        // mesh's spacing blur into the grass.
         private static Color32[] KscColours(Mesh mesh, Material material)
         {
             int count = mesh.vertexCount;
             Color grass = material.HasProperty("_NearGrassTexture") ? Layer(material.GetTexture("_NearGrassTexture"), 0) : Color.white;
             if (material.HasProperty("_GrassColor")) grass *= material.GetColor("_GrassColor");
-            // Drawn as Parallax's terrain (Scenery/KscGround): its meadow's colour.
-            if (Scenery.KscGround.Draws(material)) grass = Scenery.KscGround.LawnColour;
             Color tarmac = material.HasProperty("_TarmacTexture") ? Layer(material.GetTexture("_TarmacTexture"), 0) : Color.grey;
             Texture maskTexture = material.GetTexture(BlendMaskId);
             Color[] mask = Mask(maskTexture);

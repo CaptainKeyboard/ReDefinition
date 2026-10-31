@@ -709,12 +709,6 @@ namespace ReDefinition.Modules
                   + "Needs Parallax.",
                 row: SettingCategory.Planets,
                 section: "Space centre",
-                interactable: settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled),
-            Toggle("kscLawnTerrain", "Lawns like the terrain", 231,
-                "The space centre's lawns drawn with Parallax's terrain textures and colours, so that they\n"
-                  + "look like the terrain beside them. Needs Parallax.",
-                row: SettingCategory.Planets,
-                section: "Space centre",
                 interactable: settings => ReDefinition.Scenery.KscGrass.ParallaxInstalled));
 
         // Firefly's re-entry effects (Scenery/FireflyIdle).

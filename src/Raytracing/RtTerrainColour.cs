@@ -67,24 +67,6 @@ namespace ReDefinition.Raytracing
             return true;
         }
 
-        // The space centre's lawn as drawn as Parallax's meadow (Scenery/KscGround, ReDefinitionKscGround.shader).
-        // It takes the meadow band's texture and the influence map's green channel of Parallax's terrain material,
-        // and the terrain's vertex colour under the space centre. It returns the diffuse colour after the shine's
-        // share.
-        internal static Color Meadow(Material parallax, Color vertexColour)
-        {
-            Texture texture = parallax != null && parallax.HasProperty(MidTexId) ? parallax.GetTexture(MidTexId) : null;
-            if (texture == null) return vertexColour;
-            Color t = Average(texture);
-            Texture influenceMap = parallax.HasProperty(InfluenceId) ? parallax.GetTexture(InfluenceId) : null;
-            float influence = influenceMap != null ? Average(influenceMap).g : 0f;
-            float factor = (0.21f * t.r + 0.72f * t.g + 0.07f * t.b + 0.5f) * (1f - influence);
-            float intensity = parallax.HasProperty("_SpecularIntensity") ? Mathf.Clamp01(parallax.GetFloat("_SpecularIntensity")) : 0f;
-            float diffuse = 1f - intensity / Mathf.PI;
-            return new Color((vertexColour.r * factor + t.r * influence) * diffuse, (vertexColour.g * factor + t.g * influence) * diffuse,
-                             (vertexColour.b * factor + t.b * influence) * diffuse, 1f);
-        }
-
         // The band the material draws: its keyword (PARALLAX_SINGLE_LOW to PARALLAX_FULL,
         // TerrainShaderQuadData.cs), the lowest one used; KSCTerrain's has the low one only.
         // 0 low, 1 mid, 2 high; the influence map's red, green and blue.

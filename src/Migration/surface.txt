@@ -1808,7 +1808,6 @@ own.frameGenerationTechnique = Auto
 own.hudTooltips = True
 own.jitter = True
 own.kscGrass = True
-own.kscLawnTerrain = True
 own.lodBias = True
 own.lowLatency = Auto
 own.menuFireworks = True

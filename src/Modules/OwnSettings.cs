@@ -151,8 +151,6 @@ namespace ReDefinition.Modules
         public bool MenuKscZoom = true;
         // Parallax's grass on the space centre's lawns (Scenery/KscGrass).
         public bool KscGrass = true;
-        // The space centre's lawns drawn as Parallax's terrain beside them (Scenery/KscGround).
-        public bool KscLawnTerrain = true;
         // Firefly's re-entry effects not drawn while they show nothing (Scenery/FireflyIdle).
         public bool FireflyIdle = true;
         // The mods' antialiasing not twice on one camera with the upscaler and frame
@@ -400,7 +398,6 @@ namespace ReDefinition.Modules
             Bool("menuFireworks", x => x.MenuFireworks, (x, v) => x.MenuFireworks = v, true),
             Bool("menuKscZoom", x => x.MenuKscZoom, (x, v) => x.MenuKscZoom = v, true),
             Bool("kscGrass", x => x.KscGrass, (x, v) => x.KscGrass = v, true),
-            Bool("kscLawnTerrain", x => x.KscLawnTerrain, (x, v) => x.KscLawnTerrain = v, true),
             Bool("fireflyIdle", x => x.FireflyIdle, (x, v) => x.FireflyIdle = v, true),
             Bool("oneAntialiasing", x => x.OneAntialiasing, (x, v) => x.OneAntialiasing = v, true),
             Bool("roundGauge", x => x.RoundGauge, (x, v) => x.RoundGauge = v, true),

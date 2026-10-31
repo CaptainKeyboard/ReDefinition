@@ -34,24 +34,6 @@ namespace ReDefinition.Proxy
     }
 }
 
-
-namespace ReDefinition.Scenery
-{
-    // The space centre's lawn material, which RtMaterialIntent and RtStockTerrain ask whether a material is
-    // (src/Scenery/KscGround.cs): the test player has no space centre, so no material is.
-    internal static class KscGround
-    {
-        // The lawn's colour as the shader draws it; unused where no material is the lawn's.
-        internal static readonly UnityEngine.Color LawnColour = new UnityEngine.Color(0.2f, 0.3f, 0.1f);
-
-        // Never: the test player's materials are not the space centre's lawn.
-        internal static bool Draws(UnityEngine.Material material)
-        {
-            return false;
-        }
-    }
-}
-
 namespace ReDefinition.Raytracing
 {
     // Parallax's grass ranges, which RtCamera reads for the meadow's shade (src/Raytracing/Ksp/RtKspMods.cs): the

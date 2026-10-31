@@ -284,7 +284,6 @@ namespace ReDefinition.Tests
             new[] { "mainMenu", "menuFireworks", "menuFireworks" },
             new[] { "mainMenu", "menuKscZoom", "menuKscZoom" },
             new[] { "spaceCentre", "kscGrass", "kscGrass" },
-            new[] { "spaceCentre", "kscLawnTerrain", "kscLawnTerrain" },
             new[] { "reEntry", "fireflyIdle", "fireflyIdle" },
             new[] { "dashboard", "dashboardNetwork", "dashboardNetwork" },
         };

@@ -21,8 +21,7 @@ namespace ReDefinition.Raytracing
         public float Smoothness;
         // For the legacy families, what the G-buffer's smoothness is divided by for the gloss.
         public float GlossDivisor;
-        // The gloss where no G-buffer gives it. For the ground it says whether the ground is drawn as Parallax's
-        // terrain already (Scenery/KscGround). The ground's shine does not use the gloss.
+        // The gloss where no G-buffer gives it. The ground's shine does not use the gloss.
         public float GlossMean;
 
         // The power of _Shininess in the divisor that gives the gloss back from Deferred's smoothness. KSP's legacy
@@ -103,7 +102,7 @@ namespace ReDefinition.Raytracing
                 Color f0 = material.HasProperty("_SpecularColor") ? material.GetColor("_SpecularColor") : Color.black;
                 if (Max(f0) >= 0.004f)
                     return new RtMaterialIntent { Mode = RtNative.SurfaceFixed, Specular = f0, Smoothness = 0.25f };
-                return Ground(Scenery.KscGround.Draws(material));
+                return Ground();
             }
             bool kspLegacy = shader.StartsWith("KSP/", StringComparison.Ordinal);
             bool unityLegacy = shader.StartsWith("Legacy Shaders/", StringComparison.Ordinal);
@@ -150,13 +149,12 @@ namespace ReDefinition.Raytracing
         // gloss there (LawnGloss); its tarmac and concrete not at all. With the G-buffer's
         // shine (0.22 at a smoothness of 0.013, rough and strong) the lawn is lighter than
         // the terrain towards a low sun (the player, 2026-10-25). Without Parallax the
-        // G-buffer's shine stays, as before. The argument `asTerrain` says the ground is drawn as
-        // Parallax's terrain already (Scenery/KscGround). It goes in GlossMean.
-        private static RtMaterialIntent Ground(bool asTerrain)
+        // G-buffer's shine stays, as before.
+        private static RtMaterialIntent Ground()
         {
             var ground = new RtMaterialIntent
             {
-                Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f, GlossMean = asTerrain ? 1f : 0f,
+                Mode = RtNative.SurfaceGround, Specular = Color.black, Smoothness = 0f,
             };
             RtMaterialIntent terrain;
             if (!HomeTerrain(out terrain)) return ground;

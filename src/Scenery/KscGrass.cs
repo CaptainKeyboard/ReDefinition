@@ -119,7 +119,7 @@ namespace ReDefinition.Scenery
         // Whether Parallax is installed, looked up once: the settings window asks it as it
         // draws the row.
         private static bool? parallaxInstalled;
-        // Asked by the settings window, the scene probe and KscGround.
+        // Asked by the settings window and the scene probe.
         internal static bool ParallaxInstalled
         {
             get
@@ -332,6 +332,15 @@ namespace ReDefinition.Scenery
             return true;
         }
 
+        // The space centre's city on the planet, the last one named KSC; null where there is none.
+        internal static PQSCity City()
+        {
+            PQSCity ksc = null;
+            foreach (PQSCity city in FindObjectsOfType<PQSCity>())
+                if (city.name == "KSC") ksc = city;
+            return ksc;
+        }
+
         // The lawns' map in the plane of the space centre's root, a texel a metre. It holds the lawn's
         // height and the room around it, in metres, to tarmac, the lawn's edge or a collider
         // over it. Most of the work runs off the main thread, as at once it held a frame for 0.7 s
@@ -342,7 +351,7 @@ namespace ReDefinition.Scenery
         {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             long mainThread = 0;
-            PQSCity ksc = KscGround.City();
+            PQSCity ksc = City();
             if (ksc == null)
             {
                 Debug.Log(Log.Tag + " Space centre grass: none (the space centre not found).");

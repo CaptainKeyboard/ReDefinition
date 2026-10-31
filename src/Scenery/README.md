@@ -7,7 +7,6 @@ The fixes to what the game draws in the space centre and in flight, each a `KSPA
 | File | Read it for |
 |---|---|
 | `src/Scenery/KscGrass.cs` | Parallax's grass lifted onto the space centre's lawns. |
-| `src/Scenery/KscGround.cs` | The lawns drawn as Parallax's terrain beside them. |
 | `src/Scenery/ParallaxScatterFields.cs` | How ReDefinition reads Parallax's scatters. |
 | `src/Scenery/FireflyIdle.cs` | Firefly's re-entry effects, idle while they show nothing. |
 | `src/Scenery/RunwayLights.cs` | The runway's lights dimmed. |
@@ -17,8 +16,6 @@ The fixes to what the game draws in the space centre and in flight, each a `KSPA
 
 - `KscGrass` grows Parallax's own clumps on the lawns, where they lay under the ground
   (`ReDefinitionKscGrass.compute`).
-- `KscGround` gives the space centre's lawn Parallax's terrain look through
-  `ReDefinitionKscGround.shader`.
 - `ParallaxScatterFields` reads Parallax's active scatter renderers for `KscGrass` and for the rays
   (`RtKspMods` in `src/Raytracing/Ksp/RtKspMods.cs`).
 - `FireflyIdle` empties Firefly's command buffer and stops its airstream camera below an entry
@@ -36,8 +33,7 @@ Modules, Probe and Raytracing name it.
 
 ## Rules of the area
 
-- `KscGrass` and `KscGround` need Parallax. `KscGround` runs only while `OwnSettings.KscLawnTerrain`
-  is on, and puts the materials back when it goes off or the scene ends.
+- `KscGrass` needs Parallax.
 - `KscGrass` runs only while `OwnSettings.KscGrass` is on, and `FireflyIdle` only while
   `OwnSettings.FireflyIdle` is on. In `src/Modules/OurModules.cs` the `FireflyIdle` row appears only
   with Firefly installed, and the `KscGrass` row is not interactive without Parallax.
