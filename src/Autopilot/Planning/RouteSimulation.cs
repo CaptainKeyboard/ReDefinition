@@ -86,7 +86,7 @@ namespace ReDefinition.Autopilot.Planning
         // With `forPlayer` the deorbit of a landing is a burn of the plan, as the player flies it; without, the plan ends in the orbit the landing
         // starts from, which MechJeb's landing leaves by itself.
         // With `from` the plan starts in that orbit at `fromUT`, as if the vessel were there: the launch of an ascent is not flown by the plan.
-        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false, Orbit from = null, double fromUT = 0.0)
+        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false, Orbit from = null, double fromUT = 0.0, int reachedAtStart = int.MinValue)
         {
             var plan = new RoutePlan { Signature = RoutePlan.SignatureOf(route) };
             if (vessel == null || route == null || route.Count < 2 || vessel.patchedConicSolver == null)
@@ -117,7 +117,7 @@ namespace ReDefinition.Autopilot.Planning
                 Frame frame = swapped ? new Frame(vessel).At(fromUT) : new Frame(vessel);
                 // Counted from where the vessel is, on a copy: the plan does not move the vessel's own count.
                 RouteState own = RouteState.Of(vessel);
-                RouteProgress progress = new RouteProgress { Reached = own != null ? own.ProgressFor(route).Reached : -1, Key = plan.Signature };
+                RouteProgress progress = new RouteProgress { Reached = reachedAtStart != int.MinValue ? reachedAtStart : own != null ? own.ProgressFor(route).Reached : -1, Key = plan.Signature };
                 // The states the plan has been in: one met again is a plan that goes round in a circle.
                 var seen = new HashSet<string>();
                 // How far along the vessel is, as the plan's first step found it; the vessel's own count goes up to it.

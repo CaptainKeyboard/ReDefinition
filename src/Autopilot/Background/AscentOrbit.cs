@@ -8,22 +8,23 @@ namespace ReDefinition.Autopilot.Background
     // reaches at its latitude. The vessel is `downrange` along it from the site when it gets there: half the orbit's speed on average, for the burn time.
     internal static class AscentOrbit
     {
-        // The orbit at the UT the ascent ends, from a launch now. `burnTime` is the time of the engines' burn in s, `altitude` that of the orbit in m.
-        internal static Orbit Make(Vessel vessel, double altitude, double burnTime, out double endUT)
+        // The orbit at the UT the ascent ends. `site` is where the launch site is at `now`, from the body's centre in the world's axes.
+        // The launch is at `launchUT`, the burn takes `burnTime` s, and the orbit is at `altitude` m.
+        internal static Orbit Make(CelestialBody body, Vector3d site, double now, double launchUT, double altitude, double burnTime, out double endUT)
         {
-            CelestialBody body = vessel.mainBody;
-            double now = Planetarium.GetUniversalTime();
-            endUT = now + burnTime;
+            endUT = launchUT + burnTime;
             double radius = body.Radius + altitude;
             double speed = Math.Sqrt(body.gravParameter / radius);
             double downrange = 0.5 * speed * burnTime / radius;
-            Vector3d site = (vessel.GetWorldPos3D() - body.position).normalized;
+            // The site turns with the body from now to the launch.
+            Vector3d at = body.rotates ? (Vector3d)(Quaternion.AngleAxis((float)(360.0 * body.rotPeriodRecip * (launchUT - now)), (Vector3)body.angularVelocity.normalized) * (Vector3)site) : site;
+            Vector3d up = at.normalized;
             // The way east at the site is the way the ground moves there; at a pole there is none, and any is as good as another.
-            Vector3d east = Vector3d.Cross(body.angularVelocity, site);
-            if (east.sqrMagnitude < 1e-12) east = Vector3d.Cross(Vector3d.up, site);
+            Vector3d east = Vector3d.Cross(body.angularVelocity, up);
+            if (east.sqrMagnitude < 1e-12) east = Vector3d.Cross(Vector3d.up, up);
             east = east.normalized;
-            Vector3d position = (site * Math.Cos(downrange) + east * Math.Sin(downrange)) * radius;
-            Vector3d velocity = (east * Math.Cos(downrange) - site * Math.Sin(downrange)) * speed;
+            Vector3d position = (up * Math.Cos(downrange) + east * Math.Sin(downrange)) * radius;
+            Vector3d velocity = (east * Math.Cos(downrange) - up * Math.Sin(downrange)) * speed;
             var orbit = new Orbit();
             orbit.UpdateFromStateVectors(position.xzy, velocity.xzy, body, endUT);
             return orbit;

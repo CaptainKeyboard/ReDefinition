@@ -23,6 +23,8 @@ namespace ReDefinition.Probe
         internal static bool Resumed;
         // The parts the vessel had when the route was handed over: a landing that breaks some is a failure.
         internal static int PartCount;
+        // The parts of the debris that the game destroyed on the way (it fell into the air of a planet): they are not lost, they are counted.
+        internal static int DestroyedParts;
     }
 
     // -redefinitionProbeParsekLeave: the flight probe left with a recording, and in the tracking station the time is warped past its end.
@@ -92,6 +94,16 @@ namespace ReDefinition.Probe
 
     internal static class ParsekLeaveWatch
     {
+        // Debris of the vessel that the game destroys while time is warped is counted with its parts. An event takes the method of an object.
+        private sealed class DestroyedCounter
+        {
+            public void Count(Vessel vessel)
+            {
+                if (vessel.vesselName != null && ParsekLeave.Name != null && vessel.vesselName.StartsWith(ParsekLeave.Name) && vessel.vesselName.EndsWith("Debris"))
+                    ParsekLeave.DestroyedParts += vessel.protoVessel != null ? vessel.protoVessel.protoPartSnapshots.Count : vessel.parts.Count;
+            }
+        }
+
         internal static IEnumerator Run()
         {
             if (ParsekLeave.Second)
@@ -104,6 +116,9 @@ namespace ReDefinition.Probe
             }
             if (!ParsekLeave.Active) yield break;
             ParsekLeave.Active = false;
+            ParsekLeave.DestroyedParts = 0;
+            var counter = new DestroyedCounter();
+            GameEvents.onVesselWillDestroy.Add(counter.Count);
             yield return new WaitForSeconds(8f);
             // The flight was left by the flight probe at a burn: the recording was made by the route driver, and its end is Parsek's.
             if (ParsekLeave.EndUT <= 0.0) ParsekLeave.EndUT = ReDefinition.Autopilot.Flight.ParsekRecording.LatestEnd();
@@ -121,6 +136,7 @@ namespace ReDefinition.Probe
                 yield return new WaitForSeconds(1f);
             }
             yield return new WaitForSeconds(15f);
+            GameEvents.onVesselWillDestroy.Remove(counter.Count);
             int found = Tell("after the end");
             // Parts that were let go are vessels of their own: all of them together are the parts the vessel had.
             int total = 0;
@@ -134,9 +150,9 @@ namespace ReDefinition.Probe
                 Fail("no vessel named " + ParsekLeave.Name + " is in an orbit round " + expected + " after the route");
                 yield break;
             }
-            if (ParsekLeave.PartCount > 0 && total != ParsekLeave.PartCount)
+            if (ParsekLeave.PartCount > 0 && total + ParsekLeave.DestroyedParts != ParsekLeave.PartCount)
             {
-                Fail("the parts of the vessels named " + ParsekLeave.Name + " add up to " + total + ", the vessel had " + ParsekLeave.PartCount);
+                Fail("the parts of the vessels named " + ParsekLeave.Name + " add up to " + total + " and " + ParsekLeave.DestroyedParts + " were destroyed as debris, the vessel had " + ParsekLeave.PartCount);
                 yield break;
             }
             if (CommandLine.Has("-redefinitionProbeResumeLanded") && !FlightGlobals.Vessels.Any(v => v.vesselName.StartsWith(ParsekLeave.Name) && (v.situation == Vessel.Situations.LANDED || v.situation == Vessel.Situations.SPLASHED)))

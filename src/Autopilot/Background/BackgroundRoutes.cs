@@ -291,33 +291,79 @@ namespace ReDefinition.Autopilot.Background
             // A launch from the ground ends in the orbit asked for, and the rest of the route is planned from there.
             if (plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null && figures != null && vessel.mainBody.pqsController != null)
             {
-                PlannedStep climb = plan.Steps[0];
-                double launch = figures.LaunchDeltaV(vessel.mainBody, climb.Altitude);
-                var ascent = new Step { Why = "ascent, " + launch.ToString("0") + " m/s", Reached = entry.Reached };
-                double began = stages != null ? stages.Elapsed : 0.0;
-                budget.Apply(ascent, launch);
-                if (stages != null && stages.Short > 0.0)
-                {
-                    entry.Problem = "The vessel does not have the delta-v for the launch: it is short of " + stages.Short.ToString("0") + " m/s.";
-                    return entry;
-                }
-                // The time of the burn: the stages' own, and where they are not known the time the vessel needs at its thrust.
-                double burnTime = stages != null && stages.Ready ? stages.Elapsed - began : 0.0;
-                if (burnTime <= 0.0) burnTime = Math.Max(60.0, launch / Math.Max(1.0, (vessel.VesselDeltaV != null ? vessel.VesselDeltaV.TotalDeltaVVac : launch) / 600.0));
+                Orbit orbit;
                 double endUT;
-                Orbit orbit = AscentOrbit.Make(vessel, climb.Altitude, burnTime, out endUT);
-                ascent.UT = endUT;
-                ascent.Body = vessel.mainBody.bodyName;
-                ascent.Inclination = orbit.inclination;
-                ascent.Eccentricity = orbit.eccentricity;
-                ascent.SemiMajorAxis = orbit.semiMajorAxis;
-                ascent.Lan = orbit.LAN;
-                ascent.ArgumentOfPeriapsis = orbit.argumentOfPeriapsis;
-                ascent.MeanAnomaly = orbit.meanAnomalyAtEpoch;
-                ascent.Epoch = orbit.epoch;
-                entry.Steps.Add(ascent);
+                Vector3d site = vessel.GetWorldPos3D() - vessel.mainBody.position;
+                if (!Launch(vessel, entry, budget, stages, figures, vessel.mainBody, plan.Steps[0].Altitude, site, Planetarium.GetUniversalTime(), entry.Reached, out orbit, out endUT, 0.0, true)) return entry;
                 plan = RouteSimulation.Run(vessel, route, false, orbit, endUT);
             }
+            // The route in pieces: the orbits up to a landing, and, where the route goes on from the ground, the launch from it and the pieces after.
+            for (int round = 0; round < 6; round++)
+            {
+                Step touch = AddSegment(vessel, entry, plan, budget, stages, route, figures);
+                if (entry.Problem != null || touch == null) break;
+                PlannedStep landing = plan.Steps[plan.Steps.Count - 1];
+                if (route == null || figures == null || landing.Goal < 0 || landing.Goal + 1 >= route.Count) break;
+                if (route[landing.Goal].Releases != null && route[landing.Goal].Releases.Count > 0)
+                {
+                    Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " lets go a section on the ground; the route is flown to the landing here and goes on when the vessel is loaded.");
+                    break;
+                }
+                // From the ground the next stop is the orbit round the body, or the way to another: the launch is to the stop's own altitude round this body.
+                CelestialBody body = FlightGlobals.Bodies.Find(b => b.bodyName == touch.Body);
+                Destination next = route[landing.Goal + 1];
+                double altitude = next.Body == body ? next.Altitude : NextStepPlanner.LowOrbit(body);
+                Orbit orbit;
+                double endUT;
+                Vector3d site = body.GetWorldSurfacePosition(touch.Site.Latitude, touch.Site.Longitude, touch.Site.Height) - body.position;
+                if (!Launch(vessel, entry, budget, stages, figures, body, altitude, site, Planetarium.GetUniversalTime(), landing.Goal, out orbit, out endUT, touch.GroundUT + 1.0, false)) break;
+                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT, landing.Goal);
+            }
+            if (stages != null && stages.Short > 0.0) Debug.LogWarning(Log.Tag + " Route: " + vessel.vesselName + " is short of " + stages.Short.ToString("0") + " m/s for the plan.");
+            if (entry.Steps.Count > 0)
+                Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " flies on in the background: " + entry.Steps.Count + " step(s) up to UT " + entry.Steps[entry.Steps.Count - 1].UT.ToString("0") + ".");
+            return entry;
+        }
+
+        // A launch from the ground as a step: the burn, and the orbit it ends in. False where the stages cannot give the delta-v, with the reason in the entry.
+        private static bool Launch(Vessel vessel, Entry entry, Budget budget, IBurnShare stages, IVesselFigures figures, CelestialBody body, double altitude, Vector3d site, double now,
+                                   int reached, out Orbit orbit, out double endUT, double launchUT, bool required)
+        {
+            orbit = null;
+            endUT = 0.0;
+            double launch = figures.LaunchDeltaV(body, altitude);
+            var ascent = new Step { Why = "ascent, " + launch.ToString("0") + " m/s", Reached = reached };
+            double began = stages != null ? stages.Elapsed : 0.0;
+            double shortBefore = stages != null ? stages.Short : 0.0;
+            budget.Apply(ascent, launch);
+            if (stages != null && stages.Short > shortBefore)
+            {
+                // A launch from the start is refused; one from the ground after a landing is left to the flight when the vessel is loaded.
+                string shortOf = "The vessel does not have the delta-v for the launch: it is short of " + (stages.Short - shortBefore).ToString("0") + " m/s.";
+                if (required) entry.Problem = shortOf;
+                else Debug.Log(Log.Tag + " Route: " + vessel.vesselName + ": " + shortOf + " The route is flown to the landing.");
+                return false;
+            }
+            // The time of the burn: the stages' own, and where they are not known the time the vessel needs at its thrust.
+            double burnTime = stages != null && stages.Ready ? stages.Elapsed - began : 0.0;
+            if (burnTime <= 0.0) burnTime = Math.Max(60.0, launch / Math.Max(1.0, (vessel.VesselDeltaV != null ? vessel.VesselDeltaV.TotalDeltaVVac : launch) / 600.0));
+            orbit = AscentOrbit.Make(body, site, now, launchUT > 0.0 ? launchUT : now, altitude, burnTime, out endUT);
+            ascent.UT = endUT;
+            ascent.Body = body.bodyName;
+            ascent.Inclination = orbit.inclination;
+            ascent.Eccentricity = orbit.eccentricity;
+            ascent.SemiMajorAxis = orbit.semiMajorAxis;
+            ascent.Lan = orbit.LAN;
+            ascent.ArgumentOfPeriapsis = orbit.argumentOfPeriapsis;
+            ascent.MeanAnomaly = orbit.meanAnomalyAtEpoch;
+            ascent.Epoch = orbit.epoch;
+            entry.Steps.Add(ascent);
+            return true;
+        }
+
+        // The orbits of a plan as steps, with the releases in them, and the landing it ends in: the step of the touchdown, or null where it ends otherwise.
+        private static Step AddSegment(Vessel vessel, Entry entry, RoutePlan plan, Budget budget, IBurnShare stages, IList<Destination> route, IVesselFigures figures)
+        {
             var burnt2 = new HashSet<PlannedStep>();
             List<Letting> lettings = PlanReleases(vessel, plan);
             int letNext = 0;
@@ -351,13 +397,9 @@ namespace ReDefinition.Autopilot.Background
             if (end != null && (end.Kind == NodePlanner.StepKind.Aerobrake || end.Kind == NodePlanner.StepKind.Rendezvous))
             {
                 entry.Problem = end.Kind == NodePlanner.StepKind.Aerobrake ? "The route ends in a pass through the air to slow down, which is flown with the vessel loaded." : "The route ends in a meeting with another vessel, which is flown with the vessel loaded.";
-                return entry;
+                return null;
             }
-            AddTouchdown(vessel, entry, plan, budget, route, figures);
-            if (stages != null && stages.Short > 0.0) Debug.LogWarning(Log.Tag + " Route: " + vessel.vesselName + " is short of " + stages.Short.ToString("0") + " m/s for the plan.");
-            if (entry.Steps.Count > 0)
-                Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " flies on in the background: " + entry.Steps.Count + " step(s) up to UT " + entry.Steps[entry.Steps.Count - 1].UT.ToString("0") + ".");
-            return entry;
+            return AddTouchdown(vessel, entry, plan, budget, route, figures);
         }
 
         // The time warp is slowed as a step comes near, so that the game never carries a vessel past the step in one frame.
@@ -378,7 +420,7 @@ namespace ReDefinition.Autopilot.Background
             if (ahead <= 0.0 || next == double.MaxValue) return;
             int index = TimeWarp.CurrentRateIndex;
             int slower = index;
-            while (slower > 0 && warp.warpRates[slower] * Time.fixedDeltaTime * 2.0 > ahead) slower--;
+            while (slower > 0 && warp.warpRates[slower] * Time.fixedDeltaTime * 4.0 > ahead) slower--;
             if (slower == index) return;
             TimeWarp.SetRate(slower, true, false);
             if (slowedFor == next) return;
@@ -565,10 +607,10 @@ namespace ReDefinition.Autopilot.Background
         // A plan that ends in a landing is carried to the ground. From an orbit that stays above it, a burn at the orbit's start brings the periapsis
         // down to it. The vessel touches down where the orbit meets the ground. A body with air takes the vessel down on its parachutes.
         // An airless one costs the speed the vessel arrives with, the delta-v of a landing burn.
-        private static void AddTouchdown(Vessel vessel, Entry entry, RoutePlan plan, Budget budget, IList<Destination> route, IVesselFigures figures)
+        private static Step AddTouchdown(Vessel vessel, Entry entry, RoutePlan plan, Budget budget, IList<Destination> route, IVesselFigures figures)
         {
             PlannedStep last = plan.Steps.Count > 0 ? plan.Steps[plan.Steps.Count - 1] : null;
-            if (last == null || last.Kind != NodePlanner.StepKind.Landing || plan.Legs.Count == 0) return;
+            if (last == null || last.Kind != NodePlanner.StepKind.Landing || plan.Legs.Count == 0) return null;
             PlannedLeg leg = plan.Legs[plan.Legs.Count - 1];
             Orbit orbit = leg.Orbit;
             CelestialBody body = orbit != null ? orbit.referenceBody : null;
@@ -582,9 +624,9 @@ namespace ReDefinition.Autopilot.Background
             if (air && figures != null && !vessel.parts.Exists(p => !let.Contains(p.persistentId) && figures.IsParachute(p)))
             {
                 entry.Problem = "The route lands in the air of " + body.bodyName + ", and the vessel has no parachutes left by then.";
-                return;
+                return null;
             }
-            if (body == null || body.pqsController == null || !body.hasSolidSurface) return;
+            if (body == null || body.pqsController == null || !body.hasSolidSurface) return null;
             double from = leg.StartUT;
             // The ground is met at the periapsis or before it; a periapsis within a metre of the ground is that.
             if (orbit.PeR > body.Radius + 1.0)
@@ -602,12 +644,14 @@ namespace ReDefinition.Autopilot.Background
                 orbit = descent;
             }
             double periapsis = orbit.NextPeriapsisTime(from);
-            if (periapsis < from || orbit.getRelativePositionAtUT(from).magnitude <= body.Radius || orbit.getRelativePositionAtUT(periapsis).magnitude > body.Radius + 1.0) return;
+            if (periapsis < from || orbit.getRelativePositionAtUT(from).magnitude <= body.Radius || orbit.getRelativePositionAtUT(periapsis).magnitude > body.Radius + 1.0) return null;
             // The step is made when the orbit comes down to the highest ground of the body: from there the vessel can meet the ground at any moment, and
             // the game destroys it when it does. The place is where the descent meets the ground at the point it comes to, which the terrain there gives.
             double now = Planetarium.GetUniversalTime();
-            double trigger = FallsTo(orbit, from, periapsis, body.Radius + Math.Max(0.0, body.pqsController.mapMaxHeight));
             double high = FallsTo(orbit, from, periapsis, body.Radius);
+            // The step is made at the top of the air, or where the highest ground lies, and at least ten seconds before the ground: a frame that carries
+            // several physics steps at the slowest warp must not carry the vessel through the ground before the step.
+            double trigger = Math.Min(FallsTo(orbit, from, periapsis, body.Radius + Math.Max(Math.Max(0.0, body.pqsController.mapMaxHeight), body.atmosphere ? body.atmosphereDepth : 0.0)), high - 10.0);
             for (int round = 0; round < 4; round++)
             {
                 double roundLatitude, roundLongitude, roundAltitude;
@@ -628,7 +672,7 @@ namespace ReDefinition.Autopilot.Background
                 longitude = ProbeLongitude;
             }
             TouchdownSite site = Touchdown.Find(body, latitude, longitude, entry.Lowest, entry.Footprint, Clearance + ExtraClearance, ProbeRadius >= 0.0 ? ProbeRadius : 1000.0);
-            if (!site.Found) return;
+            if (!site.Found) return null;
             // The landing costs what the body takes: nothing on parachutes where the air is thick, the thin air's rest, a landing burn on the way to the ground
             // where there is none; the speed it arrives with in the air or without it is the planner's estimate.
             double arrival = figures != null && body.atmosphere ? figures.LandingDeltaV(body, air) : body.atmosphere ? 0.0 : orbit.getOrbitalSpeedAtDistance(body.Radius);
@@ -638,6 +682,7 @@ namespace ReDefinition.Autopilot.Background
             touch.GroundUT = high;
             touch.Site = site;
             entry.Steps.Add(touch);
+            return touch;
         }
 
         // The time between two moments at which the orbit's radius falls to the given one; the radius only falls there.
@@ -712,7 +757,13 @@ namespace ReDefinition.Autopilot.Background
             vessel.orbitDriver.orbit.UpdateFromOrbitAtUT(orbit, step.UT, body);
             vessel.orbitDriver.UpdateOrbit();
             if (vessel.situation == Vessel.Situations.PRELAUNCH || vessel.LandedOrSplashed || vessel.situation == Vessel.Situations.FLYING || vessel.situation == Vessel.Situations.SUB_ORBITAL)
+            {
+                // A vessel that stood on the ground has left it: its orbit is its own again.
+                entry.Down = false;
+                entry.Wet = false;
+                entry.Surveyed = false;
                 InOrbit(vessel);
+            }
             vessel.protoVessel.orbitSnapShot = new OrbitSnapshot(vessel.orbitDriver.orbit);
             Let(vessel, entry, step);
             Debug.Log(Log.Tag + " Route: " + entry.Name + " flew its burn of " + step.Why + " at UT " + step.UT.ToString("0") + " and is now round " + step.Body
