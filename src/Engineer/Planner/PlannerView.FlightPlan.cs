@@ -12,9 +12,18 @@ namespace ReDefinition.Engineer
         // screenshot of the window: a row of 58 characters filled three quarters of the width.
         private const int MaxPlanLines = 60;
         private const float PlanCharWidth = 5.8f;
-        private const string NoPlanHint = "The flight plan is worked out in flight: press Plan in the flight.";
+        private const string NoPlanHint = "The flight plan is worked out in flight: press Plan route.";
 
         private bool planShown;
+
+        // The row of switches the window puts at the top of the part, which need the plan; null where the host has none (the editor).
+        internal DialogGUIBase PlanActions;
+
+        // The rows' width, for what the window puts among them.
+        internal float RowWidth
+        {
+            get { return width; }
+        }
         // The plan the heading's summary was made for.
         private RoutePlan noticedPlan;
         // The rows' texts, the plan and the UT they were made for.
@@ -26,6 +35,7 @@ namespace ReDefinition.Engineer
         // The rows: one label each, shown while it has a text.
         private IEnumerable<DialogGUIBase> FlightPlanRows()
         {
+            if (PlanActions != null) yield return PlanActions;
             for (int i = 0; i < MaxPlanLines; i++)
             {
                 int line = i;

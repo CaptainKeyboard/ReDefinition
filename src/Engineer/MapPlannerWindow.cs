@@ -11,8 +11,8 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Engineer
 {
-    // The planner in the map view: a panel at the right edge of the screen that slides out over the map, with a tab on its left edge that opens
-    // and closes it. It holds the planner's rows as the editor's panel does (PlannerView), over the vessel in flight (FlightPlannerHost). It is
+    // The planner in the map view: a panel at the right edge of the screen that slides out over the map, opened and closed by a button in KSP's
+    // toolbar (MapPlannerButton). It holds the planner's rows as the editor's panel does (PlannerView), over the vessel in flight (FlightPlannerHost). It is
     // there while the map view is, and the plan it shows is the vessel's, kept under the vessel's name.
     //
     // It is made once the flight scene has a vessel, out of KSP's own elements: the rows are dialog rows (DialogGUIBase) created into a scroll
@@ -20,8 +20,8 @@ namespace ReDefinition.Engineer
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class MapPlannerWindow : MonoBehaviour
     {
-        // The panel's width, the tab's, and the room left above, below and at its right for KSP's own bars and the toolbar column, in canvas units.
-        private const float PanelWidth = 460f, TabWidth = 84f, TabHeight = 30f, TopMargin = 96f, BottomMargin = 70f, RightMargin = 56f;
+        // The panel's width, and the room left above, below and at its right for KSP's own bars and the toolbar column, in canvas units.
+        private const float PanelWidth = 460f, TopMargin = 96f, BottomMargin = 70f, RightMargin = 56f;
 
         // Seconds the panel takes to slide.
         private const float SlideTime = 0.2f;
@@ -30,11 +30,10 @@ namespace ReDefinition.Engineer
         private PlannerView view;
         private GameObject root;
         private RectTransform frame;
-        // The panel's background and rows, which are off while the panel is shut so that only its tab shows.
+        // The panel's background and rows, which are off while the panel is shut.
         private Image frameBack;
         private RectTransform frameContent;
         private DialogGUIBase list;
-        private DialogGUIBase tab;
         private bool open;
         private float slide;
         // How many rows the panel is made with (PlannerPool); the panel is made again, larger, where the route needs more.
@@ -42,6 +41,7 @@ namespace ReDefinition.Engineer
         private bool failed;
         // Whether the panel was out in the last frame, for the frame it goes in.
         private bool wasShown;
+        private MapPlannerButton launcher;
         // What the last press of a button came to, shown under the buttons.
         private string status = "";
 
@@ -187,6 +187,15 @@ namespace ReDefinition.Engineer
         private void Awake()
         {
             Instance = this;
+            launcher = new MapPlannerButton(SetOpen);
+            launcher.Register();
+        }
+
+        // The toolbar button's click, or the probes: the panel slides out or in, and the button shows which.
+        private void SetOpen(bool value)
+        {
+            open = value;
+            if (launcher != null) launcher.Show(value);
         }
 
         private void Update()
@@ -224,13 +233,11 @@ namespace ReDefinition.Engineer
             // The vessel is read only for a panel that is open or opening.
             if (open || slide > 0f) host.Tick();
             slide = Mathf.MoveTowards(slide, open ? 1f : 0f, Time.unscaledDeltaTime / SlideTime);
-            // Shut, the panel's left edge is where the margin ends and its tab, on that edge, stands in the margin beside the stock toolbar.
-            float hidden = PanelWidth - RightMargin;
+            float hidden = PanelWidth + RightMargin;
             bool bodyShown = slide > 0f;
             if (frameBack.enabled != bodyShown) frameBack.enabled = bodyShown;
             if (frameContent.gameObject.activeSelf != bodyShown) frameContent.gameObject.SetActive(bodyShown);
             frame.anchoredPosition = new Vector2(Mathf.Lerp(hidden, -RightMargin, Mathf.SmoothStep(0f, 1f, slide)), (BottomMargin - TopMargin) / 2f);
-            if (tab != null) tab.Update();
             if (slide > 0f)
             {
                 view.Keep(root);
@@ -242,7 +249,7 @@ namespace ReDefinition.Engineer
             PlannerTiming.Stop("window.Update", update);
         }
 
-        // The panel made under the main canvas: a frame at the right edge, the tab on its left, and the planner's rows in a scroll list.
+        // The panel made under the main canvas: a frame at the right edge and the planner's rows in a scroll list.
         private void Build()
         {
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
@@ -283,6 +290,7 @@ namespace ReDefinition.Engineer
             view = new PlannerView(host, rowWidth, level);
             var rows = new List<DialogGUIBase>();
             rows.Add(Header(rowWidth));
+            view.PlanActions = PlanActions(view.RowWidth);
             rows.AddRange(view.Rows());
             TooltipText.WrapAll(rows);
             UiHygiene.DeferInteractable(rows);
@@ -317,28 +325,7 @@ namespace ReDefinition.Engineer
             UiHygiene.MouseOnly(list.uiItem);
             PlannerTiming.Stop("Build.settle", build);
 
-            // The tab: a button on the panel's left edge, near the top, which goes out with the panel.
-            RectTransform tabHolder = NewRect("Tab", frame);
-            tabHolder.anchorMin = tabHolder.anchorMax = new Vector2(0f, 1f);
-            tabHolder.pivot = new Vector2(1f, 1f);
-            tabHolder.sizeDelta = new Vector2(TabWidth, TabHeight);
-            tabHolder.anchoredPosition = new Vector2(0f, -16f);
-            var button = new DialogGUIButton("Planner", () => open = !open, TabWidth, TabHeight, false);
-            button.tooltipText = "Route Planner";
-            tab = button;
-            var tabLayouts = new Stack<Transform>();
-            tabLayouts.Push(tabHolder);
-            tab.Create(ref tabLayouts, skin);
-            RectTransform buttonRect = tab.uiItem != null ? tab.uiItem.transform as RectTransform : null;
-            if (buttonRect != null)
-            {
-                buttonRect.anchorMin = Vector2.zero;
-                buttonRect.anchorMax = Vector2.one;
-                buttonRect.offsetMin = buttonRect.offsetMax = Vector2.zero;
-            }
-            UiHygiene.MouseOnly(tab.uiItem);
-            DialogTooltips.Attach(new[] { tab });
-            // Off until the panel slides out; the tab, which is not under it, stays.
+            // Off until the panel slides out.
             frameContent.gameObject.SetActive(false);
             // One pass over the rows before the panel is first shown, which switches the rows that are not shown off here, once, and not in the first
             // frame the panel is out. KSP's elements find their text and image components only while they are active, so the panel is made switched on.
@@ -348,25 +335,39 @@ namespace ReDefinition.Engineer
             Debug.Log(Log.Tag + " The planner in the map view made: " + PanelWidth.ToString("0") + " wide, rows " + rowWidth.ToString("0") + " wide.");
         }
 
-        // The two switches, the navigation and the autopilot, the button that plans the whole route, and the line that says what the route is doing.
+        // The button that plans the whole route, and the lines that say what the route is doing.
         private DialogGUIBase Header(float width)
         {
-            float button = (width - 8f - 12f) / 3f;
-            var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Navigation</color>" : "Navigation", ToggleNavigation, button, 28f, false);
-            navigation.OptionInteractableCondition = () => !Flying;
-            navigation.tooltipText = "Plan the route and keep the plan up to date while you fly it yourself"
-                                     + (ParsekBridge.Unavailable != null ? ". " + ParsekBridge.Unavailable : "");
-            var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
-            pilot.OptionInteractableCondition = () => Flying || MechJebDriver.Unavailable == null;
-            pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable : "Fly the whole route with MechJeb";
-            var whole = new DialogGUIButton("Plan route", PlanAllNow, button, 28f, false);
+            var whole = new DialogGUIButton("Plan route", PlanAllNow, width - 8f, 28f, false);
             whole.OptionInteractableCondition = () => !Flying;
             whole.tooltipText = "Plan the whole route from here and draw it on the map";
-            var buttons = new DialogGUIHorizontalLayout(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot, whole);
+            var buttons = new GatedRow(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, whole);
             var text = new DialogGUILabel(() => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : status, width - 12f, 36f);
             // What Parsek does with the flight, where it is there: a line that is empty otherwise.
             var parsek = new DialogGUILabel(() => ParsekBridge.RecordingState ?? "", width - 12f, 18f);
-            return new DialogGUIVerticalLayout(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text, parsek);
+            return new GatedColumn(width, -1f, 2f, new RectOffset(0, 0, 0, 0), TextAnchor.UpperLeft, buttons, text, parsek);
+        }
+
+        // Whether a whole plan was made and reaches somewhere: what the navigation and the autopilot work from.
+        private bool PlanReady
+        {
+            get { return WholePlan != null && !WholePlan.Failed; }
+        }
+
+        // The two switches of the flight plan, which turn on only once the route is planned: the navigation, which keeps the plan up to date
+        // while the player flies it, and the autopilot, which flies it.
+        private DialogGUIBase PlanActions(float width)
+        {
+            float button = (width - 8f - 6f) / 2f;
+            var navigation = new DialogGUIButton(() => NavigationOn() ? "<color=#8fdc6a>Navigation</color>" : "Navigation", ToggleNavigation, button, 28f, false);
+            navigation.OptionInteractableCondition = () => !Flying && (NavigationOn() || PlanReady);
+            navigation.tooltipText = "Keep the plan up to date while you fly it yourself" + (PlanReady ? "" : ", once the route is planned")
+                                     + (ParsekBridge.Unavailable != null ? ". " + ParsekBridge.Unavailable : "");
+            var pilot = new DialogGUIButton(() => Flying ? "<color=#8fdc6a>Autopilot</color>" : "Autopilot", FlyOrStop, button, 28f, false);
+            pilot.OptionInteractableCondition = () => Flying || (PlanReady && MechJebDriver.Unavailable == null);
+            pilot.tooltipText = MechJebDriver.Unavailable != null ? "Autopilot: " + MechJebDriver.Unavailable
+                                : PlanReady ? "Fly the whole route with MechJeb" : "Fly the whole route with MechJeb, once the route is planned";
+            return new GatedRow(width, 32f, 6f, new RectOffset(4, 4, 4, 2), TextAnchor.MiddleLeft, navigation, pilot);
         }
 
         // Starts the route's flight, or stops the one that is under way.
@@ -431,7 +432,7 @@ namespace ReDefinition.Engineer
         // For the probes: the panel out, whether it was made before they asked or not.
         internal void OpenNow()
         {
-            open = true;
+            SetOpen(true);
         }
 
         // The route drawn on the map and the plan behind it are those of a vessel that is no longer flown.
@@ -452,13 +453,13 @@ namespace ReDefinition.Engineer
             view = null;
             root = null;
             list = null;
-            tab = null;
             frame = null;
         }
 
         private void OnDestroy()
         {
             if (Instance == this) Instance = null;
+            if (launcher != null) launcher.Unregister();
             if (view != null) view.Dispose();
             if (root != null) Destroy(root);
         }
