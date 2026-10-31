@@ -156,6 +156,8 @@ namespace ReDefinition.Autopilot.Background
             public bool Wet;
             // Why the route cannot be flown in the background, where it cannot.
             public string Problem;
+            // Handed over when the next scene was already asked for: only the module of that scene takes it in.
+            public bool Late;
             // The UT the route was kept at: a route is the one kept for its moment only.
             public double HandedUT;
         }
@@ -194,7 +196,8 @@ namespace ReDefinition.Autopilot.Background
 
         // Keeps the plan's orbits for the vessel as steps, where the autopilot is to go on without the player. The plan's first leg is the orbit the vessel
         // is on; each later leg starts with a burn. Null where it was kept; else why not.
-        internal static string Hand(Vessel vessel, RoutePlan plan, IList<Destination> route = null, IVesselFigures figures = null)
+        // With `late` the scene that follows is already asked for: the module of this one is going, and the route waits staged for the next scene's.
+        internal static string Hand(Vessel vessel, RoutePlan plan, IList<Destination> route = null, IVesselFigures figures = null, bool late = false)
         {
             bool climb = plan != null && plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null;
             bool lets = plan != null && plan.Steps.Exists(step => step.Kind == NodePlanner.StepKind.Release);
@@ -204,10 +207,11 @@ namespace ReDefinition.Autopilot.Background
             if (entry.Problem != null) return entry.Problem;
             if (entry.Steps.Count == 0) return "The plan has no orbit to go on to.";
             Staged.RemoveAll(old => old.Vessel == vessel.id);
+            entry.Late = late;
             Staged.Add(entry);
             EnsureScenario();
             if (Instance == null) return null;
-            Instance.Adopt();
+            if (!late) Instance.Adopt(false);
             // The game takes the scenarios as they are now into the scene that follows.
             if (HighLogic.CurrentGame != null) HighLogic.CurrentGame.scenarios = ScenarioRunner.GetUpdatedProtoModules();
             return null;
@@ -264,14 +268,17 @@ namespace ReDefinition.Autopilot.Background
         }
 
         // The staged routes join this scenario's; a route handed over later for the same vessel is the newer.
-        private void Adopt()
+        private void Adopt(bool loading)
         {
-            foreach (Entry staged in Staged)
+            for (int i = Staged.Count - 1; i >= 0; i--)
             {
+                Entry staged = Staged[i];
+                if (staged.Late && !loading) continue;
+                staged.Late = false;
                 entries.RemoveAll(old => old.Vessel == staged.Vessel);
                 entries.Add(staged);
+                Staged.RemoveAt(i);
             }
-            Staged.Clear();
         }
 
         private static Entry Build(Vessel vessel, RoutePlan plan, IList<Destination> route, IVesselFigures figures)
@@ -783,10 +790,35 @@ namespace ReDefinition.Autopilot.Background
             return high;
         }
 
+        // The routes that were not kept as the flight was left, with the reason: told in the scene that follows, where the player is.
+        internal static readonly List<string> Refused = new List<string>();
+        // Whether the player has been told, in this scene, what the vessels do while he is away.
+        private bool told;
+
+        // In the space centre and the tracking station: which vessels fly their route on by themselves and when the next step comes, and the routes that were
+        // refused. Nothing else shows the player that a route is kept, or that game time has to pass for it to go on.
+        // The game drops the messages posted while a scene is still loading, so they wait a moment.
+        private void Tell()
+        {
+            if (told || ScreenMessages.Instance == null || Time.timeSinceLevelLoad < 3f || (HighLogic.LoadedScene != GameScenes.SPACECENTER && HighLogic.LoadedScene != GameScenes.TRACKSTATION)) return;
+            bool posted = true;
+            foreach (string refused in Refused) posted &= ScreenMessages.PostScreenMessage("The route is not flown while you are away: " + refused, 12f, ScreenMessageStyle.UPPER_CENTER) != null;
+            double now = Planetarium.GetUniversalTime();
+            foreach (Entry entry in entries)
+                if (entry.Steps.Count > 0 && FlightGlobals.Vessels.Exists(v => v.id == entry.Vessel))
+                    posted &= ScreenMessages.PostScreenMessage(entry.Name + " flies its route on by itself: the next step comes in " + KSPUtil.PrintTimeCompact(Math.Max(0.0, entry.Steps[0].UT - now), false)
+                                                               + ". Warp time to go on.", 12f, ScreenMessageStyle.UPPER_CENTER) != null;
+            if (!posted) return;
+            told = true;
+            Refused.Clear();
+            Debug.Log(Log.Tag + " Route: in the " + HighLogic.LoadedScene + " " + entries.Count + " route(s) are kept for the vessels.");
+        }
+
         // Every frame: the steps whose time has come are made, in order, for each vessel that is not loaded.
         private void Update()
         {
-            if (Staged.Count > 0) Adopt();
+            if (Staged.Count > 0) Adopt(false);
+            Tell();
             LimitWarp();
             if (entries.Count == 0 || FlightGlobals.fetch == null || FlightGlobals.Vessels == null || FlightGlobals.Vessels.Count == 0 || HighLogic.CurrentGame == null) return;
             double now = Planetarium.GetUniversalTime();
@@ -974,6 +1006,7 @@ namespace ReDefinition.Autopilot.Background
         public override void OnLoad(ConfigNode node)
         {
             entries.Clear();
+            Debug.Log(Log.Tag + " Route: the scenario is loaded in the " + HighLogic.LoadedScene + " with " + node.GetNodes("ROUTE").Length + " route(s) saved in it, " + Staged.Count + " staged.");
             foreach (ConfigNode route in node.GetNodes("ROUTE"))
             {
                 var entry = new Entry { Name = route.GetValue("name") ?? "", Key = route.GetValue("key") ?? "", Lowest = Read(route, "lowest"), Footprint = Read(route, "footprint"), Reached = (int)Read(route, "reached", -1.0) };
@@ -1040,7 +1073,7 @@ namespace ReDefinition.Autopilot.Background
                 entry.Left = true;
                 entries.Add(entry);
             }
-            Adopt();
+            Adopt(true);
         }
 
         public override void OnSave(ConfigNode node)

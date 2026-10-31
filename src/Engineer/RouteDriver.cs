@@ -62,13 +62,28 @@ namespace ReDefinition.Engineer
             ParsekBridge.WarnOnce();
             GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
             GameEvents.onGamePause.Add(OnPause);
+            GameEvents.onSceneConfirmExit.Add(OnConfirmExit);
+            // What was refused in an earlier flight has been told, or is not the news of this one.
+            BackgroundRoutes.Refused.Clear();
         }
 
-        // Whether the engines are burning: the autopilot's flight runs the whole time and says nothing of that.
+        // Whether the engines are burning: the autopilot's flight runs the whole time and says nothing of that. Engines that are lit and give no thrust are not.
         private static bool Burning(Vessel vessel)
         {
-            return vessel.ctrlState.mainThrottle > 0.01f || Engines.Running(vessel);
+            return vessel.ctrlState.mainThrottle > 0.01f || Engines.Burning(vessel);
         }
+
+        // The pause menu's buttons for leaving the flight save the game right after this event and before the scene is asked for, so the route is kept now
+        // for the save to hold it. A route kept only when the scene is asked for is in the game's memory, not in its file.
+        // The exits that do not save (a vessel that burns, or flies, cannot be saved) leave the old game to be loaded: there is nothing to keep it in.
+        private void OnConfirmExit(GameScenes scene)
+        {
+            discarding = FlightGlobals.ClearToSave() != ClearToSaveStatus.CLEAR;
+            if (!discarding) OnPause();
+        }
+
+        // Whether the flight is left without being saved, so that no route is kept for it.
+        private bool discarding;
 
         // The pause menu is where the flight is left from, and it saves the game before the scene is asked for: the route is kept for the background by then.
         private void OnPause()
@@ -99,6 +114,11 @@ namespace ReDefinition.Engineer
             Vessel vessel = FlightGlobals.ActiveVessel;
             RouteState state = RouteState.Of(vessel);
             if ((scene != GameScenes.SPACECENTER && scene != GameScenes.TRACKSTATION) || vessel == null || state == null) return;
+            if (discarding)
+            {
+                discarding = false;
+                return;
+            }
             if (!state.Autopilot || route == null)
             {
                 BackgroundRoutes.Cancel(vessel);
@@ -115,22 +135,24 @@ namespace ReDefinition.Engineer
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; the route kept when the pause menu opened stays.");
                 return;
             }
+            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
+            bool parsek = addon != null && !addon.Live.BackgroundRoute;
             try
             {
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                bool parsek = addon != null && !addon.Live.BackgroundRoute;
                 // Parsek is given the plan as the map shows it; the vessel that flies on itself, the plan with its passes through the air.
                 RoutePlan plan = parsek ? RouteSimulation.Run(vessel, route) : BackgroundRoutes.PlanFor(vessel, route);
                 // Parsek puts the vessel back where the plan ends, and the count goes on from there; a vessel that flies on itself is counted from where it is.
                 RouteState own = RouteState.Of(vessel);
                 if (parsek && own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);
-                string problem = parsek ? ParsekRecording.CommitPlan(vessel, plan, true) : BackgroundRoutes.Hand(vessel, plan, route, new BackgroundFigures());
+                string problem = parsek ? ParsekRecording.CommitPlan(vessel, plan, true) : BackgroundRoutes.Hand(vessel, plan, route, new BackgroundFigures(), true);
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; "
                           + (parsek ? "Parsek: " : "background: ") + (problem ?? "kept") + ".");
+                if (problem != null && !parsek) BackgroundRoutes.Refused.Add(problem);
             }
             catch (System.Exception e)
             {
                 Debug.LogWarning(Log.Tag + " Route: the plan for Parsek failed: " + e);
+                if (!parsek) BackgroundRoutes.Refused.Add("the plan could not be made (" + e.Message + ").");
             }
         }
 
@@ -138,6 +160,7 @@ namespace ReDefinition.Engineer
         {
             GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
             GameEvents.onGamePause.Remove(OnPause);
+            GameEvents.onSceneConfirmExit.Remove(OnConfirmExit);
             if (Instance == this) Instance = null;
             if (flight != null) flight.Cancel();
         }
@@ -246,6 +269,8 @@ namespace ReDefinition.Engineer
             if (vessel == null || vessel != followed) return;
             RouteState state = RouteState.Of(vessel);
             if (state != null && !state.Autopilot && state.Navigation) follower.Guide(vessel);
+            // The warp the player turns up is cut back as the next burn, change of orbit or air comes near.
+            if (state != null && (state.Autopilot || state.Navigation) && !ParsekBridge.IsGhost(vessel)) WarpGuard.Limit(vessel);
         }
 
         // The vessel's saved route, read again every few seconds.

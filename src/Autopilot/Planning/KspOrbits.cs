@@ -40,7 +40,12 @@ namespace ReDefinition.Autopilot.Planning
             if (solver != null && solver.flightPlan != null)
                 foreach (Orbit patch in solver.flightPlan)
                     if (patch != null && patch.StartUT <= ut) found = patch;
-            return found ?? vessel.orbit;
+            if (found != null) return found;
+            // The game fills the flight plan only where there are nodes. Without any, the vessel's own orbit and the patches that follow it are the chain.
+            Orbit chain = vessel.orbit;
+            for (int i = 0; i < 150 && chain.patchEndTransition != Orbit.PatchTransitionType.FINAL && chain.nextPatch != null && chain.nextPatch.StartUT <= ut; i++)
+                chain = chain.nextPatch;
+            return chain;
         }
 
         // A maneuver node at `ut` for a change of velocity given in the world's axes, put on the orbit the vessel has there; null where the vessel

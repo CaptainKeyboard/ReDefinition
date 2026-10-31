@@ -338,6 +338,27 @@ namespace ReDefinition.Probe
                             HighLogic.LoadScene(GameScenes.TRACKSTATION);
                             yield break;
                         }
+                        // -redefinitionProbeLeaveWhenCoasting: the flight is left once the transfer burn is flown and the autopilot waits for the next change of orbit.
+                        if (CommandLine.Has("-redefinitionProbeLeaveWhenCoasting") && now.EndsWith("Warping to the next change of orbit.") && Time.realtimeSinceStartup - started > 5f)
+                        {
+                            Debug.Log(Log.Tag + " Probe: the flight is left while it coasts: " + now);
+                            Vessel coasting = FlightGlobals.ActiveVessel;
+                            // As the player leaves: the pause menu opens, the route is kept for the background, the game is saved, and the scene is asked for.
+                            // -redefinitionProbeLateHand: no pause menu, so the route is handed over only when the scene is asked for.
+                            if (!CommandLine.Has("-redefinitionProbeLateHand")) FlightDriver.SetPause(true);
+                            yield return new WaitForSecondsRealtime(1f);
+                            for (int waits = 0; !CommandLine.Has("-redefinitionProbeLateHand") && waits < 20 && BackgroundRoutes.LastStep(coasting) <= 0.0; waits++) yield return new WaitForSecondsRealtime(0.5f);
+                            for (int waits = 0; waits < 20 && BackgroundRoutes.LastStep(coasting) <= 0.0; waits++) yield return new WaitForSecondsRealtime(0.5f);
+                            Debug.Log(Log.Tag + " Probe: the route is kept up to UT " + BackgroundRoutes.LastStep(coasting).ToString("0") + " when the game is saved.");
+                            if (!CommandLine.Has("-redefinitionProbeLateHand")) GamePersistence.SaveGame("persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
+                            ParsekLeave.Name = coasting.vesselName;
+                            ParsekLeave.RemovedPid = coasting.persistentId;
+                            ParsekLeave.EndUT = BackgroundRoutes.LastStep(coasting);
+                            ParsekLeave.Scene = GameScenes.TRACKSTATION;
+                            ParsekLeave.Active = true;
+                            HighLogic.LoadScene(GameScenes.TRACKSTATION);
+                            yield break;
+                        }
                         if (!shot && now.StartsWith("Burn"))
                         {
                             shot = true;

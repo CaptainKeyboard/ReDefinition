@@ -368,7 +368,11 @@ namespace ReDefinition.Autopilot.Flight
             vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
             float started = Time.realtimeSinceStartup;
             double toPeriapsis = vessel.orbit.timeToPe - NodePlanner.LeadTime;
-            if (toPeriapsis > 30.0) TimeWarp.fetch.WarpTo(Planetarium.GetUniversalTime() + toPeriapsis);
+            if (toPeriapsis > 30.0)
+            {
+                WarpGuard.SelfWarpUntil = Planetarium.GetUniversalTime() + toPeriapsis;
+                TimeWarp.fetch.WarpTo(WarpGuard.SelfWarpUntil);
+            }
             bool entered = false;
             bool guarding = false;
             double peak = 0.0;
@@ -431,6 +435,7 @@ namespace ReDefinition.Autopilot.Flight
             }
             CelestialBody before = vessel.mainBody;
             double until = orbit.EndUT + 1.0;
+            WarpGuard.SelfWarpUntil = until;
             TimeWarp.fetch.WarpTo(until);
             float started = Time.realtimeSinceStartup;
             while (!cancelled && vessel.mainBody == before && Planetarium.GetUniversalTime() < until && Time.realtimeSinceStartup - started < 600f)

@@ -126,6 +126,7 @@ namespace ReDefinition.Autopilot.Planning
                     ownVelocity = vessel.orbit.getOrbitalVelocityAtUT(ownTime);
                     swapped = true;
                     vessel.orbit.UpdateFromOrbitAtUT(from, fromUT, from.referenceBody);
+                    EndChain(vessel.orbit);
                     vessel.patchedConicSolver.Update();
                 }
                 Frame frame = swapped ? new Frame(vessel, airPasses).At(fromUT) : new Frame(vessel, airPasses);
@@ -203,6 +204,7 @@ namespace ReDefinition.Autopilot.Planning
                                 swapped = true;
                             }
                             vessel.orbit.UpdateFromOrbitAtUT(exit, exitUT, exit.referenceBody);
+                            EndChain(vessel.orbit);
                             vessel.patchedConicSolver.Update();
                             collectedFrom = exitUT;
                             airLegAt = exitUT;
@@ -284,6 +286,13 @@ namespace ReDefinition.Autopilot.Planning
             Orbit orbit = frame.Orbit;
             if (orbit.patchEndTransition == Orbit.PatchTransitionType.FINAL || orbit.nextPatch == null) return null;
             return orbit.EndUT > frame.Now ? frame.At(orbit.EndUT) : null;
+        }
+
+        // The swapped orbit has no patch after it until the game's solver has worked one out, which it does not for a vessel on the ground.
+        private static void EndChain(Orbit orbit)
+        {
+            orbit.nextPatch = null;
+            orbit.patchEndTransition = Orbit.PatchTransitionType.FINAL;
         }
 
         // The most passes through the air a plan flown without the player makes before it is refused.
