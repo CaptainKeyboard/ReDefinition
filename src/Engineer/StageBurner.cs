@@ -36,6 +36,11 @@ namespace ReDefinition.Engineer
         // The time the engines have burned in all the burns so far, in s: each stage's burn time for the share of its delta-v used.
         public double Elapsed { get; private set; }
 
+        public void Release(ICollection<uint> parts)
+        {
+            facts.RemoveAll(fact => parts.Contains(fact.Id));
+        }
+
         private static double Burnt(StageRow row, double flown)
         {
             if (row.StartMass <= row.EndMass || row.EndMass <= 0.0) return flown;

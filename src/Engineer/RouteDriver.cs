@@ -64,6 +64,12 @@ namespace ReDefinition.Engineer
             GameEvents.onGamePause.Add(OnPause);
         }
 
+        // Whether the engines are burning: the autopilot's flight runs the whole time and says nothing of that.
+        private static bool Burning(Vessel vessel)
+        {
+            return vessel.ctrlState.mainThrottle > 0.01f || Engines.Running(vessel);
+        }
+
         // The pause menu is where the flight is left from, and it saves the game before the scene is asked for: the route is kept for the background by then.
         private void OnPause()
         {
@@ -72,10 +78,13 @@ namespace ReDefinition.Engineer
             if (vessel == null || state == null || !state.Autopilot || route == null || FlightGlobals.ready == false) return;
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             if (addon == null || !addon.Live.BackgroundRoute) return;
+            // Under way, with the engines running or in the air, the plan is made when the scene is asked for; the same pause is not planned twice.
+            if (Burning(vessel) || vessel.situation == Vessel.Situations.FLYING || BackgroundRoutes.Holds(vessel, route)) return;
             try
             {
                 string problem = BackgroundRoutes.Hand(vessel, RouteSimulation.Run(vessel, route), route, new BackgroundFigures());
                 Debug.Log(Log.Tag + " Route: the pause menu is open with the autopilot on; background: " + (problem ?? "kept") + ".");
+                if (problem != null) ScreenMessages.PostScreenMessage("The route is not flown while you are away: " + problem, 12f, ScreenMessageStyle.UPPER_CENTER);
             }
             catch (System.Exception e)
             {
@@ -96,12 +105,12 @@ namespace ReDefinition.Engineer
                 return;
             }
             // A burn that is under way ends here: the vessel is recorded, and put back, without thrust, and the route is planned again from its orbit.
-            bool burning = flight != null;
+            bool burning = Burning(vessel);
             if (flight != null) flight.Cancel();
             FlightInputHandler.state.mainThrottle = 0f;
             ReDefinitionAddon setting = ReDefinitionAddon.Instance;
             // The route was kept when the pause menu opened; the time stands still now, which a plan of a launch cannot be made in.
-            if (!burning && setting != null && setting.Live.BackgroundRoute && BackgroundRoutes.Holds(vessel))
+            if (!burning && setting != null && setting.Live.BackgroundRoute && BackgroundRoutes.Holds(vessel, route))
             {
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; the route kept when the pause menu opened stays.");
                 return;

@@ -180,7 +180,7 @@ namespace ReDefinition.Autopilot.Planning
                     frame = next;
                 }
                 plan.Reached = progress.Reached;
-                if (own != null && atStart > own.ProgressFor(route).Reached) own.ProgressFor(route).Reached = atStart;
+                if (!swapped && own != null && atStart > own.ProgressFor(route).Reached) own.ProgressFor(route).Reached = atStart;
                 Collect(vessel, frame, plan);
             }
             finally

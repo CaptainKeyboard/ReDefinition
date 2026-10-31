@@ -67,7 +67,7 @@ namespace ReDefinition.Autopilot.Background
         // The persistent ids of the parts a section of the vessel is let go with, where the vessel is loaded and its parts can be told apart: the side of the
         // separating part that the flight is not made on. The side MechJeb can fly stays; where both or none can, the heavier one. A decoupler leaves with
         // the parts below it when its explosive node is the one towards its parent, and stays with the parent side when it is not; a docking port leaves with them.
-        internal static List<uint> SectionAway(Vessel vessel, Part separator)
+        internal static List<uint> SectionAway(Vessel vessel, Part separator, ICollection<uint> except)
         {
             var below = new HashSet<Part>();
             Collect(separator, below);
@@ -83,7 +83,8 @@ namespace ReDefinition.Autopilot.Background
             if (withBelow) childSide.Add(separator);
             var parentSide = new HashSet<Part>();
             foreach (Part part in vessel.parts)
-                if (!childSide.Contains(part)) parentSide.Add(part);
+                if (!childSide.Contains(part) && !except.Contains(part.persistentId)) parentSide.Add(part);
+            childSide.RemoveWhere(part => except.Contains(part.persistentId));
             bool child = Flies(childSide), parent = Flies(parentSide);
             bool childCarries = child != parent ? child : Mass(childSide) > Mass(parentSide);
             var away = new List<uint>();

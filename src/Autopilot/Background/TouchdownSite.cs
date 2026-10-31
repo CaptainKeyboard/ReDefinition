@@ -39,7 +39,7 @@ namespace ReDefinition.Autopilot.Background
         private const double FlatDegrees = 1.0;
 
         // `lowest`: how far the vessel reaches below its reference point, `footprint`: how far it reaches to the side, both in m.
-        internal static TouchdownSite Find(CelestialBody body, double latitude, double longitude, double lowest, double footprint, double clearance)
+        internal static TouchdownSite Find(CelestialBody body, double latitude, double longitude, double lowest, double footprint, double clearance, double radius = SearchRadius)
         {
             double centre = Ground(body, latitude, longitude);
             if (body.ocean && centre < 0.0)
@@ -58,9 +58,11 @@ namespace ReDefinition.Autopilot.Background
                 };
             }
             var offsets = new List<Vector2>();
-            for (double east = -SearchRadius; east <= SearchRadius; east += SearchStep)
-                for (double north = -SearchRadius; north <= SearchRadius; north += SearchStep)
-                    if (east * east + north * north <= SearchRadius * SearchRadius) offsets.Add(new Vector2((float)east, (float)north));
+            if (radius <= 0.0) offsets.Add(Vector2.zero);
+            else
+                for (double east = -radius; east <= radius; east += SearchStep)
+                    for (double north = -radius; north <= radius; north += SearchStep)
+                        if (east * east + north * north <= radius * radius) offsets.Add(new Vector2((float)east, (float)north));
             offsets.Sort((a, b) => a.sqrMagnitude.CompareTo(b.sqrMagnitude));
             bool found = false;
             TouchdownSite best = default(TouchdownSite);
@@ -134,6 +136,26 @@ namespace ReDefinition.Autopilot.Background
                 double sx = (corner & 1) == 0 ? -1.0 : 1.0, sy = (corner & 2) == 0 ? -1.0 : 1.0;
                 roughness = Math.Max(roughness, Math.Abs(Ground(body, latitude + sy * dLat, longitude + sx * dLon) - (g0 + gx * sx * baseline + gy * sy * baseline)));
             }
+        }
+
+        // For a probe: the steepest places within 5 km of the point, up to 15 degrees, written as latitude, longitude and slope; the ground to try a landing on.
+        internal static string Steepest(CelestialBody body, double latitude, double longitude, double footprint)
+        {
+            var found = new List<KeyValuePair<double, string>>();
+            for (double east = -5000.0; east <= 5000.0; east += 100.0)
+                for (double north = -5000.0; north <= 5000.0; north += 100.0)
+                {
+                    double la = latitude + north / body.Radius * 180.0 / Math.PI;
+                    double lo = longitude + east / (body.Radius * Math.Max(0.01, Math.Cos(la * Math.PI / 180.0))) * 180.0 / Math.PI;
+                    if (body.ocean && Ground(body, la, lo) < 0.0) continue;
+                    TouchdownSite site = At(body, la, lo, 0.0, Math.Max(1.0, footprint), 0.0);
+                    if (site.Tilt <= 15.0 && site.Tilt >= 5.0) found.Add(new KeyValuePair<double, string>(site.Tilt, la.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture) + ","
+                                                                                                         + lo.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture) + " (" + site.Tilt.ToString("0.0") + " degrees)"));
+                }
+            found.Sort((a, b) => b.Key.CompareTo(a.Key));
+            var lines = new List<string>();
+            for (int i = 0; i < Math.Min(10, found.Count); i++) lines.Add(found[i].Value);
+            return string.Join("; ", lines.ToArray());
         }
 
         private static double Ground(CelestialBody body, double latitude, double longitude)

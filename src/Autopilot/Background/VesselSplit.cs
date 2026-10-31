@@ -92,6 +92,7 @@ namespace ReDefinition.Autopilot.Background
                 }
                 RenumberNode(part, "srfN", number);
                 RenumberNode(part, "attN", number);
+                FreePorts(part, parts, chosen);
                 if (moved)
                 {
                     // Positions are saved from the vessel's root: from the new root now.
@@ -102,6 +103,25 @@ namespace ReDefinition.Autopilot.Background
             }
             result.SetValue("root", "0");
             return result;
+        }
+
+        // A docking port whose partner is not among the chosen parts is ready to dock again: it is not docked to a part that is in another vessel now.
+        private static void FreePorts(ConfigNode part, ConfigNode[] parts, List<int> chosen)
+        {
+            foreach (ConfigNode module in part.GetNodes("MODULE"))
+            {
+                if (module.GetValue("name") != "ModuleDockingNode") continue;
+                string state = module.GetValue("state") ?? "Ready";
+                string partner = module.GetValue("dockUId");
+                if (state == "Ready" || partner == null || partner == "0") continue;
+                bool kept = false;
+                foreach (int index in chosen)
+                    if (parts[index].GetValue("persistentId") == partner || parts[index].GetValue("uid") == partner || parts[index].GetValue("cid") == partner) kept = true;
+                if (kept) continue;
+                module.SetValue("state", "Ready");
+                module.SetValue("dockUId", "0");
+                module.SetValue("dockNodeIdx", "0");
+            }
         }
 
         // A link saved as "id, index" with the index in the new numbering, or -1 where the part is gone.

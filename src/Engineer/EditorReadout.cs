@@ -99,7 +99,7 @@ namespace ReDefinition.Engineer
         // ModuleDockingNode, a radial decoupler by ModuleAnchoredDecoupler, any other
         // decoupler by ModuleDecouple.
         // Whether the part has one of RealChute's modules, which are named RealChute and then what they are for.
-        private static bool IsRealChute(Part part)
+        internal static bool IsRealChute(Part part)
         {
             for (int i = 0; i < part.Modules.Count; i++)
                 if (part.Modules[i].moduleName != null && part.Modules[i].moduleName.StartsWith("RealChute")) return true;

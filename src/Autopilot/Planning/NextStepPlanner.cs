@@ -38,7 +38,7 @@ namespace ReDefinition.Autopilot.Planning
             if (progress != null && last > progress.Reached) progress.Reached = last;
             // A vessel that is at no stop, and has come from one, is on its way from the last stop it reached.
             int at = last;
-            if (progress != null && at < 0 && progress.Reached > last) last = progress.Reached;
+            if (progress != null && at < 0 && progress.Reached > last && OnTheWayFrom(frame, route, progress.Reached)) last = progress.Reached;
             if (at >= 0 && (!frame.Ahead || progress != null))
             {
                 SectionRelease pending = PendingRelease(frame.Vessel, route[at], progress);
@@ -260,6 +260,17 @@ namespace ReDefinition.Autopilot.Planning
                 if (leaving || body.referenceBody == frame.Body) return i;
             }
             return -1;
+        }
+
+        // Whether the vessel can be on its way from the stop the route has reached: it is round the body of that stop or of the next one, or on
+        // an escape from a body. A vessel that has gone elsewhere is planned for again from where it is.
+        private static bool OnTheWayFrom(Frame frame, IList<Destination> route, int reached)
+        {
+            if (reached < 0 || reached >= route.Count) return false;
+            CelestialBody body = frame.Body;
+            Orbit orbit = frame.Orbit;
+            if (orbit != null && (orbit.eccentricity >= 1.0 || orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE)) return true;
+            return route[reached].Body == body || (reached + 1 < route.Count && route[reached + 1].Body == body);
         }
 
         // Whether the stop is one the route has had before: the same place as an earlier stop, where a round trip comes back to its start. A surface

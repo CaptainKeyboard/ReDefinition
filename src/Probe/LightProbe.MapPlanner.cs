@@ -206,6 +206,20 @@ namespace ReDefinition.Probe
                         double extra;
                         if (double.TryParse(CommandLine.After("-redefinitionProbeExtraClearance") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out extra)) BackgroundRoutes.ExtraClearance = extra;
                         BackgroundRoutes.TrustHeight = !CommandLine.Has("-redefinitionProbeCheckGround");
+                        BackgroundRoutes.Measure = !CommandLine.Has("-redefinitionProbeNoSurvey");
+                        BackgroundRoutes.ProbeScan = CommandLine.Has("-redefinitionProbeTouchdownScan");
+                        string at = CommandLine.After("-redefinitionProbeTouchdownAt");
+                        double siteLatitude, siteLongitude, siteRadius;
+                        string[] where = at != null ? at.Split(',') : new string[0];
+                        if (where.Length == 2 && double.TryParse(where[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out siteLatitude)
+                            && double.TryParse(where[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out siteLongitude))
+                        {
+                            BackgroundRoutes.ProbeSite = true;
+                            BackgroundRoutes.ProbeLatitude = siteLatitude;
+                            BackgroundRoutes.ProbeLongitude = siteLongitude;
+                        }
+                        if (double.TryParse(CommandLine.After("-redefinitionProbeTouchdownRadius") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out siteRadius))
+                            BackgroundRoutes.ProbeRadius = siteRadius;
                         ParsekLeave.PartCount = leaving.parts.Count;
                         // The flag -redefinitionProbeViaPause leaves as the player does: the pause menu opens, and the scene is asked for with the time standing still.
                         string problem;
@@ -214,7 +228,7 @@ namespace ReDefinition.Probe
                             RouteDriver.Instance.Remember(MapPlannerWindow.Instance.Route());
                             FlightDriver.SetPause(true);
                             yield return new WaitForSecondsRealtime(1f);
-                            problem = BackgroundRoutes.Holds(leaving) ? null : "the route was not kept when the pause menu opened";
+                            problem = BackgroundRoutes.Holds(leaving, MapPlannerWindow.Instance.Route()) ? null : "the route was not kept when the pause menu opened";
                         }
                         else problem = BackgroundRoutes.Hand(leaving, whole, MapPlannerWindow.Instance.Route(), new BackgroundFigures());
                         Debug.Log(Log.Tag + " Probe: whole plan: background route: " + (problem ?? "kept"));

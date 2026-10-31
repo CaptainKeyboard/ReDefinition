@@ -11,6 +11,8 @@ namespace ReDefinition.Autopilot.Background
         double Elapsed { get; }
         // A burn of `deltaV` m/s: the share each part keeps (multiplied into `keeps`, by persistent id) and the parts let go (added to `gone`).
         void Burn(double deltaV, Dictionary<uint, double> keeps, List<uint> gone);
+        // Parts that were let go before the next burn: the stages that follow share the propellant of what is left.
+        void Release(ICollection<uint> parts);
     }
 
     // What the engineer knows of a vessel that the background route needs: its stages, and what a launch from a body costs.
@@ -19,5 +21,9 @@ namespace ReDefinition.Autopilot.Background
         IBurnShare StagesOf(Vessel vessel);
         // The delta-v of a launch from the body's surface into a circular orbit at `altitude`, in m/s.
         double LaunchDeltaV(CelestialBody body, double altitude);
+        // The delta-v of a landing from a low orbit, in m/s: with parachutes and a body with air only what thin air leaves, else the whole landing.
+        double LandingDeltaV(CelestialBody body, bool parachutes);
+        // Whether the part is a parachute, RealChute's too.
+        bool IsParachute(Part part);
     }
 }
