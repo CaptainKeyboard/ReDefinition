@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Compares the version of every mod ReDefinition is coupled to against its latest release on GitHub.
 
-The mods and the version each was last checked against are in mod_updates.json beside this file. When a mod is checked against a newer
-version (tools/checks/check_foreign_code.ps1 and a flight), its "tested" entry is raised. Nothing is read from a KSP install: this runs
-anywhere with Python 3 and a network, which is how a scheduled run on a server can use it.
+The mods and the version each was last checked against are in mod_updates.json beside this file.
+When a mod is checked against a newer version, its "tested" entry is raised.
+Nothing is read from a KSP install.
+This runs anywhere with Python 3 and a network, which is how a scheduled run on a server can use it.
 
-    python tools/checks/check_mod_updates.py            report; exit code 2 where a mod has a newer stable release than the tested one
-    python tools/checks/check_mod_updates.py --selftest the comparison of version numbers, without the network
+Run it without arguments for the report.
+The exit code is 2 where a mod has a newer stable release than the tested one.
+Run it with --selftest for the comparison of version numbers, without the network.
 
-GITHUB_TOKEN or GH_TOKEN in the environment raises GitHub's limit of 60 requests an hour; the run makes one request for each mod.
+GITHUB_TOKEN or GH_TOKEN in the environment raises GitHub's limit of 60 requests an hour.
+The run makes one request for each mod.
 """
 import json
 import os

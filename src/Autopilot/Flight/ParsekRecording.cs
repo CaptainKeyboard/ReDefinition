@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
+using KSP.Localization;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
@@ -50,6 +51,12 @@ namespace ReDefinition.Autopilot.Flight
             Orbit end = legs[legs.Count - 1].Orbit;
             if (end.eccentricity >= 1.0 || end.PeR <= end.referenceBody.Radius) return "The plan ends " + plan.Ended + " It is not on an orbit to put the vessel on.";
             return Commit(vessel, legs, deltaV, takeVesselOut);
+        }
+
+        // The vessel's name as the player reads it: a stock craft's name is a localization key (#autoLOC_501232), which Parsek would show as it is.
+        private static string ShownName(Vessel vessel)
+        {
+            return Localizer.Format(vessel.vesselName);
         }
 
         // Commits a recording of the legs for the vessel. The vessel ends on the last leg's orbit, with the fuel the burns of deltaV take from it.
@@ -104,7 +111,7 @@ namespace ReDefinition.Autopilot.Flight
                 object recording = Activator.CreateInstance(recordingType);
                 Set(recording, "RecordingId", id);
                 Set(recording, "TreeId", id);
-                Set(recording, "VesselName", vessel.vesselName);
+                Set(recording, "VesselName", ShownName(vessel));
                 // Not the vessel's own id: with it Parsek takes the recording for the flight of the vessel that is there, makes it the one it records,
                 // and puts the vessel back where it was when the flight is left. Parsek's own test derives one the same way.
                 uint other = vessel.persistentId ^ 0x5A5AA5A5u;
@@ -129,7 +136,7 @@ namespace ReDefinition.Autopilot.Flight
 
                 object tree = Activator.CreateInstance(treeType);
                 Set(tree, "Id", id);
-                Set(tree, "TreeName", vessel.vesselName + " route");
+                Set(tree, "TreeName", ShownName(vessel) + " route");
                 Set(tree, "RootRecordingId", id);
                 Set(tree, "ActiveRecordingId", id);
                 ((IDictionary)Get(tree, "Recordings"))[id] = recording;
@@ -162,7 +169,7 @@ namespace ReDefinition.Autopilot.Flight
                     {
                         Debug.LogWarning(Log.Tag + " The game could not be saved after the vessel was taken out: " + e.Message);
                     }
-                    Debug.Log(Log.Tag + " " + vessel.vesselName + " is out of the world; Parsek puts it back where the recording ends.");
+                    Debug.Log(Log.Tag + " " + ShownName(vessel) + " is out of the world; Parsek puts it back where the recording ends.");
                 }
                 return null;
             }
