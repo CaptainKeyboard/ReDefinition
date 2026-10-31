@@ -741,9 +741,9 @@ namespace ReDefinition.Autopilot.Background
             // the game destroys it when it does. The place is where the descent meets the ground at the point it comes to, which the terrain there gives.
             double now = Planetarium.GetUniversalTime();
             double high = FallsTo(orbit, from, periapsis, body.Radius);
-            // The step is made at the top of the air, or where the highest ground lies, and at least ten seconds before the ground: a frame that carries
+            // The step is made before the game looks for the ground under the vessel, and at least ten seconds before the ground: a frame that carries
             // several physics steps at the slowest warp must not carry the vessel through the ground before the step.
-            double trigger = Math.Min(FallsTo(orbit, from, periapsis, body.Radius + Math.Max(Math.Max(0.0, body.pqsController.mapMaxHeight), body.atmosphere ? body.atmosphereDepth : 0.0)), high - 10.0);
+            double trigger = Math.Min(FallsTo(orbit, from, periapsis, body.Radius + GroundWatchHeight(body)), high - 10.0);
             for (int round = 0; round < 4; round++)
             {
                 double roundLatitude, roundLongitude, roundAltitude;
@@ -775,6 +775,15 @@ namespace ReDefinition.Autopilot.Background
             touch.Site = site;
             entry.Steps.Add(touch);
             return touch;
+        }
+
+        // The height over sea level below which the game can find an unloaded vessel in the ground. It is the greatest of the highest ground, the altitude
+        // the game starts to know the ground under a vessel at, and the top of the air. A mountain on the way meets a descent before the site does.
+        private static double GroundWatchHeight(CelestialBody body)
+        {
+            double mountains = body.pqsController != null ? Math.Max(0.0, body.pqsController.radiusMax - body.pqsController.radius) : 0.0;
+            double watched = Math.Min(body.inverseRotThresholdAltitude, body.minOrbitalDistance - body.Radius);
+            return Math.Max(Math.Max(mountains, watched), body.atmosphere ? body.atmosphereDepth : 0.0);
         }
 
         // The time between two moments at which the orbit's radius falls to the given one; the radius only falls there.

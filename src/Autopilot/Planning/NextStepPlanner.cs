@@ -36,10 +36,11 @@ namespace ReDefinition.Autopilot.Planning
             for (int i = 0; i < route.Count; i++)
                 if (Passed(frame, route[i], i) && (progress == null || !Repeats(route, i) || progress.Reached >= i - 1)) last = i;
             if (progress != null && last > progress.Reached) progress.Reached = last;
-            // A vessel that is at no stop, and has come from one, is on its way from the last stop it reached.
+            // A vessel that is at no stop, and has come from one, is on its way from the last stop it reached. The first stop, a surface, counts as passed
+            // wherever the vessel is round its body, so a vessel back at that body is on its way from the stop it reached last, not from the first.
             int at = last;
-            if (progress != null && at < 0 && progress.Reached > last && OnTheWayFrom(frame, route, progress.Reached)) last = progress.Reached;
-            if (at >= 0 && (!frame.Ahead || progress != null))
+            if (progress != null && progress.Reached > last && !(at == 0 && route[0].Surface && frame.OnGround) && OnTheWayFrom(frame, route, progress.Reached)) last = progress.Reached;
+            if (at >= 0 && at == last && (!frame.Ahead || progress != null))
             {
                 SectionRelease pending = PendingRelease(frame.Vessel, route[at], progress);
                 if (pending != null) return NodePlanner.Result.Release(pending, "Let the " + pending.Name.ToLowerInvariant() + " go: separate it.");
@@ -48,7 +49,7 @@ namespace ReDefinition.Autopilot.Planning
             int next = last >= 0 ? last + 1 : HeadedFor(frame, route);
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
             goal = next;
-            fromStop = at >= 0;
+            fromStop = at >= 0 && at == last;
             Destination stop = route[next];
             if (stop.Body == null) return NodePlanner.Result.Failed("The next stop has no body.");
             // Where the air would load the vessel beyond what it takes, the stop is reached by burning, as a stop that does not use the air.

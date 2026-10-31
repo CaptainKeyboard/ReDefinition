@@ -109,10 +109,13 @@ namespace ReDefinition.Autopilot.Planning
                 plan.Ended = "There is no route to plan.";
                 return plan;
             }
-            // The nodes the vessel holds are put back when the plan is done.
-            var held = new List<KeyValuePair<double, Vector3d>>();
-            foreach (ManeuverNode node in vessel.patchedConicSolver.maneuverNodes) held.Add(new KeyValuePair<double, Vector3d>(node.UT, node.DeltaV));
-            KspOrbits.ClearNodes(vessel);
+            // The nodes the vessel holds are set aside, as they are, and put back when the plan is done. Taking them off the vessel and making them again
+            // would leave the icons of the old ones on the map: the game only takes an icon away with the node's own call.
+            PatchedConicSolver solver = vessel.patchedConicSolver;
+            var held = new List<ManeuverNode>(solver.maneuverNodes);
+            solver.maneuverNodes.Clear();
+            solver.flightPlan.Clear();
+            solver.Update();
             // The vessel's own orbit, put back when the plan is done.
             Vector3d ownPosition = Vector3d.zero, ownVelocity = Vector3d.zero;
             double ownTime = Planetarium.GetUniversalTime();
@@ -256,11 +259,9 @@ namespace ReDefinition.Autopilot.Planning
                     vessel.orbit.UpdateFromStateVectors(ownPosition, ownVelocity, ownBody, ownTime);
                     vessel.patchedConicSolver.Update();
                 }
-                foreach (KeyValuePair<double, Vector3d> node in held)
-                {
-                    vessel.patchedConicSolver.AddManeuverNode(node.Key).DeltaV = node.Value;
-                    vessel.patchedConicSolver.UpdateFlightPlan();
-                }
+                solver.maneuverNodes.AddRange(held);
+                solver.Update();
+                solver.UpdateFlightPlan();
             }
             return plan;
         }

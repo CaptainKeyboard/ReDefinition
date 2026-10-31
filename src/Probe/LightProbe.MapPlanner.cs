@@ -22,6 +22,16 @@ namespace ReDefinition.Probe
         // Whether the vessel was left and loaded again, so that the next run of the probe only watches what the autopilot does with it.
         private static bool ResumeDone;
 
+        // What the map holds of orbit lines and markers: the planner draws its own, and what the game makes for the vessel's patches is its own.
+        private static string MapMarkers()
+        {
+            int maneuvers = 0;
+            foreach (MapObject mapObject in Object.FindObjectsOfType<MapObject>())
+                if (mapObject.type == MapObject.ObjectType.ManeuverNode) maneuvers++;
+            return "maneuver icons " + maneuvers + ", nodes " + Object.FindObjectsOfType<KSP.UI.Screens.Mapview.MapNode>().Length + ", orbit renderers " + Object.FindObjectsOfType<OrbitRendererBase>().Length
+                   + ", patched conic renderers " + Object.FindObjectsOfType<PatchedConicRenderer>().Length + ", maneuver gizmos " + Object.FindObjectsOfType<ManeuverGizmo>().Length;
+        }
+
         // What the autopilot does with the vessel that was loaded again while it flew: the flight goes on, to the end.
         private static IEnumerator ResumedFlight()
         {
@@ -202,6 +212,27 @@ namespace ReDefinition.Probe
                                       + ", " + leg.Orbit.PeA.ToString("0") + " x " + leg.Orbit.ApA.ToString("0") + " m.");
                         if (CommandLine.Has("-redefinitionProbeParsekCommit"))
                             Debug.Log(Log.Tag + " Probe: whole plan: Parsek: " + (ParsekRecording.CommitPlan(FlightGlobals.ActiveVessel, whole) ?? "committed"));
+                    }
+                    // -redefinitionProbeMarkers: the planner makes the whole plan again and again, with the map open; the map's markers and orbit lines are counted each time.
+                    if (CommandLine.Has("-redefinitionProbeMarkers"))
+                    {
+                        // The vessel holds a node of its own, as it does while the player or the navigation has one in the map.
+                        Vessel holder = FlightGlobals.ActiveVessel;
+                        if (holder.patchedConicSolver.maneuverNodes.Count == 0)
+                        {
+                            holder.patchedConicSolver.AddManeuverNode(Planetarium.GetUniversalTime() + 900.0).DeltaV = new Vector3d(0.0, 0.0, 50.0);
+                            holder.patchedConicSolver.UpdateFlightPlan();
+                        }
+                        for (int round = 0; round < 8; round++)
+                        {
+                            Debug.Log(Log.Tag + " Probe: markers: round " + round + ": " + MapMarkers());
+                            MapPlannerWindow.Instance.PlanAllNow();
+                            yield return ProbeSteps.Frames(90);
+                        }
+                        Debug.Log(Log.Tag + " Probe: markers: final: " + MapMarkers());
+                        ScreenCapture.CaptureScreenshot(Path.Combine(folder, "map-planner-markers.png"));
+                        yield return ProbeSteps.Frames(10);
+                        yield break;
                     }
                     if (CommandLine.Has("-redefinitionProbeBackgroundLeave") && whole != null)
                     {

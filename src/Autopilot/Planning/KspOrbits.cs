@@ -74,8 +74,16 @@ namespace ReDefinition.Autopilot.Planning
             if (solver == null) return;
             var nodes = new List<ManeuverNode>(solver.maneuverNodes);
             foreach (ManeuverNode node in nodes)
-                if (!frame.Ahead || node.UT > frame.Now + Frame.AfterNode) solver.RemoveManeuverNode(node);
+                if (!frame.Ahead || node.UT > frame.Now + Frame.AfterNode) Remove(node);
             solver.UpdateFlightPlan();
+        }
+
+        // A node taken off the vessel. The solver's own removal leaves the node's icon on the map and its place among the camera's targets.
+        // The node's call takes them away, for a node that the map has made them for.
+        private static void Remove(ManeuverNode node)
+        {
+            if (node.scaledSpaceTarget != null) node.RemoveSelf();
+            else node.solver.RemoveManeuverNode(node);
         }
 
         // The first patch round `body` that lies ahead of the vessel on the orbit it flies now, nodes left out: the chain of conics from its own.
