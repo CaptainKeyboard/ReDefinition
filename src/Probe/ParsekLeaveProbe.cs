@@ -146,6 +146,14 @@ namespace ReDefinition.Probe
             yield return new WaitForSeconds(15f);
             GameEvents.onVesselWillDestroy.Remove(counter.Count);
             int found = Tell("after the end");
+            // The plans the game loads the vessels' nodes from: a node that was spent on the way must not be saved with a vessel.
+            foreach (Vessel each in FlightGlobals.Vessels)
+            {
+                if (!each.vesselName.StartsWith(ParsekLeave.Name)) continue;
+                int saved = each.flightPlanNode != null ? each.flightPlanNode.CountNodes : 0;
+                int held = each.PatchedConicsAttached ? each.patchedConicSolver.maneuverNodes.Count : 0;
+                if (saved > 0 || held > 0) Fail(each.vesselName + " keeps " + saved + " saved and " + held + " held maneuver node(s) after the route");
+            }
             // Parts that were let go are vessels of their own: all of them together are the parts the vessel had.
             int total = 0;
             foreach (Vessel each in FlightGlobals.Vessels)

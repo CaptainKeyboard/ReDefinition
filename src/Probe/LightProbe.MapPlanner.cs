@@ -370,10 +370,13 @@ namespace ReDefinition.Probe
                             yield break;
                         }
                         // -redefinitionProbeLeaveWhenCoasting: the flight is left once the transfer burn is flown and the autopilot waits for the next change of orbit.
-                        if (CommandLine.Has("-redefinitionProbeLeaveWhenCoasting") && now.EndsWith("Warping to the next change of orbit.") && Time.realtimeSinceStartup - started > 5f)
+                        // With -redefinitionProbeLeaveWithNode it is left as the burn waits, with the maneuver node on the vessel.
+                        bool leaveWithNode = CommandLine.Has("-redefinitionProbeLeaveWithNode");
+                        if (CommandLine.Has("-redefinitionProbeLeaveWhenCoasting") && (leaveWithNode ? now.StartsWith("Burn") : now.EndsWith("Warping to the next change of orbit.")) && Time.realtimeSinceStartup - started > 5f)
                         {
                             Debug.Log(Log.Tag + " Probe: the flight is left while it coasts: " + now);
                             Vessel coasting = FlightGlobals.ActiveVessel;
+                            Debug.Log(Log.Tag + " Probe: leave: the vessel holds " + coasting.patchedConicSolver.maneuverNodes.Count + " maneuver node(s) as it is left.");
                             // As the player leaves: the pause menu opens, the route is kept for the background, the game is saved, and the scene is asked for.
                             // -redefinitionProbeLateHand: no pause menu, so the route is handed over only when the scene is asked for.
                             if (!CommandLine.Has("-redefinitionProbeLateHand")) FlightDriver.SetPause(true);

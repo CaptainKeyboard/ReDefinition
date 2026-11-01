@@ -167,7 +167,11 @@ namespace ReDefinition.Autopilot.Background
                     entries.RemoveAt(i);
                     continue;
                 }
-                if (!vessel.loaded) entry.Left = true;
+                if (!vessel.loaded)
+                {
+                    entry.Left = true;
+                    KspOrbits.DropNodes(vessel);
+                }
                 // A route kept when the pause menu opened, and the player went on flying: it is stale.
                 if (vessel.loaded && !entry.Left && !FlightDriver.Pause && now > entry.HandedUT + 5.0)
                 {

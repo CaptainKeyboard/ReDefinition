@@ -78,6 +78,22 @@ namespace ReDefinition.Autopilot.Planning
             solver.UpdateFlightPlan();
         }
 
+        // The maneuver nodes of a vessel that is not loaded, taken off with the saved plan the game loads them from. A route flown without the player has
+        // spent them or leaves them behind; a node that is left reaches the map again when the vessel is loaded, as one the game cannot solve.
+        internal static void DropNodes(Vessel vessel)
+        {
+            if (vessel.loaded) return;
+            PatchedConicSolver solver = vessel.PatchedConicsAttached ? vessel.patchedConicSolver : null;
+            if (solver != null && solver.maneuverNodes.Count > 0)
+            {
+                // The last first: the solver drops a node it cannot solve by itself, with a message to the player, when an earlier one is gone.
+                for (int i = solver.maneuverNodes.Count - 1; i >= 0; i--) Remove(solver.maneuverNodes[i]);
+                solver.UpdateFlightPlan();
+            }
+            if (vessel.flightPlanNode != null && vessel.flightPlanNode.CountNodes > 0) vessel.flightPlanNode.ClearData();
+            if (vessel.protoVessel != null && vessel.protoVessel.flightPlan != null && vessel.protoVessel.flightPlan.CountNodes > 0) vessel.protoVessel.flightPlan.ClearData();
+        }
+
         // A node taken off the vessel. The solver's own removal leaves the node's icon on the map and its place among the camera's targets.
         // The node's call takes them away, for a node that the map has made them for.
         private static void Remove(ManeuverNode node)
