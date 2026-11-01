@@ -139,9 +139,9 @@ namespace ReDefinition.Probe
 
         // The pilot as the player is: the nose is turned steadily to the marker, 40 degrees a second at most, and the throttle is the one the
         // gauge asks for, set again in every frame.
-        private static void StandIn(Vessel vessel, double throttle)
+        private static void StandIn(Vessel vessel, double throttle, bool turn = true)
         {
-            if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection)
+            if (turn && GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection)
             {
                 Quaternion want = Quaternion.FromToRotation(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) * vessel.GetTransform().rotation;
                 vessel.SetRotation(Quaternion.RotateTowards(vessel.GetTransform().rotation, want, 40f * Time.deltaTime));
@@ -149,6 +149,18 @@ namespace ReDefinition.Probe
                     if (part.Rigidbody != null) part.Rigidbody.angularVelocity = Vector3.zero;
             }
             FlightInputHandler.state.mainThrottle = (float)throttle;
+        }
+
+        // What the SAS does with the guidance: its mode, whether it may be chosen, how far the nose is from the board's direction, and the burn gauge.
+        private static string SasState(Vessel vessel)
+        {
+            VesselAutopilot autopilot = vessel.Autopilot;
+            float angle = GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection ? Vector3.Angle(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) : -1f;
+            KSP.UI.Screens.Flight.NavBallBurnVector vector = Object.FindObjectOfType<KSP.UI.Screens.Flight.NavBallBurnVector>();
+            string gauge = vector != null && vector.deltaVGauge != null ? vector.deltaVGauge.gameObject.activeInHierarchy + " at " + vector.deltaVGauge.currentValue.ToString("0.00") : "none";
+            return "mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
+                   + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
+                   + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", burn gauge " + gauge + ".";
         }
 
         // The navigation from the pad to an orbit, and the probe as the player. The first stage is lit, the nose follows the marker, and the
@@ -161,6 +173,11 @@ namespace ReDefinition.Probe
             RouteDriver.Instance.SetNavigation(vessel, true);
             MapView.ExitMapView();
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            // -redefinitionProbeSasFollow: the SAS is on and steers; the probe only gives the throttle, and says how the nose follows the board.
+            bool sasFollow = CommandLine.Has("-redefinitionProbeSasFollow");
+            if (sasFollow) vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
+            float nextSample = 0f;
+            int samples = 0;
             float started = Time.realtimeSinceStartup;
             string last = "";
             float nextLine = 0f;
@@ -181,7 +198,18 @@ namespace ReDefinition.Probe
                 if (now.StartsWith("Climb"))
                 {
                     if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.05 && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
-                    StandIn(vessel, GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0);
+                    StandIn(vessel, GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0, !sasFollow);
+                    if (sasFollow && Time.realtimeSinceStartup > nextSample)
+                    {
+                        nextSample = Time.realtimeSinceStartup + 4f;
+                        Debug.Log(Log.Tag + " Probe: sas: " + SasState(vessel));
+                        if (++samples >= 20)
+                        {
+                            FlightInputHandler.state.mainThrottle = 0f;
+                            Debug.Log(Log.Tag + " Probe: sas follow: done.");
+                            yield break;
+                        }
+                    }
                     if (shots < 4 && Time.realtimeSinceStartup - started > nextShot)
                     {
                         nextShot += 25f;
