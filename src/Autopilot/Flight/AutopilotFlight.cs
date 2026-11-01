@@ -69,7 +69,7 @@ namespace ReDefinition.Autopilot.Flight
                 try
                 {
                     RouteState own = RouteState.Of(vessel);
-                    plan = NextStepPlanner.PlanNext(new Frame(vessel), route, false, keepCourse, own != null ? own.ProgressFor(route) : null);
+                    plan = NextStepPlanner.PlanNext(new Frame(vessel), route, PlanOptions.Flown(keepCourse), own != null ? own.ProgressFor(route) : null);
                     keepCourse = false;
                 }
                 catch (System.Exception e)

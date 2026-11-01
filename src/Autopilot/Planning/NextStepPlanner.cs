@@ -10,13 +10,12 @@ namespace ReDefinition.Autopilot.Planning
     {
         // Plans the next step of the leg to the first stop the vessel has not reached: a launch, a burn as a node, a descent, or the reason
         // where there is none yet. For the player, who flies the climb and the descent, a deorbit is a node and the landing is guided.
-        internal static NodePlanner.Result PlanNext(Frame frame, IList<Destination> route, bool forPlayer = false, bool keepCourse = false,
-                                                    RouteProgress progress = null)
+        internal static NodePlanner.Result PlanNext(Frame frame, IList<Destination> route, PlanOptions options = null, RouteProgress progress = null)
         {
             string note;
             int goal;
             bool fromStop;
-            NodePlanner.Result result = Plan(frame, route, forPlayer, keepCourse, progress, out note, out goal, out fromStop);
+            NodePlanner.Result result = Plan(frame, route, options ?? new PlanOptions(), progress, out note, out goal, out fromStop);
             if (result.Goal < 0)
             {
                 result.Goal = goal;
@@ -26,27 +25,31 @@ namespace ReDefinition.Autopilot.Planning
             return result;
         }
 
-        private static NodePlanner.Result Plan(Frame frame, IList<Destination> route, bool forPlayer, bool keepCourse, RouteProgress progress, out string note, out int goal, out bool fromStop)
+        private static NodePlanner.Result Plan(Frame frame, IList<Destination> route, PlanOptions options, RouteProgress progress, out string note, out int goal, out bool fromStop)
         {
             note = null;
             goal = -1;
             fromStop = false;
             if (frame == null || route == null || route.Count < 2) return NodePlanner.Result.Failed("There is no route.");
-            int last = -1;
+            var passed = new bool[route.Count];
+            var repeats = new bool[route.Count];
             for (int i = 0; i < route.Count; i++)
-                if (Passed(frame, route[i], i) && (progress == null || !Repeats(route, i) || progress.Reached >= i - 1)) last = i;
-            if (progress != null && last > progress.Reached) progress.Reached = last;
-            // A vessel that is at no stop, and has come from one, is on its way from the last stop it reached. The first stop, a surface, counts as passed
-            // wherever the vessel is round its body, so a vessel back at that body is on its way from the stop it reached last, not from the first.
-            int at = last;
-            if (progress != null && progress.Reached > last && !(at == 0 && route[0].Surface && frame.OnGround) && OnTheWayFrom(frame, route, progress.Reached)) last = progress.Reached;
+            {
+                passed[i] = Passed(frame, route[i], i);
+                repeats[i] = Repeats(route, i);
+            }
+            int reached = progress != null ? progress.Reached : -1;
+            RouteCursor cursor = RouteCursor.Locate(passed, repeats, ref reached, progress != null, route[0].Surface && frame.OnGround, index => OnTheWayFrom(frame, route, index),
+                                                    () => HeadedFor(frame, route));
+            if (progress != null) progress.Reached = reached;
+            int at = cursor.At, last = cursor.Last;
             if (at >= 0 && at == last && (!frame.Ahead || progress != null))
             {
                 SectionRelease pending = PendingRelease(frame.Vessel, route[at], progress);
                 if (pending != null) return NodePlanner.Result.Release(pending, "Let the " + pending.Name.ToLowerInvariant() + " go: separate it.");
             }
-            if (last + 1 >= route.Count) return NodePlanner.Result.Done("The vessel is at the last stop.");
-            int next = last >= 0 ? last + 1 : HeadedFor(frame, route);
+            if (cursor.Done) return NodePlanner.Result.Done("The vessel is at the last stop.");
+            int next = cursor.Next;
             if (next < 0) return NodePlanner.Result.Failed("The vessel is not at a stop of the route, nor on its way to one.");
             goal = next;
             fromStop = at >= 0 && at == last;
@@ -63,74 +66,111 @@ namespace ReDefinition.Autopilot.Planning
                     stop = new Destination { Body = stop.Body, Surface = stop.Surface, Altitude = stop.Altitude, MeetWith = stop.MeetWith, DockWith = stop.DockWith, Releases = stop.Releases };
                 }
             }
-            bool landing = stop.Surface && stop.Body == frame.Body && !frame.OnGround;
+            // A surface on another body is reached through an orbit round it.
+            if (stop.Surface && stop.Body != frame.Body)
+                stop = new Destination { Body = stop.Body, Altitude = LowOrbit(stop.Body), Direct = stop.Direct, Aerobrake = stop.Aerobrake, PassAltitude = stop.PassAltitude };
+            StepFacts facts = FactsOf(frame, stop, options);
             double aim = stop.Body == frame.Body ? stop.Altitude : LowOrbit(frame.Body);
-            bool climbing = frame.Situation == Vessel.Situations.SUB_ORBITAL && frame.Orbit.PeA < 0.0 && frame.Orbit.ApA < 0.98 * aim;
-            if (!landing && (frame.OnGround || frame.Situation == Vessel.Situations.FLYING || climbing))
+            switch (facts.Intend())
             {
-                if (stop.Body == frame.Body && stop.Surface) return NodePlanner.Result.Failed("A hop on the surface is not planned yet.");
-                return NodePlanner.Result.Ascent(aim, "Launch into an orbit " + (aim / 1000.0).ToString("0.#") + " km over " + frame.Body.bodyName + ".");
-            }
-            if (stop.Surface)
-            {
-                if (stop.Body == frame.Body)
-                {
-                    if (frame.Orbit.eccentricity >= 1.0)
-                    {
-                        if (stop.Direct) return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + " straight from the approach.");
-                        return stop.Aerobrake ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.") : NodePlanner.Capture(frame);
-                    }
+                case StepIntent.HopNotPlanned:
+                    return NodePlanner.Result.Failed("A hop on the surface is not planned yet.");
+                case StepIntent.Ascent:
+                    return NodePlanner.Result.Ascent(aim, "Launch into an orbit " + (aim / 1000.0).ToString("0.#") + " km over " + frame.Body.bodyName + ".");
+                case StepIntent.LandStraightIn:
+                    return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + " straight from the approach.");
+                case StepIntent.LandByAir:
+                    return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.");
+                case StepIntent.LandByCapture:
+                case StepIntent.Capture:
+                    return NodePlanner.Capture(frame);
+                case StepIntent.LandByDeorbit:
                     // MechJeb's landing starts from an orbit whose periapsis is under the ground (MechJebModuleLandingAutopilot, StartLanding) and
                     // deorbits otherwise.
-                    if (forPlayer && frame.Orbit.PeA >= 0.0) return NodePlanner.Deorbit(frame);
+                    return NodePlanner.Deorbit(frame);
+                case StepIntent.Land:
                     return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
-                }
-                stop = new Destination { Body = stop.Body, Altitude = LowOrbit(stop.Body), Direct = stop.Direct, Aerobrake = stop.Aerobrake, PassAltitude = stop.PassAltitude };
-            }
-            if (stop.Body == frame.Body)
-            {
-                if (frame.Orbit.eccentricity < 1.0)
+                case StepIntent.Meet:
                 {
                     // The last stop is met with a vessel: MechJeb's rendezvous brings the vessel there, from wherever it is in the orbit round the body.
-                    Vessel meet = stop.MeetWith != System.Guid.Empty ? MeetingTarget(frame, stop) : null;
-                    if (meet != null) return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, stop.Dock, (stop.Dock ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
-                    if (!stop.Aerobrake || !(frame.Orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude))) return NodePlanner.ChangeOrbit(frame, stop.Altitude);
+                    Vessel meet = MeetingTarget(frame, stop);
+                    return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, stop.Dock, (stop.Dock ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
+                }
+                case StepIntent.ChangeOrbit:
+                    return NodePlanner.ChangeOrbit(frame, stop.Altitude);
+                case StepIntent.AirPassEndsPlan:
                     // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds. A plan
                     // ahead does not simulate the pass unless it is flown without the player: it ends there.
-                    if (frame.Ahead && !frame.Passes) return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis, in a pass at the periapsis.");
-                    string why;
-                    double pass = AerobrakePass.FromOrbit(frame.Vessel, frame.Orbit, frame.Now, stop.Altitude, out why);
-                    if (pass < 0.0) return NodePlanner.Result.Failed(why);
-                    double tolerance = System.Math.Max(1000.0, 0.03 * pass);
-                    if (frame.Orbit.PeA < pass - tolerance) return NodePlanner.LiftToAirPass(frame, pass);
-                    if (frame.Orbit.PeA > pass + tolerance && frame.Orbit.PeA >= frame.Body.atmosphereDepth)
-                        return NodePlanner.Deorbit(frame, frame.Body.Radius + pass, "Lower the periapsis into the air for the aerobraking pass");
-                    return frame.Orbit.PeA < frame.Body.atmosphereDepth
-                        ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis at the periapsis, a pass at " + (pass / 1000.0).ToString("0.#") + " km.")
-                        : NodePlanner.ChangeOrbit(frame, stop.Altitude);
+                    return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis, in a pass at the periapsis.");
+                case StepIntent.AirPassFromOrbit:
+                    return AirPassFromOrbit(frame, stop);
+                case StepIntent.AirOnApproach:
+                    return NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.");
+                case StepIntent.Leaving:
+                    return new NodePlanner.Result { Ok = true, Why = "Leaving " + frame.Body.bodyName + "." };
+                case StepIntent.Eject:
+                    return NodePlanner.Eject(frame, stop.Body, Aim(stop));
+                case StepIntent.NoWay:
+                    return NodePlanner.Result.Failed("A way from " + frame.Body.bodyName + " to " + stop.Body.bodyName + " is not planned as nodes yet.");
+                case StepIntent.Transfer:
+                    return NodePlanner.TransferToBody(frame, stop.Body, Aim(stop));
+                default:
+                {
+                    Orbit encounter = KspOrbits.PatchAhead(frame, stop.Body);
+                    double entry = Aim(stop);
+                    if (facts.AirOnApproach)
+                    {
+                        // The periapsis to aim at is the depth of a pass the vessel takes, found by simulating it, and none where the air would break it.
+                        string why;
+                        entry = AerobrakePass.FromApproach(frame.Vessel, encounter, stop.Direct, out why);
+                        if (entry < 0.0) return NodePlanner.Result.Failed(why);
+                    }
+                    return NodePlanner.CorrectCourse(frame, stop.Body, entry, options.KeepCourse);
                 }
-                return stop.Aerobrake ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " slows the vessel at the periapsis.") : NodePlanner.Capture(frame);
             }
-            if (frame.Orbit.eccentricity >= 1.0 && frame.Orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE)
-                return new NodePlanner.Result { Ok = true, Why = "Leaving " + frame.Body.bodyName + "." };
+        }
+
+        // The facts of the vessel's orbit and of the stop it goes to that the intent follows from.
+        private static StepFacts FactsOf(Frame frame, Destination stop, PlanOptions options)
+        {
+            bool sameBody = stop.Body == frame.Body;
+            double aim = sameBody ? stop.Altitude : LowOrbit(frame.Body);
+            Orbit orbit = frame.Orbit;
             CelestialBody here = frame.Body;
-            // The sun is its own reference body in KSP and has no orbit to leave on.
-            if (here.orbit != null && here.referenceBody != null && here.referenceBody != here
-                && (stop.Body == here.referenceBody || stop.Body.referenceBody == here.referenceBody))
-                return NodePlanner.Eject(frame, stop.Body, Aim(stop));
-            if (stop.Body.referenceBody != frame.Body)
-                return NodePlanner.Result.Failed("A way from " + frame.Body.bodyName + " to " + stop.Body.bodyName + " is not planned as nodes yet.");
-            Orbit encounter = KspOrbits.PatchAhead(frame, stop.Body);
-            if (encounter == null) return NodePlanner.TransferToBody(frame, stop.Body, Aim(stop));
-            double entry = Aim(stop);
-            if ((!frame.Ahead || frame.Passes) && (stop.Direct || stop.Aerobrake))
+            bool closedHere = sameBody && !stop.Surface && orbit.eccentricity < 1.0;
+            var facts = new StepFacts
             {
-                // The periapsis to aim at is the depth of a pass the vessel takes, found by simulating it, and none where the air would break it.
-                string why;
-                entry = AerobrakePass.FromApproach(frame.Vessel, encounter, stop.Direct, out why);
-                if (entry < 0.0) return NodePlanner.Result.Failed(why);
-            }
-            return NodePlanner.CorrectCourse(frame, stop.Body, entry, keepCourse);
+                StopSurface = stop.Surface, SameBody = sameBody, OnGround = frame.OnGround, Flying = frame.Situation == Vessel.Situations.FLYING,
+                Climbing = frame.Situation == Vessel.Situations.SUB_ORBITAL && orbit.PeA < 0.0 && orbit.ApA < 0.98 * aim,
+                Open = orbit.eccentricity >= 1.0, Escaping = orbit.eccentricity >= 1.0 && orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE,
+                Direct = stop.Direct, Aerobrake = stop.Aerobrake, ForPlayer = options.ForPlayer, PeriapsisOverGround = orbit.PeA >= 0.0,
+                HasMeetTarget = closedHere && stop.MeetWith != System.Guid.Empty && MeetingTarget(frame, stop) != null,
+                ApoapsisAboveOrbit = closedHere && orbit.ApA > stop.Altitude + NodePlanner.Near(stop.Altitude),
+                PlanEndsAtPass = frame.Ahead && !frame.Passes,
+                // The sun is its own reference body in KSP and has no orbit to leave on.
+                EjectPossible = !sameBody && here.orbit != null && here.referenceBody != null && here.referenceBody != here
+                                && (stop.Body == here.referenceBody || stop.Body.referenceBody == here.referenceBody),
+                IsChildOfBody = stop.Body.referenceBody == frame.Body,
+                AirOnApproach = (!frame.Ahead || frame.Passes) && (stop.Direct || stop.Aerobrake),
+            };
+            facts.HasEncounter = !sameBody && facts.IsChildOfBody && KspOrbits.PatchAhead(frame, stop.Body) != null;
+            return facts;
+        }
+
+        // A pass through the air that brings a closed orbit down to the one asked for: the depth the simulation finds, the burn that gets the periapsis there,
+        // the pass itself, and the burn that rounds the orbit after it.
+        private static NodePlanner.Result AirPassFromOrbit(Frame frame, Destination stop)
+        {
+            string why;
+            double pass = AerobrakePass.FromOrbit(frame.Vessel, frame.Orbit, frame.Now, stop.Altitude, out why);
+            if (pass < 0.0) return NodePlanner.Result.Failed(why);
+            double tolerance = System.Math.Max(1000.0, 0.03 * pass);
+            if (frame.Orbit.PeA < pass - tolerance) return NodePlanner.LiftToAirPass(frame, pass);
+            if (frame.Orbit.PeA > pass + tolerance && frame.Orbit.PeA >= frame.Body.atmosphereDepth)
+                return NodePlanner.Deorbit(frame, frame.Body.Radius + pass, "Lower the periapsis into the air for the aerobraking pass");
+            return frame.Orbit.PeA < frame.Body.atmosphereDepth
+                ? NodePlanner.Result.Aerobrake("Aerobrake: the air of " + stop.Body.bodyName + " lowers the apoapsis at the periapsis, a pass at " + (pass / 1000.0).ToString("0.#") + " km.")
+                : NodePlanner.ChangeOrbit(frame, stop.Altitude);
         }
 
         // The vessel the stop is met with, if it is there and round the body the vessel is round; null where it is not, or the meeting is done.

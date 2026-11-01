@@ -182,7 +182,7 @@ namespace ReDefinition.Autopilot.Background
         // The plan the vessel flies without the player: the route from where the vessel is, with the passes through the air flown in the simulation.
         internal static RoutePlan PlanFor(Vessel vessel, IList<Destination> route)
         {
-            return RouteSimulation.Run(vessel, route, false, null, 0.0, int.MinValue, true);
+            return RouteSimulation.Run(vessel, route, PlanOptions.Background);
         }
 
         // Keeps the plan's orbits for the vessel as steps, where the autopilot is to go on without the player. The plan's first leg is the orbit the vessel
@@ -304,7 +304,7 @@ namespace ReDefinition.Autopilot.Background
                 double endUT;
                 Vector3d site = vessel.GetWorldPos3D() - vessel.mainBody.position;
                 if (!Launch(vessel, entry, budget, stages, figures, vessel.mainBody, plan.Steps[0].Altitude, site, Planetarium.GetUniversalTime(), entry.Reached, out orbit, out endUT, 0.0, true)) return entry;
-                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT, int.MinValue, true);
+                plan = RouteSimulation.Run(vessel, route, new PlanOptions { AirPasses = true, From = orbit, FromUT = endUT });
             }
             // The route in pieces: the orbits up to a landing, and, where the route goes on from the ground, the launch from it and the pieces after.
             for (int round = 0; round < 6; round++)
@@ -326,7 +326,7 @@ namespace ReDefinition.Autopilot.Background
                 double endUT;
                 Vector3d site = body.GetWorldSurfacePosition(touch.Site.Latitude, touch.Site.Longitude, touch.Site.Height) - body.position;
                 if (!Launch(vessel, entry, budget, stages, figures, body, altitude, site, Planetarium.GetUniversalTime(), landing.Goal, out orbit, out endUT, touch.GroundUT + 1.0, false)) break;
-                plan = RouteSimulation.Run(vessel, route, false, orbit, endUT, landing.Goal, true);
+                plan = RouteSimulation.Run(vessel, route, new PlanOptions { AirPasses = true, From = orbit, FromUT = endUT, ReachedAtStart = landing.Goal });
             }
             if (stages != null && stages.Short > 0.0) Debug.LogWarning(Log.Tag + " Route: " + vessel.vesselName + " is short of " + stages.Short.ToString("0") + " m/s for the plan.");
             if (entry.Steps.Count > 0)

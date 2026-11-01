@@ -27,6 +27,16 @@ namespace ReDefinition.Autopilot.Planning
         // The burn in the axes of the maneuver node it is put in as.
         public V3 DeltaV;
         public string Why;
+
+        // The step a planner's result is, made at `at`: what the result says of the step, with the time it is made at.
+        internal static PlannedStep Of(NodePlanner.Result result, double at = 0.0)
+        {
+            return new PlannedStep
+            {
+                Kind = result.Kind, Goal = result.Goal, Why = result.Why, Section = result.Section, Altitude = result.Altitude, Target = result.Target, Port = result.Port,
+                Dock = result.Dock, At = at,
+            };
+        }
     }
 
     // A stretch of the plan on one orbit: the orbit, and from which UT to which it is flown.
@@ -94,14 +104,15 @@ namespace ReDefinition.Autopilot.Planning
     // nodes put in the flight plan, where KSP works out the orbits that follow. The nodes are taken off again; the plan is what is returned.
     internal static class RouteSimulation
     {
-        // With `forPlayer` the deorbit of a landing is a burn of the plan, as the player flies it; without, the plan ends in the orbit the landing
-        // starts from, which MechJeb's landing leaves by itself.
-        // With `from` the plan starts in that orbit at `fromUT`, as if the vessel were there: the launch of an ascent is not flown by the plan.
-        // With `airPasses` the passes through the air are flown in the simulation, and the plan goes on from the orbit each leaves the air in: a plan
-        // the vessel flies without the player. Without, a pass ends the plan.
-        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, bool forPlayer = false, Orbit from = null, double fromUT = 0.0, int reachedAtStart = int.MinValue,
-                                      bool airPasses = false)
+        // The plan as the options say. For the player the deorbit of a landing is a burn of the plan, as he flies it; without, the plan ends in the orbit
+        // the landing starts from, which MechJeb's landing leaves by itself.
+        internal static RoutePlan Run(Vessel vessel, IList<Destination> route, PlanOptions options = null)
         {
+            options = options ?? new PlanOptions();
+            Orbit from = options.From;
+            double fromUT = options.FromUT;
+            bool airPasses = options.AirPasses;
+            int reachedAtStart = options.ReachedAtStart ?? int.MinValue;
             var plan = new RoutePlan { Signature = RoutePlan.SignatureOf(route) };
             if (vessel == null || route == null || route.Count < 2 || vessel.patchedConicSolver == null)
             {
@@ -154,7 +165,7 @@ namespace ReDefinition.Autopilot.Planning
                         plan.Ended = "The plan does not move on.";
                         break;
                     }
-                    NodePlanner.Result result = NextStepPlanner.PlanNext(frame, route, forPlayer, false, progress);
+                    NodePlanner.Result result = NextStepPlanner.PlanNext(frame, route, options, progress);
                     if (atStart == -2) atStart = progress.Reached;
                     if (airPasses)
                         Debug.Log("[ReDefinition] Route: air plan at UT " + frame.Now.ToString("0") + " on " + frame.Orbit.PeA.ToString("0") + " x " + frame.Orbit.ApA.ToString("0") + " m round "
@@ -175,7 +186,7 @@ namespace ReDefinition.Autopilot.Planning
                     if (result.Kind == NodePlanner.StepKind.Release && frame.Ahead && result.Section != null && progress.Released.Add(result.Section.SeparatorId))
                     {
                         // The section goes at the stop, and the plan goes on from the same state with the vessel lighter.
-                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, Section = result.Section, At = frame.Now });
+                        plan.Steps.Add(PlannedStep.Of(result, frame.Now));
                         frame = frame.At(frame.Now);
                         continue;
                     }
@@ -197,7 +208,9 @@ namespace ReDefinition.Autopilot.Planning
                         }
                         else
                         {
-                            plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, At = exitUT, Flown = true });
+                            PlannedStep passStep = PlannedStep.Of(result, exitUT);
+                            passStep.Flown = true;
+                            plan.Steps.Add(passStep);
                             TakeLegs(vessel, plan, collectedFrom, frame.Now, airLegAt, airOrbit, airEntryUT);
                             KspOrbits.ClearNodes(vessel);
                             if (!swapped)
@@ -222,7 +235,7 @@ namespace ReDefinition.Autopilot.Planning
                     }
                     if (result.Kind != NodePlanner.StepKind.Burn)
                     {
-                        plan.Steps.Add(new PlannedStep { Kind = result.Kind, Goal = result.Goal, Why = result.Why, Altitude = result.Altitude, Target = result.Target, Port = result.Port, Dock = result.Dock });
+                        plan.Steps.Add(PlannedStep.Of(result));
                         plan.Ended = result.Why;
                         break;
                     }
@@ -238,11 +251,11 @@ namespace ReDefinition.Autopilot.Planning
                     foreach (ManeuverNode node in vessel.patchedConicSolver.maneuverNodes)
                     {
                         if (node.UT <= frame.Now + Frame.AfterNode) continue;
-                        plan.Steps.Add(new PlannedStep
-                        {
-                            Kind = result.Kind, Goal = result.Goal, UT = node.UT, At = node.UT, DeltaV = new V3(node.DeltaV.x, node.DeltaV.y, node.DeltaV.z),
-                            Why = first ? result.Why : "The next burn of: " + result.Why,
-                        });
+                        PlannedStep burn = PlannedStep.Of(result, node.UT);
+                        burn.UT = node.UT;
+                        burn.DeltaV = new V3(node.DeltaV.x, node.DeltaV.y, node.DeltaV.z);
+                        burn.Why = first ? result.Why : "The next burn of: " + result.Why;
+                        plan.Steps.Add(burn);
                         first = false;
                     }
                     frame = next;
