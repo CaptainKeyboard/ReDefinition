@@ -38,10 +38,10 @@ namespace ReDefinition.Autopilot.Background
             double total = vessel.VesselDeltaV != null ? vessel.VesselDeltaV.TotalDeltaVVac : 0.0;
             if (total > 0.0 && tank.Propellant > 0.0 && tank.Mass > tank.Propellant) tank.Exhaust = total / Math.Log(tank.Mass / (tank.Mass - tank.Propellant));
             var budget = new FuelBudget { FuelTank = tank, Name = vessel.vesselName };
-            IBurnShare stages = figures != null ? figures.StagesOf(vessel) : null;
+            IBurnShare stages = figures.StagesOf(vessel);
             if (stages != null && stages.Ready) budget.Stages = stages;
             // A launch from the ground ends in the orbit asked for, and the rest of the route is planned from there.
-            if (plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null && figures != null && vessel.mainBody.pqsController != null)
+            if (plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null && vessel.mainBody.pqsController != null)
             {
                 Orbit orbit;
                 double endUT;
@@ -55,7 +55,7 @@ namespace ReDefinition.Autopilot.Background
                 RouteStep touch = AddSegment(vessel, entry, plan, budget, stages, route, figures);
                 if (entry.Problem != null || touch == null) break;
                 PlannedStep landing = plan.Steps[plan.Steps.Count - 1];
-                if (route == null || figures == null || landing.Goal < 0 || landing.Goal + 1 >= route.Count) break;
+                if (route == null || landing.Goal < 0 || landing.Goal + 1 >= route.Count) break;
                 if (route[landing.Goal].Releases != null && route[landing.Goal].Releases.Count > 0)
                 {
                     Debug.Log(Log.Tag + " Route: " + vessel.vesselName + " lets go a section on the ground; the route is flown to the landing here and goes on when the vessel is loaded.");

@@ -204,7 +204,7 @@ namespace ReDefinition.Engineer
         }
 
         // The plan as the file keeps it: a PLAN node with its sections, its stops and their stage choices.
-        private ConfigNode ToNode(string vessel, PlannerBodies bodies)
+        internal ConfigNode ToNode(string vessel, PlannerBodies bodies)
         {
             ConfigNode node = new ConfigNode("PLAN");
             node.AddValue("vessel", Key(vessel));
@@ -265,7 +265,7 @@ namespace ReDefinition.Engineer
 
         // The plan from its PLAN node. A stop on a body the loaded system does not have is left out, and with it the stage
         // choices of the stops after it and every satellite's destination.
-        private static PlannerState FromNode(ConfigNode node, PlannerBodies bodies)
+        internal static PlannerState FromNode(ConfigNode node, PlannerBodies bodies)
         {
             PlannerState state = new PlannerState();
             double margin;

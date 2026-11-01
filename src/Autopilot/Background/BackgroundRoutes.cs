@@ -58,7 +58,7 @@ namespace ReDefinition.Autopilot.Background
         // Keeps the plan's orbits for the vessel as steps, where the autopilot is to go on without the player. The plan's first leg is the orbit the vessel
         // is on; each later leg starts with a burn. Null where it was kept; else why not.
         // With `late` the scene that follows is already asked for: the module of this one is going, and the route waits staged for the next scene's.
-        internal static string Hand(Vessel vessel, RoutePlan plan, IList<Destination> route = null, IVesselFigures figures = null, bool late = false)
+        internal static string Hand(Vessel vessel, RoutePlan plan, IList<Destination> route, IVesselFigures figures, bool late = false)
         {
             bool climb = plan != null && plan.Steps.Count > 0 && plan.Steps[0].Kind == NodePlanner.StepKind.Ascent && route != null;
             bool lets = plan != null && plan.Steps.Exists(step => step.Kind == NodePlanner.StepKind.Release);

@@ -65,7 +65,7 @@ namespace ReDefinition.Autopilot.Background
             if (let.Count > 0) entry.Lowest = LowestPoint(vessel, out entry.Footprint, let);
             // A landing in the air of a body is made on parachutes, and the route says so (a direct entry or a pass first); without them the vessel would not live.
             bool air = body != null && body.atmosphere && last.Goal >= 0 && route != null && last.Goal < route.Count && (route[last.Goal].Direct || route[last.Goal].Aerobrake);
-            if (air && figures != null && !vessel.parts.Exists(p => !let.Contains(p.persistentId) && figures.IsParachute(p)))
+            if (air && !vessel.parts.Exists(p => !let.Contains(p.persistentId) && figures.IsParachute(p)))
             {
                 entry.Problem = "The route lands in the air of " + body.bodyName + ", and the vessel has no parachutes left by then.";
                 return null;
@@ -119,7 +119,7 @@ namespace ReDefinition.Autopilot.Background
             if (!site.Found) return null;
             // The landing costs what the body takes: nothing on parachutes where the air is thick, the thin air's rest, a landing burn on the way to the ground
             // where there is none; the speed it arrives with in the air or without it is the planner's estimate.
-            double arrival = figures != null && body.atmosphere ? figures.LandingDeltaV(body, air) : body.atmosphere ? 0.0 : orbit.getOrbitalSpeedAtDistance(body.Radius);
+            double arrival = body.atmosphere ? figures.LandingDeltaV(body, air) : orbit.getOrbitalSpeedAtDistance(body.Radius);
             RouteStep touch = RouteCompiler.Elements(orbit, trigger, "landing, " + arrival.ToString("0") + " m/s", last.Goal);
             budget.Apply(touch, arrival);
             touch.Kind = StepKind.Touchdown;
