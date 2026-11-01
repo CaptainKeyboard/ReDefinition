@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 namespace ReDefinition.Autopilot.Guidance
@@ -25,21 +26,49 @@ namespace ReDefinition.Autopilot.Guidance
         internal static string BarText { get; private set; }
         internal static int BarLevel { get; private set; }
         internal static bool HasBar { get; private set; }
-        // How far the speed is from the one asked for, in m/s: over it where positive, short of it where negative. And how much more thrust it asks,
-        // from -1 for as much less to 1 for as much more as the speed is off by its own size. Only where the navigation has a speed to ask for.
+        // How far the speed is from the one asked for, in m/s: over it where positive, short of it where negative. Only where the navigation has a speed
+        // to ask for. Need is the thrust that asks for, from -1 for as much less to 1 for as much more as the speed may be off by. It is not worked out
+        // from the gap now but from where the gap will be in a few seconds, by the way it is changing, so that the player sees the speed coming.
         internal static double SpeedGap { get; private set; }
         internal static double Need { get; private set; }
         internal static bool HasGap { get; private set; }
 
+        // How far ahead the gap is looked at, in game seconds, and how long the way the gap changes is averaged over.
+        private const double Horizon = 4.0;
+        private const double TrendTime = 0.6;
+        private static double slope, lastGap, lastTime;
+        private static bool hadGap;
+        private static System.Guid trended;
+
         internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0,
-            double? speedGap = null, double? need = null)
+            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null)
         {
-            HasGap = speedGap.HasValue && need.HasValue && !double.IsNaN(speedGap.Value) && !double.IsNaN(need.Value);
+            HasGap = speedGap.HasValue && !double.IsNaN(speedGap.Value) && !double.IsInfinity(speedGap.Value) && !double.IsNaN(span) && !double.IsInfinity(span);
             if (HasGap)
             {
+                // The game's time and the speed move in the physics steps only: a frame between two of them leaves the trend as it is.
+                double now = Planetarium.GetUniversalTime();
+                double dt = now - lastTime;
+                if (!hadGap || target.id != trended || dt < 0.0 || dt > 0.5)
+                {
+                    slope = 0.0;
+                    lastGap = speedGap.Value;
+                    lastTime = now;
+                }
+                else if (dt > 1e-4)
+                {
+                    slope += ((speedGap.Value - lastGap) / dt - slope) * (1.0 - Math.Exp(-dt / TrendTime));
+                    lastGap = speedGap.Value;
+                    lastTime = now;
+                }
+                hadGap = true;
+                trended = target.id;
                 SpeedGap = speedGap.Value;
-                Need = need.Value;
+                double ahead = (speedGap.Value + slope * Horizon) / Math.Max(1.0, span);
+                Need = Math.Max(-1.0, Math.Min(1.0, moreWhenOver ? ahead : -ahead));
+                if (mostNeed.HasValue) Need = Math.Min(Need, mostNeed.Value);
             }
+            else hadGap = false;
             HasBar = barFill.HasValue;
             if (HasBar)
             {

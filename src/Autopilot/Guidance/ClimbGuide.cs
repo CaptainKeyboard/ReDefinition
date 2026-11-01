@@ -60,16 +60,16 @@ namespace ReDefinition.Autopilot.Guidance
             return up * Math.Sin(radians) + east * Math.Cos(radians);
         }
 
-        // The speed a climb is held to in the air: the one at which the dynamic pressure reaches its limit. The gap to it in m/s (over it where positive)
-        // and the thrust that asks for, -1 to 1, more where the vessel is slower. False where the air is too thin to hold a speed to.
-        internal static bool Speed(Vessel vessel, double aimAltitude, out double gap, out double need)
+        // The speed a climb is held to in the air: the one at which the dynamic pressure reaches its limit. The gap to it in m/s (over it where positive),
+        // and how far the speed may be off before the thrust asked for is at its most. False where the air is too thin to hold a speed to.
+        internal static bool Speed(Vessel vessel, double aimAltitude, out double gap, out double span)
         {
             gap = 0.0;
-            need = 0.0;
+            span = 1.0;
             if (vessel.orbit.ApA >= aimAltitude || !(vessel.atmDensity >= 0.02)) return false;
             double limit = Math.Sqrt(2.0 * Heat.MaxDynamicPressure / vessel.atmDensity);
             gap = vessel.srfSpeed - limit;
-            need = Math.Max(-1.0, Math.Min(1.0, (limit - vessel.srfSpeed) / limit));
+            span = Math.Max(2.0, 0.5 * limit);
             return true;
         }
 

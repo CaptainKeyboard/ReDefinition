@@ -157,7 +157,14 @@ namespace ReDefinition.Probe
             VesselAutopilot autopilot = vessel.Autopilot;
             float angle = GuidanceBoard.Current(vessel) && GuidanceBoard.HasDirection ? Vector3.Angle(vessel.GetTransform().up, (Vector3)GuidanceBoard.Direction) : -1f;
             KSP.UI.Screens.Flight.NavBallBurnVector vector = Object.FindObjectOfType<KSP.UI.Screens.Flight.NavBallBurnVector>();
-            string gauge = vector != null && vector.deltaVGauge != null ? vector.deltaVGauge.gameObject.activeInHierarchy + " at " + vector.deltaVGauge.currentValue.ToString("0.00") : "none";
+            string gauge = vector != null && vector.deltaVGauge != null ? vector.deltaVGauge.gameObject.activeInHierarchy + " at " + vector.deltaVGauge.currentValue.ToString("0.00") + " of " + vector.deltaVGauge.MaxValue.ToString("0.00") + ", angle "
+                                                                                                                                         + vector.deltaVGauge.currentAngle.ToString("0") + ", readout " + vector.deltaVGauge.showReadout + " "
+                                                                                                                                         + (vector.deltaVGauge.readoutField != null ? vector.deltaVGauge.readoutField.name + " at " + vector.deltaVGauge.readoutField.position + " parent " + vector.deltaVGauge.readoutField.parent.name : "no field")
+                                                                                                                                         + ", min " + vector.deltaVGauge.MinValue + " angles " + vector.deltaVGauge.angleAtMinValue + " " + vector.deltaVGauge.angleAtMaxValue
+                                                                                                                                         + " fill " + vector.deltaVGauge.FillatMinValue + " " + vector.deltaVGauge.FillatMaxValue + " amount " + vector.deltaVGauge.tgtImage.fillAmount.ToString("0.00")
+                                                                                                                                         + " enabled " + vector.deltaVGauge.enabled + " standoff " + vector.deltaVGauge.readoutStandoff + " gauge at " + vector.deltaVGauge.transform.position
+                                                                                                                                         + " scale " + GameSettings.UI_SCALE + " " + GameSettings.UI_SCALE_NAVBALL + " " + GameSettings.UIELEMENTSCALINGENABLED
+                                                                                                                                         + ", text at " + (vector.readoutText != null ? vector.readoutText.transform.position + " in " + vector.readoutText.transform.parent.name : "none") : "none";
             return "mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
                    + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
                    + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", gap "
@@ -203,7 +210,7 @@ namespace ReDefinition.Probe
                     StandIn(vessel, GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0, !sasFollow);
                     if (sasFollow && Time.realtimeSinceStartup > nextSample)
                     {
-                        nextSample = Time.realtimeSinceStartup + 4f;
+                        nextSample = Time.realtimeSinceStartup + (samples >= 9 && samples <= 13 ? 2f : 4f);
                         Debug.Log(Log.Tag + " Probe: sas: " + SasState(vessel));
                         // A real node for a look at the game's own burn gauge, to set the navigation's beside it.
                         if (samples == 9)
