@@ -421,7 +421,7 @@ namespace ReDefinition.Engineer
             {
                 RouteState state = RouteState.Of(FlightGlobals.ActiveVessel);
                 List<Destination> route = view != null ? RouteSource.FromStops(view.RouteStops, view.BodyList, view.ReleasesAt) : null;
-                return state != null && route != null ? state.ProgressFor(route).Reached : -1;
+                return state != null && route != null ? state.ReachedFor(route) : -1;
             }
         }
 

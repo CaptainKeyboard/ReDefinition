@@ -152,7 +152,7 @@ namespace ReDefinition.Autopilot.Planning
                 double airEntryUT = -1.0;
                 // Counted from where the vessel is, on a copy: the plan does not move the vessel's own count.
                 RouteState own = RouteState.Of(vessel);
-                RouteProgress progress = new RouteProgress { Reached = reachedAtStart != int.MinValue ? reachedAtStart : own != null ? own.ProgressFor(route).Reached : -1, Key = plan.Signature };
+                RouteProgress progress = new RouteProgress { Reached = reachedAtStart != int.MinValue ? reachedAtStart : own != null ? own.ReachedFor(route) : -1, Key = plan.Signature };
                 // The states the plan has been in: one met again is a plan that goes round in a circle.
                 var seen = new HashSet<string>();
                 // How far along the vessel is, as the plan's first step found it; the vessel's own count goes up to it.
@@ -261,7 +261,7 @@ namespace ReDefinition.Autopilot.Planning
                     frame = next;
                 }
                 plan.Reached = progress.Reached;
-                if (from == null && own != null && atStart > own.ProgressFor(route).Reached) own.ProgressFor(route).Reached = atStart;
+                if (from == null && own != null && atStart > own.ReachedFor(route)) own.ProgressFor(route).Reached = atStart;
                 Collect(vessel, frame, plan, collectedFrom, airLegAt, airOrbit, airEntryUT);
             }
             finally

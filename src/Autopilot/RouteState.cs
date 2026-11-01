@@ -23,6 +23,13 @@ namespace ReDefinition.Autopilot
             return Progress;
         }
 
+        // The stops reached on this route as far as it is counted, -1 where the count is of another route. Asking changes nothing: a route looked at in the
+        // planner's window is not the one the vessel flies, and must not take its count away.
+        internal int ReachedFor(IList<Destination> route)
+        {
+            return Progress.Key == RoutePlan.SignatureOf(route) ? Progress.Reached : -1;
+        }
+
         protected override void OnLoad(ConfigNode node)
         {
             bool.TryParse(node.GetValue("autopilot"), out Autopilot);
