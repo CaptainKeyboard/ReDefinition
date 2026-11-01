@@ -12,7 +12,7 @@ namespace ReDefinition.Hud
 {
     // The gauge right of the navball that the game shows for a maneuver burn shows the navigation's bar in a climb or a descent, as the round gauge does.
     // A mark in the middle stands for the speed the guidance asks for. The bar stands over it where the throttle is to go up and under it where it is to go down.
-    // The bar turns amber and red as the vessel gets far from the speed. With a node on the vessel the game's own burn is shown.
+    // The number says how many m/s the speed is over it or short of it, and the bar's colour says which way and how far. With a node on the vessel the game's burn is shown.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class NavballBurnGauge : MonoBehaviour
     {
@@ -24,11 +24,22 @@ namespace ReDefinition.Hud
         // The colour the game gave the bar, put back when the navigation's bar is gone.
         private static UnityEngine.UI.Image tinted;
         private static Color untinted;
-        private static readonly Color Fine = new Color(0.95f, 0.95f, 0.95f);
         private static readonly Color Close = new Color(1f, 0.72f, 0.2f);
         private static readonly Color Past = new Color(1f, 0.32f, 0.28f);
+        // More thrust is asked for: from yellow to red as it is asked for more. Less thrust: from light blue to violet.
+        private static readonly Color MoreFrom = new Color(1f, 0.9f, 0.25f);
+        private static readonly Color MoreTo = new Color(1f, 0.25f, 0.2f);
+        private static readonly Color LessFrom = new Color(0.45f, 0.85f, 1f);
+        private static readonly Color LessTo = new Color(0.7f, 0.4f, 1f);
+        // The share of the thrust asked for under which the speed counts as the one asked for, and over which the colour is at its end.
+        private const double OnTarget = 0.06;
+        private const double FullColour = 0.6;
         private static readonly FieldInfo PrefabField = typeof(NavBallBurnVector).GetField("stageMarkerPrefab", BindingFlags.Instance | BindingFlags.NonPublic);
         private static readonly FieldInfo MaskField = typeof(NavBallBurnVector).GetField("stageMarkerMaskRect", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly FieldInfo DirectionField = typeof(NavBallBurnVector).GetField("direction", BindingFlags.Instance | BindingFlags.NonPublic);
+        private static readonly MethodInfo PlaceMarker = typeof(NavBallBurnVector).GetMethod("UpdateNavballBurnVectors", BindingFlags.Instance | BindingFlags.NonPublic);
+        // The vector whose buttons are hidden while the navigation's bar is shown.
+        private static NavBallBurnVector buttonsHidden;
         private static readonly FieldInfo OffsetField = typeof(RotationalGaugeOffsetMarker).GetField("offsetObject", BindingFlags.Instance | BindingFlags.NonPublic);
 
         private void Start()
@@ -66,7 +77,8 @@ namespace ReDefinition.Hud
                 if (!gauge.gameObject.activeSelf) gauge.gameObject.SetActive(true);
                 gauge.MinValue = 0f;
                 gauge.MaxValue = 1f;
-                gauge.currentValue = (float)Math.Max(0.0, Math.Min(1.0, GuidanceBoard.BarFill));
+                double fill = GuidanceBoard.HasGap ? 0.5 + 0.5 * GuidanceBoard.Need : GuidanceBoard.BarFill;
+                gauge.currentValue = (float)Math.Max(0.0, Math.Min(1.0, fill));
                 if (gauge.tgtImage != null)
                 {
                     if (tinted == null)
@@ -74,9 +86,11 @@ namespace ReDefinition.Hud
                         tinted = gauge.tgtImage;
                         untinted = tinted.color;
                     }
-                    tinted.color = GuidanceBoard.BarLevel >= 2 ? Past : GuidanceBoard.BarLevel == 1 ? Close : Fine;
+                    tinted.color = Tint();
                 }
                 Mark(__instance, gauge);
+                Readout(__instance);
+                Direct(__instance);
                 Report(gauge);
             }
             catch (Exception e)
@@ -126,8 +140,51 @@ namespace ReDefinition.Hud
             mark.SetValue(0.5f);
         }
 
+        // The colour of the bar: the game's own where the speed is the one asked for, warm where more thrust is asked for and cool where less is.
+        // Without a speed asked for it is the level the board gives, amber and red as the vessel gets far from it.
+        private static Color Tint()
+        {
+            if (!GuidanceBoard.HasGap) return GuidanceBoard.BarLevel >= 2 ? Past : GuidanceBoard.BarLevel == 1 ? Close : untinted;
+            double need = GuidanceBoard.Need;
+            if (Math.Abs(need) < OnTarget) return untinted;
+            float share = (float)Math.Min(1.0, (Math.Abs(need) - OnTarget) / (FullColour - OnTarget));
+            return need > 0.0 ? Color.Lerp(MoreFrom, MoreTo, share) : Color.Lerp(LessFrom, LessTo, share);
+        }
+
+        // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it.
+        private static string Number()
+        {
+            if (!GuidanceBoard.HasGap) return GuidanceBoard.BarText ?? "";
+            double gap = GuidanceBoard.SpeedGap;
+            if (Math.Abs(gap) < 1.0) return "0 m/s";
+            return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
+        }
+
+        // The number on the gauge. The buttons beside it are for a node, which there is none of.
+        private static void Readout(NavBallBurnVector vector)
+        {
+            if (vector.readoutText != null) vector.readoutText.text = Number();
+            if (vector.btnAccept != null) vector.btnAccept.gameObject.SetActive(false);
+            if (vector.btnDismiss != null) vector.btnDismiss.gameObject.SetActive(false);
+            if (vector.btnWarpTo != null) vector.btnWarpTo.gameObject.SetActive(false);
+            buttonsHidden = vector;
+        }
+
+        // The navball's blue marker of a burn stands where the navigation asks the nose to point, as it stands on a node's burn.
+        private static void Direct(NavBallBurnVector vector)
+        {
+            if (!GuidanceBoard.HasDirection || DirectionField == null || PlaceMarker == null) return;
+            DirectionField.SetValue(vector, (Vector3)GuidanceBoard.Direction);
+            PlaceMarker.Invoke(vector, null);
+        }
+
         private static void Hide()
         {
+            if (buttonsHidden != null)
+            {
+                if (buttonsHidden.btnWarpTo != null) buttonsHidden.btnWarpTo.gameObject.SetActive(true);
+                buttonsHidden = null;
+            }
             if (tinted != null)
             {
                 tinted.color = untinted;

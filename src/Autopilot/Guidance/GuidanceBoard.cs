@@ -25,9 +25,21 @@ namespace ReDefinition.Autopilot.Guidance
         internal static string BarText { get; private set; }
         internal static int BarLevel { get; private set; }
         internal static bool HasBar { get; private set; }
+        // How far the speed is from the one asked for, in m/s: over it where positive, short of it where negative. And how much more thrust it asks,
+        // from -1 for as much less to 1 for as much more as the speed is off by its own size. Only where the navigation has a speed to ask for.
+        internal static double SpeedGap { get; private set; }
+        internal static double Need { get; private set; }
+        internal static bool HasGap { get; private set; }
 
-        internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0)
+        internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0,
+            double? speedGap = null, double? need = null)
         {
+            HasGap = speedGap.HasValue && need.HasValue && !double.IsNaN(speedGap.Value) && !double.IsNaN(need.Value);
+            if (HasGap)
+            {
+                SpeedGap = speedGap.Value;
+                Need = need.Value;
+            }
             HasBar = barFill.HasValue;
             if (HasBar)
             {

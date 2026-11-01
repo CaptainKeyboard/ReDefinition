@@ -160,7 +160,8 @@ namespace ReDefinition.Probe
             string gauge = vector != null && vector.deltaVGauge != null ? vector.deltaVGauge.gameObject.activeInHierarchy + " at " + vector.deltaVGauge.currentValue.ToString("0.00") : "none";
             return "mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
                    + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
-                   + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", burn gauge " + gauge + ".";
+                   + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", gap "
+                   + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " m/s, need " + GuidanceBoard.Need.ToString("0.00") : "none") + ", burn gauge " + gauge + ".";
         }
 
         // The navigation from the pad to an orbit, and the probe as the player. The first stage is lit, the nose follows the marker, and the
@@ -178,6 +179,7 @@ namespace ReDefinition.Probe
             if (sasFollow) vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
             float nextSample = 0f;
             int samples = 0;
+            ManeuverNode realNode = null;
             float started = Time.realtimeSinceStartup;
             string last = "";
             float nextLine = 0f;
@@ -203,6 +205,19 @@ namespace ReDefinition.Probe
                     {
                         nextSample = Time.realtimeSinceStartup + 4f;
                         Debug.Log(Log.Tag + " Probe: sas: " + SasState(vessel));
+                        // A real node for a look at the game's own burn gauge, to set the navigation's beside it.
+                        if (samples == 9)
+                        {
+                            realNode = vessel.patchedConicSolver.AddManeuverNode(Planetarium.GetUniversalTime() + 200.0);
+                            realNode.DeltaV = new Vector3d(0.0, 0.0, 400.0);
+                            vessel.patchedConicSolver.UpdateFlightPlan();
+                        }
+                        if (samples == 11) UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "real-node.png"));
+                        if (samples == 12 && realNode != null)
+                        {
+                            realNode.RemoveSelf();
+                            realNode = null;
+                        }
                         if (++samples >= 20)
                         {
                             FlightInputHandler.state.mainThrottle = 0f;
@@ -212,7 +227,7 @@ namespace ReDefinition.Probe
                     }
                     if (shots < 4 && Time.realtimeSinceStartup - started > nextShot)
                     {
-                        nextShot += 25f;
+                        nextShot += sasFollow ? 12f : 25f;
                         UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "climb-hud-" + shots + ".png"));
                         Debug.Log(Log.Tag + " Probe: auto climb: shot " + shots + ": " + now);
                         shots++;

@@ -30,6 +30,17 @@ namespace ReDefinition.Autopilot.Guidance
         internal string BarText { get; private set; }
         internal int BarLevel { get; private set; }
         internal bool HasBar { get; private set; }
+        // The speed against the speed asked for, in m/s (over it where positive), and the thrust it asks, -1 to 1 (more where positive).
+        internal double SpeedGap { get; private set; }
+        internal double Need { get; private set; }
+        internal bool HasGap { get; private set; }
+
+        private void Gap(double gap, double fill)
+        {
+            HasGap = true;
+            SpeedGap = gap;
+            Need = Math.Max(-1.0, Math.Min(1.0, 2.0 * fill - 1.0));
+        }
 
         // What the player is to do now, and the throttle and the pointing for it. Without air the descent is straight down. With air it is
         // MechJeb's: the prediction is asked for again as soon as the last one is in.
@@ -78,6 +89,7 @@ namespace ReDefinition.Autopilot.Guidance
             Throttle = 0.0;
             HasDirection = false;
             HasBar = false;
+            HasGap = false;
             if (vessel.LandedOrSplashed)
             {
                 step = Step.Coast;
@@ -116,6 +128,8 @@ namespace ReDefinition.Autopilot.Guidance
             BarFill = Math.Max(0.0, Math.Min(1.0, 0.5 * speed / Math.Max(1.0, limit)));
             BarText = speed.ToString("0") + " m/s";
             BarLevel = speed > 2.0 * limit ? 2 : speed > 1.15 * limit ? 1 : 0;
+            // While it coasts nothing is asked of the thrust yet.
+            if (step != Step.Coast) Gap(speed - limit, BarFill);
             if (step == Step.Coast)
                 return "Descent: point retrograde, brake in " + (startIn < 1e8 ? Math.Max(0.0, startIn).ToString("0") + " s" : "a while") + ". Landing at "
                        + (landing / 1000.0).ToString("0.0") + " km altitude.";
@@ -154,6 +168,7 @@ namespace ReDefinition.Autopilot.Guidance
                 BarFill = Math.Max(0.0, Math.Min(1.0, 0.5 * velocity.magnitude / Math.Max(1.0, limit)));
                 BarText = velocity.magnitude.ToString("0") + " m/s";
                 BarLevel = velocity.magnitude > 2.0 * limit ? 2 : velocity.magnitude > 1.15 * limit ? 1 : 0;
+                Gap(velocity.magnitude - limit, BarFill);
                 return "Final descent: throttle " + (Throttle * 100.0).ToString("0") + " %, " + velocity.magnitude.ToString("0") + " m/s, limit " + limit.ToString("0")
                        + " m/s, " + above.ToString("0") + " m up.";
             }
@@ -184,6 +199,7 @@ namespace ReDefinition.Autopilot.Guidance
                 HasBar = true;
                 BarFill = 0.5 * Math.Max(0.0, Math.Min(1.0, vertical / Math.Min(-0.1, target)));
                 BarText = (-vertical).ToString("0") + " m/s";
+                Gap(target - vertical, BarFill);
                 return "Descent: engines off, falling. Light them when the speed reaches " + (-desired).ToString("0") + " m/s, now " + (-vertical).ToString("0") + " m/s.";
             }
             double wantedAccel = (target - vertical) / 1.0;
@@ -194,6 +210,7 @@ namespace ReDefinition.Autopilot.Guidance
             BarFill = Math.Max(0.0, Math.Min(1.0, 0.5 * vertical / Math.Min(-0.1, target)));
             BarText = (-vertical).ToString("0.0") + " m/s";
             BarLevel = vertical < 2.0 * target ? 2 : vertical < 1.15 * target ? 1 : 0;
+            Gap(target - vertical, BarFill);
             return "Final descent: throttle " + (Throttle * 100.0).ToString("0") + " %, " + (-vertical).ToString("0.0") + " m/s down, wanted " + (-target).ToString("0.0")
                    + " m/s, " + above.ToString("0") + " m up.";
         }

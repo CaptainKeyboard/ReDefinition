@@ -41,7 +41,11 @@ namespace ReDefinition.Autopilot.Guidance
                 double asked, fill;
                 string text;
                 Status = ClimbGuide.Climb(vessel, aim, out asked, out fill, out text);
-                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text);
+                double gap, need;
+                bool speed = ClimbGuide.Speed(vessel, aim, out gap, out need);
+                // A limit on the throttle (the air's pressure, a part's heat) asks for less thrust whatever the speed is.
+                if (fill < 0.47) need = System.Math.Min(need, 2.0 * fill - 1.0);
+                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text, 0, speed ? gap : (double?)null, speed ? need : (double?)null);
                 return;
             }
             if (step == NodePlanner.StepKind.Release)
@@ -60,7 +64,8 @@ namespace ReDefinition.Autopilot.Guidance
             }
             Status = landing.Describe(vessel);
             GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
-                landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel);
+                landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, landing.HasGap ? landing.SpeedGap : (double?)null,
+                landing.HasGap ? landing.Need : (double?)null);
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.
