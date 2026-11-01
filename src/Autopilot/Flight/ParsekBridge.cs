@@ -88,7 +88,7 @@ namespace ReDefinition.Autopilot.Flight
         internal static bool StartRecording()
         {
             started = false;
-            if (!ForeignAssumptions.ParsekStart.Holds || CommandLine.Has("-redefinitionNoParsekRecording")) return false;
+            if (!ForeignAssumptions.ParsekStart.Holds || RouteTuning.NoParsekRecording) return false;
             try
             {
                 Type flight = TypeLookup.Find("Parsek.ParsekFlight");

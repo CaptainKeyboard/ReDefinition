@@ -96,9 +96,6 @@ namespace ReDefinition.Autopilot.Background
         // The game's ground lies about 3 m over the height the terrain gives (measured on Minmus), and a vessel set down inside it is thrown out.
         // The vessel stands that high and is let down slowly, which is cheap.
         private const double Clearance = 5.0;
-        // A probe tries other heights and the game's own positioning on the ground.
-        internal static double ExtraClearance;
-        internal static bool TrustHeight = true;
         // How long a vessel set down is let down, in seconds, and the vessels in it with the time they began.
         private const float SettleTime = 60f;
         private sealed class Settle
@@ -120,12 +117,6 @@ namespace ReDefinition.Autopilot.Background
         }
 
         private readonly Dictionary<Guid, Survey> surveys = new Dictionary<Guid, Survey>();
-        // The ground is measured with rays before the vessel is unpacked; a probe turns it off to compare.
-        internal static bool Measure = true;
-        // For a probe: the touchdown at this place instead of where the descent meets the ground, with this search radius (m); negative for the usual one.
-        internal static bool ProbeSite;
-        internal static double ProbeLatitude, ProbeLongitude, ProbeRadius = -1.0;
-        internal static bool ProbeScan;
         // The frames the vessel is held packed while the ground is built, at most, and the clearance over the measured ground, in m.
         private const int SurveyFrames = 150;
         private const double SurveyClearance = 1.0;
@@ -523,7 +514,7 @@ namespace ReDefinition.Autopilot.Background
             if (FlightGlobals.fetch == null) return;
             foreach (Entry entry in entries)
             {
-                if (!entry.Down || entry.Surveyed || !Measure || entry.Wet) continue;
+                if (!entry.Down || entry.Surveyed || !RouteTuning.Measure || entry.Wet) continue;
                 Vessel packed = FlightGlobals.Vessels.Find(v => v.id == entry.Vessel);
                 if (packed != null && packed.loaded && packed.packed && packed == FlightGlobals.ActiveVessel) Look(packed, entry);
             }
@@ -730,14 +721,14 @@ namespace ReDefinition.Autopilot.Background
             body.GetLatLonAlt(body.position + orbit.getRelativePositionAtUT(high).xzy, out latitude, out longitude, out altitude);
             if (body.rotates) longitude += 360.0 * body.rotPeriodRecip * (now - high);
             longitude = longitude - 360.0 * Math.Floor((longitude + 180.0) / 360.0);
-            if (ProbeScan) Debug.Log(Log.Tag + " Probe: steepest ground within 5 km of " + latitude.ToString("0.0000", CultureInfo.InvariantCulture) + "," + longitude.ToString("0.0000", CultureInfo.InvariantCulture)
+            if (RouteTuning.ScanSteepest) Debug.Log(Log.Tag + " Route: steepest ground within 5 km of " + latitude.ToString("0.0000", CultureInfo.InvariantCulture) + "," + longitude.ToString("0.0000", CultureInfo.InvariantCulture)
                                      + ": " + Touchdown.Steepest(body, latitude, longitude, entry.Footprint));
-            if (ProbeSite)
+            if (RouteTuning.FixedSite)
             {
-                latitude = ProbeLatitude;
-                longitude = ProbeLongitude;
+                latitude = RouteTuning.SiteLatitude;
+                longitude = RouteTuning.SiteLongitude;
             }
-            TouchdownSite site = Touchdown.Find(body, latitude, longitude, entry.Lowest, entry.Footprint, Clearance + ExtraClearance, ProbeRadius >= 0.0 ? ProbeRadius : 1000.0);
+            TouchdownSite site = Touchdown.Find(body, latitude, longitude, entry.Lowest, entry.Footprint, Clearance + RouteTuning.ExtraClearance, RouteTuning.SiteRadius >= 0.0 ? RouteTuning.SiteRadius : 1000.0);
             if (!site.Found) return null;
             // The landing costs what the body takes: nothing on parachutes where the air is thick, the thin air's rest, a landing burn on the way to the ground
             // where there is none; the speed it arrives with in the air or without it is the planner's estimate.
@@ -964,9 +955,9 @@ namespace ReDefinition.Autopilot.Background
             vessel.altitude = height;
             vessel.srfRelRotation = rotation;
             vessel.heightFromTerrain = -1f;
-            vessel.PQSminLevel = TrustHeight ? body.pqsController.minLevel : 0;
-            vessel.PQSmaxLevel = TrustHeight ? body.pqsController.maxLevel : 0;
-            vessel.skipGroundPositioning = TrustHeight;
+            vessel.PQSminLevel = RouteTuning.TrustHeight ? body.pqsController.minLevel : 0;
+            vessel.PQSmaxLevel = RouteTuning.TrustHeight ? body.pqsController.maxLevel : 0;
+            vessel.skipGroundPositioning = RouteTuning.TrustHeight;
             vessel.vesselSpawning = true;
             vessel.landedAt = "";
             vessel.displaylandedAt = "";
@@ -980,9 +971,9 @@ namespace ReDefinition.Autopilot.Background
             proto.rotation = rotation;
             proto.height = -1f;
             proto.normal = Vector3.up;
-            proto.PQSminLevel = TrustHeight ? body.pqsController.minLevel : 0;
-            proto.PQSmaxLevel = TrustHeight ? body.pqsController.maxLevel : 0;
-            proto.skipGroundPositioning = TrustHeight;
+            proto.PQSminLevel = RouteTuning.TrustHeight ? body.pqsController.minLevel : 0;
+            proto.PQSmaxLevel = RouteTuning.TrustHeight ? body.pqsController.maxLevel : 0;
+            proto.skipGroundPositioning = RouteTuning.TrustHeight;
             proto.vesselSpawning = true;
             proto.landedAt = "";
             proto.displaylandedAt = "";

@@ -28,13 +28,11 @@ namespace ReDefinition.Autopilot
             return Math.Max(0.0, (1.0 - hottestShare) / TemperatureMargin);
         }
 
-        private static readonly double ProbeScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbeHeatShareScale", 1f);
-
         // The hottest part's temperature against its limit; the part's name comes with it. Zero for a vessel with no part that has a limit.
         internal static double Hottest(Vessel vessel, out string name)
         {
-            // A probe's switch makes the parts count as hotter, to see the live guard act where the plan allowed the pass; 1 otherwise.
-            double scale = ProbeScale;
+            // A tuning switch makes the parts count as hotter, to see the live guard act where the plan allowed the pass; 1 otherwise.
+            double scale = RouteTuning.HeatShareScale;
             double worst = 0.0;
             name = "";
             foreach (Part part in vessel.parts)

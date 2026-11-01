@@ -448,7 +448,7 @@ namespace ReDefinition.Autopilot.Flight
         // The ground under the vessel on the terrain layer, as a ray finds it: its distance, or none. The physics' own view of the ground.
         private string GroundBelow()
         {
-            if (CommandLine.Has("-redefinitionProbeNoGroundRay")) return "not asked";
+            if (RouteTuning.NoGroundRay) return "not asked";
             RaycastHit hit;
             Vector3 up = FlightGlobals.getUpAxis(vessel.CoM);
             return Physics.Raycast(vessel.CoM, -up, out hit, 500f, 1 << 15) ? hit.distance.ToString("0.0") + " m" : "none";

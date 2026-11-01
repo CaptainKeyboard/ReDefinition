@@ -12,9 +12,6 @@ namespace ReDefinition.Autopilot.Planning
     // through the air is refused, with the figures.
     internal static class AerobrakePass
     {
-        private static readonly double ProbeHeatLimitScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbeHeatLimitScale", 1f);
-        // The same for the dynamic pressure a pass may load the vessel with.
-        private static readonly double ProbePressureLimitScale = ReDefinition.Core.CommandLine.Float("-redefinitionProbePressureLimitScale", 1f);
 
         // The most halvings, so that a body whose pressure gives no height cannot keep it searching.
         private const int MostHalvings = 40;
@@ -106,14 +103,14 @@ namespace ReDefinition.Autopilot.Planning
             Func<Pass, bool> partly, out string why)
         {
             why = null;
-            double pressureLimit = Heat.MaxDynamicPressure / 1000.0 * ProbePressureLimitScale;
+            double pressureLimit = Heat.MaxDynamicPressure / 1000.0 * RouteTuning.PressureLimitScale;
             double geeLimit = GeeLimit(vessel);
             // The heat: the hottest part's settling temperature under the bound of the flux may go to its limit less the margin the thrust controller
             // keeps. The bound is above what the game does, so a pass that clears it needs no measurement. After a pass has been flown, what the
             // game showed of it over the bound scales the next, which may then go deeper.
             double calibration = PassHeat.Calibration(vessel);
             // A probe's switch widens the heat the plan allows, to fly a pass the live guard then has to act on; 1 otherwise.
-            double heatLimit = (1.0 - Heat.TemperatureMargin) / (double.IsNaN(calibration) ? 1.0 : calibration) * ProbeHeatLimitScale;
+            double heatLimit = (1.0 - Heat.TemperatureMargin) / (double.IsNaN(calibration) ? 1.0 : calibration) * RouteTuning.HeatLimitScale;
             Func<Pass, bool> within = pass => pass.Pressure <= pressureLimit && pass.Gees <= geeLimit && pass.Heat <= heatLimit;
             double known = Precision * ScaleHeight(body);
             double shallow = body.atmosphereDepth, deep = 0.0;

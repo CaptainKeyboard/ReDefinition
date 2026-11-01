@@ -75,6 +75,25 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, gone.Count, "Remove from the table of ArchitectureTests:\n" + string.Join("\n", gone));
         }
 
+        // The route's code does not know the game's probes: what a probe changes is a switch in RouteTuning, and the command line is read there alone.
+        [TestMethod]
+        public void TheRouteCodeKnowsNeitherProbesNorTheCommandLine()
+        {
+            string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
+            var found = new List<string>();
+            var probeName = new Regex(@"\bProbe[A-Z]\w*|ReDefinition\.Probe\b|\bCommandLine\b");
+            foreach (string area in new[] { "Autopilot", "Engineer" })
+                foreach (string file in Directory.GetFiles(Path.Combine(src, area), "*.cs", SearchOption.AllDirectories))
+                {
+                    string name = Path.GetFileName(file);
+                    if (name == "RouteTuning.cs" || name == "PlannerTiming.cs") continue;
+                    string text = File.ReadAllText(file);
+                    string code = Regex.Replace(Regex.Replace(text, "\"(\\\\.|[^\"\\\\])*\"", "\"\""), "//[^\n]*", "");
+                    foreach (Match m in probeName.Matches(code)) found.Add(area + "/" + name + ": " + m.Value);
+                }
+            Assert.AreEqual(0, found.Count, "Move to RouteTuning:\n" + string.Join("\n", found));
+        }
+
         // The edges found: (area, used area) and one file that makes it. Read once, for both tests: it reads every file of src.
         private static readonly Lazy<Dictionary<System.Tuple<string, string>, string>> Edges =
             new Lazy<Dictionary<System.Tuple<string, string>, string>>(ReadEdges);

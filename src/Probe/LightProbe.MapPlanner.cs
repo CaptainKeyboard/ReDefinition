@@ -240,22 +240,22 @@ namespace ReDefinition.Probe
                         Vessel leaving = FlightGlobals.ActiveVessel;
                         RouteState.Of(leaving).Autopilot = true;
                         double extra;
-                        if (double.TryParse(CommandLine.After("-redefinitionProbeExtraClearance") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out extra)) BackgroundRoutes.ExtraClearance = extra;
-                        BackgroundRoutes.TrustHeight = !CommandLine.Has("-redefinitionProbeCheckGround");
-                        BackgroundRoutes.Measure = !CommandLine.Has("-redefinitionProbeNoSurvey");
-                        BackgroundRoutes.ProbeScan = CommandLine.Has("-redefinitionProbeTouchdownScan");
+                        if (double.TryParse(CommandLine.After("-redefinitionProbeExtraClearance") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out extra)) RouteTuning.ExtraClearance = extra;
+                        RouteTuning.TrustHeight = !CommandLine.Has("-redefinitionProbeCheckGround");
+                        RouteTuning.Measure = !CommandLine.Has("-redefinitionProbeNoSurvey");
+                        RouteTuning.ScanSteepest = CommandLine.Has("-redefinitionProbeTouchdownScan");
                         string at = CommandLine.After("-redefinitionProbeTouchdownAt");
                         double siteLatitude, siteLongitude, siteRadius;
                         string[] where = at != null ? at.Split(',') : new string[0];
                         if (where.Length == 2 && double.TryParse(where[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out siteLatitude)
                             && double.TryParse(where[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out siteLongitude))
                         {
-                            BackgroundRoutes.ProbeSite = true;
-                            BackgroundRoutes.ProbeLatitude = siteLatitude;
-                            BackgroundRoutes.ProbeLongitude = siteLongitude;
+                            RouteTuning.FixedSite = true;
+                            RouteTuning.SiteLatitude = siteLatitude;
+                            RouteTuning.SiteLongitude = siteLongitude;
                         }
                         if (double.TryParse(CommandLine.After("-redefinitionProbeTouchdownRadius") ?? "", System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out siteRadius))
-                            BackgroundRoutes.ProbeRadius = siteRadius;
+                            RouteTuning.SiteRadius = siteRadius;
                         ParsekLeave.PartCount = leaving.parts.Count;
                         // The flag -redefinitionProbeViaPause leaves as the player does: the pause menu opens, and the scene is asked for with the time standing still.
                         string problem;
