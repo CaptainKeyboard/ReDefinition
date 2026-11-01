@@ -35,6 +35,9 @@ namespace ReDefinition.Autopilot.Background
         // How far from a place the ground is looked at to tell its slope and its roughness, in m at least.
         // The game's ground is a coarser mesh than the height the terrain is given by. Over rough ground the two differ by metres.
         private const double SlopeBaseline = 10.0;
+        // The water is where the datum says it is, so the vessel is put with its lowest part just under the surface and floats from there as the game lets it.
+        // A part that only touches the surface is not in the water for the game (PartBuoyancy needs a depth over zero), and a vessel with no part in it is flying.
+        private const double WaterClearance = -0.1;
         // A slope the game does not tilt a vessel for (Vessel.CheckGroundCollision turns it only past one degree): ground this flat is taken at once.
         private const double FlatDegrees = 1.0;
 
@@ -53,7 +56,7 @@ namespace ReDefinition.Autopilot.Background
                 bool flat = lowest > 3.0 * Math.Max(1.0, footprint);
                 return new TouchdownSite
                 {
-                    Latitude = latitude, Longitude = longitude, Height = (flat ? Math.Max(1.0, footprint) : lowest) + clearance, Ground = centre, Water = true, Found = true,
+                    Latitude = latitude, Longitude = longitude, Height = (flat ? Math.Max(1.0, footprint) : lowest) + WaterClearance, Ground = centre, Water = true, Found = true,
                     Rotation = Quaternion.Inverse(body.bodyTransform.rotation) * Quaternion.FromToRotation(Vector3.up, axis),
                 };
             }

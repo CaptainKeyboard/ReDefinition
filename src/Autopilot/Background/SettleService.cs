@@ -92,6 +92,12 @@ namespace ReDefinition.Autopilot.Background
                     began.Value.LegsOut = true;
                     PutLegsOut(vessel);
                 }
+                // On the water it is let go as it touches it: the water carries it, and holding it would keep it from rolling with the waves.
+                if (vessel.Splashed)
+                {
+                    done.Add(began.Key);
+                    continue;
+                }
                 double limit = LandingGuide.TouchdownSpeed, speed = vessel.verticalSpeed;
                 if (speed < -limit) vessel.ChangeWorldVelocity(vessel.upAxis * (-limit - speed));
                 else if (speed > limit) vessel.ChangeWorldVelocity(-vessel.upAxis * (speed - limit));
@@ -111,7 +117,7 @@ namespace ReDefinition.Autopilot.Background
             foreach (Guid id in done)
             {
                 settling.Remove(id);
-                Debug.Log(Log.Tag + " Route: the vessel is let go on the ground.");
+                Debug.Log(Log.Tag + " Route: the vessel is let go.");
             }
         }
 
