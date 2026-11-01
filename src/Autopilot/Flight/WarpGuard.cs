@@ -9,7 +9,7 @@ namespace ReDefinition.Autopilot.Flight
     // to do comes near, and is off when that is a burn. The player's warp is only cut back, never raised. MechJeb's own warp to a burn goes on as it is.
     internal static class WarpGuard
     {
-        // The warp is cut back this many fixed steps before the event, as the background route's is: the vessel must not skip over it in a frame.
+        // The warp is cut back this many fixed steps before the event: the vessel must not skip over it in a frame.
         private const double StepsAhead = 4.0;
         // A burn is waited for this long after its node, and the warp stays off so long, over the time it takes.
         private const double BurnSlack = 5.0;

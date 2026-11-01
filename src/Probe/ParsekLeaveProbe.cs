@@ -128,7 +128,9 @@ namespace ReDefinition.Probe
             // A route that is not found is waited for anyway, for a look at what the vessel does in that time.
             if (ParsekLeave.EndUT <= 0.0 && CommandLine.Has("-redefinitionProbeLeaveWhenCoasting")) ParsekLeave.EndUT = Planetarium.GetUniversalTime() + 300000.0;
             Tell("on arrival");
-            TimeWarp.fetch.WarpTo(ParsekLeave.EndUT + 120.0);
+            // -redefinitionProbeMaxWarp: the player's own warp, held at the fastest rate the whole time, with no help from the game's warp to a time.
+            bool maxWarp = CommandLine.Has("-redefinitionProbeMaxWarp");
+            if (!maxWarp) TimeWarp.fetch.WarpTo(ParsekLeave.EndUT + 120.0);
             float started = Time.realtimeSinceStartup;
             float next = 0f;
             while (Planetarium.GetUniversalTime() < ParsekLeave.EndUT + 60.0 && Time.realtimeSinceStartup - started < 900f)
@@ -138,7 +140,8 @@ namespace ReDefinition.Probe
                     next = Time.realtimeSinceStartup + 15f;
                     Tell("on the way");
                 }
-                yield return new WaitForSeconds(1f);
+                if (maxWarp && TimeWarp.CurrentRateIndex != TimeWarp.fetch.warpRates.Length - 1) TimeWarp.SetRate(TimeWarp.fetch.warpRates.Length - 1, true, false);
+                yield return maxWarp ? null : new WaitForSeconds(1f);
             }
             yield return new WaitForSeconds(15f);
             GameEvents.onVesselWillDestroy.Remove(counter.Count);

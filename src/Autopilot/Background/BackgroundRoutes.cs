@@ -31,8 +31,8 @@ namespace ReDefinition.Autopilot.Background
             public string Why = "";
             // The last stop of the route the vessel has reached once the step is made.
             public int Reached = -1;
-            // The step is the touchdown: the orbit is the descent, and GroundUT the time it meets the ground. The step is made a few physics steps
-            // earlier, before the game finds the vessel under the ground and destroys it.
+            // The step is the touchdown: the orbit is the descent, and GroundUT the time it meets the ground. The step is made long before that, so that
+            // no frame of the fastest time warp carries the vessel into the ground, where the game would destroy it.
             public bool Land;
             public double GroundUT;
             public TouchdownSite Site;
@@ -469,32 +469,6 @@ namespace ReDefinition.Autopilot.Background
             return AddTouchdown(vessel, entry, plan, budget, route, figures);
         }
 
-        // The time warp is slowed as a step comes near, so that the game never carries a vessel past the step in one frame.
-        // A vessel that has gone through the ground in that frame is destroyed before the touchdown can set it down.
-        private double slowedFor;
-
-        private void LimitWarp()
-        {
-            TimeWarp warp = TimeWarp.fetch;
-            if (warp == null || TimeWarp.WarpMode != TimeWarp.Modes.HIGH || TimeWarp.CurrentRateIndex == 0 || FlightGlobals.fetch == null || FlightGlobals.Vessels == null) return;
-            double next = double.MaxValue;
-            foreach (Entry entry in entries)
-            {
-                Vessel vessel = FlightGlobals.Vessels.Find(v => v.id == entry.Vessel);
-                if (vessel != null && !vessel.loaded && entry.Steps.Count > 0) next = Math.Min(next, entry.Steps[0].UT);
-            }
-            double ahead = next - Planetarium.GetUniversalTime();
-            if (ahead <= 0.0 || next == double.MaxValue) return;
-            int index = TimeWarp.CurrentRateIndex;
-            int slower = index;
-            while (slower > 0 && warp.warpRates[slower] * Time.fixedDeltaTime * 4.0 > ahead) slower--;
-            if (slower == index) return;
-            TimeWarp.SetRate(slower, true, false);
-            if (slowedFor == next) return;
-            slowedFor = next;
-            Debug.Log(Log.Tag + " Route: the time warp is slowed, " + ahead.ToString("0") + " s before the next step.");
-        }
-
         // How far the vessel's solid parts reach below its reference point along its up axis, in m: the lowest corner of any collider's bounds.
         private static double LowestPoint(Vessel vessel, out double footprint, ICollection<uint> except)
         {
@@ -741,9 +715,9 @@ namespace ReDefinition.Autopilot.Background
             // the game destroys it when it does. The place is where the descent meets the ground at the point it comes to, which the terrain there gives.
             double now = Planetarium.GetUniversalTime();
             double high = FallsTo(orbit, from, periapsis, body.Radius);
-            // The step is made before the game looks for the ground under the vessel, and at least ten seconds before the ground: a frame that carries
-            // several physics steps at the slowest warp must not carry the vessel through the ground before the step.
-            double trigger = Math.Min(FallsTo(orbit, from, periapsis, body.Radius + GroundWatchHeight(body)), high - 10.0);
+            // The step is made before the game looks for the ground under the vessel, and early enough that the fastest time warp cannot carry the vessel
+            // there in a frame. The touchdown does not depend on the descent, so the vessel is set down early rather than lost.
+            double trigger = Math.Max(from, Math.Min(FallsTo(orbit, from, periapsis, body.Radius + GroundWatchHeight(body)), high - 10.0) - WarpReach());
             for (int round = 0; round < 4; round++)
             {
                 double roundLatitude, roundLongitude, roundAltitude;
@@ -775,6 +749,14 @@ namespace ReDefinition.Autopilot.Background
             touch.Site = site;
             entry.Steps.Add(touch);
             return touch;
+        }
+
+        // How far the largest frame at the fastest time warp carries the game's clock, in seconds: the physics step the game allows per frame, and one more.
+        private static double WarpReach()
+        {
+            TimeWarp warp = TimeWarp.fetch;
+            double rate = warp != null && warp.warpRates != null && warp.warpRates.Length > 0 ? warp.warpRates[warp.warpRates.Length - 1] : 100000.0;
+            return rate * (Time.maximumDeltaTime + Time.fixedDeltaTime);
         }
 
         // The height over sea level below which the game can find an unloaded vessel in the ground. It is the greatest of the highest ground, the altitude
@@ -828,7 +810,6 @@ namespace ReDefinition.Autopilot.Background
         {
             if (Staged.Count > 0) Adopt(false);
             Tell();
-            LimitWarp();
             if (entries.Count == 0 || FlightGlobals.fetch == null || FlightGlobals.Vessels == null || FlightGlobals.Vessels.Count == 0 || HighLogic.CurrentGame == null) return;
             double now = Planetarium.GetUniversalTime();
             for (int i = entries.Count - 1; i >= 0; i--)
