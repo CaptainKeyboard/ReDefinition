@@ -64,7 +64,7 @@ namespace ReDefinition.Engineer
             GameEvents.onGamePause.Add(OnPause);
             GameEvents.onSceneConfirmExit.Add(OnConfirmExit);
             // What was refused in an earlier flight has been told, or is not the news of this one.
-            BackgroundRoutes.Refused.Clear();
+            RouteMessages.Refused.Clear();
         }
 
         // Whether the engines are burning: the autopilot's flight runs the whole time and says nothing of that. Engines that are lit and give no thrust are not.
@@ -91,20 +91,11 @@ namespace ReDefinition.Engineer
             Vessel vessel = FlightGlobals.ActiveVessel;
             RouteState state = RouteState.Of(vessel);
             if (vessel == null || state == null || !state.Autopilot || route == null || FlightGlobals.ready == false) return;
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            if (addon == null || !addon.Live.BackgroundRoute) return;
+            if (!RouteHandOver.UsesBackground) return;
             // Under way, with the engines running or in the air, the plan is made when the scene is asked for; the same pause is not planned twice.
             if (Burning(vessel) || vessel.situation == Vessel.Situations.FLYING || BackgroundRoutes.Holds(vessel, route)) return;
-            try
-            {
-                string problem = BackgroundRoutes.Hand(vessel, BackgroundRoutes.PlanFor(vessel, route), route, new BackgroundFigures());
-                Debug.Log(Log.Tag + " Route: the pause menu is open with the autopilot on; background: " + (problem ?? "kept") + ".");
-                if (problem != null) ScreenMessages.PostScreenMessage("The route is not flown while you are away: " + problem, 12f, ScreenMessageStyle.UPPER_CENTER);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " Route: the plan for the background failed: " + e);
-            }
+            string problem = RouteHandOver.ToBackground(vessel, route, false);
+            if (problem != null) ScreenMessages.PostScreenMessage("The route is not flown while you are away: " + problem, 12f, ScreenMessageStyle.UPPER_CENTER);
         }
 
         // The player leaves the flight with the autopilot on: the rest of the route is planned. The vessel flies it in the background
@@ -128,32 +119,15 @@ namespace ReDefinition.Engineer
             bool burning = Burning(vessel);
             if (flight != null) flight.Cancel();
             FlightInputHandler.state.mainThrottle = 0f;
-            ReDefinitionAddon setting = ReDefinitionAddon.Instance;
             // The route was kept when the pause menu opened; the time stands still now, which a plan of a launch cannot be made in.
-            if (!burning && setting != null && setting.Live.BackgroundRoute && BackgroundRoutes.Holds(vessel, route))
+            bool background = RouteHandOver.UsesBackground;
+            if (!burning && background && BackgroundRoutes.Holds(vessel, route))
             {
                 Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; the route kept when the pause menu opened stays.");
                 return;
             }
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            bool parsek = addon != null && !addon.Live.BackgroundRoute;
-            try
-            {
-                // Parsek is given the plan as the map shows it; the vessel that flies on itself, the plan with its passes through the air.
-                RoutePlan plan = parsek ? RouteSimulation.Run(vessel, route) : BackgroundRoutes.PlanFor(vessel, route);
-                // Parsek puts the vessel back where the plan ends, and the count goes on from there; a vessel that flies on itself is counted from where it is.
-                RouteState own = RouteState.Of(vessel);
-                if (parsek && own != null) own.ProgressFor(route).Reached = System.Math.Max(own.ProgressFor(route).Reached, plan.Reached);
-                string problem = parsek ? ParsekRecording.CommitPlan(vessel, plan, true) : BackgroundRoutes.Hand(vessel, plan, route, new BackgroundFigures(), true);
-                Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; " + plan.Steps.Count + " step(s) planned, " + plan.DeltaV.ToString("0") + " m/s; "
-                          + (parsek ? "Parsek: " : "background: ") + (problem ?? "kept") + ".");
-                if (problem != null && !parsek) BackgroundRoutes.Refused.Add(problem);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning(Log.Tag + " Route: the plan for Parsek failed: " + e);
-                if (!parsek) BackgroundRoutes.Refused.Add("the plan could not be made (" + e.Message + ").");
-            }
+            string problem = background ? RouteHandOver.ToBackground(vessel, route, true) : RouteHandOver.ToParsek(vessel, route);
+            if (problem != null && background) RouteMessages.Refused.Add(problem);
         }
 
         private void OnDestroy()
@@ -206,7 +180,7 @@ namespace ReDefinition.Engineer
 
         private IEnumerator Run(AutopilotFlight running, RouteState state)
         {
-            yield return running.Run();
+            yield return running.RunSafely();
             if (flight == running)
             {
                 status = running.Status;

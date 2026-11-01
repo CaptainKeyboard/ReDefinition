@@ -91,7 +91,7 @@ namespace ReDefinition.Probe
             };
             if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(Path.Combine(folder, "flight-trace.csv"));
             var flight = new AutopilotFlight(vessel, route);
-            IEnumerator run = flight.Run();
+            IEnumerator run = flight.RunSafely();
             float started = Time.realtimeSinceStartup;
             string last = "";
             float nextLine = 0f;

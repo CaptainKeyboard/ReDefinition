@@ -33,14 +33,35 @@ namespace ReDefinition.Autopilot.Flight
         internal void Cancel()
         {
             cancelled = true;
+            WarpGuard.SelfWarpUntil = 0.0;
             MechJebDriver.Abort(vessel);
             MechJebDriver.StopRendezvous(vessel);
             MechJebDriver.StopDocking(vessel);
             ParsekBridge.StopRecording();
         }
 
-        // The flight as a coroutine: run it from a behaviour.
-        internal IEnumerator Run()
+        // The flight as a coroutine for a behaviour to run. An exception anywhere in it ends the flight with its reason, with MechJeb let go, instead of
+        // leaving a flight that is no longer run but still marked as on.
+        internal IEnumerator RunSafely()
+        {
+            return SafeRun.Guard(Run(), Fail);
+        }
+
+        private void Fail(System.Exception e)
+        {
+            Debug.LogError("[ReDefinition] Route: the flight failed: " + e);
+            try
+            {
+                Cancel();
+            }
+            catch (System.Exception again)
+            {
+                Debug.LogWarning("[ReDefinition] Route: letting go of the executors failed as well: " + again);
+            }
+            Stop("The flight failed: " + e.Message);
+        }
+
+        private IEnumerator Run()
         {
             if (!MechJebDriver.CanFly(vessel))
             {
@@ -410,8 +431,16 @@ namespace ReDefinition.Autopilot.Flight
         private IEnumerator Burn(NodePlanner.Result plan)
         {
             float nextStage = 0f;
+            float began = Time.realtimeSinceStartup;
             while (!cancelled && !Lost && MechJebDriver.Busy(vessel))
             {
+                // A burn that goes on for an hour of the player's time is not one: MechJeb is let go, and the route is planned again from where the vessel is.
+                if (Time.realtimeSinceStartup - began > 3600f)
+                {
+                    Debug.LogWarning("[ReDefinition] Route: the burn went on for an hour; MechJeb is let go.");
+                    MechJebDriver.Abort(vessel);
+                    yield break;
+                }
                 string state = MechJebDriver.State(vessel);
                 Status = "Burn: " + state + ", " + KSPUtil.PrintTimeCompact(plan.UT - Planetarium.GetUniversalTime(), false) + " to the node.";
                 Note();
@@ -464,6 +493,7 @@ namespace ReDefinition.Autopilot.Flight
 
         private void Stop(string why)
         {
+            WarpGuard.SelfWarpUntil = 0.0;
             Status = why;
             Finished = true;
             ParsekBridge.StopRecording();
