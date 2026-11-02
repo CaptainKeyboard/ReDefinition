@@ -5,6 +5,7 @@ using FinePrint;
 using KSP.UI;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Mapview;
+using KSP.UI.Screens.Mapview.MapContextMenuOptions;
 using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Core;
@@ -91,9 +92,14 @@ namespace ReDefinition.Probe
             MapView.EnterMapView();
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
             yield return new WaitForSecondsRealtime(5f);
-            // Near the vessel the icons of the buildings round it come apart from its own.
-            if (vessel.mapObject != null) PlanetariumCamera.fetch.SetTarget(vessel.mapObject);
-            PlanetariumCamera.fetch.SetDistance(ground ? 40f : 60f);
+            // Near the vessel the icons of the buildings round it come apart from its own. -redefinitionProbeTourDefaultCamera leaves the camera as the game
+            // puts it on opening the map, which is what the player has.
+            bool defaultCamera = CommandLine.Has("-redefinitionProbeTourDefaultCamera");
+            if (!defaultCamera)
+            {
+                if (vessel.mapObject != null) PlanetariumCamera.fetch.SetTarget(vessel.mapObject);
+                PlanetariumCamera.fetch.SetDistance(ground ? 40f : 60f);
+            }
             if (!ground)
             {
                 // The icon of a vessel in a circular orbit sits on the periapsis' own at first; a few minutes on it has left it.
@@ -103,16 +109,57 @@ namespace ReDefinition.Probe
             }
             yield return new WaitForSecondsRealtime(3f);
             Vector2 icon = IconOf(vessel);
+            // -redefinitionProbeTourSite: the click is on the icon of the launch site that covers the vessel's, as the player's is.
+            bool site = CommandLine.Has("-redefinitionProbeTourSite");
+            if (site)
+            {
+                Waypoint ksc = WaypointManager.Instance().Waypoints.Find(w => w.id == "ksc");
+                Selectable node = ksc != null ? ksc.node : null;
+                if (node != null && node.targetGraphic != null)
+                    icon = RectTransformUtility.WorldToScreenPoint(UIMasterController.Instance.uiCamera, node.targetGraphic.rectTransform.position);
+                // The two icons lie on one place; the game gives the click to the one that is on top, which in the player's map is the site's.
+                if (vessel.mapObject != null && vessel.mapObject.uiNode != null)
+                    foreach (Graphic each in vessel.mapObject.uiNode.GetComponentsInChildren<Graphic>(true)) each.raycastTarget = false;
+                Step("the space center's icon is at " + icon.x.ToString("0") + ", " + icon.y.ToString("0") + ", covers the vessel: " + MapLaunchMenu.Covers(ksc, vessel) + ".");
+            }
             Step("the vessel's icon is at " + icon.x.ToString("0") + ", " + icon.y.ToString("0") + " of " + Screen.width + " x " + Screen.height + ", " + (ground ? "on the ground" : "in an orbit") + ".");
             ProbeMouse.Move(icon);
             yield return new WaitForSecondsRealtime(1.5f);
+            if (UnityEngine.EventSystems.EventSystem.current != null)
+            {
+                var pointer = new UnityEngine.EventSystems.PointerEventData(UnityEngine.EventSystems.EventSystem.current) { position = Input.mousePosition };
+                var hits = new System.Collections.Generic.List<UnityEngine.EventSystems.RaycastResult>();
+                UnityEngine.EventSystems.EventSystem.current.RaycastAll(pointer, hits);
+                foreach (var each in hits) Step("under the cursor: " + each.gameObject.name + " (" + (each.gameObject.transform.parent != null ? each.gameObject.transform.parent.name : "-") + "), depth " + each.depth);
+            }
             Step("before the click: the cursor is at " + Input.mousePosition + ", the icon is hovered " + vessel.orbitDriver.Renderer.mouseOver + ", the targeter is " + (vessel.orbitTargeter != null)
                  + ", the map is " + MapView.MapIsEnabled + ", the situation " + vessel.situation + ", the route driver " + (RouteDriver.Instance != null) + ".");
-            // The left button is the game's way to the menu of an icon.
-            yield return ProbeMouse.Click();
+            if (site)
+            {
+                Waypoint ksc = WaypointManager.Instance().Waypoints.Find(w => w.id == "ksc");
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+                Step("the space center before the click: hover " + (ksc.node != null && ksc.node.Hover) + ", within zoom " + typeof(Waypoint).GetField("withinZoom", flags).GetValue(ksc)
+                     + ", occluded " + ksc.isOccluded + ", navigatable " + ksc.isNavigatable + ", visible " + ksc.visible + ", node visible " + (ksc.node != null && ksc.node.gameObject.activeInHierarchy)
+                     + ", menu " + (typeof(Waypoint).GetField("menu", flags).GetValue(ksc) != null) + ".");
+            }
+            // The left button is the game's way to the menu of an icon. The site's menu is made as the game makes it where the game's own click is
+            // refused for the view the probe has (the site is taken as hidden by the planet).
+            MapContextMenu siteMenu = null;
+            if (site)
+            {
+                Waypoint ksc = WaypointManager.Instance().Waypoints.Find(w => w.id == "ksc");
+                siteMenu = MapContextMenu.Create(ksc.FullName, new Rect(0.5f, 0.5f, 300f, 64f), new WaypointCastHit(ksc), new Callback(() => { }), new MapContextMenuOption[0]);
+            }
+            else yield return ProbeMouse.Click();
+            if (site)
+            {
+                Waypoint ksc = WaypointManager.Instance().Waypoints.Find(w => w.id == "ksc");
+                var flags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+                Step("the space center after the click: hover " + (ksc.node != null && ksc.node.Hover) + ", menu " + (typeof(Waypoint).GetField("menu", flags).GetValue(ksc) != null) + ".");
+            }
             yield return new WaitForSecondsRealtime(1.5f);
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "tour-menu.png"));
-            string entry = ground ? "Launch to orbit" : "Land at marker";
+            string entry = ground ? (site ? "to Orbit" : "Launch to orbit") : "Land at marker";
             Button option = ProbeMouse.ButtonWith(entry);
             Step("the menu entry \"" + entry + "\" after the click: " + (option != null));
             if (option == null)
