@@ -494,10 +494,10 @@ namespace ReDefinition.Hud
             }
         }
 
-        // Whether the guidance bar is the throttle, in the climb, and not a speed: the text of the bar says it in percent.
+        // Whether the guidance bar is the throttle, in the climb, and not a speed.
         private static bool OnThrottle()
         {
-            return GuidanceBoard.BarText != null && GuidanceBoard.BarText.EndsWith("%");
+            return GuidanceBoard.HasIdeal;
         }
 
         // The mode's name on the face, in capitals.

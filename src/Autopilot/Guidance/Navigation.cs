@@ -14,6 +14,7 @@ namespace ReDefinition.Autopilot.Guidance
     {
         private const float MinGap = 30f;
 
+        private float nextTrace;
         private string signature = "";
         private float lastPlan = -1000f;
 
@@ -38,14 +39,10 @@ namespace ReDefinition.Autopilot.Guidance
             if (!guided || vessel == null) return;
             if (step == NodePlanner.StepKind.Ascent)
             {
-                double asked, fill;
-                string text;
-                Status = ClimbGuide.Climb(vessel, aim, out asked, out fill, out text);
-                double gap, span;
-                bool speed = ClimbGuide.Speed(vessel, aim, out gap, out span);
-                // A limit on the throttle (the air's pressure, a part's heat) asks for less thrust, more the lower the limit is, whatever the speed is.
-                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text, 0, speed ? gap : (double?)null, span, false,
-                    fill < 0.5 ? 2.0 * fill - 1.0 : (double?)null, ClimbGuide.Remaining(vessel, aim), aim);
+                double asked, burn;
+                Status = ClimbGuide.Climb(vessel, aim, out asked, out burn);
+                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, 0.5, "", 0, null, 1.0, false, null, ClimbGuide.Remaining(vessel, aim), aim, asked);
+                Trace(vessel, burn);
                 return;
             }
             if (step == NodePlanner.StepKind.Release)
@@ -66,6 +63,16 @@ namespace ReDefinition.Autopilot.Guidance
             GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
                 landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, landing.HasGap ? landing.SpeedGap : (double?)null,
                 landing.Span, true, null, vessel.srfSpeed);
+        }
+
+        // The climb's guidance twice a second in the log, to read after a flight how the bar moved: height, apoapsis, burn left, ideal and given throttle, need.
+        private void Trace(Vessel vessel, double burn)
+        {
+            if (Time.realtimeSinceStartup < nextTrace) return;
+            nextTrace = Time.realtimeSinceStartup + 0.5f;
+            Debug.Log("[ReDefinition] Climb trace: " + vessel.altitude.ToString("0") + " m, apoapsis " + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000")
+                      + ", burn left " + burn.ToString("0") + " m/s, ideal " + GuidanceBoard.Ideal.ToString("0.00") + ", given " + FlightInputHandler.state.mainThrottle.ToString("0.00")
+                      + ", need " + GuidanceBoard.Need.ToString("0.00") + ".");
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.

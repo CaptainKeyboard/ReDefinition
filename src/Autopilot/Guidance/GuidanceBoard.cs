@@ -34,6 +34,13 @@ namespace ReDefinition.Autopilot.Guidance
         internal static double Ahead { get; private set; }
         internal static double Need { get; private set; }
         internal static bool HasGap { get; private set; }
+        // Where the guidance asks for a throttle (a climb), the ideal throttle, 0 to 1, smoothed in time; the need is that against the throttle given.
+        internal static bool HasIdeal { get; private set; }
+        internal static double Ideal { get; private set; }
+        internal static string IdealText
+        {
+            get { return "Ideal " + (Ideal * 100.0).ToString("0") + " %"; }
+        }
         // The bar as the gauges show it, 0 to 1 with the mark at a half: under the mark where thrust is to be given, over it where less is wanted.
         internal static double Arc
         {
@@ -50,14 +57,32 @@ namespace ReDefinition.Autopilot.Guidance
         private static double slope, lastGap, lastTime;
         private static bool hadGap;
         private static System.Guid trended;
+        private static double idealTime;
+        private static System.Guid idealVessel;
 
         internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0,
-            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0, double? circleAltitude = null)
+            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0, double? circleAltitude = null, double? idealThrottle = null)
         {
             CircleAltitude = circleAltitude ?? double.NaN;
             Remaining = double.IsNaN(remaining) || double.IsInfinity(remaining) ? 0.0 : Math.Max(0.0, remaining);
-            HasGap = speedGap.HasValue && !double.IsNaN(speedGap.Value) && !double.IsInfinity(speedGap.Value) && !double.IsNaN(span) && !double.IsInfinity(span);
-            if (HasGap)
+            HasIdeal = idealThrottle.HasValue && !double.IsNaN(idealThrottle.Value);
+            HasGap = HasIdeal || (speedGap.HasValue && !double.IsNaN(speedGap.Value) && !double.IsInfinity(speedGap.Value) && !double.IsNaN(span) && !double.IsInfinity(span));
+            if (HasIdeal)
+            {
+                // The ideal moves towards where it is asked to be by the time the trend of a gap is averaged over, so that a limit that changes quickly
+                // moves the bar evenly.
+                double now = Planetarium.GetUniversalTime();
+                double dt = now - idealTime;
+                if (target.id != idealVessel || dt < 0.0 || dt > 0.5) Ideal = idealThrottle.Value;
+                else if (dt > 1e-4) Ideal += (idealThrottle.Value - Ideal) * (1.0 - Math.Exp(-dt / TrendTime));
+                idealTime = now;
+                idealVessel = target.id;
+                hadGap = false;
+                SpeedGap = 0.0;
+                Ahead = 0.0;
+                Need = Math.Max(-1.0, Math.Min(1.0, Ideal - FlightInputHandler.state.mainThrottle));
+            }
+            else if (HasGap)
             {
                 // The game's time and the speed move in the physics steps only: a frame between two of them leaves the trend as it is.
                 double now = Planetarium.GetUniversalTime();

@@ -23,6 +23,11 @@ namespace ReDefinition.Autopilot.Guidance
         // Without air the turn starts this high over the ground, in metres.
         private const double TurnStartOverGround = 25.0;
 
+        // How long before the apoapsis aimed for is reached the ideal throttle starts to fall, in s of burn at full thrust: the player's choice, so that there
+        // is time to bring the throttle down by hand. MechJeb's own ascent throttles down over one second.
+        private const double RampSeconds = 10.0;
+        private const double LeastThrottle = 0.05;
+
         // The height the turn really started at: where the speed for it was reached under the height for it, as MechJeb remembers it.
         private static double actualTurnStart;
         private static Guid turnVessel;
@@ -69,28 +74,6 @@ namespace ReDefinition.Autopilot.Guidance
             return Math.Max(0.0, circular - vessel.obt_velocity.magnitude);
         }
 
-        // What a climb is held to. In the air it is the speed at which the dynamic pressure reaches its limit. Where the air is thin it is the burn that puts
-        // the apoapsis at the height aimed for, which is under zero when the engines are to be cut. The gap in m/s, over the aim where positive, and how
-        // far it may be off before the thrust asked for is at its most. False where there is nothing to hold the climb to.
-        internal static bool Speed(Vessel vessel, double aimAltitude, out double gap, out double span)
-        {
-            gap = 0.0;
-            span = 1.0;
-            if (vessel.atmDensity >= 0.02)
-            {
-                if (vessel.orbit.ApA >= aimAltitude) return false;
-                double limit = Math.Sqrt(2.0 * Heat.MaxDynamicPressure / vessel.atmDensity);
-                gap = vessel.srfSpeed - limit;
-                span = Math.Max(2.0, 0.5 * limit);
-                return true;
-            }
-            State at = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
-            if (at.R.Length <= 0.0) return false;
-            gap = -RaiseBurn(vessel.mainBody, at, KspOrbits.ToV3(ClimbDirection(vessel, aimAltitude)).Unit, aimAltitude);
-            span = Math.Max(2.0, 0.5 * at.V.Length);
-            return true;
-        }
-
         // The burn along `direction`, in m/s, that puts the apoapsis at `aimAltitude`: over zero where the apoapsis is too low, under it where it is too high.
         // It is found by halving the range of the burn, since the apoapsis rises with it.
         internal static double RaiseBurn(CelestialBody body, State at, V3 direction, double aimAltitude)
@@ -114,10 +97,9 @@ namespace ReDefinition.Autopilot.Guidance
             return conic.Closed ? conic.A * (1.0 + conic.E) : double.PositiveInfinity;
         }
 
-        // The climb to a circular orbit at `aimAltitude`: the pitch and heading to fly now, and the throttle to give. The throttle is full until
-        // the apoapsis is high enough, held down where the air's pressure or a part's temperature asks for it (Heat). The bar is the throttle
-        // asked for against the throttle given: over its mark the throttle is to go up, under it down.
-        internal static string Climb(Vessel vessel, double aimAltitude, out double asked, out double barFill, out string barText)
+        // The climb to a circular orbit at `aimAltitude`: the pitch and heading to fly now, and the ideal throttle. The ideal is the lowest of three limits that change
+        // smoothly. They are the air's pressure, a part's temperature (Heat), and the approach to the apoapsis aimed for. `burn` is the burn left, in m/s.
+        internal static string Climb(Vessel vessel, double aimAltitude, out double ideal, out double burn)
         {
             double pitch = Pitch(vessel, aimAltitude);
             double latitude = vessel.latitude * Math.PI / 180.0;
@@ -126,15 +108,28 @@ namespace ReDefinition.Autopilot.Guidance
             double ratio = Math.Cos(inclination * Math.PI / 180.0) / Math.Max(0.1, Math.Cos(latitude));
             if (ratio <= 1.0) heading = Math.Asin(ratio) * 180.0 / Math.PI;
             string reason = "";
-            double allowed = vessel.orbit.ApA < aimAltitude ? Heat.Allowed(vessel, out reason) : 0.0;
-            asked = allowed;
-            double given = FlightInputHandler.state.mainThrottle;
-            barFill = Math.Max(0.0, Math.Min(1.0, 0.5 * asked / Math.Max(0.05, given)));
-            if (asked <= 0.0) barFill = given > 0.05 ? 0.0 : 0.5;
-            barText = asked <= 0.0 && given > 0.05 ? "Engines off" : (given * 100.0).ToString("0") + " %";
-            string engines = vessel.orbit.ApA >= aimAltitude
+            burn = 0.0;
+            bool high = vessel.orbit.ApA >= aimAltitude;
+            ideal = 0.0;
+            if (!high)
+            {
+                double allowed = Heat.Allowed(vessel, out reason);
+                State at = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
+                burn = at.R.Length > 0.0 ? RaiseBurn(vessel.mainBody, at, KspOrbits.ToV3(ClimbDirection(vessel, aimAltitude)).Unit, aimAltitude) : 0.0;
+                if (burn <= GuideNode.LeastDeltaV) high = true;
+                else
+                {
+                    double acceleration = Engines.Acceleration(vessel);
+                    double ramp = acceleration > 0.0 ? Math.Min(1.0, burn / (acceleration * RampSeconds)) : 1.0;
+                    // Not below the least throttle that MechJeb's ascent gives while it raises the apoapsis; it is cut when the burn is done.
+                    ramp = Math.Max(LeastThrottle, ramp);
+                    ideal = Math.Min(allowed, ramp);
+                    if (ramp < allowed) reason = "";
+                }
+            }
+            string engines = high
                 ? "engines off, the apoapsis is high enough"
-                : "throttle " + (asked * 100.0).ToString("0") + " %" + (reason.Length > 0 ? " (" + reason + ")" : "") + " until the apoapsis is "
+                : "throttle " + (ideal * 100.0).ToString("0") + " %" + (reason.Length > 0 && ideal < 1.0 ? " (" + reason + ")" : "") + " until the apoapsis is "
                   + (aimAltitude / 1000.0).ToString("0.#") + " km, now " + Math.Max(0.0, vessel.orbit.ApA / 1000.0).ToString("0.0") + " km";
             return "Climb: pitch " + pitch.ToString("0") + ", heading " + heading.ToString("0") + ", " + engines + ".";
         }

@@ -17,7 +17,7 @@ namespace ReDefinition.Autopilot.Guidance
         // How far ahead of now the node lies, in s of the game's time, at least. A node at the moment itself is not found on the vessel's orbit, and one
         // that is behind is taken off by the game. LeastDeltaV is the least burn that the game takes for a node.
         private const double Lead = 1.0;
-        private const double LeastDeltaV = 1.5;
+        internal const double LeastDeltaV = 1.5;
         // How often the node is put right, in s of real time.
         private const float Period = 0.1f;
         private const string HarmonyId = "ReDefinition.GuideNode";

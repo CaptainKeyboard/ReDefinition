@@ -239,14 +239,15 @@ namespace ReDefinition.Probe
                 {
                     Debug.Log(Log.Tag + " Probe: auto climb: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, apoapsis "
                               + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000") + ", gap "
-                              + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " ahead " + GuidanceBoard.Ahead.ToString("0") + " need " + GuidanceBoard.Need.ToString("0.00") : "none") + "]");
+                              + (GuidanceBoard.HasIdeal ? "ideal " + GuidanceBoard.Ideal.ToString("0.00") + " need " + GuidanceBoard.Need.ToString("0.00")
+                              : GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " ahead " + GuidanceBoard.Ahead.ToString("0") + " need " + GuidanceBoard.Need.ToString("0.00") : "none") + "]");
                     last = now;
                     nextLine = Time.realtimeSinceStartup + 5f;
                 }
                 PatchedConicSolver solver = vessel.patchedConicSolver;
                 if (now.StartsWith("Climb"))
                 {
-                    if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.05 && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                    if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.02 && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
                     StandIn(vessel, GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0, !sasFollow);
                     if (sasFollow && Time.realtimeSinceStartup > nextSample)
                     {
