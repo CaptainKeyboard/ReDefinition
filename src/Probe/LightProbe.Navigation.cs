@@ -278,6 +278,11 @@ namespace ReDefinition.Probe
                         {
                             Debug.Log(Log.Tag + " Probe: sas: the player takes the maneuver away.");
                             vessel.patchedConicSolver.maneuverNodes[0].RemoveSelf();
+                            yield return new WaitForSecondsRealtime(1.5f);
+                            RouteState taken = RouteState.Of(vessel);
+                            bool clean = vessel.patchedConicSolver.maneuverNodes.Count == 0;
+                            Debug.Log(Log.Tag + " Probe: sas: " + (clean ? "" : "FAILED: ") + "1.5 s after the maneuver was taken away: navigation " + (taken != null && taken.Navigation) + ", nodes left "
+                                      + vessel.patchedConicSolver.maneuverNodes.Count + ".");
                         }
                         if (samples == 15)
                         {

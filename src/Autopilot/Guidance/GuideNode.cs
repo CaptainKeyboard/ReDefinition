@@ -99,9 +99,14 @@ namespace ReDefinition.Autopilot.Guidance
             node.DeltaV = new Vector3d(inNode.X, inNode.Y, inNode.Z);
             if (both)
             {
+                // The second burn lies on the orbit that the first makes, which the flight plan has only once it is worked out.
+                solver.UpdateFlightPlan();
                 if (second == null) second = solver.AddManeuverNode(utSecond);
-                second.UT = utSecond;
-                second.DeltaV = new Vector3d(inSecond.X, inSecond.Y, inSecond.Z);
+                if (second != null)
+                {
+                    second.UT = utSecond;
+                    second.DeltaV = new Vector3d(inSecond.X, inSecond.Y, inSecond.Z);
+                }
             }
             else if (second != null)
             {
@@ -136,6 +141,9 @@ namespace ReDefinition.Autopilot.Guidance
             if (!conic.Closed) return false;
             double wait = conic.TimeToApoapsis;
             if (double.IsNaN(wait) || double.IsInfinity(wait)) return false;
+            // At the apoapsis itself the time comes out as a whole revolution as often as as nothing; a second node lies after the first, never with it.
+            if (wait > conic.Period - Lead) wait = 0.0;
+            wait = Math.Max(Lead, wait);
             State top = Kepler.Propagate(after, wait, mu);
             double circular = Math.Sqrt(mu / top.R.Length);
             inNode = Maneuvers.ToNodeFrame(at, direction * size, true);
@@ -155,12 +163,12 @@ namespace ReDefinition.Autopilot.Guidance
             second = null;
             owner = null;
             updated = -1000f;
-            if (guide == null || guide.solver == null) return;
+            if (guide == null || (guide.solver == null && (behind == null || behind.solver == null))) return;
             removedByUs = true;
             try
             {
                 if (behind != null && behind.solver != null) behind.RemoveSelf();
-                guide.RemoveSelf();
+                if (guide.solver != null) guide.RemoveSelf();
             }
             catch (Exception e)
             {
@@ -176,6 +184,26 @@ namespace ReDefinition.Autopilot.Guidance
         internal static void Reset()
         {
             Dismissed = false;
+        }
+
+        // A guide node that stood when the player took away the other; taken away in the next frame.
+        private static ManeuverNode leftover;
+
+        internal static void Sweep()
+        {
+            if (leftover == null) return;
+            ManeuverNode gone = leftover;
+            leftover = null;
+            if (gone.solver == null) return;
+            removedByUs = true;
+            try
+            {
+                gone.RemoveSelf();
+            }
+            finally
+            {
+                removedByUs = false;
+            }
         }
 
         // The game's events call an object's method, not a static one.
@@ -205,7 +233,15 @@ namespace ReDefinition.Autopilot.Guidance
         // A node taken off the vessel that was not by us, with the guide among those that are gone: the player took the maneuver away.
         private static void Taken(Vessel vessel, PatchedConicSolver solver)
         {
-            if (removedByUs || node == null || vessel != owner || solver == null || (solver.maneuverNodes.Contains(node) && (second == null || solver.maneuverNodes.Contains(second)))) return;
+            if (removedByUs || node == null || vessel != owner || solver == null) return;
+            if (solver.maneuverNodes.Contains(node))
+            {
+                // Only the second burn is gone: the guide makes it again.
+                if (second != null && !solver.maneuverNodes.Contains(second)) second = null;
+                return;
+            }
+            // The one that is left is not the player's: it goes after the event, when the solver is done with the removal.
+            if (second != null && solver.maneuverNodes.Contains(second)) leftover = second;
             node = null;
             second = null;
             owner = null;
@@ -229,7 +265,7 @@ namespace ReDefinition.Autopilot.Guidance
         // The burn of the guide is the one the board gave it, as it stands now.
         private static bool BurnOf(ManeuverNode __instance, ref Vector3d __result)
         {
-            if (!Is(__instance)) return true;
+            if (node == null || __instance != node) return true;
             __result = burn;
             return false;
         }
@@ -271,6 +307,11 @@ namespace ReDefinition.Autopilot.Guidance
             if (installed) return;
             installed = true;
             GuideNode.Install();
+        }
+
+        private void Update()
+        {
+            GuideNode.Sweep();
         }
     }
 }

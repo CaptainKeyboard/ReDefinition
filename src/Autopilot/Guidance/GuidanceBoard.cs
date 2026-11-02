@@ -70,7 +70,9 @@ namespace ReDefinition.Autopilot.Guidance
                 }
                 else if (dt > 1e-4)
                 {
-                    slope += ((speedGap.Value - lastGap) / dt - slope) * (1.0 - Math.Exp(-dt / TrendTime));
+                    // A jump of the gap by more than the scale it is read on is the gap changing its meaning, not a trend.
+                    if (Math.Abs(speedGap.Value - lastGap) > span) slope = 0.0;
+                    else slope += ((speedGap.Value - lastGap) / dt - slope) * (1.0 - Math.Exp(-dt / TrendTime));
                     lastGap = speedGap.Value;
                     lastTime = now;
                 }
