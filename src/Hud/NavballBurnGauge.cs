@@ -202,8 +202,15 @@ namespace ReDefinition.Hud
             return need > 0.0 ? Color.Lerp(MoreFrom, MoreTo, share) : Color.Lerp(LessFrom, LessTo, share);
         }
 
+        // How far off the bar is, as the round gauge has it: 0 on target, 2 at the full colour, 1 between.
+        internal static int Level(double need)
+        {
+            double off = Math.Abs(need);
+            return off < OnTarget ? 0 : off >= FullColour ? 2 : 1;
+        }
+
         // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it, a few seconds from now as the bar has it.
-        private static string Number()
+        internal static string Number()
         {
             if (!GuidanceBoard.HasGap) return GuidanceBoard.BarText ?? "";
             double gap = GuidanceBoard.Ahead;

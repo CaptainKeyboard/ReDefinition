@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.IO;
 using FinePrint;
@@ -59,6 +60,25 @@ namespace ReDefinition.Probe
                 Step("pressed: flying " + RouteDriver.Instance.Flying + ", " + RouteDriver.Instance.Status);
             }
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "button-state.png"));
+            yield return new WaitForSecondsRealtime(2f);
+            Step("ended.");
+        }
+
+        // -redefinitionProbeNavigationClears: a node of the player stands, the navigation starts, and the node is gone.
+        private static IEnumerator NavigationClearsRun()
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            yield return new WaitForSecondsRealtime(8f);
+            PatchedConicSolver solver = vessel.patchedConicSolver;
+            ManeuverNode old = solver.AddManeuverNode(Planetarium.GetUniversalTime() + 600.0);
+            old.DeltaV = new Vector3d(0.0, 0.0, 50.0);
+            solver.UpdateFlightPlan();
+            yield return new WaitForSecondsRealtime(1f);
+            Step("navigation clears: a node of the player stands: " + solver.maneuverNodes.Count);
+            RouteDriver.Instance.StartDescent(vessel, 0.0, -74.0);
+            yield return new WaitForSecondsRealtime(1f);
+            bool gone = !solver.maneuverNodes.Contains(old);
+            Step((gone ? "" : "FAILED: ") + "navigation clears: the navigation started, the old node " + (gone ? "is gone" : "is still there") + ", nodes: " + solver.maneuverNodes.Count + ".");
             yield return new WaitForSecondsRealtime(2f);
             Step("ended.");
         }

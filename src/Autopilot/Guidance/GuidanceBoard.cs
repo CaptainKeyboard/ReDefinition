@@ -34,6 +34,11 @@ namespace ReDefinition.Autopilot.Guidance
         internal static double Ahead { get; private set; }
         internal static double Need { get; private set; }
         internal static bool HasGap { get; private set; }
+        // The bar as the gauges show it, 0 to 1 with the mark at a half: under the mark where thrust is to be given, over it where less is wanted.
+        internal static double Arc
+        {
+            get { return HasGap ? 0.5 - 0.5 * Need : BarFill; }
+        }
         // The delta-v the vessel still has to burn for what the navigation guides, in m/s: the size of the burn of the guide node.
         internal static double Remaining { get; private set; }
 

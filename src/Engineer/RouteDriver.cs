@@ -217,7 +217,8 @@ namespace ReDefinition.Engineer
             route = null;
             GuideNode.Reset();
             if (!on) GuideNode.Release(vessel);
-            if (!on && !state.Autopilot) KspOrbits.ClearNodes(vessel);
+            // The navigation shows the maneuvers of the route, so the ones there are taken away when it starts; those the player adds after are kept.
+            if (!state.Autopilot) KspOrbits.ClearNodes(vessel);
         }
 
         private void Begin(Vessel vessel, RouteState state, List<Destination> destinations)

@@ -52,12 +52,13 @@ namespace ReDefinition.Hud
             }
         }
 
-        // The bar of the navigation: the arc stands over the mark in the middle of the scale where the throttle is to go up, and under it where
-        // it is to go down. In a descent the arc is the speed against the speed it should be, in a climb the throttle asked for against the one given.
+        // The bar of the navigation, as the burn gauge of the navball has it. The arc stands under the mark in the middle of the scale where thrust is
+        // to be given, and over it where less is wanted. Without a speed to hold, it is the bar the board has.
         private static GaugeReading GuidanceReading(ReadoutFrame frame)
         {
             if (!GuidanceBoard.Current(frame.Vessel) || !GuidanceBoard.HasBar) return null;
-            return new GaugeReading { Text = GuidanceBoard.BarText, Fill = GuidanceBoard.BarFill, Mark = 0.5, Level = GuidanceBoard.BarLevel };
+            if (!GuidanceBoard.HasGap) return new GaugeReading { Text = GuidanceBoard.BarText, Fill = GuidanceBoard.BarFill, Mark = 0.5, Level = GuidanceBoard.BarLevel };
+            return new GaugeReading { Text = NavballBurnGauge.Number(), Fill = GuidanceBoard.Arc, Mark = 0.5, Level = NavballBurnGauge.Level(GuidanceBoard.Need) };
         }
 
         // The stage as KSP's delta-v simulation has it (DeltaVStageInfo:
