@@ -8,6 +8,9 @@ namespace ReDefinition.Autopilot.Planning
         public CelestialBody Body;
         public bool Surface;
         public double Altitude;
+        // The place on the ground a landing is aimed at, in degrees, where the player chose one (the landing marker); the landing is not aimed otherwise.
+        public bool HasSite;
+        public double SiteLatitude, SiteLongitude;
         // Arriving through the air: straight into it for a landing, or into it to brake and then out into the orbit. PassAltitude is how high
         // over the ground the pass has its periapsis, in metres, where the arrival uses the air.
         public bool Direct;

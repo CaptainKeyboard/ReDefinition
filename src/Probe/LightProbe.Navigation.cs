@@ -74,7 +74,14 @@ namespace ReDefinition.Probe
             Vessel vessel = FlightGlobals.ActiveVessel;
             ProbeWatch.Arm(vessel);
             if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(System.IO.Path.Combine(folder, "flight-trace.csv"));
-            RouteDriver.Instance.SetNavigation(vessel, true);
+            // -redefinitionProbeLandMarker <latitude>,<longitude>: the landing is aimed at a marker, as the map's menu aims it.
+            string marker = CommandLine.After("-redefinitionProbeLandMarker");
+            double markerLatitude = 0.0, markerLongitude = 0.0;
+            bool aimed = marker != null && marker.Split(',').Length == 2
+                         && double.TryParse(marker.Split(',')[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out markerLatitude)
+                         && double.TryParse(marker.Split(',')[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out markerLongitude);
+            if (aimed) LandingMarker.Instance.Set(vessel, markerLatitude, markerLongitude);
+            else RouteDriver.Instance.SetNavigation(vessel, true);
             float started = Time.realtimeSinceStartup;
             string last = "";
             float nextLine = 0f;
@@ -105,7 +112,16 @@ namespace ReDefinition.Probe
                     Debug.Log(Log.Tag + " Probe: auto land: the player flies the deorbit burn, " + solver.maneuverNodes[0].DeltaV.magnitude.ToString("0.0") + " m/s.");
                     if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
                     MechJebDriver.ExecuteNode(vessel, true);
-                    while (MechJebDriver.Busy(vessel) && !ProbeWatch.Gone(vessel)) yield return new WaitForSeconds(0.5f);
+                    float nextBurnLine = 0f;
+                    while (MechJebDriver.Busy(vessel) && !ProbeWatch.Gone(vessel))
+                    {
+                        if (Time.realtimeSinceStartup > nextBurnLine)
+                        {
+                            nextBurnLine = Time.realtimeSinceStartup + 20f;
+                            Debug.Log(Log.Tag + " Probe: auto land: the burn: " + MechJebDriver.State(vessel) + ", " + vessel.altitude.ToString("0") + " m.");
+                        }
+                        yield return new WaitForSeconds(0.5f);
+                    }
                     WarpToImpact(vessel);
                 }
                 if (deorbited && now.StartsWith("Descent: no engine")) Engines.FireNextStageIfCold(vessel);
@@ -133,6 +149,14 @@ namespace ReDefinition.Probe
                 yield return deorbited ? null : new WaitForSeconds(0.2f);
             }
             FlightInputHandler.state.mainThrottle = 0f;
+            if (aimed)
+            {
+                double a = markerLatitude * System.Math.PI / 180.0, b2 = vessel.latitude * System.Math.PI / 180.0;
+                double dLon = (vessel.longitude - markerLongitude) * System.Math.PI / 180.0;
+                double h = System.Math.Sin((b2 - a) / 2.0) * System.Math.Sin((b2 - a) / 2.0) + System.Math.Cos(a) * System.Math.Cos(b2) * System.Math.Sin(dLon / 2.0) * System.Math.Sin(dLon / 2.0);
+                Debug.Log(Log.Tag + " Probe: marker: landed at " + vessel.latitude.ToString("0.000") + ", " + vessel.longitude.ToString("0.000") + ", "
+                          + (2.0 * vessel.mainBody.Radius * System.Math.Asin(System.Math.Min(1.0, System.Math.Sqrt(h)))).ToString("0") + " m from the marker.");
+            }
             Debug.Log(Log.Tag + " Probe: auto land: ended " + (ProbeWatch.Lost ? "LOST (" + ProbeWatch.Why + ")" : vessel.situation + ", " + vessel.srfSpeed.ToString("0.0") + " m/s") + ", "
                       + RouteDriver.Instance.Status);
         }

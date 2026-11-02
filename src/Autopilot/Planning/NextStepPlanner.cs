@@ -87,7 +87,8 @@ namespace ReDefinition.Autopilot.Planning
                 case StepIntent.LandByDeorbit:
                     // MechJeb's landing starts from an orbit whose periapsis is under the ground (MechJebModuleLandingAutopilot, StartLanding) and
                     // deorbits otherwise.
-                    return NodePlanner.Deorbit(frame);
+                    // Where the player chose the place, the burn is aimed at it.
+                    return stop.HasSite ? DeorbitAim.Plan(frame, stop.SiteLatitude, stop.SiteLongitude) : NodePlanner.Deorbit(frame);
                 case StepIntent.Land:
                     return NodePlanner.Result.Landing("Land on " + stop.Body.bodyName + ".");
                 case StepIntent.Meet:

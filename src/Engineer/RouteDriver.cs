@@ -306,6 +306,12 @@ namespace ReDefinition.Engineer
         // The route the player asked for from the map, for a vessel without a plan of its own: it holds until the navigation is switched off.
         private List<Destination> quick;
 
+        // Whether the route held is aimed at a place on the ground.
+        internal bool Aimed
+        {
+            get { return quick != null && quick.Count > 0 && quick[quick.Count - 1].HasSite; }
+        }
+
         // The vessel on the ground is guided into the lowest orbit round its body, with no plan made in the planner: the navigation is switched on for this route.
         internal void StartAscent(Vessel vessel)
         {
@@ -320,6 +326,23 @@ namespace ReDefinition.Engineer
             route = quick;
             routeRead = Time.realtimeSinceStartup;
             Debug.Log(Log.Tag + " Navigation: " + vessel.vesselName + " is guided into an orbit " + (NextStepPlanner.LowOrbit(vessel.mainBody) / 1000.0).ToString("0") + " km over " + vessel.mainBody.bodyName + ".");
+        }
+
+        // The vessel in orbit is guided down to a place on the ground the player chose: the navigation is switched on for a route from the orbit to that place,
+        // with no plan made in the planner. The deorbit burn is a node aimed at the place, and the descent is guided as any other.
+        internal void StartDescent(Vessel vessel, double latitude, double longitude)
+        {
+            RouteState state = RouteState.Of(vessel);
+            if (state == null || vessel.mainBody == null || flight != null || state.Autopilot) return;
+            SetNavigation(vessel, true);
+            quick = new List<Destination>
+            {
+                new Destination { Body = vessel.mainBody, Surface = false, Altitude = 0.5 * (vessel.orbit.PeA + vessel.orbit.ApA) },
+                new Destination { Body = vessel.mainBody, Surface = true, HasSite = true, SiteLatitude = latitude, SiteLongitude = longitude },
+            };
+            route = quick;
+            routeRead = Time.realtimeSinceStartup;
+            Debug.Log(Log.Tag + " Navigation: " + vessel.vesselName + " is guided down to " + latitude.ToString("0.00") + ", " + longitude.ToString("0.00") + " on " + vessel.mainBody.bodyName + ".");
         }
 
         // The vessel's saved route, read again every few seconds.

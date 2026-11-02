@@ -346,11 +346,25 @@ namespace ReDefinition.Autopilot.Flight
         // Hands the descent to MechJeb's landing autopilot: the deorbit, the burn that brakes, the legs and chutes, and the touchdown, anywhere.
         internal static bool StartLanding(Vessel vessel)
         {
+            return StartLanding(vessel, null);
+        }
+
+        // The same, aimed at a place on the ground, in degrees: MechJeb's target is set there, and its landing deorbits and corrects its course to it.
+        internal static bool StartLanding(Vessel vessel, double? latitude, double longitude = 0.0)
+        {
             object landing = Module(vessel, "Landing");
             if (landing == null) return false;
             // MechJeb's landing warps through the coast to the brake only where its node executor's autowarp is on, which the burns set.
             object executor = Executor(vessel);
             if (executor != null) autowarpField.SetValue(executor, true);
+            if (latitude.HasValue)
+            {
+                object target = Module(vessel, "Target");
+                if (target == null) return false;
+                target.GetType().GetMethod("SetPositionTarget").Invoke(target, new object[] { vessel.mainBody, latitude.Value, longitude });
+                landing.GetType().GetMethod("LandAtPositionTarget").Invoke(landing, new[] { user });
+                return true;
+            }
             landing.GetType().GetMethod("LandUntargeted").Invoke(landing, new[] { user });
             return true;
         }

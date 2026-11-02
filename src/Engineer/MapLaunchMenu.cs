@@ -7,10 +7,11 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // The map's own menu of an object has the entry "Launch to orbit" on the vessel that stands on the ground and that the player flies. That menu is the
-    // one with "Set as target" and "Focus", which a click on the icon of a vessel or a body opens. The game casts no menu on the vessel flown, since it
-    // leaves out its own icon. So the cast takes it in while it stands on the ground, and the menu has its one entry. The click starts the navigation on a
-    // route from the ground into the lowest orbit round the body, with no plan made in the planner. The climb is a maneuver that the player flies.
+    // The map's own menu of an object has an entry for the vessel that the player flies. That menu is the one with "Set as target" and "Focus", which a
+    // click on the icon of a vessel or a body opens. The game casts no menu on the vessel flown, since it leaves out its own icon. So the cast takes it
+    // in while it stands on the ground or flies in an orbit, and the menu has its one entry. On the ground it is "Launch to orbit": the navigation is
+    // started on a route into the lowest orbit round the body, with no plan made in the planner. In an orbit it is "Land at marker": the player
+    // clicks on the body, and a burn is aimed at the place. Both are maneuvers that the player flies.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class MapLaunchMenu : MonoBehaviour
     {
@@ -45,10 +46,23 @@ namespace ReDefinition.Engineer
         }
 
         // Whether the vessel is the one flown, and stands on the ground, ready for the climb.
-        private static bool Ready(Vessel vessel)
+        private static bool OnTheGround(Vessel vessel)
         {
             return vessel != null && vessel == FlightGlobals.ActiveVessel && RouteDriver.Instance != null
                    && (vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.PRELAUNCH);
+        }
+
+        // Whether the vessel is the one flown, in an orbit that it can leave to land.
+        private static bool InOrbit(Vessel vessel)
+        {
+            return vessel != null && vessel == FlightGlobals.ActiveVessel && RouteDriver.Instance != null && LandingMarker.Instance != null
+                   && vessel.situation == Vessel.Situations.ORBITING && vessel.orbit != null && vessel.orbit.eccentricity < 1.0
+                   && vessel.mainBody != null && vessel.mainBody.hasSolidSurface && vessel.mainBody.pqsController != null;
+        }
+
+        private static bool Ready(Vessel vessel)
+        {
+            return OnTheGround(vessel) || InOrbit(vessel);
         }
 
         // After the game has looked for the icon under the cursor: where it found none, the vessel's own icon is taken in, if the cursor is over it.
@@ -71,7 +85,8 @@ namespace ReDefinition.Engineer
             if (!(sc is OrbitRendererBase.OrbitCastHit)) return;
             OrbitRendererBase.OrbitCastHit hit = (OrbitRendererBase.OrbitCastHit)sc;
             Vessel vessel = hit.driver != null ? hit.driver.vessel : null;
-            if (Ready(vessel)) options = new MapContextMenuOption[] { new LaunchToOrbit(vessel) };
+            if (OnTheGround(vessel)) options = new MapContextMenuOption[] { new LaunchToOrbit(vessel) };
+            else if (InOrbit(vessel)) options = new MapContextMenuOption[] { new LandAtMarker(vessel) };
         }
 
         // The menu as the game makes it, for a probe that cannot hold the cursor over the icon.
@@ -87,6 +102,22 @@ namespace ReDefinition.Engineer
         {
             if (open != null) open.Dismiss();
             open = null;
+        }
+
+        private sealed class LandAtMarker : MapContextMenuOption
+        {
+            private readonly Vessel vessel;
+
+            internal LandAtMarker(Vessel vessel) : base("Land at marker")
+            {
+                this.vessel = vessel;
+            }
+
+            protected override void OnSelect()
+            {
+                if (vessel == null || LandingMarker.Instance == null) return;
+                LandingMarker.Instance.Place(vessel);
+            }
         }
 
         private sealed class LaunchToOrbit : MapContextMenuOption

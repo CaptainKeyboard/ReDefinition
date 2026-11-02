@@ -86,7 +86,8 @@ namespace ReDefinition.Autopilot.Planning
                 foreach (Destination stop in route)
                 {
                     if (stop.Body == null) break;
-                    text.Append(stop.Body.bodyName).Append(stop.Surface ? "/s/" : "/o/").Append(stop.Altitude.ToString("0")).Append(stop.Direct ? "/d" : "").Append(stop.Aerobrake ? "/a" : "").Append(';');
+                    text.Append(stop.Body.bodyName).Append(stop.Surface ? "/s/" : "/o/").Append(stop.Altitude.ToString("0")).Append(stop.Direct ? "/d" : "").Append(stop.Aerobrake ? "/a" : "")
+                        .Append(stop.HasSite ? "/@" + stop.SiteLatitude.ToString("0.0000") + "," + stop.SiteLongitude.ToString("0.0000") : "").Append(';');
                 }
             return text.ToString();
         }

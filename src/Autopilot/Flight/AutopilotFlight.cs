@@ -216,7 +216,10 @@ namespace ReDefinition.Autopilot.Flight
                         yield break;
                     }
                     if (!double.IsNaN(needed) && !Enough(needed, "the landing")) yield break;
-                    if (!MechJebDriver.StartLanding(vessel))
+                    // Where the player chose the place, MechJeb is aimed at it.
+                    Destination goal = plan.Goal >= 0 && plan.Goal < route.Count ? route[plan.Goal] : null;
+                    bool started = goal != null && goal.HasSite ? MechJebDriver.StartLanding(vessel, goal.SiteLatitude, goal.SiteLongitude) : MechJebDriver.StartLanding(vessel);
+                    if (!started)
                     {
                         Stop("MechJeb would not start the landing.");
                         yield break;
