@@ -101,9 +101,10 @@ namespace ReDefinition.Probe
                 }
                 if (now != last && (!(now.StartsWith("Descent") || now.StartsWith("Final")) || Time.realtimeSinceStartup > nextLine))
                 {
-                    Debug.Log(Log.Tag + " Probe: auto land: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s]");
+                    Debug.Log(Log.Tag + " Probe: auto land: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, guide node "
+                              + GuideNode.Holds(vessel) + ", gap " + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + "/" + GuidanceBoard.Ahead.ToString("0") + " need " + GuidanceBoard.Need.ToString("0.00") : "-") + "]");
                     last = now;
-                    nextLine = Time.realtimeSinceStartup + 10f;
+                    nextLine = Time.realtimeSinceStartup + (now.StartsWith("Final") ? 0.5f : 10f);
                 }
                 PatchedConicSolver solver = vessel.patchedConicSolver;
                 if (!deorbited && solver.maneuverNodes.Count > 0 && !MechJebDriver.Busy(vessel))
@@ -214,6 +215,8 @@ namespace ReDefinition.Probe
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
             // -redefinitionProbeSasFollow: the SAS is on and steers; the probe only gives the throttle, and says how the nose follows the board.
             bool sasFollow = CommandLine.Has("-redefinitionProbeSasFollow");
+            // -redefinitionProbeNoSolver: the vessel has no solver for nodes, as before the tracking station's level allows them; it is taken off every second.
+            bool noSolver = CommandLine.Has("-redefinitionProbeNoSolver");
             if (sasFollow) vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
             float nextSample = 0f;
             int samples = 0;
@@ -225,6 +228,7 @@ namespace ReDefinition.Probe
             bool burned = false;
             while (Time.realtimeSinceStartup - started < 1500f && !ProbeWatch.Gone(vessel))
             {
+                if (noSolver && vessel.PatchedConicsAttached) vessel.DetachPatchedConicsSolver();
                 string now = RouteDriver.Instance.Status;
                 if (now != last && Time.realtimeSinceStartup > nextLine)
                 {
@@ -243,6 +247,26 @@ namespace ReDefinition.Probe
                         nextSample = Time.realtimeSinceStartup + (samples >= 9 && samples <= 13 ? 2f : 4f);
                         Debug.Log(Log.Tag + " Probe: sas: " + SasState(vessel));
                         if (samples == 10) UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "guide-node.png"));
+                        if (CommandLine.Has("-redefinitionProbeGuideChecks"))
+                        {
+                            // The save must not hold the guide node: the game's file is read for a maneuver in the vessel's plan.
+                            if (samples == 4)
+                            {
+                                GamePersistence.SaveGame("redefinition-guide-save", HighLogic.SaveFolder, SaveMode.OVERWRITE);
+                                string saved = System.IO.File.ReadAllText(System.IO.Path.Combine(KSPUtil.ApplicationRootPath, "saves", HighLogic.SaveFolder, "redefinition-guide-save.sfs"));
+                                int at = saved.IndexOf("FLIGHTPLAN");
+                                int maneuvers = 0;
+                                for (int index = saved.IndexOf("MANEUVER"); index >= 0; index = saved.IndexOf("MANEUVER", index + 1)) maneuvers++;
+                                Debug.Log(Log.Tag + " Probe: guide checks: the save was made with the guide node " + GuideNode.Holds(vessel) + ", and holds " + maneuvers + " MANEUVER block(s).");
+                            }
+                            // The planner plans while the guide stands: the guide is made again afterwards, and the navigation goes on.
+                            if (samples == 6 && MapPlannerWindow.Instance != null)
+                            {
+                                MapPlannerWindow.Instance.PlanNow();
+                                Debug.Log(Log.Tag + " Probe: guide checks: the planner planned; " + MapPlannerWindow.Instance.Status);
+                            }
+                            if (samples == 8) Debug.Log(Log.Tag + " Probe: guide checks: two samples after the planner: guide " + GuideNode.Holds(vessel) + ", navigation " + (RouteState.Of(vessel) != null && RouteState.Of(vessel).Navigation) + ".");
+                        }
                         // The X button of the game takes the node away with this call; the navigation is to end with it.
                         if (samples == 12 && vessel.patchedConicSolver != null && vessel.patchedConicSolver.maneuverNodes.Count > 0)
                         {

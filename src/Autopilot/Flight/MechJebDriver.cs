@@ -66,7 +66,7 @@ namespace ReDefinition.Autopilot.Flight
         // Whether the vessel has a MechJeb unit that can fly nodes.
         internal static bool CanFly(Vessel vessel)
         {
-            return Executor(vessel) != null;
+            return !RouteTuning.NoMechJeb && Executor(vessel) != null;
         }
 
         // Hands the first node to MechJeb: it aligns, warps and burns, and stops when the node is done.
@@ -357,11 +357,14 @@ namespace ReDefinition.Autopilot.Flight
             // MechJeb's landing warps through the coast to the brake only where its node executor's autowarp is on, which the burns set.
             object executor = Executor(vessel);
             if (executor != null) autowarpField.SetValue(executor, true);
+            landingVessel = vessel.id;
+            aimed = false;
             if (latitude.HasValue)
             {
                 object target = Module(vessel, "Target");
                 if (target == null) return false;
                 target.GetType().GetMethod("SetPositionTarget").Invoke(target, new object[] { vessel.mainBody, latitude.Value, longitude });
+                aimed = true;
                 landing.GetType().GetMethod("LandAtPositionTarget").Invoke(landing, new[] { user });
                 return true;
             }
@@ -417,10 +420,26 @@ namespace ReDefinition.Autopilot.Flight
             return (step != null ? step.GetType().Name : "no step") + ", \"" + status + "\"";
         }
 
+        // Lets go of the landing this mod started. A landing the player started in MechJeb's own window is not touched: MechJeb's stop would end it and
+        // shut the throttle whoever it belongs to.
         internal static void StopLanding(Vessel vessel)
         {
+            if (vessel == null || landingVessel != vessel.id) return;
+            landingVessel = Guid.Empty;
+            bool wasAimed = aimed;
+            aimed = false;
             object landing = Module(vessel, "Landing");
             if (landing != null) landing.GetType().GetMethod("StopLanding").Invoke(landing, null);
+            // The place MechJeb was aimed at is not the player's target to keep.
+            if (wasAimed)
+            {
+                object target = Module(vessel, "Target");
+                if (target != null) target.GetType().GetMethod("Unset").Invoke(target, null);
+            }
         }
+
+        // The vessel a landing was started on by this mod, and whether MechJeb's target was set for it at a place.
+        private static Guid landingVessel;
+        private static bool aimed;
     }
 }

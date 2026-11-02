@@ -123,6 +123,16 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: map planner: shot with the panel shut.");
                 yield break;
             }
+            if (CommandLine.Has("-redefinitionProbeButtonState"))
+            {
+                yield return ButtonStateRun(folder);
+                yield break;
+            }
+            if (CommandLine.Has("-redefinitionProbeUiTour"))
+            {
+                yield return UiTourRun(folder);
+                yield break;
+            }
             if (CommandLine.Has("-redefinitionProbeNodesFly"))
             {
                 yield return NodesFlyRun(folder);

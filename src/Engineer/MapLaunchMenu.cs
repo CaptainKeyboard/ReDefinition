@@ -89,12 +89,12 @@ namespace ReDefinition.Engineer
             else if (InOrbit(vessel)) options = new MapContextMenuOption[] { new LandAtMarker(vessel) };
         }
 
-        // The menu as the game makes it, for a probe that cannot hold the cursor over the icon.
+        // The menu as the game makes it.
         internal void Show(Vessel vessel)
         {
             if (!MapView.MapIsEnabled || !Ready(vessel) || vessel.orbitDriver == null) return;
             Close();
-            var hit = new OrbitRendererBase.OrbitCastHit { driver = vessel.orbitDriver, or = vessel.orbitDriver.Renderer };
+            var hit = new OrbitRendererBase.OrbitCastHit { driver = vessel.orbitDriver, or = vessel.orbitDriver.Renderer, mouseTA = vessel.orbit.trueAnomaly };
             open = MapContextMenu.Create(vessel.GetDisplayName(), hit, () => open = null, new MapContextMenuOption[0]);
         }
 

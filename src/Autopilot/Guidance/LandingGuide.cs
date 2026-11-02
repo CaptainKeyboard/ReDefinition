@@ -112,13 +112,15 @@ namespace ReDefinition.Autopilot.Guidance
             Vector3d up = position.normalized;
             double speed = velocity.magnitude;
             double vertical = Vector3d.Dot(velocity, up);
-            double above = vessel.altitude - landing;
+            // The height is the lowest part's over the ground, as MechJeb's landing has it, not the centre's: a lander's engine hangs below the centre.
+            double drop = BottomDrop(vessel);
+            double above = vessel.altitude - landing - drop;
             if (above < 3.0 && speed < 3.0) return "Down. Cut the engines.";
             if (!Engines.Running(vessel) && speed > 20.0) return "Descent: no engine is lit, fire the next stage.";
             if (result == null) return "Descent: working out where it lands.";
             HasDirection = true;
             double limit = policy.MaxAllowedSpeed(position, velocity);
-            if (vessel.heightFromTerrain >= 0f) above = Math.Min(above, vessel.heightFromTerrain);
+            if (vessel.heightFromTerrain >= 0f) above = Math.Min(above, vessel.heightFromTerrain - drop);
             if (vessel.altitude < decelEnd + 5.0 && step != Step.Final) step = LandingPrediction.UsesAir(vessel, landing) ? Step.Final : Step.Kill;
             if (step == Step.Kill || step == Step.Final) return Landing(vessel, position, velocity, up, vertical, above, gravity, thrust);
 
@@ -139,6 +141,22 @@ namespace ReDefinition.Autopilot.Guidance
             Throttle = Ease(vertical > 0.0 || !aligned ? 0.0 : Follow(velocity, position, limit, limitAfter, gravity, thrust));
             return "Descent: throttle " + (Throttle * 100.0).ToString("0") + " %, retrograde, " + speed.ToString("0") + " m/s, limit " + limit.ToString("0") + " m/s, "
                    + above.ToString("0") + " m up.";
+        }
+
+        // How far the lowest part's lower edge is under the vessel's centre, in m. As in MechJeb's altitude of the bottom, a part's edge is the centre of its
+        // collider's box less the box's largest half extent.
+        private static double BottomDrop(Vessel vessel)
+        {
+            double centre = vessel.mainBody.GetAltitude(vessel.CoMD);
+            double bottom = centre;
+            foreach (Part part in vessel.parts)
+            {
+                if (part.collider == null) continue;
+                Bounds bounds = part.collider.bounds;
+                Vector3 extents = bounds.extents;
+                bottom = Math.Min(bottom, vessel.mainBody.GetAltitude(bounds.center) - Math.Max(extents.x, Math.Max(extents.y, extents.z)));
+            }
+            return Math.Max(0.0, centre - bottom);
         }
 
         // The height over which MechJeb's final descent ramps the speed down: 200 m up to MechJeb 2.15, 300 m in 2.16.
@@ -203,7 +221,9 @@ namespace ReDefinition.Autopilot.Guidance
                 Gap(target - vertical, target);
                 return "Descent: engines off, falling. Light them when the speed reaches " + (-desired).ToString("0") + " m/s, now " + (-vertical).ToString("0") + " m/s.";
             }
-            double wantedAccel = (target - vertical) / 1.0;
+            // The ramp's own fall is led, as the braking's is: it comes down by the speed times its slope, and a follow time alone would trail it by that much.
+            double lead = target == desired && above < ramp ? -vertical * Math.Sqrt((thrust - gravity) * 2.0 * ramp) * 0.9 / ramp : 0.0;
+            double wantedAccel = (target - vertical) / 1.0 + lead;
             double least = -gravity;
             double greatest = thrust - gravity;
             Throttle = Ease(Math.Max(0.0, Math.Min(1.0, (wantedAccel - least) / (greatest - least))));

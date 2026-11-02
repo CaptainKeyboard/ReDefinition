@@ -37,6 +37,16 @@ namespace ReDefinition.Autopilot.Flight
             MechJebDriver.Abort(vessel);
             MechJebDriver.StopRendezvous(vessel);
             MechJebDriver.StopDocking(vessel);
+            // The ascent and the landing are let go here, not where the coroutine that waits for them next wakes: it may not wake.
+            try
+            {
+                MechJebDriver.StopAscent(vessel);
+                MechJebDriver.StopLanding(vessel);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " Autopilot: MechJeb's ascent or landing could not be let go: " + e.Message);
+            }
             ParsekBridge.StopRecording();
         }
 

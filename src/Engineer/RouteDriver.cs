@@ -178,12 +178,14 @@ namespace ReDefinition.Engineer
             List<Destination> destinations = state.Navigation ? ReadRoute(vessel) : RouteSource.For(vessel.vesselName);
             if (destinations != null)
             {
-                if (!state.Navigation) SetNavigation(vessel, false);
                 StartFlight(vessel, destinations);
                 return;
             }
             if (GuideNode.First(vessel) != null)
             {
+                // A flight of nodes holds no route: one left from before would be handed over when the flight is left.
+                route = null;
+                quick = null;
                 state.Autopilot = true;
                 Begin(vessel, state, null);
                 return;
@@ -212,6 +214,7 @@ namespace ReDefinition.Engineer
             state.Navigation = on;
             follower = new Navigation();
             quick = null;
+            route = null;
             GuideNode.Reset();
             if (!on) GuideNode.Release(vessel);
             if (!on && !state.Autopilot) KspOrbits.ClearNodes(vessel);
@@ -316,7 +319,12 @@ namespace ReDefinition.Engineer
         internal void StartAscent(Vessel vessel)
         {
             RouteState state = RouteState.Of(vessel);
-            if (state == null || vessel.mainBody == null || flight != null || state.Autopilot) return;
+            if (state == null || vessel.mainBody == null) return;
+            if (flight != null || state.Autopilot)
+            {
+                ScreenMessages.PostScreenMessage("The autopilot is flying: switch it off to launch to orbit.", 6f, ScreenMessageStyle.UPPER_CENTER);
+                return;
+            }
             SetNavigation(vessel, true);
             quick = new List<Destination>
             {

@@ -1,5 +1,6 @@
 using System.Collections;
 using TMPro;
+using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Flight;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
@@ -25,6 +26,9 @@ namespace ReDefinition.Hud
         private Button button;
         private KSP.UI.TooltipTypes.TooltipController_Text tooltip;
         private Sprite lit, dark;
+        private float asked;
+        private bool possible;
+        private string reason;
 
         private IEnumerator Start()
         {
@@ -91,13 +95,21 @@ namespace ReDefinition.Hud
             if (face == null) return;
             Vessel vessel = FlightGlobals.ActiveVessel;
             RouteDriver driver = RouteDriver.Instance;
-            bool flying = driver != null && driver.Flying;
-            bool able = flying || (vessel != null && MechJebDriver.CanFly(vessel));
+            RouteState state = RouteState.Of(vessel);
+            bool flying = driver != null && (driver.Flying || (state != null && state.Autopilot));
+            // Whether MechJeb can fly is asked now and then, not in every frame: it is found by reflection over the vessel's modules.
+            if (Time.unscaledTime > asked)
+            {
+                asked = Time.unscaledTime + 1f;
+                possible = vessel != null && MechJebDriver.CanFly(vessel);
+                reason = possible ? null : MechJebDriver.Unavailable;
+            }
+            bool able = flying || possible;
             face.sprite = flying ? lit : dark;
             face.color = able ? Color.white : new Color(1f, 1f, 1f, 0.45f);
             button.interactable = able;
             if (tooltip != null)
-                tooltip.textString = flying ? "Autopilot On" : able ? "Autopilot Off" : "Autopilot (" + (MechJebDriver.Unavailable ?? "No MechJeb") + ")";
+                tooltip.textString = flying ? "Autopilot On" : able ? "Autopilot Off" : "Autopilot (" + (reason ?? "No MechJeb") + ")";
             Place();
         }
     }

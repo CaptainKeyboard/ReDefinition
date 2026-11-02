@@ -32,6 +32,12 @@ namespace ReDefinition.Autopilot
             get { return CommandLine.Has("-redefinitionProbeDock"); }
         }
 
+        // MechJeb is taken as not there, to see what the autopilot does without it.
+        internal static bool NoMechJeb
+        {
+            get { return CommandLine.Has("-redefinitionNoMechJeb"); }
+        }
+
         internal static bool NoParsekRecording
         {
             get { return CommandLine.Has("-redefinitionNoParsekRecording"); }

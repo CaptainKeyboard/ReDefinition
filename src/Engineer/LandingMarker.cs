@@ -21,6 +21,7 @@ namespace ReDefinition.Engineer
 
         private Vessel placing;
         private float since;
+        private float nextCheck;
         private Waypoint marker;
 
         private void Awake()
@@ -53,8 +54,14 @@ namespace ReDefinition.Engineer
 
         private void Update()
         {
-            // The marker goes when the vessel is no longer guided to it.
-            if (marker != null && (RouteDriver.Instance == null || !RouteDriver.Instance.Aimed || FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.LandedOrSplashed)) Remove();
+            // The marker goes when the vessel is no longer guided to it. One that the save holds from an earlier flight goes the same way: the route is
+            // not saved, so nothing guides the vessel to it.
+            if (placing == null && Time.unscaledTime > nextCheck && (marker != null || WaypointManager.Instance() != null))
+            {
+                nextCheck = Time.unscaledTime + 2f;
+                bool guided = RouteDriver.Instance != null && RouteDriver.Instance.Aimed && FlightGlobals.ActiveVessel != null && !FlightGlobals.ActiveVessel.LandedOrSplashed;
+                if (!guided) Remove();
+            }
             if (placing == null) return;
             if (!MapView.MapIsEnabled || placing != FlightGlobals.ActiveVessel || Input.GetKeyDown(KeyCode.Escape))
             {
