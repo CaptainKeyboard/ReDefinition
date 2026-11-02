@@ -168,7 +168,7 @@ namespace ReDefinition.Probe
             return "mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
                    + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
                    + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", gap "
-                   + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " m/s, need " + GuidanceBoard.Need.ToString("0.00") : "none") + ", burn gauge " + gauge + ".";
+                   + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " m/s, ahead " + GuidanceBoard.Ahead.ToString("0") + " m/s, need " + GuidanceBoard.Need.ToString("0.00") : "none") + ", burn gauge " + gauge + ".";
         }
 
         // The navigation from the pad to an orbit, and the probe as the player. The first stage is lit, the nose follows the marker, and the

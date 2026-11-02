@@ -30,6 +30,8 @@ namespace ReDefinition.Autopilot.Guidance
         // to ask for. Need is the thrust that asks for, from -1 for as much less to 1 for as much more as the speed may be off by. It is not worked out
         // from the gap now but from where the gap will be in a few seconds, by the way it is changing, so that the player sees the speed coming.
         internal static double SpeedGap { get; private set; }
+        // The gap as it will be in the time looked ahead: what the bar stands for, so that the number and the bar say the same.
+        internal static double Ahead { get; private set; }
         internal static double Need { get; private set; }
         internal static bool HasGap { get; private set; }
 
@@ -64,7 +66,8 @@ namespace ReDefinition.Autopilot.Guidance
                 hadGap = true;
                 trended = target.id;
                 SpeedGap = speedGap.Value;
-                double ahead = (speedGap.Value + slope * Horizon) / Math.Max(1.0, span);
+                Ahead = speedGap.Value + slope * Horizon;
+                double ahead = Ahead / Math.Max(1.0, span);
                 Need = Math.Max(-1.0, Math.Min(1.0, moreWhenOver ? ahead : -ahead));
                 if (mostNeed.HasValue) Need = Math.Min(Need, mostNeed.Value);
             }

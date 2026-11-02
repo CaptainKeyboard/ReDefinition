@@ -153,11 +153,11 @@ namespace ReDefinition.Hud
             return need > 0.0 ? Color.Lerp(MoreFrom, MoreTo, share) : Color.Lerp(LessFrom, LessTo, share);
         }
 
-        // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it.
+        // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it, a few seconds from now as the bar has it.
         private static string Number()
         {
             if (!GuidanceBoard.HasGap) return GuidanceBoard.BarText ?? "";
-            double gap = GuidanceBoard.SpeedGap;
+            double gap = GuidanceBoard.Ahead;
             if (Math.Abs(gap) < 1.0) return "0 m/s";
             return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
         }
