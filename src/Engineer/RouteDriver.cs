@@ -150,11 +150,46 @@ namespace ReDefinition.Engineer
             RouteState state = RouteState.Of(vessel);
             if (state == null || flight != null || destinations == null) return;
             GuideNode.Release(vessel);
-            quick = null;
+            // The climb the navigation guides stays its route when the autopilot flies it and when it is over.
+            if (!ReferenceEquals(destinations, quick)) quick = null;
             state.Autopilot = true;
             route = destinations;
             routeRead = Time.realtimeSinceStartup;
             Begin(vessel, state, destinations);
+        }
+
+        // The button of the autopilot starts what there is to fly, or lets the vessel go. First the route the navigation holds: the climb or the descent it
+        // guides, or the planner's route. Else the planner's route, else the maneuver nodes the vessel holds. Nothing is done where MechJeb cannot fly.
+        internal void ToggleAutopilot(Vessel vessel)
+        {
+            RouteState state = RouteState.Of(vessel);
+            if (state == null || vessel == null || ParsekBridge.IsGhost(vessel)) return;
+            if (flight != null || state.Autopilot)
+            {
+                StopFlight(vessel);
+                return;
+            }
+            if (!MechJebDriver.CanFly(vessel))
+            {
+                status = MechJebDriver.Unavailable ?? "The vessel has no MechJeb unit to fly the route.";
+                ScreenMessages.PostScreenMessage(status, 6f, ScreenMessageStyle.UPPER_CENTER);
+                return;
+            }
+            List<Destination> destinations = state.Navigation ? ReadRoute(vessel) : RouteSource.For(vessel.vesselName);
+            if (destinations != null)
+            {
+                if (!state.Navigation) SetNavigation(vessel, false);
+                StartFlight(vessel, destinations);
+                return;
+            }
+            if (GuideNode.First(vessel) != null)
+            {
+                state.Autopilot = true;
+                Begin(vessel, state, null);
+                return;
+            }
+            status = "There is nothing to fly: no route in the planner and no maneuver node.";
+            ScreenMessages.PostScreenMessage(status, 6f, ScreenMessageStyle.UPPER_CENTER);
         }
 
         internal void StopFlight(Vessel vessel)
@@ -232,6 +267,11 @@ namespace ReDefinition.Engineer
             }
             else if (state.Autopilot && flight == null)
             {
+                if (ReadRoute(vessel) == null && GuideNode.First(vessel) != null)
+                {
+                    Begin(vessel, state, null);
+                    return;
+                }
                 if (ReadRoute(vessel) == null)
                 {
                     status = "The autopilot has no route to fly.";

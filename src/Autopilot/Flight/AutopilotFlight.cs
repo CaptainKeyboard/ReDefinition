@@ -44,7 +44,60 @@ namespace ReDefinition.Autopilot.Flight
         // leaving a flight that is no longer run but still marked as on.
         internal IEnumerator RunSafely()
         {
-            return SafeRun.Guard(Run(), Fail);
+            return SafeRun.Guard(route == null ? RunNodes() : Run(), Fail);
+        }
+
+        // With no route the flight flies the maneuver nodes the vessel holds, one after the other, as MechJeb executes a node: the player made them in the map.
+        // The guide of a climb or a descent is no node to fly here. A node that was missed ends the flight, since MechJeb would burn it late and blind.
+        private IEnumerator RunNodes()
+        {
+            if (!MechJebDriver.CanFly(vessel))
+            {
+                Stop(MechJebDriver.Unavailable ?? "The vessel has no MechJeb unit.");
+                yield break;
+            }
+            ManeuverNode last = null;
+            int again = 0;
+            while (!cancelled)
+            {
+                if (Lost)
+                {
+                    Stop("The vessel was lost.");
+                    yield break;
+                }
+                if (vessel != FlightGlobals.ActiveVessel)
+                {
+                    Stop("The vessel is not the one in focus.");
+                    yield break;
+                }
+                ManeuverNode node = GuideNode.First(vessel);
+                if (node == null)
+                {
+                    Arrived = true;
+                    Stop("All maneuver nodes are flown.");
+                    yield break;
+                }
+                if (Navigation.Missed(vessel, node))
+                {
+                    Stop("The maneuver node was missed: its burn is over.");
+                    yield break;
+                }
+                // A node that is still there after MechJeb was let fly it three times is one it cannot fly.
+                again = node == last ? again + 1 : 0;
+                last = node;
+                if (again >= 3)
+                {
+                    Stop("MechJeb did not fly the maneuver node.");
+                    yield break;
+                }
+                if (!Enough(node.DeltaV.magnitude, "the burn")) yield break;
+                if (!MechJebDriver.ExecuteNode(vessel, true))
+                {
+                    Stop("MechJeb cannot fly the maneuver node.");
+                    yield break;
+                }
+                yield return Burn(node.UT);
+            }
         }
 
         private void Fail(System.Exception e)
@@ -245,7 +298,7 @@ namespace ReDefinition.Autopilot.Flight
                     Stop("MechJeb would not take the node.");
                     yield break;
                 }
-                yield return Burn(plan);
+                yield return Burn(plan.UT);
             }
         }
 
@@ -428,7 +481,7 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // Waits while MechJeb flies the node, lighting the next stage where no engine runs for the burn.
-        private IEnumerator Burn(NodePlanner.Result plan)
+        private IEnumerator Burn(double nodeUT)
         {
             float nextStage = 0f;
             float began = Time.realtimeSinceStartup;
@@ -442,7 +495,7 @@ namespace ReDefinition.Autopilot.Flight
                     yield break;
                 }
                 string state = MechJebDriver.State(vessel);
-                Status = "Burn: " + state + ", " + KSPUtil.PrintTimeCompact(plan.UT - Planetarium.GetUniversalTime(), false) + " to the node.";
+                Status = "Burn: " + state + ", " + KSPUtil.PrintTimeCompact(nodeUT - Planetarium.GetUniversalTime(), false) + " to the node.";
                 Note();
                 if ((state == "LEAD" || state == "BURN") && Time.realtimeSinceStartup > nextStage)
                 {

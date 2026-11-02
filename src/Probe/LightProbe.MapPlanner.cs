@@ -32,6 +32,38 @@ namespace ReDefinition.Probe
                    + ", patched conic renderers " + Object.FindObjectsOfType<PatchedConicRenderer>().Length + ", maneuver gizmos " + Object.FindObjectsOfType<ManeuverGizmo>().Length;
         }
 
+        // -redefinitionProbeNodesFly: a node is made on the orbit, as the player makes one in the map, and the autopilot button is pressed: MechJeb is to fly it.
+        private static IEnumerator NodesFlyRun(string folder)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            MapView.ExitMapView();
+            if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            yield return new WaitForSeconds(6f);
+            ManeuverNode node = vessel.patchedConicSolver.AddManeuverNode(Planetarium.GetUniversalTime() + 240.0);
+            node.DeltaV = new Vector3d(0.0, 0.0, 60.0);
+            vessel.patchedConicSolver.UpdateFlightPlan();
+            yield return new WaitForSeconds(2f);
+            UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "live-off.png"));
+            yield return new WaitForSeconds(1f);
+            RouteDriver.Instance.ToggleAutopilot(vessel);
+            yield return new WaitForSeconds(3f);
+            UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "live-on.png"));
+            Debug.Log(Log.Tag + " Probe: nodes fly: pressed: flying " + RouteDriver.Instance.Flying + ", " + RouteDriver.Instance.Status + ".");
+            float started = Time.realtimeSinceStartup;
+            float nextLine = 0f;
+            while (RouteDriver.Instance.Flying && Time.realtimeSinceStartup - started < 900f)
+            {
+                if (Time.realtimeSinceStartup > nextLine)
+                {
+                    nextLine = Time.realtimeSinceStartup + 10f;
+                    Debug.Log(Log.Tag + " Probe: nodes fly: " + RouteDriver.Instance.Status + " nodes " + vessel.patchedConicSolver.maneuverNodes.Count);
+                }
+                yield return new WaitForSeconds(1f);
+            }
+            Debug.Log(Log.Tag + " Probe: nodes fly: ended: " + RouteDriver.Instance.Status + " nodes " + vessel.patchedConicSolver.maneuverNodes.Count + ", orbit " + vessel.orbit.PeA.ToString("0")
+                      + " x " + vessel.orbit.ApA.ToString("0") + ".");
+        }
+
         // What the autopilot does with the vessel that was loaded again while it flew: the flight goes on, to the end.
         private static IEnumerator ResumedFlight()
         {
@@ -91,10 +123,40 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: map planner: shot with the panel shut.");
                 yield break;
             }
+            if (CommandLine.Has("-redefinitionProbeNodesFly"))
+            {
+                yield return NodesFlyRun(folder);
+                yield break;
+            }
             if (MapPlannerWindow.Instance != null && CommandLine.Has("-redefinitionProbeMapPlannerClimb"))
             {
                 string wantedBody = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Kerbin";
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wantedBody + " set: " + MapPlannerWindow.Instance.SetDestination(wantedBody, 100000.0));
+                // -redefinitionProbeBodyMenu <body>: the game's own menu of a body in the map, made as the game makes it for a click on its icon, as a shot.
+                string menuBody = CommandLine.After("-redefinitionProbeBodyMenu");
+                if (menuBody != null)
+                {
+                    yield return new WaitForSeconds(3f);
+                    CelestialBody menuTarget = FlightGlobals.Bodies.Find(b => b.bodyName == menuBody);
+                    if (menuTarget != null && menuTarget.MapObject != null) PlanetariumCamera.fetch.SetTarget(menuTarget.MapObject);
+                    yield return new WaitForSeconds(3f);
+                    OrbitTargeter targeter = FlightGlobals.ActiveVessel.orbitTargeter;
+                    System.Reflection.FieldInfo castField = typeof(OrbitTargeter).GetField("orbitCastHit", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    System.Reflection.MethodInfo setMode = typeof(OrbitTargeter).GetMethod("SetMenuMode", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    if (targeter != null && menuTarget != null && castField != null && setMode != null)
+                    {
+                        object cast = castField.GetValue(targeter);
+                        cast.GetType().GetField("driver").SetValue(cast, menuTarget.orbitDriver);
+                        cast.GetType().GetField("or").SetValue(cast, menuTarget.orbitDriver.Renderer);
+                        cast.GetType().GetField("mouseTA").SetValue(cast, menuTarget.orbit.trueAnomaly);
+                        castField.SetValue(targeter, cast);
+                        setMode.Invoke(targeter, new object[] { System.Enum.Parse(setMode.GetParameters()[0].ParameterType, "TARGET"), menuTarget.orbitDriver });
+                        yield return new WaitForSeconds(2f);
+                        UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "body-menu.png"));
+                        yield return new WaitForSeconds(1f);
+                    }
+                    Debug.Log(Log.Tag + " Probe: body menu done: " + (targeter != null && menuTarget != null));
+                }
                 // -redefinitionProbeLaunchMenu: the map's menu of the vessel on the ground, as a shot.
                 if (CommandLine.Has("-redefinitionProbeLaunchMenu") && MapLaunchMenu.Instance != null)
                 {

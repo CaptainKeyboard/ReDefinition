@@ -94,7 +94,7 @@ namespace ReDefinition.Autopilot.Guidance
         }
 
         // Whether the node was missed: its burn, which is centred on the node, would be over by now with the engines the vessel has.
-        private static bool Missed(Vessel vessel, ManeuverNode node)
+        internal static bool Missed(Vessel vessel, ManeuverNode node)
         {
             double acceleration = Engines.Acceleration(vessel);
             double burn = acceleration > 0.0 ? node.GetBurnVector(vessel.orbit).magnitude / acceleration : 0.0;
