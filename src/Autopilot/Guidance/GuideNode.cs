@@ -9,7 +9,7 @@ using UnityEngine;
 namespace ReDefinition.Autopilot.Guidance
 {
     // The climb to an orbit and the descent to the ground are a maneuver of the vessel's own, as a burn is: a real maneuver node that follows the navigation's
-    // direction. The game's whole maneuver display then works with it: the SAS's maneuver mode, the navball's burn marker, the burn gauge, and the X
+    // direction. A climb has a second node behind the first, the burn that makes the orbit circular at the apoapsis, so that the map shows the way into the orbit. The game's whole maneuver display then works with it: the SAS's maneuver mode, the navball's burn marker, the burn gauge, and the X
     // button that takes the maneuver away. The node is there only while it is the only one. Where the player or the planner has a node of its own, the
     // guide goes, and it is not made again while that node stands.
     internal static class GuideNode
@@ -23,6 +23,7 @@ namespace ReDefinition.Autopilot.Guidance
         private const string HarmonyId = "ReDefinition.GuideNode";
 
         private static ManeuverNode node;
+        private static ManeuverNode second;
         private static Vessel owner;
         // The burn the node stands for, in the world's axes: what the game's SAS and navball read. The burn the game works out from its patches
         // shrinks between two updates as the vessel burns, and turns round where little is left.
@@ -38,7 +39,7 @@ namespace ReDefinition.Autopilot.Guidance
 
         internal static bool Is(ManeuverNode other)
         {
-            return node != null && other == node;
+            return other != null && (other == node || other == second);
         }
 
         // The first node of the vessel that is not the guide; null for none.
@@ -55,7 +56,7 @@ namespace ReDefinition.Autopilot.Guidance
         internal static bool Holds(Vessel vessel)
         {
             PatchedConicSolver solver = vessel != null ? vessel.patchedConicSolver : null;
-            return node != null && solver != null && solver.maneuverNodes.Count == 1 && solver.maneuverNodes[0] == node;
+            return node != null && solver != null && solver.maneuverNodes.Count > 0 && solver.maneuverNodes.TrueForAll(Is);
         }
 
         // The guide put right from the board: where the navigation asks the nose to point, as the burn that is left of it. Made where there is none,
@@ -73,12 +74,22 @@ namespace ReDefinition.Autopilot.Guidance
             }
             if (owner != vessel) Release(owner);
             if (node != null && !solver.maneuverNodes.Contains(node)) node = null;
+            if (second != null && !solver.maneuverNodes.Contains(second)) second = null;
             Vector3d world = GuidanceBoard.Direction * Math.Max(LeastDeltaV, GuidanceBoard.Remaining);
             burn = world;
             if (node != null && Time.realtimeSinceStartup - updated < Period) return;
             double now = Planetarium.GetUniversalTime();
             double ut = now + Math.Max(Lead, 0.3 * TimeWarp.CurrentRate);
-            V3 inNode = Maneuvers.ToNodeFrame(KspOrbits.StateAt(vessel.orbit, ut), KspOrbits.ToV3(world), true);
+            State at = KspOrbits.StateAt(vessel.orbit, ut);
+            V3 inNode = Maneuvers.ToNodeFrame(at, KspOrbits.ToV3(world), true);
+            // A climb shows the burn that brings the apoapsis to the height aimed for, in the direction the navigation asks for, and then the burn that
+            // circularizes there: the orbit that is aimed at, and not the vessel thrown out of its orbit by all the burn that is left. The direction and the
+            // size that the game's SAS and navball read are the board's.
+            double utSecond = 0.0;
+            V3 inSecond = new V3(0.0, 0.0, 0.0);
+            V3 inFirst = inNode;
+            bool both = !double.IsNaN(GuidanceBoard.CircleAltitude) && Climb(vessel, at, ut, out inFirst, out utSecond, out inSecond);
+            if (both) inNode = inFirst;
             if (node == null)
             {
                 node = solver.AddManeuverNode(ut);
@@ -86,22 +97,69 @@ namespace ReDefinition.Autopilot.Guidance
             }
             node.UT = ut;
             node.DeltaV = new Vector3d(inNode.X, inNode.Y, inNode.Z);
+            if (both)
+            {
+                if (second == null) second = solver.AddManeuverNode(utSecond);
+                second.UT = utSecond;
+                second.DeltaV = new Vector3d(inSecond.X, inSecond.Y, inSecond.Z);
+            }
+            else if (second != null)
+            {
+                ManeuverNode gone = second;
+                second = null;
+                removedByUs = true;
+                try
+                {
+                    gone.RemoveSelf();
+                }
+                finally
+                {
+                    removedByUs = false;
+                }
+            }
             solver.UpdateFlightPlan();
             updated = Time.realtimeSinceStartup;
         }
+
+        // The two burns of a climb as the node's own changes of velocity: the one along the board's direction that puts the apoapsis at the height aimed for,
+        // and the one that circularizes there, with when it is. False where the orbit after the first burn is open.
+        private static bool Climb(Vessel vessel, State at, double ut, out V3 inNode, out double utSecond, out V3 inSecond)
+        {
+            inNode = new V3(0.0, 0.0, 0.0);
+            inSecond = new V3(0.0, 0.0, 0.0);
+            utSecond = ut;
+            double mu = vessel.mainBody.gravParameter;
+            V3 direction = KspOrbits.ToV3(GuidanceBoard.Direction).Unit;
+            double size = Math.Max(LeastDeltaV, ClimbGuide.RaiseBurn(vessel.mainBody, at, direction, GuidanceBoard.CircleAltitude));
+            var after = new State(at.R, at.V + direction * size);
+            var conic = new Conic(after, mu);
+            if (!conic.Closed) return false;
+            double wait = conic.TimeToApoapsis;
+            if (double.IsNaN(wait) || double.IsInfinity(wait)) return false;
+            State top = Kepler.Propagate(after, wait, mu);
+            double circular = Math.Sqrt(mu / top.R.Length);
+            inNode = Maneuvers.ToNodeFrame(at, direction * size, true);
+            inSecond = Maneuvers.ToNodeFrame(top, top.V.Unit * Math.Max(LeastDeltaV, circular - top.V.Length), true);
+            utSecond = ut + wait;
+            return true;
+        }
+
 
         // The guide taken away where the vessel has it; the vessel, or null for the one it was made for.
         internal static void Release(Vessel vessel)
         {
             if (node == null) return;
             ManeuverNode guide = node;
+            ManeuverNode behind = second;
             node = null;
+            second = null;
             owner = null;
             updated = -1000f;
             if (guide == null || guide.solver == null) return;
             removedByUs = true;
             try
             {
+                if (behind != null && behind.solver != null) behind.RemoveSelf();
                 guide.RemoveSelf();
             }
             catch (Exception e)
@@ -147,8 +205,9 @@ namespace ReDefinition.Autopilot.Guidance
         // A node taken off the vessel that was not by us, with the guide among those that are gone: the player took the maneuver away.
         private static void Taken(Vessel vessel, PatchedConicSolver solver)
         {
-            if (removedByUs || node == null || vessel != owner || solver == null || solver.maneuverNodes.Contains(node)) return;
+            if (removedByUs || node == null || vessel != owner || solver == null || (solver.maneuverNodes.Contains(node) && (second == null || solver.maneuverNodes.Contains(second)))) return;
             node = null;
+            second = null;
             owner = null;
             updated = -1000f;
             Dismissed = true;
@@ -175,17 +234,29 @@ namespace ReDefinition.Autopilot.Guidance
             return false;
         }
 
-        private static void SaveWithout(PatchedConicSolver __instance, out int __state)
+        // Where the guide's nodes stood in the list while the save is made without them.
+        private static int savedNode = -1, savedSecond = -1;
+
+        private static void SaveWithout(PatchedConicSolver __instance)
         {
-            __state = -1;
-            if (node == null) return;
-            __state = __instance.maneuverNodes.IndexOf(node);
-            if (__state >= 0) __instance.maneuverNodes.RemoveAt(__state);
+            savedNode = savedSecond = -1;
+            if (second != null)
+            {
+                savedSecond = __instance.maneuverNodes.IndexOf(second);
+                if (savedSecond >= 0) __instance.maneuverNodes.RemoveAt(savedSecond);
+            }
+            if (node != null)
+            {
+                savedNode = __instance.maneuverNodes.IndexOf(node);
+                if (savedNode >= 0) __instance.maneuverNodes.RemoveAt(savedNode);
+            }
         }
 
-        private static void SaveWith(PatchedConicSolver __instance, int __state)
+        private static void SaveWith(PatchedConicSolver __instance)
         {
-            if (__state >= 0 && node != null) __instance.maneuverNodes.Insert(Math.Min(__state, __instance.maneuverNodes.Count), node);
+            if (savedNode >= 0 && node != null) __instance.maneuverNodes.Insert(Math.Min(savedNode, __instance.maneuverNodes.Count), node);
+            if (savedSecond >= 0 && second != null) __instance.maneuverNodes.Insert(Math.Min(savedSecond, __instance.maneuverNodes.Count), second);
+            savedNode = savedSecond = -1;
         }
     }
 

@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Planning;
+using ReDefinition.Orbits;
 
 namespace ReDefinition.Autopilot.Guidance
 {
@@ -67,17 +69,49 @@ namespace ReDefinition.Autopilot.Guidance
             return Math.Max(0.0, circular - vessel.obt_velocity.magnitude);
         }
 
-        // The speed a climb is held to in the air: the one at which the dynamic pressure reaches its limit. The gap to it in m/s (over it where positive),
-        // and how far the speed may be off before the thrust asked for is at its most. False where the air is too thin to hold a speed to.
+        // What a climb is held to. In the air it is the speed at which the dynamic pressure reaches its limit. Where the air is thin it is the burn that puts
+        // the apoapsis at the height aimed for, which is under zero when the engines are to be cut. The gap in m/s, over the aim where positive, and how
+        // far it may be off before the thrust asked for is at its most. False where there is nothing to hold the climb to.
         internal static bool Speed(Vessel vessel, double aimAltitude, out double gap, out double span)
         {
             gap = 0.0;
             span = 1.0;
-            if (vessel.orbit.ApA >= aimAltitude || !(vessel.atmDensity >= 0.02)) return false;
-            double limit = Math.Sqrt(2.0 * Heat.MaxDynamicPressure / vessel.atmDensity);
-            gap = vessel.srfSpeed - limit;
-            span = Math.Max(2.0, 0.5 * limit);
+            if (vessel.atmDensity >= 0.02)
+            {
+                if (vessel.orbit.ApA >= aimAltitude) return false;
+                double limit = Math.Sqrt(2.0 * Heat.MaxDynamicPressure / vessel.atmDensity);
+                gap = vessel.srfSpeed - limit;
+                span = Math.Max(2.0, 0.5 * limit);
+                return true;
+            }
+            State at = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
+            if (at.R.Length <= 0.0) return false;
+            gap = -RaiseBurn(vessel.mainBody, at, KspOrbits.ToV3(ClimbDirection(vessel, aimAltitude)).Unit, aimAltitude);
+            span = Math.Max(2.0, 0.5 * at.V.Length);
             return true;
+        }
+
+        // The burn along `direction`, in m/s, that puts the apoapsis at `aimAltitude`: over zero where the apoapsis is too low, under it where it is too high.
+        // It is found by halving the range of the burn, since the apoapsis rises with it.
+        internal static double RaiseBurn(CelestialBody body, State at, V3 direction, double aimAltitude)
+        {
+            double mu = body.gravParameter;
+            double target = body.Radius + aimAltitude;
+            double low = -at.V.Length, high = Math.Sqrt(2.0 * mu / at.R.Length);
+            for (int i = 0; i < 60; i++)
+            {
+                double mid = 0.5 * (low + high);
+                if (ApoapsisRadius(new State(at.R, at.V + direction * mid), mu) < target) low = mid;
+                else high = mid;
+            }
+            return 0.5 * (low + high);
+        }
+
+        // The apoapsis radius of the orbit a state is on; infinite where the orbit is open.
+        internal static double ApoapsisRadius(State state, double mu)
+        {
+            var conic = new Conic(state, mu);
+            return conic.Closed ? conic.A * (1.0 + conic.E) : double.PositiveInfinity;
         }
 
         // The climb to a circular orbit at `aimAltitude`: the pitch and heading to fly now, and the throttle to give. The throttle is full until
@@ -97,7 +131,7 @@ namespace ReDefinition.Autopilot.Guidance
             double given = FlightInputHandler.state.mainThrottle;
             barFill = Math.Max(0.0, Math.Min(1.0, 0.5 * asked / Math.Max(0.05, given)));
             if (asked <= 0.0) barFill = given > 0.05 ? 0.0 : 0.5;
-            barText = (given * 100.0).ToString("0") + " %";
+            barText = asked <= 0.0 && given > 0.05 ? "Engines off" : (given * 100.0).ToString("0") + " %";
             string engines = vessel.orbit.ApA >= aimAltitude
                 ? "engines off, the apoapsis is high enough"
                 : "throttle " + (asked * 100.0).ToString("0") + " %" + (reason.Length > 0 ? " (" + reason + ")" : "") + " until the apoapsis is "

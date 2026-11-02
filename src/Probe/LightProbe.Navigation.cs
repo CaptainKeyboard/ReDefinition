@@ -195,6 +195,11 @@ namespace ReDefinition.Probe
                 ? "nodes " + solver.maneuverNodes.Count + " (guide " + GuideNode.Holds(vessel) + ", burn " + solver.maneuverNodes[0].GetBurnVector(vessel.orbit).magnitude.ToString("0") + " m/s, "
                   + Vector3.Angle((Vector3)solver.maneuverNodes[0].GetBurnVector(vessel.orbit), (Vector3)GuidanceBoard.Direction).ToString("0.0") + " degrees from the board)"
                 : "no node";
+            // Each node: when, how big, and the orbit after it, as the map draws it.
+            if (solver != null)
+                foreach (ManeuverNode each in solver.maneuverNodes)
+                    node += " [node in " + (each.UT - Planetarium.GetUniversalTime()).ToString("0") + " s, " + each.DeltaV.magnitude.ToString("0") + " m/s, then "
+                            + (each.nextPatch != null ? each.nextPatch.PeA.ToString("0") + " x " + each.nextPatch.ApA.ToString("0") + " m" : "no patch") + "]";
             return node + ", mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
                    + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
                    + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", gap "
@@ -233,7 +238,8 @@ namespace ReDefinition.Probe
                 if (now != last && Time.realtimeSinceStartup > nextLine)
                 {
                     Debug.Log(Log.Tag + " Probe: auto climb: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, apoapsis "
-                              + vessel.orbit.ApA.ToString("0") + " m]");
+                              + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000") + ", gap "
+                              + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " ahead " + GuidanceBoard.Ahead.ToString("0") + " need " + GuidanceBoard.Need.ToString("0.00") : "none") + "]");
                     last = now;
                     nextLine = Time.realtimeSinceStartup + 5f;
                 }

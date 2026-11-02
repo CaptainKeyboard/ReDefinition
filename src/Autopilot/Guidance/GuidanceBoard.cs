@@ -41,6 +41,8 @@ namespace ReDefinition.Autopilot.Guidance
         }
         // The delta-v the vessel still has to burn for what the navigation guides, in m/s: the size of the burn of the guide node.
         internal static double Remaining { get; private set; }
+        // The height of the orbit a climb aims for, in m; NaN for a guidance that is not a climb. The guide shows the burn to it and the circularizing.
+        internal static double CircleAltitude { get; private set; } = double.NaN;
 
         // How far ahead the gap is looked at, in game seconds, and how long the way the gap changes is averaged over.
         private const double Horizon = 4.0;
@@ -50,8 +52,9 @@ namespace ReDefinition.Autopilot.Guidance
         private static System.Guid trended;
 
         internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0,
-            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0)
+            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0, double? circleAltitude = null)
         {
+            CircleAltitude = circleAltitude ?? double.NaN;
             Remaining = double.IsNaN(remaining) || double.IsInfinity(remaining) ? 0.0 : Math.Max(0.0, remaining);
             HasGap = speedGap.HasValue && !double.IsNaN(speedGap.Value) && !double.IsInfinity(speedGap.Value) && !double.IsNaN(span) && !double.IsInfinity(span);
             if (HasGap)

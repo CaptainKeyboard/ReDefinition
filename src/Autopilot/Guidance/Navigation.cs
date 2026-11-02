@@ -45,7 +45,7 @@ namespace ReDefinition.Autopilot.Guidance
                 bool speed = ClimbGuide.Speed(vessel, aim, out gap, out span);
                 // A limit on the throttle (the air's pressure, a part's heat) asks for less thrust, more the lower the limit is, whatever the speed is.
                 GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text, 0, speed ? gap : (double?)null, span, false,
-                    fill < 0.5 ? 2.0 * fill - 1.0 : (double?)null, ClimbGuide.Remaining(vessel, aim));
+                    fill < 0.5 ? 2.0 * fill - 1.0 : (double?)null, ClimbGuide.Remaining(vessel, aim), aim);
                 return;
             }
             if (step == NodePlanner.StepKind.Release)
