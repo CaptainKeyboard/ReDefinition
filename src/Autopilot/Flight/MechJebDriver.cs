@@ -74,6 +74,8 @@ namespace ReDefinition.Autopilot.Flight
         {
             object executor = Executor(vessel);
             if (executor == null || vessel.patchedConicSolver == null || vessel.patchedConicSolver.maneuverNodes.Count == 0) return false;
+            // The guide of a climb or a descent is the navigation's to follow, and no burn for MechJeb to execute.
+            if (Guidance.GuideNode.Is(vessel.patchedConicSolver.maneuverNodes[0])) return false;
             autowarpField.SetValue(executor, warp);
             executor.GetType().GetMethod("ExecuteOneNode").Invoke(executor, new[] { user });
             return true;

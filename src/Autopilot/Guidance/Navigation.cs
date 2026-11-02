@@ -45,7 +45,7 @@ namespace ReDefinition.Autopilot.Guidance
                 bool speed = ClimbGuide.Speed(vessel, aim, out gap, out span);
                 // A limit on the throttle (the air's pressure, a part's heat) asks for less thrust, more the lower the limit is, whatever the speed is.
                 GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, fill, text, 0, speed ? gap : (double?)null, span, false,
-                    fill < 0.5 ? 2.0 * fill - 1.0 : (double?)null);
+                    fill < 0.5 ? 2.0 * fill - 1.0 : (double?)null, ClimbGuide.Remaining(vessel, aim));
                 return;
             }
             if (step == NodePlanner.StepKind.Release)
@@ -65,7 +65,7 @@ namespace ReDefinition.Autopilot.Guidance
             Status = landing.Describe(vessel);
             GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
                 landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, landing.HasGap ? landing.SpeedGap : (double?)null,
-                landing.Span, true);
+                landing.Span, true, null, vessel.srfSpeed);
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.
@@ -75,8 +75,11 @@ namespace ReDefinition.Autopilot.Guidance
             if (vessel.situation == Vessel.Situations.FLYING || Engines.Burning(vessel) || MechJebDriver.Busy(vessel)) return;
             string now = Signature(vessel, route);
             PatchedConicSolver solver = vessel.patchedConicSolver;
-            bool missed = solver != null && solver.maneuverNodes.Count > 0 && Missed(vessel, solver.maneuverNodes[0]);
+            ManeuverNode first = GuideNode.First(vessel);
+            bool missed = solver != null && first != null && Missed(vessel, first);
             if (now == signature && !missed) return;
+            // The nodes of the plan are made on the orbit the vessel has, which the guide's burn would change.
+            GuideNode.Release(vessel);
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
             RouteState own = RouteState.Of(vessel);

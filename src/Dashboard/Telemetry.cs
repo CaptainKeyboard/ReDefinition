@@ -485,8 +485,7 @@ namespace ReDefinition.Dashboard
         // The vessel's first maneuver node, null without one or before the solver exists.
         private static ManeuverNode FirstNode(Vessel v)
         {
-            PatchedConicSolver solver = v.patchedConicSolver;
-            return solver != null && solver.maneuverNodes.Count > 0 ? solver.maneuverNodes[0] : null;
+            return ReDefinition.Autopilot.Guidance.GuideNode.First(v);
         }
 
         /// <summary>

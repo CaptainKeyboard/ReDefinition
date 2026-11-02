@@ -33,8 +33,7 @@ namespace ReDefinition.Autopilot.Guidance
         private static bool Steers(Vessel vessel)
         {
             if (vessel == null || !GuidanceBoard.Current(vessel) || !GuidanceBoard.HasDirection) return false;
-            PatchedConicSolver solver = vessel.patchedConicSolver;
-            return solver == null || solver.maneuverNodes.Count == 0;
+            return GuideNode.First(vessel) == null;
         }
 
         // The game finds the mode locked without a node.
@@ -56,7 +55,8 @@ namespace ReDefinition.Autopilot.Guidance
         private void LateUpdate()
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (!Steers(vessel))
+            // With the navigation's own node the game offers the mode itself; without a node the hooks do.
+            if (!Steers(vessel) && !(GuidanceBoard.Current(vessel) && GuideNode.Holds(vessel)))
             {
                 chosenOff = false;
                 chosenOn = false;

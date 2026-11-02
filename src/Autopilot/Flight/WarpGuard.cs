@@ -52,6 +52,8 @@ namespace ReDefinition.Autopilot.Flight
             if (!handled && vessel.patchedConicSolver != null)
                 foreach (ManeuverNode node in vessel.patchedConicSolver.maneuverNodes)
                 {
+                    // The guide of a climb or a descent is no burn to wait for.
+                    if (Guidance.GuideNode.Is(node)) continue;
                     double burn = acceleration > 0.0 ? Math.Min(node.DeltaV.magnitude / acceleration, 3600.0) : 0.0;
                     double begins = node.UT - 2.0 * NodePlanner.LeadTime - 0.5 * burn;
                     double ends = node.UT + 0.5 * burn + BurnSlack;
@@ -71,7 +73,8 @@ namespace ReDefinition.Autopilot.Flight
             // The autopilot's own warp to the end of the orbit or to the air goes on as it is.
             if (now < SelfWarpUntil + 2.0) return next;
             Orbit orbit = vessel.orbit;
-            if (orbit.patchEndTransition != Orbit.PatchTransitionType.FINAL && orbit.EndUT > now && orbit.EndUT < next)
+            // The guide of a climb or a descent ends the orbit a moment from now, and is no change of it.
+            if (orbit.patchEndTransition != Orbit.PatchTransitionType.FINAL && orbit.EndUT > now && orbit.EndUT < next && !Guidance.GuideNode.Holds(vessel))
             {
                 next = orbit.EndUT;
                 what = "the change of orbit";

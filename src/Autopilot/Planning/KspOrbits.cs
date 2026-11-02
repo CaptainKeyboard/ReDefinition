@@ -74,7 +74,7 @@ namespace ReDefinition.Autopilot.Planning
             if (solver == null) return;
             var nodes = new List<ManeuverNode>(solver.maneuverNodes);
             foreach (ManeuverNode node in nodes)
-                if (!frame.Ahead || node.UT > frame.Now + Frame.AfterNode) Remove(node);
+                if (!Guidance.GuideNode.Is(node) && (!frame.Ahead || node.UT > frame.Now + Frame.AfterNode)) Remove(node);
             solver.UpdateFlightPlan();
         }
 

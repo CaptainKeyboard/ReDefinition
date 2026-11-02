@@ -60,6 +60,13 @@ namespace ReDefinition.Autopilot.Guidance
             return up * Math.Sin(radians) + east * Math.Cos(radians);
         }
 
+        // The delta-v the climb still has to burn: the speed of a circular orbit at the height it aims for, less the speed the vessel has round the body.
+        internal static double Remaining(Vessel vessel, double aimAltitude)
+        {
+            double circular = Math.Sqrt(vessel.mainBody.gravParameter / (vessel.mainBody.Radius + aimAltitude));
+            return Math.Max(0.0, circular - vessel.obt_velocity.magnitude);
+        }
+
         // The speed a climb is held to in the air: the one at which the dynamic pressure reaches its limit. The gap to it in m/s (over it where positive),
         // and how far the speed may be off before the thrust asked for is at its most. False where the air is too thin to hold a speed to.
         internal static bool Speed(Vessel vessel, double aimAltitude, out double gap, out double span)

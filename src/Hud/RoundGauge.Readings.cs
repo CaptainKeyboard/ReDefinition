@@ -104,8 +104,7 @@ namespace ReDefinition.Hud
         // The first manoeuvre node planned; null for none.
         private static ManeuverNode Node(Vessel vessel)
         {
-            PatchedConicSolver solver = vessel != null ? vessel.patchedConicSolver : null;
-            return solver != null && solver.maneuverNodes != null && solver.maneuverNodes.Count > 0 ? solver.maneuverNodes[0] : null;
+            return ReDefinition.Autopilot.Guidance.GuideNode.First(vessel);
         }
 
         // The next node. Before its burn, the time until the burn starts, half its

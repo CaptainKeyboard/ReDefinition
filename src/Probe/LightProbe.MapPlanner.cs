@@ -95,6 +95,16 @@ namespace ReDefinition.Probe
             {
                 string wantedBody = CommandLine.After("-redefinitionProbeMapPlannerTo") ?? "Kerbin";
                 Debug.Log(Log.Tag + " Probe: map planner: destination " + wantedBody + " set: " + MapPlannerWindow.Instance.SetDestination(wantedBody, 100000.0));
+                // -redefinitionProbeLaunchMenu: the map's menu of the vessel on the ground, as a shot.
+                if (CommandLine.Has("-redefinitionProbeLaunchMenu") && MapLaunchMenu.Instance != null)
+                {
+                    yield return new WaitForSeconds(3f);
+                    MapLaunchMenu.Instance.Show(FlightGlobals.ActiveVessel);
+                    yield return new WaitForSeconds(2f);
+                    UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "launch-menu.png"));
+                    yield return new WaitForSeconds(1f);
+                    MapLaunchMenu.Instance.Close();
+                }
                 yield return AutoClimbRun(folder);
                 if (CommandLine.Has("-redefinitionProbeMapPlannerThenLand") && !ProbeWatch.Lost && FlightGlobals.ActiveVessel.situation == Vessel.Situations.ORBITING)
                 {

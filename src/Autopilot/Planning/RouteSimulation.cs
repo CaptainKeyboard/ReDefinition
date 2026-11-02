@@ -120,6 +120,8 @@ namespace ReDefinition.Autopilot.Planning
                 plan.Ended = "There is no route to plan.";
                 return plan;
             }
+            // The guide of a climb or a descent is not a node to put back: it is made again from the board as the plan is done.
+            Guidance.GuideNode.Release(vessel);
             // The nodes the vessel holds are set aside, as they are, and put back when the plan is done. Taking them off the vessel and making them again
             // would leave the icons of the old ones on the map: the game only takes an icon away with the node's own call.
             PatchedConicSolver solver = vessel.patchedConicSolver;

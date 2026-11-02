@@ -165,7 +165,12 @@ namespace ReDefinition.Probe
                                                                                                                                          + " enabled " + vector.deltaVGauge.enabled + " standoff " + vector.deltaVGauge.readoutStandoff + " gauge at " + vector.deltaVGauge.transform.position
                                                                                                                                          + " scale " + GameSettings.UI_SCALE + " " + GameSettings.UI_SCALE_NAVBALL + " " + GameSettings.UIELEMENTSCALINGENABLED
                                                                                                                                          + ", text at " + (vector.readoutText != null ? vector.readoutText.transform.position + " in " + vector.readoutText.transform.parent.name : "none") : "none";
-            return "mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
+            PatchedConicSolver solver = vessel.patchedConicSolver;
+            string node = solver != null && solver.maneuverNodes.Count > 0
+                ? "nodes " + solver.maneuverNodes.Count + " (guide " + GuideNode.Holds(vessel) + ", burn " + solver.maneuverNodes[0].GetBurnVector(vessel.orbit).magnitude.ToString("0") + " m/s, "
+                  + Vector3.Angle((Vector3)solver.maneuverNodes[0].GetBurnVector(vessel.orbit), (Vector3)GuidanceBoard.Direction).ToString("0.0") + " degrees from the board)"
+                : "no node";
+            return node + ", mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
                    + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
                    + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", gap "
                    + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " m/s, ahead " + GuidanceBoard.Ahead.ToString("0") + " m/s, need " + GuidanceBoard.Need.ToString("0.00") : "none") + ", burn gauge " + gauge + ".";
@@ -178,7 +183,9 @@ namespace ReDefinition.Probe
             Vessel vessel = FlightGlobals.ActiveVessel;
             ProbeWatch.Arm(vessel);
             if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(System.IO.Path.Combine(folder, "flight-trace.csv"));
-            RouteDriver.Instance.SetNavigation(vessel, true);
+            // -redefinitionProbeQuickAscent: the climb is asked for as the menu of the map asks for it, with no plan made in the planner.
+            if (CommandLine.Has("-redefinitionProbeQuickAscent")) RouteDriver.Instance.StartAscent(vessel);
+            else RouteDriver.Instance.SetNavigation(vessel, true);
             MapView.ExitMapView();
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
             // -redefinitionProbeSasFollow: the SAS is on and steers; the probe only gives the throttle, and says how the nose follows the board.
@@ -186,7 +193,6 @@ namespace ReDefinition.Probe
             if (sasFollow) vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
             float nextSample = 0f;
             int samples = 0;
-            ManeuverNode realNode = null;
             float started = Time.realtimeSinceStartup;
             string last = "";
             float nextLine = 0f;
@@ -212,18 +218,18 @@ namespace ReDefinition.Probe
                     {
                         nextSample = Time.realtimeSinceStartup + (samples >= 9 && samples <= 13 ? 2f : 4f);
                         Debug.Log(Log.Tag + " Probe: sas: " + SasState(vessel));
-                        // A real node for a look at the game's own burn gauge, to set the navigation's beside it.
-                        if (samples == 9)
+                        if (samples == 10) UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "guide-node.png"));
+                        // The X button of the game takes the node away with this call; the navigation is to end with it.
+                        if (samples == 12 && vessel.patchedConicSolver != null && vessel.patchedConicSolver.maneuverNodes.Count > 0)
                         {
-                            realNode = vessel.patchedConicSolver.AddManeuverNode(Planetarium.GetUniversalTime() + 200.0);
-                            realNode.DeltaV = new Vector3d(0.0, 0.0, 400.0);
-                            vessel.patchedConicSolver.UpdateFlightPlan();
+                            Debug.Log(Log.Tag + " Probe: sas: the player takes the maneuver away.");
+                            vessel.patchedConicSolver.maneuverNodes[0].RemoveSelf();
                         }
-                        if (samples == 11) UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "real-node.png"));
-                        if (samples == 12 && realNode != null)
+                        if (samples == 15)
                         {
-                            realNode.RemoveSelf();
-                            realNode = null;
+                            RouteState left = RouteState.Of(vessel);
+                            Debug.Log(Log.Tag + " Probe: sas: after the maneuver was taken away: navigation " + (left != null && left.Navigation) + ", nodes " + vessel.patchedConicSolver.maneuverNodes.Count
+                                      + ", dismissed " + GuideNode.Dismissed + ".");
                         }
                         if (++samples >= 20)
                         {
