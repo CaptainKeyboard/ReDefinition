@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Hud
 {
-    // The button of the autopilot, at the top left under the time panel, big, with a red lamp. The lamp is lit while the autopilot flies, dark while it does not.
+    // The button of the autopilot, at the top of the screen right of the time panel, big, with a red lamp. The lamp is lit while the autopilot flies, dark while it does not.
     // One press starts what there is to fly: the route of the planner or the climb and the descent the navigation guides, else the maneuver nodes made in
     // the map, flown by MechJeb. Another press lets the vessel go. Where MechJeb cannot fly the button cannot be pressed.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
@@ -60,7 +60,7 @@ namespace ReDefinition.Hud
             tooltip = UiHygiene.Tooltip(made, "Autopilot");
             if (tooltip != null) tooltip.continuousUpdate = true;
             Place();
-            Debug.Log(Log.Tag + " The autopilot button stands under the time panel.");
+            Debug.Log(Log.Tag + " The autopilot button stands beside the time panel.");
         }
 
         private void Pressed()
@@ -68,21 +68,22 @@ namespace ReDefinition.Hud
             if (RouteDriver.Instance != null) RouteDriver.Instance.ToggleAutopilot(FlightGlobals.ActiveVessel);
         }
 
-        // Under the time panel, where it ends now: the panel folds and unfolds.
+        // Beside the time panel, at the top of the screen: under the panel the staging stack stands, which grows and opens out over it.
         private void Place()
         {
             RectTransform rect = face != null ? (RectTransform)face.transform : null;
             if (rect == null || root == null) return;
-            float bottom = 0f;
+            float right = 0f;
             if (panel != null)
             {
                 Transform background = panel.Find("Background");
                 RectTransform area = background != null ? background as RectTransform : panel;
                 var corners = new Vector3[4];
                 area.GetWorldCorners(corners);
-                bottom = root.InverseTransformPoint(corners[0]).y - root.rect.yMax;
+                right = root.InverseTransformPoint(corners[2]).x - root.rect.xMin;
             }
-            rect.anchoredPosition = new Vector2(Gap, Mathf.Min(0f, bottom) - Gap);
+            // Past the sunrise button, which slides out at the panel's right edge as it opens.
+            rect.anchoredPosition = new Vector2(right + 4f * Gap, -Gap);
         }
 
         private void LateUpdate()
