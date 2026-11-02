@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Reflection;
 using KSP.UI.Screens.Mapview;
 using KSP.UI.Screens.Mapview.MapContextMenuOptions;
 using ReDefinition.Core;
@@ -5,14 +7,15 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // A right click on the icon of the vessel that stands on the ground, in the map view, opens a menu with the one thing to do there: launch to orbit.
-    // The game opens no menu on the vessel the player flies. The click starts the navigation on a route from the ground into the lowest orbit round the
-    // body, with no plan made in the planner. The climb is a maneuver of the vessel's own that the player flies as any other.
+    // The map's own menu of an object has the entry "Launch to orbit" on the vessel that stands on the ground and that the player flies. That menu is the
+    // one with "Set as target" and "Focus", which a click on the icon of a vessel or a body opens. The game casts no menu on the vessel flown, since it
+    // leaves out its own icon. So the cast takes it in while it stands on the ground, and the menu has its one entry. The click starts the navigation on a
+    // route from the ground into the lowest orbit round the body, with no plan made in the planner. The climb is a maneuver that the player flies.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class MapLaunchMenu : MonoBehaviour
     {
-        // The vessel whose icon the menu listens to, and the menu that is open.
-        private Vessel listening;
+        private const string HarmonyId = "ReDefinition.MapLaunchMenu";
+        private static bool hooked;
         private MapContextMenu open;
 
         internal static MapLaunchMenu Instance;
@@ -22,69 +25,68 @@ namespace ReDefinition.Engineer
             Instance = this;
         }
 
-        private void Update()
+        private void Start()
         {
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            if (vessel == listening || (vessel != null && vessel.orbitRenderer == null)) return;
-            Listen(listening, false);
-            if (open != null) open.Dismiss();
-            listening = vessel;
-            Listen(vessel, true);
+            if (hooked) return;
+            hooked = true;
+            HarmonyHooks.Safely("map-launch-menu", "The map's menu has no entry to launch to orbit", () =>
+                HarmonyHooks.Install(HarmonyId, typeof(MapLaunchMenu), new List<HarmonyHook>
+                {
+                    new HarmonyHook(typeof(OrbitTargeter).GetMethod("TargetCastNodes", BindingFlags.Instance | BindingFlags.NonPublic), null, nameof(TakeIn), null),
+                    new HarmonyHook(typeof(MapContextMenu).GetConstructor(new[] { typeof(string), typeof(IScreenCaster), typeof(Callback), typeof(MapContextMenuOption[]) }),
+                        nameof(Add), null, null),
+                }));
         }
 
         private void OnDestroy()
         {
-            Listen(listening, false);
-            listening = null;
+            Close();
             if (Instance == this) Instance = null;
         }
 
-        private void Listen(Vessel vessel, bool on)
+        // Whether the vessel is the one flown, and stands on the ground, ready for the climb.
+        private static bool Ready(Vessel vessel)
         {
-            if (vessel == null || vessel.orbitRenderer == null) return;
-            if (on) vessel.orbitRenderer.onVesselIconClicked.Add(Clicked);
-            else vessel.orbitRenderer.onVesselIconClicked.Remove(Clicked);
+            return vessel != null && vessel == FlightGlobals.ActiveVessel && RouteDriver.Instance != null
+                   && (vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.PRELAUNCH);
         }
 
-        // Whether the vessel stands on the ground, ready for the climb.
-        private static bool OnTheGround(Vessel vessel)
+        // After the game has looked for the icon under the cursor: where it found none, the vessel's own icon is taken in, if the cursor is over it.
+        private static void TakeIn(ref OrbitDriver __result, ref OrbitRendererBase.OrbitCastHit orbitHit)
         {
-            return vessel != null && (vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.PRELAUNCH);
+            if (__result != null) return;
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (!Ready(vessel) || vessel.orbitDriver == null || vessel.orbitDriver.Renderer == null || !vessel.orbitDriver.Renderer.mouseOver) return;
+            if (!MapViewFiltering.CheckAgainstFilter(vessel)) return;
+            orbitHit.driver = vessel.orbitDriver;
+            orbitHit.or = vessel.orbitDriver.Renderer;
+            orbitHit.mouseTA = vessel.orbit.trueAnomaly;
+            __result = vessel.orbitDriver;
         }
 
-        private void Clicked(Vessel vessel)
+        // The menu of the vessel that is flown, on the ground: its one entry is the launch. What the game has for another vessel (target, focus) is of
+        // no use for the vessel itself.
+        private static void Add(IScreenCaster sc, ref MapContextMenuOption[] options)
         {
-            if (!Input.GetMouseButtonUp(1)) return;
-            Show(vessel);
+            if (!(sc is OrbitRendererBase.OrbitCastHit)) return;
+            OrbitRendererBase.OrbitCastHit hit = (OrbitRendererBase.OrbitCastHit)sc;
+            Vessel vessel = hit.driver != null ? hit.driver.vessel : null;
+            if (Ready(vessel)) options = new MapContextMenuOption[] { new LaunchToOrbit(vessel) };
         }
 
-        // The menu of the vessel's icon, where the vessel stands on the ground and the map is open.
+        // The menu as the game makes it, for a probe that cannot hold the cursor over the icon.
         internal void Show(Vessel vessel)
         {
-            if (vessel != FlightGlobals.ActiveVessel || !MapView.MapIsEnabled || !OnTheGround(vessel) || RouteDriver.Instance == null) return;
-            if (open != null) open.Dismiss();
-            open = MapContextMenu.Create(vessel.GetDisplayName(), new IconPoint(vessel), () => open = null, new LaunchToOrbit(vessel));
+            if (!MapView.MapIsEnabled || !Ready(vessel) || vessel.orbitDriver == null) return;
+            Close();
+            var hit = new OrbitRendererBase.OrbitCastHit { driver = vessel.orbitDriver, or = vessel.orbitDriver.Renderer };
+            open = MapContextMenu.Create(vessel.GetDisplayName(), hit, () => open = null, new MapContextMenuOption[0]);
         }
 
         internal void Close()
         {
             if (open != null) open.Dismiss();
-        }
-
-        // Where the menu stands: at the vessel's icon in the map, as the game's own menus stand at theirs.
-        private sealed class IconPoint : IScreenCaster
-        {
-            private readonly Vessel vessel;
-
-            internal IconPoint(Vessel vessel)
-            {
-                this.vessel = vessel;
-            }
-
-            public Vector3 GetScreenSpacePoint()
-            {
-                return PlanetariumCamera.Camera.WorldToScreenPoint(ScaledSpace.LocalToScaledSpace(vessel.GetWorldPos3D()));
-            }
+            open = null;
         }
 
         private sealed class LaunchToOrbit : MapContextMenuOption
