@@ -113,15 +113,29 @@ namespace ReDefinition.Probe
                     Debug.Log(Log.Tag + " Probe: auto land: the player flies the deorbit burn, " + solver.maneuverNodes[0].DeltaV.magnitude.ToString("0.0") + " m/s.");
                     if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
                     MechJebDriver.ExecuteNode(vessel, true);
-                    float nextBurnLine = 0f;
-                    while (MechJebDriver.Busy(vessel) && !ProbeWatch.Gone(vessel))
+                    // A plan that turns the plane first has two burns: the second is planned again once the first is flown.
+                    int planned = solver.maneuverNodes.Count;
+                    for (int burn = 0; burn < 2; burn++)
                     {
-                        if (Time.realtimeSinceStartup > nextBurnLine)
+                        float nextBurnLine = 0f;
+                        while (MechJebDriver.Busy(vessel) && !ProbeWatch.Gone(vessel))
                         {
-                            nextBurnLine = Time.realtimeSinceStartup + 20f;
-                            Debug.Log(Log.Tag + " Probe: auto land: the burn: " + MechJebDriver.State(vessel) + ", " + vessel.altitude.ToString("0") + " m.");
+                            if (Time.realtimeSinceStartup > nextBurnLine)
+                            {
+                                nextBurnLine = Time.realtimeSinceStartup + 20f;
+                                Debug.Log(Log.Tag + " Probe: auto land: the burn: " + MechJebDriver.State(vessel) + ", " + vessel.altitude.ToString("0") + " m.");
+                            }
+                            // A burn this long outlasts a stage: the next one is lit, as a player stages.
+                            if (!Engines.Running(vessel) && MechJebDriver.State(vessel) == "BURN") Engines.FireNextStageIfCold(vessel);
+                            yield return new WaitForSeconds(0.5f);
                         }
-                        yield return new WaitForSeconds(0.5f);
+                        if (burn == 1 || planned < 2) break;
+                        float replanned = Time.realtimeSinceStartup + 60f;
+                        while (solver.maneuverNodes.Count == 0 && Time.realtimeSinceStartup < replanned && !ProbeWatch.Gone(vessel)) yield return new WaitForSeconds(1f);
+                        if (solver.maneuverNodes.Count == 0) break;
+                        Debug.Log(Log.Tag + " Probe: auto land: the player flies the next burn, " + solver.maneuverNodes[0].DeltaV.magnitude.ToString("0.0") + " m/s.");
+                        if (!Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
+                        MechJebDriver.ExecuteNode(vessel, true);
                     }
                     WarpToImpact(vessel);
                 }

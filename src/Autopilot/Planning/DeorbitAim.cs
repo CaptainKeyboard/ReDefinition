@@ -27,7 +27,7 @@ namespace ReDefinition.Autopilot.Planning
         // The best burn found so far in a search.
         private struct Best
         {
-            public double Delay, Miss;
+            public double Delay, Miss, Impact;
             public V3 Burn;
         }
 
@@ -39,11 +39,51 @@ namespace ReDefinition.Autopilot.Planning
             if (orbit == null || orbit.eccentricity >= 1.0) return NodePlanner.Result.Failed("The orbit is not closed.");
             // Without air the descent is braked by the engines, and weak ones cannot do that; with air the chutes may.
             if (!body.atmosphere && Engines.Acceleration(vessel) <= body.GeeASL * 9.81) return NodePlanner.Result.Failed("The engines are too weak to land on " + body.bodyName + ".");
-            double mu = body.gravParameter, now = frame.Now;
-            State here = KspOrbits.StateAt(orbit, now);
-            double period = new Conic(here, mu).Period;
+            double mu = body.gravParameter, start = frame.Now;
+            State origin = KspOrbits.StateAt(orbit, start);
             double terrain = Math.Max(0.0, body.TerrainAltitude(latitude, longitude, true));
+            // A place off the orbit's plane is brought under it first, and the deorbit is searched from the orbit that burn leaves. The turn depends on when
+            // the vessel is over the place, which the search finds; so the turn is worked out again for that time, once.
+            double arrival = double.NaN;
+            Burn turn = new Burn(0.0, new V3(0.0, 0.0, 0.0));
+            bool turned = false;
+            double turnUT = 0.0, now = start, bestNow = start;
+            Best best = new Best { Delay = double.NaN, Miss = double.PositiveInfinity };
+            for (int pass = 0; pass < 2; pass++)
+            {
+                double across;
+                Burn next;
+                State here = origin;
+                now = start;
+                bool again = PlaneChange.Plan(body, origin, latitude, longitude, Close, arrival, out next, out across);
+                if (again)
+                {
+                    State at = Kepler.Propagate(origin, next.Delay, mu);
+                    here = new State(at.R, at.V + next.DeltaV);
+                    now = start + next.Delay;
+                }
+                Best found = Search(vessel, body, here, mu, now, latitude, longitude, terrain);
+                if (double.IsNaN(found.Delay)) break;
+                if (pass == 0 || found.Miss < best.Miss)
+                {
+                    best = found;
+                    turned = again;
+                    turn = next;
+                    turnUT = again ? now : 0.0;
+                    bestNow = now;
+                }
+                if (best.Miss <= Close) break;
+                arrival = found.Impact - start;
+            }
+            if (double.IsNaN(best.Delay)) return NodePlanner.Result.Failed("No burn was found whose descent lands.");
+            return Made(frame, bestNow + best.Delay, best.Burn, best.Miss, turned ? (Burn?)turn : null, turnUT);
+        }
 
+        // The burn from a state that brings the descent down nearest the place: the best of the times tried, with its delay, its miss and when it lands. The
+        // delay is NaN where no burn lands.
+        private static Best Search(Vessel vessel, CelestialBody body, State here, double mu, double now, double latitude, double longitude, double terrain)
+        {
+            double period = new Conic(here, mu).Period;
             // The time of the burn over the stretch ahead, tried at even steps.
             double step = Orbits * period / Samples;
             var best = new Best { Delay = double.NaN, Miss = double.PositiveInfinity };
@@ -59,7 +99,7 @@ namespace ReDefinition.Autopilot.Planning
                     high = delay + step;
                 }
             }
-            if (double.IsNaN(best.Delay)) return NodePlanner.Result.Failed("No burn was found whose descent lands.");
+            if (double.IsNaN(best.Delay)) return best;
             // The miss falls and rises about the best, so the interval round it is narrowed by golden section.
             const double golden = 0.6180339887;
             double a = low, b = high;
@@ -85,7 +125,7 @@ namespace ReDefinition.Autopilot.Planning
                     missD = Try(vessel, body, here, mu, now, d, latitude, longitude, terrain, ref best);
                 }
             }
-            return Made(frame, now + best.Delay, best.Burn, best.Miss);
+            return best;
         }
 
         // How far from the point the descent comes down after the burn at `delay`; infinity where there is no burn or no landing. The best so far is kept.
@@ -94,8 +134,8 @@ namespace ReDefinition.Autopilot.Planning
             State leaving = Kepler.Propagate(here, delay, mu);
             V3 burn;
             if (!Retrograde(leaving, mu, body.Radius * Periapsis, out burn)) return double.PositiveInfinity;
-            double lat, lon;
-            if (!Impact(vessel, body, leaving, burn, now + delay, terrain, out lat, out lon)) return double.PositiveInfinity;
+            double lat, lon, lands;
+            if (!Impact(vessel, body, leaving, burn, now + delay, terrain, out lat, out lon, out lands)) return double.PositiveInfinity;
             double miss = Distance(body, latitude, longitude, lat, lon);
             Debug.Log(Log.Tag + " Navigation: the deorbit in " + delay.ToString("0") + " s, " + burn.Length.ToString("0") + " m/s, comes down " + miss.ToString("0") + " m from the marker.");
             if (miss < best.Miss)
@@ -103,6 +143,7 @@ namespace ReDefinition.Autopilot.Planning
                 best.Miss = miss;
                 best.Delay = delay;
                 best.Burn = burn;
+                best.Impact = lands;
             }
             return miss;
         }
@@ -135,9 +176,9 @@ namespace ReDefinition.Autopilot.Planning
         }
 
         // Where the simulated descent from the orbit the burn leaves comes down; false where it does not land.
-        private static bool Impact(Vessel vessel, CelestialBody body, State leaving, V3 burn, double ut, double terrain, out double latitude, out double longitude)
+        private static bool Impact(Vessel vessel, CelestialBody body, State leaving, V3 burn, double ut, double terrain, out double latitude, out double longitude, out double landsAt)
         {
-            latitude = longitude = 0.0;
+            latitude = longitude = landsAt = 0.0;
             V3 velocity = leaving.V + burn;
             // The orbit maths works in the world's axes; the game's orbit in its own, which has the second and third swapped.
             var start = new Orbit();
@@ -156,6 +197,7 @@ namespace ReDefinition.Autopilot.Planning
                 if (result.Outcome != ReentrySimulation.Outcome.LANDED) return false;
                 latitude = result.EndPosition.Latitude;
                 longitude = result.EndPosition.Longitude;
+                landsAt = result.EndUT;
                 return true;
             }
             catch (Exception e)
@@ -171,15 +213,17 @@ namespace ReDefinition.Autopilot.Planning
         }
 
         // The burn as a node of the vessel, and what the plan says of it.
-        private static NodePlanner.Result Made(Frame frame, double ut, V3 burn, double miss)
+        private static NodePlanner.Result Made(Frame frame, double ut, V3 burn, double miss, Burn? turn, double turnUT)
         {
             KspOrbits.ClearNodes(frame);
+            if (turn.HasValue && KspOrbits.AddNode(frame, turnUT, turn.Value.DeltaV) == null) return NodePlanner.Result.Failed("The vessel has no flight plan.");
             if (KspOrbits.AddNode(frame, ut, burn) == null) return NodePlanner.Result.Failed("The vessel has no flight plan.");
             string near = miss < 1000.0 ? miss.ToString("0") + " m" : (miss / 1000.0).ToString("0.0") + " km";
             return new NodePlanner.Result
             {
-                Ok = true, UT = ut, DeltaV = burn, Error = miss,
-                Why = "Deorbit to the marker: " + burn.Length.ToString("0") + " m/s, the descent comes down " + near + " from the marker.",
+                Ok = true, UT = turn.HasValue ? turnUT : ut, DeltaV = turn.HasValue ? turn.Value.DeltaV : burn, Error = miss,
+                Why = (turn.HasValue ? "Turn the plane: " + turn.Value.Magnitude.ToString("0") + " m/s, then deorbit" : "Deorbit to the marker") + ": " + burn.Length.ToString("0")
+                      + " m/s, the descent comes down " + near + " from the marker.",
             };
         }
 

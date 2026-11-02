@@ -103,7 +103,7 @@ namespace ReDefinition.Engineer
             }
             // Whether the vessel can land at all is told before anything is started.
             string verdict;
-            bool possible = LandingCheck.Possible(vessel, out verdict);
+            bool possible = LandingCheck.Possible(vessel, latitude, longitude, out verdict);
             if (verdict.Length > 0)
             {
                 ScreenMessages.PostScreenMessage(verdict, 8f, ScreenMessageStyle.UPPER_CENTER);

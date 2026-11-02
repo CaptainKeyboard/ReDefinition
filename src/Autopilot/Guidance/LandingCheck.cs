@@ -1,4 +1,6 @@
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Landing;
+using ReDefinition.Orbits;
 
 namespace ReDefinition.Autopilot.Guidance
 {
@@ -8,7 +10,7 @@ namespace ReDefinition.Autopilot.Guidance
     {
         // False, with the reason, where the landing cannot be done; true with a line of what it needs where it can. Where the simulation gives no
         // landing, or the game no delta-v, there is nothing to say against it.
-        internal static bool Possible(Vessel vessel, out string verdict)
+        internal static bool Possible(Vessel vessel, double latitude, double longitude, out string verdict)
         {
             verdict = "";
             if (vessel == null || vessel.mainBody == null) return true;
@@ -32,6 +34,16 @@ namespace ReDefinition.Autopilot.Guidance
                           + (vessel.mainBody.GeeASL * 9.81).ToString("0.0") + " m/s2 of gravity.";
                 return false;
             }
+            // A place off the orbit's plane needs the plane turned first, which is its own burn.
+            double turn = 0.0;
+            if (vessel.orbit != null && !vessel.LandedOrSplashed && vessel.orbit.PeR > vessel.mainBody.Radius)
+            {
+                Burn burn;
+                double across;
+                State here = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
+                if (PlaneChange.Plan(vessel.mainBody, here, latitude, longitude, 1500.0, double.NaN, out burn, out across)) turn = burn.Magnitude;
+            }
+            if (!double.IsNaN(needed)) needed += turn;
             if (double.IsNaN(needed) || vessel.VesselDeltaV == null) return true;
             double have = vessel.VesselDeltaV.TotalDeltaVVac;
             // The game has no figure for the delta-v yet.
@@ -41,7 +53,8 @@ namespace ReDefinition.Autopilot.Guidance
                 verdict = "Not enough delta-v to land on " + body + ": " + needed.ToString("0") + " m/s needed, " + have.ToString("0") + " m/s on board.";
                 return false;
             }
-            verdict = "Landing on " + body + " needs " + needed.ToString("0") + " m/s of the " + have.ToString("0") + " m/s on board.";
+            verdict = "Landing on " + body + " needs " + needed.ToString("0") + " m/s" + (turn > 0.0 ? " (" + turn.ToString("0") + " m/s of it to turn the plane)" : "")
+                      + " of the " + have.ToString("0") + " m/s on board.";
             return true;
         }
 
