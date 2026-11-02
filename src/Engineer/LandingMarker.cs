@@ -1,5 +1,6 @@
 using FinePrint;
 using ReDefinition.Autopilot;
+using ReDefinition.Autopilot.Guidance;
 using ReDefinition.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -100,6 +101,15 @@ namespace ReDefinition.Engineer
                 ScreenMessages.PostScreenMessage("The autopilot is flying: switch it off to land on a marker.", 6f, ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
+            // Whether the vessel can land at all is told before anything is started.
+            string verdict;
+            bool possible = LandingCheck.Possible(vessel, out verdict);
+            if (verdict.Length > 0)
+            {
+                ScreenMessages.PostScreenMessage(verdict, 8f, ScreenMessageStyle.UPPER_CENTER);
+                Debug.Log(Log.Tag + " Navigation: " + verdict);
+            }
+            if (!possible) return;
             Remove();
             if (ScenarioCustomWaypoints.Instance != null)
             {

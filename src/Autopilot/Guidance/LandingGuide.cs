@@ -51,6 +51,8 @@ namespace ReDefinition.Autopilot.Guidance
             ReentrySimulation.Result result = prediction.Result;
             if (!vessel.LandedOrSplashed && result != null && LandingPrediction.ChutesToDeploy(vessel, result.Outcome == ReentrySimulation.Outcome.LANDED ? result.EndASL : 0.0))
                 advice = "Parachutes: let them out now. " + advice;
+            string shortage = LandingCheck.Shortage(vessel, result);
+            if (shortage != null) advice += " " + shortage;
             string part;
             double hottest = Heat.Hottest(vessel, out part);
             return hottest > 0.8 ? advice + " HOT: " + part + " at " + (hottest * 100.0).ToString("0") + " % of its limit." : advice;
