@@ -237,9 +237,9 @@ namespace ReDefinition.Window
             }
             // ReDefinition's own bindings went back with the settings above, the
             // mods' go with their other settings, and KSP's are filled in here.
-            ResetKeyBindings();
-            ResetAxes();
-            ClearLayoutPending();
+            KeysTab.Reset();
+            AxesTab.Reset();
+            KeyboardLayoutRows.Clear();
             GraphicsProfile high = ProfileApplier.Find(profiles, DefaultProfile);
             if (high != null) ChooseProfile(high);
             else Debug.LogWarning(Log.Tag + " Reset: the profile '" + DefaultProfile + "' is not installed; no profile chosen.");

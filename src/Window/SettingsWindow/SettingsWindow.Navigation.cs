@@ -61,6 +61,57 @@ namespace ReDefinition.Window
 
         // ------------------------------------------------------------ search
 
+        // What is typed into the window's search field, trimmed; the Keys tab's rows and every other tab filter by it.
+        internal static string keySearch = "";
+
+        // Both a row's own name and its mod's are searched: "camera" finds KSP's
+        // camera rows, "scatterer" the mod's. Each word of the search is looked for
+        // on its own, in any order: "wobble camera" finds "Camera wobble external",
+        // "scatterer shadows" Scatterer's terrain shadows.
+        internal static bool MatchesSearch(string title, string owner)
+        {
+            if (keySearch.Length == 0) return true;
+            foreach (string word in SearchWords())
+            {
+                bool found = (title != null && title.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0)
+                             || (owner != null && owner.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0);
+                if (!found) return false;
+            }
+            return true;
+        }
+
+        // Whether a row of that name and owner stands for what is typed, as the row's enabled condition asks it in
+        // every frame: worked out again only when the search changes.
+        internal static Func<bool> SearchFilter(string title, string owner)
+        {
+            string madeFor = null;
+            bool matches = true;
+            return () =>
+            {
+                if (!string.Equals(madeFor, keySearch, StringComparison.Ordinal))
+                {
+                    madeFor = keySearch;
+                    matches = MatchesSearch(title, owner);
+                }
+                return matches;
+            };
+        }
+
+        // The search's words, split once per search.
+        private static string searchWordsFor;
+        private static string[] searchWords = new string[0];
+
+        // The search's words, split anew only when the search changed.
+        private static string[] SearchWords()
+        {
+            if (searchWordsFor != keySearch)
+            {
+                searchWordsFor = keySearch;
+                searchWords = keySearch.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            }
+            return searchWords;
+        }
+
         // What the search matches a row by, per row, and every text of a page.
         private static readonly Dictionary<DialogGUIBase, string> searchTexts = new Dictionary<DialogGUIBase, string>();
         private static readonly Dictionary<SettingCategory, List<string>> pageTexts =
@@ -77,7 +128,7 @@ namespace ReDefinition.Window
         }
 
         // Notes the row's search text, for the row and for the page being built; the row itself is returned.
-        private static DialogGUIBase Searchable(DialogGUIBase row, string text)
+        internal static DialogGUIBase Searchable(DialogGUIBase row, string text)
         {
             if (row == null) return null;
             searchTexts[row] = text;
@@ -86,7 +137,7 @@ namespace ReDefinition.Window
         }
 
         // Notes a text the search finds the page by.
-        private static void NotePageText(SettingCategory category, string text)
+        internal static void NotePageText(SettingCategory category, string text)
         {
             List<string> texts;
             if (!pageTexts.TryGetValue(category, out texts))
@@ -355,7 +406,7 @@ namespace ReDefinition.Window
         }
 
         // The name with the change mark before it while a change waits.
-        private static string Marked(string title, bool changed)
+        internal static string Marked(string title, bool changed)
         {
             return changed ? "<color=" + MarkColor + ">" + Mark + "</color> " + title : title;
         }
@@ -365,7 +416,7 @@ namespace ReDefinition.Window
             new Dictionary<SettingCategory, List<string>>();
 
         // Notes a bundled row's key under the tab it stands in.
-        private static void NoteKey(SettingCategory category, string key)
+        internal static void NoteKey(SettingCategory category, string key)
         {
             List<string> keys;
             if (!keysIn.TryGetValue(category, out keys))
@@ -404,9 +455,9 @@ namespace ReDefinition.Window
                 if (OwnPending(SettingCategory.General, false)) pendingIn.Add(SettingCategory.Display);
                 if (OwnPending(SettingCategory.General, true)) pendingIn.Add(SettingCategory.Detail);
                 if (model.Profile != BundledSettings.ProfileName || model.Resetting) pendingIn.Add(SettingCategory.Profiles);
-                if (kspPending.Count > 0 || layoutPending != null || OwnPending(SettingCategory.Keys))
+                if (KeysTab.Pending.Count > 0 || KeyboardLayoutRows.Pending != null || OwnPending(SettingCategory.Keys))
                     pendingIn.Add(SettingCategory.Keys);
-                if (AxesDiffer()) pendingIn.Add(SettingCategory.Axes);
+                if (AxesTab.Differ()) pendingIn.Add(SettingCategory.Axes);
                 if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || OwnPending(SettingCategory.Interface))
                     pendingIn.Add(SettingCategory.Interface);
                 if (OwnPending(SettingCategory.Gameplay)) pendingIn.Add(SettingCategory.Gameplay);
@@ -417,17 +468,6 @@ namespace ReDefinition.Window
                 }
             }
             return pendingIn.Contains(category);
-        }
-
-        // Whether an axis row holds another binding than KSP's axis has now.
-        internal static bool AxesDiffer()
-        {
-            foreach (KspAxes.Axis axis in KspAxes.All())
-            {
-                AxisBinding copy;
-                if (axisPending.TryGetValue(axis.Name, out copy) && !AxisSame(axis, copy)) return true;
-            }
-            return false;
         }
 
         // ------------------------------------------------------------ the tab list

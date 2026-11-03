@@ -36,11 +36,11 @@ namespace ReDefinition.Window
         private const float TabWidth = 170f;
         internal const float PageWidth = 540f;
         private const float PageHeight = 440f;
-        private const float NameWidth = 190f;
-        private const float ControlWidth = 130f;
+        internal const float NameWidth = 190f;
+        internal const float ControlWidth = 130f;
         private const float ValueWidth = 60f;
         private const float SourceWidth = 70f;
-        private const float RowHeight = 18f;
+        internal const float RowHeight = 18f;
         internal const float ResetWidth = 80f;
         private const float RestartWidth = 140f;
 
@@ -56,7 +56,7 @@ namespace ReDefinition.Window
 
         // The settings the window has a row for: what SyncFromMods follows, with
         // every setting of a mod whose own window is open.
-        private static readonly HashSet<string> shownKeys = new HashSet<string>();
+        internal static readonly HashSet<string> shownKeys = new HashSet<string>();
 
         // Mods whose every setting the next sync reads: KSP's, once its own
         // settings screen has applied (FollowModSoon).
@@ -98,6 +98,13 @@ namespace ReDefinition.Window
             if (selected == null || !selected.transform.IsChildOf(dialog.transform)) return false;
             TMPro.TMP_InputField field = selected.GetComponent<TMPro.TMP_InputField>();
             return field != null && field.isFocused;
+        }
+
+        // Whether a row's button can be seen: not on a page left, in a group
+        // folded, or filtered out by the search.
+        internal static bool Showing(DialogGUIBase element)
+        {
+            return element != null && element.uiItem != null && element.uiItem.activeInHierarchy;
         }
 
         // Opens the window, or closes it where it is open: the toolbar button and the hotkey.
@@ -222,10 +229,10 @@ namespace ReDefinition.Window
             anyNotShown = AnyNotShown();
             shownKeys.Clear();
             Conflicts.Clear();
-            kspPending.Clear();
-            axisPending.Clear();
+            KeysTab.Pending.Clear();
+            AxesTab.Pending.Clear();
             AxisCapture.Stop();
-            ClearLayoutPending();
+            KeyboardLayoutRows.Clear();
             // The search field is built empty, and so is what it filters by.
             keySearch = "";
             searchTexts.Clear();
@@ -406,10 +413,10 @@ namespace ReDefinition.Window
             }
             if (category == SettingCategory.Keys)
             {
-                foreach (DialogGUIBase row in LayoutRows()) rows.Add(Searchable(row, "Keyboard layout"));
-                rows.AddRange(KeyRows());
+                foreach (DialogGUIBase row in KeyboardLayoutRows.Rows()) rows.Add(Searchable(row, "Keyboard layout"));
+                rows.AddRange(KeysTab.Rows());
             }
-            if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
+            if (category == SettingCategory.Axes) rows.AddRange(AxesTab.Rows());
         }
 
         // The registrations' settings of a tab, by section, with ReDefinition's own
@@ -705,7 +712,7 @@ namespace ReDefinition.Window
         }
 
         // A group's heading within a tab, as KSP's own screen heads its groups.
-        private static DialogGUIBase SectionHeading(string title)
+        internal static DialogGUIBase SectionHeading(string title)
         {
             return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.LowerLeft,
                 new DialogGUILabel("<b><color=#ffffff>" + title + "</color></b>", NameWidth + ControlWidth));

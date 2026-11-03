@@ -160,13 +160,13 @@ namespace ReDefinition.Window
 
         // A bundled setting's row: its name, its control by the setting's kind, its value as shown and its mod; null for
         // a setting with nothing to draw.
-        private static DialogGUIBase BundledRow(BundledSetting setting)
+        internal static DialogGUIBase BundledRow(BundledSetting setting)
         {
             // A setting checked by its type only has no control to draw: no row,
             // whatever the layout lists -- which the check outside the game
             // refuses.
             if (setting.Control == SettingControl.Value) return null;
-            if (setting.Control == SettingControl.Binding) return BundledBindingRow(setting, false);
+            if (setting.Control == SettingControl.Binding) return KeysTab.BundledBindingRow(setting, false);
             if (setting.Control == SettingControl.Dialog) return BundledDialogRow(setting);
 
             string key = setting.Key;

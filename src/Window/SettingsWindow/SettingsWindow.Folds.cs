@@ -34,7 +34,7 @@ namespace ReDefinition.Window
         }
 
         // A group's rows under its header: each row shown only while the group is open.
-        private static void AddFold(List<DialogGUIBase> rows, SettingCategory category, string title,
+        internal static void AddFold(List<DialogGUIBase> rows, SettingCategory category, string title,
                                     List<DialogGUIBase> members, bool first)
         {
             if (members.Count == 0) return;

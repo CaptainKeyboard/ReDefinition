@@ -5,6 +5,7 @@ using ReDefinition.Modules;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
@@ -26,7 +27,7 @@ namespace ReDefinition.Window
     // What the rows show is worked out again only after a change, not in every
     // frame: the tab holds about 250 rows, and each would otherwise read KSP's
     // bindings by reflection and parse its text in every frame.
-    internal static partial class SettingsWindow
+    internal static class KeysTab
     {
         // The widths of a binding's key button, of its clear button and of a modifier switch.
         private const float BindingWidth = 90f;
@@ -36,9 +37,6 @@ namespace ReDefinition.Window
         private const float KeyNameWidth = 168f;
         private const float KeySourceWidth = 52f;
         private const string ListeningText = "<color=#ffdd55>Press a key...</color>";
-
-        // What is typed into the window's search field, trimmed; the Keys tab's rows and every other tab filter by it.
-        private static string keySearch = "";
 
         // Counts every change to a binding in the tab: what the rows show is kept
         // until it moves. Also moved, at most once a second, when a value a mod's own window
@@ -58,15 +56,8 @@ namespace ReDefinition.Window
         // The texts last read, by the row's key.
         private static readonly Dictionary<string, Shown> shownTexts = new Dictionary<string, Shown>();
 
-        // Whether a row's button can be seen: not on a page left, in a group
-        // folded, or filtered out by the search.
-        internal static bool Showing(DialogGUIBase element)
-        {
-            return element != null && element.uiItem != null && element.uiItem.activeInHierarchy;
-        }
-
         // Marks every row's text as due to be read again.
-        internal static void KeysChanged()
+        internal static void Changed()
         {
             keysVersion++;
         }
@@ -125,60 +116,12 @@ namespace ReDefinition.Window
             return text;
         }
 
-        // Both a row's own name and its mod's are searched: "camera" finds KSP's
-        // camera rows, "scatterer" the mod's. Each word of the search is looked for
-        // on its own, in any order: "wobble camera" finds "Camera wobble external",
-        // "scatterer shadows" Scatterer's terrain shadows.
-        private static bool MatchesSearch(string title, string owner)
-        {
-            if (keySearch.Length == 0) return true;
-            foreach (string word in SearchWords())
-            {
-                bool found = (title != null && title.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0)
-                             || (owner != null && owner.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0);
-                if (!found) return false;
-            }
-            return true;
-        }
-
-        // Whether a row of that name and owner stands for what is typed, as the row's enabled condition asks it in
-        // every frame: worked out again only when the search changes.
-        private static Func<bool> SearchFilter(string title, string owner)
-        {
-            string madeFor = null;
-            bool matches = true;
-            return () =>
-            {
-                if (!string.Equals(madeFor, keySearch, StringComparison.Ordinal))
-                {
-                    madeFor = keySearch;
-                    matches = MatchesSearch(title, owner);
-                }
-                return matches;
-            };
-        }
-
-        // The search's words, split once per search.
-        private static string searchWordsFor;
-        private static string[] searchWords = new string[0];
-
-        // The search's words, split anew only when the search changed.
-        private static string[] SearchWords()
-        {
-            if (searchWordsFor != keySearch)
-            {
-                searchWordsFor = keySearch;
-                searchWords = keySearch.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            }
-            return searchWords;
-        }
-
         // The Keys tab's rows: every binding by its section, each section under a header that folds it.
-        private static DialogGUIBase[] KeyRows()
+        internal static DialogGUIBase[] Rows()
         {
             shownTexts.Clear();
             groupsShownFor = null;
-            KeysChanged();
+            Changed();
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
 
             // Every binding by its section: ReDefinition's and the mods' under Mods
@@ -283,7 +226,7 @@ namespace ReDefinition.Window
 
         // KSP's own bindings are edited here and written on Apply, as everything
         // else in this window is.
-        internal static readonly Dictionary<string, string> kspPending = new Dictionary<string, string>();
+        internal static readonly Dictionary<string, string> Pending = new Dictionary<string, string>();
 
         // The sections, each folded until it is opened -- Mods open at first: a row
         // of a folded section is inactive, and costs nothing while the window is
@@ -348,8 +291,8 @@ namespace ReDefinition.Window
             // Asked in every frame.
             string primaryKey = "ksp." + shown.Name + ".primary", secondaryKey = "ksp." + shown.Name + ".secondary";
             DialogGUIBase row = DialogRows.Row(RowHeight + 4f,
-                new DialogGUILabel(() => Marked(shown.Title, kspPending.ContainsKey(primaryKey)
-                                                             || kspPending.ContainsKey(secondaryKey)),
+                new DialogGUILabel(() => Marked(shown.Title, Pending.ContainsKey(primaryKey)
+                                                             || Pending.ContainsKey(secondaryKey)),
                     KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
                 new DialogGUILabel(RichText.Grey("KSP"), KeySourceWidth));
@@ -366,7 +309,7 @@ namespace ReDefinition.Window
             Func<string> read = () =>
             {
                 string pending;
-                return kspPending.TryGetValue(key, out pending) ? pending : shown.Read(second);
+                return Pending.TryGetValue(key, out pending) ? pending : shown.Read(second);
             };
             Func<string> current = () => CachedText(key, read);
             Conflicts.Register(key, current, shown.Situations, shown.Modes, () => shown.Default(second));
@@ -376,8 +319,8 @@ namespace ReDefinition.Window
             DialogGUIButton take = null;
             take = new DialogGUIButton(label, () => KeyCapture.Start(key, text =>
             {
-                kspPending[key] = text;
-                KeysChanged();
+                Pending[key] = text;
+                Changed();
             }, true, () => Showing(take)), BindingWidth, RowHeight + 4f, false);
             take.tooltipText = (second ? "The second key for " : "The key for ") + shown.Title
                                + ".\nKSP keeps one key per binding; its own modifier key is a binding of its own."
@@ -386,8 +329,8 @@ namespace ReDefinition.Window
             DialogGUIButton clear = new DialogGUIButton("x", () =>
             {
                 if (KeyCapture.Listening(key)) KeyCapture.Stop();
-                kspPending[key] = KeyCombination.NoneText;
-                KeysChanged();
+                Pending[key] = KeyCombination.NoneText;
+                Changed();
             }, BindingButtonWidth, RowHeight + 4f, false);
 
             return DialogRows.Row(RowHeight + 4f, take, new DialogGUISpace(4f), clear);
@@ -395,17 +338,17 @@ namespace ReDefinition.Window
 
         // On Apply: into GameSettings; true where one was written, for KSP's save
         // at the end of Apply.
-        internal static bool ApplyKeyBindings()
+        internal static bool Apply()
         {
-            KeysChanged();
-            if (kspPending.Count == 0) return false;
+            Changed();
+            if (Pending.Count == 0) return false;
             bool written = false;
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {
                 written |= Write(binding, false);
                 written |= Write(binding, true);
             }
-            kspPending.Clear();
+            Pending.Clear();
             return written;
         }
 
@@ -414,7 +357,7 @@ namespace ReDefinition.Window
         {
             string key = "ksp." + binding.Name + (second ? ".secondary" : ".primary");
             string text;
-            if (!kspPending.TryGetValue(key, out text)) return false;
+            if (!Pending.TryGetValue(key, out text)) return false;
             try
             {
                 binding.Write(second, text);
@@ -433,16 +376,16 @@ namespace ReDefinition.Window
         // KSP's go back to what KSP's own reset sets: what KSP ships with the preset of the keyboard layout it
         // detects (KspKeyBindings.Defaults), the same KspReset loads before these
         // are written. Filled in only: Apply writes them.
-        internal static void ResetKeyBindings()
+        internal static void Reset()
         {
-            kspPending.Clear();
+            Pending.Clear();
             string layout = KspKeyBindings.DetectedLayout(true);
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {
                 ResetOne(binding, layout, false);
                 ResetOne(binding, layout, true);
             }
-            KeysChanged();
+            Changed();
         }
 
         // Puts one of KSP's keys back to the layout's shipped default, where it has one.
@@ -450,7 +393,7 @@ namespace ReDefinition.Window
         {
             string shipped = binding.DefaultIn(layout, second);
             if (shipped == null) return;
-            kspPending["ksp." + binding.Name + (second ? ".secondary" : ".primary")] = shipped;
+            Pending["ksp." + binding.Name + (second ? ".secondary" : ".primary")] = shipped;
         }
 
         // ReDefinition's own hotkeys, over the settings copy the window edits.
@@ -471,7 +414,7 @@ namespace ReDefinition.Window
         // its keys.
         // inKeysTab: filtered by the Keys tab's search; a binding a registration
         // places in another tab stands there whatever the search holds.
-        private static DialogGUIBase BundledBindingRow(BundledSetting setting, bool inKeysTab)
+        internal static DialogGUIBase BundledBindingRow(BundledSetting setting, bool inKeysTab)
         {
             BundledSetting shown = setting;
             string key = shown.Key;
@@ -523,7 +466,7 @@ namespace ReDefinition.Window
             Action<string> write = text =>
             {
                 set(text);
-                KeysChanged();
+                Changed();
             };
             // A new key keeps the modifiers the switches hold.
             Action<string> taken = text =>

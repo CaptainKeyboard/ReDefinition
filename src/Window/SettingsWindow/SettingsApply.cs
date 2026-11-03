@@ -27,10 +27,10 @@ namespace ReDefinition.Window
         {
             KeyCapture.Stop();
             AxisCapture.Stop();
-            kspPending.Clear();
-            axisPending.Clear();
-            ClearLayoutPending();
-            KeysChanged();
+            KeysTab.Pending.Clear();
+            AxesTab.Pending.Clear();
+            KeyboardLayoutRows.Clear();
+            KeysTab.Changed();
             if (edit != null && edit.Before != null) edit.After = edit.Before.Clone();
             try
             {
@@ -57,7 +57,7 @@ namespace ReDefinition.Window
             unappliedFrame = frame;
             // KSP's key bindings and axes wait in their tabs as well, and so does
             // every setting of ReDefinition's own, the upscaler's and the rest.
-            unapplied = kspPending.Count > 0 || AxesDiffer() || layoutPending != null
+            unapplied = KeysTab.Pending.Count > 0 || AxesTab.Differ() || KeyboardLayoutRows.Pending != null
                         || model.Unapplied(OwnSettingsPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
             return unapplied;
         }
@@ -228,9 +228,9 @@ namespace ReDefinition.Window
             if (resetting) Step("KSP's settings could not be reset", ResetKsp);
             Step("Settings set directly from the window applied only in part", () => written.UnionWith(ApplyDirect()));
             bool kspWritten = resetting;
-            Step("KSP's keyboard layout from the window could not be applied", () => { kspWritten |= ApplyLayout(); });
-            Step("KSP's key bindings from the window applied only in part", () => { kspWritten |= ApplyKeyBindings(); });
-            Step("KSP's axes from the window applied only in part", () => { kspWritten |= ApplyAxes(); });
+            Step("KSP's keyboard layout from the window could not be applied", () => { kspWritten |= KeyboardLayoutRows.Apply(); });
+            Step("KSP's key bindings from the window applied only in part", () => { kspWritten |= KeysTab.Apply(); });
+            Step("KSP's axes from the window applied only in part", () => { kspWritten |= AxesTab.Apply(); });
             if (kspWritten)
             {
                 IBundledMod ksp = KspMod();
