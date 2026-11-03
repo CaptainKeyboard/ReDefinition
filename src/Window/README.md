@@ -7,9 +7,11 @@ over, and the controls that read keys and axes from the player.
 
 | File | Read it for |
 |---|---|
-| `src/Window/SettingsWindow/SettingsWindow.cs` | The window itself: `Toggle`, `Open`, `Close`, `Build`, and the fields every tab shares. |
-| `src/Window/SettingsWindow/SettingsWindow.Apply.cs` | *Apply*, *Accept* and *Cancel* as one ordered pipeline. |
-| `src/Window/SettingsWindow/SettingsWindow.BundledRows.cs` | A bundled mod's row, by the kind of setting. |
+| `src/Window/SettingsWindow/SettingsWindow.cs` | The window itself: `Toggle`, `Open`, `Close`, `Build`, and the state every tab shares. |
+| `src/Window/SettingsWindow/SettingsApply.cs` | *Apply*, *Accept* and *Cancel* as one ordered pipeline. |
+| `src/Window/SettingsWindow/BundledRows.cs` | A bundled mod's row, by the kind of setting. |
+| `src/Window/SettingsWindow/SettingsSearch.cs` | The search field and which rows, groups and pages it leaves standing. |
+| `src/Window/SettingsWindow/SettingsTabs.cs` | The tab column: the category tree and the mark on a tab that has a change waiting. |
 | `src/Window/KspSettingsSection.cs` | ReDefinition's section in KSP's own settings dialog, and `KspSettingsSection.Edit`. |
 | `src/Window/ToolbarTakeover.cs` | Hiding the toolbar button of a mod whose settings the window holds. |
 | `src/Window/Controls/KspKeyBindings.cs` | KSP's key bindings, read from `GameSettings`. |
@@ -17,9 +19,13 @@ over, and the controls that read keys and axes from the player.
 
 ## What it does
 
-- `SettingsWindow` is one static class in several files, one for each tab or concern: `Axes`,
-  `Keys`, `Interface` (*Mods / Toolbar*), `Profiles` (*Graphics*), `Navigation`, `Waiting`,
-  `Folds`, `Layout`, `Ampere`, `BundledRows` and `Apply`.
+- `SettingsWindow` is the static facade the rest of the mod uses. It opens, builds and closes the
+  window and holds the state every tab shares: the dialog, the tab shown, the edit copies. Its
+  partial files are `Interface` (*Mods / Toolbar*), `Folds`, `Ampere` and `Probe`.
+- One static class in `src/Window/SettingsWindow/` for each concern: `ProfilesTab` (*Graphics*,
+  Reset), `KeysTab`, `AxesTab` and `KeyboardLayoutRows` (*Controls*), `BundledRows`,
+  `SettingsApply`, `WaitingNotice`, `SettingsSearch`, `SettingsTabs` and `SettingMarks`.
+  Each keeps the caches of its concern.
 - Four things open it: `ToolbarButton`, `MainMenuEntry`, `PauseMenuEntry` and
   `KspSettingsSection`. The settings hotkey is handled in `src/ReDefinitionAddon.cs`.
 - `BundleNotice` and `ProxyNotice` speak in the main menu. `GameRestart` starts KSP again for

@@ -57,8 +57,9 @@ namespace ReDefinition.Window
                 }
                 string text = axis.Title + " " + axis.Group + " axis";
                 KspAxes.Axis marked = axis;
-                members.Add(SettingsSearch.Searchable(new DialogGUILabel(() => SettingMarks.Marked(marked.Title, AxisChanged(marked)),
-                    NameWidth + ControlWidth), text));
+                members.Add(SettingsSearch.Searchable(
+                    new DialogGUILabel(() => SettingMarks.Marked(marked.Title, AxisChanged(marked)), NameWidth + ControlWidth),
+                    text));
                 members.Add(SettingsSearch.Searchable(AxisSide(axis, false), text));
                 members.Add(SettingsSearch.Searchable(AxisSide(axis, true), text));
             }

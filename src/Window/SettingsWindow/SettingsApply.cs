@@ -228,7 +228,8 @@ namespace ReDefinition.Window
             if (resetting) Step("KSP's settings could not be reset", ResetKsp);
             Step("Settings set directly from the window applied only in part", () => written.UnionWith(ApplyDirect()));
             bool kspWritten = resetting;
-            Step("KSP's keyboard layout from the window could not be applied", () => { kspWritten |= KeyboardLayoutRows.Apply(); });
+            Step("KSP's keyboard layout from the window could not be applied",
+                 () => { kspWritten |= KeyboardLayoutRows.Apply(); });
             Step("KSP's key bindings from the window applied only in part", () => { kspWritten |= KeysTab.Apply(); });
             Step("KSP's axes from the window applied only in part", () => { kspWritten |= AxesTab.Apply(); });
             if (kspWritten)

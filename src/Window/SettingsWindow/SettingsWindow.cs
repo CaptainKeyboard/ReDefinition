@@ -279,7 +279,8 @@ namespace ReDefinition.Window
 
                 DialogGUIVerticalLayout page = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
                     new RectOffset(8, 24, 8, 8), TextAnchor.UpperLeft, rows.ToArray());
-                page.OptionEnabledCondition = () => SettingsSearch.Searching ? SettingsSearch.PageMatches(shown) : current == shown;
+                page.OptionEnabledCondition = () =>
+                    SettingsSearch.Searching ? SettingsSearch.PageMatches(shown) : current == shown;
                 pages.Add(page);
             }
             // The category last shown may have nothing here now.
@@ -419,7 +420,8 @@ namespace ReDefinition.Window
             }
             if (category == SettingCategory.Keys)
             {
-                foreach (DialogGUIBase row in KeyboardLayoutRows.Rows()) rows.Add(SettingsSearch.Searchable(row, "Keyboard layout"));
+                foreach (DialogGUIBase row in KeyboardLayoutRows.Rows())
+                    rows.Add(SettingsSearch.Searchable(row, "Keyboard layout"));
                 rows.AddRange(KeysTab.Rows());
             }
             if (category == SettingCategory.Axes) rows.AddRange(AxesTab.Rows());
@@ -442,7 +444,7 @@ namespace ReDefinition.Window
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
             {
-                DialogGUIBase row = SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
+                DialogGUIBase row = SearchableRow(setting);
                 if (row == null) continue;
                 shownKeys.Add(setting.Key);
                 SettingsTabs.NoteKey(category, setting.Key);
@@ -488,6 +490,12 @@ namespace ReDefinition.Window
                 rows.Add(SectionHeading(left.Key));
                 rows.AddRange(left.Value);
             }
+        }
+
+        // A bundled setting's row, searchable by its title and its mod; null for a setting with nothing to draw.
+        private static DialogGUIBase SearchableRow(BundledSetting setting)
+        {
+            return SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
         }
 
         // ReDefinition's own rows, laid out as the bundled mods' are.
@@ -611,7 +619,7 @@ namespace ReDefinition.Window
             bool others = false;
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
             {
-                DialogGUIBase row = SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
+                DialogGUIBase row = SearchableRow(setting);
                 if (row == null) continue;
                 if (!others)
                 {
@@ -648,7 +656,7 @@ namespace ReDefinition.Window
                 List<DialogGUIBase> members = new List<DialogGUIBase>();
                 foreach (BundledSetting setting in WindowLayout.In(group.Key))
                 {
-                    DialogGUIBase row = SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
+                    DialogGUIBase row = SearchableRow(setting);
                     if (row == null) continue;
                     shownKeys.Add(setting.Key);
                     SettingsTabs.NoteKey(SettingCategory.Detail, setting.Key);

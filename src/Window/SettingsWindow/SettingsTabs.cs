@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
@@ -120,7 +119,8 @@ namespace ReDefinition.Window
                 if (KeysTab.Pending.Count > 0 || KeyboardLayoutRows.Pending != null || OwnPending(SettingCategory.Keys))
                     pendingIn.Add(SettingCategory.Keys);
                 if (AxesTab.Differ()) pendingIn.Add(SettingCategory.Axes);
-                if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending() || OwnPending(SettingCategory.Interface))
+                if (model.Bundled != BundledSettings.Enabled || model.ButtonsPending()
+                    || OwnPending(SettingCategory.Interface))
                     pendingIn.Add(SettingCategory.Interface);
                 if (OwnPending(SettingCategory.Gameplay)) pendingIn.Add(SettingCategory.Gameplay);
                 foreach (SettingCategory child in new List<SettingCategory>(pendingIn))

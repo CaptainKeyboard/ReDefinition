@@ -57,8 +57,9 @@ namespace ReDefinition.Window
             {
                 DialogGUIBase shown = member;
                 Func<bool> before = member.OptionEnabledCondition;
-                member.OptionEnabledCondition = () => (SettingsSearch.Searching ? SettingsSearch.RowMatches(shown) : FoldOpen(fold))
-                                                      && (before == null || before());
+                member.OptionEnabledCondition = () =>
+                    (SettingsSearch.Searching ? SettingsSearch.RowMatches(shown) : FoldOpen(fold))
+                    && (before == null || before());
                 rows.Add(member);
                 SettingsSearch.FoldRows.Add(member);
             }
