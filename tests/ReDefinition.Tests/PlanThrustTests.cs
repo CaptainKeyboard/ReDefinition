@@ -4,8 +4,8 @@ using ReDefinition.Engineer;
 
 namespace ReDefinition.Tests
 {
-    // The planner's thrust check (PlanThrust) on a vessel of one stage, so that the figures come by hand: Kerbin's gravity at the surface is
-    // 3.5316e12 / 600,000^2 = 9.81 m/s^2, and the vessel weighs 10 t as it starts.
+    // The planner's thrust check (PlanThrust) on a vessel of one stage, so that the figures come by hand.
+    // Kerbin's gravity at the surface is 3.5316e12 / 600,000^2 = 9.81 m/s^2, and the vessel weighs 10 t as it starts.
     [TestClass]
     public class PlanThrustTests
     {

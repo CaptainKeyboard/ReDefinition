@@ -105,7 +105,7 @@ namespace ReDefinition.Tests
     }
 
     // The stock crafts flown through the planner's model as the planner does in the
-    // editor (PlannerView.Evaluate). The tests check the stages lit on the pad together, the
+    // editor (PlannerModel.Evaluate). The tests check the stages lit on the pad together, the
     // sections it finds by itself, the route, the stage budget with a 10 % margin, and the
     // lift-off TWR against what each craft's description promises.
     [TestClass]
@@ -131,7 +131,7 @@ namespace ReDefinition.Tests
             public string Report;
         }
 
-        // Flies the craft along the route of `goals` as PlannerView.Evaluate does, with the stage budget's
+        // Flies the craft along the route of `goals` as PlannerModel.Evaluate does, with the stage budget's
         // margin, and reports it.
         private static Flight Fly(StockCraft craft, List<RouteStop> goals, double margin = 0.10)
         {
@@ -139,7 +139,7 @@ namespace ReDefinition.Tests
             PlannerBody home = bodies[Kerbin];
             double gravity = home.Mu / (home.Radius * home.Radius);
             Dictionary<int, string> labels = new Dictionary<int, string>();
-            // As PlannerView.Evaluate: the planner's own stages where an engine breathes
+            // As PlannerModel.Evaluate: the planner's own stages where an engine breathes
             // air, then the stages lit on the pad together.
             int airRow;
             List<StageRow> rows = AirLaunch.Plan(craft.Rows, craft.Parts, StockCrafts.Linked(craft.Sim), StockCrafts.Density,

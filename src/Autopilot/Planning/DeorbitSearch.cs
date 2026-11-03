@@ -123,6 +123,7 @@ namespace ReDefinition.Autopilot.Planning
             cancelled = true;
             Done = true;
             Found = false;
+            if (Failure == null) Failure = "The search was stopped.";
         }
 
         // One slice of the work, on the game's thread: sets up descents and takes the results that are in, for a few milliseconds.

@@ -8,7 +8,7 @@ using static ReDefinition.Engineer.PlanText;
 namespace ReDefinition.Engineer
 {
     // The planner (docs/player/planner.md) as KSP's dialog elements show it. The plan itself, with the steps, the sections, the stage budget and
-    // every text, is the PlannerModel's; the view holds the model and builds the rows from it: what is open and what is folded, the bars, the
+    // every text, is the PlannerModel's. The view holds the model and builds the rows from it: what is open and what is folded, the bars, the
     // lists folded out under the buttons and the marks on the vessel. The rows are in PlannerView.Rows.cs and the files beside it.
     internal sealed partial class PlannerView
     {

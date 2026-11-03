@@ -16,7 +16,7 @@ namespace ReDefinition
         // Set where a camera's antialiasing changes at once: the map view entered or left.
         private bool duplicatesNow;
 
-        // Sync for the settings and rig given.
+        // The sync works on the settings controller and the rig lifecycle it is given.
         public HostStackSync(SettingsController config, RigLifecycle rigs)
         {
             this.config = config;

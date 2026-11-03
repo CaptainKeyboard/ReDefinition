@@ -40,6 +40,9 @@ namespace ReDefinition.Raytracing
     // test player has no Parallax, so there is no grass.
     internal static class RtKspMods
     {
+        // No grass, so no level of detail to start from.
+        internal static float ParallaxGrassLodStart { get { return 0f; } }
+
         // No grass range about the camera or the vessel.
         internal static float ParallaxGrassRange(out float vesselRange)
         {

@@ -22,7 +22,7 @@ namespace ReDefinition.Autopilot.Planning
         // The search is given up: nobody asks for it any more.
         internal static void Abandon()
         {
-            if (search != null) search.Cancel();
+            if (search != null && !search.Done) search.Cancel();
             search = null;
             searchKey = null;
             searchFor = null;

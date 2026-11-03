@@ -264,7 +264,7 @@ namespace ReDefinition.Engineer
         }
 
         // Works the plan out: the stages the planner budgets with, the vessel's sections, the steps, which stage pays for
-        // which step, the thrust checks and each step's warnings; then tells the view, which draws the bars and marks the vessel.
+        // which step, the thrust checks and each step's warnings. Then it tells the view, which draws the bars and marks the vessel.
         internal void Evaluate()
         {
             long whole = PlannerTiming.Start();
