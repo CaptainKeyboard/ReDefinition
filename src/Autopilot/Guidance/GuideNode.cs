@@ -180,6 +180,48 @@ namespace ReDefinition.Autopilot.Guidance
             }
         }
 
+        // The node that a handover left to the game, taken away if the climb is guided again.
+        private static ManeuverNode kept;
+
+        internal static void DropKept()
+        {
+            ManeuverNode gone = kept;
+            kept = null;
+            if (gone == null || gone.solver == null) return;
+            removedByUs = true;
+            try
+            {
+                gone.RemoveSelf();
+            }
+            finally
+            {
+                removedByUs = false;
+            }
+        }
+
+        // The climb is done: the first node, which follows the climb, is taken away, and the second, the burn that circularizes, stays as a node of the game's
+        // own. It is not the guide's any more, so the game's burn display shows it, until the plan makes the node of its own.
+        internal static void Handover()
+        {
+            if (node == null) return;
+            ManeuverNode first = node;
+            kept = second;
+            node = null;
+            second = null;
+            owner = null;
+            updated = -1000f;
+            if (first.solver == null) return;
+            removedByUs = true;
+            try
+            {
+                first.RemoveSelf();
+            }
+            finally
+            {
+                removedByUs = false;
+            }
+        }
+
         // The guidance starts anew: a node taken away before is not remembered.
         internal static void Reset()
         {

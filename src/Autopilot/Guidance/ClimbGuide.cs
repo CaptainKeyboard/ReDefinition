@@ -23,9 +23,15 @@ namespace ReDefinition.Autopilot.Guidance
         // Without air the turn starts this high over the ground, in metres.
         private const double TurnStartOverGround = 25.0;
 
-        // How long before the apoapsis aimed for is reached the ideal throttle starts to fall, in s of burn at full thrust: the player's choice, so that there
-        // is time to bring the throttle down by hand. MechJeb's own ascent throttles down over one second.
-        private const double RampSeconds = 10.0;
+        // How long the ideal throttle is to take to fall from full thrust to none, in s. The player's limit is twenty. The fall measured takes about one eighth
+        // longer than this, so it is set under that. It falls evenly in time. MechJeb's own ascent throttles down over one second.
+        internal const double RampSeconds = 17.0;
+
+        // The burn that the fall covers, in m/s, with the engines giving `acceleration` at full thrust: the area under the fall of the throttle.
+        internal static double RampBurn(double acceleration)
+        {
+            return 0.5 * acceleration * RampSeconds;
+        }
         private const double LeastThrottle = 0.05;
 
         // The height the turn really started at: where the speed for it was reached under the height for it, as MechJeb remembers it.
@@ -97,9 +103,48 @@ namespace ReDefinition.Autopilot.Guidance
             return conic.Closed ? conic.A * (1.0 + conic.E) : double.PositiveInfinity;
         }
 
+        // How much of the engines' acceleration reaches the burn left, as it is measured while the vessel flies. The burn left falls by less than the engines
+        // gain in speed: the vessel climbs, gravity takes part, and the direction of the climb turns. The share is taken from how the burn left fell between
+        // two samples of the game's time while thrust was given, and kept while little is. It is measured once in a frame, by the navigation.
+        private static double effective = 1.0;
+        private static double referenceBurn, referenceTime;
+        private static Guid measured;
+        private const double MeasureSeconds = 2.0;
+        private const double SampleSeconds = 0.5;
+
+        internal static void Measure(Vessel vessel, double burn)
+        {
+            double ut = Planetarium.GetUniversalTime();
+            bool running = Time.timeScale > 0f && TimeWarp.CurrentRate <= 1f;
+            if (vessel.id != measured)
+            {
+                measured = vessel.id;
+                effective = 1.0;
+                referenceBurn = burn;
+                referenceTime = ut;
+                return;
+            }
+            double dt = ut - referenceTime;
+            // A pause, a jump of the time or a time warp changes the burn in ways that thrust does not: the sample is taken anew.
+            if (!running || dt < 0.0 || dt > 4.0 * SampleSeconds)
+            {
+                referenceBurn = burn;
+                referenceTime = ut;
+                return;
+            }
+            if (dt < SampleSeconds) return;
+            double nominal = Engines.Acceleration(vessel);
+            double given = FlightInputHandler.state.mainThrottle;
+            double instant = (referenceBurn - burn) / (dt * nominal * given);
+            if (given > 0.5 && nominal > 0.0 && !double.IsNaN(instant) && !double.IsInfinity(instant))
+                effective += (Math.Max(0.2, Math.Min(1.5, instant)) - effective) * (1.0 - Math.Exp(-dt / MeasureSeconds));
+            referenceBurn = burn;
+            referenceTime = ut;
+        }
+
         // The climb to a circular orbit at `aimAltitude`: the pitch and heading to fly now, and the ideal throttle. The ideal is the lowest of three limits that change
         // smoothly. They are the air's pressure, a part's temperature (Heat), and the approach to the apoapsis aimed for. `burn` is the burn left, in m/s.
-        internal static string Climb(Vessel vessel, double aimAltitude, out double ideal, out double burn)
+        internal static string Climb(Vessel vessel, double aimAltitude, out double ideal, out double burn, out bool done)
         {
             double pitch = Pitch(vessel, aimAltitude);
             double latitude = vessel.latitude * Math.PI / 180.0;
@@ -108,24 +153,22 @@ namespace ReDefinition.Autopilot.Guidance
             double ratio = Math.Cos(inclination * Math.PI / 180.0) / Math.Max(0.1, Math.Cos(latitude));
             if (ratio <= 1.0) heading = Math.Asin(ratio) * 180.0 / Math.PI;
             string reason = "";
-            burn = 0.0;
-            bool high = vessel.orbit.ApA >= aimAltitude;
             ideal = 0.0;
+            // The burn is under zero where the apoapsis is beyond the aim: how much the speed is over.
+            State at = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
+            burn = at.R.Length > 0.0 ? RaiseBurn(vessel.mainBody, at, KspOrbits.ToV3(ClimbDirection(vessel, aimAltitude)).Unit, aimAltitude) : 0.0;
+            bool high = vessel.orbit.ApA >= aimAltitude || burn <= GuideNode.LeastDeltaV;
+            done = high;
             if (!high)
             {
                 double allowed = Heat.Allowed(vessel, out reason);
-                State at = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
-                burn = at.R.Length > 0.0 ? RaiseBurn(vessel.mainBody, at, KspOrbits.ToV3(ClimbDirection(vessel, aimAltitude)).Unit, aimAltitude) : 0.0;
-                if (burn <= GuideNode.LeastDeltaV) high = true;
-                else
-                {
-                    double acceleration = Engines.Acceleration(vessel);
-                    double ramp = acceleration > 0.0 ? Math.Min(1.0, burn / (acceleration * RampSeconds)) : 1.0;
-                    // Not below the least throttle that MechJeb's ascent gives while it raises the apoapsis; it is cut when the burn is done.
-                    ramp = Math.Max(LeastThrottle, ramp);
-                    ideal = Math.Min(allowed, ramp);
-                    if (ramp < allowed) reason = "";
-                }
+                double acceleration = Engines.Acceleration(vessel) * effective;
+                // Following a throttle that falls evenly over the time T, the burn left is a T / 2 times the throttle squared, at full thrust a.
+                double ramp = acceleration > 0.0 ? Math.Min(1.0, Math.Sqrt(burn / RampBurn(acceleration))) : 1.0;
+                // Not below the least throttle that MechJeb's ascent gives while it raises the apoapsis; it is cut when the burn is done.
+                ramp = Math.Max(LeastThrottle, ramp);
+                ideal = Math.Min(allowed, ramp);
+                if (ramp < allowed) reason = "";
             }
             string engines = high
                 ? "engines off, the apoapsis is high enough"

@@ -14,6 +14,10 @@ namespace ReDefinition.Autopilot.Guidance
     {
         private const float MinGap = 30f;
 
+        // How long the mark takes to slide off the gauges at the apoapsis aimed for, in s, and when the climb was done.
+        private const float SlideSeconds = 2f;
+        private float doneAt = -1f;
+        private bool climbDone;
         private float nextTrace;
         private string signature = "";
         private float lastPlan = -1000f;
@@ -40,8 +44,28 @@ namespace ReDefinition.Autopilot.Guidance
             if (step == NodePlanner.StepKind.Ascent)
             {
                 double asked, burn;
-                Status = ClimbGuide.Climb(vessel, aim, out asked, out burn);
-                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, 0.5, "", 0, null, 1.0, false, null, ClimbGuide.Remaining(vessel, aim), aim, asked, burn);
+                bool done;
+                Status = ClimbGuide.Climb(vessel, aim, out asked, out burn, out done);
+                ClimbGuide.Measure(vessel, burn);
+                // Once the apoapsis is reached the climb stays done: the burn left wavers about its least size, and the mark would go up and down.
+                if (done) climbDone = true;
+                done = climbDone;
+                if (done) asked = 0.0;
+                if (!done) doneAt = -1f;
+                else if (doneAt < 0f) doneAt = Time.realtimeSinceStartup;
+                // At the apoapsis aimed for the mark and the bar slide off the gauges. Then the guidance ends, and the plan is made again at once, with the burn
+                // that circularizes as a node of its own, which the game's burn display shows.
+                if (done && Time.realtimeSinceStartup - doneAt > SlideSeconds)
+                {
+                    GuideNode.Handover();
+                    GuidanceBoard.Forget();
+                    guided = false;
+                    signature = "";
+                    lastPlan = -1000f;
+                    return;
+                }
+                // The number is the need as a speed: the most the engines change it in the time looked ahead.
+                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, 0.5, "", 0, null, ClimbGuide.RampBurn(Engines.Acceleration(vessel)), false, null, ClimbGuide.Remaining(vessel, aim), aim, asked, done);
                 Trace(vessel, burn);
                 return;
             }
@@ -61,8 +85,8 @@ namespace ReDefinition.Autopilot.Guidance
             }
             Status = landing.Describe(vessel);
             GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
-                landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, landing.HasGap ? landing.SpeedGap : (double?)null,
-                landing.Span, true, null, vessel.srfSpeed, null, landing.HasBar ? landing.Throttle : (double?)null, vessel.srfSpeed);
+                landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, null,
+                ClimbGuide.RampBurn(Engines.Acceleration(vessel)), true, null, vessel.srfSpeed, null, landing.HasBar ? landing.Throttle : (double?)null);
         }
 
         // The climb's guidance twice a second in the log, to read after a flight how the bar moved: height, apoapsis, burn left, ideal and given throttle, need.
@@ -72,7 +96,8 @@ namespace ReDefinition.Autopilot.Guidance
             nextTrace = Time.realtimeSinceStartup + 0.5f;
             Debug.Log("[ReDefinition] Climb trace: " + vessel.altitude.ToString("0") + " m, apoapsis " + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000")
                       + ", burn left " + burn.ToString("0") + " m/s, ideal " + GuidanceBoard.Ideal.ToString("0.00") + ", given " + FlightInputHandler.state.mainThrottle.ToString("0.00")
-                      + ", need " + GuidanceBoard.Need.ToString("0.00") + ".");
+                      + ", need " + GuidanceBoard.Need.ToString("0.00") + ", speed " + vessel.obt_velocity.magnitude.ToString("0.0") + ", full-thrust acceleration "
+                      + Engines.Acceleration(vessel).ToString("0.0") + ".");
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.
@@ -93,10 +118,14 @@ namespace ReDefinition.Autopilot.Guidance
             NodePlanner.Result plan = NextStepPlanner.PlanNext(new Frame(vessel), route, PlanOptions.Guided, own != null ? own.ProgressFor(route) : null);
             step = plan.Kind;
             aim = plan.Altitude;
+            climbDone = false;
+            doneAt = -1f;
             guided = plan.Ok && (plan.Kind == NodePlanner.StepKind.Ascent || plan.Kind == NodePlanner.StepKind.Landing || plan.Kind == NodePlanner.StepKind.Aerobrake
                                  || plan.Kind == NodePlanner.StepKind.Release);
             Status = plan.Why;
             Debug.Log("[ReDefinition] Route: nodes: " + plan.Why);
+            // A guided step has no node of its own: the one the climb left behind, the circularizing, goes.
+            if (guided) GuideNode.DropKept();
             if (guided) Guide(vessel);
         }
 

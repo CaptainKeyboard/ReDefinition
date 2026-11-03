@@ -37,19 +37,31 @@ namespace ReDefinition.Autopilot.Guidance
         // Where the guidance asks for a throttle (a climb), the ideal throttle, 0 to 1, smoothed in time; the need is that against the throttle given.
         internal static bool HasIdeal { get; private set; }
         internal static double Ideal { get; private set; }
-        // The burn that is left, in m/s: the number the gauges show beside the bar. In a climb it is the burn to the apoapsis aimed for, in a descent the
-        // speed that is still to be taken off.
-        internal static bool HasBurn { get; private set; }
-        internal static double BurnLeft { get; private set; }
+        // What the number beside the bar says: how many m/s the speed is over the one asked for, or short of it. Where the bar is the ideal throttle against
+        // the throttle given, the number is that difference as a speed: the burn that the fall of the throttle covers (the span) times the need. So
+        // the number and the bar always say the same.
+        private static bool hasNumber;
         internal static string NumberText
         {
-            get { return HasBurn ? BurnLeft.ToString("0") + " m/s" : "Ideal " + (Ideal * 100.0).ToString("0") + " %"; }
+            get
+            {
+                if (!HasGap || (HasIdeal && !hasNumber)) return "";
+                double gap = Ahead;
+                if (Math.Abs(gap) < 1.0) return "0 m/s";
+                return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
+            }
         }
         // The bar as the gauges show it, 0 to 1 with the mark at a half: under the mark where thrust is to be given, over it where less is wanted.
         internal static double Arc
         {
-            get { return HasGap ? 0.5 - 0.5 * Need : BarFill; }
+            get { return Done ? 0.0 : 0.5 - 0.5 * Need; }
         }
+        // Whether the guidance has done what it was for (a climb at the apoapsis aimed for). The mark and the bar then slide down off the gauges, and the
+        // game's own burn display takes over; MarkAt is where the mark stands, from a half to nothing.
+        internal static bool Done { get; private set; }
+        internal static double MarkAt { get; private set; } = 0.5;
+        private const double SlideTime = 0.5;
+        private static float markTime;
         // The delta-v the vessel still has to burn for what the navigation guides, in m/s: the size of the burn of the guide node.
         internal static double Remaining { get; private set; }
         // The height of the orbit a climb aims for, in m; NaN for a guidance that is not a climb. The guide shows the burn to it and the circularizing.
@@ -65,10 +77,13 @@ namespace ReDefinition.Autopilot.Guidance
         private static System.Guid idealVessel;
 
         internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0,
-            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0, double? circleAltitude = null, double? idealThrottle = null, double? burnLeft = null)
+            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0, double? circleAltitude = null, double? idealThrottle = null, bool done = false)
         {
-            HasBurn = burnLeft.HasValue && !double.IsNaN(burnLeft.Value) && !double.IsInfinity(burnLeft.Value);
-            BurnLeft = HasBurn ? Math.Max(0.0, burnLeft.Value) : 0.0;
+            Done = done;
+            float realNow = Time.realtimeSinceStartup;
+            float elapsed = Math.Min(0.5f, Math.Max(0f, realNow - markTime));
+            markTime = realNow;
+            MarkAt = done ? MarkAt + (0.0 - MarkAt) * (1.0 - Math.Exp(-elapsed / SlideTime)) : 0.5;
             CircleAltitude = circleAltitude ?? double.NaN;
             Remaining = double.IsNaN(remaining) || double.IsInfinity(remaining) ? 0.0 : Math.Max(0.0, remaining);
             HasIdeal = idealThrottle.HasValue && !double.IsNaN(idealThrottle.Value);
@@ -86,9 +101,10 @@ namespace ReDefinition.Autopilot.Guidance
                 idealTime = now;
                 idealVessel = target.id;
                 hadGap = false;
-                SpeedGap = 0.0;
-                Ahead = 0.0;
                 Need = Math.Max(-1.0, Math.Min(1.0, Ideal - FlightInputHandler.state.mainThrottle));
+                hasNumber = !double.IsNaN(span) && !double.IsInfinity(span) && span > 0.0;
+                SpeedGap = hasNumber ? -Need * span : 0.0;
+                Ahead = SpeedGap;
             }
             else if (HasGap)
             {
@@ -132,6 +148,12 @@ namespace ReDefinition.Autopilot.Guidance
             if (direction.HasValue) Direction = direction.Value.normalized;
             HasThrottle = throttle.HasValue;
             if (throttle.HasValue) Throttle = throttle.Value;
+        }
+
+        // The board is taken as not written: the guidance has ended, and the gauges are the game's.
+        internal static void Forget()
+        {
+            written = -100f;
         }
 
         // Whether the board was written for this vessel a moment ago.

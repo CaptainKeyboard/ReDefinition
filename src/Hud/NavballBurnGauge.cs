@@ -81,7 +81,7 @@ namespace ReDefinition.Hud
             {
                 guiding = false;
                 Vessel vessel = FlightGlobals.ActiveVessel;
-                bool board = FlightGlobals.ready && vessel != null && GuidanceBoard.Current(vessel) && GuidanceBoard.HasBar && Expanded(__instance);
+                bool board = FlightGlobals.ready && vessel != null && GuidanceBoard.Current(vessel) && GuidanceBoard.HasGap && Expanded(__instance);
                 if (board && GuideNode.Holds(vessel))
                 {
                     guiding = true;
@@ -165,8 +165,7 @@ namespace ReDefinition.Hud
         // Where the bar is to stand, 0 to 1, with the mark at a half. Under the mark thrust is to be given, over it less is wanted.
         private static float Wanted()
         {
-            if (GuidanceBoard.HasGap) return (float)(0.5 - 0.5 * GuidanceBoard.Need);
-            return (float)Math.Max(0.0, Math.Min(1.0, 1.0 - GuidanceBoard.BarFill));
+            return (float)GuidanceBoard.Arc;
         }
 
         // The bar moves towards where it is to stand, a part of the way in every frame.
@@ -192,10 +191,10 @@ namespace ReDefinition.Hud
         }
 
         // The colour of the bar: the game's own where the speed is the one asked for, warm where thrust is to be given and cool where less is wanted.
-        // Without a speed asked for it is the level the board gives, amber and red as the vessel gets far from it.
         private static Color Tint()
         {
-            if (!GuidanceBoard.HasGap) return GuidanceBoard.BarLevel >= 2 ? Past : GuidanceBoard.BarLevel == 1 ? Close : untinted;
+            // The bar sliding off at the end of the guidance is no call for thrust.
+            if (GuidanceBoard.Done) return untinted;
             double need = 1.0 - 2.0 * shown;
             if (Math.Abs(need) < OnTarget) return untinted;
             float share = (float)Math.Min(1.0, (Math.Abs(need) - OnTarget) / (FullColour - OnTarget));
@@ -209,14 +208,10 @@ namespace ReDefinition.Hud
             return off < OnTarget ? 0 : off >= FullColour ? 2 : 1;
         }
 
-        // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it, a few seconds from now as the bar has it.
+        // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it.
         internal static string Number()
         {
-            if (GuidanceBoard.HasIdeal) return GuidanceBoard.NumberText;
-            if (!GuidanceBoard.HasGap) return GuidanceBoard.BarText ?? "";
-            double gap = GuidanceBoard.Ahead;
-            if (Math.Abs(gap) < 1.0) return "0 m/s";
-            return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
+            return GuidanceBoard.NumberText;
         }
 
         // The mark in the middle, made as the game makes the marks of its stages: a copy of their prefab on the gauge.
@@ -245,7 +240,7 @@ namespace ReDefinition.Hud
                 mark.ToggleOffsetMarker(true);
             }
             mark.maxValue = gauge.MaxValue;
-            mark.SetValue(0.5f);
+            mark.SetValue((float)GuidanceBoard.MarkAt);
         }
 
         // The number on the gauge. The buttons beside it are for a node, which there is none of.

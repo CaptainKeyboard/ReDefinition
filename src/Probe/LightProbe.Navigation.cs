@@ -245,10 +245,71 @@ namespace ReDefinition.Probe
             float nextShot = 5f;
             int shots = 0;
             bool burned = false;
+            // -redefinitionProbeGaugeShots: five shots of the thrust gauges along the climb, with the throttle held wrong where the bar is to be seen off the mark.
+            bool gaugeShots = CommandLine.Has("-redefinitionProbeGaugeShots");
+            bool shotUnder = false, shotBefore = false, shotMid = false, shotAfter = false, shotApoapsis = false;
+            float holdUntil = -1f, holdThrottle = 0f, captureAt = -1f;
+            string captureName = null;
+            float doneSeen = -1f;
             while (Time.realtimeSinceStartup - started < 1500f && !ProbeWatch.Gone(vessel))
             {
                 if (noSolver && vessel.PatchedConicsAttached) vessel.DetachPatchedConicsSolver();
                 string now = RouteDriver.Instance.Status;
+                if (gaugeShots)
+                {
+                    float clock = Time.realtimeSinceStartup;
+                    // The burn left to the apoapsis aimed for (80 km), as the guidance works it out.
+                    double idealNow, burnLeft;
+                    bool climbDone;
+                    ClimbGuide.Climb(vessel, 80000.0, out idealNow, out burnLeft, out climbDone);
+                    double full = Engines.Acceleration(vessel) * 10.0;
+                    if (now.Contains("engines off") && doneSeen < 0f) doneSeen = clock;
+                    // 1: half way up, the throttle too low: the bar under the mark.
+                    if (!shotUnder && vessel.orbit.ApA > 40000.0 && GuidanceBoard.Current(vessel) && !now.Contains("engines off"))
+                    {
+                        shotUnder = true;
+                        holdUntil = clock + 3f;
+                        holdThrottle = (float)(0.45 * GuidanceBoard.Throttle);
+                        captureAt = clock + 2f;
+                        captureName = "gauge-1-halfway.png";
+                    }
+                    // 2: just before the throttle starts to fall: the bar on the mark, the number counting down.
+                    else if (shotUnder && !shotBefore && holdUntil < clock && burnLeft > 0.0 && burnLeft <= 1.25 * full && burnLeft > 1.0 * full)
+                    {
+                        shotBefore = true;
+                        captureAt = clock;
+                        captureName = "gauge-2-before-slowdown.png";
+                    }
+                    // 3: in the middle of the fall, the throttle kept up: the bar over the mark, less is wanted.
+                    else if (shotBefore && !shotMid && burnLeft > 0.0 && burnLeft <= 0.5 * full)
+                    {
+                        shotMid = true;
+                        holdUntil = clock + 2.5f;
+                        holdThrottle = 1f;
+                        captureAt = clock + 1.5f;
+                        captureName = "gauge-3-mid-slowdown.png";
+                    }
+                    // 4: after the fall, the apoapsis reached: the mark and the bar slide off, and the game's display takes over.
+                    else if (shotMid && !shotAfter && doneSeen >= 0f && clock > doneSeen + 3.5f)
+                    {
+                        shotAfter = true;
+                        captureAt = clock;
+                        captureName = "gauge-4-after-slowdown.png";
+                    }
+                    // 5: near the vessel's apoapsis: the game's burn display of the circularizing.
+                    else if (shotAfter && !shotApoapsis && vessel.orbit.timeToAp < 25.0 && vessel.altitude > 70000.0)
+                    {
+                        shotApoapsis = true;
+                        captureAt = clock;
+                        captureName = "gauge-5-apoapsis.png";
+                    }
+                    if (captureName != null && clock >= captureAt)
+                    {
+                        UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, captureName));
+                        Debug.Log(Log.Tag + " Probe: gauge shot " + captureName + ".");
+                        captureName = null;
+                    }
+                }
                 if (now != last && Time.realtimeSinceStartup > nextLine)
                 {
                     Debug.Log(Log.Tag + " Probe: auto climb: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, apoapsis "
@@ -262,7 +323,9 @@ namespace ReDefinition.Probe
                 if (now.StartsWith("Climb"))
                 {
                     if (GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.02 && !Engines.Running(vessel)) Engines.FireNextStageIfCold(vessel);
-                    StandIn(vessel, GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0, !sasFollow);
+                    double standing = GuidanceBoard.Current(vessel) && GuidanceBoard.HasThrottle ? GuidanceBoard.Throttle : 0.0;
+                    if (gaugeShots && Time.realtimeSinceStartup < holdUntil) standing = holdThrottle;
+                    StandIn(vessel, standing, !sasFollow);
                     if (sasFollow && Time.realtimeSinceStartup > nextSample)
                     {
                         nextSample = Time.realtimeSinceStartup + (samples >= 9 && samples <= 13 ? 2f : 4f);
@@ -343,6 +406,13 @@ namespace ReDefinition.Probe
                             Debug.Log(Log.Tag + " Probe: auto climb: MechJeb " + MechJebDriver.State(vessel) + ", node in " + (solver.maneuverNodes.Count > 0
                                       ? (solver.maneuverNodes[0].UT - Planetarium.GetUniversalTime()).ToString("0") : "-") + " s, warp " + TimeWarp.CurrentRateIndex + ", throttle "
                                       + vessel.ctrlState.mainThrottle.ToString("0.00") + ", " + Engines.Report(vessel));
+                        }
+                        // MechJeb flies the burn from here: the shot at the apoapsis is taken while it waits.
+                        if (gaugeShots && shotAfter && !shotApoapsis && vessel.orbit.timeToAp < 25.0)
+                        {
+                            shotApoapsis = true;
+                            UnityEngine.ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(folder, "gauge-5-apoapsis.png"));
+                            Debug.Log(Log.Tag + " Probe: gauge shot gauge-5-apoapsis.png.");
                         }
                         yield return new WaitForSeconds(0.5f);
                     }
