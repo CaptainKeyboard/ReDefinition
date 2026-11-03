@@ -38,8 +38,8 @@ namespace ReDefinition.Window
         private const float PageHeight = 440f;
         internal const float NameWidth = 190f;
         internal const float ControlWidth = 130f;
-        private const float ValueWidth = 60f;
-        private const float SourceWidth = 70f;
+        internal const float ValueWidth = 60f;
+        internal const float SourceWidth = 70f;
         internal const float RowHeight = 18f;
         internal const float ResetWidth = 80f;
         private const float RestartWidth = 140f;
@@ -52,7 +52,7 @@ namespace ReDefinition.Window
 
         // The bundled settings' rows: their values, where each came from, and
         // Apply's steps.
-        internal static readonly SettingsEdit model = new SettingsEdit { Offered = OfferChoice };
+        internal static readonly SettingsEdit model = new SettingsEdit { Offered = BundledRows.OfferChoice };
 
         // The settings the window has a row for: what SyncFromMods follows, with
         // every setting of a mod whose own window is open.
@@ -237,7 +237,7 @@ namespace ReDefinition.Window
         // The window's content: the tab column beside the pages, one page per tab with rows, and the buttons at the foot.
         private static DialogGUIBase[] Build(UISkinDef skin)
         {
-            choiceRows.Clear();
+            BundledRows.Reset();
             anyNotShown = AnyNotShown();
             shownKeys.Clear();
             Conflicts.Clear();
@@ -442,7 +442,7 @@ namespace ReDefinition.Window
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
             {
-                DialogGUIBase row = SettingsSearch.Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                DialogGUIBase row = SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
                 if (row == null) continue;
                 shownKeys.Add(setting.Key);
                 SettingsTabs.NoteKey(category, setting.Key);
@@ -611,7 +611,7 @@ namespace ReDefinition.Window
             bool others = false;
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
             {
-                DialogGUIBase row = SettingsSearch.Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                DialogGUIBase row = SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
                 if (row == null) continue;
                 if (!others)
                 {
@@ -648,7 +648,7 @@ namespace ReDefinition.Window
                 List<DialogGUIBase> members = new List<DialogGUIBase>();
                 foreach (BundledSetting setting in WindowLayout.In(group.Key))
                 {
-                    DialogGUIBase row = SettingsSearch.Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                    DialogGUIBase row = SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
                     if (row == null) continue;
                     shownKeys.Add(setting.Key);
                     SettingsTabs.NoteKey(SettingCategory.Detail, setting.Key);
@@ -859,25 +859,23 @@ namespace ReDefinition.Window
             if (Visible) dueMods.Add(id);
         }
 
-        // Under its own label where the setting's list has one: a row a
-        // requirement limits leaves some of them out. Among numbers that only rise
-        // or only fall it takes its place -- a frame limit of 144 between 140 and
-        // 180 -- and in front of anything else.
-        private static void OfferChoice(ChoiceRow row, string value)
+        // A dialog's content under its heading, KSP's Close below it, over the window as its own
+        // dialogs stand; Escape closes it too. A mod's (DIALOG) and ReDefinition's own (ModuleDialog).
+        internal static void OpenDialogOverWindow(string key, string heading, float width, DialogGUIBase[] content)
         {
-            if (Array.FindIndex(row.Choices, c => SettingValues.Same(c, value)) >= 0) return;
-            int at = PlaceAmong(row.Choices, value);
-            row.Choices = InsertAt(row.Choices, at, value);
-            if (row.Labels != null)
-            {
-                int index = row.AllChoices != null ? Array.FindIndex(row.AllChoices, c => SettingValues.Same(c, value)) : -1;
-                row.Labels = InsertAt(row.Labels, Math.Min(at, row.Labels.Length),
-                    index >= 0 && row.AllLabels != null && index < row.AllLabels.Length ? row.AllLabels[index] : value);
-            }
-            // Not yet there while the row is built.
-            if (row.Control == null) return;
-            row.Control.max = row.Choices.Length - 1;
-            if (row.Control.slider != null) row.Control.slider.maxValue = row.Control.max;
+            List<DialogGUIBase> rows = new List<DialogGUIBase>(content);
+            rows.Add(new DialogGUIHorizontalLayout(
+                new DialogGUIFlexibleSpace(),
+                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_149410"), () => { }, 120f, 30f, true),
+                new DialogGUIFlexibleSpace()));
+            TooltipText.WrapAll(rows);
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + key, "",
+                heading, HighLogic.UISkin, width, rows.ToArray());
+            PopupDialog shown = UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
+            // Once its elements stand.
+            DialogTooltips.Attach(rows);
+            EscapeGuard.Own(shown);
         }
 
         // Opens the diagnostics window, on the upscaler's page where it was closed.

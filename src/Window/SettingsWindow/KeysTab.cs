@@ -151,7 +151,7 @@ namespace ReDefinition.Window
                 shownKeys.Add(bundled.Key);
                 SettingsTabs.NoteKey(SettingCategory.Keys, bundled.Key);
                 AddToSection(sections, order, binding ? bundled.Group : BundledSetting.ModsGroup, bundled.Title,
-                    bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled, true) : BundledRow(bundled));
+                    bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled, true) : BundledRows.Row(bundled));
             }
             foreach (KspKeyBindings.Binding binding in KspKeyBindings.All())
             {

@@ -158,7 +158,7 @@ namespace ReDefinition.Window
         }
 
         // Whether the mod can take the setting in this scene; false where asking throws.
-        private static bool Applicable(BundledSetting setting)
+        internal static bool Applicable(BundledSetting setting)
         {
             try
             {
