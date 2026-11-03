@@ -169,8 +169,6 @@ namespace ReDefinition.Upscaler
         private readonly MotionVectorAudit motionAudit = new MotionVectorAudit();
         private readonly VesselMotionVectors vesselMotion = new VesselMotionVectors();
         private readonly VesselShadowLayer vesselShadow = new VesselShadowLayer();
-        // Frame generation's HUD-less copy of the backbuffer.
-        private readonly HudLessCapture hudLess = new HudLessCapture();
         // The instrument for camera motion and the floating origin.
         private readonly CameraMotionMeter motion = new CameraMotionMeter();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
@@ -373,8 +371,7 @@ namespace ReDefinition.Upscaler
                 Status = "No 3D cameras found to redirect.";
                 return false;
             }
-            if (FrameGeneration && FrameGenerationBridge.InputsUsable)
-                hudLess.Attach(cameras.Presenter, true, textures.HudLess, vesselShadow, renderSize);
+            if (FrameGeneration && FrameGenerationBridge.InputsUsable) AttachHudLess(true);
             inputs.ScaledMotion.Attach(cameras.Redirects, renderSize);
 
             // Before the first frame renders: TUFX's layers are split from it on.
@@ -480,7 +477,7 @@ namespace ReDefinition.Upscaler
             if (TornDown) return;
             TornDown = true;
             motion.ReportIfDue(true);
-            ReleaseHooks();
+            hooks.Release();
             hudLess.Detach();
             tufx.Dispose();
             inputs.DisposeParts();
@@ -709,8 +706,7 @@ namespace ReDefinition.Upscaler
                 RequestRebuild("the camera's HDR is now " + (cam.allowHDR ? "on" : "off"));
 
             // Once, a few seconds after the rig was built. See HudLessCapture.Attach.
-            if (hudLess.RecheckDue)
-                hudLess.Recheck(cameras.Presenter, textures.HudLess, vesselShadow, renderSize);
+            if (hudLess.RecheckDue) RecheckHudLess();
 
             ReportSkinnedIfDue();
 
@@ -730,17 +726,7 @@ namespace ReDefinition.Upscaler
             tufx.Refresh(cameras.Redirects, cam, TufxAfterUpscaling && !DebugView && !PassThrough, EffectiveHdr, displaySize);
             RecordInputs();
 
-            // The HUD-less copy only while frame generation can use it: it is a
-            // blit of the whole backbuffer on every carrier camera, every frame.
-            bool wantHudLess = FrameGeneration && FrameGenerationBridge.InputsUsable;
-            if (wantHudLess != hudLess.Attached && cameras.Presenter != null)
-            {
-                if (wantHudLess) hudLess.Attach(cameras.Presenter, true, textures.HudLess, vesselShadow, renderSize);
-                else hudLess.Detach();
-            }
-            // The vessel's shadow switched in or out of the HUD-less copy (VesselShadowLayer).
-            else if (hudLess.Attached && hudLess.WithShadow != VesselShadowLayer.Enabled && cameras.Presenter != null)
-                hudLess.Attach(cameras.Presenter, false, textures.HudLess, vesselShadow, renderSize);
+            SyncHudLess();
             RefreshOverlay();
 
             if (Bypass)
@@ -971,7 +957,7 @@ namespace ReDefinition.Upscaler
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
             StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
                                     dispatch.JitterOffset, Reconstructing, textures.LowRes, result);
-            RunAfterUpscalingHooks(result);
+            hooks.RunAfterUpscaling(result, cam);
             Probe.GpuProfiler.MarkNow("ReDefinition upscaler: after-upscaling hooks");
 
             if (!tufx.Render(result, destination, textures.DepthCopy, textures.MotionVectors))

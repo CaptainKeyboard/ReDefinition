@@ -20,8 +20,9 @@ fixes for other mods' filters, and the pieces frame generation needs from the ga
 
 - `Rig` holds the rig, split over `UpscalerRig.*.cs` by job: the proxy's upscalers, DLSS Ray
   Reconstruction, the hooks other mods register, the preview and the diagnostics.
-- `Rig/HudLessCapture.cs` holds frame generation's HUD-less copy of the backbuffer, and
-  `Rig/CameraMotionMeter.cs` the instrument for camera turns, cuts and floating origin shifts.
+- `Rig/HudLessCapture.cs` holds frame generation's HUD-less copy of the backbuffer,
+  `Rig/CameraMotionMeter.cs` the instrument for camera turns, cuts and floating origin shifts, and
+  `Rig/RigHooks.cs` the calls of the hooks other mods register.
 - `Rig` also holds the rig's parts: cameras, textures, masks, the shader bundle, the mipmap bias
   and the quality overrides.
 - `Rig/RigReport.cs`, `Rig/RigReadback.cs` and `Rig/RigPreview.cs` hold the text and statistics of the
