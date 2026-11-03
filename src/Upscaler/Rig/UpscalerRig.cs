@@ -63,6 +63,10 @@ namespace ReDefinition.Upscaler
         // Jitter off separates the jitter from the camera redirect.
         public bool EnableJitter = true;
 
+        // The Debug switch that asks the proxy for its motion vector check on every
+        // fast camera turn (CameraMotionMeter); off at every start.
+        public bool RecordFastTurns;
+
         // Skinned renderers -- kerbals, flags -- made to draw their own motion
         // (SkinnedMotionVectors). Live.
         internal bool ForceSkinnedMotionVectors = true;
@@ -167,6 +171,8 @@ namespace ReDefinition.Upscaler
         private readonly VesselShadowLayer vesselShadow = new VesselShadowLayer();
         // Frame generation's HUD-less copy of the backbuffer.
         private readonly HudLessCapture hudLess = new HudLessCapture();
+        // The instrument for camera motion and the floating origin.
+        private readonly CameraMotionMeter motion = new CameraMotionMeter();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -473,7 +479,7 @@ namespace ReDefinition.Upscaler
             // Once: Detach, OnDisable and OnDestroy each call it.
             if (TornDown) return;
             TornDown = true;
-            ReportCameraMotionIfDue(true);
+            motion.ReportIfDue(true);
             ReleaseHooks();
             hudLess.Detach();
             tufx.Dispose();
@@ -540,7 +546,7 @@ namespace ReDefinition.Upscaler
         // KSP's events the rig follows: the floating origin's shift, vessels loaded and the editors' ship changed.
         private void Awake()
         {
-            GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
+            GameEvents.onFloatingOriginShift.Add(motion.OnFloatingOriginShift);
             GameEvents.onVesselLoaded.Add(OnVesselLoaded);
             GameEvents.onEditorShipModified.Add(OnEditorShipModified);
         }
@@ -559,7 +565,7 @@ namespace ReDefinition.Upscaler
         // player's own.
         private void OnDestroy()
         {
-            GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
+            GameEvents.onFloatingOriginShift.Remove(motion.OnFloatingOriginShift);
             GameEvents.onVesselLoaded.Remove(OnVesselLoaded);
             GameEvents.onEditorShipModified.Remove(OnEditorShipModified);
             vesselMotion.Disable();
@@ -708,12 +714,9 @@ namespace ReDefinition.Upscaler
 
             ReportSkinnedIfDue();
 
-            ReportCameraMotionIfDue(false);
-            if (pendingTurnLine != null)
-            {
-                Debug.Log(pendingTurnLine);
-                pendingTurnLine = null;
-            }
+            motion.ReportIfDue(false);
+            string turnLine = motion.TakeTurnLine();
+            if (turnLine != null) Debug.Log(turnLine);
             // A scene load that keeps the rig -- the editors' switch between VAB
             // and SPH -- brings skinned renderers without any of the sweep's events.
             if (sceneLoads != skinnedSeenLoads)
@@ -978,18 +981,8 @@ namespace ReDefinition.Upscaler
             // After the frame is out, and fenced: an instrument does not stop a
             // frame. On a failure it says so once and stops. With the diagnostic
             // measurements, or for the Debug switch for fast turns, which it drives.
-            if (!instrumentFailed && (ReDefinitionAddon.DebugMode || RecordFastTurns))
-            {
-                try
-                {
-                    SampleCameraMotion(cut);
-                }
-                catch (System.Exception e)
-                {
-                    instrumentFailed = true;
-                    Debug.LogWarning(Log.Tag + " Camera instrument stopped: " + e.Message);
-                }
-            }
+            if (!motion.Failed && (ReDefinitionAddon.DebugMode || RecordFastTurns))
+                motion.TrySample(cam, cut, RecordFastTurns && FrameGeneration && hudLess.Attached);
             return true;
         }
 
