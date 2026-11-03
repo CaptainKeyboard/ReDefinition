@@ -104,6 +104,9 @@ namespace ReDefinition
         private DiagnosticsWindow diagnostics;
         private readonly ScreenRecordingTimer recording = new ScreenRecordingTimer();
 
+        // The hotkeys, asked once per frame.
+        private AddonHotkeys hotkeys;
+
         // The one instance, for KSP's settings dialog (KspSettingsSection),
         // which reads and changes the same settings as the diagnostics window.
         internal static ReDefinitionAddon Instance { get; private set; }
@@ -115,6 +118,7 @@ namespace ReDefinition
             DontDestroyOnLoad(gameObject);
             Instance = this;
             diagnostics = new DiagnosticsWindow(this, rates, recording, GetInstanceID());
+            hotkeys = new AddonHotkeys(settings, diagnostics, ToggleUpscaler);
             enforceProfileStep = EnforceProfile;
             syncHostStackStep = SyncHostStack;
             autoStep = ResolveAutoOnNewScreen;
@@ -186,7 +190,7 @@ namespace ReDefinition
                 FrameGenerationBridge.RetryContext();
             }
 
-            HandleHotkeys();
+            hotkeys.Handle();
             ReflectSettingsWindow();
             raytracing.Update(PickCamera());
 
@@ -367,34 +371,10 @@ namespace ReDefinition
             if (toolbarButton != null) toolbarButton.KeepFirst();
         }
 
-        // The hotkeys as the player set them (OwnSettings, the Keys tab).
-        // While a row is listening for a key, none of them fires.
-        private void HandleHotkeys()
+        // The upscaler's hotkey: on when it is off, off when it is on.
+        private void ToggleUpscaler()
         {
-            KeyCapture.Poll();
-            AxisCapture.Poll();
-            // Nor while a text field has the keyboard, KSP's or a mod's: a key
-            // typed there is text.
-            if (KeyCapture.Busy || UiHygiene.Typing || diagnostics.Typing) return;
-
-            if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
-            if (Hotkey(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();
-            if (Hotkey(settings.DiagnosticsKey).Pressed()) diagnostics.Toggle();
-            if (Hotkey(settings.CameraListKey).Pressed()) CameraSurvey.Write();
-        }
-
-        // Parsed once per text: asked every frame, and parsing allocates.
-        private readonly Dictionary<string, KeyCombination> hotkeys = new Dictionary<string, KeyCombination>();
-
-        // The combination for a hotkey's text, parsed on its first ask.
-        private KeyCombination Hotkey(string text)
-        {
-            if (text == null) return KeyCombination.None;
-            KeyCombination combination;
-            if (hotkeys.TryGetValue(text, out combination)) return combination;
-            combination = KeyCombination.Parse(text);
-            hotkeys[text] = combination;
-            return combination;
+            SetEnabled(!wantEnabled);
         }
 
         // The toolbar button shows whether the settings window is open, which

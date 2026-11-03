@@ -23,7 +23,7 @@ namespace ReDefinition.Tests
         // Each area and the areas it uses, space-separated.
         private static readonly Dictionary<string, string> Allowed = new Dictionary<string, string>
         {
-            ["(root)"] = "Api Core Diagnostics Probe Proxy Raytracing Settings Ui Upscaler Window",
+            ["(root)"] = "Api Core Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
             ["Core"] = "",
             ["Dashboard"] = "Autopilot Core Engineer Modules",
