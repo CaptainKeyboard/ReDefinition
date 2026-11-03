@@ -10,6 +10,9 @@ for the upscalers, frame generation, low latency, Direct3D 12 for mods and raytr
 | `src/Proxy/ProxyEvents.cs` | The ids of the render events the mod raises for the proxy |
 | `src/Proxy/PacketRing.cs` | How a packet reaches the render thread: slots, copied in place |
 | `src/Proxy/FrameGenerationBridge.cs` | The frame packet and the calls of frame generation |
+| `src/Proxy/ProxyCall.cs` | How the bridges call an export and tell a missing proxy from a working one |
+| `src/Proxy/ProxyHardwareInfo.cs` | The NVIDIA GPU and the directories of NVIDIA's DLLs, as the proxy reports them |
+| `src/Proxy/ProxyLoadMonitor.cs` | The proxy's load figures: main thread, render thread and GPU |
 | `src/Proxy/NativeUpscalerLink.cs` | `UpscalerBackend` and the link the AMD, DLSS and XeSS bridges share |
 | `src/Proxy/RtNative.cs` | The raytracing service: exports, packets, flags and signals |
 | `src/Proxy/ProxyLoad.cs` | Finding out that Windows refused the proxy and loaded its own `dxgi.dll` |

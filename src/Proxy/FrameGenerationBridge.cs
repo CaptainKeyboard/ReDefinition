@@ -148,23 +148,6 @@ namespace ReDefinition.Proxy
         [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
         private static extern int KspXellEveryRefresh();
 
-        // NVAPI's architecture and implementation of the adapter's NVIDIA GPU; 0 where there is none known.
-        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int KspNvidiaGpu(out uint architecture, out uint implementation);
-
-        // The ini's dlssDirectory and streamlineDirectory, UTF-16, cut to size characters.
-        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Unicode)]
-        private static extern void KspNvidiaDirectories(StringBuilder dlss, StringBuilder streamline, int size);
-
-        // Tells the proxy's load monitor which thread is the main thread; called from it.
-        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
-        private static extern void KspPerfRegisterMainThread();
-
-        // The last second's load in percent: 1 with figures, 0 before one, -1 switched off in the ini.
-        [DllImport(Proxy, CallingConvention = CallingConvention.Cdecl)]
-        private static extern int KspPerfLoad(out float mainThread, out float renderThread, out float gpu,
-                                              out float gpuThisProcess);
-
         // Set once, on the first failure of any kind, or when the proxy says
         // frame generation is switched off in its ini, so a missing native DLL does
         // not throw every frame.
@@ -234,7 +217,7 @@ namespace ReDefinition.Proxy
         private static bool Dynamic()
         {
             int dynamic;
-            return TryNative(DynamicCall, out dynamic) && dynamic != 0;
+            return ProxyCall.TryNative(DynamicCall, out dynamic) && dynamic != 0;
         }
 
         // Dynamic's call, made once.
@@ -249,7 +232,7 @@ namespace ReDefinition.Proxy
             if (!Available) return;
             bool dynamic = FrameGenerationChoice.IsDynamic(choice);
             int multiplier = FrameGenerationChoice.Multiplier(choice);
-            TryNative(() => KspFgSetMultiplier(multiplier, dynamic ? 1 : 0));
+            ProxyCall.TryNative(() => KspFgSetMultiplier(multiplier, dynamic ? 1 : 0));
         }
 
         // What the technique that runs allows (KspFgLimits). Technique 0 and most 0 until the
@@ -261,7 +244,7 @@ namespace ReDefinition.Proxy
             int most = 0;
             int dynamic = 0;
             int technique = 0;
-            if (!TryNative(() => technique = KspFgLimits(out most, out dynamic))) return limits;
+            if (!ProxyCall.TryNative(() => technique = KspFgLimits(out most, out dynamic))) return limits;
             limits.Technique = technique;
             limits.Most = most;
             limits.Dynamic = dynamic;
@@ -281,36 +264,16 @@ namespace ReDefinition.Proxy
             return multiplier >= 2 && multiplier < names.Length ? names[multiplier] : names[0];
         }
 
-        // The NVIDIA GPU of the adapter KSP renders on (KspNvidiaGpu): NVAPI's
-        // architecture and implementation, what NVIDIA's DLLs are offered for
-        // download by (NvidiaFiles). False where it is not NVIDIA's, where NVAPI does
-        // not answer, or without the proxy -- quietly, whatever the proxy's ini says
-        // about frame generation.
+        // The NVIDIA GPU of the adapter KSP renders on (ProxyHardwareInfo.NvidiaGpu).
         public static bool NvidiaGpu(out uint architecture, out uint implementation)
         {
-            architecture = 0;
-            implementation = 0;
-            int known;
-            if (!TryNative(NvidiaGpuCall, out known) || known == 0) return false;
-            architecture = gpuArchitecture;
-            implementation = gpuImplementation;
-            return true;
+            return ProxyHardwareInfo.NvidiaGpu(out architecture, out implementation);
         }
 
-        // NvidiaGpu's answer, filled by the call below it.
-        private static uint gpuArchitecture;
-        private static uint gpuImplementation;
-        private static readonly Func<int> NvidiaGpuCall = () => KspNvidiaGpu(out gpuArchitecture, out gpuImplementation);
-
-        // Where the proxy's ini says NVIDIA's DLLs lie, dlssDirectory and
-        // streamlineDirectory; empty where unset or without the proxy.
+        // Where the proxy's ini says NVIDIA's DLLs lie (ProxyHardwareInfo.NvidiaDirectories).
         public static void NvidiaDirectories(out string dlss, out string streamline)
         {
-            StringBuilder dlssBuffer = new StringBuilder(260);
-            StringBuilder streamlineBuffer = new StringBuilder(260);
-            bool read = TryNative(() => KspNvidiaDirectories(dlssBuffer, streamlineBuffer, 260));
-            dlss = read ? dlssBuffer.ToString() : "";
-            streamline = read ? streamlineBuffer.ToString() : "";
+            ProxyHardwareInfo.NvidiaDirectories(out dlss, out streamline);
         }
 
         // Whether the proxy's swapchain presents with DLSS frame generation
@@ -320,7 +283,7 @@ namespace ReDefinition.Proxy
             get
             {
                 int technique;
-                return Available && TryNative(TechniqueCall, out technique) && technique == 2;
+                return Available && ProxyCall.TryNative(TechniqueCall, out technique) && technique == 2;
             }
         }
 
@@ -332,7 +295,7 @@ namespace ReDefinition.Proxy
             get
             {
                 int technique;
-                return Available && TryNative(TechniqueCall, out technique) && (technique == 2 || technique == 3);
+                return Available && ProxyCall.TryNative(TechniqueCall, out technique) && (technique == 2 || technique == 3);
             }
         }
 
@@ -344,7 +307,7 @@ namespace ReDefinition.Proxy
             get
             {
                 int supported;
-                return !TryNative(DlssVsyncCall, out supported) || supported != 0;
+                return !ProxyCall.TryNative(DlssVsyncCall, out supported) || supported != 0;
             }
         }
 
@@ -363,7 +326,7 @@ namespace ReDefinition.Proxy
             get
             {
                 int clamped;
-                return TryNative(XellEveryRefreshCall, out clamped) && clamped != 0;
+                return ProxyCall.TryNative(XellEveryRefreshCall, out clamped) && clamped != 0;
             }
         }
 
@@ -390,7 +353,7 @@ namespace ReDefinition.Proxy
         // once, not with every call.
         private static bool TryExport(Func<int> call, string export, out int result)
         {
-            if (TryNative(call, out result)) return true;
+            if (ProxyCall.TryNative(call, out result)) return true;
             ProxyOlderThanMod(export);
             return false;
         }
@@ -398,7 +361,7 @@ namespace ReDefinition.Proxy
         // TryExport, for an export that answers with nothing.
         private static bool TryExport(Action call, string export)
         {
-            if (TryNative(call)) return true;
+            if (ProxyCall.TryNative(call)) return true;
             ProxyOlderThanMod(export);
             return false;
         }
@@ -408,7 +371,7 @@ namespace ReDefinition.Proxy
         {
             // Told first, while the bridge still reaches it: switched off here, the
             // proxy would otherwise go on wanting frames nobody sends.
-            TryNative(() => KspFgSetEnabled(0));
+            ProxyCall.TryNative(() => KspFgSetEnabled(0));
             unavailable = true;
             unavailableReason = "the dxgi.dll proxy is older than the mod (it has no " + export + ")";
             Debug.Log(Log.Tag + " Frame generation off: " + unavailableReason + ".");
@@ -455,7 +418,7 @@ namespace ReDefinition.Proxy
         public static void RequestCheck()
         {
             if (!Available) return;
-            TryNative(RequestCheckCall);
+            ProxyCall.TryNative(RequestCheckCall);
         }
 
         // KspFgContextFailing's answer; 0, fine, where frame generation is unavailable.
@@ -536,9 +499,6 @@ namespace ReDefinition.Proxy
         // on (unlike TryCall).
         private static bool countersMissing;
 
-        // The same for the load exports: without them the load stays unknown.
-        private static bool perfMissing;
-
 
         // The proxy's running totals: frames the game presented through it, and
         // frames the swapchain presented, generated ones included. Both wrap at
@@ -553,7 +513,7 @@ namespace ReDefinition.Proxy
             uint r = 0;
             uint p = 0;
             int valid = 0;
-            if (TryNative(() => valid = KspFgCounters(out r, out p)))
+            if (ProxyCall.TryNative(() => valid = KspFgCounters(out r, out p)))
             {
                 rendered = r;
                 presented = p;
@@ -566,13 +526,10 @@ namespace ReDefinition.Proxy
             return false;
         }
 
-        // The proxy measures where a frame's time goes (LoadMonitor.h) and has
-        // to be told which thread is the game's main thread. Called once, from
-        // it. Without a proxy, or with one older than the mod, the load simply
-        // stays unknown.
+        // Tells the proxy which thread is the game's main thread (ProxyLoadMonitor.RegisterMainThread).
         public static void RegisterMainThread()
         {
-            if (!TryNative(KspPerfRegisterMainThread)) perfMissing = true;
+            ProxyLoadMonitor.RegisterMainThread();
         }
 
         // What ReadLoad found about the proxy's load figures.
@@ -588,32 +545,11 @@ namespace ReDefinition.Proxy
             Measured
         }
 
-        // The last completed second of load, each in percent, -1 where unknown.
-        // These are the main thread's and the render thread's CPU time as a share of one
-        // core, the busiest 3D engine of the game's adapter, and the game's
-        // share of it.
+        // The last completed second of load, each in percent, -1 where unknown (ProxyLoadMonitor.Read).
         public static LoadState ReadLoad(out float mainThread, out float renderThread, out float gpu,
                                          out float gpuThisProcess)
         {
-            mainThread = renderThread = gpu = gpuThisProcess = -1f;
-            if (perfMissing) return LoadState.Missing;
-
-            float m = -1f;
-            float r = -1f;
-            float g = -1f;
-            float o = -1f;
-            int state = 0;
-            if (!TryNative(() => state = KspPerfLoad(out m, out r, out g, out o)))
-            {
-                perfMissing = true;
-                return LoadState.Missing;
-            }
-
-            mainThread = m;
-            renderThread = r;
-            gpu = g;
-            gpuThisProcess = o;
-            return state > 0 ? LoadState.Measured : state < 0 ? LoadState.SwitchedOff : LoadState.NotYet;
+            return ProxyLoadMonitor.Read(out mainThread, out renderThread, out gpu, out gpuThisProcess);
         }
 
         // What the native side reports, for the mod's own diagnostics.
@@ -628,48 +564,15 @@ namespace ReDefinition.Proxy
             return buffer.ToString();
         }
 
-        // DllImport resolution failures surface as exceptions on first use, and
-        // there is more than one shape of them: no file, no export, a 32 bit
-        // library. All mean the same thing here.
+        // DllImport resolution failures surface as exceptions on first use and all mean the
+        // same thing here (ProxyCall): frame generation switches off for the session.
         private static bool TryCall(Action action)
         {
-            if (TryNative(action)) return true;
+            if (ProxyCall.TryNative(action)) return true;
 
             unavailable = true;
             unavailableReason = "proxy not present (dxgi.dll without the frame generation exports)";
             Debug.Log(Log.Tag + " Frame generation proxy not available; upscaling continues unaffected.");
-            return false;
-        }
-
-        // TryNative, for an export that answers with a number.
-        private static bool TryNative(Func<int> call, out int result)
-        {
-            result = 0;
-            try
-            {
-                result = call();
-                return true;
-            }
-            catch (DllNotFoundException) { }
-            catch (EntryPointNotFoundException) { }
-            catch (BadImageFormatException) { }
-            return false;
-        }
-
-        // True when the call went through; false when the native side is not
-        // there in the form this build expects. What that means is the
-        // caller's business: TryCall switches frame generation off, the
-        // counters and the load only go quiet.
-        private static bool TryNative(Action action)
-        {
-            try
-            {
-                action();
-                return true;
-            }
-            catch (DllNotFoundException) { }
-            catch (EntryPointNotFoundException) { }
-            catch (BadImageFormatException) { }
             return false;
         }
     }
