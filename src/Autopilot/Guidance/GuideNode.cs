@@ -69,10 +69,10 @@ namespace ReDefinition.Autopilot.Guidance
                           && vessel.orbitDriver.updateMode != OrbitDriver.UpdateMode.IDLE && First(vessel) == null;
             if (!wanted)
             {
-                Release(vessel);
+                Release();
                 return;
             }
-            if (owner != vessel) Release(owner);
+            if (owner != vessel) Release();
             if (node != null && !solver.maneuverNodes.Contains(node)) node = null;
             if (second != null && !solver.maneuverNodes.Contains(second)) second = null;
             Vector3d world = GuidanceBoard.Direction * Math.Max(LeastDeltaV, GuidanceBoard.Remaining);
@@ -153,8 +153,8 @@ namespace ReDefinition.Autopilot.Guidance
         }
 
 
-        // The guide taken away where the vessel has it; the vessel, or null for the one it was made for.
-        internal static void Release(Vessel vessel)
+        // The guide taken away, from the vessel it was made for.
+        internal static void Release()
         {
             if (node == null) return;
             ManeuverNode guide = node;
@@ -258,7 +258,7 @@ namespace ReDefinition.Autopilot.Guidance
 
             public void Changed(Vessel vessel)
             {
-                Release(owner);
+                Release();
             }
         }
 
@@ -299,7 +299,8 @@ namespace ReDefinition.Autopilot.Guidance
             HarmonyHooks.Safely("guide-node-save", "The guide node is saved with the vessel", () =>
                 HarmonyHooks.Install(HarmonyId, typeof(GuideNode), new List<HarmonyHook>
                 {
-                    new HarmonyHook(typeof(PatchedConicSolver).GetMethod("Save", BindingFlags.Instance | BindingFlags.Public), nameof(SaveWithout), nameof(SaveWith), null),
+                    new HarmonyHook(typeof(PatchedConicSolver).GetMethod("Save", BindingFlags.Instance | BindingFlags.Public, null, new[] { typeof(ConfigNode) }, null),
+                        nameof(SaveWithout), null, nameof(SaveWith)),
                     new HarmonyHook(typeof(ManeuverNode).GetMethod("GetBurnVector", BindingFlags.Instance | BindingFlags.Public), nameof(BurnOf), null, null),
                 }));
         }
@@ -330,6 +331,7 @@ namespace ReDefinition.Autopilot.Guidance
             }
         }
 
+        // A finalizer, so that the nodes come back into the list where the save throws too.
         private static void SaveWith(PatchedConicSolver __instance)
         {
             if (savedNode >= 0 && node != null) __instance.maneuverNodes.Insert(Math.Min(savedNode, __instance.maneuverNodes.Count), node);

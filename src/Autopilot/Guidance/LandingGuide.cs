@@ -184,8 +184,11 @@ namespace ReDefinition.Autopilot.Guidance
                 return "Descent: the sideways speed is " + sideways.ToString("0") + " m/s. Kill it, retrograde at full throttle.";
             }
             double ramp = RampHeight;
-            double desired = -Math.Min(1.0, above / ramp) * Math.Sqrt((thrust - gravity) * 2.0 * ramp) * 0.9;
-            double target = Math.Min(-TouchdownSpeed, desired);
+            // The speed at the top of the ramp, with MechJeb's tenth less than the engines could brake from there. Under the gravity they cannot brake.
+            double rampSpeed = Math.Sqrt(Math.Max(0.0, (thrust - gravity) * 2.0 * ramp)) * 0.9;
+            double desired = -Math.Min(1.0, above / ramp) * rampSpeed;
+            bool onRamp = desired < -TouchdownSpeed;
+            double target = onRamp ? desired : -TouchdownSpeed;
             if (desired >= vertical) finalLit = true;
             if (!finalLit)
             {
@@ -194,7 +197,7 @@ namespace ReDefinition.Autopilot.Guidance
                 return "Descent: engines off, falling. Light them when the speed reaches " + (-desired).ToString("0") + " m/s, now " + (-vertical).ToString("0") + " m/s.";
             }
             // The ramp's own fall is led, as the braking's is: it comes down by the speed times its slope, and a follow time alone would trail it by that much.
-            double lead = target == desired && above < ramp ? -vertical * Math.Sqrt((thrust - gravity) * 2.0 * ramp) * 0.9 / ramp : 0.0;
+            double lead = onRamp && above < ramp ? -vertical * rampSpeed / ramp : 0.0;
             double wantedAccel = (target - vertical) / 1.0 + lead;
             double least = -gravity;
             double greatest = thrust - gravity;

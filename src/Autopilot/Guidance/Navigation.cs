@@ -60,8 +60,7 @@ namespace ReDefinition.Autopilot.Guidance
                     GuideNode.Handover();
                     GuidanceBoard.Forget();
                     guided = false;
-                    signature = "";
-                    lastPlan = -1000f;
+                    Replan();
                     return;
                 }
                 // The number is the need as a speed: the most the engines change it in the time looked ahead.
@@ -97,6 +96,13 @@ namespace ReDefinition.Autopilot.Guidance
             });
         }
 
+        // The plan is made again at the next call, whatever the triggers and the gap since the last plan say.
+        private void Replan()
+        {
+            signature = "";
+            lastPlan = -1000f;
+        }
+
         // The climb's guidance twice a second in the log, to read after a flight how the bar moved: height, apoapsis, burn left, ideal and given throttle, need.
         private void Trace(Vessel vessel, double burn)
         {
@@ -119,7 +125,7 @@ namespace ReDefinition.Autopilot.Guidance
             bool missed = solver != null && first != null && Missed(vessel, first);
             if (now == signature && !missed) return;
             // The nodes of the plan are made on the orbit the vessel has, which the guide's burn would change.
-            GuideNode.Release(vessel);
+            GuideNode.Release();
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
             RouteState own = RouteState.Of(vessel);

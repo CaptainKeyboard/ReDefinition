@@ -14,8 +14,7 @@ namespace ReDefinition.Autopilot.Planning
     // a miss across the track, which the plan says.
     internal static class DeorbitAim
     {
-        // How near the descent has to come to end the search, in m, how many times the time is tried over the first stretch, and how often it is bettered.
-        private const double Close = 1500.0;
+        // How many times the time is tried over the first stretch, and how often it is bettered, until the descent comes down within the tolerance.
         private const int Samples = 36;
         private const int Refinements = 9;
         // How far from the vessel the burn may be: over this many orbits, and not sooner than this many seconds.
@@ -24,11 +23,20 @@ namespace ReDefinition.Autopilot.Planning
         // The periapsis the burn leaves, as a share of the body's radius, as the untargeted deorbit has it.
         private const double Periapsis = 0.9;
 
+        // The burns tried in a search, and why one could not be simulated: told once, with what the search found.
+        private static int tries;
+        private static string failure;
+
         // The best burn found so far in a search.
         private struct Best
         {
+            // The delay of the burn from the state it was searched from, how far from the place it comes down, when it lands, and the burn.
             public double Delay, Miss, Impact;
             public V3 Burn;
+            // The UT of the state the delay counts from, and the plane turn the state follows, if any.
+            public double Now;
+            public bool Turned;
+            public Burn Turn;
         }
 
         internal static NodePlanner.Result Plan(Frame frame, double latitude, double longitude)
@@ -40,48 +48,55 @@ namespace ReDefinition.Autopilot.Planning
             // Without air the descent is braked by the engines, and weak ones cannot do that; with air the chutes may.
             if (!body.atmosphere && Engines.Acceleration(vessel) <= body.GeeASL * 9.81) return NodePlanner.Result.Failed("The engines are too weak to land on " + body.bodyName + ".");
             double mu = body.gravParameter, start = frame.Now;
+            double tolerance = Tolerance(body);
             State origin = KspOrbits.StateAt(orbit, start);
             double terrain = Math.Max(0.0, body.TerrainAltitude(latitude, longitude, true));
+            failure = null;
+            tries = 0;
             // A place off the orbit's plane is brought under it first, and the deorbit is searched from the orbit that burn leaves. The turn depends on when
             // the vessel is over the place, which the search finds; so the turn is worked out again for that time, once.
             double arrival = double.NaN;
-            Burn turn = new Burn(0.0, new V3(0.0, 0.0, 0.0));
-            bool turned = false;
-            double turnUT = 0.0, now = start, bestNow = start;
             Best best = new Best { Delay = double.NaN, Miss = double.PositiveInfinity };
             for (int pass = 0; pass < 2; pass++)
             {
-                double across;
-                Burn next;
+                Burn turn;
+                bool turned = PlaneChange.Plan(body, origin, latitude, longitude, tolerance, arrival, out turn) == PlaneTurn.Needed;
+                // Without a turn the second search would be the first again.
+                if (pass == 1 && !turned && !best.Turned) break;
                 State here = origin;
-                now = start;
-                bool again = PlaneChange.Plan(body, origin, latitude, longitude, Close, arrival, out next, out across);
-                if (again)
+                double now = start;
+                if (turned)
                 {
-                    State at = Kepler.Propagate(origin, next.Delay, mu);
-                    here = new State(at.R, at.V + next.DeltaV);
-                    now = start + next.Delay;
+                    State at = Kepler.Propagate(origin, turn.Delay, mu);
+                    here = new State(at.R, at.V + turn.DeltaV);
+                    now = start + turn.Delay;
                 }
-                Best found = Search(vessel, body, here, mu, now, latitude, longitude, terrain);
+                Best found = Search(vessel, body, here, mu, now, latitude, longitude, terrain, tolerance);
                 if (double.IsNaN(found.Delay)) break;
-                if (pass == 0 || found.Miss < best.Miss)
-                {
-                    best = found;
-                    turned = again;
-                    turn = next;
-                    turnUT = again ? now : 0.0;
-                    bestNow = now;
-                }
-                if (best.Miss <= Close) break;
+                found.Now = now;
+                found.Turned = turned;
+                found.Turn = turn;
+                if (pass == 0 || found.Miss < best.Miss) best = found;
+                if (best.Miss <= tolerance) break;
                 arrival = found.Impact - start;
             }
-            if (double.IsNaN(best.Delay)) return NodePlanner.Result.Failed("No burn was found whose descent lands.");
-            return Made(frame, bestNow + best.Delay, best.Burn, best.Miss, turned ? (Burn?)turn : null, turnUT);
+            if (double.IsNaN(best.Delay))
+                return NodePlanner.Result.Failed("No burn was found whose descent lands. " + (failure ?? "None of the " + tries + " burns tried comes down."));
+            Debug.Log(Log.Tag + " Navigation: the deorbit searched " + tries + " burns; the best is in " + best.Delay.ToString("0") + " s, " + best.Burn.Length.ToString("0")
+                      + " m/s, and comes down " + best.Miss.ToString("0") + " m from the marker.");
+            return Made(frame, best.Now + best.Delay, best.Burn, best.Miss, best.Turned ? (Burn?)best.Turn : null, best.Now);
+        }
+
+        // How near the place counts as reached, in m: a share of the body's size, so that it is the same fraction of the way round on every body, and not
+        // less than the width of a landing site.
+        internal static double Tolerance(CelestialBody body)
+        {
+            return Math.Max(200.0, 0.0025 * body.Radius);
         }
 
         // The burn from a state that brings the descent down nearest the place: the best of the times tried, with its delay, its miss and when it lands. The
         // delay is NaN where no burn lands.
-        private static Best Search(Vessel vessel, CelestialBody body, State here, double mu, double now, double latitude, double longitude, double terrain)
+        private static Best Search(Vessel vessel, CelestialBody body, State here, double mu, double now, double latitude, double longitude, double terrain, double tolerance)
         {
             double period = new Conic(here, mu).Period;
             // The time of the burn over the stretch ahead, tried at even steps.
@@ -106,7 +121,7 @@ namespace ReDefinition.Autopilot.Planning
             double c = b - golden * (b - a), d = a + golden * (b - a);
             double missC = Try(vessel, body, here, mu, now, c, latitude, longitude, terrain, ref best);
             double missD = Try(vessel, body, here, mu, now, d, latitude, longitude, terrain, ref best);
-            for (int i = 0; i < Refinements && best.Miss > Close; i++)
+            for (int i = 0; i < Refinements && best.Miss > tolerance; i++)
             {
                 if (missC < missD)
                 {
@@ -137,7 +152,7 @@ namespace ReDefinition.Autopilot.Planning
             double lat, lon, lands;
             if (!Impact(vessel, body, leaving, burn, now + delay, terrain, out lat, out lon, out lands)) return double.PositiveInfinity;
             double miss = Distance(body, latitude, longitude, lat, lon);
-            Debug.Log(Log.Tag + " Navigation: the deorbit in " + delay.ToString("0") + " s, " + burn.Length.ToString("0") + " m/s, comes down " + miss.ToString("0") + " m from the marker.");
+            tries++;
             if (miss < best.Miss)
             {
                 best.Miss = miss;
@@ -202,7 +217,7 @@ namespace ReDefinition.Autopilot.Planning
             }
             catch (Exception e)
             {
-                Debug.LogWarning(Log.Tag + " Navigation: the descent to the marker could not be simulated: " + e.Message);
+                failure = "The descent could not be simulated: " + e.Message;
                 return false;
             }
             finally

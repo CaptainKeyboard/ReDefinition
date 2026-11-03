@@ -357,18 +357,25 @@ namespace ReDefinition.Autopilot.Flight
             // MechJeb's landing warps through the coast to the brake only where its node executor's autowarp is on, which the burns set.
             object executor = Executor(vessel);
             if (executor != null) autowarpField.SetValue(executor, true);
-            landingVessel = vessel.id;
             aimed = false;
             if (latitude.HasValue)
             {
                 object target = Module(vessel, "Target");
-                if (target == null) return false;
-                target.GetType().GetMethod("SetPositionTarget").Invoke(target, new object[] { vessel.mainBody, latitude.Value, longitude });
+                MethodInfo aim = target != null ? target.GetType().GetMethod("SetPositionTarget") : null;
+                MethodInfo land = landing.GetType().GetMethod("LandAtPositionTarget");
+                if (aim == null || land == null) return false;
+                // MechJeb has one target. The player's own is kept, to be put back when the landing is let go.
+                if (!aimed) playersTarget = target.GetType().GetProperty("Target").GetValue(target, null);
+                aim.Invoke(target, new object[] { vessel.mainBody, latitude.Value, longitude });
                 aimed = true;
-                landing.GetType().GetMethod("LandAtPositionTarget").Invoke(landing, new[] { user });
+                landingVessel = vessel.id;
+                land.Invoke(landing, new[] { user });
                 return true;
             }
-            landing.GetType().GetMethod("LandUntargeted").Invoke(landing, new[] { user });
+            MethodInfo untargeted = landing.GetType().GetMethod("LandUntargeted");
+            if (untargeted == null) return false;
+            landingVessel = vessel.id;
+            untargeted.Invoke(landing, new[] { user });
             return true;
         }
 
@@ -430,16 +437,19 @@ namespace ReDefinition.Autopilot.Flight
             aimed = false;
             object landing = Module(vessel, "Landing");
             if (landing != null) landing.GetType().GetMethod("StopLanding").Invoke(landing, null);
-            // The place MechJeb was aimed at is not the player's target to keep.
+            // The place MechJeb was aimed at is let go, and the target the player had before is put back (none: the target is cleared).
             if (wasAimed)
             {
                 object target = Module(vessel, "Target");
-                if (target != null) target.GetType().GetMethod("Unset").Invoke(target, null);
+                MethodInfo set = target != null ? target.GetType().GetMethod("Set") : null;
+                if (set != null) set.Invoke(target, new[] { playersTarget });
+                playersTarget = null;
             }
         }
 
-        // The vessel a landing was started on by this mod, and whether MechJeb's target was set for it at a place.
+        // The vessel a landing was started on by this mod, whether MechJeb's target was set for it at a place, and the target the player had.
         private static Guid landingVessel;
         private static bool aimed;
+        private static object playersTarget;
     }
 }

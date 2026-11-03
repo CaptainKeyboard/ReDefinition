@@ -22,6 +22,7 @@ namespace ReDefinition.Hud
 
         private RectTransform root;
         private RectTransform panel;
+        private GameObject made;
         private Image face;
         private Button button;
         private KSP.UI.TooltipTypes.TooltipController_Text tooltip;
@@ -47,7 +48,7 @@ namespace ReDefinition.Hud
             // The row of the time panel: its background is as wide and as high as the panel.
             panel = label.transform.parent as RectTransform;
             root = (RectTransform)top.transform;
-            var made = new GameObject("ReDefinitionLiveButton", typeof(RectTransform), typeof(Image), typeof(Button));
+            made = new GameObject("ReDefinitionLiveButton", typeof(RectTransform), typeof(Image), typeof(Button));
             made.layer = panel != null ? panel.gameObject.layer : top.gameObject.layer;
             RectTransform rect = (RectTransform)made.transform;
             rect.SetParent(root, false);
@@ -65,6 +66,12 @@ namespace ReDefinition.Hud
             if (tooltip != null) tooltip.continuousUpdate = true;
             Place();
             Debug.Log(Log.Tag + " The autopilot button stands beside the time panel.");
+        }
+
+        private void OnDestroy()
+        {
+            if (button != null) button.onClick.RemoveListener(Pressed);
+            if (made != null) Destroy(made);
         }
 
         private void Pressed()

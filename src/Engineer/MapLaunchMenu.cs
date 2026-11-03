@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using FinePrint;
@@ -74,6 +75,18 @@ namespace ReDefinition.Engineer
         // After the game has looked for the icon under the cursor: where it found none, the vessel's own icon is taken in, if the cursor is over it.
         private static void TakeIn(ref OrbitDriver __result, ref OrbitRendererBase.OrbitCastHit orbitHit)
         {
+            try
+            {
+                TakeInCore(ref __result, ref orbitHit);
+            }
+            catch (Exception e)
+            {
+                Failed("the vessel's icon", e);
+            }
+        }
+
+        private static void TakeInCore(ref OrbitDriver __result, ref OrbitRendererBase.OrbitCastHit orbitHit)
+        {
             if (__result != null) return;
             Vessel vessel = FlightGlobals.ActiveVessel;
             if (!Ready(vessel) || vessel.orbitDriver == null || vessel.orbitDriver.Renderer == null || !vessel.orbitDriver.Renderer.mouseOver) return;
@@ -87,6 +100,18 @@ namespace ReDefinition.Engineer
         // The menu of the vessel that is flown, on the ground: its one entry is the launch. What the game has for another vessel (target, focus) is of
         // no use for the vessel itself.
         private static void Add(IScreenCaster sc, ref MapContextMenuOption[] options)
+        {
+            try
+            {
+                AddCore(sc, ref options);
+            }
+            catch (Exception e)
+            {
+                Failed("the vessel's menu", e);
+            }
+        }
+
+        private static void AddCore(IScreenCaster sc, ref MapContextMenuOption[] options)
         {
             if (!(sc is OrbitRendererBase.OrbitCastHit)) return;
             OrbitRendererBase.OrbitCastHit hit = (OrbitRendererBase.OrbitCastHit)sc;
@@ -127,6 +152,28 @@ namespace ReDefinition.Engineer
 
         // The menu of a launch site over the vessel on the pad: the entry that launches it. The menu is one entry taller for it.
         private static void AddToSite(ref Rect rct, IScreenCaster sc, ref MapContextMenuOption[] options)
+        {
+            try
+            {
+                AddToSiteCore(ref rct, sc, ref options);
+            }
+            catch (Exception e)
+            {
+                Failed("the launch site's menu", e);
+            }
+        }
+
+        // A hook that fails leaves the game's own menu as it is. It is told once.
+        private static bool reported;
+
+        private static void Failed(string what, Exception e)
+        {
+            if (reported) return;
+            reported = true;
+            Debug.LogWarning(Log.Tag + " The map's menu has no entry for " + what + ": " + e);
+        }
+
+        private static void AddToSiteCore(ref Rect rct, IScreenCaster sc, ref MapContextMenuOption[] options)
         {
             if (!(sc is WaypointCastHit)) return;
             Vessel vessel = FlightGlobals.ActiveVessel;

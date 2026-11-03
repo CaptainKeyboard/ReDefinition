@@ -140,7 +140,7 @@ namespace ReDefinition.Engineer
             GameEvents.onSceneConfirmExit.Remove(OnConfirmExit);
             if (Instance == this) Instance = null;
             if (flight != null) flight.Cancel();
-            GuideNode.Release(FlightGlobals.ActiveVessel);
+            GuideNode.Release();
             GuideNode.OnDismissed = null;
         }
 
@@ -149,7 +149,7 @@ namespace ReDefinition.Engineer
         {
             RouteState state = RouteState.Of(vessel);
             if (state == null || flight != null || destinations == null) return;
-            GuideNode.Release(vessel);
+            GuideNode.Release();
             // The climb the navigation guides stays its route when the autopilot flies it and when it is over.
             if (!ReferenceEquals(destinations, quick)) quick = null;
             state.Autopilot = true;
@@ -216,7 +216,7 @@ namespace ReDefinition.Engineer
             quick = null;
             route = null;
             GuideNode.Reset();
-            if (!on) GuideNode.Release(vessel);
+            if (!on) GuideNode.Release();
             // The navigation shows the maneuvers of the route, so the ones there are taken away when it starts; those the player adds after are kept.
             if (!state.Autopilot) KspOrbits.ClearNodes(vessel);
         }
@@ -302,7 +302,7 @@ namespace ReDefinition.Engineer
                 follower.Guide(vessel);
                 GuideNode.Ensure(vessel);
             }
-            else GuideNode.Release(vessel);
+            else GuideNode.Release();
             // The warp the player turns up is cut back as the next burn, change of orbit or air comes near.
             if (state != null && (state.Autopilot || state.Navigation) && !ParsekBridge.IsGhost(vessel)) WarpGuard.Limit(vessel);
         }

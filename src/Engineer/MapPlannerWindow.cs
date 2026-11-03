@@ -478,7 +478,7 @@ namespace ReDefinition.Engineer
             if (route == null) return;
             RouteState own = RouteState.Of(FlightGlobals.ActiveVessel);
             // The nodes are made on the orbit the vessel has, which the guide's burn would change.
-            ReDefinition.Autopilot.Guidance.GuideNode.Release(FlightGlobals.ActiveVessel);
+            ReDefinition.Autopilot.Guidance.GuideNode.Release();
             NodePlanner.Result result = NextStepPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, null, own != null ? own.ProgressFor(route) : null);
             status = result.Ok
                 ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."

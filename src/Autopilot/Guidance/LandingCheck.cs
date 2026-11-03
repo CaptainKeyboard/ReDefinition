@@ -39,9 +39,8 @@ namespace ReDefinition.Autopilot.Guidance
             if (vessel.orbit != null && !vessel.LandedOrSplashed && vessel.orbit.PeR > vessel.mainBody.Radius)
             {
                 Burn burn;
-                double across;
                 State here = KspOrbits.StateAt(vessel.orbit, Planetarium.GetUniversalTime());
-                if (PlaneChange.Plan(vessel.mainBody, here, latitude, longitude, 1500.0, double.NaN, out burn, out across)) turn = burn.Magnitude;
+                if (PlaneChange.Plan(vessel.mainBody, here, latitude, longitude, DeorbitAim.Tolerance(vessel.mainBody), double.NaN, out burn) == PlaneTurn.Needed) turn = burn.Magnitude;
             }
             if (!double.IsNaN(needed)) needed += turn;
             if (double.IsNaN(needed) || vessel.VesselDeltaV == null) return true;
