@@ -26,7 +26,7 @@ namespace ReDefinition.Hud
         Impact,
         Closing,
         Attack,
-        // The speed against the speed the navigation asks for in a descent.
+        // The throttle the navigation asks for against the throttle given, in a climb and in a descent.
         Guidance,
     }
 
@@ -489,15 +489,9 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return "Time to Impact";
                 case GaugeMode.Closing: return "Closing Speed";
                 case GaugeMode.Attack: return "Angle of Attack";
-                case GaugeMode.Guidance: return OnThrottle() ? "Throttle To Give" : "Speed Against Its Limit";
+                case GaugeMode.Guidance: return "Throttle To Give";
                 default: return "";
             }
-        }
-
-        // Whether the guidance bar is the throttle, in the climb, and not a speed.
-        private static bool OnThrottle()
-        {
-            return GuidanceBoard.HasIdeal;
         }
 
         // The mode's name on the face, in capitals.
@@ -510,7 +504,7 @@ namespace ReDefinition.Hud
                 case GaugeMode.Impact: return "IMPACT";
                 case GaugeMode.Closing: return "CLOSING";
                 case GaugeMode.Attack: return "AOA";
-                case GaugeMode.Guidance: return OnThrottle() ? "THROTTLE" : "SPEED";
+                case GaugeMode.Guidance: return "THROTTLE";
                 default: return "";
             }
         }

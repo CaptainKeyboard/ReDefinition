@@ -224,7 +224,7 @@ namespace ReDefinition.Probe
                 MapPlannerWindow.Instance.ToggleNavigation();
                 MapView.ExitMapView();
                 yield return new WaitForSeconds(6f);
-                Debug.Log(Log.Tag + " Probe: pad route: guidance " + (GuidanceBoard.Current(FlightGlobals.ActiveVessel) ? GuidanceBoard.Line + " | bar " + GuidanceBoard.HasBar + " " + GuidanceBoard.BarFill.ToString("0.00") + " " + GuidanceBoard.BarText : "none"));
+                Debug.Log(Log.Tag + " Probe: pad route: guidance " + (GuidanceBoard.Current(FlightGlobals.ActiveVessel) ? GuidanceBoard.Line + " | bar " + GuidanceBoard.HasBar + " " + GuidanceBoard.Arc.ToString("0.00") + " " + GuidanceBoard.NumberText : "none"));
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, "pad-navigation.png"));
                 yield return ProbeSteps.Frames(5);
                 Debug.Log(Log.Tag + " Probe: map planner done.");

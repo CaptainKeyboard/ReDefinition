@@ -185,7 +185,7 @@ namespace ReDefinition.Dashboard
             readers["g.throttle"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasThrottle ? (object)GuidanceBoard.Throttle : null;
             readers["g.barFill"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.Arc : null;
             readers["g.barText"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? GuidanceBoard.NumberText : null;
-            readers["g.barLevel"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.BarLevel : null;
+            readers["g.barLevel"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.Level : null;
             readers["g.route"] = (v, a) => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : null;
             readers["g.navigation"] = (v, a) => RouteState.Of(v) != null && RouteState.Of(v).Navigation;
             readers["g.autopilot"] = (v, a) => RouteState.Of(v) != null && RouteState.Of(v).Autopilot;

@@ -18,7 +18,7 @@ namespace ReDefinition.Hud
         // the way to a target.
         private static GaugeMode ForSituation(ReadoutFrame frame)
         {
-            if (GuidanceBoard.Current(frame.Vessel) && GuidanceBoard.HasGap)
+            if (GuidanceBoard.Current(frame.Vessel) && GuidanceBoard.HasBar)
             {
                 // The landing is a manoeuvre: the countdown to its burn, as for any. Once the guidance asks for thrust, or the burn is due, the bar.
                 ManeuverNode brake = Node(frame.Vessel);
@@ -56,8 +56,8 @@ namespace ReDefinition.Hud
         // to be given, and over it where less is wanted. Without a speed to hold, it is the bar the board has.
         private static GaugeReading GuidanceReading(ReadoutFrame frame)
         {
-            if (!GuidanceBoard.Current(frame.Vessel) || !GuidanceBoard.HasGap) return null;
-            return new GaugeReading { Text = NavballBurnGauge.Number(), Fill = GuidanceBoard.Arc, Mark = GuidanceBoard.MarkAt, Level = GuidanceBoard.Done ? 0 : NavballBurnGauge.Level(GuidanceBoard.Need) };
+            if (!GuidanceBoard.Current(frame.Vessel) || !GuidanceBoard.HasBar) return null;
+            return new GaugeReading { Text = GuidanceBoard.NumberText, Fill = GuidanceBoard.Arc, Mark = GuidanceBoard.MarkAt, Level = GuidanceBoard.Level };
         }
 
         // The stage as KSP's delta-v simulation has it (DeltaVStageInfo:

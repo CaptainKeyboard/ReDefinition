@@ -65,14 +65,19 @@ namespace ReDefinition.Autopilot.Guidance
                     return;
                 }
                 // The number is the need as a speed: the most the engines change it in the time looked ahead.
-                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, 0.5, "", 0, null, ClimbGuide.RampBurn(Engines.Acceleration(vessel)), false, null, ClimbGuide.Remaining(vessel, aim), aim, asked, done);
+                GuidanceBoard.Publish(vessel, new GuidanceFrame
+                {
+                    Line = Status, Direction = ClimbGuide.ClimbDirection(vessel, aim), Throttle = asked, IdealThrottle = asked, EaseIdeal = true,
+                    Given = FlightInputHandler.state.mainThrottle, Span = ClimbGuide.RampBurn(Engines.Acceleration(vessel)),
+                    Remaining = ClimbGuide.Remaining(vessel, aim), ClimbAltitude = aim, Done = done,
+                });
                 Trace(vessel, burn);
                 return;
             }
             if (step == NodePlanner.StepKind.Release)
             {
                 // The line the plan gave stands; it is told on the board until the section has gone.
-                GuidanceBoard.Write(vessel, Status, null, null);
+                GuidanceBoard.Publish(vessel, new GuidanceFrame { Line = Status });
                 return;
             }
             if (step == NodePlanner.StepKind.Aerobrake)
@@ -80,13 +85,16 @@ namespace ReDefinition.Autopilot.Guidance
                 string part;
                 double hottest = Heat.Hottest(vessel, out part);
                 Status = "Aerobrake: point retrograde and let the air slow the vessel" + (hottest > 0.8 ? ". HOT: " + part + " at " + (hottest * 100.0).ToString("0") + " % of its limit." : ".");
-                GuidanceBoard.Write(vessel, Status, vessel.srf_velocity.sqrMagnitude > 1.0 ? -vessel.srf_velocity.normalized : (Vector3d?)null, null);
+                GuidanceBoard.Publish(vessel, new GuidanceFrame { Line = Status, Direction = vessel.srf_velocity.sqrMagnitude > 1.0 ? -vessel.srf_velocity.normalized : (Vector3d?)null });
                 return;
             }
             Status = landing.Describe(vessel);
-            GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
-                landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, null,
-                ClimbGuide.RampBurn(Engines.Acceleration(vessel)), true, null, vessel.srfSpeed, null, landing.HasBar ? landing.Throttle : (double?)null);
+            GuidanceBoard.Publish(vessel, new GuidanceFrame
+            {
+                Line = Status, Direction = landing.HasDirection ? landing.Direction : (Vector3d?)null, Throttle = landing.Throttle,
+                IdealThrottle = landing.HasBar ? landing.Throttle : (double?)null, Given = FlightInputHandler.state.mainThrottle,
+                Span = ClimbGuide.RampBurn(Engines.Acceleration(vessel)), Remaining = vessel.srfSpeed,
+            });
         }
 
         // The climb's guidance twice a second in the log, to read after a flight how the bar moved: height, apoapsis, burn left, ideal and given throttle, need.

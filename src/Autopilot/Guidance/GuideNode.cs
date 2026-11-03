@@ -88,7 +88,7 @@ namespace ReDefinition.Autopilot.Guidance
             double utSecond = 0.0;
             V3 inSecond = new V3(0.0, 0.0, 0.0);
             V3 inFirst = inNode;
-            bool both = !double.IsNaN(GuidanceBoard.CircleAltitude) && Climb(vessel, at, ut, out inFirst, out utSecond, out inSecond);
+            bool both = GuidanceBoard.HasClimb && Climb(vessel, at, ut, out inFirst, out utSecond, out inSecond);
             if (both) inNode = inFirst;
             if (node == null)
             {
@@ -135,7 +135,7 @@ namespace ReDefinition.Autopilot.Guidance
             utSecond = ut;
             double mu = vessel.mainBody.gravParameter;
             V3 direction = KspOrbits.ToV3(GuidanceBoard.Direction).Unit;
-            double size = Math.Max(LeastDeltaV, ClimbGuide.RaiseBurn(vessel.mainBody, at, direction, GuidanceBoard.CircleAltitude));
+            double size = Math.Max(LeastDeltaV, ClimbGuide.RaiseBurn(vessel.mainBody, at, direction, GuidanceBoard.ClimbAltitude));
             var after = new State(at.R, at.V + direction * size);
             var conic = new Conic(after, mu);
             if (!conic.Closed) return false;

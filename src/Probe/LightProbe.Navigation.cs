@@ -102,7 +102,7 @@ namespace ReDefinition.Probe
                 if (now != last && (!(now.StartsWith("Descent") || now.StartsWith("Final")) || Time.realtimeSinceStartup > nextLine))
                 {
                     Debug.Log(Log.Tag + " Probe: auto land: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, guide node "
-                              + GuideNode.Holds(vessel) + ", gap " + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + "/" + GuidanceBoard.Ahead.ToString("0") + " need " + GuidanceBoard.Need.ToString("0.00") : "-") + "]");
+                              + GuideNode.Holds(vessel) + ", gauge " + (GuidanceBoard.HasBar ? GuidanceBoard.NumberText + ", need " + GuidanceBoard.Need.ToString("0.00") : "-") + "]");
                     last = now;
                     nextLine = Time.realtimeSinceStartup + (now.StartsWith("Final") ? 0.5f : 10f);
                 }
@@ -216,8 +216,8 @@ namespace ReDefinition.Probe
                             + (each.nextPatch != null ? each.nextPatch.PeA.ToString("0") + " x " + each.nextPatch.ApA.ToString("0") + " m" : "no patch") + "]";
             return node + ", mode " + autopilot.Mode + ", on " + autopilot.Enabled + ", maneuver mode offered " + autopilot.CanSetMode(VesselAutopilot.AutopilotMode.Maneuver) + ", nose "
                    + angle.ToString("0.0") + " degrees from the board, altitude " + vessel.altitude.ToString("0") + " m, speed " + vessel.srfSpeed.ToString("0") + " m/s, bar "
-                   + (GuidanceBoard.HasBar ? GuidanceBoard.BarFill.ToString("0.00") + " (" + GuidanceBoard.BarLevel + ")" : "none") + ", gap "
-                   + (GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " m/s, ahead " + GuidanceBoard.Ahead.ToString("0") + " m/s, need " + GuidanceBoard.Need.ToString("0.00") : "none") + ", burn gauge " + gauge + ".";
+                   + (GuidanceBoard.HasBar ? GuidanceBoard.Arc.ToString("0.00") + " (" + GuidanceBoard.Level + ")" : "none") + ", number "
+                   + (GuidanceBoard.HasBar ? GuidanceBoard.NumberText + ", need " + GuidanceBoard.Need.ToString("0.00") : "none") + ", burn gauge " + gauge + ".";
         }
 
         // The navigation from the pad to an orbit, and the probe as the player. The first stage is lit, the nose follows the marker, and the
@@ -313,9 +313,8 @@ namespace ReDefinition.Probe
                 if (now != last && Time.realtimeSinceStartup > nextLine)
                 {
                     Debug.Log(Log.Tag + " Probe: auto climb: " + now + " [" + vessel.situation + ", " + vessel.altitude.ToString("0") + " m, " + vessel.srfSpeed.ToString("0") + " m/s, apoapsis "
-                              + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000") + ", gap "
-                              + (GuidanceBoard.HasIdeal ? "ideal " + GuidanceBoard.Ideal.ToString("0.00") + " need " + GuidanceBoard.Need.ToString("0.00")
-                              : GuidanceBoard.HasGap ? GuidanceBoard.SpeedGap.ToString("0") + " ahead " + GuidanceBoard.Ahead.ToString("0") + " need " + GuidanceBoard.Need.ToString("0.00") : "none") + "]");
+                              + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000") + ", gauge "
+                              + (GuidanceBoard.HasBar ? "ideal " + GuidanceBoard.Ideal.ToString("0.00") + " need " + GuidanceBoard.Need.ToString("0.00") + " " + GuidanceBoard.NumberText : "none") + "]");
                     last = now;
                     nextLine = Time.realtimeSinceStartup + 5f;
                 }

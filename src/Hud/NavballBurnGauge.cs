@@ -29,16 +29,11 @@ namespace ReDefinition.Hud
         // The colour the game gave the bar, put back when the navigation's bar is gone.
         private static UnityEngine.UI.Image tinted;
         private static Color untinted;
-        private static readonly Color Close = new Color(1f, 0.72f, 0.2f);
-        private static readonly Color Past = new Color(1f, 0.32f, 0.28f);
         // Thrust is to be given: from yellow to red as more is asked for. Less is wanted: from light blue to violet.
         private static readonly Color MoreFrom = new Color(1f, 0.9f, 0.25f);
         private static readonly Color MoreTo = new Color(1f, 0.25f, 0.2f);
         private static readonly Color LessFrom = new Color(0.45f, 0.85f, 1f);
         private static readonly Color LessTo = new Color(0.7f, 0.4f, 1f);
-        // The share of the thrust asked for under which the speed counts as the one asked for, and over which the colour is at its end.
-        private const double OnTarget = 0.06;
-        private const double FullColour = 0.6;
         // How fast the bar follows what it is to show, in seconds, so that a change in the guidance does not make it jump.
         private const float FollowTime = 0.3f;
         private static float shown = 0.5f;
@@ -81,7 +76,7 @@ namespace ReDefinition.Hud
             {
                 guiding = false;
                 Vessel vessel = FlightGlobals.ActiveVessel;
-                bool board = FlightGlobals.ready && vessel != null && GuidanceBoard.Current(vessel) && GuidanceBoard.HasGap && Expanded(__instance);
+                bool board = FlightGlobals.ready && vessel != null && GuidanceBoard.Current(vessel) && GuidanceBoard.HasBar && Expanded(__instance);
                 if (board && GuideNode.Holds(vessel))
                 {
                     guiding = true;
@@ -122,7 +117,7 @@ namespace ReDefinition.Hud
                 KSP.UI.Screens.HelixGauge gauge = __instance.deltaVGauge;
                 driven = __instance;
                 Paint(__instance, gauge);
-                if (__instance.readoutText != null) __instance.readoutText.text = Number();
+                if (__instance.readoutText != null) __instance.readoutText.text = GuidanceBoard.NumberText;
                 if (__instance.ebtText != null) __instance.ebtText.enabled = false;
                 if (__instance.TdnText != null) __instance.TdnText.enabled = false;
                 if (__instance.sbtText != null) __instance.sbtText.enabled = false;
@@ -196,22 +191,9 @@ namespace ReDefinition.Hud
             // The bar sliding off at the end of the guidance is no call for thrust.
             if (GuidanceBoard.Done) return untinted;
             double need = 1.0 - 2.0 * shown;
-            if (Math.Abs(need) < OnTarget) return untinted;
-            float share = (float)Math.Min(1.0, (Math.Abs(need) - OnTarget) / (FullColour - OnTarget));
+            if (Math.Abs(need) < GuidanceBoard.OnTarget) return untinted;
+            float share = (float)Math.Min(1.0, (Math.Abs(need) - GuidanceBoard.OnTarget) / (GuidanceBoard.FullColour - GuidanceBoard.OnTarget));
             return need > 0.0 ? Color.Lerp(MoreFrom, MoreTo, share) : Color.Lerp(LessFrom, LessTo, share);
-        }
-
-        // How far off the bar is, as the round gauge has it: 0 on target, 2 at the full colour, 1 between.
-        internal static int Level(double need)
-        {
-            double off = Math.Abs(need);
-            return off < OnTarget ? 0 : off >= FullColour ? 2 : 1;
-        }
-
-        // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it.
-        internal static string Number()
-        {
-            return GuidanceBoard.NumberText;
         }
 
         // The mark in the middle, made as the game makes the marks of its stages: a copy of their prefab on the gauge.
@@ -246,7 +228,7 @@ namespace ReDefinition.Hud
         // The number on the gauge. The buttons beside it are for a node, which there is none of.
         private static void Readout(NavBallBurnVector vector)
         {
-            if (vector.readoutText != null) vector.readoutText.text = Number();
+            if (vector.readoutText != null) vector.readoutText.text = GuidanceBoard.NumberText;
             if (vector.btnAccept != null) vector.btnAccept.gameObject.SetActive(false);
             if (vector.btnDismiss != null) vector.btnDismiss.gameObject.SetActive(false);
             if (vector.btnWarpTo != null) vector.btnWarpTo.gameObject.SetActive(false);

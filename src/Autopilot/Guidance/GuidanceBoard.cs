@@ -3,151 +3,138 @@ using UnityEngine;
 
 namespace ReDefinition.Autopilot.Guidance
 {
+    // What a step of the guidance writes on the board in a frame. Fields left empty are not asked for.
+    internal struct GuidanceFrame
+    {
+        public string Line;
+        // The unit vector in the world to point the nose along.
+        public Vector3d? Direction;
+        // The throttle to give, 0 to 1: what a pilot is to set.
+        public double? Throttle;
+        // The throttle the gauges compare with the throttle given. Empty where the gauges have nothing to show.
+        public double? IdealThrottle;
+        // Whether the ideal throttle is smoothed on the board: a climb's limits change quickly; a descent's throttle is eased by its guidance already.
+        public bool EaseIdeal;
+        // The throttle the pilot gives now.
+        public double Given;
+        // The burn that the fall of the throttle covers, in m/s: the scale on which the need is told as a speed.
+        public double Span;
+        // The size of the burn of the guide node, in m/s.
+        public double Remaining;
+        // The height of the orbit a climb aims for, in m. Empty for a guidance that is not a climb.
+        public double? ClimbAltitude;
+        // Whether the guidance has done what it was for.
+        public bool Done;
+    }
+
     // What the navigation tells the player to do now, in the flight view: where to point, how much throttle to give, and a line that says it.
-    // The navigation writes it in every frame of a climb or a descent; the navball's marker and the round gauge read it. It is stale
+    // The navigation writes it in every frame of a climb or a descent; the navball's marker, the gauges and the guide node read it. It is stale
     // when nothing wrote it for a moment, or for another vessel.
     internal static class GuidanceBoard
     {
         private const float Fresh = 0.5f;
+        // How far the throttle given may be from the ideal, as a share of the whole range, for the bar to count as on target, and for it to be at its
+        // end. Both gauges colour and mark by them.
+        internal const double OnTarget = 0.06;
+        internal const double FullColour = 0.6;
+        // How quickly an ideal throttle that changes fast is followed, and how quickly the mark slides off the gauges, in s.
+        private const double IdealEase = 0.6;
+        private const double SlideEase = 0.5;
 
         private static float written = -100f;
-        private static System.Guid vessel;
+        private static Guid vessel;
+        private static double idealTime;
+        private static Guid idealVessel;
+        private static float markTime;
 
-        // The unit vector in the world to point the nose along, where there is one to ask for.
+        internal static string Line { get; private set; }
         internal static Vector3d Direction { get; private set; }
         internal static bool HasDirection { get; private set; }
-        // The throttle to give, 0 to 1, where there is one to ask for.
         internal static double Throttle { get; private set; }
         internal static bool HasThrottle { get; private set; }
-        internal static string Line { get; private set; }
-        // The bar on the round gauge: how full its arc is, the text on it and its colour. The mark is in the middle: over it the throttle is to go
-        // up, under it down.
-        internal static double BarFill { get; private set; }
-        internal static string BarText { get; private set; }
-        internal static int BarLevel { get; private set; }
+        internal static double Remaining { get; private set; }
+        internal static double ClimbAltitude { get; private set; }
+        internal static bool HasClimb { get; private set; }
+
+        // Whether the gauges have a bar to show: the ideal throttle against the throttle given.
         internal static bool HasBar { get; private set; }
-        // How far the speed is from the one asked for, in m/s: over it where positive, short of it where negative. Only where the navigation has a speed
-        // to ask for. Need is the thrust that asks for, from -1 for as much less to 1 for as much more as the speed may be off by. It is not worked out
-        // from the gap now but from where the gap will be in a few seconds, by the way it is changing, so that the player sees the speed coming.
-        internal static double SpeedGap { get; private set; }
-        // The gap as it will be in the time looked ahead: what the bar stands for, so that the number and the bar say the same.
-        internal static double Ahead { get; private set; }
-        internal static double Need { get; private set; }
-        internal static bool HasGap { get; private set; }
-        // Where the guidance asks for a throttle (a climb), the ideal throttle, 0 to 1, smoothed in time; the need is that against the throttle given.
-        internal static bool HasIdeal { get; private set; }
+        // The ideal throttle, 0 to 1, and the need: from -1 for as much less to 1 for as much more throttle as there is range.
         internal static double Ideal { get; private set; }
-        // What the number beside the bar says: how many m/s the speed is over the one asked for, or short of it. Where the bar is the ideal throttle against
-        // the throttle given, the number is that difference as a speed: the burn that the fall of the throttle covers (the span) times the need. So
-        // the number and the bar always say the same.
-        private static bool hasNumber;
-        internal static string NumberText
-        {
-            get
-            {
-                if (!HasGap || (HasIdeal && !hasNumber)) return "";
-                double gap = Ahead;
-                if (Math.Abs(gap) < 1.0) return "0 m/s";
-                return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
-            }
-        }
+        internal static double Need { get; private set; }
+        // The burn that the fall of the throttle covers, in m/s.
+        internal static double Span { get; private set; }
+        // Whether the guidance has done what it was for. The mark and the bar then slide off the gauges, and the game's own burn display takes over.
+        internal static bool Done { get; private set; }
+        // Where the mark stands on the gauges, from a half to nothing.
+        internal static double MarkAt { get; private set; } = 0.5;
+
         // The bar as the gauges show it, 0 to 1 with the mark at a half: under the mark where thrust is to be given, over it where less is wanted.
         internal static double Arc
         {
             get { return Done ? 0.0 : 0.5 - 0.5 * Need; }
         }
-        // Whether the guidance has done what it was for (a climb at the apoapsis aimed for). The mark and the bar then slide down off the gauges, and the
-        // game's own burn display takes over; MarkAt is where the mark stands, from a half to nothing.
-        internal static bool Done { get; private set; }
-        internal static double MarkAt { get; private set; } = 0.5;
-        private const double SlideTime = 0.5;
-        private static float markTime;
-        // The delta-v the vessel still has to burn for what the navigation guides, in m/s: the size of the burn of the guide node.
-        internal static double Remaining { get; private set; }
-        // The height of the orbit a climb aims for, in m; NaN for a guidance that is not a climb. The guide shows the burn to it and the circularizing.
-        internal static double CircleAltitude { get; private set; } = double.NaN;
 
-        // How far ahead the gap is looked at, in game seconds, and how long the way the gap changes is averaged over.
-        private const double Horizon = 4.0;
-        private const double TrendTime = 0.6;
-        private static double slope, lastGap, lastTime;
-        private static bool hadGap;
-        private static System.Guid trended;
-        private static double idealTime;
-        private static System.Guid idealVessel;
-
-        internal static void Write(Vessel target, string line, Vector3d? direction, double? throttle, double? barFill = null, string barText = null, int barLevel = 0,
-            double? speedGap = null, double span = 1.0, bool moreWhenOver = false, double? mostNeed = null, double remaining = 0.0, double? circleAltitude = null, double? idealThrottle = null, bool done = false)
+        // How far off the bar is: 0 on target, 2 at the full colour, 1 between.
+        internal static int Level
         {
-            Done = done;
-            float realNow = Time.realtimeSinceStartup;
-            float elapsed = Math.Min(0.5f, Math.Max(0f, realNow - markTime));
-            markTime = realNow;
-            MarkAt = done ? MarkAt + (0.0 - MarkAt) * (1.0 - Math.Exp(-elapsed / SlideTime)) : 0.5;
-            CircleAltitude = circleAltitude ?? double.NaN;
-            Remaining = double.IsNaN(remaining) || double.IsInfinity(remaining) ? 0.0 : Math.Max(0.0, remaining);
-            HasIdeal = idealThrottle.HasValue && !double.IsNaN(idealThrottle.Value);
-            HasGap = HasIdeal || (speedGap.HasValue && !double.IsNaN(speedGap.Value) && !double.IsInfinity(speedGap.Value) && !double.IsNaN(span) && !double.IsInfinity(span));
-            if (HasIdeal)
+            get
             {
-                // The ideal moves towards where it is asked to be by the time the trend of a gap is averaged over, so that a limit that changes quickly
-                // moves the bar evenly.
-                double now = Planetarium.GetUniversalTime();
-                double dt = now - idealTime;
-                // The descent's throttle is eased by its own guidance already; the climb's limits are not.
-                bool climb = !double.IsNaN(CircleAltitude);
-                if (target.id != idealVessel || dt < 0.0 || dt > 0.5 || !climb) Ideal = idealThrottle.Value;
-                else if (dt > 1e-4) Ideal += (idealThrottle.Value - Ideal) * (1.0 - Math.Exp(-dt / TrendTime));
-                idealTime = now;
-                idealVessel = target.id;
-                hadGap = false;
-                Need = Math.Max(-1.0, Math.Min(1.0, Ideal - FlightInputHandler.state.mainThrottle));
-                hasNumber = !double.IsNaN(span) && !double.IsInfinity(span) && span > 0.0;
-                SpeedGap = hasNumber ? -Need * span : 0.0;
-                Ahead = SpeedGap;
+                double off = Math.Abs(Need);
+                return Done || off < OnTarget ? 0 : off >= FullColour ? 2 : 1;
             }
-            else if (HasGap)
+        }
+
+        // The need as a speed, in m/s: over the one asked for where positive, short of it where negative. It says the same as the bar, by its sign.
+        internal static string NumberText
+        {
+            get
             {
-                // The game's time and the speed move in the physics steps only: a frame between two of them leaves the trend as it is.
-                double now = Planetarium.GetUniversalTime();
-                double dt = now - lastTime;
-                if (!hadGap || target.id != trended || dt < 0.0 || dt > 0.5)
-                {
-                    slope = 0.0;
-                    lastGap = speedGap.Value;
-                    lastTime = now;
-                }
-                else if (dt > 1e-4)
-                {
-                    // A jump of the gap by more than the scale it is read on is the gap changing its meaning, not a trend.
-                    if (Math.Abs(speedGap.Value - lastGap) > span) slope = 0.0;
-                    else slope += ((speedGap.Value - lastGap) / dt - slope) * (1.0 - Math.Exp(-dt / TrendTime));
-                    lastGap = speedGap.Value;
-                    lastTime = now;
-                }
-                hadGap = true;
-                trended = target.id;
-                SpeedGap = speedGap.Value;
-                Ahead = speedGap.Value + slope * Horizon;
-                double ahead = Ahead / Math.Max(1.0, span);
-                Need = Math.Max(-1.0, Math.Min(1.0, moreWhenOver ? ahead : -ahead));
-                if (mostNeed.HasValue) Need = Math.Min(Need, mostNeed.Value);
+                if (!HasBar || !(Span > 0.0)) return "";
+                double gap = -Need * Span;
+                if (Math.Abs(gap) < 1.0) return "0 m/s";
+                return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
             }
-            else hadGap = false;
-            HasBar = barFill.HasValue;
-            if (HasBar)
-            {
-                BarFill = barFill.Value;
-                BarText = barText ?? "";
-                BarLevel = barLevel;
-            }
+        }
+
+        internal static void Publish(Vessel target, GuidanceFrame frame)
+        {
             written = Time.realtimeSinceStartup;
             vessel = target.id;
-            Line = line;
-            HasDirection = direction.HasValue;
-            if (direction.HasValue) Direction = direction.Value.normalized;
-            HasThrottle = throttle.HasValue;
-            if (throttle.HasValue) Throttle = throttle.Value;
+            Line = frame.Line;
+            HasDirection = frame.Direction.HasValue;
+            if (HasDirection) Direction = frame.Direction.Value.normalized;
+            HasThrottle = frame.Throttle.HasValue;
+            if (HasThrottle) Throttle = frame.Throttle.Value;
+            Remaining = double.IsNaN(frame.Remaining) || double.IsInfinity(frame.Remaining) ? 0.0 : Math.Max(0.0, frame.Remaining);
+            HasClimb = frame.ClimbAltitude.HasValue;
+            ClimbAltitude = HasClimb ? frame.ClimbAltitude.Value : 0.0;
+            Done = frame.Done;
+            Slide(frame.Done);
+            HasBar = frame.IdealThrottle.HasValue && !double.IsNaN(frame.IdealThrottle.Value);
+            if (!HasBar) return;
+            Ease(target, frame.IdealThrottle.Value, frame.EaseIdeal);
+            Need = Math.Max(-1.0, Math.Min(1.0, Ideal - frame.Given));
+            Span = frame.Span;
+        }
+
+        // The ideal throttle moves towards where it is asked to be, where it is to be eased, so that a limit that changes quickly moves the bar evenly.
+        private static void Ease(Vessel target, double asked, bool eased)
+        {
+            double now = Planetarium.GetUniversalTime();
+            double dt = now - idealTime;
+            if (!eased || target.id != idealVessel || dt < 0.0 || dt > 0.5) Ideal = asked;
+            else if (dt > 1e-4) Ideal += (asked - Ideal) * (1.0 - Math.Exp(-dt / IdealEase));
+            idealTime = now;
+            idealVessel = target.id;
+        }
+
+        // The mark slides down once the guidance is done, and stands in the middle until then.
+        private static void Slide(bool done)
+        {
+            float now = Time.realtimeSinceStartup;
+            float elapsed = Math.Min(0.5f, Math.Max(0f, now - markTime));
+            markTime = now;
+            MarkAt = done ? MarkAt - MarkAt * (1.0 - Math.Exp(-elapsed / SlideEase)) : 0.5;
         }
 
         // The board is taken as not written: the guidance has ended, and the gauges are the game's.
