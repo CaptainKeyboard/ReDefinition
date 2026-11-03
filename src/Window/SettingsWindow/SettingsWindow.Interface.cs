@@ -90,7 +90,7 @@ namespace ReDefinition.Window
                 300f, 30f, false);
             restore.tooltipText = "Every setting ReDefinition has changed goes back to what its mod had before, and is"
                                   + " saved there.\nAccept or cancel the changes made here first.";
-            restore.OptionInteractableCondition = () => BundledSettings.CanRestore && !Unapplied();
+            restore.OptionInteractableCondition = () => BundledSettings.CanRestore && !SettingsApply.Unapplied();
 
             List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
@@ -263,7 +263,7 @@ namespace ReDefinition.Window
         {
             // The window stays usable behind the question: a row changed
             // meanwhile would be lost with the rows read again.
-            if (Visible && Unapplied())
+            if (Visible && SettingsApply.Unapplied())
             {
                 ScreenMessages.PostScreenMessage("Accept or cancel the changes in ReDefinition's window first, then restore.",
                     5f);

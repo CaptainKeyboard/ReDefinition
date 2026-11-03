@@ -183,11 +183,11 @@ namespace ReDefinition.Window
         {
             List<string> titles = new List<string>();
             List<KeyValuePair<BundledSetting, string>> ksp = new List<KeyValuePair<BundledSetting, string>>();
-            string prefix = KspId + ".";
+            string prefix = SettingsApply.KspId + ".";
             foreach (KeyValuePair<BundledSetting, string> pair in ProfileApplier.DefaultValues(new List<string>()))
             {
                 string key = pair.Key.Key;
-                if (pair.Key.Owner == null || pair.Key.Owner.Id != KspId || !key.StartsWith(prefix, StringComparison.Ordinal))
+                if (pair.Key.Owner == null || pair.Key.Owner.Id != SettingsApply.KspId || !key.StartsWith(prefix, StringComparison.Ordinal))
                     continue;
                 if (typeof(GameSettings).GetField(key.Substring(prefix.Length), BindingFlags.Public | BindingFlags.Static) != null)
                     ksp.Add(pair);
@@ -268,7 +268,7 @@ namespace ReDefinition.Window
             }
             // With the bundling off only the rows that need none; the others take
             // the profile's values once it is switched on (SettingsEdit.SetBundled).
-            if (!model.ChooseProfile(profile.Name, setting => model.Bundled || SetDirectly(setting, false))) return;
+            if (!model.ChooseProfile(profile.Name, setting => model.Bundled || SettingsApply.SetDirectly(setting, false))) return;
 
             List<string> problems = new List<string>();
             if (edit != null)
@@ -286,7 +286,7 @@ namespace ReDefinition.Window
             string applied = BundledSettings.ProfileName;
             bool enabled = BundledSettings.Enabled;
             OwnSettings after = edit != null ? edit.After : null;
-            bool upscalerPending = OwnSettingsPending();
+            bool upscalerPending = SettingsApply.OwnSettingsPending();
             bool modulesSame = SameModules(after);
 
             if (status != null && statusVersion == model.Version && statusProfile == model.Profile

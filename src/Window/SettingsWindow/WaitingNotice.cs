@@ -55,12 +55,12 @@ namespace ReDefinition.Window
             List<string> titles = new List<string>();
             foreach (KeyValuePair<string, WaitingChange> pair in Waiting(true))
                 if (pair.Value.Window == ApplyWindow.Restart && restartAsked.Add(pair.Key)) titles.Add(pair.Value.Title);
-            Apply();
+            SettingsApply.Apply();
             if (titles.Count == 0 || !GameRestart.Available) return;
             ConfirmDialog.OverWindow("ReDefinitionRestartNow", "Restart KSP?",
                 string.Join(", ", titles.ToArray()) + (titles.Count == 1 ? " takes" : " take")
                 + " effect after a restart of KSP." + (GameRestart.SavesGame ? " The game is saved first." : ""), 420f,
-                "Restart now", ApplyAndRestart, "Later");
+                "Restart now", SettingsApply.ApplyAndRestart, "Later");
         }
 
         // Drops what arrived with the scene: from ModWindowsAddon once a scene is ready.
@@ -78,7 +78,7 @@ namespace ReDefinition.Window
         {
             List<KeyValuePair<string, WaitingChange>> list = new List<KeyValuePair<string, WaitingChange>>();
             HashSet<string> seen = new HashSet<string>();
-            foreach (BundledSetting setting in InstalledSettings())
+            foreach (BundledSetting setting in SettingsApply.InstalledSettings())
             {
                 if (setting.Window == ApplyWindow.Live || !model.Changed(setting.Key)) continue;
                 list.Add(new KeyValuePair<string, WaitingChange>(setting.Key, new WaitingChange

@@ -4,12 +4,13 @@ using ReDefinition.Core;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
     // Apply and Accept as one ordered pipeline (Apply), Cancel, and what waits for
     // either: the window's rows against what the game and the mods hold.
-    internal static partial class SettingsWindow
+    internal static class SettingsApply
     {
         // Applies what waits, saves ReDefinition's settings and restarts KSP, the game saved first where one is loaded.
         internal static void ApplyAndRestart()
@@ -22,7 +23,7 @@ namespace ReDefinition.Window
 
         // Cancel: every row back to what the game and the mods hold now, nothing
         // set, and the window stays open.
-        private static void Discard()
+        internal static void Discard()
         {
             KeyCapture.Stop();
             AxisCapture.Stop();
@@ -49,7 +50,7 @@ namespace ReDefinition.Window
         private static bool unapplied;
 
         // Worked out once a frame: KSP's keys, axes or layout pending, or a setting of a mod or of ReDefinition changed.
-        private static bool Unapplied()
+        internal static bool Unapplied()
         {
             int frame = Time.frameCount;
             if (frame == unappliedFrame) return unapplied;

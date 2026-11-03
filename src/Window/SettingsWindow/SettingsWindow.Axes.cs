@@ -23,7 +23,7 @@ namespace ReDefinition.Window
         private const float AxisValueWidth = 34f;
 
         // The copies edited, by axis name, until Apply.
-        private static readonly Dictionary<string, AxisBinding> axisPending = new Dictionary<string, AxisBinding>();
+        internal static readonly Dictionary<string, AxisBinding> axisPending = new Dictionary<string, AxisBinding>();
 
         // The tab's rows: a hint, then the axes in folds by their group, each with its two sides under column captions.
         private static DialogGUIBase[] AxisRows()
@@ -229,7 +229,7 @@ namespace ReDefinition.Window
 
         // The copies that differ from KSP's bindings, written into them; true where
         // one was, for KSP's save at the end of Apply.
-        private static bool ApplyAxes()
+        internal static bool ApplyAxes()
         {
             AxisCapture.Stop();
             if (axisPending.Count == 0) return false;

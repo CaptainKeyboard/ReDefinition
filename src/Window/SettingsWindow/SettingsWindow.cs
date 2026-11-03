@@ -66,7 +66,7 @@ namespace ReDefinition.Window
         public static bool Visible { get { return dialog != null; } }
 
         // Whether something in the window waits for Accept.
-        internal static bool HasUnapplied { get { return dialog != null && Unapplied(); } }
+        internal static bool HasUnapplied { get { return dialog != null && SettingsApply.Unapplied(); } }
 
         // From ModWindowsAddon once a scene is ready.
         internal static void SceneChanged()
@@ -199,7 +199,7 @@ namespace ReDefinition.Window
         // What the controls start from: each mod's value as it is now, the one
         // ReDefinition keeps where the mod cannot take it now (BundledSettings.Current). After Apply and
         // Restore too, where the rows are built already.
-        private static void ReadBundled()
+        internal static void ReadBundled()
         {
             model.Open(BundledSettings.Enabled, BundledSettings.ProfileName, CurrentValues());
             model.OpenButtons(ButtonStates());
@@ -299,7 +299,7 @@ namespace ReDefinition.Window
                     WaitingNotice.Build(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
                     new DialogGUIFlexibleSpace(),
                     PendingButton(Localizer.Format("#autoLOC_149513"), WaitingNotice.ApplyAndAskRestart, true),
-                    PendingButton(Localizer.Format("#autoLOC_174783"), Discard, true),
+                    PendingButton(Localizer.Format("#autoLOC_174783"), SettingsApply.Discard, true),
                     PendingButton(Localizer.Format("#autoLOC_149514"), () => { }, false)),
             };
         }
@@ -309,7 +309,7 @@ namespace ReDefinition.Window
         private static DialogGUIButton PendingButton(string label, Callback onClick, bool whilePending)
         {
             DialogGUIButton button = new DialogGUIButton(label, onClick, 80f, 30f, !whilePending);
-            button.OptionEnabledCondition = () => Unapplied() == whilePending;
+            button.OptionEnabledCondition = () => SettingsApply.Unapplied() == whilePending;
             return button;
         }
 
@@ -332,7 +332,7 @@ namespace ReDefinition.Window
             ConfirmDialog.OverWindow("ReDefinitionRestart", "Restart KSP",
                 "What the window holds is applied and KSP starts again."
                 + (GameRestart.SavesGame ? " The game is saved first." : ""), 380f,
-                GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ApplyAndRestart);
+                GameRestart.SavesGame ? "Save and restart" : "Apply and restart", SettingsApply.ApplyAndRestart);
         }
 
         // A tab's name in the tab column and as its page's heading.

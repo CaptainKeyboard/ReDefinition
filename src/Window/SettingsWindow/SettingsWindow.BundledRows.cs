@@ -257,7 +257,7 @@ namespace ReDefinition.Window
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
             // nobody could read cannot be edited sensibly.
-            control.OptionInteractableCondition = () => (model.Bundled || SetDirectly(setting, false))
+            control.OptionInteractableCondition = () => (model.Bundled || SettingsApply.SetDirectly(setting, false))
                                                         && model.HasPending(key) && !Requirements.Locked(setting);
 
             return DialogRows.Row(RowHeight,

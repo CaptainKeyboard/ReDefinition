@@ -420,7 +420,7 @@ namespace ReDefinition.Window
         }
 
         // Whether an axis row holds another binding than KSP's axis has now.
-        private static bool AxesDiffer()
+        internal static bool AxesDiffer()
         {
             foreach (KspAxes.Axis axis in KspAxes.All())
             {

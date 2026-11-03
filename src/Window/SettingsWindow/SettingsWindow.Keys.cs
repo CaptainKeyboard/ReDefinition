@@ -66,7 +66,7 @@ namespace ReDefinition.Window
         }
 
         // Marks every row's text as due to be read again.
-        private static void KeysChanged()
+        internal static void KeysChanged()
         {
             keysVersion++;
         }
@@ -283,7 +283,7 @@ namespace ReDefinition.Window
 
         // KSP's own bindings are edited here and written on Apply, as everything
         // else in this window is.
-        private static readonly Dictionary<string, string> kspPending = new Dictionary<string, string>();
+        internal static readonly Dictionary<string, string> kspPending = new Dictionary<string, string>();
 
         // The sections, each folded until it is opened -- Mods open at first: a row
         // of a folded section is inactive, and costs nothing while the window is
@@ -395,7 +395,7 @@ namespace ReDefinition.Window
 
         // On Apply: into GameSettings; true where one was written, for KSP's save
         // at the end of Apply.
-        private static bool ApplyKeyBindings()
+        internal static bool ApplyKeyBindings()
         {
             KeysChanged();
             if (kspPending.Count == 0) return false;
@@ -484,7 +484,7 @@ namespace ReDefinition.Window
             // Placed in one of KSP's groups, it counts where that group does.
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, shown.Owner.ModName, text,
                 value => model.Change(key, value),
-                () => (model.Bundled || SetDirectly(shown, false)) && model.HasPending(key), shown.MaxModifiers,
+                () => (model.Bundled || SettingsApply.SetDirectly(shown, false)) && model.HasPending(key), shown.MaxModifiers,
                 KspKeyBindings.SituationsOfGroup(shown.Group));
             if (shown.CrossedWith != null)
             {

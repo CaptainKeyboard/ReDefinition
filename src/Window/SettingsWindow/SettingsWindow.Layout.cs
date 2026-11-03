@@ -19,7 +19,7 @@ namespace ReDefinition.Window
     {
         // The layout chosen in the window, and whether the keys are to be bound
         // to its preset; null and false while nothing waits.
-        private static string layoutPending;
+        internal static string layoutPending;
         private static bool rebindPending;
 
         // The layouts KSP has presets for (GameSettings.KeyboardLayouts); none where it has none.
@@ -154,7 +154,7 @@ namespace ReDefinition.Window
         // Before KSP's keys from the Keys tab: a rebind sets them all to the
         // preset, and a key changed by hand in the same Apply comes after it. True
         // where the layout was set, for KSP's save at the end of Apply.
-        private static bool ApplyLayout()
+        internal static bool ApplyLayout()
         {
             if (layoutPending == null) return false;
             string layout = layoutPending;
