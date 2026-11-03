@@ -1,16 +1,15 @@
 using System.Collections.Generic;
 using ReDefinition.Proxy;
-using ReDefinition.Diagnostics;
 using ReDefinition.Modules;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
     // The diagnostics window's live strip: what runs, the frame rates, the frame time graph,
     // latency and load, and the search, the "Changed" filter and the reset. The texts are
     // made four times a second while the window is open (RefreshLiveStrip); OnGUI only reads
     // them.
-    public partial class ReDefinitionAddon
+    internal sealed partial class DiagnosticsWindow
     {
         // The frame time graph's size, and how many bars it draws.
         private const float SparklineWidth = 190f;
@@ -21,8 +20,7 @@ namespace ReDefinition
         private static readonly GUILayoutOption SparklineWidthOption = GUILayout.Width(SparklineWidth);
         private static readonly GUILayoutOption SparklineHeightOption = GUILayout.Height(SparklineHeight);
 
-        // The last 240 frame times (ms), when the strip is next due, and the graph's top and median, set at its refresh.
-        private readonly FrameTimeRing frameTimes = new FrameTimeRing(240);
+        // When the strip is next due, and the graph's top and median, set at its refresh.
         private float nextStripRefresh;
         private float sparklineTop = 33.3f;
         private float sparklineMedian;
@@ -37,7 +35,7 @@ namespace ReDefinition
         private string lowLatencyDescription = "";
         private string rateRatioText = "--";
         private string recordingState = "";
-        // The frame rate with the upscaler on against off (FrameRateComparison), made with the rest.
+        // The frame rate with the upscaler on against off (FrameRateReadout.Comparison), made with the rest.
         private string frameRateText = "";
 
         // "FSR 3 + XeSS-FG 2x + XeLL": the upscaler that runs, the frame generation that
@@ -45,15 +43,15 @@ namespace ReDefinition
         private string RunningText()
         {
             List<string> parts = new List<string>();
-            if (rig != null && rig.Ready)
-                parts.Add(OurModules.TechniqueLabel(rig.Backend) + (rig.Backend != backend && fallbackReason != null ? " (instead of "
-                          + UpscalerBackends.Name(backend) + ")" : "")
+            if (rigs.Rig != null && rigs.Rig.Ready)
+                parts.Add(OurModules.TechniqueLabel(rigs.Rig.Backend) + (rigs.Rig.Backend != config.Backend && rigs.FallbackReason != null ? " (instead of "
+                          + UpscalerBackends.Name(config.Backend) + ")" : "")
                           // Upscaler off, frame generation on: native antialiasing (NativeForFrameGeneration).
-                          + (!wantEnabled ? " native AA" : ""));
-            else if (rig != null && rig.PassThrough) parts.Add("Upscaler off");
-            else parts.Add(wantEnabled ? "Upscaler setting up" : "Upscaler off");
+                          + (!config.WantEnabled ? " native AA" : ""));
+            else if (rigs.Rig != null && rigs.Rig.PassThrough) parts.Add("Upscaler off");
+            else parts.Add(config.WantEnabled ? "Upscaler setting up" : "Upscaler off");
 
-            if (frameGeneration)
+            if (config.FrameGeneration)
             {
                 string technique = FrameGenerationBridge.TechniqueName();
                 parts.Add(technique == null ? "frame generation idle" : FrameGenerationShort(technique));
@@ -73,16 +71,19 @@ namespace ReDefinition
         }
 
         // Makes the strip's texts afresh, at most four times a second.
-        private void RefreshLiveStrip()
+        public void RefreshLiveStrip()
         {
             if (Time.unscaledTime < nextStripRefresh) return;
             nextStripRefresh = Time.unscaledTime + 0.25f;
 
             runningText = RunningText();
+            float renderedFps = rates.RenderedFps;
+            float shownFps = rates.ShownFps;
             fpsText = renderedFps < 0f ? "-- fps"
                 : shownFps > renderedFps ? renderedFps.ToString("0") + " -> " + shownFps.ToString("0") + " fps"
                 : renderedFps.ToString("0") + " fps";
 
+            FrameTimeRing frameTimes = rates.FrameTimes;
             if (frameTimes.Count > 0)
             {
                 sparklineMedian = frameTimes.Percentile(0.5f);
@@ -99,11 +100,12 @@ namespace ReDefinition
                 : "Latency: not measured";
 
             string technique = FrameGenerationBridge.TechniqueName();
-            fgTechniqueText = !frameGeneration ? "off" : technique ?? "not generating";
+            fgTechniqueText = !config.FrameGeneration ? "off" : technique ?? "not generating";
             lowLatencyDescription = ReflexFrames.LowLatencyText() ?? "no proxy, or it does not say";
+            float presentedPerRendered = rates.PresentedPerRendered;
             rateRatioText = presentedPerRendered > 0f ? presentedPerRendered.ToString("0.00") + " presented per rendered frame" : "--";
             recordingState = ScreenRecordingBridge.State();
-            frameRateText = FrameRateComparison();
+            frameRateText = rates.Comparison();
         }
 
         // The strip: what runs and the frame rate, then the graph, the frame time, latency and load lines, and the filter
@@ -124,7 +126,7 @@ namespace ReDefinition
             GUILayout.BeginVertical(DiagnosticsLayout.FrameTimeColumn);
             GUILayout.Label(frameTimeText, styles.Small);
             GUILayout.Label(latencyText, styles.Small);
-            GUILayout.Label(loadText, styles.Small);
+            GUILayout.Label(rates.LoadText, styles.Small);
             GUILayout.EndVertical();
 
             GUILayout.FlexibleSpace();
@@ -174,6 +176,7 @@ namespace ReDefinition
             GUI.color = new Color(0f, 0f, 0f, 0.45f);
             GUI.DrawTexture(area, white);
 
+            FrameTimeRing frameTimes = rates.FrameTimes;
             int count = frameTimes.Count;
             if (count >= 2)
             {

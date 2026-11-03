@@ -3,20 +3,23 @@ using ReDefinition.Proxy;
 using ReDefinition.Upscaler;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
-    // The add-on's part for the frame rates the window compares: with and without
-    // the upscaler, rendered and presented, and the load behind them.
-    public partial class ReDefinitionAddon
+    // The frame rates the window compares and shows: with and without the upscaler, rendered and
+    // presented, the load behind them, and every frame's time for the strip's graph. The add-on
+    // feeds it once per frame (Sample, Update).
+    internal sealed class FrameRateReadout
     {
-        // The frame times with the upscaler running, and with it switched off, for FrameRateComparison.
+        // The frame times with the upscaler running, and with it switched off, for Comparison.
         private readonly FrameRateMeter meterOn = new FrameRateMeter();
         private readonly FrameRateMeter meterOff = new FrameRateMeter();
 
-        // The frame rates the window's strip shows, measured once a second
-        // (UpdateFrameRates): the frames the game renders, and the frames the swapchain
-        // presents, which are more while frame generation generates; negative until the
-        // first second is out.
+        // The last 240 frame times (ms), for the strip's graph.
+        private readonly FrameTimeRing frameTimes = new FrameTimeRing(240);
+
+        // The frame rates the window's strip shows, measured once a second (Update): the
+        // frames the game renders, and the frames the swapchain presents, which are more while
+        // frame generation generates; negative until the first second is out.
         private float renderedFps = -1f;
         private float shownFps = -1f;
         // Presented per rendered frame over the last second, 0 while the proxy counts none.
@@ -28,13 +31,62 @@ namespace ReDefinition
         private bool counted;
         private string loadText = "Load: --";
 
+        // The last frame times, newest last.
+        public FrameTimeRing FrameTimes
+        {
+            get { return frameTimes; }
+        }
+
+        // The frames the game rendered per second over the last second; negative before the first.
+        public float RenderedFps
+        {
+            get { return renderedFps; }
+        }
+
+        // The frames shown per second: the presented ones where frame generation generates, else the rendered ones.
+        public float ShownFps
+        {
+            get { return shownFps; }
+        }
+
+        // Presented per rendered frame over the last second, 0 while the proxy counts none.
+        public float PresentedPerRendered
+        {
+            get { return presentedPerRendered; }
+        }
+
+        // The load line: the main thread's, the render thread's and the GPU's share of the frame, or why there is none.
+        public string LoadText
+        {
+            get { return loadText; }
+        }
+
+        // Adds this frame's time to the mean of the upscaler on or off. A rig for frame
+        // generation alone counts as neither, so the caller leaves it out.
+        public void Sample(bool upscalerOn)
+        {
+            (upscalerOn ? meterOn : meterOff).Sample(Time.unscaledDeltaTime);
+        }
+
+        // Starts the mean with the upscaler on afresh, as after a new rig.
+        public void ResetOn()
+        {
+            meterOn.Reset();
+        }
+
+        // Starts the mean with the upscaler off afresh, as after the rig went.
+        public void ResetOff()
+        {
+            meterOff.Reset();
+        }
+
         // The window's frame rates: the frames the game renders, counted
         // here, and the frames the swapchain presented while frame generation generates. The
         // presented frames include generated ones and come from the proxy's running
         // totals (KspFgCounters), read at the start and the end of the same second.
         // Taken once a second, so the number can be read; and every frame's time
-        // for the strip's graph.
-        private void UpdateFrameRates()
+        // for the strip's graph. The load line is asked for only while the window is open.
+        public void Update(bool windowVisible)
         {
             frameTimes.Add(Time.unscaledDeltaTime * 1000f);
             float now = Time.unscaledTime;
@@ -110,9 +162,8 @@ namespace ReDefinition
             return value < 0f ? "n/a" : value.ToString("0") + " %";
         }
 
-        // The frame rate with the upscaler on against off (FrameRateMeter). A rig
-        // for frame generation alone counts as neither.
-        private string FrameRateComparison()
+        // The frame rate with the upscaler on against off (FrameRateMeter).
+        public string Comparison()
         {
             StringBuilder sb = new StringBuilder();
             sb.Append("fps on ").Append(meterOn.Describe())

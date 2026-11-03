@@ -2,22 +2,49 @@ using System;
 using System.Collections.Generic;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
-using ReDefinition.Diagnostics;
+using ReDefinition.Modules;
 using ReDefinition.Ui;
 using ReDefinition.Upscaler;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
-    // The add-on's part for its diagnostics window (IMGUI), the shell: a live strip at
-    // the top (ReDefinitionAddon.DiagnosticsLiveStrip), the pages' list on the left, the
-    // selected page on the right (DiagnosticsPages, DiagnosticsMods), the pinned options
-    // at the foot. The window's options are data (DiagnosticsOptions); their rows are
-    // drawn by DiagnosticsRows.
-    public partial class ReDefinitionAddon
+    // The diagnostics window (IMGUI), the shell: a live strip at the top
+    // (DiagnosticsWindow.LiveStrip.cs), the pages' list on the left, the selected page on the
+    // right (DiagnosticsWindow.Pages.cs, DiagnosticsWindow.Mods.cs), the pinned options at the
+    // foot. The window's options are data (DiagnosticsWindow.Options.cs); their rows are drawn
+    // by DiagnosticsWindow.Rows.cs. The add-on owns it and forwards its OnGUI.
+    internal sealed partial class DiagnosticsWindow
     {
+        // The settings the window shows and whose setters its options call, the rig's lifecycle, the
+        // other mods' antialiasing, the frame rates and the recording timer it shows, and the id of its IMGUI window.
+        private readonly SettingsController config;
+        private readonly RigLifecycle rigs;
+        private readonly HostStackSync hostStack;
+        private readonly FrameRateReadout rates;
+        private readonly ScreenRecordingTimer recording;
+        private readonly int windowId;
+
+        // A window for the state given, drawn under the id given.
+        public DiagnosticsWindow(SettingsController config, RigLifecycle rigs, HostStackSync hostStack, FrameRateReadout rates,
+                                 ScreenRecordingTimer recording, int windowId)
+        {
+            this.config = config;
+            this.rigs = rigs;
+            this.hostStack = hostStack;
+            this.rates = rates;
+            this.recording = recording;
+            this.windowId = windowId;
+        }
+
         // Whether the diagnostics window is open.
         private bool windowVisible;
+
+        // Whether the window is open.
+        public bool Visible
+        {
+            get { return windowVisible; }
+        }
 
         // The note where frame generation is on but the proxy could not make its context.
         private const string ContextFailedText =
@@ -56,7 +83,6 @@ namespace ReDefinition
         // Closed by default: the motion and depth previews read the image back from the GPU and
         // cost frame rate while they are shown -- which is while their page is.
         private UpscalerRig.PreviewMode previewMode = UpscalerRig.PreviewMode.MotionVectors;
-        private string hostStackMessage;
 
         // The search and the "Changed" filter: what is typed, and what the pages show.
         private string typedQuery = "";
@@ -74,7 +100,6 @@ namespace ReDefinition
 
         // The window's place and size, its IMGUI id, the styles made from KSP's skin, and the tooltip under the pointer.
         private Rect window = new Rect(60f, 60f, WindowWidth, WindowHeight);
-        private int windowId;
         private DiagnosticsStyles styles;
         private string tooltipNow = "";
 
@@ -106,7 +131,7 @@ namespace ReDefinition
             foundList = null;
             pinnedList = null;
             contextFailingAny = FrameGenerationBridge.ContextFailing;
-            contextFailing = frameGeneration && contextFailingAny;
+            contextFailing = config.FrameGeneration && contextFailingAny;
         }
 
         // The options a page shows.
@@ -150,7 +175,7 @@ namespace ReDefinition
         }
 
         // Opens or closes the window; closing it gives the keyboard back.
-        private void ToggleWindow()
+        public void Toggle()
         {
             windowVisible = !windowVisible;
             if (!windowVisible) ReleaseTyping();
@@ -159,7 +184,7 @@ namespace ReDefinition
         // From the settings window's Diagnostics button.
         // Opens on the page where the upscaler's options live; a window already open stays
         // on its page.
-        internal void ShowDiagnostics()
+        public void Show()
         {
             if (!windowVisible) pendingCategory = DebugCategory.UpscalerInputs;
             windowVisible = true;
@@ -174,7 +199,7 @@ namespace ReDefinition
         // the skin current at GUILayout.Window to the window function, so setting it
         // here is enough. The cached styles copy HighLogic.Skin, never Unity's
         // default.
-        private void OnGUI()
+        public void OnGUI()
         {
             // Not while KSP's interface is hidden (F2, screenshots), as the rest of it.
             if (!windowVisible || (KSP.UI.UIMasterController.Instance != null && !KSP.UI.UIMasterController.Instance.IsUIShowing))
@@ -200,9 +225,9 @@ namespace ReDefinition
             window.x = Mathf.Clamp(window.x, grip - window.width, Screen.width - grip);
             window.y = Mathf.Clamp(window.y, grip - window.height, Screen.height - grip);
             // Kept for the next session; saved with the other settings.
-            settings.DiagnosticsX = window.x;
-            settings.DiagnosticsY = window.y;
-            settings.DiagnosticsPage = category;
+            config.Settings.DiagnosticsX = window.x;
+            config.Settings.DiagnosticsY = window.y;
+            config.Settings.DiagnosticsPage = category;
             // Not click-through: what lies behind it is kept from the click
             // (UnityMouseEvents), as behind the settings window.
             UnityMouseEvents.ImguiWindow = window;
@@ -246,7 +271,7 @@ namespace ReDefinition
             if (pendingPin != null)
             {
                 pins.Toggle(pendingPin);
-                settings.DiagnosticsPins = pins.Text;
+                config.Settings.DiagnosticsPins = pins.Text;
                 pendingPin = null;
             }
             if (pendingChangedToggle)
@@ -329,7 +354,7 @@ namespace ReDefinition
             else
                 DrawPinned(pinned, WindowWidth - 110f);
             GUILayout.EndVertical();
-            if (GUILayout.Button("Close", DiagnosticsLayout.CloseButton)) ToggleWindow();
+            if (GUILayout.Button("Close", DiagnosticsLayout.CloseButton)) Toggle();
             GUILayout.EndHorizontal();
         }
 
@@ -377,7 +402,7 @@ namespace ReDefinition
         }
 
         // The search field has the keyboard: KSP's own keys stay quiet, and the add-on's
-        // hotkeys (HandleHotkeys) too.
+        // hotkeys (AddonHotkeys.Handle) too.
         private void SetTyping(bool typing)
         {
             searchTyping = typing;
@@ -394,7 +419,7 @@ namespace ReDefinition
         }
 
         // Whether the diagnostics window's search field has the keyboard.
-        internal bool DiagnosticsTyping
+        public bool Typing
         {
             get { return searchTyping && windowVisible; }
         }
@@ -404,7 +429,7 @@ namespace ReDefinition
         // separated by commas: show, hide, category=<page>, list=<state|registrations|code>,
         // search=<text>, changed=<1|0>, pin=<id>, set=<id>:<value>, technique=<name>, reset.
         // Returns what it did, for the log.
-        internal string ProbeDiagnostics(string commands)
+        public string RunProbeCommands(string commands)
         {
             EnsureOptions();
             System.Text.StringBuilder done = new System.Text.StringBuilder();
@@ -427,7 +452,7 @@ namespace ReDefinition
                 {
                     if (debugOptions.ById(value) == null) { done.Append(" no switch ").Append(value).Append(';'); continue; }
                     pins.Toggle(value);
-                    settings.DiagnosticsPins = pins.Text;
+                    config.Settings.DiagnosticsPins = pins.Text;
                 }
                 else if (name == "set")
                 {
@@ -454,9 +479,7 @@ namespace ReDefinition
                 {
                     UpscalerBackend wantedBackend;
                     if (!Enum.TryParse(value, true, out wantedBackend)) { done.Append(" no technique ").Append(value).Append(';'); continue; }
-                    settings.BackendAuto = false;
-                    resolvedFor = null;
-                    SetBackend(wantedBackend);
+                    config.PickBackend(wantedBackend);
                 }
                 else { done.Append(" unknown ").Append(name).Append(';'); continue; }
                 done.Append(' ').Append(command.Trim()).Append(';');

@@ -2,18 +2,18 @@ using System;
 using System.Collections.Generic;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
-using ReDefinition.Diagnostics;
 using ReDefinition.Modules;
+using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
     // The diagnostics window's options as data (DebugOption): what each is, where it is
     // shown, how it is read and set, where it does not apply and whether it is saved.
     // The setters are the ones the settings views use, so a click here does what it
     // always did, log line included.
-    public partial class ReDefinitionAddon
+    internal sealed partial class DiagnosticsWindow
     {
         // Every option of the window, made on its first draw, and the options pinned to its foot.
         private DebugOptionSet debugOptions;
@@ -32,12 +32,12 @@ namespace ReDefinition
         {
             if (debugOptions != null) return;
             debugOptions = BuildDebugOptions();
-            pins.Load(settings.DiagnosticsPins, debugOptions);
+            pins.Load(config.Settings.DiagnosticsPins, debugOptions);
             // The last page, except Previews: it reads the image back from the GPU on every
             // frame it is shown, and a window that opens on it costs frame rate unasked.
-            category = settings.DiagnosticsPage == DebugCategory.Previews ? DebugCategory.Overview : settings.DiagnosticsPage;
-            if (!float.IsNaN(settings.DiagnosticsX) && !float.IsInfinity(settings.DiagnosticsX)) window.x = settings.DiagnosticsX;
-            if (!float.IsNaN(settings.DiagnosticsY) && !float.IsInfinity(settings.DiagnosticsY)) window.y = settings.DiagnosticsY;
+            category = config.Settings.DiagnosticsPage == DebugCategory.Previews ? DebugCategory.Overview : config.Settings.DiagnosticsPage;
+            if (!float.IsNaN(config.Settings.DiagnosticsX) && !float.IsInfinity(config.Settings.DiagnosticsX)) window.x = config.Settings.DiagnosticsX;
+            if (!float.IsNaN(config.Settings.DiagnosticsY) && !float.IsInfinity(config.Settings.DiagnosticsY)) window.y = config.Settings.DiagnosticsY;
         }
 
         // At the start of each layout pass.
@@ -55,7 +55,7 @@ namespace ReDefinition
         // The technique the rig runs, the chosen one where no rig runs.
         private UpscalerBackend RunningBackend
         {
-            get { return rig != null ? rig.Backend : backend; }
+            get { return rigs.Rig != null ? rigs.Rig.Backend : config.Backend; }
         }
 
         // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet); DLSS and
@@ -120,21 +120,21 @@ namespace ReDefinition
 
             // Overview: the player's two main switches. Not debug switches, so neither is reset.
             DebugOption upscaler = Switch("upscaler", DebugCategory.Overview, "", "Upscaler", Saved, false,
-                () => wantEnabled, value => SetEnabled(value));
+                () => config.WantEnabled, value => config.SetEnabled(value));
             upscaler.Resettable = false;
             upscaler.Tooltip = "Turn Upscaler On Or Off";
             upscaler.Keywords = new[] { "enable", "disable", "fsr", "dlss", "xess" };
             // Switching on needs a graphics profile (SetEnabled).
-            upscaler.Blocked = () => !wantEnabled && !ProfileChosen() ? NeedsProfileText : null;
+            upscaler.Blocked = () => !config.WantEnabled && !BundledSettings.ProfileChosen ? NeedsProfileText : null;
             set.Add(upscaler);
 
             DebugOption generation = Switch("frameGeneration", DebugCategory.Overview, "", "Frame generation", Saved, false,
-                () => frameGeneration, value => SetFrameGeneration(value));
+                () => config.FrameGeneration, value => config.SetFrameGeneration(value));
             generation.Also = DebugCategory.FrameGeneration;
             generation.Resettable = false;
             generation.Tooltip = "Turn Frame Generation On Or Off";
             generation.Keywords = new[] { "fg", "dlss", "xess", "fsr", "interpolation" };
-            generation.Blocked = () => !frameGeneration && !ProfileChosen() ? NeedsProfileText : null;
+            generation.Blocked = () => !config.FrameGeneration && !BundledSettings.ProfileChosen ? NeedsProfileText : null;
             set.Add(generation);
 
             // The multiplier, as the settings window's Frame generation row sets it: 2x to 6x, or
@@ -144,8 +144,8 @@ namespace ReDefinition
             multipliers[multipliers.Length - 1] = FrameGenerationChoice.Dynamic;
             DebugOption multiplier = Choice("frameGenerationMultiplier", DebugCategory.FrameGeneration, "",
                 "Multiplier", Saved, multipliers, 0,
-                () => Math.Max(0, Array.IndexOf(multipliers, frameGenerationMultiplier)),
-                index => SetFrameGenerationMultiplier(multipliers[index]));
+                () => Math.Max(0, Array.IndexOf(multipliers, config.FrameGenerationMultiplier)),
+                index => config.SetFrameGenerationMultiplier(multipliers[index]));
             multiplier.Resettable = false;
             multiplier.Tooltip = "Frames Shown Per Rendered Frame";
             multiplier.Keywords = new[] { "2x", "3x", "4x", "dynamic", "mfg", "dlss", "frames" };
@@ -153,15 +153,15 @@ namespace ReDefinition
             multiplier.DynamicLabel = () =>
             {
                 FrameGenerationChoice.Limits limits = FrameGenerationBridge.Limits();
-                return FrameGenerationChoice.Offered(frameGenerationMultiplier, limits) ? "Multiplier"
-                    : "Multiplier (" + FrameGenerationChoice.Effective(frameGenerationMultiplier, limits) + " here)";
+                return FrameGenerationChoice.Offered(config.FrameGenerationMultiplier, limits) ? "Multiplier"
+                    : "Multiplier (" + FrameGenerationChoice.Effective(config.FrameGenerationMultiplier, limits) + " here)";
             };
             set.Add(multiplier);
 
             // Upscaler inputs.
             const string motion = "Motion and depth";
             DebugOption jitterOption = Switch("jitter", DebugCategory.UpscalerInputs, motion, "Jitter", Saved, saved.Jitter,
-                () => jitter, value => SetJitter(value));
+                () => config.Jitter, value => config.SetJitter(value));
             jitterOption.Keywords = new[] { "taa", "subpixel" };
             set.Add(jitterOption);
 
@@ -192,7 +192,7 @@ namespace ReDefinition
 
             DebugOption skinned = Choice("skinnedMotionVectors", DebugCategory.UpscalerInputs, motion,
                 "Skinned motion vectors", Saved, new[] { "As set", "Forced" }, saved.SkinnedMotionVectors ? 1 : 0,
-                () => skinnedMotionVectors ? 1 : 0, value => SetSkinnedMotionVectors(value != 0));
+                () => config.SkinnedMotionVectors ? 1 : 0, value => config.SetSkinnedMotionVectors(value != 0));
             skinned.Tooltip = "Forced On Or As The Game Set Them";
             skinned.Keywords = new[] { "animation", "kerbals" };
             set.Add(skinned);
@@ -233,24 +233,24 @@ namespace ReDefinition
             set.Add(clouds);
 
             DebugOption mipmap = Switch("mipmapBias", DebugCategory.UpscalerInputs, "Textures", "Mipmap bias", Saved, saved.MipmapBias,
-                () => mipmapBias, value => SetMipmapBias(value));
+                () => config.MipmapBias, value => config.SetMipmapBias(value));
             mipmap.Keywords = new[] { "texture", "sharpness" };
             set.Add(mipmap);
 
             DebugOption tufx = Switch("tufxAfterUpscaling", DebugCategory.UpscalerInputs, "Image", "TUFX after upscaling", Saved,
-                saved.TufxAfterUpscaling, () => tufxAfterUpscaling, value => SetTufxAfterUpscaling(value));
+                saved.TufxAfterUpscaling, () => config.TufxAfterUpscaling, value => config.SetTufxAfterUpscaling(value));
             tufx.Keywords = new[] { "bloom", "tonemapping", "post-processing" };
             set.Add(tufx);
 
             DebugOption exposure = Switch("autoExposure", DebugCategory.UpscalerInputs, "Image", "Auto exposure", Saved,
-                saved.AutoExposure, () => autoExposure, value => SetAutoExposure(value));
+                saved.AutoExposure, () => config.AutoExposure, value => config.SetAutoExposure(value));
             exposure.Tooltip = "FSR 3, AMD And XeSS";
             // DLSS always measures its exposure itself.
             exposure.Blocked = () => RunningBackend == UpscalerBackend.Dlss ? "DLSS measures its exposure itself" : null;
             set.Add(exposure);
 
             DebugOption transparency = Switch("transparencyMask", DebugCategory.UpscalerInputs, "Masks", "Transparency mask", Saved,
-                saved.TransparencyMask, () => transparencyMask, value => SetTransparencyMask(value));
+                saved.TransparencyMask, () => config.TransparencyMask, value => config.SetTransparencyMask(value));
             transparency.Tooltip = "FSR 3 And AMD";
             transparency.Keywords = new[] { "eve", "scatterer", "ocean" };
             transparency.Blocked = () => TakesMasks ? null : NeedsMasksText;
@@ -258,7 +258,7 @@ namespace ReDefinition
 
             DebugOption reactive = Choice("reactiveMask", DebugCategory.UpscalerInputs, "Masks", "Reactive mask", Saved,
                 new[] { "Off", "Renderers", "FSR's estimate" }, (int)saved.ReactiveMask,
-                () => (int)reactiveMask, value => SetReactiveMask((UpscalerMasks.ReactiveSource)value));
+                () => (int)config.ReactiveMask, value => config.SetReactiveMask((UpscalerMasks.ReactiveSource)value));
             reactive.Tooltip = "FSR 3 And AMD";
             reactive.Keywords = new[] { "particles", "plumes", "re-entry", "transparent renderers" };
             reactive.Blocked = () => TakesMasks ? null : NeedsMasksText;
@@ -267,38 +267,32 @@ namespace ReDefinition
             // Frame generation and latency.
             DebugOption fastTurns = Switch("motionVectorCheck", DebugCategory.FrameGeneration, "", "Motion vector check on fast turns",
                 Session, false,
-                () => recordFastTurns,
-                value =>
-                {
-                    recordFastTurns = value;
-                    if (rig != null) rig.RecordFastTurns = recordFastTurns;
-                    Debug.Log(Log.Tag + " Motion vector check on fast turns " + (recordFastTurns ? "on" : "off") + ".");
-                });
+                () => config.RecordFastTurns, value => config.SetRecordFastTurns(value));
             fastTurns.Keywords = new[] { "fg", "camera" };
             // Needs frame generation, whose inputs the check reads.
-            fastTurns.Blocked = () => frameGeneration ? null : "needs frame generation";
+            fastTurns.Blocked = () => config.FrameGeneration ? null : "needs frame generation";
             set.Add(fastTurns);
 
             // Game settings, all three at once: a rebuild would reset the upscaler's history.
             DebugOption lod = Switch("lodBias", DebugCategory.GameSettings, "", "LOD bias compensation", Saved, saved.CompensateLodBias,
-                () => compensateLodBias, value => SetCompensateLodBias(value));
+                () => config.CompensateLodBias, value => config.SetCompensateLodBias(value));
             lod.Keywords = new[] { "level of detail" };
             set.Add(lod);
 
             DebugOption msaa = Switch("disableMsaa", DebugCategory.GameSettings, "", "MSAA forced off", Saved, saved.DisableMsaa,
-                () => disableMsaa, value => SetDisableMsaa(value));
+                () => config.DisableMsaa, value => config.SetDisableMsaa(value));
             msaa.Keywords = new[] { "antialiasing", "multisampling" };
             set.Add(msaa);
 
             DebugOption anisotropic = Switch("forceAnisotropic", DebugCategory.GameSettings, "", "Anisotropic filtering forced", Saved,
-                saved.ForceAnisotropic, () => forceAnisotropic, value => SetForceAnisotropic(value));
+                saved.ForceAnisotropic, () => config.ForceAnisotropic, value => config.SetForceAnisotropic(value));
             anisotropic.Keywords = new[] { "texture filtering" };
             set.Add(anisotropic);
 
             // Capture and log.
             const string log = "Log";
             DebugOption measurements = Switch("debugMode", DebugCategory.Capture, log, "Measurements into the log", Saved, false,
-                () => DebugMode, value => SetDebugMode(value));
+                () => SettingsController.DebugMode, value => config.SetDebugMode(value));
             measurements.Tooltip = "Audits And Read-Backs";
             measurements.Keywords = new[] { "debug", "diagnostic" };
             set.Add(measurements);
@@ -306,7 +300,7 @@ namespace ReDefinition
             DebugOption diagnostics = Button("writeDiagnostics", DebugCategory.Capture, log, "Write diagnostics to log", "Write",
                 () =>
                 {
-                    if (rig != null) rig.LogDiagnostics();
+                    if (rigs.Rig != null) rigs.Rig.LogDiagnostics();
                     else Debug.Log(Log.Tag + " Diagnostics: upscaler is not active.");
                 });
             set.Add(diagnostics);
@@ -332,25 +326,14 @@ namespace ReDefinition
 
             // The rendered picture as it is, through the same redirect: what the upscaler starts from.
             DebugOption without = Switch("bypass", DebugCategory.Capture, views, "Without upscaler (bypass)", Session, false,
-                () => bypass,
-                value =>
-                {
-                    bypass = value;
-                    Reattach();
-                });
+                () => config.Bypass, value => config.SetBypass(value));
             without.Tooltip = "The Picture Before The Upscaler";
             set.Add(without);
 
 #if DEVELOPMENT_BUILD
             // FSR's debug view pass is compiled into development builds only.
             DebugOption view = Switch("fsrDebugView", DebugCategory.Capture, views, "FSR's debug view", Session, false,
-                () => debugView,
-                value =>
-                {
-                    debugView = value;
-                    if (rig != null) rig.DebugView = debugView;
-                    Debug.Log(Log.Tag + " FSR debug view " + (debugView ? "on" : "off"));
-                });
+                () => config.DebugView, value => config.SetDebugView(value));
             view.Tooltip = "Development Builds Only";
             view.Blocked = () => RunningBackend == UpscalerBackend.Fsr3 ? null : "needs FSR 3";
             set.Add(view);
@@ -363,13 +346,9 @@ namespace ReDefinition
             const string screen = "Screen recording";
             DebugOption recordWithDumps = Button("recordWithDumps", DebugCategory.Capture, screen,
                 "Record the screen in 5 s (120 frames)", "Record",
-                () =>
-                {
-                    recordingAt = Time.unscaledTime + 5f;
-                    recordingDumps = true;
-                });
-            recordWithDumps.DynamicLabel = () => recordingAt > 0f
-                ? "Recording in " + Mathf.CeilToInt(recordingAt - Time.unscaledTime) + " s"
+                () => recording.Arm(true));
+            recordWithDumps.DynamicLabel = () => recording.Pending
+                ? "Recording in " + recording.SecondsLeft + " s"
                 : "Record the screen in 5 s (120 frames)";
             recordWithDumps.Tooltip = "With Dumps For Comparing";
             recordWithDumps.Keywords = new[] { "video", "capture", "dump" };
@@ -377,14 +356,10 @@ namespace ReDefinition
 
             DebugOption recordPlain = Button("recordWithoutDumps", DebugCategory.Capture, screen,
                 "Record the screen in 5 s, without dumps", "Record",
-                () =>
-                {
-                    recordingAt = Time.unscaledTime + 5f;
-                    recordingDumps = false;
-                });
+                () => recording.Arm(false));
             recordPlain.Tooltip = "Nothing Else Slows The Frames";
             recordPlain.Keywords = new[] { "video", "capture" };
-            recordPlain.Blocked = () => recordingAt > 0f ? "a recording is about to start" : null;
+            recordPlain.Blocked = () => recording.Pending ? "a recording is about to start" : null;
             set.Add(recordPlain);
 
             return set;

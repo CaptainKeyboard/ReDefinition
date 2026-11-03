@@ -1,13 +1,12 @@
 using System.Collections.Generic;
-using ReDefinition.Diagnostics;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
     // How the diagnostics window draws an option by its kind (DebugOption). A switch or a
     // choice is drawn as segments, an action as a button, each with its persistence marker and its
     // star. A row that does not apply is greyed out with its reason beneath.
-    public partial class ReDefinitionAddon
+    internal sealed partial class DiagnosticsWindow
     {
         // The narrowest a segment is drawn, in pixels.
         private const float SegmentMinimum = 44f;
