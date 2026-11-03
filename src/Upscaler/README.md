@@ -13,6 +13,7 @@ fixes for other mods' filters, and the pieces frame generation needs from the ga
 | `src/Upscaler/Rig/UpscalerInputs.cs` | The capture of depth, motion vectors and masks. |
 | `src/Upscaler/MotionVectors/UnityMotionRepair.cs` | The repair of Unity's motion vectors on the flight camera. |
 | `src/Upscaler/Compatibility/HostStack.cs` | Other mods' temporal filters: read, switched off, restored. |
+| `src/Upscaler/Compatibility/IHostFilter.cs` | What each filter's control does for `HostStack`: apply, reassert, restore, report. |
 | `src/Upscaler/FrameGeneration/VesselShadowLayer.cs` | What frame generation gets that the plain frame lacks. |
 
 ## What it does
@@ -29,6 +30,9 @@ fixes for other mods' filters, and the pieces frame generation needs from the ga
 - `Compatibility` sizes EVE's clouds, Scatterer's godrays and Deferred's reflections to the render
   size, and keeps Scatterer's, TUFX's and Deferred's own antialiasing from running twice.
 - `Compatibility/TufxPostProcessing.cs` splits TUFX's profile around the upscaler.
+- `Compatibility` holds one control per filter that `HostStack` coordinates: `ScattererTaaControl`,
+  `TufxAaControl`, `SmaaControl` and `KfgControl`. `DuplicateAaControl` keeps a second antialiasing off a
+  camera. `ForeignReflection` and `HostCameras` are what they share.
 - `FrameGeneration` draws the vessel between its physics steps, and takes its shadow out of the
   motion that frame generation follows.
 
