@@ -112,15 +112,7 @@ namespace ReDefinition.Autopilot.Guidance
             {
                 ManeuverNode gone = second;
                 second = null;
-                removedByUs = true;
-                try
-                {
-                    gone.RemoveSelf();
-                }
-                finally
-                {
-                    removedByUs = false;
-                }
+                RemoveOwn(gone);
             }
             solver.UpdateFlightPlan();
             updated = Time.realtimeSinceStartup;
@@ -159,16 +151,28 @@ namespace ReDefinition.Autopilot.Guidance
             if (node == null) return;
             ManeuverNode guide = node;
             ManeuverNode behind = second;
+            Forget();
+            RemoveOwn(behind);
+            RemoveOwn(guide);
+        }
+
+        // The guide's nodes and the vessel they were made for are not held any more.
+        private static void Forget()
+        {
             node = null;
             second = null;
             owner = null;
             updated = -1000f;
-            if (guide == null || (guide.solver == null && (behind == null || behind.solver == null))) return;
+        }
+
+        // A node of the guide taken off its solver. The player's taking away is told apart from ours by the flag, which the event reads.
+        private static void RemoveOwn(ManeuverNode gone)
+        {
+            if (gone == null || gone.solver == null) return;
             removedByUs = true;
             try
             {
-                if (behind != null && behind.solver != null) behind.RemoveSelf();
-                if (guide.solver != null) guide.RemoveSelf();
+                gone.RemoveSelf();
             }
             catch (Exception e)
             {
@@ -187,16 +191,7 @@ namespace ReDefinition.Autopilot.Guidance
         {
             ManeuverNode gone = kept;
             kept = null;
-            if (gone == null || gone.solver == null) return;
-            removedByUs = true;
-            try
-            {
-                gone.RemoveSelf();
-            }
-            finally
-            {
-                removedByUs = false;
-            }
+            RemoveOwn(gone);
         }
 
         // The climb is done: the first node, which follows the climb, is taken away, and the second, the burn that circularizes, stays as a node of the game's
@@ -206,20 +201,8 @@ namespace ReDefinition.Autopilot.Guidance
             if (node == null) return;
             ManeuverNode first = node;
             kept = second;
-            node = null;
-            second = null;
-            owner = null;
-            updated = -1000f;
-            if (first.solver == null) return;
-            removedByUs = true;
-            try
-            {
-                first.RemoveSelf();
-            }
-            finally
-            {
-                removedByUs = false;
-            }
+            Forget();
+            RemoveOwn(first);
         }
 
         // The guidance starts anew: a node taken away before is not remembered.
@@ -236,16 +219,7 @@ namespace ReDefinition.Autopilot.Guidance
             if (leftover == null) return;
             ManeuverNode gone = leftover;
             leftover = null;
-            if (gone.solver == null) return;
-            removedByUs = true;
-            try
-            {
-                gone.RemoveSelf();
-            }
-            finally
-            {
-                removedByUs = false;
-            }
+            RemoveOwn(gone);
         }
 
         // The game's events call an object's method, not a static one.
@@ -284,10 +258,7 @@ namespace ReDefinition.Autopilot.Guidance
             }
             // The one that is left is not the player's: it goes after the event, when the solver is done with the removal.
             if (second != null && solver.maneuverNodes.Contains(second)) leftover = second;
-            node = null;
-            second = null;
-            owner = null;
-            updated = -1000f;
+            Forget();
             Dismissed = true;
             Debug.Log(Log.Tag + " Navigation: the maneuver of " + (vessel != null ? vessel.vesselName : "the vessel") + " was taken away; the guidance ends.");
             if (OnDismissed != null) OnDismissed();
