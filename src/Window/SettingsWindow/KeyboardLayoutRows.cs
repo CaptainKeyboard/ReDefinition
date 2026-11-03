@@ -4,6 +4,7 @@ using KSP.Localization;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
@@ -15,11 +16,11 @@ namespace ReDefinition.Window
     // KSP's Apply keeps the chosen layout (CURRENT_LAYOUT_SETTINGS) and loads it
     // (LoadLayoutKeyBindings); rebinding sets every key to the preset's. Here both
     // wait for Apply like every other row.
-    internal static partial class SettingsWindow
+    internal static class KeyboardLayoutRows
     {
         // The layout chosen in the window, and whether the keys are to be bound
         // to its preset; null and false while nothing waits.
-        private static string layoutPending;
+        internal static string Pending;
         private static bool rebindPending;
 
         // The layouts KSP has presets for (GameSettings.KeyboardLayouts); none where it has none.
@@ -57,7 +58,7 @@ namespace ReDefinition.Window
         // The layout the row shows: the one chosen in the window, else KSP's.
         private static string LayoutShown()
         {
-            return layoutPending ?? LayoutNow();
+            return Pending ?? LayoutNow();
         }
 
         // What KSP calls a layout: its KEYBOARD_LAYOUT node's name.
@@ -81,7 +82,7 @@ namespace ReDefinition.Window
         }
 
         // The Keys tab's layout rows: the system's keyboard, the layout to choose, and the rebind button.
-        private static DialogGUIBase[] LayoutRows()
+        internal static DialogGUIBase[] Rows()
         {
             List<string> names = LayoutNames();
             List<DialogGUIBase> rows = new List<DialogGUIBase> { SectionHeading(Localizer.Format("#autoLOC_6001210")) };
@@ -130,7 +131,7 @@ namespace ReDefinition.Window
             at = at < 0 ? 0 : (at + step + names.Count) % names.Count;
             // The question was answered for the layout shown then, not for this one.
             rebindPending = false;
-            layoutPending = names[at] == LayoutNow() ? null : names[at];
+            Pending = names[at] == LayoutNow() ? null : names[at];
         }
 
         // KSP asks before it rebinds (#autoLOC_6001211).
@@ -142,7 +143,7 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(
                     new DialogGUIButton("Bind at Accept", () =>
                     {
-                        layoutPending = layout;
+                        Pending = layout;
                         rebindPending = true;
                     }, 140f, 30f, true),
                     new DialogGUIFlexibleSpace(),
@@ -154,12 +155,12 @@ namespace ReDefinition.Window
         // Before KSP's keys from the Keys tab: a rebind sets them all to the
         // preset, and a key changed by hand in the same Apply comes after it. True
         // where the layout was set, for KSP's save at the end of Apply.
-        private static bool ApplyLayout()
+        internal static bool Apply()
         {
-            if (layoutPending == null) return false;
-            string layout = layoutPending;
+            if (Pending == null) return false;
+            string layout = Pending;
             bool rebind = rebindPending;
-            layoutPending = null;
+            Pending = null;
             rebindPending = false;
             GameSettings.CURRENT_LAYOUT_SETTINGS = layout;
             GameSettings.LoadLayoutKeyBindings(layout, rebind);
@@ -171,9 +172,9 @@ namespace ReDefinition.Window
         private static string detectedLayout;
 
         // Forgets what the layout rows wait for, and the detected layout.
-        private static void ClearLayoutPending()
+        internal static void Clear()
         {
-            layoutPending = null;
+            Pending = null;
             rebindPending = false;
             detectedLayout = null;
         }

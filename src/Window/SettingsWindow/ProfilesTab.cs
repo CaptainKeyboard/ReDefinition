@@ -6,13 +6,23 @@ using ReDefinition.Modules;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
     // The Graphics tab: the profiles Low to Max, their status line, and Reset,
     // which fills every row with its default and chooses High over it.
-    internal static partial class SettingsWindow
+    internal static class ProfilesTab
     {
+        // The graphics profiles, Low to Max, read once per opening.
+        private static List<GraphicsProfile> profiles = new List<GraphicsProfile>();
+
+        // The profiles as they were read last.
+        internal static List<GraphicsProfile> Loaded
+        {
+            get { return profiles; }
+        }
+
         // The Profiles tab's status line, worked out again only when something
         // it depends on has changed: DialogGUILabel asks for it every frame.
         private static string status;
@@ -31,11 +41,17 @@ namespace ReDefinition.Window
         private static float statusModulesAt = -10f;
         private static List<ModuleSetting> profileSettable;
 
+        // Worked out afresh at the next look.
+        internal static void ForgetStatus()
+        {
+            status = null;
+        }
+
         // The profiles as the GameDatabase holds them -- a visual pack's patches
         // included -- with what choosing each fills in for the mods installed
         // now. What one names that cannot be set here reaches the log once per
         // run (ProfileApplier.Report).
-        private static void LoadProfiles()
+        internal static void Load()
         {
             model.ProfilesStale = false;
             List<string> problems = new List<string>();
@@ -59,8 +75,7 @@ namespace ReDefinition.Window
                 releasedBy[profile.Name] = released;
             }
             model.SetProfiles(values, releasedBy);
-            defaultsOf = null;
-            profilesGeneration++;
+            SettingMarks.ProfilesReloaded();
             ProfileApplier.Report("Graphics profiles", problems);
             status = null;
         }
@@ -68,7 +83,7 @@ namespace ReDefinition.Window
         // Low to Max. Choosing one fills the rows of every tab with its values --
         // with the bundling off, ReDefinition's own and those set straight into
         // their mods; nothing is set until Apply or Accept, as with any other row.
-        private static DialogGUIBase[] ProfileRows()
+        internal static DialogGUIBase[] Rows()
         {
             if (profiles.Count == 0) return new DialogGUIBase[0];
 
@@ -99,7 +114,7 @@ namespace ReDefinition.Window
         // Everything back to its mod's default -- whether a profile or the player
         // changed it, and whether the window shows it -- once the question it asks
         // has been answered.
-        private static DialogGUIButton ResetButton()
+        internal static DialogGUIButton ResetButton()
         {
             DialogGUIButton reset = new DialogGUIButton("Reset", ConfirmReset, ResetWidth, 30f, false);
             reset.tooltipText = "Every setting back to its default, KSP's and the mods'.\n"
@@ -167,11 +182,12 @@ namespace ReDefinition.Window
         {
             List<string> titles = new List<string>();
             List<KeyValuePair<BundledSetting, string>> ksp = new List<KeyValuePair<BundledSetting, string>>();
-            string prefix = KspId + ".";
+            string prefix = SettingsApply.KspId + ".";
             foreach (KeyValuePair<BundledSetting, string> pair in ProfileApplier.DefaultValues(new List<string>()))
             {
                 string key = pair.Key.Key;
-                if (pair.Key.Owner == null || pair.Key.Owner.Id != KspId || !key.StartsWith(prefix, StringComparison.Ordinal))
+                if (pair.Key.Owner == null || pair.Key.Owner.Id != SettingsApply.KspId
+                    || !key.StartsWith(prefix, StringComparison.Ordinal))
                     continue;
                 if (typeof(GameSettings).GetField(key.Substring(prefix.Length), BindingFlags.Public | BindingFlags.Static) != null)
                     ksp.Add(pair);
@@ -221,9 +237,9 @@ namespace ReDefinition.Window
             }
             // ReDefinition's own bindings went back with the settings above, the
             // mods' go with their other settings, and KSP's are filled in here.
-            ResetKeyBindings();
-            ResetAxes();
-            ClearLayoutPending();
+            KeysTab.Reset();
+            AxesTab.Reset();
+            KeyboardLayoutRows.Clear();
             GraphicsProfile high = ProfileApplier.Find(profiles, DefaultProfile);
             if (high != null) ChooseProfile(high);
             else Debug.LogWarning(Log.Tag + " Reset: the profile '" + DefaultProfile + "' is not installed; no profile chosen.");
@@ -243,7 +259,7 @@ namespace ReDefinition.Window
             {
                 try
                 {
-                    LoadProfiles();
+                    Load();
                 }
                 catch (Exception e)
                 {
@@ -252,7 +268,9 @@ namespace ReDefinition.Window
             }
             // With the bundling off only the rows that need none; the others take
             // the profile's values once it is switched on (SettingsEdit.SetBundled).
-            if (!model.ChooseProfile(profile.Name, setting => model.Bundled || SetDirectly(setting, false))) return;
+            if (!model.ChooseProfile(profile.Name,
+                    setting => model.Bundled || SettingsApply.SetDirectly(setting, false)))
+                return;
 
             List<string> problems = new List<string>();
             if (edit != null)
@@ -270,7 +288,7 @@ namespace ReDefinition.Window
             string applied = BundledSettings.ProfileName;
             bool enabled = BundledSettings.Enabled;
             OwnSettings after = edit != null ? edit.After : null;
-            bool upscalerPending = OwnSettingsPending();
+            bool upscalerPending = SettingsApply.OwnSettingsPending();
             bool modulesSame = SameModules(after);
 
             if (status != null && statusVersion == model.Version && statusProfile == model.Profile

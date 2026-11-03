@@ -5,6 +5,7 @@ using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
@@ -14,7 +15,7 @@ namespace ReDefinition.Window
     // (AxisCapture), whether it is inverted, its sensitivity and its deadzone,
     // as KSP's own input screen shows them (SettingsInputAxis). The rows edit
     // copies; Apply writes them into KSP's bindings and KSP saves its settings.
-    internal static partial class SettingsWindow
+    internal static class AxesTab
     {
         // The widths of an axis row's columns: the Primary/Secondary label, the bind button, a slider and its value.
         private const float AxisSideWidth = 70f;
@@ -23,10 +24,10 @@ namespace ReDefinition.Window
         private const float AxisValueWidth = 34f;
 
         // The copies edited, by axis name, until Apply.
-        private static readonly Dictionary<string, AxisBinding> axisPending = new Dictionary<string, AxisBinding>();
+        internal static readonly Dictionary<string, AxisBinding> Pending = new Dictionary<string, AxisBinding>();
 
         // The tab's rows: a hint, then the axes in folds by their group, each with its two sides under column captions.
-        private static DialogGUIBase[] AxisRows()
+        internal static DialogGUIBase[] Rows()
         {
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(new DialogGUILabel(RichText.Grey("Click an axis's button and move the stick, trigger or wheel to"
@@ -46,7 +47,7 @@ namespace ReDefinition.Window
                         members = new List<DialogGUIBase>();
                     }
                     group = axis.Group;
-                    members.Add(Searchable(DialogRows.Row(RowHeight,
+                    members.Add(SettingsSearch.Searchable(DialogRows.Row(RowHeight,
                         new DialogGUISpace(AxisSideWidth),
                         new DialogGUILabel(RichText.Grey("Axis"), AxisButtonWidth + 26f),
                         new DialogGUILabel(RichText.Grey("Invert"), 56f),
@@ -56,20 +57,32 @@ namespace ReDefinition.Window
                 }
                 string text = axis.Title + " " + axis.Group + " axis";
                 KspAxes.Axis marked = axis;
-                members.Add(Searchable(new DialogGUILabel(() => Marked(marked.Title, AxisChanged(marked)),
-                    NameWidth + ControlWidth), text));
-                members.Add(Searchable(AxisSide(axis, false), text));
-                members.Add(Searchable(AxisSide(axis, true), text));
+                members.Add(SettingsSearch.Searchable(
+                    new DialogGUILabel(() => SettingMarks.Marked(marked.Title, AxisChanged(marked)), NameWidth + ControlWidth),
+                    text));
+                members.Add(SettingsSearch.Searchable(AxisSide(axis, false), text));
+                members.Add(SettingsSearch.Searchable(AxisSide(axis, true), text));
             }
             if (members.Count > 0) AddFold(rows, SettingCategory.Axes, group, members, first);
             return rows.ToArray();
+        }
+
+        // Whether an axis row holds another binding than KSP's axis has now.
+        internal static bool Differ()
+        {
+            foreach (KspAxes.Axis axis in KspAxes.All())
+            {
+                AxisBinding copy;
+                if (Pending.TryGetValue(axis.Name, out copy) && !AxisSame(axis, copy)) return true;
+            }
+            return false;
         }
 
         // Whether the axis's copy differs from KSP's binding.
         private static bool AxisChanged(KspAxes.Axis axis)
         {
             AxisBinding copy;
-            return axisPending.TryGetValue(axis.Name, out copy) && !AxisSame(axis, copy);
+            return Pending.TryGetValue(axis.Name, out copy) && !AxisSame(axis, copy);
         }
 
         // The comparisons of the axes' copies with KSP's bindings, by axis name.
@@ -101,7 +114,7 @@ namespace ReDefinition.Window
         private static AxisBinding_Single ShownSide(KspAxes.Axis axis, bool secondary)
         {
             AxisBinding binding;
-            if (!axisPending.TryGetValue(axis.Name, out binding)) binding = axis.Get();
+            if (!Pending.TryGetValue(axis.Name, out binding)) binding = axis.Get();
             if (binding == null) return null;
             return secondary ? binding.secondary : binding.primary;
         }
@@ -110,11 +123,11 @@ namespace ReDefinition.Window
         private static AxisBinding_Single EditedSide(KspAxes.Axis axis, bool secondary)
         {
             AxisBinding binding;
-            if (!axisPending.TryGetValue(axis.Name, out binding))
+            if (!Pending.TryGetValue(axis.Name, out binding))
             {
                 binding = KspAxes.Copy(axis.Get());
                 if (binding == null) return null;
-                axisPending[axis.Name] = binding;
+                Pending[axis.Name] = binding;
             }
             return secondary ? binding.secondary : binding.primary;
         }
@@ -229,15 +242,15 @@ namespace ReDefinition.Window
 
         // The copies that differ from KSP's bindings, written into them; true where
         // one was, for KSP's save at the end of Apply.
-        private static bool ApplyAxes()
+        internal static bool Apply()
         {
             AxisCapture.Stop();
-            if (axisPending.Count == 0) return false;
+            if (Pending.Count == 0) return false;
             bool written = false;
             foreach (KspAxes.Axis axis in KspAxes.All())
             {
                 AxisBinding copy;
-                if (!axisPending.TryGetValue(axis.Name, out copy)) continue;
+                if (!Pending.TryGetValue(axis.Name, out copy)) continue;
                 try
                 {
                     AxisBinding live = axis.Get();
@@ -251,21 +264,21 @@ namespace ReDefinition.Window
                                                                    + CompatibilityLog.Reason(e) + ").");
                 }
             }
-            axisPending.Clear();
+            Pending.Clear();
             return written;
         }
 
         // Reset to defaults: every axis to what KSP ships. Filled in only.
-        private static void ResetAxes()
+        internal static void Reset()
         {
             AxisCapture.Stop();
-            axisPending.Clear();
+            Pending.Clear();
             foreach (KspAxes.Axis axis in KspAxes.All())
             {
                 // Only those that differ: every pending axis is compared with
                 // KSP's own in every frame until Accept.
                 AxisBinding shipped = KspAxes.Default(axis);
-                if (shipped != null && !KspAxes.Same(axis.Get(), shipped)) axisPending[axis.Name] = shipped;
+                if (shipped != null && !KspAxes.Same(axis.Get(), shipped)) Pending[axis.Name] = shipped;
             }
         }
     }

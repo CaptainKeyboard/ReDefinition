@@ -5,12 +5,13 @@ using ReDefinition.Core;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
     // A bundled mod's row: its control over the edit model, by the kind of
     // setting, and a choice row's list, which a value from outside it joins.
-    internal static partial class SettingsWindow
+    internal static class BundledRows
     {
         // A choice row's list, which a value from outside the list joins.
         // The value takes its place among numbers, else the front (PlaceAmong).
@@ -30,6 +31,12 @@ namespace ReDefinition.Window
 
         // The choice rows of the open window, by their setting's key.
         private static readonly Dictionary<string, ChoiceRow> choiceRows = new Dictionary<string, ChoiceRow>();
+
+        // Forgets the choice rows of the window built last, as it is built anew.
+        internal static void Reset()
+        {
+            choiceRows.Clear();
+        }
 
         // What a bundled row shows of its pending value: the number its slider stands at, the position among its choices
         // and the text in its value column.
@@ -118,11 +125,32 @@ namespace ReDefinition.Window
 
         // A value a choice row does not list joins its list (PlaceAmong), as one
         // found as the window opened does.
-        private static void OfferChoice(string key, string value)
+        internal static void OfferChoice(string key, string value)
         {
             ChoiceRow row;
             if (value == null || !choiceRows.TryGetValue(key, out row)) return;
             OfferChoice(row, value);
+        }
+
+        // Under its own label where the setting's list has one: a row a
+        // requirement limits leaves some of them out. Among numbers that only rise
+        // or only fall it takes its place -- a frame limit of 144 between 140 and
+        // 180 -- and in front of anything else.
+        private static void OfferChoice(ChoiceRow row, string value)
+        {
+            if (Array.FindIndex(row.Choices, c => SettingValues.Same(c, value)) >= 0) return;
+            int at = PlaceAmong(row.Choices, value);
+            row.Choices = InsertAt(row.Choices, at, value);
+            if (row.Labels != null)
+            {
+                int index = row.AllChoices != null ? Array.FindIndex(row.AllChoices, c => SettingValues.Same(c, value)) : -1;
+                row.Labels = InsertAt(row.Labels, Math.Min(at, row.Labels.Length),
+                    index >= 0 && row.AllLabels != null && index < row.AllLabels.Length ? row.AllLabels[index] : value);
+            }
+            // Not yet there while the row is built.
+            if (row.Control == null) return;
+            row.Control.max = row.Choices.Length - 1;
+            if (row.Control.slider != null) row.Control.slider.maxValue = row.Control.max;
         }
 
         // Where a value joins the choices: in order among numbers that only rise or
@@ -160,13 +188,13 @@ namespace ReDefinition.Window
 
         // A bundled setting's row: its name, its control by the setting's kind, its value as shown and its mod; null for
         // a setting with nothing to draw.
-        private static DialogGUIBase BundledRow(BundledSetting setting)
+        internal static DialogGUIBase Row(BundledSetting setting)
         {
             // A setting checked by its type only has no control to draw: no row,
             // whatever the layout lists -- which the check outside the game
             // refuses.
             if (setting.Control == SettingControl.Value) return null;
-            if (setting.Control == SettingControl.Binding) return BundledBindingRow(setting, false);
+            if (setting.Control == SettingControl.Binding) return KeysTab.BundledBindingRow(setting, false);
             if (setting.Control == SettingControl.Dialog) return BundledDialogRow(setting);
 
             string key = setting.Key;
@@ -242,9 +270,9 @@ namespace ReDefinition.Window
             // the same string while it is the same one.
             string defaultFor = null;
             string defaultShown = null;
-            DefaultTooltip(control, () =>
+            SettingMarks.DefaultTooltip(control, () =>
             {
-                string profileValue = BundledDefault(setting);
+                string profileValue = SettingMarks.BundledDefault(setting);
                 if (profileValue == null) return null;
                 if (!ReferenceEquals(profileValue, defaultFor))
                 {
@@ -257,11 +285,11 @@ namespace ReDefinition.Window
             // The switch as it stands in the window, not as it was applied: with
             // bundling unticked the rows are left to their mods at once. A value
             // nobody could read cannot be edited sensibly.
-            control.OptionInteractableCondition = () => (model.Bundled || SetDirectly(setting, false))
+            control.OptionInteractableCondition = () => (model.Bundled || SettingsApply.SetDirectly(setting, false))
                                                         && model.HasPending(key) && !Requirements.Locked(setting);
 
             return DialogRows.Row(RowHeight,
-                new DialogGUILabel(() => MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
+                new DialogGUILabel(() => SettingMarks.MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
                 new DialogGUILabel(value, ValueWidth),
                 new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
         }
@@ -274,24 +302,11 @@ namespace ReDefinition.Window
             DialogGUIButton open = new DialogGUIButton(setting.DialogButton, () => OpenModDialog(setting), ControlWidth,
                 RowHeight + 6f, false);
             open.tooltipText = setting.Tooltip;
-            open.OptionInteractableCondition = () => SafeApplicable(setting);
+            open.OptionInteractableCondition = () => SettingsApply.Applicable(setting);
             return DialogRows.Row(RowHeight + 6f,
                 new DialogGUILabel(setting.Title, NameWidth), open, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
                 new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
-        }
-
-        // Whether the mod's dialog can be opened now; false where asking throws.
-        private static bool SafeApplicable(BundledSetting setting)
-        {
-            try
-            {
-                return setting.Applicable == null || setting.Applicable();
-            }
-            catch (Exception)
-            {
-                return false;
-            }
         }
 
         // The mod's content, from its method; one that throws or gives nothing is logged
@@ -316,25 +331,6 @@ namespace ReDefinition.Window
                 return;
             }
             OpenDialogOverWindow(setting.Key, setting.DialogHeading, setting.DialogWidth, content);
-        }
-
-        // A dialog's content under its heading, KSP's Close below it, over the window as its own
-        // dialogs stand; Escape closes it too. A mod's (DIALOG) and ReDefinition's own (ModuleDialog).
-        internal static void OpenDialogOverWindow(string key, string heading, float width, DialogGUIBase[] content)
-        {
-            List<DialogGUIBase> rows = new List<DialogGUIBase>(content);
-            rows.Add(new DialogGUIHorizontalLayout(
-                new DialogGUIFlexibleSpace(),
-                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_149410"), () => { }, 120f, 30f, true),
-                new DialogGUIFlexibleSpace()));
-            TooltipText.WrapAll(rows);
-            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + key, "",
-                heading, HighLogic.UISkin, width, rows.ToArray());
-            PopupDialog shown = UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
-                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
-            // Once its elements stand.
-            DialogTooltips.Attach(rows);
-            EscapeGuard.Own(shown);
         }
 
         // The setting's choices from the running mod; null where reading them throws (logged).

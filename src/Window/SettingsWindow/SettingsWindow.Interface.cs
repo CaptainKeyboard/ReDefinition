@@ -40,7 +40,7 @@ namespace ReDefinition.Window
                                  + " there.\nOff: KSP's buttons open KSP's own screens, and ReDefinition's entry stands"
                                  + " under them.\nTakes effect the next time a menu is built.";
             return DialogRows.Row(RowHeight,
-                new DialogGUILabel(() => Marked("Replace original settings",
+                new DialogGUILabel(() => SettingMarks.Marked("Replace original settings",
                     edit != null && edit.Before.ReplaceKspSettings != edit.After.ReplaceKspSettings), NameWidth),
                 toggle, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
@@ -60,7 +60,7 @@ namespace ReDefinition.Window
                     section = own.Key.Section;
                     rows.Add(SectionHeading(section));
                 }
-                rows.Add(Searchable(own.Value, own.Key.Title + " " + (section ?? "") + " ReDefinition"));
+                rows.Add(SettingsSearch.Searchable(own.Value, own.Key.Title + " " + (section ?? "") + " ReDefinition"));
             }
         }
 
@@ -90,7 +90,7 @@ namespace ReDefinition.Window
                 300f, 30f, false);
             restore.tooltipText = "Every setting ReDefinition has changed goes back to what its mod had before, and is"
                                   + " saved there.\nAccept or cancel the changes made here first.";
-            restore.OptionInteractableCondition = () => BundledSettings.CanRestore && !Unapplied();
+            restore.OptionInteractableCondition = () => BundledSettings.CanRestore && !SettingsApply.Unapplied();
 
             List<DialogGUIBase> rows = new List<DialogGUIBase>
             {
@@ -263,7 +263,7 @@ namespace ReDefinition.Window
         {
             // The window stays usable behind the question: a row changed
             // meanwhile would be lost with the rows read again.
-            if (Visible && Unapplied())
+            if (Visible && SettingsApply.Unapplied())
             {
                 ScreenMessages.PostScreenMessage("Accept or cancel the changes in ReDefinition's window first, then restore.",
                     5f);
@@ -284,7 +284,7 @@ namespace ReDefinition.Window
             // The rows show what the mods hold now.
             if (!Visible) return;
             ReadBundled();
-            LoadProfiles();
+            ProfilesTab.Load();
             if (addon != null && edit != null)
             {
                 OwnSettings now = addon.Current();

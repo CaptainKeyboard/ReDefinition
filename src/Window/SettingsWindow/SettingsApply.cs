@@ -4,15 +4,16 @@ using ReDefinition.Core;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
     // Apply and Accept as one ordered pipeline (Apply), Cancel, and what waits for
     // either: the window's rows against what the game and the mods hold.
-    internal static partial class SettingsWindow
+    internal static class SettingsApply
     {
         // Applies what waits, saves ReDefinition's settings and restarts KSP, the game saved first where one is loaded.
-        private static void ApplyAndRestart()
+        internal static void ApplyAndRestart()
         {
             if (Unapplied()) Apply();
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -22,25 +23,25 @@ namespace ReDefinition.Window
 
         // Cancel: every row back to what the game and the mods hold now, nothing
         // set, and the window stays open.
-        private static void Discard()
+        internal static void Discard()
         {
             KeyCapture.Stop();
             AxisCapture.Stop();
-            kspPending.Clear();
-            axisPending.Clear();
-            ClearLayoutPending();
-            KeysChanged();
+            KeysTab.Pending.Clear();
+            AxesTab.Pending.Clear();
+            KeyboardLayoutRows.Clear();
+            KeysTab.Changed();
             if (edit != null && edit.Before != null) edit.After = edit.Before.Clone();
             try
             {
                 ReadBundled();
-                LoadProfiles();
+                ProfilesTab.Load();
             }
             catch (Exception e)
             {
                 Debug.LogWarning(Log.Tag + " The window's rows could not be read again: " + e);
             }
-            status = null;
+            ProfilesTab.ForgetStatus();
         }
 
         // Whether anything in the window still waits for Accept -- asked by the
@@ -49,14 +50,14 @@ namespace ReDefinition.Window
         private static bool unapplied;
 
         // Worked out once a frame: KSP's keys, axes or layout pending, or a setting of a mod or of ReDefinition changed.
-        private static bool Unapplied()
+        internal static bool Unapplied()
         {
             int frame = Time.frameCount;
             if (frame == unappliedFrame) return unapplied;
             unappliedFrame = frame;
             // KSP's key bindings and axes wait in their tabs as well, and so does
             // every setting of ReDefinition's own, the upscaler's and the rest.
-            unapplied = kspPending.Count > 0 || AxesDiffer() || layoutPending != null
+            unapplied = KeysTab.Pending.Count > 0 || AxesTab.Differ() || KeyboardLayoutRows.Pending != null
                         || model.Unapplied(OwnSettingsPending(), BundledSettings.Enabled, BundledSettings.ProfileName);
             return unapplied;
         }
@@ -74,7 +75,7 @@ namespace ReDefinition.Window
         private static bool ownPending;
 
         // Whether the copy the window edits differs from the one it started from, snapshot against snapshot.
-        private static bool OwnSettingsPending()
+        internal static bool OwnSettingsPending()
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;
             float now = Time.unscaledTime;
@@ -91,7 +92,7 @@ namespace ReDefinition.Window
         }
 
         // Every setting of every installed mod.
-        private static IEnumerable<BundledSetting> InstalledSettings()
+        internal static IEnumerable<BundledSetting> InstalledSettings()
         {
             foreach (IBundledMod mod in BundledSettings.Installed())
             {
@@ -112,7 +113,7 @@ namespace ReDefinition.Window
         // That holds for a row that is never bundled, and for one of a mod whose registration
         // says `direct` while the bundling is off, as the window holds it or
         // as it was applied.
-        private static bool SetDirectly(BundledSetting setting, bool applied)
+        internal static bool SetDirectly(BundledSetting setting, bool applied)
         {
             if (!setting.Bundled) return true;
             RegisteredMod mod = setting.Owner as RegisteredMod;
@@ -157,7 +158,7 @@ namespace ReDefinition.Window
         }
 
         // Whether the mod can take the setting in this scene; false where asking throws.
-        private static bool Applicable(BundledSetting setting)
+        internal static bool Applicable(BundledSetting setting)
         {
             try
             {
@@ -178,7 +179,7 @@ namespace ReDefinition.Window
         }
 
         // The id of KSP's own registration among the bundled mods.
-        private const string KspId = "ksp";
+        internal const string KspId = "ksp";
 
         // KSP's own reset, where the window resets (KspReset), so that what KSP's
         // reset covers and no row shows -- its key layout, its terrain presets --
@@ -215,10 +216,10 @@ namespace ReDefinition.Window
         // Then everything is read back, as the section in KSP's settings dialog does.
         // Each step is caught on its own, so one that fails leaves the
         // others.
-        private static void Apply()
+        internal static void Apply()
         {
             KeyCapture.Stop();
-            NoteWaiting();
+            WaitingNotice.Note();
             bool resetting = model.Resetting;
             bool newProfile = model.Profile != BundledSettings.ProfileName;
             HashSet<IBundledMod> written = new HashSet<IBundledMod>();
@@ -227,9 +228,10 @@ namespace ReDefinition.Window
             if (resetting) Step("KSP's settings could not be reset", ResetKsp);
             Step("Settings set directly from the window applied only in part", () => written.UnionWith(ApplyDirect()));
             bool kspWritten = resetting;
-            Step("KSP's keyboard layout from the window could not be applied", () => { kspWritten |= ApplyLayout(); });
-            Step("KSP's key bindings from the window applied only in part", () => { kspWritten |= ApplyKeyBindings(); });
-            Step("KSP's axes from the window applied only in part", () => { kspWritten |= ApplyAxes(); });
+            Step("KSP's keyboard layout from the window could not be applied",
+                 () => { kspWritten |= KeyboardLayoutRows.Apply(); });
+            Step("KSP's key bindings from the window applied only in part", () => { kspWritten |= KeysTab.Apply(); });
+            Step("KSP's axes from the window applied only in part", () => { kspWritten |= AxesTab.Apply(); });
             if (kspWritten)
             {
                 IBundledMod ksp = KspMod();
@@ -249,7 +251,7 @@ namespace ReDefinition.Window
             Step("The other mods' values could not be read back into the window", () =>
             {
                 ReadBundled();
-                LoadProfiles();
+                ProfilesTab.Load();
             });
         }
 

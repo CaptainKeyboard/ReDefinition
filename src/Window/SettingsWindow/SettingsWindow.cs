@@ -33,33 +33,30 @@ namespace ReDefinition.Window
         // control, value, source -- and its height, and the widths of the Reset and restart buttons.
         private const float WindowWidth = 740f;
         private const float WindowHeight = 540f;
-        private const float TabWidth = 170f;
-        private const float PageWidth = 540f;
+        internal const float TabWidth = 170f;
+        internal const float PageWidth = 540f;
         private const float PageHeight = 440f;
-        private const float NameWidth = 190f;
-        private const float ControlWidth = 130f;
-        private const float ValueWidth = 60f;
-        private const float SourceWidth = 70f;
-        private const float RowHeight = 18f;
-        private const float ResetWidth = 80f;
+        internal const float NameWidth = 190f;
+        internal const float ControlWidth = 130f;
+        internal const float ValueWidth = 60f;
+        internal const float SourceWidth = 70f;
+        internal const float RowHeight = 18f;
+        internal const float ResetWidth = 80f;
         private const float RestartWidth = 140f;
 
         // The dialog while it is open, null otherwise; the tab shown; ReDefinition's own settings as the window edits
         // them (a copy from opening, and the changed one).
         private static PopupDialog dialog;
-        private static SettingCategory current = SettingCategory.Profiles;
-        private static KspSettingsSection.Edit edit;
+        internal static SettingCategory current = SettingCategory.Profiles;
+        internal static KspSettingsSection.Edit edit;
 
         // The bundled settings' rows: their values, where each came from, and
         // Apply's steps.
-        private static readonly SettingsEdit model = new SettingsEdit { Offered = OfferChoice };
-
-        // The graphics profiles, Low to Max, read once per opening.
-        private static List<GraphicsProfile> profiles = new List<GraphicsProfile>();
+        internal static readonly SettingsEdit model = new SettingsEdit { Offered = BundledRows.OfferChoice };
 
         // The settings the window has a row for: what SyncFromMods follows, with
         // every setting of a mod whose own window is open.
-        private static readonly HashSet<string> shownKeys = new HashSet<string>();
+        internal static readonly HashSet<string> shownKeys = new HashSet<string>();
 
         // Mods whose every setting the next sync reads: KSP's, once its own
         // settings screen has applied (FollowModSoon).
@@ -69,7 +66,32 @@ namespace ReDefinition.Window
         public static bool Visible { get { return dialog != null; } }
 
         // Whether something in the window waits for Accept.
-        internal static bool HasUnapplied { get { return dialog != null && Unapplied(); } }
+        internal static bool HasUnapplied { get { return dialog != null && SettingsApply.Unapplied(); } }
+
+        // From ModWindowsAddon once a scene is ready.
+        internal static void SceneChanged()
+        {
+            WaitingNotice.SceneChanged();
+        }
+
+        // What waits for a restart without a row: files a download or an install placed, which KSP takes at its next
+        // start.
+        internal static void NoteRestart(string key, string title, string owner)
+        {
+            WaitingNotice.NoteRestart(key, title, owner);
+        }
+
+        // The name with the change mark and the profile mark where they apply (SettingMarks.MarkedName).
+        internal static string MarkedName(string title, bool changed, bool differs)
+        {
+            return SettingMarks.MarkedName(title, changed, differs);
+        }
+
+        // The tooltip as the row was built with it, and "Default: X" below it where `defaultOf` gives X.
+        internal static void DefaultTooltip(DialogGUIBase control, Func<string> defaultOf)
+        {
+            SettingMarks.DefaultTooltip(control, defaultOf);
+        }
 
         // Lets go of a text field of this window that ended its input and is still selected: the search field, left
         // selected after Return, which Space or Return would open again. Asked before TextFieldFocused.
@@ -88,6 +110,13 @@ namespace ReDefinition.Window
             if (selected == null || !selected.transform.IsChildOf(dialog.transform)) return false;
             TMPro.TMP_InputField field = selected.GetComponent<TMPro.TMP_InputField>();
             return field != null && field.isFocused;
+        }
+
+        // Whether a row's button can be seen: not on a page left, in a group
+        // folded, or filtered out by the search.
+        internal static bool Showing(DialogGUIBase element)
+        {
+            return element != null && element.uiItem != null && element.uiItem.activeInHierarchy;
         }
 
         // Opens the window, or closes it where it is open: the toolbar button and the hotkey.
@@ -138,7 +167,7 @@ namespace ReDefinition.Window
                     ProfileChosen = () => !string.IsNullOrEmpty(model.Profile),
                 };
                 ReadBundled();
-                LoadProfiles();
+                ProfilesTab.Load();
 
                 UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
                 DialogGUIBase[] content = Build(skin);
@@ -189,7 +218,7 @@ namespace ReDefinition.Window
         // What the controls start from: each mod's value as it is now, the one
         // ReDefinition keeps where the mod cannot take it now (BundledSettings.Current). After Apply and
         // Restore too, where the rows are built already.
-        private static void ReadBundled()
+        internal static void ReadBundled()
         {
             model.Open(BundledSettings.Enabled, BundledSettings.ProfileName, CurrentValues());
             model.OpenButtons(ButtonStates());
@@ -208,46 +237,40 @@ namespace ReDefinition.Window
         // The window's content: the tab column beside the pages, one page per tab with rows, and the buttons at the foot.
         private static DialogGUIBase[] Build(UISkinDef skin)
         {
-            choiceRows.Clear();
+            BundledRows.Reset();
             anyNotShown = AnyNotShown();
             shownKeys.Clear();
             Conflicts.Clear();
-            kspPending.Clear();
-            axisPending.Clear();
+            KeysTab.Pending.Clear();
+            AxesTab.Pending.Clear();
             AxisCapture.Stop();
-            ClearLayoutPending();
+            KeyboardLayoutRows.Clear();
             // The search field is built empty, and so is what it filters by.
-            keySearch = "";
-            searchTexts.Clear();
-            pageTexts.Clear();
-            foldRows.Clear();
-            keysIn.Clear();
-            pageMatchesFor = null;
-            rowMatchesFor = null;
-            rowMatches.Clear();
-            List<DialogGUIBase> tabs = new List<DialogGUIBase> { SearchRow() };
+            SettingsSearch.Reset();
+            SettingsTabs.Reset();
+            List<DialogGUIBase> tabs = new List<DialogGUIBase> { SettingsSearch.Row() };
             // Sized by TabScrollList itself: KSP's DialogGUIContentSizer lets go
             // of the height once a page fits.
             List<DialogGUIBase> pages = new List<DialogGUIBase>();
 
             TabScrollList scroll = null;
             bool currentShown = false;
-            if (InDetail(current)) current = SettingCategory.Detail;
+            if (SettingsTabs.InDetail(current)) current = SettingCategory.Detail;
             if (current == SettingCategory.General) current = SettingCategory.Display;
             foreach (SettingCategory category in Enum.GetValues(typeof(SettingCategory)))
             {
-                if (NoTab(category)) continue;
-                building = category;
+                if (SettingsTabs.NoTab(category)) continue;
+                SettingsSearch.Building = category;
                 List<DialogGUIBase> rows = new List<DialogGUIBase>(Rows(category));
                 if (rows.Count == 0) continue;
-                MakeSearchable(category, rows);
-                rows.Insert(0, PageHeading(category));
+                SettingsSearch.MakeSearchable(category, rows);
+                rows.Insert(0, SettingsTabs.PageHeading(category));
 
                 SettingCategory shown = category;
                 currentShown |= shown == current;
                 // ReDefinition's own tabs set apart from the game's.
-                if (shown == SettingCategory.Interface) tabs.Add(TabSeparator());
-                tabs.Add(TabEntry(shown, on =>
+                if (shown == SettingCategory.Interface) tabs.Add(SettingsTabs.TabSeparator());
+                tabs.Add(SettingsTabs.TabEntry(shown, on =>
                 {
                     if (!on || current == shown) return;
                     current = shown;
@@ -256,7 +279,8 @@ namespace ReDefinition.Window
 
                 DialogGUIVerticalLayout page = new DialogGUIVerticalLayout(PageWidth - 30f, -1f, 4f,
                     new RectOffset(8, 24, 8, 8), TextAnchor.UpperLeft, rows.ToArray());
-                page.OptionEnabledCondition = () => Searching ? PageMatches(shown) : current == shown;
+                page.OptionEnabledCondition = () =>
+                    SettingsSearch.Searching ? SettingsSearch.PageMatches(shown) : current == shown;
                 pages.Add(page);
             }
             // The category last shown may have nothing here now.
@@ -281,15 +305,15 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(WindowWidth - 20f, PageHeight, 8f, new RectOffset(),
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(
-                    ResetButton(),
+                    ProfilesTab.ResetButton(),
                     // Before the space, not beside Accept: Accept hides as it is
                     // clicked, and what stood left of it would move under the
                     // pointer for a second click.
                     RestartButton(),
-                    WaitingNotice(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
+                    WaitingNotice.Build(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
                     new DialogGUIFlexibleSpace(),
-                    PendingButton(Localizer.Format("#autoLOC_149513"), ApplyAndAskRestart, true),
-                    PendingButton(Localizer.Format("#autoLOC_174783"), Discard, true),
+                    PendingButton(Localizer.Format("#autoLOC_149513"), WaitingNotice.ApplyAndAskRestart, true),
+                    PendingButton(Localizer.Format("#autoLOC_174783"), SettingsApply.Discard, true),
                     PendingButton(Localizer.Format("#autoLOC_149514"), () => { }, false)),
             };
         }
@@ -299,7 +323,7 @@ namespace ReDefinition.Window
         private static DialogGUIButton PendingButton(string label, Callback onClick, bool whilePending)
         {
             DialogGUIButton button = new DialogGUIButton(label, onClick, 80f, 30f, !whilePending);
-            button.OptionEnabledCondition = () => Unapplied() == whilePending;
+            button.OptionEnabledCondition = () => SettingsApply.Unapplied() == whilePending;
             return button;
         }
 
@@ -312,7 +336,7 @@ namespace ReDefinition.Window
                 false);
             button.tooltipText = "Applies what the window holds and starts KSP again, for the changes that take effect"
                                  + " only at a start. Where a game is loaded, it is saved first.";
-            button.OptionEnabledCondition = () => GameRestart.Available && RestartWaiting();
+            button.OptionEnabledCondition = () => GameRestart.Available && WaitingNotice.RestartWaiting();
             return button;
         }
 
@@ -322,11 +346,11 @@ namespace ReDefinition.Window
             ConfirmDialog.OverWindow("ReDefinitionRestart", "Restart KSP",
                 "What the window holds is applied and KSP starts again."
                 + (GameRestart.SavesGame ? " The game is saved first." : ""), 380f,
-                GameRestart.SavesGame ? "Save and restart" : "Apply and restart", ApplyAndRestart);
+                GameRestart.SavesGame ? "Save and restart" : "Apply and restart", SettingsApply.ApplyAndRestart);
         }
 
         // A tab's name in the tab column and as its page's heading.
-        private static string Title(SettingCategory category)
+        internal static string Title(SettingCategory category)
         {
             switch (category)
             {
@@ -365,8 +389,8 @@ namespace ReDefinition.Window
             if (category == SettingCategory.Profiles)
             {
                 StringBuilderText profilesText = new StringBuilderText("Graphics profiles");
-                foreach (GraphicsProfile profile in profiles) profilesText.Add(profile.Title);
-                foreach (DialogGUIBase row in ProfileRows()) rows.Add(Searchable(row, profilesText.Text));
+                foreach (GraphicsProfile profile in ProfilesTab.Loaded) profilesText.Add(profile.Title);
+                foreach (DialogGUIBase row in ProfilesTab.Rows()) rows.Add(SettingsSearch.Searchable(row, profilesText.Text));
             }
             // ReDefinition's own upscaler and frame generation lead General, laid
             // out like the other rows there, KSP's among them.
@@ -389,17 +413,18 @@ namespace ReDefinition.Window
         {
             if (category == SettingCategory.Interface)
             {
-                rows.Add(Searchable(ReplaceRow(), "Replace original settings KSP menu"));
+                rows.Add(SettingsSearch.Searchable(ReplaceRow(), "Replace original settings KSP menu"));
                 foreach (DialogGUIBase row in InterfaceRows())
-                    rows.Add(Searchable(row, "Mods toolbar bundle hide restore before ReDefinition"));
+                    rows.Add(SettingsSearch.Searchable(row, "Mods toolbar bundle hide restore before ReDefinition"));
                 AddOwnInterfaceRows(rows);
             }
             if (category == SettingCategory.Keys)
             {
-                foreach (DialogGUIBase row in LayoutRows()) rows.Add(Searchable(row, "Keyboard layout"));
-                rows.AddRange(KeyRows());
+                foreach (DialogGUIBase row in KeyboardLayoutRows.Rows())
+                    rows.Add(SettingsSearch.Searchable(row, "Keyboard layout"));
+                rows.AddRange(KeysTab.Rows());
             }
-            if (category == SettingCategory.Axes) rows.AddRange(AxisRows());
+            if (category == SettingCategory.Axes) rows.AddRange(AxesTab.Rows());
         }
 
         // The registrations' settings of a tab, by section, with ReDefinition's own
@@ -419,10 +444,10 @@ namespace ReDefinition.Window
                          ? new List<BundledSetting>()
                          : WindowLayout.In(category))
             {
-                DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                DialogGUIBase row = SearchableRow(setting);
                 if (row == null) continue;
                 shownKeys.Add(setting.Key);
-                NoteKey(category, setting.Key);
+                SettingsTabs.NoteKey(category, setting.Key);
                 bool newSection = setting.Section != null && setting.Section != section;
                 if (folding)
                 {
@@ -467,6 +492,12 @@ namespace ReDefinition.Window
             }
         }
 
+        // A bundled setting's row, searchable by its title and its mod; null for a setting with nothing to draw.
+        private static DialogGUIBase SearchableRow(BundledSetting setting)
+        {
+            return SettingsSearch.Searchable(BundledRows.Row(setting), setting.Title + " " + setting.Owner.ModName);
+        }
+
         // ReDefinition's own rows, laid out as the bundled mods' are.
         private static KspSettingsSection.Layout OwnLayout()
         {
@@ -478,8 +509,8 @@ namespace ReDefinition.Window
                 Value = ValueWidth,
                 Source = "ReDefinition",
                 SourceWidth = SourceWidth,
-                Marked = Marked,
-                Default = OwnDefault,
+                Marked = SettingMarks.Marked,
+                Default = SettingMarks.OwnDefault,
             };
         }
 
@@ -508,7 +539,7 @@ namespace ReDefinition.Window
         {
             List<DialogGUIBase> list;
             if (!bySection.TryGetValue(section, out list)) bySection[section] = list = new List<DialogGUIBase>();
-            list.Add(Searchable(row, title + " " + section + " ReDefinition"));
+            list.Add(SettingsSearch.Searchable(row, title + " " + section + " ReDefinition"));
         }
 
         // An own dialog's button where a row's control stands, as a mod's DIALOG row has it.
@@ -548,18 +579,6 @@ namespace ReDefinition.Window
             return rows;
         }
 
-        // Whether one of ReDefinition's own rows in a tab waits for Accept; under
-        // Mods / Toolbar, Better Time Warp's button among the toolbar's too.
-        private static bool OwnPending(SettingCategory category, bool detail = false)
-        {
-            if (edit == null || edit.Before == null || edit.After == null) return false;
-            if (category == SettingCategory.Interface && edit.Before.TimeWarpToolbarButton != edit.After.TimeWarpToolbarButton)
-                return true;
-            foreach (ModuleSetting setting in OurModules.Rows(category, detail))
-                if (setting.Read(edit.Before) != setting.Read(edit.After)) return true;
-            return false;
-        }
-
         // Display's ReDefinition part, in three groups: Upscaling, Frame generation and Raytracing.
         // Each has the settings that belong to it.
         // Under a technique stands what can be downloaded or installed to
@@ -580,7 +599,7 @@ namespace ReDefinition.Window
                     rows.Add(SectionHeading(group));
                     section = group;
                 }
-                rows.Add(Searchable(own.Value, setting.Title + " " + group + " ReDefinition"));
+                rows.Add(SettingsSearch.Searchable(own.Value, setting.Title + " " + group + " ReDefinition"));
                 if (setting.Key != "technique") continue;
                 // Under the technique row: what a download that was chosen came to, while it runs and after.
                 if (setting.Title == "Upscaler")
@@ -600,7 +619,7 @@ namespace ReDefinition.Window
             bool others = false;
             foreach (BundledSetting setting in WindowLayout.In(SettingCategory.General))
             {
-                DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                DialogGUIBase row = SearchableRow(setting);
                 if (row == null) continue;
                 if (!others)
                 {
@@ -608,7 +627,7 @@ namespace ReDefinition.Window
                     others = true;
                 }
                 shownKeys.Add(setting.Key);
-                NoteKey(SettingCategory.Display, setting.Key);
+                SettingsTabs.NoteKey(SettingCategory.Display, setting.Key);
                 rows.Add(row);
             }
         }
@@ -616,7 +635,7 @@ namespace ReDefinition.Window
         // Adds the hint row, searchable by those words, where there is one.
         private static void AddHint(List<DialogGUIBase> rows, DialogGUIBase hint, string searchText)
         {
-            if (hint != null) rows.Add(Searchable(hint, searchText));
+            if (hint != null) rows.Add(SettingsSearch.Searchable(hint, searchText));
         }
 
         // Detail: KSP's render quality, textures, lights and antialiasing, then
@@ -637,10 +656,10 @@ namespace ReDefinition.Window
                 List<DialogGUIBase> members = new List<DialogGUIBase>();
                 foreach (BundledSetting setting in WindowLayout.In(group.Key))
                 {
-                    DialogGUIBase row = Searchable(BundledRow(setting), setting.Title + " " + setting.Owner.ModName);
+                    DialogGUIBase row = SearchableRow(setting);
                     if (row == null) continue;
                     shownKeys.Add(setting.Key);
-                    NoteKey(SettingCategory.Detail, setting.Key);
+                    SettingsTabs.NoteKey(SettingCategory.Detail, setting.Key);
                     members.Add(row);
                 }
                 // ReDefinition's own settings of the group: the lawns' grass and terrain under Planets, Firefly's idle skip
@@ -649,11 +668,11 @@ namespace ReDefinition.Window
                 {
                     foreach (KeyValuePair<ModuleSetting, DialogGUIBase> ownRow in
                              KspSettingsSection.SettingRows(edit, OwnLayout(), group.Key))
-                        members.Add(Searchable(ownRow.Value, ownRow.Key.Title + " " + group.Value));
+                        members.Add(SettingsSearch.Searchable(ownRow.Value, ownRow.Key.Title + " " + group.Value));
                 }
                 if (members.Count == 0) continue;
                 DialogGUIBase advanced = OwnWindowRow(group.Key);
-                if (advanced != null) members.Add(Searchable(advanced, "Advanced " + group.Value));
+                if (advanced != null) members.Add(SettingsSearch.Searchable(advanced, "Advanced " + group.Value));
                 AddFold(rows, SettingCategory.Detail, group.Value, members, first);
                 first = false;
             }
@@ -665,7 +684,7 @@ namespace ReDefinition.Window
             if (own.Count == 0) return;
             List<DialogGUIBase> raytracing = new List<DialogGUIBase>();
             foreach (KeyValuePair<ModuleSetting, DialogGUIBase> pair in own)
-                raytracing.Add(Searchable(pair.Value, pair.Key.Title + " Raytracing ReDefinition"));
+                raytracing.Add(SettingsSearch.Searchable(pair.Value, pair.Key.Title + " Raytracing ReDefinition"));
             AddFold(rows, SettingCategory.Detail, "Raytracing", raytracing, first);
         }
 
@@ -695,7 +714,7 @@ namespace ReDefinition.Window
         }
 
         // A group's heading within a tab, as KSP's own screen heads its groups.
-        private static DialogGUIBase SectionHeading(string title)
+        internal static DialogGUIBase SectionHeading(string title)
         {
             return new DialogGUIHorizontalLayout(0f, RowHeight + 4f, 0f, new RectOffset(), TextAnchor.LowerLeft,
                 new DialogGUILabel("<b><color=#ffffff>" + title + "</color></b>", NameWidth + ControlWidth));
@@ -803,7 +822,7 @@ namespace ReDefinition.Window
                 if (changed) model.ProfilesStale = true;
             }
             if (changed || !model.ProfilesStale) return;
-            LoadProfiles();
+            ProfilesTab.Load();
         }
 
         // ReDefinition's own settings changed meanwhile outside this window -- in
@@ -838,7 +857,7 @@ namespace ReDefinition.Window
                 after.TimeWarpToolbarButton = edit.After.TimeWarpToolbarButton;
             edit.Before = live;
             edit.After = after;
-            status = null;
+            ProfilesTab.ForgetStatus();
         }
 
         // Every setting of that mod at the next sync: KSP's, as its own settings
@@ -848,25 +867,23 @@ namespace ReDefinition.Window
             if (Visible) dueMods.Add(id);
         }
 
-        // Under its own label where the setting's list has one: a row a
-        // requirement limits leaves some of them out. Among numbers that only rise
-        // or only fall it takes its place -- a frame limit of 144 between 140 and
-        // 180 -- and in front of anything else.
-        private static void OfferChoice(ChoiceRow row, string value)
+        // A dialog's content under its heading, KSP's Close below it, over the window as its own
+        // dialogs stand; Escape closes it too. A mod's (DIALOG) and ReDefinition's own (ModuleDialog).
+        internal static void OpenDialogOverWindow(string key, string heading, float width, DialogGUIBase[] content)
         {
-            if (Array.FindIndex(row.Choices, c => SettingValues.Same(c, value)) >= 0) return;
-            int at = PlaceAmong(row.Choices, value);
-            row.Choices = InsertAt(row.Choices, at, value);
-            if (row.Labels != null)
-            {
-                int index = row.AllChoices != null ? Array.FindIndex(row.AllChoices, c => SettingValues.Same(c, value)) : -1;
-                row.Labels = InsertAt(row.Labels, Math.Min(at, row.Labels.Length),
-                    index >= 0 && row.AllLabels != null && index < row.AllLabels.Length ? row.AllLabels[index] : value);
-            }
-            // Not yet there while the row is built.
-            if (row.Control == null) return;
-            row.Control.max = row.Choices.Length - 1;
-            if (row.Control.slider != null) row.Control.slider.maxValue = row.Control.max;
+            List<DialogGUIBase> rows = new List<DialogGUIBase>(content);
+            rows.Add(new DialogGUIHorizontalLayout(
+                new DialogGUIFlexibleSpace(),
+                new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_149410"), () => { }, 120f, 30f, true),
+                new DialogGUIFlexibleSpace()));
+            TooltipText.WrapAll(rows);
+            MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + key, "",
+                heading, HighLogic.UISkin, width, rows.ToArray());
+            PopupDialog shown = UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
+            // Once its elements stand.
+            DialogTooltips.Attach(rows);
+            EscapeGuard.Own(shown);
         }
 
         // Opens the diagnostics window, on the upscaler's page where it was closed.

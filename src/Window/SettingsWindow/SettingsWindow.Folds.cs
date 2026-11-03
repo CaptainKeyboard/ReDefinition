@@ -25,7 +25,7 @@ namespace ReDefinition.Window
 
         // Asked for every header in every frame while searching: made once, where the
         // method group would be a new delegate each time.
-        private static readonly Predicate<DialogGUIBase> RowMatchesCall = RowMatches;
+        private static readonly Predicate<DialogGUIBase> RowMatchesCall = SettingsSearch.RowMatches;
 
         // Whether the fold is open.
         private static bool FoldOpen(string fold)
@@ -34,7 +34,7 @@ namespace ReDefinition.Window
         }
 
         // A group's rows under its header: each row shown only while the group is open.
-        private static void AddFold(List<DialogGUIBase> rows, SettingCategory category, string title,
+        internal static void AddFold(List<DialogGUIBase> rows, SettingCategory category, string title,
                                     List<DialogGUIBase> members, bool first)
         {
             if (members.Count == 0) return;
@@ -44,23 +44,24 @@ namespace ReDefinition.Window
             List<DialogGUIBase> group = new List<DialogGUIBase>(members);
             // While searching, a group stands open where one of its rows matches,
             // with only those rows; its button then folds nothing.
-            DialogGUIButton header = DialogRows.FoldHeader(title, () => FoldOpen(fold) || Searching, () =>
+            DialogGUIButton header = DialogRows.FoldHeader(title, () => FoldOpen(fold) || SettingsSearch.Searching, () =>
             {
                 if (!openFolds.Remove(fold)) openFolds.Add(fold);
             }, PageWidth - 60f, RowHeight + 6f, "Opens or folds " + title + ".");
-            header.OptionEnabledCondition = () => !Searching || group.Exists(RowMatchesCall);
-            header.OptionInteractableCondition = () => !Searching;
+            header.OptionEnabledCondition = () => !SettingsSearch.Searching || group.Exists(RowMatchesCall);
+            header.OptionInteractableCondition = () => !SettingsSearch.Searching;
             rows.Add(header);
-            foldRows.Add(header);
+            SettingsSearch.FoldRows.Add(header);
 
             foreach (DialogGUIBase member in members)
             {
                 DialogGUIBase shown = member;
                 Func<bool> before = member.OptionEnabledCondition;
-                member.OptionEnabledCondition = () => (Searching ? RowMatches(shown) : FoldOpen(fold))
-                                                      && (before == null || before());
+                member.OptionEnabledCondition = () =>
+                    (SettingsSearch.Searching ? SettingsSearch.RowMatches(shown) : FoldOpen(fold))
+                    && (before == null || before());
                 rows.Add(member);
-                foldRows.Add(member);
+                SettingsSearch.FoldRows.Add(member);
             }
         }
     }
