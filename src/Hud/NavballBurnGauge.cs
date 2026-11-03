@@ -212,7 +212,7 @@ namespace ReDefinition.Hud
         // What the number on the gauge says: how many m/s the speed is over the one asked for, or short of it, a few seconds from now as the bar has it.
         internal static string Number()
         {
-            if (GuidanceBoard.HasIdeal) return GuidanceBoard.IdealText;
+            if (GuidanceBoard.HasIdeal) return GuidanceBoard.NumberText;
             if (!GuidanceBoard.HasGap) return GuidanceBoard.BarText ?? "";
             double gap = GuidanceBoard.Ahead;
             if (Math.Abs(gap) < 1.0) return "0 m/s";

@@ -41,7 +41,7 @@ namespace ReDefinition.Autopilot.Guidance
             {
                 double asked, burn;
                 Status = ClimbGuide.Climb(vessel, aim, out asked, out burn);
-                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, 0.5, "", 0, null, 1.0, false, null, ClimbGuide.Remaining(vessel, aim), aim, asked);
+                GuidanceBoard.Write(vessel, Status, ClimbGuide.ClimbDirection(vessel, aim), asked, 0.5, "", 0, null, 1.0, false, null, ClimbGuide.Remaining(vessel, aim), aim, asked, burn);
                 Trace(vessel, burn);
                 return;
             }
@@ -62,7 +62,7 @@ namespace ReDefinition.Autopilot.Guidance
             Status = landing.Describe(vessel);
             GuidanceBoard.Write(vessel, Status, landing.HasDirection ? landing.Direction : (Vector3d?)null, landing.Throttle,
                 landing.HasBar ? landing.BarFill : (double?)null, landing.BarText, landing.BarLevel, landing.HasGap ? landing.SpeedGap : (double?)null,
-                landing.Span, true, null, vessel.srfSpeed);
+                landing.Span, true, null, vessel.srfSpeed, null, landing.HasBar ? landing.Throttle : (double?)null, vessel.srfSpeed);
         }
 
         // The climb's guidance twice a second in the log, to read after a flight how the bar moved: height, apoapsis, burn left, ideal and given throttle, need.
