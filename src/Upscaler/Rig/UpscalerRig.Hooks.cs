@@ -66,10 +66,10 @@ namespace ReDefinition.Upscaler
             }
             vesselMotion.End();
             // The camera's matrices for the vessel's shadow, without the jitter.
-            if (hudLessBuffer != null && hudLessWithShadow)
+            if (hudLess.Attached && hudLess.WithShadow)
             {
                 vesselShadow.Begin(cam, renderSize);
-                RefreshHudLessComposition();
+                hudLess.RefreshComposition(textures.HudLess, vesselShadow, renderSize);
             }
         }
 
@@ -84,7 +84,7 @@ namespace ReDefinition.Upscaler
         {
             if (textures.LowRes == null || inputs.Capture == null || vesselShadowFrame == Time.frameCount) return;
             vesselShadowFrame = Time.frameCount;
-            if (hudLessBuffer != null && hudLessWithShadow)
+            if (hudLess.Attached && hudLess.WithShadow)
                 vesselShadow.Record(inputs.Capture, textures.DepthCopy, textures.MotionVectors);
         }
 
@@ -143,7 +143,7 @@ namespace ReDefinition.Upscaler
             {
                 overlayDepthCheck = Time.unscaledTime + OverlayDepthCheckSeconds;
                 float depth = float.MinValue;
-                foreach (Camera carrier in HudLessCarriers(cameras.Presenter))
+                foreach (Camera carrier in HudLessCapture.Carriers(cameras.Presenter))
                     if (carrier != null) depth = Mathf.Max(depth, carrier.depth);
                 overlayCamera.depth = depth + 0.05f;
             }

@@ -134,7 +134,7 @@ namespace ReDefinition.Upscaler
         // Present, where a log write would show in the frames being checked.
         private void RecordFastTurn(float turn, float dt, bool shifted)
         {
-            if (!RecordFastTurns || !FrameGeneration || hudLessBuffer == null || turn < FastTurnDegrees
+            if (!RecordFastTurns || !FrameGeneration || !hudLess.Attached || turn < FastTurnDegrees
                 || Time.unscaledTime < nextTurnRecord)
                 return;
             nextTurnRecord = Time.unscaledTime + TurnRecordSpacing;

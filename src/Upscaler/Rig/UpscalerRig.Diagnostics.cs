@@ -78,7 +78,7 @@ namespace ReDefinition.Upscaler
             sb.AppendLine();
             sb.Append("  skinned renderers: ").Append(skinned.Describe(VisibleLayerMask())).AppendLine();
             sb.Append("  frame generation: ").Append(FrameGenerationBridge.Describe()).AppendLine();
-            sb.Append("  HUD-less snapshot after: ").Append(DescribeHudLessCarriers()).AppendLine();
+            sb.Append("  HUD-less snapshot after: ").Append(hudLess.Describe()).AppendLine();
             sb.Append("  TUFX effects after FSR: ").Append(tufx.Describe()).AppendLine();
             sb.Append("  masks: ").Append(DescribeInputMasks()).AppendLine();
 

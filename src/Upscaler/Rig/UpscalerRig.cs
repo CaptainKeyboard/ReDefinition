@@ -165,8 +165,8 @@ namespace ReDefinition.Upscaler
         private readonly MotionVectorAudit motionAudit = new MotionVectorAudit();
         private readonly VesselMotionVectors vesselMotion = new VesselMotionVectors();
         private readonly VesselShadowLayer vesselShadow = new VesselShadowLayer();
-        // VesselShadowLayer.Enabled as the HUD-less capture was recorded with it.
-        private bool hudLessWithShadow;
+        // Frame generation's HUD-less copy of the backbuffer.
+        private readonly HudLessCapture hudLess = new HudLessCapture();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -174,7 +174,7 @@ namespace ReDefinition.Upscaler
         private bool resetHistory = true;
 
         // The time of a timer that is not running: it never comes.
-        private const float NotScheduled = float.MaxValue;
+        internal const float NotScheduled = float.MaxValue;
 
         // How long after the rig first sees a scene its skinned renderers are reported, and after a load
         // that keeps the rig the mipmap bias is applied to the whole scene again; and how often Parallax's
@@ -261,7 +261,7 @@ namespace ReDefinition.Upscaler
         // frame not shown as rendered.
         internal bool FrameGenerationReceives
         {
-            get { return FrameGeneration && hudLessBuffer != null && !PresentsRendered; }
+            get { return FrameGeneration && hudLess.Attached && !PresentsRendered; }
         }
 
         // Whether Present shows the rendered image as it is, sending neither the
@@ -279,7 +279,7 @@ namespace ReDefinition.Upscaler
             {
                 UpscalerRig rig = Current;
                 return rig != null && !rig.TornDown && rig.textures.LowRes != null && !rig.PresentsRendered
-                       && (!rig.PassThrough || rig.hudLessBuffer != null);
+                       && (!rig.PassThrough || rig.hudLess.Attached);
             }
         }
 
@@ -367,7 +367,8 @@ namespace ReDefinition.Upscaler
                 Status = "No 3D cameras found to redirect.";
                 return false;
             }
-            if (FrameGeneration && FrameGenerationBridge.InputsUsable) AttachHudLessCapture(cameras.Presenter, true);
+            if (FrameGeneration && FrameGenerationBridge.InputsUsable)
+                hudLess.Attach(cameras.Presenter, true, textures.HudLess, vesselShadow, renderSize);
             inputs.ScaledMotion.Attach(cameras.Redirects, renderSize);
 
             // Before the first frame renders: TUFX's layers are split from it on.
@@ -474,7 +475,7 @@ namespace ReDefinition.Upscaler
             TornDown = true;
             ReportCameraMotionIfDue(true);
             ReleaseHooks();
-            DetachHudLessCapture();
+            hudLess.Detach();
             tufx.Dispose();
             inputs.DisposeParts();
             skinned.Restore();
@@ -701,9 +702,9 @@ namespace ReDefinition.Upscaler
             if (!RebuildWanted && cam != null && cam.allowHDR != EffectiveHdr)
                 RequestRebuild("the camera's HDR is now " + (cam.allowHDR ? "on" : "off"));
 
-            // Once, a few seconds after the rig was built. See AttachHudLessCapture.
-            if (Time.unscaledTime >= hudLessRecheckTime)
-                RecheckHudLessCapture();
+            // Once, a few seconds after the rig was built. See HudLessCapture.Attach.
+            if (hudLess.RecheckDue)
+                hudLess.Recheck(cameras.Presenter, textures.HudLess, vesselShadow, renderSize);
 
             ReportSkinnedIfDue();
 
@@ -729,14 +730,14 @@ namespace ReDefinition.Upscaler
             // The HUD-less copy only while frame generation can use it: it is a
             // blit of the whole backbuffer on every carrier camera, every frame.
             bool wantHudLess = FrameGeneration && FrameGenerationBridge.InputsUsable;
-            if (wantHudLess != (hudLessBuffer != null) && cameras.Presenter != null)
+            if (wantHudLess != hudLess.Attached && cameras.Presenter != null)
             {
-                if (wantHudLess) AttachHudLessCapture(cameras.Presenter, true);
-                else DetachHudLessCapture();
+                if (wantHudLess) hudLess.Attach(cameras.Presenter, true, textures.HudLess, vesselShadow, renderSize);
+                else hudLess.Detach();
             }
             // The vessel's shadow switched in or out of the HUD-less copy (VesselShadowLayer).
-            else if (hudLessBuffer != null && hudLessWithShadow != VesselShadowLayer.Enabled && cameras.Presenter != null)
-                AttachHudLessCapture(cameras.Presenter, false);
+            else if (hudLess.Attached && hudLess.WithShadow != VesselShadowLayer.Enabled && cameras.Presenter != null)
+                hudLess.Attach(cameras.Presenter, false, textures.HudLess, vesselShadow, renderSize);
             RefreshOverlay();
 
             if (Bypass)
@@ -926,7 +927,7 @@ namespace ReDefinition.Upscaler
             // (ProgrammingGuideDLSS_G.md, checklist). The frames sent then are a frozen
             // scene under a menu, nothing to interpolate.
             bool paused = PauseMenu.exists && PauseMenu.isOpen;
-            FrameGenerationBridge.SetEnabled(FrameGeneration && hudLessBuffer != null && !paused);
+            FrameGenerationBridge.SetEnabled(FrameGeneration && hudLess.Attached && !paused);
 
             dispatchBuffer.Clear();
             RenderTexture result = textures.Upscaled;
@@ -961,7 +962,7 @@ namespace ReDefinition.Upscaler
             // frame's cameras draw: the proxy generates from frames with a packet,
             // and so never from a copy nobody wrote -- in the frame's own order,
             // which SetEnabled, taking effect at once, is not.
-            if (FrameGeneration && hudLessBuffer != null) SubmitFramePacket();
+            if (FrameGeneration && hudLess.Attached) SubmitFramePacket();
             Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: frame generation packet");
 
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
