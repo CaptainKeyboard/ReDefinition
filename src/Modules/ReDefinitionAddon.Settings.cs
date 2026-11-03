@@ -25,6 +25,8 @@ namespace ReDefinition
             get { return settings.Quality; }
             set { settings.Quality = value; }
         }
+        // The player's upscaler switch.
+        internal bool wantEnabled;
         // RCAS maps sharpness to 2^(-2*(1-s)): 1.0 is the full effect, 0.4 about
         // 0.44 of it.
         internal float sharpness = 1.0f;
@@ -346,6 +348,35 @@ namespace ReDefinition
             SaveSettingsIfChanged(true, true);
         }
 
+        // The new rig's properties from the settings as they stand, set before its Setup.
+        internal void ConfigureRig(UpscalerRig created, Fsr3Upscaler.QualityMode builtWith, UpscalerBackend runs, bool passThrough)
+        {
+            created.QualityMode = builtWith;
+            created.Sharpness = sharpness;
+            created.Sharpening = sharpness > 0f;
+            created.AutoExposure = autoExposure;
+            created.DlssPreset = DlssModels.Preset(dlssModel);
+            created.EnableMipmapBias = mipmapBias;
+            // Bypass is the upscaler's diagnostic; frame generation's capture has no
+            // upscaler to bypass, and would send nothing with it.
+            created.Bypass = bypass && !passThrough;
+            created.EnableJitter = jitter;
+            created.ForceSkinnedMotionVectors = skinnedMotionVectors;
+            created.CompensateLodBias = compensateLodBias;
+            created.DisableMsaa = disableMsaa;
+            created.ForceAnisotropic = forceAnisotropic;
+            created.TufxAfterUpscaling = tufxAfterUpscaling;
+            created.TransparencyMask = transparencyMask;
+            created.ReactiveMask = reactiveMask;
+#if DEVELOPMENT_BUILD
+            created.DebugView = debugView;
+#endif
+            created.FrameGeneration = frameGeneration;
+            created.Backend = runs;
+            created.PassThrough = passThrough;
+            created.RecordFastTurns = recordFastTurns;
+        }
+
         // The first start's answer to take control: KSP's Settings buttons open
         // ReDefinition's window from the next menu on. Saved at once, since the
         // main menu is loaded again right after.
@@ -395,7 +426,7 @@ namespace ReDefinition
             finally
             {
                 // Also after a setter threw: what changed before it has its rig.
-                if (reattachPending) RebuildRig();
+                rigs.RebuildPending();
             }
 
             // Now rather than at the next throttled check: KSP saves its own

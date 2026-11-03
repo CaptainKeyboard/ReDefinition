@@ -55,7 +55,7 @@ namespace ReDefinition.Diagnostics
         // The technique the rig runs, the chosen one where no rig runs.
         private UpscalerBackend RunningBackend
         {
-            get { return addon.rig != null ? addon.rig.Backend : addon.backend; }
+            get { return rigs.Rig != null ? rigs.Rig.Backend : addon.backend; }
         }
 
         // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet); DLSS and
@@ -271,7 +271,7 @@ namespace ReDefinition.Diagnostics
                 value =>
                 {
                     addon.recordFastTurns = value;
-                    if (addon.rig != null) addon.rig.RecordFastTurns = addon.recordFastTurns;
+                    if (rigs.Rig != null) rigs.Rig.RecordFastTurns = addon.recordFastTurns;
                     Debug.Log(Log.Tag + " Motion vector check on fast turns " + (addon.recordFastTurns ? "on" : "off") + ".");
                 });
             fastTurns.Keywords = new[] { "fg", "camera" };
@@ -306,7 +306,7 @@ namespace ReDefinition.Diagnostics
             DebugOption diagnostics = Button("writeDiagnostics", DebugCategory.Capture, log, "Write diagnostics to log", "Write",
                 () =>
                 {
-                    if (addon.rig != null) addon.rig.LogDiagnostics();
+                    if (rigs.Rig != null) rigs.Rig.LogDiagnostics();
                     else Debug.Log(Log.Tag + " Diagnostics: upscaler is not active.");
                 });
             set.Add(diagnostics);
@@ -336,7 +336,7 @@ namespace ReDefinition.Diagnostics
                 value =>
                 {
                     addon.bypass = value;
-                    addon.Reattach();
+                    rigs.Reattach();
                 });
             without.Tooltip = "The Picture Before The Upscaler";
             set.Add(without);
@@ -348,7 +348,7 @@ namespace ReDefinition.Diagnostics
                 value =>
                 {
                     addon.debugView = value;
-                    if (addon.rig != null) addon.rig.DebugView = addon.debugView;
+                    if (rigs.Rig != null) rigs.Rig.DebugView = addon.debugView;
                     Debug.Log(Log.Tag + " FSR debug view " + (addon.debugView ? "on" : "off"));
                 });
             view.Tooltip = "Development Builds Only";

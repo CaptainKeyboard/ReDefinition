@@ -21,10 +21,9 @@ namespace ReDefinition
                 return;
             }
             wantEnabled = value;
-            setupFailures = 0;
-            captureFailures = 0;
-            // Update takes the rig down (WantsRig), for the reason Reattach waits.
-            nextAttachAttempt = 0f;
+            rigs.ForgetSetupFailures();
+            // Tick takes the rig down (RigLifecycle.WantsRig), for the reason Reattach waits.
+            rigs.AttachSoon();
             Debug.Log(Log.Tag + " Upscaler " + (wantEnabled ? "on" : "off"));
         }
 
@@ -42,9 +41,9 @@ namespace ReDefinition
         {
             bool wasSharpening = sharpness > 0f;
             sharpness = Mathf.Clamp(value, 0f, UpscalerRig.MaximumSharpness);
-            if (rig != null) rig.Sharpness = sharpness;
+            if (rigs.Rig != null) rigs.Rig.Sharpness = sharpness;
             // 0 switches RCAS off, which takes the other accumulate shader: a new rig.
-            if (rig != null && wasSharpening != (sharpness > 0f)) Reattach();
+            if (rigs.Rig != null && wasSharpening != (sharpness > 0f)) rigs.Reattach();
             Debug.Log(Log.Tag + " Sharpness " + sharpness.ToString("0.00")
                       + (sharpness > 1f ? "  (beyond FidelityFX' maximum)" : ""));
         }
@@ -60,14 +59,14 @@ namespace ReDefinition
         internal void SetMipmapBias(bool value)
         {
             mipmapBias = value;
-            Reattach();
+            rigs.Reattach();
         }
 
         // Live: the rig sets the LOD bias in QualitySettings anew at once.
         internal void SetCompensateLodBias(bool value)
         {
             compensateLodBias = value;
-            if (rig != null) { rig.CompensateLodBias = compensateLodBias; rig.RefreshQualityOverrides(); }
+            if (rigs.Rig != null) { rigs.Rig.CompensateLodBias = compensateLodBias; rigs.Rig.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " LOD bias compensation " + (compensateLodBias ? "on" : "off"));
         }
 
@@ -75,7 +74,7 @@ namespace ReDefinition
         internal void SetDisableMsaa(bool value)
         {
             disableMsaa = value;
-            if (rig != null) { rig.DisableMsaa = disableMsaa; rig.RefreshQualityOverrides(); }
+            if (rigs.Rig != null) { rigs.Rig.DisableMsaa = disableMsaa; rigs.Rig.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " MSAA override " + (disableMsaa ? "on" : "off"));
         }
 
@@ -83,7 +82,7 @@ namespace ReDefinition
         internal void SetForceAnisotropic(bool value)
         {
             forceAnisotropic = value;
-            if (rig != null) { rig.ForceAnisotropic = forceAnisotropic; rig.RefreshQualityOverrides(); }
+            if (rigs.Rig != null) { rigs.Rig.ForceAnisotropic = forceAnisotropic; rigs.Rig.RefreshQualityOverrides(); }
             Debug.Log(Log.Tag + " Anisotropic override " + (forceAnisotropic ? "on" : "off"));
         }
 
@@ -92,7 +91,7 @@ namespace ReDefinition
         {
             autoExposure = value;
             Debug.Log(Log.Tag + " FSR auto exposure " + (autoExposure ? "on" : "off"));
-            Reattach();
+            rigs.Reattach();
         }
 
         // Live: the rig reads it every frame, and TUFX's next blend of its settings
@@ -100,7 +99,7 @@ namespace ReDefinition
         internal void SetTufxAfterUpscaling(bool value)
         {
             tufxAfterUpscaling = value;
-            if (rig != null) rig.TufxAfterUpscaling = tufxAfterUpscaling;
+            if (rigs.Rig != null) rigs.Rig.TufxAfterUpscaling = tufxAfterUpscaling;
             Debug.Log(Log.Tag + " TUFX effects " + (tufxAfterUpscaling ? "after" : "before") + " FSR");
         }
 
@@ -108,7 +107,7 @@ namespace ReDefinition
         internal void SetTransparencyMask(bool value)
         {
             transparencyMask = value;
-            if (rig != null) rig.TransparencyMask = transparencyMask;
+            if (rigs.Rig != null) rigs.Rig.TransparencyMask = transparencyMask;
             Debug.Log(Log.Tag + " Transparency mask " + (transparencyMask ? "on" : "off"));
         }
 
@@ -116,7 +115,7 @@ namespace ReDefinition
         internal void SetReactiveMask(UpscalerMasks.ReactiveSource value)
         {
             reactiveMask = value;
-            if (rig != null) rig.ReactiveMask = reactiveMask;
+            if (rigs.Rig != null) rigs.Rig.ReactiveMask = reactiveMask;
             Debug.Log(Log.Tag + " Reactive mask: " + ReactiveLabel(reactiveMask));
         }
 
@@ -136,9 +135,9 @@ namespace ReDefinition
         {
             if (backend == value) return;
             backend = value;
-            ForgetNativeFailures(true);
+            rigs.ForgetNativeFailures(true);
             Debug.Log(Log.Tag + " Upscaler technique: " + UpscalerBackends.Name(backend));
-            Reattach();
+            rigs.Reattach();
         }
 
         // Live: the proxy creates DLSS's feature anew when the preset differs.
@@ -146,7 +145,7 @@ namespace ReDefinition
         {
             if (dlssModel == value) return;
             dlssModel = value;
-            if (rig != null) rig.DlssPreset = DlssModels.Preset(dlssModel);
+            if (rigs.Rig != null) rigs.Rig.DlssPreset = DlssModels.Preset(dlssModel);
             Debug.Log(Log.Tag + " DLSS model: " + DlssModels.Name(dlssModel) + ".");
         }
 
@@ -155,8 +154,8 @@ namespace ReDefinition
         // is tried at once where it is chosen, not only after the next scene change.
         internal void NvidiaFilesPlaced()
         {
-            ForgetNativeFailures(false);
-            RetryIfFallenBack(UpscalerBackend.Dlss);
+            rigs.ForgetNativeFailures(false);
+            rigs.RetryIfFallenBack(UpscalerBackend.Dlss);
         }
 
         // Intel's download placed libxess.dll: as with nvngx_dlss.dll, XeSS is tried at
@@ -164,24 +163,15 @@ namespace ReDefinition
         // is there).
         internal void IntelFilesPlaced()
         {
-            ForgetNativeFailures(false);
-            RetryIfFallenBack(UpscalerBackend.Xess);
-        }
-
-        // The upscaler chosen is this one, FSR 3 running in its place, and no failure
-        // left against it: the rig is built again for it.
-        private void RetryIfFallenBack(UpscalerBackend wanted)
-        {
-            if (backend == wanted && wantEnabled && rig != null && rig.Backend != backend
-                && !nativeFailures.ContainsKey(backend))
-                Reattach();
+            rigs.ForgetNativeFailures(false);
+            rigs.RetryIfFallenBack(UpscalerBackend.Xess);
         }
 
         // Live: the rig reads it every frame.
         internal void SetJitter(bool value)
         {
             jitter = value;
-            if (rig != null) rig.EnableJitter = jitter;
+            if (rigs.Rig != null) rigs.Rig.EnableJitter = jitter;
             Debug.Log(Log.Tag + " Jitter " + (jitter ? "on" : "off"));
         }
 
@@ -190,7 +180,7 @@ namespace ReDefinition
         internal void SetSkinnedMotionVectors(bool value)
         {
             skinnedMotionVectors = value;
-            if (rig != null) rig.ForceSkinnedMotionVectors = skinnedMotionVectors;
+            if (rigs.Rig != null) rigs.Rig.ForceSkinnedMotionVectors = skinnedMotionVectors;
             Debug.Log(Log.Tag + " Skinned motion vectors "
                       + (skinnedMotionVectors ? "forced on" : "as the game set them"));
         }
@@ -198,7 +188,7 @@ namespace ReDefinition
         // Live: the rig reads it every frame. Needs the dxgi.dll proxy next to
         // KSP_x64.exe with frameGeneration=1 in its ini. The rig supplies depth,
         // motion vectors and the HUD-less image; with the upscaler off it runs for
-        // that alone (UpscalerRig.PassThrough), attached by Update.
+        // that alone (UpscalerRig.PassThrough), attached by RigLifecycle.Tick.
         // Without the proxy the switch is inert and the diagnostics say so.
         internal void SetFrameGeneration(bool value)
         {
@@ -208,9 +198,8 @@ namespace ReDefinition
                 return;
             }
             frameGeneration = value;
-            setupFailures = 0;
-            captureFailures = 0;
-            loggedSetupProblem = null;
+            rigs.ForgetSetupFailures();
+            rigs.ForgetLoggedSetupProblem();
             // Switched on by the player: a context the proxy could not make gets
             // another try, a standing failure included. What it requires of KSP's
             // V-Sync is held at the end of the frame, and let go once it is off
@@ -223,8 +212,8 @@ namespace ReDefinition
             }
             string switched = frameGeneration ? "frame generation switched on" : "frame generation switched off";
             BundledSettingsAddon.AtEndOfFrame("frame-generation-requirements", () => Requirements.Enforce(switched));
-            if (rig != null) rig.FrameGeneration = frameGeneration;
-            else if (frameGeneration) nextAttachAttempt = 0f;
+            if (rigs.Rig != null) rigs.Rig.FrameGeneration = frameGeneration;
+            else if (frameGeneration) rigs.AttachSoon();
             // Off at once, rig or not: without a rig nobody dispatches, and a rig on
             // its way down (Reattach, WantsRig) may not dispatch again, while its
             // teardown only switches the proxy off when frame generation is on.
@@ -248,8 +237,8 @@ namespace ReDefinition
         {
             if (quality == mode) return;
             quality = mode;
-            ForgetNativeFailures(false);
-            Reattach();
+            rigs.ForgetNativeFailures(false);
+            rigs.Reattach();
         }
     }
 }

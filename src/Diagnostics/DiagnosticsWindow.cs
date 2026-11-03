@@ -15,17 +15,19 @@ namespace ReDefinition.Diagnostics
     // by DiagnosticsWindow.Rows.cs. The add-on owns it, forwards its OnGUI and reads its state.
     internal sealed partial class DiagnosticsWindow
     {
-        // The add-on whose state the window shows and whose setters its options call, the frame
-        // rates and the recording timer it shows, and the id of its IMGUI window.
+        // The add-on whose settings the window shows and whose setters its options call, the rig's
+        // lifecycle, the frame rates and the recording timer it shows, and the id of its IMGUI window.
         private readonly ReDefinitionAddon addon;
+        private readonly RigLifecycle rigs;
         private readonly FrameRateReadout rates;
         private readonly ScreenRecordingTimer recording;
         private readonly int windowId;
 
         // A window for the add-on, drawn under the id given.
-        public DiagnosticsWindow(ReDefinitionAddon addon, FrameRateReadout rates, ScreenRecordingTimer recording, int windowId)
+        public DiagnosticsWindow(ReDefinitionAddon addon, RigLifecycle rigs, FrameRateReadout rates, ScreenRecordingTimer recording, int windowId)
         {
             this.addon = addon;
+            this.rigs = rigs;
             this.rates = rates;
             this.recording = recording;
             this.windowId = windowId;

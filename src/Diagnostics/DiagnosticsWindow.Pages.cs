@@ -50,14 +50,14 @@ namespace ReDefinition.Diagnostics
         // against off.
         private void DrawOverview()
         {
-            bool active = addon.rig != null && addon.rig.Ready;
+            bool active = rigs.Rig != null && rigs.Rig.Ready;
             GUILayout.Label(active
-                ? "Active: " + addon.rig.RenderSize.x + "x" + addon.rig.RenderSize.y + "  ->  "
-                  + addon.rig.DisplaySize.x + "x" + addon.rig.DisplaySize.y
+                ? "Active: " + rigs.Rig.RenderSize.x + "x" + rigs.Rig.RenderSize.y + "  ->  "
+                  + rigs.Rig.DisplaySize.x + "x" + rigs.Rig.DisplaySize.y
                   // The capture goes on for the proxy's attempts, which need its
                   // packets; the player sees that nothing is generated.
                   + (contextFailing ? "  -- " + ContextFailedNote() : "")
-                : addon.rig != null && addon.rig.PassThrough
+                : rigs.Rig != null && rigs.Rig.PassThrough
                     // What stopped the upscaler follows below.
                     ? (addon.wantEnabled ? "Upscaler not set up" : "Upscaler off")
                       + (contextFailingAny
@@ -68,10 +68,10 @@ namespace ReDefinition.Diagnostics
                        : addon.frameGeneration && FrameGenerationBridge.ContextFailureStands
                            ? "Off -- " + ContextFailedNote()
                        : "Off")
-                : ReDefinitionAddon.OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
+                : RigLifecycle.OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
                 : "Setting up ...", styles.Strip);
 
-            if (!string.IsNullOrEmpty(addon.problem)) WarningLabel(addon.problem);
+            if (!string.IsNullOrEmpty(rigs.Problem)) WarningLabel(rigs.Problem);
 
             GUILayout.Space(6f);
             DrawOptions(OptionsOf(DebugCategory.Overview));
@@ -98,11 +98,11 @@ namespace ReDefinition.Diagnostics
             GUI.enabled = outer && profile;
             // Read before any control: the technique's switch forgets failures
             // within this event, and the rows must stay the ones the layout pass
-            // counted. (The rig itself is rebuilt by Update, see Reattach.)
-            bool fallingBack = addon.rig != null && addon.rig.Backend != addon.backend && addon.fallbackReason != null;
-            bool canRetry = fallingBack && addon.nativeFailures.ContainsKey(addon.backend);
+            // counted. (The rig itself is rebuilt by RigLifecycle.Tick, see Reattach.)
+            bool fallingBack = rigs.Rig != null && rigs.Rig.Backend != addon.backend && rigs.FallbackReason != null;
+            bool canRetry = fallingBack && rigs.HasNativeFailure(addon.backend);
             string fallbackText = fallingBack
-                ? UpscalerBackends.Name(addon.backend) + " cannot run, FSR 3 runs instead: " + addon.fallbackReason
+                ? UpscalerBackends.Name(addon.backend) + " cannot run, FSR 3 runs instead: " + rigs.FallbackReason
                 : null;
             string retryText = canRetry ? "Try " + UpscalerBackends.Name(addon.backend) + " again" : null;
 
@@ -137,20 +137,20 @@ namespace ReDefinition.Diagnostics
             RowTail();
             GUILayout.EndHorizontal();
 
-            GUILayout.Label(addon.rig != null && addon.rig.PassThrough
+            GUILayout.Label(rigs.Rig != null && rigs.Rig.PassThrough
                 ? (addon.wantEnabled ? "The upscaler could not be set up" : "Upscaler off")
                   + ": frame generation runs, without FSR's antialiasing"
                   + (QualitySettings.antiAliasing > 1 ? ", and KSP's MSAA does not reach the 3D scene." : ".")
                 : addon.quality == Fsr3Upscaler.QualityMode.NativeAA
-                ? "Full resolution. " + UpscalerBackends.Name(addon.rig != null ? addon.rig.Backend : addon.backend) + " does the antialiasing."
+                ? "Full resolution. " + UpscalerBackends.Name(rigs.Rig != null ? rigs.Rig.Backend : addon.backend) + " does the antialiasing."
                 : "Renders smaller and reconstructs.", styles.Dim);
             if (fallingBack)
             {
                 GUILayout.Label(fallbackText);
                 if (canRetry && GUILayout.Button(retryText))
                 {
-                    addon.ForgetNativeFailures(true);
-                    addon.Reattach();
+                    rigs.ForgetNativeFailures(true);
+                    rigs.Reattach();
                 }
             }
 
@@ -212,7 +212,7 @@ namespace ReDefinition.Diagnostics
         // (SyncHostStack), and there is nothing to judge.
         private void DrawHostStackSummary()
         {
-            if (!BundledSettings.ProfileChosen || addon.PassThroughWanted)
+            if (!BundledSettings.ProfileChosen || rigs.PassThroughWanted)
             {
                 GUILayout.Label("Other visual mods: their own antialiasing, while the upscaler is off.");
                 return;
@@ -282,19 +282,19 @@ namespace ReDefinition.Diagnostics
             // pass: the read-back changes the render target, which would spoil what is drawn after
             // it in a repaint.
             if (Event.current.type == EventType.Layout)
-                previewTexture = addon.rig != null && addon.rig.Ready ? addon.rig.GetPreview(previewMode) : null;
+                previewTexture = rigs.Rig != null && rigs.Rig.Ready ? rigs.Rig.GetPreview(previewMode) : null;
 
             Rect area = GUILayoutUtility.GetRect(UpscalerRig.PreviewWidth, UpscalerRig.PreviewHeight);
             if (previewTexture != null) GUI.DrawTexture(area, previewTexture, ScaleMode.ScaleToFit, false);
             else if (Event.current.type == EventType.Repaint)
-                GUI.Label(area, addon.rig != null && addon.rig.Ready ? "" : "  (upscaler is off)");
+                GUI.Label(area, rigs.Rig != null && rigs.Rig.Ready ? "" : "  (upscaler is off)");
 
             switch (previewMode)
             {
                 case UpscalerRig.PreviewMode.MotionVectors:
                     GUILayout.Label("Red is rightwards, green is upwards, grey is still."
-                                    + (addon.rig != null && addon.rig.Ready
-                                       ? "  Scale " + addon.rig.PreviewGain.ToString("0.00") + " px" : ""));
+                                    + (rigs.Rig != null && rigs.Rig.Ready
+                                       ? "  Scale " + rigs.Rig.PreviewGain.ToString("0.00") + " px" : ""));
                     break;
                 case UpscalerRig.PreviewMode.Depth:
                     GUILayout.Label("Bright is near, dark is far.");
