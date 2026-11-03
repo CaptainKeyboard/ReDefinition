@@ -22,6 +22,8 @@ fixes for other mods' filters, and the pieces frame generation needs from the ga
   Reconstruction, the HUD-less copy, the hooks other mods register, the preview and the diagnostics.
 - `Rig` also holds the rig's parts: cameras, textures, masks, the shader bundle, the mipmap bias
   and the quality overrides.
+- `Rig/RigReport.cs`, `Rig/RigReadback.cs` and `Rig/RigPreview.cs` hold the text and statistics of the
+  diagnostics, the CPU readback they use, and the tinted preview of the diagnostics window.
 - `MotionVectors` writes what Unity does not: distant planets, EVE's clouds, skinned meshes and
   the active vessel.
 - `MotionVectors/UnityMotionRepair.cs` fills Unity's motion vectors where they were not written.

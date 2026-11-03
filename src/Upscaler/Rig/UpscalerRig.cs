@@ -513,9 +513,8 @@ namespace ReDefinition.Upscaler
             }
             textures.ReleaseInputs();
 
-            if (probePixel != null) { Destroy(probePixel); probePixel = null; }
-            if (readback != null) { Destroy(readback); readback = null; }
-            if (preview != null) { Destroy(preview); preview = null; }
+            readback.Release();
+            previewer.Release();
 
             Status = "off";
         }
