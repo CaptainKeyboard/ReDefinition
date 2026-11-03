@@ -10,7 +10,8 @@ planner that lays out a route and shares the vessel's stages over its legs.
 | `src/Engineer/EditorEngineer.cs` | The entry: the planner's button, the mode, and when the vessel is read. |
 | `src/Engineer/EditorReadout.cs` | What the planner takes of the vessel, from KSP's delta-v simulation. |
 | `src/Engineer/PlannerPanel.cs` | The panel KSP brings in and out like its own. |
-| `src/Engineer/Planner/PlannerView.cs` | The plan held and worked out; its other parts are `PlannerView.*.cs`. |
+| `src/Engineer/Planner/PlannerModel.cs` | The plan held and worked out, free of dialog elements; its other parts are `PlannerModel.*.cs`. |
+| `src/Engineer/Planner/PlannerView.cs` | The rows over the model; its other parts are `PlannerView.*.cs`. |
 | `src/Engineer/Planner/PlannerState.cs` | One vessel's plan and where it is kept. |
 | `src/Engineer/Planner/RouteSteps.cs` | The steps between two stops and who flies them. |
 | `src/Engineer/Planner/StageBudget.cs` | Which stage pays for which leg. |
@@ -25,15 +26,21 @@ planner that lays out a route and shares the vessel's stages over its legs.
   button's tiles from the cargo button's.
 - `EditorLaunchButton` puts a launch button over the pad seen through the VAB's door and over the
   runway seen from the SPH.
-- `Planner/PlannerView.*.cs` build the rows from KSP's dialog elements: sections, route, bars, fuel
-  plan and thrust.
+- `Planner/PlannerModel.cs` and `Planner/PlannerModel.*.cs` hold the plan: the route and its edits,
+  the evaluation, the texts of the steps. `Planner/PlanSections.cs` resolves the sections against
+  the vessel's parts, `Planner/PlanThrust.cs` checks the thrust of each step and
+  `Planner/PlanFuel.cs` writes the fuel plan's figures. `Planner/PlanText.cs` holds the colours and
+  small text helpers they share.
+- `Planner/PlannerView.*.cs` build the rows from KSP's dialog elements over the model: sections,
+  route, bars, fuel plan and thrust.
 - `Planner/RouteSteps.cs`, `Planner/RoutePlanner.cs` and `Planner/PlannerBodies.cs` turn a route over
   the loaded system's bodies into steps.
 - `Planner/StageBudget.cs`, `Planner/StageSim.cs`, `Planner/ClampedLaunch.cs`,
   `Planner/BurnCheck.cs`, `Planner/Turning.cs` and `Planner/SectionRcs.cs` work out what each step
   needs and what the stages give.
 - `Planner/PartHighlight.cs` marks parts on the vessel.
-- `Planner/PlannerView.Dashboard.cs` gives the dashboard's VAB page the planner's rows and handlers.
+- `Planner/PlannerDashboard.cs` gives the dashboard's VAB page the planner's rows and handlers;
+  `Planner/PlannerView.Dashboard.cs` hands the view's calls on to it.
 
 The area is a stop on [The features on screen](../../docs/development/flow-game-ui.md).
 More: [the planner's place in the editor](../../src/Engineer/README.md) and
@@ -52,9 +59,12 @@ Dashboard and Hud name it.
   simulation it starts make one or two reads.
 - The sums are free of Unity and tested: `src/Engineer/EngineerFormat.cs`,
   `src/Engineer/StageTable.cs`, `src/Engineer/Planner/RoutePlanner.cs` and the files `BurnCheck`,
-  `ClampedLaunch`, `SectionRcs`, `StageBudget`, `StageSim` and `VesselShape` in `Planner`.
+  `ClampedLaunch`, `SectionRcs`, `StageBudget`, `StageSim` and `VesselShape` in `Planner`. So is
+  the plan's model: `PlannerModel`, `PlanSections`, `PlanThrust`, `PlanFuel` and `PlannerDashboard`
+  hold no dialog elements, and the view only builds rows from them.
 - `Planner/PartHighlight.cs` has one marker at a time. Whichever marks parts last takes the other's
   marks away, and nothing is marked while the pointer is on a part of the vessel.
 - A plan is kept per vessel name in `planner.cfg` in the mod's `PluginData` folder
   (`PlannerState`).
-- The dashboard changes the plan through the handlers the buttons use (`PlannerView.Dashboard.cs`).
+- The dashboard changes the plan through the model's commands, the ones the buttons use
+  (`PlannerDashboard.cs`).

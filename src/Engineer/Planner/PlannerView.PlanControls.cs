@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using static ReDefinition.Engineer.PlanText;
 
 namespace ReDefinition.Engineer
 {
@@ -7,8 +8,6 @@ namespace ReDefinition.Engineer
     // other choices (flat, set off by a line, lit where on). They can be turned on once the route is planned, which the planner does by itself.
     internal sealed partial class PlannerView
     {
-        // What the window gives the part; null in the editor, which has no flight to plan.
-        internal IPlanControls Controls;
         private bool controlsShown = true;
 
         // What the heading says while the part is folded or not: which one is on.

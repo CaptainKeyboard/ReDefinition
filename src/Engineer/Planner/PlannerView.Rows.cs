@@ -1,7 +1,7 @@
 using System.Collections.Generic;
-using System.Globalization;
 using ReDefinition.Window;
 using UnityEngine;
+using static ReDefinition.Engineer.PlanText;
 
 namespace ReDefinition.Engineer
 {
@@ -18,10 +18,6 @@ namespace ReDefinition.Engineer
     {
         // How many stops, stages and bar pieces the fixed rows are made for; in units, the icons' size, the timeline's
         // column and a stop's letter.
-        // The most stops a route has, the most steps the fuel plan and the thrust check show, and the most stages of a step: the full size.
-        private const int HardStops = 11;
-        private const int HardFuelSteps = 30;
-        private const int HardStepStages = 10;
         private const int MaxStages = 30;
         private const int MaxPieces = 24;
         private const float Icon = 24f;
@@ -47,11 +43,6 @@ namespace ReDefinition.Engineer
         // A further choice's name, so that its buttons start under who flies the step.
         private const float OptionLabel = Place - BarIndent - 4f;
         private const float BarIndent = 16f;
-        private const int MaxWarnings = 3;
-        private const string Warning = "#f18a24";
-        private const string Problem = "#e6474d";
-        private const string Good = "#8fdc7a";
-        private const string Dim = "#9a9a9a";
 
         // Each step's bar, by leg and role; the altitude fields, for the typing lock; the roles in the order their steps come.
         private readonly SegmentBar[,] stepBars;
@@ -74,14 +65,14 @@ namespace ReDefinition.Engineer
             List<DialogGUIBase> rows = new List<DialogGUIBase>();
             rows.Add(StockOffRow());
             if (Controls != null)
-                rows.AddRange(Section("Guidance", () => controlsShown, () => { controlsShown = !controlsShown; textVersion++; },
+                rows.AddRange(Section("Guidance", () => controlsShown, () => { controlsShown = !controlsShown; model.Touch(); },
                     "What flies the route: the navigation keeps the plan up to date while you fly, the autopilot flies it.", GuidanceSummary, GuidanceRows()));
 
             List<DialogGUIBase> vessel = new List<DialogGUIBase>();
-            for (int i = 0; i < MaxSections; i++) vessel.AddRange(SectionRows(i));
+            for (int i = 0; i < PlanSections.MaxSections; i++) vessel.AddRange(SectionRows(i));
             vessel.Add(AddSectionRow());
-            rows.AddRange(Section("Craft", () => vesselShown, () => { vesselShown = !vesselShown; textVersion++; },
-                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its sections.", VesselText, vessel));
+            rows.AddRange(Section("Craft", () => vesselShown, () => { vesselShown = !vesselShown; model.Touch(); },
+                "The craft as built: its mass, the fuel in it and its delta-v in vacuum. Below, its sections.", model.VesselText, vessel));
 
             List<DialogGUIBase> route = new List<DialogGUIBase>();
             route.Add(SettingsRow());
@@ -94,15 +85,15 @@ namespace ReDefinition.Engineer
             }
             route.Add(AddRow());
             route.AddRange(SummaryRows());
-            rows.AddRange(Section("Route", () => routeShown, () => { routeShown = !routeShown; textVersion++; },
+            rows.AddRange(Section("Route", () => routeShown, () => { routeShown = !routeShown; model.Touch(); },
                 "The destinations and the steps between them.", RouteSummary, route));
 
-            rows.AddRange(Section("Flight plan", () => planShown, () => { planShown = !planShown; textVersion++; },
+            rows.AddRange(Section("Flight plan", () => planShown, () => { planShown = !planShown; model.Touch(); },
                 "The burns and orbits of the route as the Plan button in flight works them out from the vessel.", PlanSummary, FlightPlanRows()));
-            rows.AddRange(Section("Fuel plan", () => fuelShown, () => { fuelShown = !fuelShown; textVersion++; },
-                "The delta-v each step needs and what remains after it.", FuelSummary, FuelRows()));
-            rows.AddRange(Section("Thrust", () => thrustShown, () => { thrustShown = !thrustShown; textVersion++; },
-                "The thrust-to-weight ratio of launches and landings and the duration of each burn.", ThrustSummary, ThrustRows()));
+            rows.AddRange(Section("Fuel plan", () => fuelShown, () => { fuelShown = !fuelShown; model.Touch(); },
+                "The delta-v each step needs and what remains after it.", model.Fuel.Summary, FuelRows()));
+            rows.AddRange(Section("Thrust", () => thrustShown, () => { thrustShown = !thrustShown; model.Touch(); },
+                "The thrust-to-weight ratio of launches and landings and the duration of each burn.", model.Thrust.Summary, ThrustRows()));
             return rows;
         }
 
@@ -136,7 +127,7 @@ namespace ReDefinition.Engineer
         // Folded, what the route leaves.
         private string RouteSummary()
         {
-            return routeShown ? "" : SummaryText();
+            return routeShown ? "" : model.SummaryText();
         }
 
         // The header bars' backgrounds, rounded at the top while their part is open and
@@ -169,12 +160,12 @@ namespace ReDefinition.Engineer
         {
             DialogGUILabel label = new DialogGUILabel("Fuel margin", 84f, RowHeight);
             label.tooltipText = "Extra delta-v added to every step as a reserve for piloting losses and corrections.";
-            DialogGUISlider margin = new DialogGUISlider(() => (float)(Ready() ? state.Margin * 100.0 : 10.0), 0f, 50f, true,
-                width - 84f - 44f - 6f * 2f - RowEnd, RowHeight, SetMargin);
+            DialogGUISlider margin = new DialogGUISlider(() => (float)(model.Ready() ? model.State.Margin * 100.0 : 10.0), 0f, 50f, true,
+                width - 84f - 44f - 6f * 2f - RowEnd, RowHeight, model.SetMargin);
             margin.tooltipText = label.tooltipText;
             return new GatedRow(width, RowHeight + 4f, 6f, new RectOffset(), TextAnchor.MiddleLeft,
                 label, margin,
-                new DialogGUILabel(Text(() => (Ready() ? (state.Margin * 100.0).ToString("0") : "10") + " %"), 44f));
+                new DialogGUILabel(Text(() => (model.Ready() ? (model.State.Margin * 100.0).ToString("0") : "10") + " %"), 44f));
         }
 
         // -------------------------------------------------------------- sections
@@ -184,50 +175,38 @@ namespace ReDefinition.Engineer
         // Under a satellite they show where it stays, and in red what is wrong with it.
         private IEnumerable<DialogGUIBase> SectionRows(int row)
         {
+            PlanSections sections = model.Sections;
             DialogGUIButton group = null;
-            group = new DialogGUIButton(() => SectionText(row), () =>
+            group = new DialogGUIButton(() => sections.SectionText(row), () =>
             {
-                LiveSection section = RowSection(row);
+                LiveSection section = sections.RowSection(row);
                 if (section != null) PickSectionParts(section.Plan, group);
             }, PartButtonWidth - Square - 4f, Square, false);
             group.tooltipText = "Choose which parts of the vessel form this section.";
-            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveSection(row), Square, Square, 14f,
+            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => sections.RemoveSection(row), Square, Square, 14f,
                 "Remove this section.", after);
             DialogGUIHorizontalLayout dot = new GatedRow(Timeline, Square, 0f, new RectOffset(4, 0, 0, 0),
                 TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
             DialogGUIHorizontalLayout line = new GatedRow(width, Square + 4f, 4f, new RectOffset(0, 0, 2, 0),
-                TextAnchor.MiddleLeft, dot, new DialogGUILabel(Text(() => SectionLabel(row)), SectionName), group, remove);
-            line.OptionEnabledCondition = () => RowSection(row) != null;
+                TextAnchor.MiddleLeft, dot, new DialogGUILabel(Text(() => sections.SectionLabel(row)), SectionName), group, remove);
+            line.OptionEnabledCondition = () => sections.RowSection(row) != null;
             yield return line;
 
             DialogGUIButton stop = null;
-            stop = new DialogGUIButton(() => DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
+            stop = new DialogGUIButton(() => sections.DeployText(row), () => PickDeployStop(row, stop), PartButtonWidth, Square, false);
             stop.tooltipText = "Choose the destination where the satellite is deployed.";
             DialogGUIHorizontalLayout deploy = new GatedRow(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUILabel("<color=" + Dim + ">Deployed at</color>", SectionName),
                 stop);
-            deploy.OptionEnabledCondition = () => IsKind(row, SectionKind.Satellite);
+            deploy.OptionEnabledCondition = () => sections.IsKind(row, SectionKind.Satellite);
             yield return deploy;
 
             DialogGUIHorizontalLayout warning = new GatedRow(width, RowHeight, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), new DialogGUISpace(SectionName),
-                new DialogGUILabel(Text(() => "<color=" + Problem + ">" + SectionWarning(row) + "</color>"), PartButtonWidth, RowHeight));
-            warning.OptionEnabledCondition = () => SectionWarning(row).Length > 0;
+                new DialogGUILabel(Text(() => "<color=" + Problem + ">" + sections.SectionWarning(row) + "</color>"), PartButtonWidth, RowHeight));
+            warning.OptionEnabledCondition = () => sections.SectionWarning(row).Length > 0;
             yield return warning;
 
-        }
-
-        // "Mass 45.20 t   Fuel 33.10 t   Δv 5,230 m/s".
-        private string VesselText()
-        {
-            EditorReadout readout = host.Readout;
-            if (readout == null || !readout.HasShip) return "";
-            // The planner's stages: its own, with the jets' part of the launch, where an
-            // engine breathes air.
-            double deltaV = 0.0;
-            foreach (StageRow row in allStages) deltaV += row.DeltaVVacuum;
-            return "<color=" + Dim + ">Mass</color> " + EngineerFormat.Mass(readout.WetMass) + "<pos=34%><color=" + Dim + ">Fuel</color> "
-                   + EngineerFormat.Mass(readout.FuelMass) + "<pos=67%><color=" + Dim + ">Δv</color> " + EngineerFormat.Speed(deltaV);
         }
 
         // "+" to add a section, in the column of a section's name.
@@ -238,7 +217,7 @@ namespace ReDefinition.Engineer
             add.tooltipText = "Add a section: a capsule, a lander or a satellite.";
             DialogGUIHorizontalLayout row = new GatedRow(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), add);
-            row.OptionEnabledCondition = () => Ready() && state.Sections.Count < MaxSections;
+            row.OptionEnabledCondition = () => model.Ready() && model.State.Sections.Count < PlanSections.MaxSections;
             return row;
         }
 
@@ -270,52 +249,52 @@ namespace ReDefinition.Engineer
             const float bodyWidth = Place - LetterWidth - Divider - 8f;
             float room = Mathf.Max(0f, width - Timeline - LetterWidth - bodyWidth - Divider - 62f - 52f - Divider - 76f - Square
                                        - Gap * 9f - RowEnd);
-            DialogGUIButton body = new DialogGUIButton(() => "<b>" + BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
+            DialogGUIButton body = new DialogGUIButton(() => "<b>" + model.BodyName(index) + "</b>", () => PickBody(index), bodyWidth,
                 RowHeight + 2f, false);
             bodyButtons[index] = body;
             body.tooltipText = "Choose the body of this destination.";
-            DialogGUIButton surface = Choice("Surface", () => Kind(index) == StopKind.Surface, () => SetKind(index, StopKind.Surface),
+            DialogGUIButton surface = Choice("Surface", () => model.Kind(index) == StopKind.Surface, () => model.SetKind(index, StopKind.Surface),
                 62f);
             surface.tooltipText = "Land on the body's surface.";
-            DialogGUIButton orbit = Choice("Orbit", () => Kind(index) == StopKind.Orbit, () => SetKind(index, StopKind.Orbit), 52f);
+            DialogGUIButton orbit = Choice("Orbit", () => model.Kind(index) == StopKind.Orbit, () => model.SetKind(index, StopKind.Orbit), 52f);
             orbit.tooltipText = "Stay in orbit around the body.";
-            DialogGUIButton air = Choice(() => Kind(index) == StopKind.Surface ? "Chutes" : "Aerobrake", () => UsesAtmosphere(index),
-                () => ToggleAtmosphere(index), 76f);
-            air.OptionEnabledCondition = () => index > 0 && HasAtmosphere(index);
+            DialogGUIButton air = Choice(() => model.Kind(index) == StopKind.Surface ? "Chutes" : "Aerobrake", () => model.UsesAtmosphere(index),
+                () => model.ToggleAtmosphere(index), 76f);
+            air.OptionEnabledCondition = () => index > 0 && model.HasAtmosphere(index);
             air.tooltipText = "Use the atmosphere instead of the engines: parachutes for landing, aerobraking for orbit.";
             DialogGUIBase divider = PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line);
             divider.OptionEnabledCondition = air.OptionEnabledCondition;
             // Its room and the line's where it is hidden, so that the cross stands in
             // one column on every stop.
             DialogGUISpace noAir = new DialogGUISpace(Divider + 4f + 76f);
-            noAir.OptionEnabledCondition = () => !(index > 0 && HasAtmosphere(index));
-            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveStop(index), Square, Square, 14f,
+            noAir.OptionEnabledCondition = () => !(index > 0 && model.HasAtmosphere(index));
+            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => model.RemoveStop(index), Square, Square, 14f,
                 "Remove this destination.", after);
-            remove.OptionEnabledCondition = () => Ready() && state.Stops.Count > 2;
+            remove.OptionEnabledCondition = () => model.Ready() && model.State.Stops.Count > 2;
 
             DialogGUIHorizontalLayout row = new GatedRow(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(Text(() => "<b>" + Letter(index) + "</b>"), LetterWidth), body,
                 PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line), surface, orbit, divider, air, noAir,
                 new DialogGUISpace(room), remove);
-            row.OptionEnabledCondition = () => Shown(index);
+            row.OptionEnabledCondition = () => model.Shown(index);
             yield return row;
 
             // The orbit's altitude: typed in kilometres, or stepped by 10 km.
             DialogGUITextInput typed = new DialogGUITextInput("", false, 7, text =>
             {
-                SetAltitude(index, text);
+                model.SetAltitude(index, text);
                 return text;
-            }, () => AltitudeKm(index), TMPro.TMP_InputField.ContentType.DecimalNumber, Square);
+            }, () => model.AltitudeKm(index), TMPro.TMP_InputField.ContentType.DecimalNumber, Square);
             typed.size = new Vector2(72f, Square);
-            DialogGUIButton lower = new DialogGUIButton("-", () => StepAltitude(index, -1), Square, Square, false);
+            DialogGUIButton lower = new DialogGUIButton("-", () => model.StepAltitude(index, -1), Square, Square, false);
             lower.tooltipText = "Lower the orbit by 10 km.";
-            DialogGUIButton raise = new DialogGUIButton("+", () => StepAltitude(index, 1), Square, Square, false);
+            DialogGUIButton raise = new DialogGUIButton("+", () => model.StepAltitude(index, 1), Square, Square, false);
             raise.tooltipText = "Raise the orbit by 10 km.";
             altitudeFields.Add(typed);
             DialogGUIHorizontalLayout altitude = new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(LetterWidth),
                 lower, typed, new DialogGUILabel("<color=" + Dim + ">km</color>", 24f), raise);
-            altitude.OptionEnabledCondition = () => HasBody(index) && Kind(index) == StopKind.Orbit;
+            altitude.OptionEnabledCondition = () => model.HasBody(index) && model.Kind(index) == StopKind.Orbit;
             yield return altitude;
         }
 
@@ -324,14 +303,14 @@ namespace ReDefinition.Engineer
         {
             DialogGUIHorizontalLayout dot = new GatedRow(Timeline, Icon, 0f, new RectOffset(4, 0, 0, 0),
                 TextAnchor.MiddleLeft, PlannerWidgets.Icon("Dot", 12f, PlannerColors.Line), new DialogGUISpace(Timeline - 16f));
-            DialogGUIButton add = new DialogGUIButton("<b>+</b>", AddStop, Square, Square, false);
+            DialogGUIButton add = new DialogGUIButton("<b>+</b>", model.AddStop, Square, Square, false);
             add.tooltipText = "Add a destination at the end of the route.";
             DialogGUIHorizontalLayout row = new GatedRow(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot,
-                new DialogGUILabel(Text(() => "<b><color=" + Dim + ">" + (Ready() ? Letter(state.Stops.Count) : "") + "</color></b>"), LetterWidth),
+                new DialogGUILabel(Text(() => "<b><color=" + Dim + ">" + (model.Ready() ? Letter(model.State.Stops.Count) : "") + "</color></b>"), LetterWidth),
                 add);
             // Once every destination has its body.
-            row.OptionEnabledCondition = () => Ready() && state.Stops.Count < HardStops && PickedStops().Count == state.Stops.Count;
+            row.OptionEnabledCondition = model.CanAddStop;
             return row;
         }
 
@@ -348,7 +327,7 @@ namespace ReDefinition.Engineer
             return Choice(() => label, chosen, choose, buttonWidth);
         }
 
-        // As above, with a label that may change. The text is made again only where textVersion has moved on: a click or a new plan moves it.
+        // As above, with a label that may change. The text is made again only where the model's version has moved on: a click or a new plan moves it.
         private DialogGUIButton Choice(System.Func<string> label, System.Func<bool> chosen, Callback choose, float buttonWidth)
         {
             return new DialogGUIButton(Text(() => chosen()
@@ -363,7 +342,7 @@ namespace ReDefinition.Engineer
         // destinations.
         private IEnumerable<DialogGUIBase> StepBlock(int leg, StepRole role)
         {
-            System.Func<bool> shown = () => Slot(leg, role) >= 0;
+            System.Func<bool> shown = () => model.Slot(leg, role) >= 0;
             DialogGUIHorizontalLayout gap = new GatedRow(width, 4f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 TimelineLine(4f));
             gap.OptionEnabledCondition = shown;
@@ -384,79 +363,79 @@ namespace ReDefinition.Engineer
         // what blocks it.
         private IEnumerable<DialogGUIBase> StepRows(int leg, StepRole role)
         {
-            System.Func<bool> shown = () => Slot(leg, role) >= 0;
+            System.Func<bool> shown = () => model.Slot(leg, role) >= 0;
 
             DialogGUIHorizontalLayout leaves = new GatedRow(width, RowHeight, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
-                new DialogGUILabel(Text(() => "<color=" + Dim + ">" + SeparationText(leg, role) + "</color>"),
+                new DialogGUILabel(Text(() => "<color=" + Dim + ">" + model.SeparationText(leg, role) + "</color>"),
                     width - Timeline - BarIndent - 8f, RowHeight));
-            leaves.OptionEnabledCondition = Cached(() => SeparationText(leg, role).Length > 0);
+            leaves.OptionEnabledCondition = Cached(() => model.SeparationText(leg, role).Length > 0);
             yield return leaves;
 
             DialogGUIButton vehicle = null;
-            vehicle = new DialogGUIButton(() => VehicleText(leg, role), () => PickFlyer(leg, role, vehicle), VehicleButton,
+            vehicle = new DialogGUIButton(() => model.VehicleText(leg, role), () => PickFlyer(leg, role, vehicle), VehicleButton,
                 RowHeight + 2f, false);
             vehicle.tooltipText = "Choose which part of the vessel flies this step.";
-            vehicle.OptionEnabledCondition = HasSections;
+            vehicle.OptionEnabledCondition = model.Sections.HasSections;
             SegmentBar bar = new SegmentBar(MaxPieces, BarHeight, after);
             stepBars[leg, (int)role] = bar;
-            DialogGUILabel speed = new DialogGUILabel(Text(() => StepSpeed(leg, role)), StepSpeed_, RowHeight);
+            DialogGUILabel speed = new DialogGUILabel(Text(() => model.StepSpeed(leg, role)), StepSpeed_, RowHeight);
             DialogGUIButton open = new DialogGUIButton(() => more[leg, (int)role] ? "<b><color=" + Good + ">...</color></b>" : "...",
-                () => { more[leg, (int)role] = !more[leg, (int)role]; textVersion++; }, Square, Square, false);
+                () => { more[leg, (int)role] = !more[leg, (int)role]; model.Touch(); }, Square, Square, false);
             open.tooltipText = "More options for this step.";
-            System.Func<bool> hasMore = Cached(() => HasMore(leg, role));
+            System.Func<bool> hasMore = Cached(() => model.HasMore(leg, role));
             open.OptionEnabledCondition = hasMore;
             DialogGUISpace noMore = new DialogGUISpace(Square);
             noMore.OptionEnabledCondition = () => !hasMore();
             Sizer filler = new Sizer(after);
             barFillers[leg, (int)role] = filler;
             DialogGUIHorizontalLayout row = new GatedRow(width, Icon + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft,
-                TimelineLine(Icon + 2f), new DialogGUILabel(Text(() => StepPlace(leg, role)), Place), vehicle, bar.Layout,
+                TimelineLine(Icon + 2f), new DialogGUILabel(Text(() => model.StepPlace(leg, role)), Place), vehicle, bar.Layout,
                 filler.Add(new DialogGUISpace(1f)), speed, open, noMore);
             row.OptionEnabledCondition = shown;
             yield return row;
 
-            DialogGUIButton refuel = Choice("Refuel", () => Refuels(leg, role), () => ToggleRefuel(leg, role), 64f);
+            DialogGUIButton refuel = Choice("Refuel", () => model.Refuels(leg, role), () => model.ToggleRefuel(leg, role), 64f);
             refuel.tooltipText = "Refuel this section from the rest of the vessel when it docks.";
             DialogGUIButton tanker = null;
-            tanker = new DialogGUIButton(() => TankerText(leg, role), () => PickTanker(leg, role, tanker), 150f, RowHeight + 2f, false);
+            tanker = new DialogGUIButton(() => model.TankerText(leg, role), () => PickTanker(leg, role, tanker), 150f, RowHeight + 2f, false);
             tanker.tooltipText = "Choose the stage of the rest of the vessel to refuel from first.";
-            tanker.OptionEnabledCondition = () => Refuels(leg, role);
+            tanker.OptionEnabledCondition = () => model.Refuels(leg, role);
             DialogGUIHorizontalLayout docks = new GatedRow(width, RowHeight + 4f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight + 4f), new DialogGUISpace(BarIndent),
                 new DialogGUILabel("<color=" + Dim + ">Docks with the rest</color>", OptionLabel), refuel, tanker);
-            docks.OptionEnabledCondition = () => Docks(leg, role);
+            docks.OptionEnabledCondition = () => model.Docks(leg, role);
             yield return docks;
 
             DialogGUIHorizontalLayout stays = new GatedRow(width, RowHeight, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
-                new DialogGUILabel(Text(() => "<color=" + Dim + ">" + DeployedText(leg, role) + "</color>"), width - Timeline - BarIndent - 8f,
+                new DialogGUILabel(Text(() => "<color=" + Dim + ">" + model.DeployedText(leg, role) + "</color>"), width - Timeline - BarIndent - 8f,
                     RowHeight));
-            stays.OptionEnabledCondition = Cached(() => DeployedText(leg, role).Length > 0);
+            stays.OptionEnabledCondition = Cached(() => model.DeployedText(leg, role).Length > 0);
             yield return stays;
 
             // Behind "...", each on a line of its own, as they concern different
             // things: the way down, the burns across.
-            DialogGUIButton straight = Choice("Straight in", () => !OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, false), 88f);
+            DialogGUIButton straight = Choice("Straight in", () => !model.OrbitFirst(leg + 1), () => model.SetOrbitFirst(leg + 1, false), 88f);
             straight.tooltipText = "Enter the atmosphere directly and land.";
-            DialogGUIButton orbitFirst = Choice("Orbit first", () => OrbitFirst(leg + 1), () => SetOrbitFirst(leg + 1, true), 84f);
+            DialogGUIButton orbitFirst = Choice("Orbit first", () => model.OrbitFirst(leg + 1), () => model.SetOrbitFirst(leg + 1, true), 84f);
             orbitFirst.tooltipText = "Brake into a low orbit first, then land.";
-            yield return OptionLine(leg, role, "Way down", () => IntoTheAir(leg, role), straight, orbitFirst);
+            yield return OptionLine(leg, role, "Way down", () => model.IntoTheAir(leg, role), straight, orbitFirst);
 
-            DialogGUIButton together = Choice("Together", () => !SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, false), 88f);
+            DialogGUIButton together = Choice("Together", () => !model.SplitsBurns(leg + 1), () => model.SetSplitBurns(leg + 1, false), 88f);
             together.tooltipText = "Plan the departure and arrival burns as one step.";
-            DialogGUIButton split = Choice("Split", () => SplitsBurns(leg + 1), () => SetSplitBurns(leg + 1, true), 84f);
+            DialogGUIButton split = Choice("Split", () => model.SplitsBurns(leg + 1), () => model.SetSplitBurns(leg + 1, true), 84f);
             split.tooltipText = "Plan the departure and arrival burns as separate steps, each with its own flyer.";
-            yield return OptionLine(leg, role, "Burns", Cached(() => role == StepRole.Transfer && CanSplit(leg)), together, split);
+            yield return OptionLine(leg, role, "Burns", Cached(() => role == StepRole.Transfer && model.CanSplit(leg)), together, split);
 
-            for (int i = 0; i < MaxWarnings; i++)
+            for (int i = 0; i < PlannerModel.MaxWarnings; i++)
             {
                 int line = i;
                 DialogGUIHorizontalLayout warning = new GatedRow(width, RowHeight, Gap, new RectOffset(),
                     TextAnchor.MiddleLeft, TimelineLine(RowHeight), new DialogGUISpace(BarIndent),
-                    new DialogGUILabel(Text(() => "<color=" + Problem + ">" + WarningText(leg, role, line) + "</color>"),
+                    new DialogGUILabel(Text(() => "<color=" + Problem + ">" + model.WarningText(leg, role, line) + "</color>"),
                         width - Timeline - BarIndent - 8f, RowHeight));
-                warning.OptionEnabledCondition = () => WarningText(leg, role, line).Length > 0;
+                warning.OptionEnabledCondition = () => model.WarningText(leg, role, line).Length > 0;
                 yield return warning;
             }
         }
@@ -474,95 +453,8 @@ namespace ReDefinition.Engineer
             elements.AddRange(choices);
             DialogGUIHorizontalLayout line = new GatedRow(width, RowHeight + 4f, Gap, new RectOffset(),
                 TextAnchor.MiddleLeft, elements.ToArray());
-            line.OptionEnabledCondition = () => more[leg, (int)role] && Slot(leg, role) >= 0 && applies();
+            line.OptionEnabledCondition = () => more[leg, (int)role] && model.Slot(leg, role) >= 0 && applies();
             return line;
-        }
-
-        // Who flies the step: green, bold and underlined where the player chose it.
-        private string VehicleText(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            if (index < 0) return "";
-            string name = FlyerName(steps[index].Flyer);
-            return steps[index].Chosen ? "<b><u><color=" + Good + ">" + name + "</color></u></b>" : "<color=" + Good + ">" + name + "</color>";
-        }
-
-        // "To Mun surface", "To Kerbin's air", "To Kerbin orbit".
-        private string StepPlace(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            return index < 0 ? "" : "To " + RouteSteps.Place(bodies.Bodies, steps[index].To);
-        }
-
-        // "The lander separates in Mun orbit", "The lander is left behind on the Mun".
-        private string SeparationText(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            if (index < 0 || !steps[index].Separates) return "";
-            RouteStep step = steps[index];
-            string place = RouteSteps.At(bodies.Bodies, step.From);
-            string leaver = Lower(FlyerName(Flyer.Alone(step.Leaver)));
-            if (step.Flyer.Kind == FlyerKind.Without) return "The " + leaver + " is left behind " + place;
-            if (step.LeavesFrom == 0) return "The " + leaver + " separates " + place;
-            return "The " + leaver + " separates from the " + Lower(FlyerName(Flyer.Alone(step.LeavesFrom))) + " " + place;
-        }
-
-        // "The satellite is deployed here": the sections deployed at the step's end.
-        private string DeployedText(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            if (index < 0 || steps[index].Deploys.Count == 0) return "";
-            List<string> names = new List<string>();
-            foreach (int id in steps[index].Deploys) names.Add(Lower(FlyerName(Flyer.Alone(id))));
-            return "The " + string.Join(", the ", names.ToArray()) + (names.Count == 1 ? " is deployed here" : " are deployed here");
-        }
-
-        // Whether the section flying the step docks with the rest at its end.
-        private bool Docks(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            return index >= 0 && steps[index].Docks;
-        }
-
-        // The way across ends in the air, for a landing on parachutes, or would
-        // without "Orbit first".
-        private bool IntoTheAir(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            if (role != StepRole.Transfer || index < 0 || !Shown(leg + 1)) return false;
-            RouteStop goal = state.Stops[leg + 1];
-            return goal.Kind == StopKind.Surface && goal.UseAtmosphere && bodies.Bodies[goal.Body].HasAtmosphere;
-        }
-
-        // Whether the step has further choices behind "...".
-        private bool HasMore(int leg, StepRole role)
-        {
-            return Slot(leg, role) >= 0 && (IntoTheAir(leg, role) || (role == StepRole.Transfer && CanSplit(leg)));
-        }
-
-        // The way across to the next destination has a burn that leaves and one that
-        // arrives (RouteSteps.Splits).
-        private bool CanSplit(int leg)
-        {
-            return HasBody(leg) && HasBody(leg + 1) && RouteSteps.Splits(bodies.Bodies, state.Stops[leg], state.Stops[leg + 1]);
-        }
-
-        // The step's warning on that line; empty where it has fewer.
-        private string WarningText(int leg, StepRole role, int line)
-        {
-            int index = Slot(leg, role);
-            if (index < 0 || index >= warnings.Length || warnings[index] == null || line >= warnings[index].Count) return "";
-            return warnings[index][line];
-        }
-
-        // What the step needs, with the margin; in red where something stands in its way.
-        private string StepSpeed(int leg, StepRole role)
-        {
-            int index = Slot(leg, role);
-            if (index < 0) return "";
-            string speed = EngineerFormat.Speed(budget.Needed[index]);
-            if (warnings[index].Count > 0) speed = "<color=" + Problem + ">" + speed + "</color>";
-            return speed;
         }
 
         // --------------------------------------------------------------- summary
@@ -575,18 +467,7 @@ namespace ReDefinition.Engineer
             yield return new GatedRow(width, BarHeight + 6f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
                 totalBar.Layout, new DialogGUIFlexibleSpace());
             yield return new GatedRow(width, RowHeight + 2f, 0f, new RectOffset(), TextAnchor.MiddleLeft,
-                new DialogGUILabel(SummaryText, width - RowEnd, RowHeight));
-        }
-
-        // "Left +1,200 m/s   Needed 4,500 m/s of 5,700 m/s"; in orange what the stages miss instead of what is left.
-        private string SummaryText()
-        {
-            if (!Worked()) return "";
-            string balance = budget.TotalShort > 0.5
-                ? "<color=" + Warning + ">-" + EngineerFormat.Speed(budget.TotalShort) + "</color>"
-                : "<color=" + Good + ">+" + EngineerFormat.Speed(budget.TotalLeft) + "</color>";
-            return "<color=" + Dim + ">Left</color> <b>" + balance + "</b><pos=40%><color=" + Dim + ">Needed</color> "
-                   + EngineerFormat.Speed(TotalNeeded()) + " <color=" + Dim + ">of</color> " + EngineerFormat.Speed(TotalHas());
+                new DialogGUILabel(model.SummaryText, width - RowEnd, RowHeight));
         }
 
         // A heading that opens and closes what is under it: the whole bar answers a
@@ -604,7 +485,7 @@ namespace ReDefinition.Engineer
                 () => "<align=right><b><size=120%><color=#e0e0e0>" + (shown() ? "-" : "+") + "</color></size></b></align>", Square, RowHeight);
             DialogGUIHorizontalLayout heading = new GatedRow(outer, HeaderHeight, 4f, new RectOffset((int)BoxMargin, 0, 0, 0),
                 TextAnchor.MiddleLeft, titleLabel,
-                new DialogGUILabel(Text(() => Worked() ? summary() : ""), outer - BoxMargin - HeadingTitle - Square - Gap * 2f - SignEdge, RowHeight),
+                new DialogGUILabel(Text(() => model.Worked() ? summary() : ""), outer - BoxMargin - HeadingTitle - Square - Gap * 2f - SignEdge, RowHeight),
                 sign);
             // On the bar itself: the pointer enters its background, not its labels.
             heading.tooltipText = tooltip;

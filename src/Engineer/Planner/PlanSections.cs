@@ -1,41 +1,42 @@
+using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot.Planning;
-using UnityEngine;
+using static ReDefinition.Engineer.PlanText;
 
 namespace ReDefinition.Engineer
 {
-    // The planner's sections (docs/player/planner.md) are parts of the vessel. The
-    // player adds them as a capsule, a lander or a satellite. The planner adds by itself the
-    // capsule of a crewed vessel, the one satellite of an uncrewed one, and a lander it finds.
-    // This part resolves them against the vessel's parts, names them, hands them to
-    // the route and the budget, and holds what the rows ask of them.
-    internal sealed partial class PlannerView
+    // A section as the plan works with it now.
+    internal sealed class LiveSection
+    {
+        // The section as the plan keeps it.
+        public PlannedSection Plan;
+        // Its parts, null where none are picked or the vessel does not have them.
+        public PartGroupChoice Group;
+        // "Lander", "Satellite 2": its kind, numbered where the plan has more than one.
+        public string Name = "";
+        // It overlaps a section before it, so it counts for nothing.
+        public string Problem;
+        // A satellite's destination, -1 for none; whether it docks again by itself; whether it and the rest have docking ports.
+        public int DeployAt = -1;
+        public bool Docks;
+        public bool CanDock;
+
+        // Whether it has parts and overlaps no section before it.
+        public bool Valid
+        {
+            get { return Group != null && Problem == null; }
+        }
+    }
+
+    // The planner's sections (docs/player/planner.md) are parts of the vessel. The player adds them as a capsule, a lander or a satellite. The planner
+    // adds by itself the capsule of a crewed vessel, the one satellite of an uncrewed one, and a lander it finds. This class resolves them against
+    // the vessel's parts, names them, hands them to the route and the budget, and answers what the rows ask of them. It holds no dialog elements.
+    internal sealed class PlanSections
     {
         // The most sections a plan has, the planner's found ones among them.
-        private const int MaxSections = 6;
+        internal const int MaxSections = 6;
 
-        // A section as the plan works with it now.
-        private sealed class LiveSection
-        {
-            // The section as the plan keeps it.
-            public PlannedSection Plan;
-            // Its parts, null where none are picked or the vessel does not have them.
-            public PartGroupChoice Group;
-            // "Lander", "Satellite 2": its kind, numbered where the plan has more than one.
-            public string Name = "";
-            // It overlaps a section before it, so it counts for nothing.
-            public string Problem;
-            // A satellite's destination, -1 for none; whether it docks again by itself; whether it and the rest have docking ports.
-            public int DeployAt = -1;
-            public bool Docks;
-            public bool CanDock;
-
-            // Whether it has parts and overlaps no section before it.
-            public bool Valid
-            {
-                get { return Group != null && Problem == null; }
-            }
-        }
+        private readonly PlannerModel model;
 
         // The vessel's parts as last read; the groups that can be sections; the sections, valid or not, in the rows' order.
         private List<PartFacts> parts = new List<PartFacts>();
@@ -61,12 +62,45 @@ namespace ReDefinition.Engineer
         // they are made, so the same list gives the same groups.
         private List<PartFacts> groupsOf;
 
+        // The part group under the pointer in a section's list, the only thing the planner marks on the vessel; null for none.
+        internal PartGroupChoice LitGroup;
+        // Called when the pointer comes onto an entry of a list of part groups or leaves it, so that the vessel's marks follow.
+        internal Action GroupLit;
+
+        internal PlanSections(PlannerModel model)
+        {
+            this.model = model;
+        }
+
+        // The vessel's parts as last read, the groups among them that can be sections, and the sections in the rows' order.
+        internal List<PartFacts> Parts
+        {
+            get { return parts; }
+        }
+
+        internal List<PartGroupChoice> Groups
+        {
+            get { return groups; }
+        }
+
+        internal List<LiveSection> Live
+        {
+            get { return live; }
+        }
+
+        // The valid sections, in the order of their budget groups.
+        internal List<LiveSection> Valid
+        {
+            get { return valid; }
+        }
+
         // ------------------------------------------------------------ resolving
 
         // The sections against the vessel's parts: the planner's own added where the
         // vessel calls for them, each with its parts, its name, and what it does.
-        private void Detect(List<PartFacts> facts)
+        internal void Detect(List<PartFacts> facts)
         {
+            PlannerState state = model.State;
             parts = facts;
             if (!ReferenceEquals(facts, groupsOf))
             {
@@ -77,7 +111,7 @@ namespace ReDefinition.Engineer
                 string keys = string.Join(" ", groups.ConvertAll(group => group.Key + "=" + group.Members.Count).ToArray());
                 if (keys != groupKeys)
                 {
-                    if (groupKeys != null) Dropdown.Close(this);
+                    if (groupKeys != null) model.CloseLists();
                     groupKeys = keys;
                 }
             }
@@ -145,7 +179,7 @@ namespace ReDefinition.Engineer
             if (facts.Count > 0 && found != detectedLogged)
             {
                 detectedLogged = found;
-                Debug.Log(Core.Log.Tag + " Planner found from " + facts.Count + " parts: " + found + ".");
+                model.Say("Planner found from " + facts.Count + " parts: " + found + ".");
                 if (detectedCapsule != null && !detectedCapsule.Parachute)
                 {
                     var members = new List<string>();
@@ -153,7 +187,7 @@ namespace ReDefinition.Engineer
                     var chutes = new List<string>();
                     foreach (PartFacts fact in facts)
                         if (fact.Parachute) chutes.Add(fact.Title + " (stage " + fact.DecoupleStage + ")");
-                    Debug.Log(Core.Log.Tag + " Planner: the capsule has no parachute: it holds " + string.Join(", ", members.ToArray())
+                    model.Say("Planner: the capsule has no parachute: it holds " + string.Join(", ", members.ToArray())
                               + "; the vessel's parachutes: " + (chutes.Count > 0 ? string.Join(", ", chutes.ToArray()) : "none") + ".");
                 }
             }
@@ -165,7 +199,7 @@ namespace ReDefinition.Engineer
         // on it (Keep).
         private void Found(List<PlannedSection> plans, SectionKind kind, PartGroupChoice found, ref PlannedSection section, int id)
         {
-            if (found == null || state.Dismissed.Contains(kind) || plans.Count >= MaxSections
+            if (found == null || model.State.Dismissed.Contains(kind) || plans.Count >= MaxSections
                 || plans.Exists(plan => plan.Kind == kind))
                 return;
             // A guess gives way to the sections the plan has.
@@ -178,16 +212,24 @@ namespace ReDefinition.Engineer
             plans.Add(section);
         }
 
+        // The planner forgets the sections it found, so that a vessel loaded or begun finds its own anew.
+        internal void ForgetFound()
+        {
+            foundCapsule = null;
+            foundSatellite = null;
+            foundLander = null;
+        }
+
         // The planner's own section becomes the plan's as the player sets something on
         // it.
         private void Keep(PlannedSection plan)
         {
-            state.Keep(plan);
-            Changed();
+            model.State.Keep(plan);
+            model.Changed();
         }
 
         // The capsule, satellite or lander the planner found on the vessel; null for none.
-        private PartGroupChoice Detected(SectionKind kind)
+        internal PartGroupChoice Detected(SectionKind kind)
         {
             switch (kind)
             {
@@ -221,21 +263,22 @@ namespace ReDefinition.Engineer
         private int DeployStop(PlannedSection plan)
         {
             if (plan.Kind != SectionKind.Satellite) return -1;
-            if (plan.DeployAt >= 1 && plan.DeployAt < state.Stops.Count) return plan.DeployAt;
+            if (plan.DeployAt >= 1 && plan.DeployAt < model.State.Stops.Count) return plan.DeployAt;
             return AutoDeployStop();
         }
 
         // The first orbit on the route that is its end or comes right before a landing; -1 for none.
         private int AutoDeployStop()
         {
-            for (int i = 1; i < state.Stops.Count; i++)
-                if (HasBody(i) && state.Stops[i].Kind == StopKind.Orbit && (i == state.Stops.Count - 1 || state.Stops[i + 1].Kind == StopKind.Surface))
+            List<RouteStop> stops = model.State.Stops;
+            for (int i = 1; i < stops.Count; i++)
+                if (model.HasBody(i) && stops[i].Kind == StopKind.Orbit && (i == stops.Count - 1 || stops[i + 1].Kind == StopKind.Surface))
                     return i;
             return -1;
         }
 
         // The group of parts by its key; null where the vessel has none such.
-        private PartGroupChoice Group(string key)
+        internal PartGroupChoice Group(string key)
         {
             return groups.Find(group => group.Key == key);
         }
@@ -246,28 +289,28 @@ namespace ReDefinition.Engineer
             return group != null ? group.Name : "none";
         }
 
-        // The name as it reads inside a sentence, its first letter small.
-        private static string Lower(string name)
-        {
-            return string.IsNullOrEmpty(name) ? "" : char.ToLowerInvariant(name[0]) + name.Substring(1);
-        }
-
         // Whether any section is valid.
-        private bool HasSections()
+        internal bool HasSections()
         {
-            return Ready() && valid.Count > 0;
+            return model.Ready() && valid.Count > 0;
         }
 
         // The section by its id; null where the plan has none such.
-        private LiveSection SectionById(int id)
+        internal LiveSection SectionById(int id)
         {
             return live.Find(section => section.Plan.Id == id);
+        }
+
+        // The section shown in that row; null where there is none.
+        internal LiveSection RowSection(int row)
+        {
+            return model.Ready() && row < live.Count ? live[row] : null;
         }
 
         // ----------------------------------------------------- route and budget
 
         // The valid sections as the route needs them.
-        private List<RouteSection> RouteSections()
+        internal List<RouteSection> RouteSections()
         {
             List<RouteSection> list = new List<RouteSection>();
             List<PartGroupChoice> chosen = valid.ConvertAll(section => section.Group);
@@ -295,10 +338,10 @@ namespace ReDefinition.Engineer
 
         // The route's steps as the budget takes them: what each needs, which budget groups fly it, are gone as it starts,
         // are refilled after it, or stay at its destination.
-        private List<BudgetStep> BudgetSteps()
+        internal List<BudgetStep> BudgetSteps()
         {
             List<BudgetStep> list = new List<BudgetStep>();
-            foreach (RouteStep step in steps)
+            foreach (RouteStep step in model.Steps)
             {
                 BudgetStep budgetStep = new BudgetStep { Need = step.Leg.DeltaV, Side = new bool[valid.Count + 1] };
                 foreach (int id in step.Flying)
@@ -314,7 +357,7 @@ namespace ReDefinition.Engineer
                 if (step.RefuelAfter && step.Flyer.Kind == FlyerKind.Alone)
                 {
                     budgetStep.RefuelGroup = BudgetGroup(step.Flyer.Section);
-                    budgetStep.RefuelFrom = state.Stops[step.Goal].RefuelFrom[(int)step.Role];
+                    budgetStep.RefuelFrom = model.State.Stops[step.Goal].RefuelFrom[(int)step.Role];
                 }
                 foreach (int id in step.Deploys)
                 {
@@ -326,21 +369,23 @@ namespace ReDefinition.Engineer
             return list;
         }
 
+        // The id of the section the part belongs to, 0 for the rest; the part's index must be below the parts the sections were found for.
+        private int OwnerOf(int part)
+        {
+            int group = partGroups[part];
+            return group == 0 ? 0 : valid[group - 1].Plan.Id;
+        }
+
         // A part of that kind on what flies a step.
-        private bool Carries(System.Func<PartFacts, bool> kind, RouteStep step)
+        internal bool Carries(Func<PartFacts, bool> kind, RouteStep step)
         {
             for (int i = 0; i < parts.Count && i < partGroups.Length; i++)
-            {
-                if (!kind(parts[i])) continue;
-                int group = partGroups[i];
-                int id = group == 0 ? 0 : valid[group - 1].Plan.Id;
-                if (step.Flying.Contains(id)) return true;
-            }
+                if (kind(parts[i]) && step.Flying.Contains(OwnerOf(i))) return true;
             return false;
         }
 
         // A part of that kind on the first capsule, or on the vessel where it has none.
-        private bool CapsuleCarries(System.Func<PartFacts, bool> kind)
+        internal bool CapsuleCarries(Func<PartFacts, bool> kind)
         {
             LiveSection capsule = valid.Find(section => section.Plan.Kind == SectionKind.Capsule);
             for (int i = 0; i < parts.Count; i++)
@@ -348,10 +393,19 @@ namespace ReDefinition.Engineer
             return false;
         }
 
+        // The parts of what flies a step, by index.
+        internal List<int> FlyingParts(RouteStep step)
+        {
+            List<int> members = new List<int>();
+            for (int i = 0; i < parts.Count && i < partGroups.Length; i++)
+                if (step.Flying.Contains(OwnerOf(i))) members.Add(i);
+            return members;
+        }
+
         // ------------------------------------------------------------ who flies
 
         // "Ship", "Lander", "Without lander".
-        private string FlyerName(Flyer flyer)
+        internal string FlyerName(Flyer flyer)
         {
             if (flyer.Kind == FlyerKind.Ship) return "Ship";
             LiveSection section = SectionById(flyer.Section);
@@ -359,22 +413,14 @@ namespace ReDefinition.Engineer
             return flyer.Kind == FlyerKind.Without ? "Without " + Lower(name) : name;
         }
 
-        // Who can fly a step, for the list the step's button opens: the whole vessel,
-        // each section alone, a lander left behind; or back to the planner's choice.
-        private void PickFlyer(int leg, StepRole role, DialogGUIBase button)
-        {
-            if (Slot(leg, role) < 0) return;
-            Dropdown.Show(this, button, FlyerChoices(leg, role), 150f);
-        }
-
         // The list of who can fly the step: the whole vessel, each section alone, the vessel without each lander; and the
         // planner's choice back where the player chose.
-        private List<Choice> FlyerChoices(int leg, StepRole role)
+        internal List<Choice> FlyerChoices(int leg, StepRole role)
         {
             List<Choice> choices = new List<Choice>();
-            int index = Slot(leg, role);
+            int index = model.Slot(leg, role);
             if (index < 0) return choices;
-            RouteStep step = steps[index];
+            RouteStep step = model.Steps[index];
             AddFlyer(choices, leg, role, step, Flyer.Ship, "The whole vessel flies this step.");
             foreach (LiveSection section in valid)
             {
@@ -411,8 +457,8 @@ namespace ReDefinition.Engineer
                 Label = FlyerName(flyer), Tooltip = tooltip, Current = step.Flyer.Code == flyer.Code,
                 Pick = () =>
                 {
-                    int index = Slot(leg, role);
-                    if (index >= 0 && steps[index].Chosen && steps[index].Flyer.Code == flyer.Code) return;
+                    int index = model.Slot(leg, role);
+                    if (index >= 0 && model.Steps[index].Chosen && model.Steps[index].Flyer.Code == flyer.Code) return;
                     ChooseFlyer(leg, role, flyer);
                 },
             });
@@ -422,24 +468,18 @@ namespace ReDefinition.Engineer
         // back to the planner.
         private void ChooseFlyer(int leg, StepRole role, Flyer flyer)
         {
-            int index = Slot(leg, role);
-            if (index < 0 || !Shown(leg + 1)) return;
-            int[] by = state.Stops[leg + 1].By;
-            by[(int)role] = steps[index].Chosen && steps[index].Flyer.Code == flyer.Code ? -1 : flyer.Code;
-            Changed();
+            int index = model.Slot(leg, role);
+            if (index < 0 || !model.Shown(leg + 1)) return;
+            int[] by = model.State.Stops[leg + 1].By;
+            by[(int)role] = model.Steps[index].Chosen && model.Steps[index].Flyer.Code == flyer.Code ? -1 : flyer.Code;
+            model.Changed();
         }
 
         // ------------------------------------------------------------ the rows
 
-        // The section shown in that row; null where there is none.
-        private LiveSection RowSection(int row)
-        {
-            return Ready() && row < live.Count ? live[row] : null;
-        }
-
         // "Automatic (Mk1-3 Command Pod, 4 parts)", "Mk2 Lander Can, 9 parts": the
         // section's button; the player's own pick bold and underlined.
-        private string SectionText(int row)
+        internal string SectionText(int row)
         {
             LiveSection section = RowSection(row);
             if (section == null) return "";
@@ -451,7 +491,7 @@ namespace ReDefinition.Engineer
         }
 
         // The section's name, dim, at the row's start.
-        private string SectionLabel(int row)
+        internal string SectionLabel(int row)
         {
             LiveSection section = RowSection(row);
             return section == null ? "" : "<color=" + Dim + ">" + section.Name + "</color>";
@@ -459,7 +499,7 @@ namespace ReDefinition.Engineer
 
         // What a section's line under it says: it overlaps another, or a capsule
         // without parachutes.
-        private string SectionWarning(int row)
+        internal string SectionWarning(int row)
         {
             LiveSection section = RowSection(row);
             if (section == null || section.Group == null) return "";
@@ -468,21 +508,12 @@ namespace ReDefinition.Engineer
             return "";
         }
 
-        // The parts that can be the section, each lit on the vessel while the pointer
-        // is on it: with a command part, a lander's with engines too; none overlapping
-        // another section.
-        private void PickSectionParts(PlannedSection plan, DialogGUIBase button)
-        {
-            if (!Ready() || plan == null) return;
-            Dropdown.Show(this, button, PartChoices(plan), PartButtonWidth);
-        }
-
         // The groups of parts that can be the section: "Automatic" for the planner's find, then each group with a command part
         // (and engines for a lander) that overlaps no other section; a line that says so where none fits.
-        private List<Choice> PartChoices(PlannedSection plan)
+        internal List<Choice> PartChoices(PlannedSection plan)
         {
             List<Choice> choices = new List<Choice>();
-            if (!Ready() || plan == null) return choices;
+            if (!model.Ready() || plan == null) return choices;
             PartGroupChoice found = Detected(plan.Kind);
             AddPart(choices, "Automatic", AutomaticTooltip(plan.Kind), plan.Group == PlannerState.Automatic,
                 () => SetSectionGroup(plan, PlannerState.Automatic), found);
@@ -534,8 +565,15 @@ namespace ReDefinition.Engineer
             choices.Add(new Choice
             {
                 Label = label, Tooltip = tooltip, Current = current, Pick = pick,
-                Hover = on => ShowGroup(on ? group : null),
+                Hover = on => Light(on ? group : null),
             });
+        }
+
+        // The pointer onto a list's entry, or off it.
+        private void Light(PartGroupChoice group)
+        {
+            LitGroup = group;
+            if (GroupLit != null) GroupLit();
         }
 
         // The section is that group of parts, and goes into the plan.
@@ -546,58 +584,51 @@ namespace ReDefinition.Engineer
             Keep(plan);
         }
 
-        // The kinds of section to add, for the list the "+" opens; the new section's
-        // parts to pick right after.
-        private void PickNewSection(DialogGUIBase button)
-        {
-            if (!Ready() || state.Sections.Count >= MaxSections) return;
-            Dropdown.Show(this, button, NewSectionChoices(button), 150f);
-        }
-
-        // `button`: where the new section's parts fold out; null where they are picked
+        // `added`: told of the new section after it is made, so that its parts can be picked right away; null where they are picked
         // elsewhere (the dashboard), from the section's own row.
-        private List<Choice> NewSectionChoices(DialogGUIBase button)
+        internal List<Choice> NewSectionChoices(Action<PlannedSection> added)
         {
             List<Choice> choices = new List<Choice>();
-            if (!Ready() || state.Sections.Count >= MaxSections) return choices;
-            AddKind(choices, SectionKind.Capsule, "Returns home on its own at the end, usually on parachutes.", button);
-            AddKind(choices, SectionKind.Lander, "Lands while the rest of the vessel waits in orbit.", button);
-            AddKind(choices, SectionKind.Satellite, "Is deployed at a destination.", button);
+            if (!model.Ready() || model.State.Sections.Count >= MaxSections) return choices;
+            AddKind(choices, SectionKind.Capsule, "Returns home on its own at the end, usually on parachutes.", added);
+            AddKind(choices, SectionKind.Lander, "Lands while the rest of the vessel waits in orbit.", added);
+            AddKind(choices, SectionKind.Satellite, "Is deployed at a destination.", added);
             return choices;
         }
 
-        // One entry of the list of kinds; the new section's parts fold out under `button` where it is given.
-        private void AddKind(List<Choice> choices, SectionKind kind, string tooltip, DialogGUIBase button)
+        // One entry of the list of kinds.
+        private void AddKind(List<Choice> choices, SectionKind kind, string tooltip, Action<PlannedSection> added)
         {
             choices.Add(new Choice
             {
                 Label = kind.ToString(), Tooltip = tooltip,
                 Pick = () =>
                 {
-                    PlannedSection plan = state.AddSection(kind, "");
-                    Changed();
-                    if (button != null) PickSectionParts(plan, button);
+                    PlannedSection plan = model.State.AddSection(kind, "");
+                    model.Changed();
+                    if (added != null) added(plan);
                 },
             });
         }
 
         // Takes the section away; after one the planner found, or the last of its kind, it adds none of that kind by itself.
-        private void RemoveSection(int row)
+        internal void RemoveSection(int row)
         {
             LiveSection section = RowSection(row);
             if (section == null) return;
-            Dropdown.Close(this);
+            model.CloseLists();
+            PlannerState state = model.State;
             if (state.Sections.Contains(section.Plan)) state.RemoveSection(section.Plan);
             else state.Dismissed.Add(section.Plan.Kind);
             // A found section comes back new, not with what was set on it.
             if (section.Plan == foundCapsule) foundCapsule = null;
             if (section.Plan == foundSatellite) foundSatellite = null;
             if (section.Plan == foundLander) foundLander = null;
-            Changed();
+            model.Changed();
         }
 
         // Whether the row's section is valid and of that kind.
-        private bool IsKind(int row, SectionKind kind)
+        internal bool IsKind(int row, SectionKind kind)
         {
             LiveSection section = RowSection(row);
             return section != null && section.Valid && section.Plan.Kind == kind;
@@ -605,35 +636,18 @@ namespace ReDefinition.Engineer
 
         // "C  Kerbin orbit": where a satellite stays; the planner's choice plain, the
         // player's bold and underlined.
-        private string DeployText(int row)
+        internal string DeployText(int row)
         {
             LiveSection section = RowSection(row);
             if (section == null) return "";
-            string place = section.DeployAt >= 1 ? StopText(section.DeployAt) : "No orbit on the route";
-            return section.Plan.DeployAt >= 1 && section.Plan.DeployAt < state.Stops.Count
+            string place = section.DeployAt >= 1 ? model.StopText(section.DeployAt) : "No orbit on the route";
+            return section.Plan.DeployAt >= 1 && section.Plan.DeployAt < model.State.Stops.Count
                 ? "<b><u><color=" + Good + ">" + place + "</color></u></b>"
                 : "<color=" + Good + ">Automatic</color> <color=" + Dim + ">(" + place + ")</color>";
         }
 
-        // "C  Kerbin orbit, 2,863 km".
-        private string StopText(int index)
-        {
-            RouteStop stop = state.Stops[index];
-            if (!HasBody(index)) return Letter(index) + "  no destination yet";
-            string text = Letter(index) + "  " + RouteSteps.Place(bodies.Bodies, stop);
-            if (stop.Kind == StopKind.Orbit) text += ", " + AltitudeKm(index) + " km";
-            return text;
-        }
-
-        // Folds the satellite's destinations out under the button.
-        private void PickDeployStop(int row, DialogGUIBase button)
-        {
-            if (RowSection(row) == null) return;
-            Dropdown.Show(this, button, DeployChoices(row), PartButtonWidth);
-        }
-
         // Where the satellite can stay: "Automatic", then every destination after the start.
-        private List<Choice> DeployChoices(int row)
+        internal List<Choice> DeployChoices(int row)
         {
             LiveSection section = RowSection(row);
             if (section == null) return new List<Choice>();
@@ -646,12 +660,12 @@ namespace ReDefinition.Engineer
                     Current = plan.DeployAt < 1, Pick = () => SetDeployStop(plan, -1),
                 },
             };
-            for (int i = 1; i < state.Stops.Count; i++)
+            for (int i = 1; i < model.State.Stops.Count; i++)
             {
                 int stop = i;
                 choices.Add(new Choice
                 {
-                    Label = StopText(i), Tooltip = "The satellite is deployed here; the rest of the vessel flies on without it.",
+                    Label = model.StopText(i), Tooltip = "The satellite is deployed here; the rest of the vessel flies on without it.",
                     Current = plan.DeployAt == i, Pick = () => SetDeployStop(plan, stop),
                 });
             }
