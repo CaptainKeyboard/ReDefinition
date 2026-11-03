@@ -20,7 +20,7 @@ namespace ReDefinition.Window
         // Accepts what the window holds, as the Accept button does.
         internal static void ProbeAccept()
         {
-            ApplyAndAskRestart();
+            WaitingNotice.ApplyAndAskRestart();
         }
     }
 }

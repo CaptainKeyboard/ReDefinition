@@ -12,7 +12,7 @@ namespace ReDefinition.Window
     internal static partial class SettingsWindow
     {
         // Applies what waits, saves ReDefinition's settings and restarts KSP, the game saved first where one is loaded.
-        private static void ApplyAndRestart()
+        internal static void ApplyAndRestart()
         {
             if (Unapplied()) Apply();
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
@@ -91,7 +91,7 @@ namespace ReDefinition.Window
         }
 
         // Every setting of every installed mod.
-        private static IEnumerable<BundledSetting> InstalledSettings()
+        internal static IEnumerable<BundledSetting> InstalledSettings()
         {
             foreach (IBundledMod mod in BundledSettings.Installed())
             {
@@ -215,10 +215,10 @@ namespace ReDefinition.Window
         // Then everything is read back, as the section in KSP's settings dialog does.
         // Each step is caught on its own, so one that fails leaves the
         // others.
-        private static void Apply()
+        internal static void Apply()
         {
             KeyCapture.Stop();
-            NoteWaiting();
+            WaitingNotice.Note();
             bool resetting = model.Resetting;
             bool newProfile = model.Profile != BundledSettings.ProfileName;
             HashSet<IBundledMod> written = new HashSet<IBundledMod>();

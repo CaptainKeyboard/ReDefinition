@@ -48,11 +48,11 @@ namespace ReDefinition.Window
         // them (a copy from opening, and the changed one).
         private static PopupDialog dialog;
         private static SettingCategory current = SettingCategory.Profiles;
-        private static KspSettingsSection.Edit edit;
+        internal static KspSettingsSection.Edit edit;
 
         // The bundled settings' rows: their values, where each came from, and
         // Apply's steps.
-        private static readonly SettingsEdit model = new SettingsEdit { Offered = OfferChoice };
+        internal static readonly SettingsEdit model = new SettingsEdit { Offered = OfferChoice };
 
         // The graphics profiles, Low to Max, read once per opening.
         private static List<GraphicsProfile> profiles = new List<GraphicsProfile>();
@@ -70,6 +70,19 @@ namespace ReDefinition.Window
 
         // Whether something in the window waits for Accept.
         internal static bool HasUnapplied { get { return dialog != null && Unapplied(); } }
+
+        // From ModWindowsAddon once a scene is ready.
+        internal static void SceneChanged()
+        {
+            WaitingNotice.SceneChanged();
+        }
+
+        // What waits for a restart without a row: files a download or an install placed, which KSP takes at its next
+        // start.
+        internal static void NoteRestart(string key, string title, string owner)
+        {
+            WaitingNotice.NoteRestart(key, title, owner);
+        }
 
         // Lets go of a text field of this window that ended its input and is still selected: the search field, left
         // selected after Return, which Space or Return would open again. Asked before TextFieldFocused.
@@ -286,9 +299,9 @@ namespace ReDefinition.Window
                     // clicked, and what stood left of it would move under the
                     // pointer for a second click.
                     RestartButton(),
-                    WaitingNotice(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
+                    WaitingNotice.Build(WindowWidth - 20f - ResetWidth - RestartWidth - 2f * 80f - 32f),
                     new DialogGUIFlexibleSpace(),
-                    PendingButton(Localizer.Format("#autoLOC_149513"), ApplyAndAskRestart, true),
+                    PendingButton(Localizer.Format("#autoLOC_149513"), WaitingNotice.ApplyAndAskRestart, true),
                     PendingButton(Localizer.Format("#autoLOC_174783"), Discard, true),
                     PendingButton(Localizer.Format("#autoLOC_149514"), () => { }, false)),
             };
@@ -312,7 +325,7 @@ namespace ReDefinition.Window
                 false);
             button.tooltipText = "Applies what the window holds and starts KSP again, for the changes that take effect"
                                  + " only at a start. Where a game is loaded, it is saved first.";
-            button.OptionEnabledCondition = () => GameRestart.Available && RestartWaiting();
+            button.OptionEnabledCondition = () => GameRestart.Available && WaitingNotice.RestartWaiting();
             return button;
         }
 

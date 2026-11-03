@@ -3,6 +3,7 @@ using System.Text;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
@@ -10,7 +11,7 @@ namespace ReDefinition.Window
     // yellow: rows changed and not applied yet, and rows applied that wait for
     // the next scene or a restart -- the bundled mods' and ReDefinition's own.
     // The line is short; its tooltip names each setting and when it arrives.
-    internal static partial class SettingsWindow
+    internal static class WaitingNotice
     {
         // How many waiting changes the tooltip lists by name, and the yellow the line is drawn in.
         private const int WaitingListed = 8;
@@ -31,7 +32,7 @@ namespace ReDefinition.Window
         private static readonly Dictionary<string, WaitingChange> applied = new Dictionary<string, WaitingChange>();
 
         // Before Apply sets the rows: what it sets that does not take effect at once.
-        private static void NoteWaiting()
+        internal static void Note()
         {
             foreach (KeyValuePair<string, WaitingChange> pair in Waiting(false)) applied[pair.Key] = pair.Value;
         }
@@ -49,7 +50,7 @@ namespace ReDefinition.Window
 
         // Accept, and where it sets something that takes effect only at a start -- or a download placed such
         // files -- the question whether to restart KSP now or later.
-        private static void ApplyAndAskRestart()
+        internal static void ApplyAndAskRestart()
         {
             List<string> titles = new List<string>();
             foreach (KeyValuePair<string, WaitingChange> pair in Waiting(true))
@@ -62,7 +63,7 @@ namespace ReDefinition.Window
                 "Restart now", ApplyAndRestart, "Later");
         }
 
-        // From ModWindowsAddon once a scene is ready.
+        // Drops what arrived with the scene: from ModWindowsAddon once a scene is ready.
         internal static void SceneChanged()
         {
             List<string> arrived = new List<string>();
@@ -139,7 +140,7 @@ namespace ReDefinition.Window
         private static bool waitingRestart;
 
         // Whether a change, applied or not, waits for a restart.
-        private static bool RestartWaiting()
+        internal static bool RestartWaiting()
         {
             RefreshWaiting();
             return waitingRestart;
@@ -182,7 +183,7 @@ namespace ReDefinition.Window
         }
 
         // A button without a background: KSP's labels carry no tooltip, its buttons do.
-        private static DialogGUIBase WaitingNotice(float width)
+        internal static DialogGUIBase Build(float width)
         {
             DialogGUIButton notice = new DialogGUIButton(() =>
             {
