@@ -21,7 +21,8 @@ the debug switches and the pages below them, and the report on other mods.
   (`src/ReDefinitionAddon.cs`) that draw the window's regions.
 - `DebugOption` holds an option's page, kind and persistence. `DebugOptionSet` filters, resets
   and pins them.
-- `ReDefinitionAddon.FrameRates.cs` measures the rendered and the shown frame rate once a second.
+- `FrameRateReadout` measures the rendered and the shown frame rate once a second, and the frame rate
+  with the upscaler on against off.
 - `DiagnosticsStyles` and `DiagnosticsContent` hold the styles and the `GUIContent` the window
   draws with, made once.
 - `ForeignAssumptionReport` logs what came of the assumptions about other mods' code when the

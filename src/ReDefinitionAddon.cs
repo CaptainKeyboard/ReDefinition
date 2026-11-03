@@ -5,6 +5,7 @@ using FidelityFX.FSR3;
 using ReDefinition.Api.Internal;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
+using ReDefinition.Diagnostics;
 using ReDefinition.Settings.Behaviours;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
@@ -95,6 +96,9 @@ namespace ReDefinition
 
         // The toolbar button that opens the settings window and shows whether it is open.
         private ToolbarButton toolbarButton;
+
+        // The frame rates, with the upscaler on and off, that the diagnostics window shows.
+        private readonly FrameRateReadout rates = new FrameRateReadout();
 
         // The one instance, for KSP's settings dialog (KspSettingsSection),
         // which reads and changes the same settings as the diagnostics window.
@@ -214,9 +218,8 @@ namespace ReDefinition
             // Neither on nor off: a rig for frame generation alone carries the
             // capture's cost, or the native antialiasing's, which would skew the
             // upscaler's comparison.
-            if (rig == null || (!rig.PassThrough && wantEnabled))
-                (active ? meterOn : meterOff).Sample(Time.unscaledDeltaTime);
-            UpdateFrameRates();
+            if (rig == null || (!rig.PassThrough && wantEnabled)) rates.Sample(active);
+            rates.Update(windowVisible);
             if (windowVisible) RefreshLiveStrip();
 
             RebuildOnCameraModeChange();
@@ -589,7 +592,7 @@ namespace ReDefinition
             attachedTo = target;
             if (!passThrough || !wantEnabled) problem = null;
             // A rig for frame generation alone measures neither.
-            if (!passThrough) meterOn.Reset();
+            if (!passThrough) rates.ResetOn();
 
             Debug.Log(Log.Tag + " Upscaler running on '" + target.name + "': "
                       + rig.RenderSize.x + "x" + rig.RenderSize.y + " -> "
@@ -738,7 +741,7 @@ namespace ReDefinition
                 RequestRenderSizeFollowUp("upscaler detached");
             }
             attachedTo = null;
-            meterOff.Reset();
+            rates.ResetOff();
         }
 
         // Other mods size some of their buffers once, by the camera or the

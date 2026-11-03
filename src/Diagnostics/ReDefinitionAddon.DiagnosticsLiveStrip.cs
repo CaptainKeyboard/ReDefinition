@@ -21,8 +21,7 @@ namespace ReDefinition
         private static readonly GUILayoutOption SparklineWidthOption = GUILayout.Width(SparklineWidth);
         private static readonly GUILayoutOption SparklineHeightOption = GUILayout.Height(SparklineHeight);
 
-        // The last 240 frame times (ms), when the strip is next due, and the graph's top and median, set at its refresh.
-        private readonly FrameTimeRing frameTimes = new FrameTimeRing(240);
+        // When the strip is next due, and the graph's top and median, set at its refresh.
         private float nextStripRefresh;
         private float sparklineTop = 33.3f;
         private float sparklineMedian;
@@ -37,7 +36,7 @@ namespace ReDefinition
         private string lowLatencyDescription = "";
         private string rateRatioText = "--";
         private string recordingState = "";
-        // The frame rate with the upscaler on against off (FrameRateComparison), made with the rest.
+        // The frame rate with the upscaler on against off (FrameRateReadout.Comparison), made with the rest.
         private string frameRateText = "";
 
         // "FSR 3 + XeSS-FG 2x + XeLL": the upscaler that runs, the frame generation that
@@ -79,10 +78,13 @@ namespace ReDefinition
             nextStripRefresh = Time.unscaledTime + 0.25f;
 
             runningText = RunningText();
+            float renderedFps = rates.RenderedFps;
+            float shownFps = rates.ShownFps;
             fpsText = renderedFps < 0f ? "-- fps"
                 : shownFps > renderedFps ? renderedFps.ToString("0") + " -> " + shownFps.ToString("0") + " fps"
                 : renderedFps.ToString("0") + " fps";
 
+            FrameTimeRing frameTimes = rates.FrameTimes;
             if (frameTimes.Count > 0)
             {
                 sparklineMedian = frameTimes.Percentile(0.5f);
@@ -101,9 +103,10 @@ namespace ReDefinition
             string technique = FrameGenerationBridge.TechniqueName();
             fgTechniqueText = !frameGeneration ? "off" : technique ?? "not generating";
             lowLatencyDescription = ReflexFrames.LowLatencyText() ?? "no proxy, or it does not say";
+            float presentedPerRendered = rates.PresentedPerRendered;
             rateRatioText = presentedPerRendered > 0f ? presentedPerRendered.ToString("0.00") + " presented per rendered frame" : "--";
             recordingState = ScreenRecordingBridge.State();
-            frameRateText = FrameRateComparison();
+            frameRateText = rates.Comparison();
         }
 
         // The strip: what runs and the frame rate, then the graph, the frame time, latency and load lines, and the filter
@@ -124,7 +127,7 @@ namespace ReDefinition
             GUILayout.BeginVertical(DiagnosticsLayout.FrameTimeColumn);
             GUILayout.Label(frameTimeText, styles.Small);
             GUILayout.Label(latencyText, styles.Small);
-            GUILayout.Label(loadText, styles.Small);
+            GUILayout.Label(rates.LoadText, styles.Small);
             GUILayout.EndVertical();
 
             GUILayout.FlexibleSpace();
@@ -174,6 +177,7 @@ namespace ReDefinition
             GUI.color = new Color(0f, 0f, 0f, 0.45f);
             GUI.DrawTexture(area, white);
 
+            FrameTimeRing frameTimes = rates.FrameTimes;
             int count = frameTimes.Count;
             if (count >= 2)
             {
