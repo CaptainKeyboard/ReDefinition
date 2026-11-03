@@ -1,17 +1,16 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Core;
-using ReDefinition.Diagnostics;
 using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
     // The diagnostics window's page of other mods, three lists -- their state that decides the
     // image, the registrations, and the assumptions about their code -- as tables the search
     // filters by line. The lines are made at the layout pass and read by the event after it.
-    public partial class ReDefinitionAddon
+    internal sealed partial class DiagnosticsWindow
     {
         // The page's three lists, picked by the buttons at its top: the mods' state, their registrations,
         // their code.
@@ -106,7 +105,7 @@ namespace ReDefinition
                     Tint = !line.Present ? Color.gray : !line.Ok ? DiagnosticsStyles.Warning : Color.white,
                 });
             }
-            if (!string.IsNullOrEmpty(hostStackMessage)) modRowsNote = hostStackMessage;
+            if (!string.IsNullOrEmpty(addon.hostStackMessage)) modRowsNote = addon.hostStackMessage;
         }
 
         // What the mod registrations built (docs/modders/registering-a-mod.md): the

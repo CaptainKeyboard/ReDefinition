@@ -35,21 +35,21 @@ namespace ReDefinition
         private static readonly string[] CameraPreference = { "Camera 00", "Main Camera" };
 
         // The rig running, null while none is, and the camera it is attached to.
-        private UpscalerRig rig;
+        internal UpscalerRig rig;
         private Camera attachedTo;
 
         // The scene the last Update saw, which a new one detaches from; the player's upscaler switch; why the upscaler
         // does not run, for the windows; when TryAttach may try next; and the camera mode last seen (RebuildOnCameraModeChange).
         private GameScenes lastScene = (GameScenes)(-1);
-        private bool wantEnabled;
-        private string problem;
+        internal bool wantEnabled;
+        internal string problem;
         private float nextAttachAttempt;
         private CameraManager.CameraMode lastCameraMode;
         private bool cameraModeKnown;
 
         // Why the chosen technique cannot run and FSR 3 runs instead, as TryAttach
         // last found; the reason last logged.
-        private string fallbackReason;
+        internal string fallbackReason;
         private string loggedFallback;
 
         // A new rig asked for (Reattach), built by the next Update.
@@ -59,7 +59,7 @@ namespace ReDefinition
         // failed at. FSR 3 runs in their place until something that decides it
         // changes (the technique, its mode or preset, the output size, the
         // scene) or the player asks for another try.
-        private readonly Dictionary<UpscalerBackend, string> nativeFailures = new Dictionary<UpscalerBackend, string>();
+        internal readonly Dictionary<UpscalerBackend, string> nativeFailures = new Dictionary<UpscalerBackend, string>();
         private Vector2Int nativeFailureOutput;
         // Those the proxy called standing -- no RTX GPU, no DLL, no D3D12 path:
         // only a new choice of technique or the player's retry forgets them.
@@ -100,6 +100,10 @@ namespace ReDefinition
         // The frame rates, with the upscaler on and off, that the diagnostics window shows.
         private readonly FrameRateReadout rates = new FrameRateReadout();
 
+        // The diagnostics window this add-on draws, and the screen recording it arms.
+        private DiagnosticsWindow diagnostics;
+        private readonly ScreenRecordingTimer recording = new ScreenRecordingTimer();
+
         // The one instance, for KSP's settings dialog (KspSettingsSection),
         // which reads and changes the same settings as the diagnostics window.
         internal static ReDefinitionAddon Instance { get; private set; }
@@ -110,7 +114,7 @@ namespace ReDefinition
         {
             DontDestroyOnLoad(gameObject);
             Instance = this;
-            windowId = GetInstanceID();
+            diagnostics = new DiagnosticsWindow(this, rates, recording, GetInstanceID());
             enforceProfileStep = EnforceProfile;
             syncHostStackStep = SyncHostStack;
             autoStep = ResolveAutoOnNewScreen;
@@ -165,29 +169,11 @@ namespace ReDefinition
             }
         }
 
-        // When the diagnostics window's screen recording starts; 0 when none is waiting. With
-        // dumps, the stages', frame generation's inputs' and the vessel shadow's dumps of
-        // the same turn beside it; without, a recording nothing else slows.
-        private float recordingAt;
-        private bool recordingDumps;
-
         // Each frame: a recording that is due, a new scene's reset, the hotkeys, the steps into other mods, the saving,
         // the frame-rate meters, and the rig attached, rebuilt or detached as the settings and the cameras ask.
         private void Update()
         {
-            if (recordingAt > 0f && Time.unscaledTime >= recordingAt)
-            {
-                recordingAt = 0f;
-                bool started = ScreenRecordingBridge.Start(120, recordingDumps);
-                // The vessel shadow layer's own inputs and results beside it.
-                if (started && recordingDumps)
-                {
-                    VesselShadowLayer.DumpNextFrame();
-                    StageDump.Arm();
-                }
-                Debug.Log(Log.Tag + " Screen recording " + (started ? "started" + (recordingDumps ? ", with dumps." : ", without dumps.")
-                                                                    : "not started: " + ScreenRecordingBridge.State() + "."));
-            }
+            recording.Tick();
             if (HighLogic.LoadedScene != lastScene)
             {
                 lastScene = HighLogic.LoadedScene;
@@ -219,8 +205,8 @@ namespace ReDefinition
             // capture's cost, or the native antialiasing's, which would skew the
             // upscaler's comparison.
             if (rig == null || (!rig.PassThrough && wantEnabled)) rates.Sample(active);
-            rates.Update(windowVisible);
-            if (windowVisible) RefreshLiveStrip();
+            rates.Update(diagnostics.Visible);
+            if (diagnostics.Visible) diagnostics.RefreshLiveStrip();
 
             RebuildOnCameraModeChange();
 
@@ -317,6 +303,9 @@ namespace ReDefinition
         // Set where a camera's antialiasing changes at once: the map view entered or left.
         private bool duplicatesNow;
 
+        // What the last HostStack.Apply or Restore said, for the diagnostics window's page of other mods.
+        internal string hostStackMessage;
+
         // Entering or leaving the map view: the next SyncHostStack re-takes the mods' antialiasing at once.
         private void OnMapToggled()
         {
@@ -345,6 +334,32 @@ namespace ReDefinition
                 hostStackMessage = HostStack.Restore();
         }
 
+        // Draws the diagnostics window.
+        private void OnGUI()
+        {
+            diagnostics.OnGUI();
+        }
+
+        // From the settings window's Diagnostics button: the diagnostics window opens, on the
+        // page of the upscaler's options where it was closed.
+        internal void ShowDiagnostics()
+        {
+            diagnostics.Show();
+        }
+
+        // Whether the diagnostics window's search field has the keyboard.
+        internal bool DiagnosticsTyping
+        {
+            get { return diagnostics.Typing; }
+        }
+
+        // The scene probe's way in (-redefinitionProbeDiagnostics): commands separated by commas for
+        // the diagnostics window, answered with what was done (DiagnosticsWindow.RunProbeCommands).
+        internal string ProbeDiagnostics(string commands)
+        {
+            return diagnostics.RunProbeCommands(commands);
+        }
+
         // The toolbar's front, asked for again whenever the launcher is looked at
         // (ModWindowsAddon).
         internal void KeepToolbarButtonFirst()
@@ -360,11 +375,11 @@ namespace ReDefinition
             AxisCapture.Poll();
             // Nor while a text field has the keyboard, KSP's or a mod's: a key
             // typed there is text.
-            if (KeyCapture.Busy || UiHygiene.Typing || DiagnosticsTyping) return;
+            if (KeyCapture.Busy || UiHygiene.Typing || diagnostics.Typing) return;
 
             if (Hotkey(settings.UpscalerKey).Pressed()) SetEnabled(!wantEnabled);
             if (Hotkey(settings.SettingsWindowKey).Pressed()) SettingsWindow.Toggle();
-            if (Hotkey(settings.DiagnosticsKey).Pressed()) ToggleWindow();
+            if (Hotkey(settings.DiagnosticsKey).Pressed()) diagnostics.Toggle();
             if (Hotkey(settings.CameraListKey).Pressed()) CameraSurvey.Write();
         }
 
@@ -409,7 +424,7 @@ namespace ReDefinition
 
         // The rig for frame generation's capture alone: with the upscaler off, and
         // with an upscaler that could not be set up.
-        private bool PassThroughWanted
+        internal bool PassThroughWanted
         {
             get { return (!wantEnabled && !NativeForFrameGeneration) || setupFailures >= SetupAttempts; }
         }
@@ -435,7 +450,7 @@ namespace ReDefinition
 
         // What changes the outcome of a failure that need not stand forgets it;
         // stableToo for a new choice of technique and the player's retry.
-        private void ForgetNativeFailures(bool stableToo)
+        internal void ForgetNativeFailures(bool stableToo)
         {
             if (nativeFailures.Count == 0) return;
             if (stableToo)
@@ -482,7 +497,7 @@ namespace ReDefinition
         // after that control within the same IMGUI event, against what the layout
         // pass counted; and however many settings change in one step, it is built
         // once.
-        private void Reattach()
+        internal void Reattach()
         {
             reattachPending = true;
         }
@@ -521,7 +536,7 @@ namespace ReDefinition
         private bool problemIsCamera;
 
         // Whether the scene is the main menu or its settings screen, where no rig is attached.
-        private static bool OnlySettingsHere()
+        internal static bool OnlySettingsHere()
         {
             return HighLogic.LoadedScene == GameScenes.MAINMENU
                    || HighLogic.LoadedScene == GameScenes.SETTINGS;

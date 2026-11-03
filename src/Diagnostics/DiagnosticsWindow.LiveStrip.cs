@@ -1,16 +1,15 @@
 using System.Collections.Generic;
 using ReDefinition.Proxy;
-using ReDefinition.Diagnostics;
 using ReDefinition.Modules;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
     // The diagnostics window's live strip: what runs, the frame rates, the frame time graph,
     // latency and load, and the search, the "Changed" filter and the reset. The texts are
     // made four times a second while the window is open (RefreshLiveStrip); OnGUI only reads
     // them.
-    public partial class ReDefinitionAddon
+    internal sealed partial class DiagnosticsWindow
     {
         // The frame time graph's size, and how many bars it draws.
         private const float SparklineWidth = 190f;
@@ -44,15 +43,15 @@ namespace ReDefinition
         private string RunningText()
         {
             List<string> parts = new List<string>();
-            if (rig != null && rig.Ready)
-                parts.Add(OurModules.TechniqueLabel(rig.Backend) + (rig.Backend != backend && fallbackReason != null ? " (instead of "
-                          + UpscalerBackends.Name(backend) + ")" : "")
+            if (addon.rig != null && addon.rig.Ready)
+                parts.Add(OurModules.TechniqueLabel(addon.rig.Backend) + (addon.rig.Backend != addon.backend && addon.fallbackReason != null ? " (instead of "
+                          + UpscalerBackends.Name(addon.backend) + ")" : "")
                           // Upscaler off, frame generation on: native antialiasing (NativeForFrameGeneration).
-                          + (!wantEnabled ? " native AA" : ""));
-            else if (rig != null && rig.PassThrough) parts.Add("Upscaler off");
-            else parts.Add(wantEnabled ? "Upscaler setting up" : "Upscaler off");
+                          + (!addon.wantEnabled ? " native AA" : ""));
+            else if (addon.rig != null && addon.rig.PassThrough) parts.Add("Upscaler off");
+            else parts.Add(addon.wantEnabled ? "Upscaler setting up" : "Upscaler off");
 
-            if (frameGeneration)
+            if (addon.frameGeneration)
             {
                 string technique = FrameGenerationBridge.TechniqueName();
                 parts.Add(technique == null ? "frame generation idle" : FrameGenerationShort(technique));
@@ -72,7 +71,7 @@ namespace ReDefinition
         }
 
         // Makes the strip's texts afresh, at most four times a second.
-        private void RefreshLiveStrip()
+        public void RefreshLiveStrip()
         {
             if (Time.unscaledTime < nextStripRefresh) return;
             nextStripRefresh = Time.unscaledTime + 0.25f;
@@ -101,7 +100,7 @@ namespace ReDefinition
                 : "Latency: not measured";
 
             string technique = FrameGenerationBridge.TechniqueName();
-            fgTechniqueText = !frameGeneration ? "off" : technique ?? "not generating";
+            fgTechniqueText = !addon.frameGeneration ? "off" : technique ?? "not generating";
             lowLatencyDescription = ReflexFrames.LowLatencyText() ?? "no proxy, or it does not say";
             float presentedPerRendered = rates.PresentedPerRendered;
             rateRatioText = presentedPerRendered > 0f ? presentedPerRendered.ToString("0.00") + " presented per rendered frame" : "--";

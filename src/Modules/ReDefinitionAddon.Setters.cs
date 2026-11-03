@@ -13,7 +13,7 @@ namespace ReDefinition
     public partial class ReDefinitionAddon
     {
         // Switched on only with a graphics profile chosen.
-        private void SetEnabled(bool value)
+        internal void SetEnabled(bool value)
         {
             if (value && !ProfileChosen())
             {
@@ -38,7 +38,7 @@ namespace ReDefinition
 
         // Sharpness takes effect immediately: SetupDispatch reads it every frame,
         // the context does not need rebuilding for it.
-        private void SetSharpness(float value)
+        internal void SetSharpness(float value)
         {
             bool wasSharpening = sharpness > 0f;
             sharpness = Mathf.Clamp(value, 0f, UpscalerRig.MaximumSharpness);
@@ -50,21 +50,21 @@ namespace ReDefinition
         }
 
         // Live: each instrument asks for it as it runs.
-        private void SetDebugMode(bool value)
+        internal void SetDebugMode(bool value)
         {
             DebugMode = value;
             Debug.Log(Log.Tag + " Diagnostic measurements " + (value ? "on" : "off") + ".");
         }
 
         // Built into the rig's mipmap bias: a new rig.
-        private void SetMipmapBias(bool value)
+        internal void SetMipmapBias(bool value)
         {
             mipmapBias = value;
             Reattach();
         }
 
         // Live: the rig sets the LOD bias in QualitySettings anew at once.
-        private void SetCompensateLodBias(bool value)
+        internal void SetCompensateLodBias(bool value)
         {
             compensateLodBias = value;
             if (rig != null) { rig.CompensateLodBias = compensateLodBias; rig.RefreshQualityOverrides(); }
@@ -72,7 +72,7 @@ namespace ReDefinition
         }
 
         // Live: the rig sets the MSAA override in QualitySettings anew at once.
-        private void SetDisableMsaa(bool value)
+        internal void SetDisableMsaa(bool value)
         {
             disableMsaa = value;
             if (rig != null) { rig.DisableMsaa = disableMsaa; rig.RefreshQualityOverrides(); }
@@ -80,7 +80,7 @@ namespace ReDefinition
         }
 
         // Live: the rig sets the anisotropic filtering override in QualitySettings anew at once.
-        private void SetForceAnisotropic(bool value)
+        internal void SetForceAnisotropic(bool value)
         {
             forceAnisotropic = value;
             if (rig != null) { rig.ForceAnisotropic = forceAnisotropic; rig.RefreshQualityOverrides(); }
@@ -88,7 +88,7 @@ namespace ReDefinition
         }
 
         // Built into the FSR context: a new rig.
-        private void SetAutoExposure(bool value)
+        internal void SetAutoExposure(bool value)
         {
             autoExposure = value;
             Debug.Log(Log.Tag + " FSR auto exposure " + (autoExposure ? "on" : "off"));
@@ -97,7 +97,7 @@ namespace ReDefinition
 
         // Live: the rig reads it every frame, and TUFX's next blend of its settings
         // puts every effect back on its own layer once it is off.
-        private void SetTufxAfterUpscaling(bool value)
+        internal void SetTufxAfterUpscaling(bool value)
         {
             tufxAfterUpscaling = value;
             if (rig != null) rig.TufxAfterUpscaling = tufxAfterUpscaling;
@@ -105,7 +105,7 @@ namespace ReDefinition
         }
 
         // Live: the rig records the masks and hands them to FSR in every frame.
-        private void SetTransparencyMask(bool value)
+        internal void SetTransparencyMask(bool value)
         {
             transparencyMask = value;
             if (rig != null) rig.TransparencyMask = transparencyMask;
@@ -113,7 +113,7 @@ namespace ReDefinition
         }
 
         // Live: the rig takes the reactive mask's source in the next frame.
-        private void SetReactiveMask(UpscalerMasks.ReactiveSource value)
+        internal void SetReactiveMask(UpscalerMasks.ReactiveSource value)
         {
             reactiveMask = value;
             if (rig != null) rig.ReactiveMask = reactiveMask;
@@ -132,7 +132,7 @@ namespace ReDefinition
         }
 
         // A new rig: the technique decides what it builds.
-        private void SetBackend(UpscalerBackend value)
+        internal void SetBackend(UpscalerBackend value)
         {
             if (backend == value) return;
             backend = value;
@@ -178,7 +178,7 @@ namespace ReDefinition
         }
 
         // Live: the rig reads it every frame.
-        private void SetJitter(bool value)
+        internal void SetJitter(bool value)
         {
             jitter = value;
             if (rig != null) rig.EnableJitter = jitter;
@@ -187,7 +187,7 @@ namespace ReDefinition
 
         // Live: the rig sweeps the skinned renderers once a second while this is
         // on, and puts back what they had once it is off (SkinnedMotionVectors).
-        private void SetSkinnedMotionVectors(bool value)
+        internal void SetSkinnedMotionVectors(bool value)
         {
             skinnedMotionVectors = value;
             if (rig != null) rig.ForceSkinnedMotionVectors = skinnedMotionVectors;
@@ -200,7 +200,7 @@ namespace ReDefinition
         // motion vectors and the HUD-less image; with the upscaler off it runs for
         // that alone (UpscalerRig.PassThrough), attached by Update.
         // Without the proxy the switch is inert and the diagnostics say so.
-        private void SetFrameGeneration(bool value)
+        internal void SetFrameGeneration(bool value)
         {
             if (value && !ProfileChosen())
             {
@@ -235,7 +235,7 @@ namespace ReDefinition
         // Live: the proxy takes the multiplier -- 2x to 6x, or Dynamic where DLSS-G chooses -- at the
         // next Present, within what the technique that runs allows (FrameGenerationBridge.Limits);
         // a step above it is the most it allows.
-        private void SetFrameGenerationMultiplier(string choice)
+        internal void SetFrameGenerationMultiplier(string choice)
         {
             if (!FrameGenerationChoice.Valid(choice) || choice == frameGenerationMultiplier) return;
             frameGenerationMultiplier = choice;
@@ -244,7 +244,7 @@ namespace ReDefinition
         }
 
         // A new rig at the new mode; a technique that failed at the old one is tried again.
-        private void SetQuality(Fsr3Upscaler.QualityMode mode)
+        internal void SetQuality(Fsr3Upscaler.QualityMode mode)
         {
             if (quality == mode) return;
             quality = mode;

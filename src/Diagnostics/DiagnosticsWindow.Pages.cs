@@ -1,15 +1,15 @@
 using System.Collections.Generic;
 using FidelityFX.FSR3;
 using ReDefinition.Proxy;
-using ReDefinition.Diagnostics;
+using ReDefinition.Settings;
 using ReDefinition.Upscaler;
 using ReDefinition.Window;
 using UnityEngine;
 
-namespace ReDefinition
+namespace ReDefinition.Diagnostics
 {
     // The diagnostics window's pages.
-    public partial class ReDefinitionAddon
+    internal sealed partial class DiagnosticsWindow
     {
         // A page's heading, with a little space under it.
         private void PageHeading(string text)
@@ -50,28 +50,28 @@ namespace ReDefinition
         // against off.
         private void DrawOverview()
         {
-            bool active = rig != null && rig.Ready;
+            bool active = addon.rig != null && addon.rig.Ready;
             GUILayout.Label(active
-                ? "Active: " + rig.RenderSize.x + "x" + rig.RenderSize.y + "  ->  "
-                  + rig.DisplaySize.x + "x" + rig.DisplaySize.y
+                ? "Active: " + addon.rig.RenderSize.x + "x" + addon.rig.RenderSize.y + "  ->  "
+                  + addon.rig.DisplaySize.x + "x" + addon.rig.DisplaySize.y
                   // The capture goes on for the proxy's attempts, which need its
                   // packets; the player sees that nothing is generated.
                   + (contextFailing ? "  -- " + ContextFailedNote() : "")
-                : rig != null && rig.PassThrough
+                : addon.rig != null && addon.rig.PassThrough
                     // What stopped the upscaler follows below.
-                    ? (wantEnabled ? "Upscaler not set up" : "Upscaler off")
+                    ? (addon.wantEnabled ? "Upscaler not set up" : "Upscaler off")
                       + (contextFailingAny
                           ? " -- " + ContextFailedNote()
                           : " -- frame generation runs")
-                : !wantEnabled
-                    ? (!ProfileChosen() ? "Off -- choose a graphics profile in ReDefinition's window"
-                       : frameGeneration && FrameGenerationBridge.ContextFailureStands
+                : !addon.wantEnabled
+                    ? (!BundledSettings.ProfileChosen ? "Off -- choose a graphics profile in ReDefinition's window"
+                       : addon.frameGeneration && FrameGenerationBridge.ContextFailureStands
                            ? "Off -- " + ContextFailedNote()
                        : "Off")
-                : OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
+                : ReDefinitionAddon.OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
                 : "Setting up ...", styles.Strip);
 
-            if (!string.IsNullOrEmpty(problem)) WarningLabel(problem);
+            if (!string.IsNullOrEmpty(addon.problem)) WarningLabel(addon.problem);
 
             GUILayout.Space(6f);
             DrawOptions(OptionsOf(DebugCategory.Overview));
@@ -94,30 +94,30 @@ namespace ReDefinition
             // ReDefinition's settings belong to a graphics profile: without one they
             // wait for it, as in ReDefinition's window and KSP's dialog.
             bool outer = GUI.enabled;
-            bool profile = ProfileChosen();
+            bool profile = BundledSettings.ProfileChosen;
             GUI.enabled = outer && profile;
             // Read before any control: the technique's switch forgets failures
             // within this event, and the rows must stay the ones the layout pass
             // counted. (The rig itself is rebuilt by Update, see Reattach.)
-            bool fallingBack = rig != null && rig.Backend != backend && fallbackReason != null;
-            bool canRetry = fallingBack && nativeFailures.ContainsKey(backend);
+            bool fallingBack = addon.rig != null && addon.rig.Backend != addon.backend && addon.fallbackReason != null;
+            bool canRetry = fallingBack && addon.nativeFailures.ContainsKey(addon.backend);
             string fallbackText = fallingBack
-                ? UpscalerBackends.Name(backend) + " cannot run, FSR 3 runs instead: " + fallbackReason
+                ? UpscalerBackends.Name(addon.backend) + " cannot run, FSR 3 runs instead: " + addon.fallbackReason
                 : null;
-            string retryText = canRetry ? "Try " + UpscalerBackends.Name(backend) + " again" : null;
+            string retryText = canRetry ? "Try " + UpscalerBackends.Name(addon.backend) + " again" : null;
 
             // The techniques that can run here, and the one chosen whatever it can.
             GUILayout.BeginHorizontal();
             GUILayout.Label("Technique", styles.Row);
             GUILayout.FlexibleSpace();
-            int techniqueAt = offeredBackends.IndexOf(backend);
+            int techniqueAt = offeredBackends.IndexOf(addon.backend);
             int pickedTechnique = Segments(offeredTechniqueNames, techniqueAt);
             if (pickedTechnique != techniqueAt)
             {
                 // Picked by hand: no longer Auto's.
-                settings.BackendAuto = false;
-                resolvedFor = null;
-                SetBackend(offeredBackends[pickedTechnique]);
+                addon.settings.BackendAuto = false;
+                addon.resolvedFor = null;
+                addon.SetBackend(offeredBackends[pickedTechnique]);
             }
             RowTail();
             GUILayout.EndHorizontal();
@@ -126,31 +126,31 @@ namespace ReDefinition
             GUILayout.BeginHorizontal();
             GUILayout.Label("Mode", styles.Row);
             GUILayout.FlexibleSpace();
-            int modeAt = ModeCount - 1 - (int)quality;
+            int modeAt = ModeCount - 1 - (int)addon.quality;
             int pickedMode = Segments(modeNames ?? (modeNames = MakeModeNames()), modeAt);
             if (pickedMode != modeAt)
             {
-                settings.QualityAuto = false;
-                resolvedFor = null;
-                SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
+                addon.settings.QualityAuto = false;
+                addon.resolvedFor = null;
+                addon.SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
             }
             RowTail();
             GUILayout.EndHorizontal();
 
-            GUILayout.Label(rig != null && rig.PassThrough
-                ? (wantEnabled ? "The upscaler could not be set up" : "Upscaler off")
+            GUILayout.Label(addon.rig != null && addon.rig.PassThrough
+                ? (addon.wantEnabled ? "The upscaler could not be set up" : "Upscaler off")
                   + ": frame generation runs, without FSR's antialiasing"
                   + (QualitySettings.antiAliasing > 1 ? ", and KSP's MSAA does not reach the 3D scene." : ".")
-                : quality == Fsr3Upscaler.QualityMode.NativeAA
-                ? "Full resolution. " + UpscalerBackends.Name(rig != null ? rig.Backend : backend) + " does the antialiasing."
+                : addon.quality == Fsr3Upscaler.QualityMode.NativeAA
+                ? "Full resolution. " + UpscalerBackends.Name(addon.rig != null ? addon.rig.Backend : addon.backend) + " does the antialiasing."
                 : "Renders smaller and reconstructs.", styles.Dim);
             if (fallingBack)
             {
                 GUILayout.Label(fallbackText);
                 if (canRetry && GUILayout.Button(retryText))
                 {
-                    ForgetNativeFailures(true);
-                    Reattach();
+                    addon.ForgetNativeFailures(true);
+                    addon.Reattach();
                 }
             }
 
@@ -159,11 +159,11 @@ namespace ReDefinition
             GUILayout.Label("Sharpness", styles.Row);
             GUILayout.FlexibleSpace();
             bool down = GUILayout.Button("-", styles.Segment, DiagnosticsLayout.StepButton);
-            GUILayout.Label(sharpness.ToString("0.0"), styles.Value, DiagnosticsLayout.ValueBox);
+            GUILayout.Label(addon.sharpness.ToString("0.0"), styles.Value, DiagnosticsLayout.ValueBox);
             bool up = GUILayout.Button("+", styles.Segment, DiagnosticsLayout.StepButton);
             RowTail();
             GUILayout.EndHorizontal();
-            if (down || up) SetSharpness(sharpness + (up ? 0.1f : -0.1f));
+            if (down || up) addon.SetSharpness(addon.sharpness + (up ? 0.1f : -0.1f));
             GUI.enabled = outer;
 
             if (!profile) GUILayout.Label(NeedsProfileText, styles.Reason);
@@ -195,7 +195,7 @@ namespace ReDefinition
         {
             offeredBackends.Clear();
             foreach (UpscalerBackend candidate in AllBackends)
-                if (candidate == backend || UpscalerBackends.WhyNotOffered(candidate) == null)
+                if (candidate == addon.backend || UpscalerBackends.WhyNotOffered(candidate) == null)
                     offeredBackends.Add(candidate);
             bool same = offeredTechniqueNames.Length == offeredBackends.Count;
             for (int i = 0; same && i < offeredBackends.Count; i++)
@@ -212,7 +212,7 @@ namespace ReDefinition
         // (SyncHostStack), and there is nothing to judge.
         private void DrawHostStackSummary()
         {
-            if (!ProfileChosen() || PassThroughWanted)
+            if (!BundledSettings.ProfileChosen || addon.PassThroughWanted)
             {
                 GUILayout.Label("Other visual mods: their own antialiasing, while the upscaler is off.");
                 return;
@@ -227,7 +227,7 @@ namespace ReDefinition
             if (problems > 0) WarningLabel(problems + " setting(s) in other mods fight FSR.");
             else GUILayout.Label("Other visual mods: nothing conflicting with FSR.");
 
-            if (!string.IsNullOrEmpty(hostStackMessage)) GUILayout.Label(hostStackMessage);
+            if (!string.IsNullOrEmpty(addon.hostStackMessage)) GUILayout.Label(addon.hostStackMessage);
         }
 
         // The page of the upscaler's inputs: its options.
@@ -282,19 +282,19 @@ namespace ReDefinition
             // pass: the read-back changes the render target, which would spoil what is drawn after
             // it in a repaint.
             if (Event.current.type == EventType.Layout)
-                previewTexture = rig != null && rig.Ready ? rig.GetPreview(previewMode) : null;
+                previewTexture = addon.rig != null && addon.rig.Ready ? addon.rig.GetPreview(previewMode) : null;
 
             Rect area = GUILayoutUtility.GetRect(UpscalerRig.PreviewWidth, UpscalerRig.PreviewHeight);
             if (previewTexture != null) GUI.DrawTexture(area, previewTexture, ScaleMode.ScaleToFit, false);
             else if (Event.current.type == EventType.Repaint)
-                GUI.Label(area, rig != null && rig.Ready ? "" : "  (upscaler is off)");
+                GUI.Label(area, addon.rig != null && addon.rig.Ready ? "" : "  (upscaler is off)");
 
             switch (previewMode)
             {
                 case UpscalerRig.PreviewMode.MotionVectors:
                     GUILayout.Label("Red is rightwards, green is upwards, grey is still."
-                                    + (rig != null && rig.Ready
-                                       ? "  Scale " + rig.PreviewGain.ToString("0.00") + " px" : ""));
+                                    + (addon.rig != null && addon.rig.Ready
+                                       ? "  Scale " + addon.rig.PreviewGain.ToString("0.00") + " px" : ""));
                     break;
                 case UpscalerRig.PreviewMode.Depth:
                     GUILayout.Label("Bright is near, dark is far.");

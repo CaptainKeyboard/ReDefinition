@@ -20,31 +20,31 @@ namespace ReDefinition
         // upscaler is the temporal antialiasing.
         // Held in the settings object itself, as the settings listed under "live" are (OwnSettings): the
         // setters below change them there, and Apply copies what a view changed.
-        private Fsr3Upscaler.QualityMode quality
+        internal Fsr3Upscaler.QualityMode quality
         {
             get { return settings.Quality; }
             set { settings.Quality = value; }
         }
         // RCAS maps sharpness to 2^(-2*(1-s)): 1.0 is the full effect, 0.4 about
         // 0.44 of it.
-        private float sharpness = 1.0f;
-        private bool mipmapBias
+        internal float sharpness = 1.0f;
+        internal bool mipmapBias
         {
             get { return settings.MipmapBias; }
             set { settings.MipmapBias = value; }
         }
-        private bool bypass;
-        private bool jitter
+        internal bool bypass;
+        internal bool jitter
         {
             get { return settings.Jitter; }
             set { settings.Jitter = value; }
         }
-        private bool compensateLodBias
+        internal bool compensateLodBias
         {
             get { return settings.CompensateLodBias; }
             set { settings.CompensateLodBias = value; }
         }
-        private bool disableMsaa
+        internal bool disableMsaa
         {
             get { return settings.DisableMsaa; }
             set { settings.DisableMsaa = value; }
@@ -61,48 +61,48 @@ namespace ReDefinition
         // wherever they run.
         internal static bool DebugMode { get; private set; }
         // Anisotropic filtering forced on every texture while the upscaler runs (UpscalerRig.ForceAnisotropic).
-        private bool forceAnisotropic
+        internal bool forceAnisotropic
         {
             get { return settings.ForceAnisotropic; }
             set { settings.ForceAnisotropic = value; }
         }
         // FSR's own exposure for its internal tonemapping, as AMD recommends
         // (UpscalerRig.AutoExposure).
-        private bool autoExposure
+        internal bool autoExposure
         {
             get { return settings.AutoExposure; }
             set { settings.AutoExposure = value; }
         }
         // TUFX's bloom, tonemapping and the rest of its image effects after the
         // upscaler rather than before it (TufxPostProcessing); a switch to compare the two.
-        private bool tufxAfterUpscaling
+        internal bool tufxAfterUpscaling
         {
             get { return settings.TufxAfterUpscaling; }
             set { settings.TufxAfterUpscaling = value; }
         }
         // The masks FSR 3 takes beside colour, depth and motion vectors
         // (UpscalerMasks); off by default.
-        private bool transparencyMask
+        internal bool transparencyMask
         {
             get { return settings.TransparencyMask; }
             set { settings.TransparencyMask = value; }
         }
-        private UpscalerMasks.ReactiveSource reactiveMask
+        internal UpscalerMasks.ReactiveSource reactiveMask
         {
             get { return settings.ReactiveMask; }
             set { settings.ReactiveMask = value; }
         }
 #if DEVELOPMENT_BUILD
-        private bool debugView;
+        internal bool debugView;
 #endif
         // Not saved, off at every start: the motion vector check on fast turns
         // (UpscalerRig.RecordFastTurns).
-        private bool recordFastTurns;
-        private bool frameGeneration;
+        internal bool recordFastTurns;
+        internal bool frameGeneration;
         // 2x to 6x or Dynamic (FrameGenerationChoice): the proxy is told it live (SetFrameGenerationMultiplier).
-        private string frameGenerationMultiplier = FrameGenerationChoice.Default;
+        internal string frameGenerationMultiplier = FrameGenerationChoice.Default;
         // The upscaler technique: FSR 3, DLSS, AMD's upscaler or XeSS (UpscalerBackend).
-        private UpscalerBackend backend
+        internal UpscalerBackend backend
         {
             get { return settings.Backend; }
             set { settings.Backend = value; }
@@ -115,7 +115,7 @@ namespace ReDefinition
         }
 
         // Skinned meshes made to write motion vectors (UpscalerRig.ForceSkinnedMotionVectors).
-        private bool skinnedMotionVectors
+        internal bool skinnedMotionVectors
         {
             get { return settings.SkinnedMotionVectors; }
             set { settings.SkinnedMotionVectors = value; }
@@ -123,7 +123,7 @@ namespace ReDefinition
 
         // The settings object the add-on saves and the views copy: the live settings are read from it directly, the rest
         // written into it by Collect.
-        private readonly OwnSettings settings = new OwnSettings();
+        internal readonly OwnSettings settings = new OwnSettings();
         // The raytracing (src/Raytracing/Ksp/RtKsp.cs), which the add-on keeps on the
         // scene camera.
         private readonly ReDefinition.Raytracing.RtKsp raytracing = new ReDefinition.Raytracing.RtKsp();
@@ -253,7 +253,7 @@ namespace ReDefinition
         }
 
         // What Auto was last resolved for (AutoSettings.Inputs); null asks for it again.
-        private AutoSettings.ResolvedFor? resolvedFor;
+        internal AutoSettings.ResolvedFor? resolvedFor;
 
         // The technique frame generation's choice stands for -- Auto resolved for the card and the files
         // in place -- into the proxy's ini, for its next start; again whenever that changes (a download).
