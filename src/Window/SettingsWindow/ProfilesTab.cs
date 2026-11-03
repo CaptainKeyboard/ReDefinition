@@ -6,13 +6,23 @@ using ReDefinition.Modules;
 using ReDefinition.Settings;
 using ReDefinition.Ui;
 using UnityEngine;
+using static ReDefinition.Window.SettingsWindow;
 
 namespace ReDefinition.Window
 {
     // The Graphics tab: the profiles Low to Max, their status line, and Reset,
     // which fills every row with its default and chooses High over it.
-    internal static partial class SettingsWindow
+    internal static class ProfilesTab
     {
+        // The graphics profiles, Low to Max, read once per opening.
+        private static List<GraphicsProfile> profiles = new List<GraphicsProfile>();
+
+        // The profiles as they were read last.
+        internal static List<GraphicsProfile> Loaded
+        {
+            get { return profiles; }
+        }
+
         // The Profiles tab's status line, worked out again only when something
         // it depends on has changed: DialogGUILabel asks for it every frame.
         private static string status;
@@ -31,11 +41,17 @@ namespace ReDefinition.Window
         private static float statusModulesAt = -10f;
         private static List<ModuleSetting> profileSettable;
 
+        // Worked out afresh at the next look.
+        internal static void ForgetStatus()
+        {
+            status = null;
+        }
+
         // The profiles as the GameDatabase holds them -- a visual pack's patches
         // included -- with what choosing each fills in for the mods installed
         // now. What one names that cannot be set here reaches the log once per
         // run (ProfileApplier.Report).
-        private static void LoadProfiles()
+        internal static void Load()
         {
             model.ProfilesStale = false;
             List<string> problems = new List<string>();
@@ -68,7 +84,7 @@ namespace ReDefinition.Window
         // Low to Max. Choosing one fills the rows of every tab with its values --
         // with the bundling off, ReDefinition's own and those set straight into
         // their mods; nothing is set until Apply or Accept, as with any other row.
-        private static DialogGUIBase[] ProfileRows()
+        internal static DialogGUIBase[] Rows()
         {
             if (profiles.Count == 0) return new DialogGUIBase[0];
 
@@ -99,7 +115,7 @@ namespace ReDefinition.Window
         // Everything back to its mod's default -- whether a profile or the player
         // changed it, and whether the window shows it -- once the question it asks
         // has been answered.
-        private static DialogGUIButton ResetButton()
+        internal static DialogGUIButton ResetButton()
         {
             DialogGUIButton reset = new DialogGUIButton("Reset", ConfirmReset, ResetWidth, 30f, false);
             reset.tooltipText = "Every setting back to its default, KSP's and the mods'.\n"
@@ -243,7 +259,7 @@ namespace ReDefinition.Window
             {
                 try
                 {
-                    LoadProfiles();
+                    Load();
                 }
                 catch (Exception e)
                 {

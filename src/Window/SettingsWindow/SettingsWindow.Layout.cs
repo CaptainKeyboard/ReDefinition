@@ -171,7 +171,7 @@ namespace ReDefinition.Window
         private static string detectedLayout;
 
         // Forgets what the layout rows wait for, and the detected layout.
-        private static void ClearLayoutPending()
+        internal static void ClearLayoutPending()
         {
             layoutPending = null;
             rebindPending = false;

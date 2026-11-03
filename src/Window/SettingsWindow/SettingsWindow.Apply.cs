@@ -34,13 +34,13 @@ namespace ReDefinition.Window
             try
             {
                 ReadBundled();
-                LoadProfiles();
+                ProfilesTab.Load();
             }
             catch (Exception e)
             {
                 Debug.LogWarning(Log.Tag + " The window's rows could not be read again: " + e);
             }
-            status = null;
+            ProfilesTab.ForgetStatus();
         }
 
         // Whether anything in the window still waits for Accept -- asked by the
@@ -74,7 +74,7 @@ namespace ReDefinition.Window
         private static bool ownPending;
 
         // Whether the copy the window edits differs from the one it started from, snapshot against snapshot.
-        private static bool OwnSettingsPending()
+        internal static bool OwnSettingsPending()
         {
             if (edit == null || edit.Before == null || edit.After == null) return false;
             float now = Time.unscaledTime;
@@ -112,7 +112,7 @@ namespace ReDefinition.Window
         // That holds for a row that is never bundled, and for one of a mod whose registration
         // says `direct` while the bundling is off, as the window holds it or
         // as it was applied.
-        private static bool SetDirectly(BundledSetting setting, bool applied)
+        internal static bool SetDirectly(BundledSetting setting, bool applied)
         {
             if (!setting.Bundled) return true;
             RegisteredMod mod = setting.Owner as RegisteredMod;
@@ -178,7 +178,7 @@ namespace ReDefinition.Window
         }
 
         // The id of KSP's own registration among the bundled mods.
-        private const string KspId = "ksp";
+        internal const string KspId = "ksp";
 
         // KSP's own reset, where the window resets (KspReset), so that what KSP's
         // reset covers and no row shows -- its key layout, its terrain presets --
@@ -249,7 +249,7 @@ namespace ReDefinition.Window
             Step("The other mods' values could not be read back into the window", () =>
             {
                 ReadBundled();
-                LoadProfiles();
+                ProfilesTab.Load();
             });
         }
 

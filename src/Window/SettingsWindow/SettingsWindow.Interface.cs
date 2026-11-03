@@ -284,7 +284,7 @@ namespace ReDefinition.Window
             // The rows show what the mods hold now.
             if (!Visible) return;
             ReadBundled();
-            LoadProfiles();
+            ProfilesTab.Load();
             if (addon != null && edit != null)
             {
                 OwnSettings now = addon.Current();

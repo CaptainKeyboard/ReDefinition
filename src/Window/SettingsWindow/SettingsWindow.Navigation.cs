@@ -273,7 +273,7 @@ namespace ReDefinition.Window
 
         // The chosen profile's values, by the bundled settings' keys and by ReDefinition's
         // own rows, for the profile last asked about.
-        private static string defaultsOf;
+        internal static string defaultsOf;
         private static readonly Dictionary<string, string> bundledDefaults = new Dictionary<string, string>();
         private static readonly Dictionary<ModuleSetting, string> ownDefaults = new Dictionary<ModuleSetting, string>();
 
@@ -283,7 +283,7 @@ namespace ReDefinition.Window
         {
             if (string.IsNullOrEmpty(profileName)) return false;
             if (defaultsOf == profileName) return true;
-            GraphicsProfile profile = ProfileApplier.Find(profiles, profileName);
+            GraphicsProfile profile = ProfileApplier.Find(ProfilesTab.Loaded, profileName);
             if (profile == null) return false;
             bundledDefaults.Clear();
             foreach (KeyValuePair<BundledSetting, string> pair in ProfileApplier.Values(profile, new List<string>()))
@@ -322,12 +322,12 @@ namespace ReDefinition.Window
         }
 
         // What BundledDefault answered since the rows, the chosen profile or the profiles' lists last changed, and
-        // what they were then. The generation counts LoadProfiles, which reads the lists again.
+        // what they were then. The generation counts ProfilesTab.Load, which reads the lists again.
         private static readonly Dictionary<string, string> bundledDefaultKnown = new Dictionary<string, string>();
         private static int defaultKnownVersion = -1;
         private static int defaultKnownGeneration = -1;
         private static string defaultKnownProfile;
-        private static int profilesGeneration;
+        internal static int profilesGeneration;
 
         // The profile's value of one of ReDefinition's own rows as the row shows it, where the row holds another one;
         // null otherwise.

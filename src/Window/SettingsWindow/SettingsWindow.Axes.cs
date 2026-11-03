@@ -256,7 +256,7 @@ namespace ReDefinition.Window
         }
 
         // Reset to defaults: every axis to what KSP ships. Filled in only.
-        private static void ResetAxes()
+        internal static void ResetAxes()
         {
             AxisCapture.Stop();
             axisPending.Clear();

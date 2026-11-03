@@ -34,14 +34,14 @@ namespace ReDefinition.Window
         private const float WindowWidth = 740f;
         private const float WindowHeight = 540f;
         private const float TabWidth = 170f;
-        private const float PageWidth = 540f;
+        internal const float PageWidth = 540f;
         private const float PageHeight = 440f;
         private const float NameWidth = 190f;
         private const float ControlWidth = 130f;
         private const float ValueWidth = 60f;
         private const float SourceWidth = 70f;
         private const float RowHeight = 18f;
-        private const float ResetWidth = 80f;
+        internal const float ResetWidth = 80f;
         private const float RestartWidth = 140f;
 
         // The dialog while it is open, null otherwise; the tab shown; ReDefinition's own settings as the window edits
@@ -53,9 +53,6 @@ namespace ReDefinition.Window
         // The bundled settings' rows: their values, where each came from, and
         // Apply's steps.
         internal static readonly SettingsEdit model = new SettingsEdit { Offered = OfferChoice };
-
-        // The graphics profiles, Low to Max, read once per opening.
-        private static List<GraphicsProfile> profiles = new List<GraphicsProfile>();
 
         // The settings the window has a row for: what SyncFromMods follows, with
         // every setting of a mod whose own window is open.
@@ -151,7 +148,7 @@ namespace ReDefinition.Window
                     ProfileChosen = () => !string.IsNullOrEmpty(model.Profile),
                 };
                 ReadBundled();
-                LoadProfiles();
+                ProfilesTab.Load();
 
                 UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
                 DialogGUIBase[] content = Build(skin);
@@ -294,7 +291,7 @@ namespace ReDefinition.Window
                 new DialogGUIHorizontalLayout(WindowWidth - 20f, PageHeight, 8f, new RectOffset(),
                     TextAnchor.UpperLeft, tabList, scroll),
                 new DialogGUIHorizontalLayout(
-                    ResetButton(),
+                    ProfilesTab.ResetButton(),
                     // Before the space, not beside Accept: Accept hides as it is
                     // clicked, and what stood left of it would move under the
                     // pointer for a second click.
@@ -378,8 +375,8 @@ namespace ReDefinition.Window
             if (category == SettingCategory.Profiles)
             {
                 StringBuilderText profilesText = new StringBuilderText("Graphics profiles");
-                foreach (GraphicsProfile profile in profiles) profilesText.Add(profile.Title);
-                foreach (DialogGUIBase row in ProfileRows()) rows.Add(Searchable(row, profilesText.Text));
+                foreach (GraphicsProfile profile in ProfilesTab.Loaded) profilesText.Add(profile.Title);
+                foreach (DialogGUIBase row in ProfilesTab.Rows()) rows.Add(Searchable(row, profilesText.Text));
             }
             // ReDefinition's own upscaler and frame generation lead General, laid
             // out like the other rows there, KSP's among them.
@@ -816,7 +813,7 @@ namespace ReDefinition.Window
                 if (changed) model.ProfilesStale = true;
             }
             if (changed || !model.ProfilesStale) return;
-            LoadProfiles();
+            ProfilesTab.Load();
         }
 
         // ReDefinition's own settings changed meanwhile outside this window -- in
@@ -851,7 +848,7 @@ namespace ReDefinition.Window
                 after.TimeWarpToolbarButton = edit.After.TimeWarpToolbarButton;
             edit.Before = live;
             edit.After = after;
-            status = null;
+            ProfilesTab.ForgetStatus();
         }
 
         // Every setting of that mod at the next sync: KSP's, as its own settings
