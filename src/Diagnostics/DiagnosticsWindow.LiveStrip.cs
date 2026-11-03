@@ -44,14 +44,14 @@ namespace ReDefinition.Diagnostics
         {
             List<string> parts = new List<string>();
             if (rigs.Rig != null && rigs.Rig.Ready)
-                parts.Add(OurModules.TechniqueLabel(rigs.Rig.Backend) + (rigs.Rig.Backend != addon.backend && rigs.FallbackReason != null ? " (instead of "
-                          + UpscalerBackends.Name(addon.backend) + ")" : "")
+                parts.Add(OurModules.TechniqueLabel(rigs.Rig.Backend) + (rigs.Rig.Backend != config.Backend && rigs.FallbackReason != null ? " (instead of "
+                          + UpscalerBackends.Name(config.Backend) + ")" : "")
                           // Upscaler off, frame generation on: native antialiasing (NativeForFrameGeneration).
-                          + (!addon.wantEnabled ? " native AA" : ""));
+                          + (!config.WantEnabled ? " native AA" : ""));
             else if (rigs.Rig != null && rigs.Rig.PassThrough) parts.Add("Upscaler off");
-            else parts.Add(addon.wantEnabled ? "Upscaler setting up" : "Upscaler off");
+            else parts.Add(config.WantEnabled ? "Upscaler setting up" : "Upscaler off");
 
-            if (addon.frameGeneration)
+            if (config.FrameGeneration)
             {
                 string technique = FrameGenerationBridge.TechniqueName();
                 parts.Add(technique == null ? "frame generation idle" : FrameGenerationShort(technique));
@@ -100,7 +100,7 @@ namespace ReDefinition.Diagnostics
                 : "Latency: not measured";
 
             string technique = FrameGenerationBridge.TechniqueName();
-            fgTechniqueText = !addon.frameGeneration ? "off" : technique ?? "not generating";
+            fgTechniqueText = !config.FrameGeneration ? "off" : technique ?? "not generating";
             lowLatencyDescription = ReflexFrames.LowLatencyText() ?? "no proxy, or it does not say";
             float presentedPerRendered = rates.PresentedPerRendered;
             rateRatioText = presentedPerRendered > 0f ? presentedPerRendered.ToString("0.00") + " presented per rendered frame" : "--";

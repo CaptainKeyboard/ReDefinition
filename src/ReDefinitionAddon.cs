@@ -3,8 +3,8 @@ using ReDefinition.Api.Internal;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
 using ReDefinition.Diagnostics;
+using ReDefinition.Modules;
 using ReDefinition.Settings.Behaviours;
-using ReDefinition.Settings;
 using ReDefinition.Ui;
 using ReDefinition.Upscaler;
 using ReDefinition.Window;
@@ -23,12 +23,19 @@ namespace ReDefinition
     // window this add-on draws -- so that no further key combination has to be
     // claimed for each setting.
     //
-    // The settings and how a change takes effect are in ReDefinitionAddon.*.cs.
+    // The members the rest of the mod calls for the settings are in ReDefinitionAddon.Settings.cs.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public partial class ReDefinitionAddon : MonoBehaviour
     {
+        // The settings and how a change takes effect, and the raytracing the add-on keeps on the scene camera.
+        private SettingsController config;
+        private readonly ReDefinition.Raytracing.RtKsp raytracing = new ReDefinition.Raytracing.RtKsp();
+
         // The rig's lifecycle: attached, rebuilt and detached as the scene, the camera and the settings ask.
         private RigLifecycle rigs;
+
+        // The other mods' antialiasing, kept in step with the upscaler.
+        private HostStackSync hostStack;
 
         // Update's steps into other mods, made once: a method group makes a new
         // delegate each time.
@@ -59,15 +66,18 @@ namespace ReDefinition
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+            config = new SettingsController(raytracing);
+            rigs = new RigLifecycle(this, config, rates);
+            config.Connect(rigs);
+            hostStack = new HostStackSync(config, rigs);
+            diagnostics = new DiagnosticsWindow(config, rigs, hostStack, rates, recording, GetInstanceID());
+            hotkeys = new AddonHotkeys(config.Settings, diagnostics, config.ToggleEnabled);
             Instance = this;
-            rigs = new RigLifecycle(this, rates);
-            diagnostics = new DiagnosticsWindow(this, rigs, rates, recording, GetInstanceID());
-            hotkeys = new AddonHotkeys(settings, diagnostics, ToggleUpscaler);
-            enforceProfileStep = EnforceProfile;
-            syncHostStackStep = SyncHostStack;
-            autoStep = ResolveAutoOnNewScreen;
+            enforceProfileStep = config.EnforceProfile;
+            syncHostStackStep = hostStack.Sync;
+            autoStep = config.ResolveAutoOnNewScreen;
             // What KSP's V-Sync row allows while DLSS frame generation runs (KSP.cfg).
-            KspBehaviour.DlssFrameGenerationRuns = () => frameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
+            KspBehaviour.DlssFrameGenerationRuns = () => config.FrameGeneration && FrameGenerationBridge.DlssFrameGenerationRuns;
             KspBehaviour.DlssFrameGenerationVsync = () => FrameGenerationBridge.DlssFrameGenerationVsync;
             // And while Intel's XeLL lowers the latency, with XeSS frame generation or alone.
             KspBehaviour.XellEveryRefresh = () => FrameGenerationBridge.XellEveryRefresh;
@@ -77,7 +87,7 @@ namespace ReDefinition
             Debug.Log(Log.Tag + " Upscaler ready."
                       + " Toolbar button for the settings window; its Keys tab holds the hotkeys.");
 
-            LoadSettings();
+            config.Load();
             // The frame's state for every mod (ReDefinition.Api), with or without a rig; a
             // failure there costs the interface, not the rest of the add-on.
             Guarded("shared-frame", SharedFrame.Install);
@@ -91,8 +101,8 @@ namespace ReDefinition
             ReflexFrames.Install();
             EscapeGuard.Install();
             GameEvents.OnGameSettingsApplied.Add(OnGameSettingsApplied);
-            GameEvents.OnMapEntered.Add(OnMapToggled);
-            GameEvents.OnMapExited.Add(OnMapToggled);
+            GameEvents.OnMapEntered.Add(hostStack.NoteMapToggled);
+            GameEvents.OnMapExited.Add(hostStack.NoteMapToggled);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded += OnSceneLoaded;
 
             // The button opens the settings window; the diagnostics window this
@@ -136,7 +146,7 @@ namespace ReDefinition
             Guarded("host-stack", syncHostStackStep);
             Guarded("host-stack-reassert", ReassertHostStackStep);
             Guarded("auto", autoStep);
-            SaveSettingsIfChanged();
+            config.SaveIfChanged();
             SharedFrame.PollProfile();
 
             UpscalerRig rig = rigs.Rig;
@@ -144,7 +154,7 @@ namespace ReDefinition
             // Neither on nor off: a rig for frame generation alone carries the
             // capture's cost, or the native antialiasing's, which would skew the
             // upscaler's comparison.
-            if (rig == null || (!rig.PassThrough && wantEnabled)) rates.Sample(active);
+            if (rig == null || (!rig.PassThrough && config.WantEnabled)) rates.Sample(active);
             rates.Update(diagnostics.Visible);
             if (diagnostics.Visible) diagnostics.RefreshLiveStrip();
 
@@ -163,47 +173,6 @@ namespace ReDefinition
                 CompatibilityLog.Warn("update-" + kind, "ReDefinition's " + kind + " step failed this frame ("
                                                         + CompatibilityLog.Reason(e) + ").");
             }
-        }
-
-        // The upscaler's hotkey: on when it is off, off when it is on.
-        private void ToggleUpscaler()
-        {
-            SetEnabled(!wantEnabled);
-        }
-
-        // Set where a camera's antialiasing changes at once: the map view entered or left.
-        private bool duplicatesNow;
-
-        // What the last HostStack.Apply or Restore said, for the diagnostics window's page of other mods.
-        internal string hostStackMessage;
-
-        // Entering or leaving the map view: the next SyncHostStack re-takes the mods' antialiasing at once.
-        private void OnMapToggled()
-        {
-            duplicatesNow = true;
-        }
-
-        // The other mods' antialiasing, and what Scatterer's TAA leaves behind, are
-        // taken while the upscaler runs and handed back when it stops (HostStack). It also
-        // runs with frame generation alone, as antialiasing at the screen's size
-        // (RigLifecycle.NativeForFrameGeneration). Without either, the mods' own antialiasing is the
-        // only one there is, one per camera (HostStack.Duplicates). Taken where the
-        // cameras it configures exist: once a rig runs, or in flight and the editors.
-        // Taken earlier, at the main menu say, HostStack would record Scatterer's state
-        // before Scatterer has set itself up. A later scene's new parts are taken
-        // each second, with their own record (HostStack.Reassert).
-        private void SyncHostStack()
-        {
-            UpscalerRig rig = rigs.Rig;
-            bool upscaling = ProfileChosen() && !rigs.PassThroughWanted;
-            // Given back before HostStack takes everything.
-            HostStack.SyncDuplicates(!upscaling && rig == null && ProfileChosen() && Live.OneAntialiasing, duplicatesNow);
-            duplicatesNow = false;
-            if (upscaling && !HostStack.Applied
-                && (rig != null || HighLogic.LoadedSceneIsFlight || HighLogic.LoadedSceneIsEditor))
-                hostStackMessage = HostStack.Apply();
-            else if (!upscaling && HostStack.Applied)
-                hostStackMessage = HostStack.Restore();
         }
 
         // Draws the diagnostics window.
@@ -282,8 +251,8 @@ namespace ReDefinition
                 UpscalerRig.Current = null;
             }
             GameEvents.OnGameSettingsApplied.Remove(OnGameSettingsApplied);
-            GameEvents.OnMapEntered.Remove(OnMapToggled);
-            GameEvents.OnMapExited.Remove(OnMapToggled);
+            GameEvents.OnMapEntered.Remove(hostStack.NoteMapToggled);
+            GameEvents.OnMapExited.Remove(hostStack.NoteMapToggled);
             UnityEngine.SceneManagement.SceneManager.sceneLoaded -= OnSceneLoaded;
 
             if (toolbarButton != null)
@@ -300,8 +269,8 @@ namespace ReDefinition
             });
 
             // The throttled check may not have run since the last change. Not after a scene
-            // probe, whose settings were its measurements' (SaveSettingsIfChanged).
-            if (!Probe.SceneProbe.Requested) Guarded("settings-save", () => Collect().Save());
+            // probe, whose settings were its measurements' (SettingsController.SaveIfChanged).
+            if (!Probe.SceneProbe.Requested) Guarded("settings-save", () => config.Collect().Save());
 
             rigs.Detach();
             KeyCapture.Stop();

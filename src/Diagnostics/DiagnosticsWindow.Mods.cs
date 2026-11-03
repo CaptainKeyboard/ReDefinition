@@ -105,7 +105,7 @@ namespace ReDefinition.Diagnostics
                     Tint = !line.Present ? Color.gray : !line.Ok ? DiagnosticsStyles.Warning : Color.white,
                 });
             }
-            if (!string.IsNullOrEmpty(addon.hostStackMessage)) modRowsNote = addon.hostStackMessage;
+            if (!string.IsNullOrEmpty(hostStack.Message)) modRowsNote = hostStack.Message;
         }
 
         // What the mod registrations built (docs/modders/registering-a-mod.md): the

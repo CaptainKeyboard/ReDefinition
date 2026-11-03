@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
+using ReDefinition.Modules;
 using ReDefinition.Ui;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -12,22 +13,25 @@ namespace ReDefinition.Diagnostics
     // (DiagnosticsWindow.LiveStrip.cs), the pages' list on the left, the selected page on the
     // right (DiagnosticsWindow.Pages.cs, DiagnosticsWindow.Mods.cs), the pinned options at the
     // foot. The window's options are data (DiagnosticsWindow.Options.cs); their rows are drawn
-    // by DiagnosticsWindow.Rows.cs. The add-on owns it, forwards its OnGUI and reads its state.
+    // by DiagnosticsWindow.Rows.cs. The add-on owns it and forwards its OnGUI.
     internal sealed partial class DiagnosticsWindow
     {
-        // The add-on whose settings the window shows and whose setters its options call, the rig's
-        // lifecycle, the frame rates and the recording timer it shows, and the id of its IMGUI window.
-        private readonly ReDefinitionAddon addon;
+        // The settings the window shows and whose setters its options call, the rig's lifecycle, the
+        // other mods' antialiasing, the frame rates and the recording timer it shows, and the id of its IMGUI window.
+        private readonly SettingsController config;
         private readonly RigLifecycle rigs;
+        private readonly HostStackSync hostStack;
         private readonly FrameRateReadout rates;
         private readonly ScreenRecordingTimer recording;
         private readonly int windowId;
 
-        // A window for the add-on, drawn under the id given.
-        public DiagnosticsWindow(ReDefinitionAddon addon, RigLifecycle rigs, FrameRateReadout rates, ScreenRecordingTimer recording, int windowId)
+        // A window for the state given, drawn under the id given.
+        public DiagnosticsWindow(SettingsController config, RigLifecycle rigs, HostStackSync hostStack, FrameRateReadout rates,
+                                 ScreenRecordingTimer recording, int windowId)
         {
-            this.addon = addon;
+            this.config = config;
             this.rigs = rigs;
+            this.hostStack = hostStack;
             this.rates = rates;
             this.recording = recording;
             this.windowId = windowId;
@@ -127,7 +131,7 @@ namespace ReDefinition.Diagnostics
             foundList = null;
             pinnedList = null;
             contextFailingAny = FrameGenerationBridge.ContextFailing;
-            contextFailing = addon.frameGeneration && contextFailingAny;
+            contextFailing = config.FrameGeneration && contextFailingAny;
         }
 
         // The options a page shows.
@@ -221,9 +225,9 @@ namespace ReDefinition.Diagnostics
             window.x = Mathf.Clamp(window.x, grip - window.width, Screen.width - grip);
             window.y = Mathf.Clamp(window.y, grip - window.height, Screen.height - grip);
             // Kept for the next session; saved with the other settings.
-            addon.settings.DiagnosticsX = window.x;
-            addon.settings.DiagnosticsY = window.y;
-            addon.settings.DiagnosticsPage = category;
+            config.Settings.DiagnosticsX = window.x;
+            config.Settings.DiagnosticsY = window.y;
+            config.Settings.DiagnosticsPage = category;
             // Not click-through: what lies behind it is kept from the click
             // (UnityMouseEvents), as behind the settings window.
             UnityMouseEvents.ImguiWindow = window;
@@ -267,7 +271,7 @@ namespace ReDefinition.Diagnostics
             if (pendingPin != null)
             {
                 pins.Toggle(pendingPin);
-                addon.settings.DiagnosticsPins = pins.Text;
+                config.Settings.DiagnosticsPins = pins.Text;
                 pendingPin = null;
             }
             if (pendingChangedToggle)
@@ -398,7 +402,7 @@ namespace ReDefinition.Diagnostics
         }
 
         // The search field has the keyboard: KSP's own keys stay quiet, and the add-on's
-        // hotkeys (HandleHotkeys) too.
+        // hotkeys (AddonHotkeys.Handle) too.
         private void SetTyping(bool typing)
         {
             searchTyping = typing;
@@ -448,7 +452,7 @@ namespace ReDefinition.Diagnostics
                 {
                     if (debugOptions.ById(value) == null) { done.Append(" no switch ").Append(value).Append(';'); continue; }
                     pins.Toggle(value);
-                    addon.settings.DiagnosticsPins = pins.Text;
+                    config.Settings.DiagnosticsPins = pins.Text;
                 }
                 else if (name == "set")
                 {
@@ -475,9 +479,7 @@ namespace ReDefinition.Diagnostics
                 {
                     UpscalerBackend wantedBackend;
                     if (!Enum.TryParse(value, true, out wantedBackend)) { done.Append(" no technique ").Append(value).Append(';'); continue; }
-                    addon.settings.BackendAuto = false;
-                    addon.resolvedFor = null;
-                    addon.SetBackend(wantedBackend);
+                    config.PickBackend(wantedBackend);
                 }
                 else { done.Append(" unknown ").Append(name).Append(';'); continue; }
                 done.Append(' ').Append(command.Trim()).Append(';');

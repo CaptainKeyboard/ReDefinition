@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using FidelityFX.FSR3;
 using ReDefinition.Core;
 using ReDefinition.Diagnostics;
+using ReDefinition.Modules;
 using ReDefinition.Proxy;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -31,9 +32,10 @@ namespace ReDefinition
         // (TryAttach), and how many frames the rig has waited for them at most.
         private const int DlssSizeWaitFrames = 30;
 
-        // The add-on, whose settings the rig is built from and which hosts the coroutines, and the
+        // The add-on, which hosts the coroutines, the settings the rig is built from, and the
         // frame rates, whose means start afresh with the rig.
-        private readonly ReDefinitionAddon addon;
+        private readonly MonoBehaviour host;
+        private readonly SettingsController config;
         private readonly FrameRateReadout rates;
 
         // The rig running, null while none is, and the camera it is attached to.
@@ -114,10 +116,11 @@ namespace ReDefinition
         // The first active camera of each of CameraPreference's names, for PickCamera.
         private readonly Camera[] pickFirst = new Camera[CameraPreference.Length];
 
-        // A lifecycle for the add-on, which the rig is built from and which hosts the coroutines.
-        public RigLifecycle(ReDefinitionAddon addon, FrameRateReadout rates)
+        // A lifecycle that builds its rigs from the settings given, and runs its coroutines on the host given.
+        public RigLifecycle(MonoBehaviour host, SettingsController config, FrameRateReadout rates)
         {
-            this.addon = addon;
+            this.host = host;
+            this.config = config;
             this.rates = rates;
         }
 
@@ -140,7 +143,7 @@ namespace ReDefinition
         // with an upscaler that could not be set up.
         public bool PassThroughWanted
         {
-            get { return (!addon.wantEnabled && !NativeForFrameGeneration) || setupFailures >= SetupAttempts; }
+            get { return (!config.WantEnabled && !NativeForFrameGeneration) || setupFailures >= SetupAttempts; }
         }
 
         // Whether the proxy could not run this technique at the output size, and FSR 3 runs in its place.
@@ -297,8 +300,8 @@ namespace ReDefinition
         // left against it: the rig is built again for it.
         public void RetryIfFallenBack(UpscalerBackend wanted)
         {
-            if (addon.backend == wanted && addon.wantEnabled && rig != null && rig.Backend != addon.backend
-                && !nativeFailures.ContainsKey(addon.backend))
+            if (config.Backend == wanted && config.WantEnabled && rig != null && rig.Backend != config.Backend
+                && !nativeFailures.ContainsKey(config.Backend))
                 Reattach();
         }
 
@@ -363,7 +366,7 @@ namespace ReDefinition
             // only after a new swapchain, an ini change or the player switching
             // frame generation on, which need no rig.
             return PassThroughWanted
-                ? addon.frameGeneration && FrameGenerationBridge.InputsUsable && captureFailures < SetupAttempts
+                ? config.FrameGeneration && FrameGenerationBridge.InputsUsable && captureFailures < SetupAttempts
                 : true;
         }
 
@@ -376,14 +379,14 @@ namespace ReDefinition
         // cannot be set up, frame generation's capture alone, the mods' antialiasing theirs.
         private bool NativeForFrameGeneration
         {
-            get { return !addon.wantEnabled && addon.frameGeneration && FrameGenerationBridge.InputsUsable; }
+            get { return !config.WantEnabled && config.FrameGeneration && FrameGenerationBridge.InputsUsable; }
         }
 
         // The quality the rig is built with: the player's, or NativeAA for frame
         // generation alone.
         private Fsr3Upscaler.QualityMode EffectiveQuality
         {
-            get { return !addon.wantEnabled ? Fsr3Upscaler.QualityMode.NativeAA : addon.quality; }
+            get { return !config.WantEnabled ? Fsr3Upscaler.QualityMode.NativeAA : config.Quality; }
         }
 
         // A change of camera mode changes which cameras render. Entering IVA,
@@ -424,10 +427,10 @@ namespace ReDefinition
             // A changed setting may be what the upscaler could not be set up with:
             // one more try, in place of frame generation's capture if that ran for
             // it, which is back the frame after a failure.
-            if (addon.wantEnabled && setupFailures >= SetupAttempts) setupFailures = SetupAttempts - 1;
+            if (config.WantEnabled && setupFailures >= SetupAttempts) setupFailures = SetupAttempts - 1;
             // A rig for frame generation alone depends on none of the upscaler's
             // settings; Tick rebuilds it once the upscaler comes on.
-            if (rig != null && rig.PassThrough && !addon.wantEnabled) return;
+            if (rig != null && rig.PassThrough && !config.WantEnabled) return;
             Detach();
             // Without the upscaler, Tick attaches frame generation's rig at once.
             if (PassThroughWanted)
@@ -464,7 +467,7 @@ namespace ReDefinition
             // in the editor, with it in flight.
             // Without the upscaler, for frame generation alone: no FSR, no shaders.
             bool passThrough = PassThroughWanted;
-            Fsr3UpscalerShaders shaders = passThrough ? null : ShaderBundle.Load(target.allowHDR, addon.sharpness > 0f);
+            Fsr3UpscalerShaders shaders = passThrough ? null : ShaderBundle.Load(target.allowHDR, config.Sharpness > 0f);
             if (!passThrough && shaders == null)
             {
                 // What a loaded bundle lacks it lacks until KSP starts again: not
@@ -484,7 +487,7 @@ namespace ReDefinition
             if (WaitForDlssSizes(runs, output, builtWith)) return;
 
             UpscalerRig created = target.gameObject.AddComponent<UpscalerRig>();
-            addon.ConfigureRig(created, builtWith, runs, passThrough);
+            config.ConfigureRig(created, builtWith, runs, passThrough);
 
             if (!created.Setup(target, shaders))
             {
@@ -503,7 +506,7 @@ namespace ReDefinition
             // The next rig asks again if its sizes are not known by then.
             dlssSizesAskedFor = Vector2Int.zero;
             attachedTo = target;
-            if (!passThrough || !addon.wantEnabled) Problem = null;
+            if (!passThrough || !config.WantEnabled) Problem = null;
             // A rig for frame generation alone measures neither.
             if (!passThrough) rates.ResetOn();
 
@@ -512,8 +515,8 @@ namespace ReDefinition
                       + rig.DisplaySize.x + "x" + rig.DisplaySize.y + " (" + builtWith + ", "
                       + UpscalerBackends.Name(runs)
                       + (passThrough
-                          ? (addon.wantEnabled ? ", the upscaler not set up" : ", upscaler off") + ": frame generation's inputs only"
-                          : !addon.wantEnabled ? ", upscaler off: antialiasing at the screen's size for frame generation" : "") + ")");
+                          ? (config.WantEnabled ? ", the upscaler not set up" : ", upscaler off") + ": frame generation's inputs only"
+                          : !config.WantEnabled ? ", upscaler off: antialiasing at the screen's size for frame generation" : "") + ")");
             RequestRenderSizeFollowUp("upscaler attached at " + rig.RenderSize.x + "x" + rig.RenderSize.y);
         }
 
@@ -522,7 +525,7 @@ namespace ReDefinition
         // place with the reason in fallbackReason, or FSR 3 for frame generation's capture alone.
         private UpscalerBackend ChooseBackendOrFallback(bool passThrough, Vector2Int output)
         {
-            UpscalerBackend backend = addon.backend;
+            UpscalerBackend backend = config.Backend;
             UpscalerBackend runs = backend;
             // A failure at another output size says nothing about this one.
             if (output != nativeFailureOutput)
@@ -531,7 +534,7 @@ namespace ReDefinition
                 nativeFailureOutput = output;
             }
             string failure;
-            fallbackReason = addon.bypass || passThrough
+            fallbackReason = config.Bypass || passThrough
                 ? null
                 : UpscalerBackends.WhyNotOffered(backend)
                   ?? (nativeFailures.TryGetValue(backend, out failure) ? failure : null);
@@ -556,7 +559,7 @@ namespace ReDefinition
         private bool WaitForDlssSizes(UpscalerBackend runs, Vector2Int output, Fsr3Upscaler.QualityMode builtWith)
         {
             Vector2Int known;
-            if (runs == UpscalerBackend.Dlss && !addon.bypass
+            if (runs == UpscalerBackend.Dlss && !config.Bypass
                 && !DlssBridge.RenderSize(output, DlssBridge.Quality(builtWith), out known))
             {
                 if (dlssSizesAskedFor != output)
@@ -618,7 +621,7 @@ namespace ReDefinition
             followUpReason = reason;
             if (followUpPending) return;
             followUpPending = true;
-            addon.StartCoroutine(FollowRenderSizeAtEndOfFrame());
+            host.StartCoroutine(FollowRenderSizeAtEndOfFrame());
         }
 
         // At the end of the frame: EVE, Scatterer and Deferred sized for the rig now in place, each on its own.

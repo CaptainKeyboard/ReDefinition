@@ -59,13 +59,13 @@ namespace ReDefinition.Diagnostics
                   + (contextFailing ? "  -- " + ContextFailedNote() : "")
                 : rigs.Rig != null && rigs.Rig.PassThrough
                     // What stopped the upscaler follows below.
-                    ? (addon.wantEnabled ? "Upscaler not set up" : "Upscaler off")
+                    ? (config.WantEnabled ? "Upscaler not set up" : "Upscaler off")
                       + (contextFailingAny
                           ? " -- " + ContextFailedNote()
                           : " -- frame generation runs")
-                : !addon.wantEnabled
+                : !config.WantEnabled
                     ? (!BundledSettings.ProfileChosen ? "Off -- choose a graphics profile in ReDefinition's window"
-                       : addon.frameGeneration && FrameGenerationBridge.ContextFailureStands
+                       : config.FrameGeneration && FrameGenerationBridge.ContextFailureStands
                            ? "Off -- " + ContextFailedNote()
                        : "Off")
                 : RigLifecycle.OnlySettingsHere() ? "On -- takes effect in flight and in the editors"
@@ -99,25 +99,23 @@ namespace ReDefinition.Diagnostics
             // Read before any control: the technique's switch forgets failures
             // within this event, and the rows must stay the ones the layout pass
             // counted. (The rig itself is rebuilt by RigLifecycle.Tick, see Reattach.)
-            bool fallingBack = rigs.Rig != null && rigs.Rig.Backend != addon.backend && rigs.FallbackReason != null;
-            bool canRetry = fallingBack && rigs.HasNativeFailure(addon.backend);
+            bool fallingBack = rigs.Rig != null && rigs.Rig.Backend != config.Backend && rigs.FallbackReason != null;
+            bool canRetry = fallingBack && rigs.HasNativeFailure(config.Backend);
             string fallbackText = fallingBack
-                ? UpscalerBackends.Name(addon.backend) + " cannot run, FSR 3 runs instead: " + rigs.FallbackReason
+                ? UpscalerBackends.Name(config.Backend) + " cannot run, FSR 3 runs instead: " + rigs.FallbackReason
                 : null;
-            string retryText = canRetry ? "Try " + UpscalerBackends.Name(addon.backend) + " again" : null;
+            string retryText = canRetry ? "Try " + UpscalerBackends.Name(config.Backend) + " again" : null;
 
             // The techniques that can run here, and the one chosen whatever it can.
             GUILayout.BeginHorizontal();
             GUILayout.Label("Technique", styles.Row);
             GUILayout.FlexibleSpace();
-            int techniqueAt = offeredBackends.IndexOf(addon.backend);
+            int techniqueAt = offeredBackends.IndexOf(config.Backend);
             int pickedTechnique = Segments(offeredTechniqueNames, techniqueAt);
             if (pickedTechnique != techniqueAt)
             {
                 // Picked by hand: no longer Auto's.
-                addon.settings.BackendAuto = false;
-                addon.resolvedFor = null;
-                addon.SetBackend(offeredBackends[pickedTechnique]);
+                config.PickBackend(offeredBackends[pickedTechnique]);
             }
             RowTail();
             GUILayout.EndHorizontal();
@@ -126,23 +124,21 @@ namespace ReDefinition.Diagnostics
             GUILayout.BeginHorizontal();
             GUILayout.Label("Mode", styles.Row);
             GUILayout.FlexibleSpace();
-            int modeAt = ModeCount - 1 - (int)addon.quality;
+            int modeAt = ModeCount - 1 - (int)config.Quality;
             int pickedMode = Segments(modeNames ?? (modeNames = MakeModeNames()), modeAt);
             if (pickedMode != modeAt)
             {
-                addon.settings.QualityAuto = false;
-                addon.resolvedFor = null;
-                addon.SetQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
+                config.PickQuality((Fsr3Upscaler.QualityMode)(ModeCount - 1 - pickedMode));
             }
             RowTail();
             GUILayout.EndHorizontal();
 
             GUILayout.Label(rigs.Rig != null && rigs.Rig.PassThrough
-                ? (addon.wantEnabled ? "The upscaler could not be set up" : "Upscaler off")
+                ? (config.WantEnabled ? "The upscaler could not be set up" : "Upscaler off")
                   + ": frame generation runs, without FSR's antialiasing"
                   + (QualitySettings.antiAliasing > 1 ? ", and KSP's MSAA does not reach the 3D scene." : ".")
-                : addon.quality == Fsr3Upscaler.QualityMode.NativeAA
-                ? "Full resolution. " + UpscalerBackends.Name(rigs.Rig != null ? rigs.Rig.Backend : addon.backend) + " does the antialiasing."
+                : config.Quality == Fsr3Upscaler.QualityMode.NativeAA
+                ? "Full resolution. " + UpscalerBackends.Name(rigs.Rig != null ? rigs.Rig.Backend : config.Backend) + " does the antialiasing."
                 : "Renders smaller and reconstructs.", styles.Dim);
             if (fallingBack)
             {
@@ -159,11 +155,11 @@ namespace ReDefinition.Diagnostics
             GUILayout.Label("Sharpness", styles.Row);
             GUILayout.FlexibleSpace();
             bool down = GUILayout.Button("-", styles.Segment, DiagnosticsLayout.StepButton);
-            GUILayout.Label(addon.sharpness.ToString("0.0"), styles.Value, DiagnosticsLayout.ValueBox);
+            GUILayout.Label(config.Sharpness.ToString("0.0"), styles.Value, DiagnosticsLayout.ValueBox);
             bool up = GUILayout.Button("+", styles.Segment, DiagnosticsLayout.StepButton);
             RowTail();
             GUILayout.EndHorizontal();
-            if (down || up) addon.SetSharpness(addon.sharpness + (up ? 0.1f : -0.1f));
+            if (down || up) config.SetSharpness(config.Sharpness + (up ? 0.1f : -0.1f));
             GUI.enabled = outer;
 
             if (!profile) GUILayout.Label(NeedsProfileText, styles.Reason);
@@ -195,7 +191,7 @@ namespace ReDefinition.Diagnostics
         {
             offeredBackends.Clear();
             foreach (UpscalerBackend candidate in AllBackends)
-                if (candidate == addon.backend || UpscalerBackends.WhyNotOffered(candidate) == null)
+                if (candidate == config.Backend || UpscalerBackends.WhyNotOffered(candidate) == null)
                     offeredBackends.Add(candidate);
             bool same = offeredTechniqueNames.Length == offeredBackends.Count;
             for (int i = 0; same && i < offeredBackends.Count; i++)
@@ -209,7 +205,7 @@ namespace ReDefinition.Diagnostics
         // Other visual mods run temporal filters of their own, which conflict with
         // the upscaler (HostStack). The overview shows the verdict; Other mods the lines
         // behind it. With the upscaler off their antialiasing is theirs
-        // (SyncHostStack), and there is nothing to judge.
+        // (HostStackSync.Sync), and there is nothing to judge.
         private void DrawHostStackSummary()
         {
             if (!BundledSettings.ProfileChosen || rigs.PassThroughWanted)
@@ -227,7 +223,7 @@ namespace ReDefinition.Diagnostics
             if (problems > 0) WarningLabel(problems + " setting(s) in other mods fight FSR.");
             else GUILayout.Label("Other visual mods: nothing conflicting with FSR.");
 
-            if (!string.IsNullOrEmpty(addon.hostStackMessage)) GUILayout.Label(addon.hostStackMessage);
+            if (!string.IsNullOrEmpty(hostStack.Message)) GUILayout.Label(hostStack.Message);
         }
 
         // The page of the upscaler's inputs: its options.

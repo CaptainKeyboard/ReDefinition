@@ -32,12 +32,12 @@ namespace ReDefinition.Diagnostics
         {
             if (debugOptions != null) return;
             debugOptions = BuildDebugOptions();
-            pins.Load(addon.settings.DiagnosticsPins, debugOptions);
+            pins.Load(config.Settings.DiagnosticsPins, debugOptions);
             // The last page, except Previews: it reads the image back from the GPU on every
             // frame it is shown, and a window that opens on it costs frame rate unasked.
-            category = addon.settings.DiagnosticsPage == DebugCategory.Previews ? DebugCategory.Overview : addon.settings.DiagnosticsPage;
-            if (!float.IsNaN(addon.settings.DiagnosticsX) && !float.IsInfinity(addon.settings.DiagnosticsX)) window.x = addon.settings.DiagnosticsX;
-            if (!float.IsNaN(addon.settings.DiagnosticsY) && !float.IsInfinity(addon.settings.DiagnosticsY)) window.y = addon.settings.DiagnosticsY;
+            category = config.Settings.DiagnosticsPage == DebugCategory.Previews ? DebugCategory.Overview : config.Settings.DiagnosticsPage;
+            if (!float.IsNaN(config.Settings.DiagnosticsX) && !float.IsInfinity(config.Settings.DiagnosticsX)) window.x = config.Settings.DiagnosticsX;
+            if (!float.IsNaN(config.Settings.DiagnosticsY) && !float.IsInfinity(config.Settings.DiagnosticsY)) window.y = config.Settings.DiagnosticsY;
         }
 
         // At the start of each layout pass.
@@ -55,7 +55,7 @@ namespace ReDefinition.Diagnostics
         // The technique the rig runs, the chosen one where no rig runs.
         private UpscalerBackend RunningBackend
         {
-            get { return rigs.Rig != null ? rigs.Rig.Backend : addon.backend; }
+            get { return rigs.Rig != null ? rigs.Rig.Backend : config.Backend; }
         }
 
         // FSR 3 and AMD's upscaler take the masks (UpscalerRig.Native, the AMD packet); DLSS and
@@ -120,21 +120,21 @@ namespace ReDefinition.Diagnostics
 
             // Overview: the player's two main switches. Not debug switches, so neither is reset.
             DebugOption upscaler = Switch("upscaler", DebugCategory.Overview, "", "Upscaler", Saved, false,
-                () => addon.wantEnabled, value => addon.SetEnabled(value));
+                () => config.WantEnabled, value => config.SetEnabled(value));
             upscaler.Resettable = false;
             upscaler.Tooltip = "Turn Upscaler On Or Off";
             upscaler.Keywords = new[] { "enable", "disable", "fsr", "dlss", "xess" };
             // Switching on needs a graphics profile (SetEnabled).
-            upscaler.Blocked = () => !addon.wantEnabled && !BundledSettings.ProfileChosen ? NeedsProfileText : null;
+            upscaler.Blocked = () => !config.WantEnabled && !BundledSettings.ProfileChosen ? NeedsProfileText : null;
             set.Add(upscaler);
 
             DebugOption generation = Switch("frameGeneration", DebugCategory.Overview, "", "Frame generation", Saved, false,
-                () => addon.frameGeneration, value => addon.SetFrameGeneration(value));
+                () => config.FrameGeneration, value => config.SetFrameGeneration(value));
             generation.Also = DebugCategory.FrameGeneration;
             generation.Resettable = false;
             generation.Tooltip = "Turn Frame Generation On Or Off";
             generation.Keywords = new[] { "fg", "dlss", "xess", "fsr", "interpolation" };
-            generation.Blocked = () => !addon.frameGeneration && !BundledSettings.ProfileChosen ? NeedsProfileText : null;
+            generation.Blocked = () => !config.FrameGeneration && !BundledSettings.ProfileChosen ? NeedsProfileText : null;
             set.Add(generation);
 
             // The multiplier, as the settings window's Frame generation row sets it: 2x to 6x, or
@@ -144,8 +144,8 @@ namespace ReDefinition.Diagnostics
             multipliers[multipliers.Length - 1] = FrameGenerationChoice.Dynamic;
             DebugOption multiplier = Choice("frameGenerationMultiplier", DebugCategory.FrameGeneration, "",
                 "Multiplier", Saved, multipliers, 0,
-                () => Math.Max(0, Array.IndexOf(multipliers, addon.frameGenerationMultiplier)),
-                index => addon.SetFrameGenerationMultiplier(multipliers[index]));
+                () => Math.Max(0, Array.IndexOf(multipliers, config.FrameGenerationMultiplier)),
+                index => config.SetFrameGenerationMultiplier(multipliers[index]));
             multiplier.Resettable = false;
             multiplier.Tooltip = "Frames Shown Per Rendered Frame";
             multiplier.Keywords = new[] { "2x", "3x", "4x", "dynamic", "mfg", "dlss", "frames" };
@@ -153,15 +153,15 @@ namespace ReDefinition.Diagnostics
             multiplier.DynamicLabel = () =>
             {
                 FrameGenerationChoice.Limits limits = FrameGenerationBridge.Limits();
-                return FrameGenerationChoice.Offered(addon.frameGenerationMultiplier, limits) ? "Multiplier"
-                    : "Multiplier (" + FrameGenerationChoice.Effective(addon.frameGenerationMultiplier, limits) + " here)";
+                return FrameGenerationChoice.Offered(config.FrameGenerationMultiplier, limits) ? "Multiplier"
+                    : "Multiplier (" + FrameGenerationChoice.Effective(config.FrameGenerationMultiplier, limits) + " here)";
             };
             set.Add(multiplier);
 
             // Upscaler inputs.
             const string motion = "Motion and depth";
             DebugOption jitterOption = Switch("jitter", DebugCategory.UpscalerInputs, motion, "Jitter", Saved, saved.Jitter,
-                () => addon.jitter, value => addon.SetJitter(value));
+                () => config.Jitter, value => config.SetJitter(value));
             jitterOption.Keywords = new[] { "taa", "subpixel" };
             set.Add(jitterOption);
 
@@ -192,7 +192,7 @@ namespace ReDefinition.Diagnostics
 
             DebugOption skinned = Choice("skinnedMotionVectors", DebugCategory.UpscalerInputs, motion,
                 "Skinned motion vectors", Saved, new[] { "As set", "Forced" }, saved.SkinnedMotionVectors ? 1 : 0,
-                () => addon.skinnedMotionVectors ? 1 : 0, value => addon.SetSkinnedMotionVectors(value != 0));
+                () => config.SkinnedMotionVectors ? 1 : 0, value => config.SetSkinnedMotionVectors(value != 0));
             skinned.Tooltip = "Forced On Or As The Game Set Them";
             skinned.Keywords = new[] { "animation", "kerbals" };
             set.Add(skinned);
@@ -233,24 +233,24 @@ namespace ReDefinition.Diagnostics
             set.Add(clouds);
 
             DebugOption mipmap = Switch("mipmapBias", DebugCategory.UpscalerInputs, "Textures", "Mipmap bias", Saved, saved.MipmapBias,
-                () => addon.mipmapBias, value => addon.SetMipmapBias(value));
+                () => config.MipmapBias, value => config.SetMipmapBias(value));
             mipmap.Keywords = new[] { "texture", "sharpness" };
             set.Add(mipmap);
 
             DebugOption tufx = Switch("tufxAfterUpscaling", DebugCategory.UpscalerInputs, "Image", "TUFX after upscaling", Saved,
-                saved.TufxAfterUpscaling, () => addon.tufxAfterUpscaling, value => addon.SetTufxAfterUpscaling(value));
+                saved.TufxAfterUpscaling, () => config.TufxAfterUpscaling, value => config.SetTufxAfterUpscaling(value));
             tufx.Keywords = new[] { "bloom", "tonemapping", "post-processing" };
             set.Add(tufx);
 
             DebugOption exposure = Switch("autoExposure", DebugCategory.UpscalerInputs, "Image", "Auto exposure", Saved,
-                saved.AutoExposure, () => addon.autoExposure, value => addon.SetAutoExposure(value));
+                saved.AutoExposure, () => config.AutoExposure, value => config.SetAutoExposure(value));
             exposure.Tooltip = "FSR 3, AMD And XeSS";
             // DLSS always measures its exposure itself.
             exposure.Blocked = () => RunningBackend == UpscalerBackend.Dlss ? "DLSS measures its exposure itself" : null;
             set.Add(exposure);
 
             DebugOption transparency = Switch("transparencyMask", DebugCategory.UpscalerInputs, "Masks", "Transparency mask", Saved,
-                saved.TransparencyMask, () => addon.transparencyMask, value => addon.SetTransparencyMask(value));
+                saved.TransparencyMask, () => config.TransparencyMask, value => config.SetTransparencyMask(value));
             transparency.Tooltip = "FSR 3 And AMD";
             transparency.Keywords = new[] { "eve", "scatterer", "ocean" };
             transparency.Blocked = () => TakesMasks ? null : NeedsMasksText;
@@ -258,7 +258,7 @@ namespace ReDefinition.Diagnostics
 
             DebugOption reactive = Choice("reactiveMask", DebugCategory.UpscalerInputs, "Masks", "Reactive mask", Saved,
                 new[] { "Off", "Renderers", "FSR's estimate" }, (int)saved.ReactiveMask,
-                () => (int)addon.reactiveMask, value => addon.SetReactiveMask((UpscalerMasks.ReactiveSource)value));
+                () => (int)config.ReactiveMask, value => config.SetReactiveMask((UpscalerMasks.ReactiveSource)value));
             reactive.Tooltip = "FSR 3 And AMD";
             reactive.Keywords = new[] { "particles", "plumes", "re-entry", "transparent renderers" };
             reactive.Blocked = () => TakesMasks ? null : NeedsMasksText;
@@ -267,38 +267,32 @@ namespace ReDefinition.Diagnostics
             // Frame generation and latency.
             DebugOption fastTurns = Switch("motionVectorCheck", DebugCategory.FrameGeneration, "", "Motion vector check on fast turns",
                 Session, false,
-                () => addon.recordFastTurns,
-                value =>
-                {
-                    addon.recordFastTurns = value;
-                    if (rigs.Rig != null) rigs.Rig.RecordFastTurns = addon.recordFastTurns;
-                    Debug.Log(Log.Tag + " Motion vector check on fast turns " + (addon.recordFastTurns ? "on" : "off") + ".");
-                });
+                () => config.RecordFastTurns, value => config.SetRecordFastTurns(value));
             fastTurns.Keywords = new[] { "fg", "camera" };
             // Needs frame generation, whose inputs the check reads.
-            fastTurns.Blocked = () => addon.frameGeneration ? null : "needs frame generation";
+            fastTurns.Blocked = () => config.FrameGeneration ? null : "needs frame generation";
             set.Add(fastTurns);
 
             // Game settings, all three at once: a rebuild would reset the upscaler's history.
             DebugOption lod = Switch("lodBias", DebugCategory.GameSettings, "", "LOD bias compensation", Saved, saved.CompensateLodBias,
-                () => addon.compensateLodBias, value => addon.SetCompensateLodBias(value));
+                () => config.CompensateLodBias, value => config.SetCompensateLodBias(value));
             lod.Keywords = new[] { "level of detail" };
             set.Add(lod);
 
             DebugOption msaa = Switch("disableMsaa", DebugCategory.GameSettings, "", "MSAA forced off", Saved, saved.DisableMsaa,
-                () => addon.disableMsaa, value => addon.SetDisableMsaa(value));
+                () => config.DisableMsaa, value => config.SetDisableMsaa(value));
             msaa.Keywords = new[] { "antialiasing", "multisampling" };
             set.Add(msaa);
 
             DebugOption anisotropic = Switch("forceAnisotropic", DebugCategory.GameSettings, "", "Anisotropic filtering forced", Saved,
-                saved.ForceAnisotropic, () => addon.forceAnisotropic, value => addon.SetForceAnisotropic(value));
+                saved.ForceAnisotropic, () => config.ForceAnisotropic, value => config.SetForceAnisotropic(value));
             anisotropic.Keywords = new[] { "texture filtering" };
             set.Add(anisotropic);
 
             // Capture and log.
             const string log = "Log";
             DebugOption measurements = Switch("debugMode", DebugCategory.Capture, log, "Measurements into the log", Saved, false,
-                () => ReDefinitionAddon.DebugMode, value => addon.SetDebugMode(value));
+                () => SettingsController.DebugMode, value => config.SetDebugMode(value));
             measurements.Tooltip = "Audits And Read-Backs";
             measurements.Keywords = new[] { "debug", "diagnostic" };
             set.Add(measurements);
@@ -332,25 +326,14 @@ namespace ReDefinition.Diagnostics
 
             // The rendered picture as it is, through the same redirect: what the upscaler starts from.
             DebugOption without = Switch("bypass", DebugCategory.Capture, views, "Without upscaler (bypass)", Session, false,
-                () => addon.bypass,
-                value =>
-                {
-                    addon.bypass = value;
-                    rigs.Reattach();
-                });
+                () => config.Bypass, value => config.SetBypass(value));
             without.Tooltip = "The Picture Before The Upscaler";
             set.Add(without);
 
 #if DEVELOPMENT_BUILD
             // FSR's debug view pass is compiled into development builds only.
             DebugOption view = Switch("fsrDebugView", DebugCategory.Capture, views, "FSR's debug view", Session, false,
-                () => addon.debugView,
-                value =>
-                {
-                    addon.debugView = value;
-                    if (rigs.Rig != null) rigs.Rig.DebugView = addon.debugView;
-                    Debug.Log(Log.Tag + " FSR debug view " + (addon.debugView ? "on" : "off"));
-                });
+                () => config.DebugView, value => config.SetDebugView(value));
             view.Tooltip = "Development Builds Only";
             view.Blocked = () => RunningBackend == UpscalerBackend.Fsr3 ? null : "needs FSR 3";
             set.Add(view);
