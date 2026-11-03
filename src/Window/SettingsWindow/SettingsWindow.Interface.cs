@@ -40,7 +40,7 @@ namespace ReDefinition.Window
                                  + " there.\nOff: KSP's buttons open KSP's own screens, and ReDefinition's entry stands"
                                  + " under them.\nTakes effect the next time a menu is built.";
             return DialogRows.Row(RowHeight,
-                new DialogGUILabel(() => Marked("Replace original settings",
+                new DialogGUILabel(() => SettingMarks.Marked("Replace original settings",
                     edit != null && edit.Before.ReplaceKspSettings != edit.After.ReplaceKspSettings), NameWidth),
                 toggle, new DialogGUISpace(10f),
                 new DialogGUILabel("", ValueWidth),
@@ -60,7 +60,7 @@ namespace ReDefinition.Window
                     section = own.Key.Section;
                     rows.Add(SectionHeading(section));
                 }
-                rows.Add(Searchable(own.Value, own.Key.Title + " " + (section ?? "") + " ReDefinition"));
+                rows.Add(SettingsSearch.Searchable(own.Value, own.Key.Title + " " + (section ?? "") + " ReDefinition"));
             }
         }
 

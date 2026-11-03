@@ -75,8 +75,7 @@ namespace ReDefinition.Window
                 releasedBy[profile.Name] = released;
             }
             model.SetProfiles(values, releasedBy);
-            defaultsOf = null;
-            profilesGeneration++;
+            SettingMarks.ProfilesReloaded();
             ProfileApplier.Report("Graphics profiles", problems);
             status = null;
         }

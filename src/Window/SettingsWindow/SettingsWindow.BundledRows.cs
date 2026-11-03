@@ -242,9 +242,9 @@ namespace ReDefinition.Window
             // the same string while it is the same one.
             string defaultFor = null;
             string defaultShown = null;
-            DefaultTooltip(control, () =>
+            SettingMarks.DefaultTooltip(control, () =>
             {
-                string profileValue = BundledDefault(setting);
+                string profileValue = SettingMarks.BundledDefault(setting);
                 if (profileValue == null) return null;
                 if (!ReferenceEquals(profileValue, defaultFor))
                 {
@@ -261,7 +261,7 @@ namespace ReDefinition.Window
                                                         && model.HasPending(key) && !Requirements.Locked(setting);
 
             return DialogRows.Row(RowHeight,
-                new DialogGUILabel(() => MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
+                new DialogGUILabel(() => SettingMarks.MarkedTitle(setting), NameWidth), control, new DialogGUISpace(10f),
                 new DialogGUILabel(value, ValueWidth),
                 new DialogGUILabel(RichText.Grey(setting.Owner.ModName), SourceWidth));
         }

@@ -47,7 +47,7 @@ namespace ReDefinition.Window
                         members = new List<DialogGUIBase>();
                     }
                     group = axis.Group;
-                    members.Add(Searchable(DialogRows.Row(RowHeight,
+                    members.Add(SettingsSearch.Searchable(DialogRows.Row(RowHeight,
                         new DialogGUISpace(AxisSideWidth),
                         new DialogGUILabel(RichText.Grey("Axis"), AxisButtonWidth + 26f),
                         new DialogGUILabel(RichText.Grey("Invert"), 56f),
@@ -57,10 +57,10 @@ namespace ReDefinition.Window
                 }
                 string text = axis.Title + " " + axis.Group + " axis";
                 KspAxes.Axis marked = axis;
-                members.Add(Searchable(new DialogGUILabel(() => Marked(marked.Title, AxisChanged(marked)),
+                members.Add(SettingsSearch.Searchable(new DialogGUILabel(() => SettingMarks.Marked(marked.Title, AxisChanged(marked)),
                     NameWidth + ControlWidth), text));
-                members.Add(Searchable(AxisSide(axis, false), text));
-                members.Add(Searchable(AxisSide(axis, true), text));
+                members.Add(SettingsSearch.Searchable(AxisSide(axis, false), text));
+                members.Add(SettingsSearch.Searchable(AxisSide(axis, true), text));
             }
             if (members.Count > 0) AddFold(rows, SettingCategory.Axes, group, members, first);
             return rows.ToArray();

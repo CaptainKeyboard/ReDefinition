@@ -149,7 +149,7 @@ namespace ReDefinition.Window
                 bool binding = bundled.Control == SettingControl.Binding;
                 if (!binding && bundled.Control == SettingControl.Value) continue;
                 shownKeys.Add(bundled.Key);
-                NoteKey(SettingCategory.Keys, bundled.Key);
+                SettingsTabs.NoteKey(SettingCategory.Keys, bundled.Key);
                 AddToSection(sections, order, binding ? bundled.Group : BundledSetting.ModsGroup, bundled.Title,
                     bundled.Owner.ModName, () => binding ? BundledBindingRow(bundled, true) : BundledRow(bundled));
             }
@@ -210,7 +210,7 @@ namespace ReDefinition.Window
                 sectionMembers[key] = names;
             }
             names.Add(new[] { title, owner });
-            NotePageText(SettingCategory.Keys, title + " " + owner + " " + key);
+            SettingsSearch.NotePageText(SettingCategory.Keys, title + " " + owner + " " + key);
         }
 
         // A section as its header shows it: KSP's own spelling where it is one of
@@ -247,14 +247,14 @@ namespace ReDefinition.Window
             }, PageWidth - 60f, RowHeight + 6f,
                 "Opens or folds the " + title + " bindings. A search shows its matches in every section.");
             header.OptionEnabledCondition = () => GroupShown(title);
-            header.OptionInteractableCondition = () => keySearch.Length == 0;
+            header.OptionInteractableCondition = () => !SettingsSearch.Searching;
             return header;
         }
 
         // Whether a section's rows stand: while it is open, or while something is searched.
         private static bool GroupOpen(string group)
         {
-            return keySearch.Length > 0 || openGroups.Contains(group);
+            return SettingsSearch.Searching || openGroups.Contains(group);
         }
 
         // The groups a search leaves rows in, worked out once per search.
@@ -264,16 +264,16 @@ namespace ReDefinition.Window
         // A section's title stands only while one of its rows does.
         private static bool GroupShown(string group)
         {
-            if (keySearch.Length == 0) return true;
-            if (groupsShownFor != keySearch)
+            if (!SettingsSearch.Searching) return true;
+            if (groupsShownFor != SettingsSearch.Text)
             {
-                groupsShownFor = keySearch;
+                groupsShownFor = SettingsSearch.Text;
                 groupsShown.Clear();
                 foreach (KeyValuePair<string, List<string[]>> section in sectionMembers)
                 {
                     foreach (string[] member in section.Value)
                     {
-                        if (!MatchesSearch(member[0], member[1])) continue;
+                        if (!SettingsSearch.Matches(member[0], member[1])) continue;
                         groupsShown.Add(section.Key);
                         break;
                     }
@@ -291,12 +291,12 @@ namespace ReDefinition.Window
             // Asked in every frame.
             string primaryKey = "ksp." + shown.Name + ".primary", secondaryKey = "ksp." + shown.Name + ".secondary";
             DialogGUIBase row = DialogRows.Row(RowHeight + 4f,
-                new DialogGUILabel(() => Marked(shown.Title, Pending.ContainsKey(primaryKey)
+                new DialogGUILabel(() => SettingMarks.Marked(shown.Title, Pending.ContainsKey(primaryKey)
                                                              || Pending.ContainsKey(secondaryKey)),
                     KeyNameWidth), first, new DialogGUISpace(6f),
                 second, new DialogGUISpace(4f),
                 new DialogGUILabel(RichText.Grey("KSP"), KeySourceWidth));
-            row.OptionEnabledCondition = SearchFilter(shown.Title, "KSP");
+            row.OptionEnabledCondition = SettingsSearch.Filter(shown.Title, "KSP");
             return row;
         }
 
@@ -405,7 +405,7 @@ namespace ReDefinition.Window
             Func<string> text = () => CachedText(key, read);
             DialogGUIBase row = BindingRow(key, shown.Title, shown.Tooltip, "ReDefinition", text,
                 value => edit.Write(shown, value), () => true, 2, KspKeyBindings.Everywhere);
-            row.OptionEnabledCondition = SearchFilter(shown.Title, "ReDefinition");
+            row.OptionEnabledCondition = SettingsSearch.Filter(shown.Title, "ReDefinition");
             return row;
         }
 
@@ -440,7 +440,7 @@ namespace ReDefinition.Window
                         : KeyCombination.NoneText);
                 }, KspKeyBindings.SituationsOfGroup(shown.Group));
             }
-            if (inKeysTab) row.OptionEnabledCondition = SearchFilter(shown.Title, shown.Owner.ModName);
+            if (inKeysTab) row.OptionEnabledCondition = SettingsSearch.Filter(shown.Title, shown.Owner.ModName);
             return row;
         }
 
