@@ -84,8 +84,12 @@ namespace ReDefinition.Autopilot.Guidance
         // It is found by halving the range of the burn, since the apoapsis rises with it.
         internal static double RaiseBurn(CelestialBody body, State at, V3 direction, double aimAltitude)
         {
-            double mu = body.gravParameter;
-            double target = body.Radius + aimAltitude;
+            return RaiseBurn(body.gravParameter, body.Radius, at, direction, aimAltitude);
+        }
+
+        internal static double RaiseBurn(double mu, double radius, State at, V3 direction, double aimAltitude)
+        {
+            double target = radius + aimAltitude;
             double low = -at.V.Length, high = Math.Sqrt(2.0 * mu / at.R.Length);
             for (int i = 0; i < 60; i++)
             {
@@ -101,6 +105,18 @@ namespace ReDefinition.Autopilot.Guidance
         {
             var conic = new Conic(state, mu);
             return conic.Closed ? conic.A * (1.0 + conic.E) : double.PositiveInfinity;
+        }
+
+        // The share of the full throttle that a fall which is even in time has at the burn left, 1 at most: the burn is a T / 2 times the throttle squared.
+        internal static double RampShare(double burn, double acceleration)
+        {
+            return acceleration > 0.0 ? Math.Min(1.0, Math.Sqrt(Math.Max(0.0, burn) / RampBurn(acceleration))) : 1.0;
+        }
+
+        // The share of the engines' acceleration that reaches the burn, moved towards what a sample over `seconds` showed, kept between a fifth and one and a half.
+        internal static double Blend(double share, double instant, double seconds)
+        {
+            return share + (Math.Max(0.2, Math.Min(1.5, instant)) - share) * (1.0 - Math.Exp(-seconds / MeasureSeconds));
         }
 
         // How much of the engines' acceleration reaches the burn left, as it is measured while the vessel flies. The burn left falls by less than the engines
@@ -137,7 +153,7 @@ namespace ReDefinition.Autopilot.Guidance
             double given = FlightInputHandler.state.mainThrottle;
             double instant = (referenceBurn - burn) / (dt * nominal * given);
             if (given > 0.5 && nominal > 0.0 && !double.IsNaN(instant) && !double.IsInfinity(instant))
-                effective += (Math.Max(0.2, Math.Min(1.5, instant)) - effective) * (1.0 - Math.Exp(-dt / MeasureSeconds));
+                effective = Blend(effective, instant, dt);
             referenceBurn = burn;
             referenceTime = ut;
         }
@@ -164,7 +180,7 @@ namespace ReDefinition.Autopilot.Guidance
                 double allowed = Heat.Allowed(vessel, out reason);
                 double acceleration = Engines.Acceleration(vessel) * effective;
                 // Following a throttle that falls evenly over the time T, the burn left is a T / 2 times the throttle squared, at full thrust a.
-                double ramp = acceleration > 0.0 ? Math.Min(1.0, Math.Sqrt(burn / RampBurn(acceleration))) : 1.0;
+                double ramp = RampShare(burn, acceleration);
                 // Not below the least throttle that MechJeb's ascent gives while it raises the apoapsis; it is cut when the burn is done.
                 ramp = Math.Max(LeastThrottle, ramp);
                 ideal = Math.Min(allowed, ramp);

@@ -71,29 +71,44 @@ namespace ReDefinition.Autopilot.Guidance
         // The bar as the gauges show it, 0 to 1 with the mark at a half: under the mark where thrust is to be given, over it where less is wanted.
         internal static double Arc
         {
-            get { return Done ? 0.0 : 0.5 - 0.5 * Need; }
+            get { return ArcOf(Need, Done); }
+        }
+
+        internal static double ArcOf(double need, bool done)
+        {
+            return done ? 0.0 : 0.5 - 0.5 * need;
+        }
+
+        // The need: the ideal throttle less the one given, from -1 to 1.
+        internal static double NeedOf(double ideal, double given)
+        {
+            return Math.Max(-1.0, Math.Min(1.0, ideal - given));
         }
 
         // How far off the bar is: 0 on target, 2 at the full colour, 1 between.
         internal static int Level
         {
-            get
-            {
-                double off = Math.Abs(Need);
-                return Done || off < OnTarget ? 0 : off >= FullColour ? 2 : 1;
-            }
+            get { return LevelOf(Need, Done); }
+        }
+
+        internal static int LevelOf(double need, bool done)
+        {
+            double off = Math.Abs(need);
+            return done || off < OnTarget ? 0 : off >= FullColour ? 2 : 1;
         }
 
         // The need as a speed, in m/s: over the one asked for where positive, short of it where negative. It says the same as the bar, by its sign.
         internal static string NumberText
         {
-            get
-            {
-                if (!HasBar || !(Span > 0.0)) return "";
-                double gap = -Need * Span;
-                if (Math.Abs(gap) < 1.0) return "0 m/s";
-                return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
-            }
+            get { return HasBar ? NumberTextOf(Need, Span) : ""; }
+        }
+
+        internal static string NumberTextOf(double need, double span)
+        {
+            if (!(span > 0.0)) return "";
+            double gap = -need * span;
+            if (Math.Abs(gap) < 1.0) return "0 m/s";
+            return Math.Abs(gap).ToString("0") + (gap > 0.0 ? " m/s over" : " m/s short");
         }
 
         internal static void Publish(Vessel target, GuidanceFrame frame)
@@ -113,7 +128,7 @@ namespace ReDefinition.Autopilot.Guidance
             HasBar = frame.IdealThrottle.HasValue && !double.IsNaN(frame.IdealThrottle.Value);
             if (!HasBar) return;
             Ease(target, frame.IdealThrottle.Value, frame.EaseIdeal);
-            Need = Math.Max(-1.0, Math.Min(1.0, Ideal - frame.Given));
+            Need = NeedOf(Ideal, frame.Given);
             Span = frame.Span;
         }
 

@@ -164,7 +164,7 @@ namespace ReDefinition.Autopilot.Planning
         }
 
         // The retrograde burn that leaves a periapsis at `radius`: the change of velocity, against the velocity. False where there is none.
-        private static bool Retrograde(State at, double mu, double radius, out V3 burn)
+        internal static bool Retrograde(State at, double mu, double radius, out V3 burn)
         {
             burn = new V3(0.0, 0.0, 0.0);
             V3 direction = at.V.Unit;
@@ -184,7 +184,7 @@ namespace ReDefinition.Autopilot.Planning
         }
 
         // The periapsis radius of the orbit after a retrograde burn of `dv`.
-        private static double PeriapsisAfter(State at, double mu, double dv)
+        internal static double PeriapsisAfter(State at, double mu, double dv)
         {
             var conic = new Conic(new State(at.R, at.V - at.V.Unit * dv), mu);
             return conic.P / (1.0 + conic.E);
@@ -245,14 +245,19 @@ namespace ReDefinition.Autopilot.Planning
         // The distance over the ground between two places, in m.
         private static double Distance(CelestialBody body, double latitudeA, double longitudeA, double latitudeB, double longitudeB)
         {
+            return Distance(body.Radius, latitudeA, longitudeA, latitudeB, longitudeB);
+        }
+
+        internal static double Distance(double radius, double latitudeA, double longitudeA, double latitudeB, double longitudeB)
+        {
             double a = latitudeA * Math.PI / 180.0, b = latitudeB * Math.PI / 180.0;
             double dLat = b - a, dLon = Wrap(longitudeB - longitudeA) * Math.PI / 180.0;
             double h = Math.Sin(dLat / 2.0) * Math.Sin(dLat / 2.0) + Math.Cos(a) * Math.Cos(b) * Math.Sin(dLon / 2.0) * Math.Sin(dLon / 2.0);
-            return 2.0 * body.Radius * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
+            return 2.0 * radius * Math.Asin(Math.Min(1.0, Math.Sqrt(h)));
         }
 
         // An angle in degrees brought to between -180 and 180.
-        private static double Wrap(double degrees)
+        internal static double Wrap(double degrees)
         {
             degrees %= 360.0;
             if (degrees > 180.0) degrees -= 360.0;
