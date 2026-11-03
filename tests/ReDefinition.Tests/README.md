@@ -37,6 +37,8 @@ category Docs, so `dotnet test tests/ReDefinition.Tests --filter "TestCategory!=
   file lists on archives made here, and Streamline's camera matrices.
 - The dashboard's pages and the flight and editor readings are tested as data. The planner's
   route and the stage budget are checked against figures worked out by hand and the stock crafts.
+  The plan's model, its sections, thrust check and fuel figures run on a vessel and a route made
+  in `tests/ReDefinition.Tests/PlannerModelFixture.cs`, without the game.
 - `tests/ReDefinition.Tests/ForeignAssumptionTests.cs` and
   `tests/ReDefinition.Tests/ScalingHookTests.cs` check the mod's reliance on other code: the
   fingerprints of another mod's methods, and Harmony's targets in KSP's own assembly.

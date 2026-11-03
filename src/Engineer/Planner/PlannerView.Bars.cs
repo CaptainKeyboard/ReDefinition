@@ -1,11 +1,10 @@
 using System.Collections.Generic;
-using System.Globalization;
 using ReDefinition.Window;
 using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // The bars of the route's steps and of the summary, and the stages' colours.
+    // The bars of the route's steps and of the summary.
     internal sealed partial class PlannerView
     {
         // ------------------------------------------------------------------ bars
@@ -15,13 +14,14 @@ namespace ReDefinition.Engineer
         // whichever is more.
         private void UpdateBars()
         {
-            if (!Worked()) return;
+            if (!model.Worked()) return;
+            StageBudget.Result budget = model.Budget;
             // What the step's row leaves the bar: the line, the place, who flies, the
             // figure and "...", with the gaps between them, and a seam of one unit
             // between its pieces.
             // Six elements and five gaps besides who flies, to end where a stop's
             // cross does.
-            float room = Mathf.Max(40f, width - Timeline - Place - (HasSections() ? VehicleButton + 4f : 0f)
+            float room = Mathf.Max(40f, width - Timeline - Place - (model.Sections.HasSections() ? VehicleButton + 4f : 0f)
                                         - StepSpeed_ - Square - Gap * 5f - RowEnd);
             double longest = 1.0;
             foreach (double value in budget.Needed) if (value > longest) longest = value;
@@ -31,13 +31,13 @@ namespace ReDefinition.Engineer
                     SegmentBar bar = stepBars[leg, role];
                     if (bar == null) continue;
                     List<KeyValuePair<float, Color>> pieces = new List<KeyValuePair<float, Color>>();
-                    int index = Slot(leg, (StepRole)role);
+                    int index = model.Slot(leg, (StepRole)role);
                     if (index >= 0)
                     {
                         int count = budget.Uses.FindAll(use => use.Leg == index).Count + (budget.Short[index] > 0.5 ? 1 : 0);
                         float barRoom = Mathf.Max(20f, room - count);
                         foreach (StageBudget.StageUse use in budget.Uses)
-                            if (use.Leg == index) pieces.Add(Piece(use.DeltaV / longest * barRoom, StageColour(use.Stage)));
+                            if (use.Leg == index) pieces.Add(Piece(use.DeltaV / longest * barRoom, model.StageColour(use.Stage)));
                         if (budget.Short[index] > 0.5) pieces.Add(Piece(budget.Short[index] / longest * barRoom, PlannerColors.Short));
                     }
                     bar.Set(pieces);
@@ -53,6 +53,7 @@ namespace ReDefinition.Engineer
             UpdateSwatches();
 
             if (totalBar == null) return;
+            List<StageRow> stages = model.Stages;
             List<KeyValuePair<double, Color>> parts = new List<KeyValuePair<double, Color>>();
             for (int i = 0; i < stages.Count; i++)
             {
@@ -64,7 +65,7 @@ namespace ReDefinition.Engineer
             if (budget.TotalShort > 0.5) parts.Add(new KeyValuePair<double, Color>(budget.TotalShort, PlannerColors.Short));
             double sum = 0.0;
             foreach (KeyValuePair<double, Color> part in parts) sum += part.Key;
-            double scale = System.Math.Max(1.0, System.Math.Max(sum, System.Math.Max(TotalNeeded(), TotalHas())));
+            double scale = System.Math.Max(1.0, System.Math.Max(sum, System.Math.Max(model.TotalNeeded(), model.TotalHas())));
             float usable = Mathf.Max(20f, width - RowEnd - parts.Count);
             List<KeyValuePair<float, Color>> total = new List<KeyValuePair<float, Color>>();
             foreach (KeyValuePair<double, Color> part in parts) total.Add(Piece(part.Key / scale * usable, part.Value));
@@ -75,13 +76,6 @@ namespace ReDefinition.Engineer
         private static KeyValuePair<float, Color> Piece(double pieceWidth, Color color)
         {
             return new KeyValuePair<float, Color>((float)pieceWidth, color);
-        }
-
-        // The stage's colour on the bars, by its place among the stages with delta-v; the spare colour for another.
-        private Color StageColour(int number)
-        {
-            int at = stages.FindIndex(row => row.Number == number);
-            return at >= 0 ? PlannerColors.Stage(at) : PlannerColors.Spare;
         }
     }
 }
