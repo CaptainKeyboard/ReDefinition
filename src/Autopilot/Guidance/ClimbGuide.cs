@@ -23,9 +23,9 @@ namespace ReDefinition.Autopilot.Guidance
         // Without air the turn starts this high over the ground, in metres.
         private const double TurnStartOverGround = 25.0;
 
-        // How long the ideal throttle is to take to fall from full thrust to none, in s. The player's limit is twenty. The fall measured takes about one eighth
-        // longer than this, so it is set under that. It falls evenly in time. MechJeb's own ascent throttles down over one second.
-        internal const double RampSeconds = 17.0;
+        // How long the ideal throttle is to take to fall from full thrust to none, in s: the player's limit. It falls evenly in time, and ClimbRamp works out
+        // where on the fall the throttle is. MechJeb's own ascent throttles down over one second.
+        internal const double RampSeconds = 20.0;
 
         // The burn that the fall covers, in m/s, with the engines giving `acceleration` at full thrust: the area under the fall of the throttle.
         internal static double RampBurn(double acceleration)
@@ -49,7 +49,7 @@ namespace ReDefinition.Autopilot.Guidance
             }
             double start = body.atmosphere ? body.atmosphereDepth * AutoTurnPercent : vessel.terrainAltitude + TurnStartOverGround;
             double startSpeed = body.atmosphere ? AutoTurnSpeedFactor * AutoTurnSpeedFactor * AutoTurnSpeedFactor * 0.015625 : double.PositiveInfinity;
-            double end = body.atmosphere ? Math.Min(body.atmosphereDepth * TurnEndShare, aimAltitude) : Math.Min(TurnEndWithoutAirLimit, aimAltitude * TurnEndShare);
+            double end = TurnEnd(body, aimAltitude);
             double height = vessel.altitude;
             actualTurnStart = Math.Min(actualTurnStart, start);
             if (height < start && vessel.srfSpeed < startSpeed)
@@ -57,8 +57,20 @@ namespace ReDefinition.Autopilot.Guidance
                 actualTurnStart = Math.Max(actualTurnStart, height);
                 return 90.0;
             }
-            if (height > end) return 0.0;
-            double fraction = Math.Pow((height - actualTurnStart) / (end - actualTurnStart), TurnShapeExponent);
+            return PitchAtHeight(height, actualTurnStart, end);
+        }
+
+        // Where the turn ends, in metres over the sea: in air this share of its depth, without air this share of the orbit's height, and not above 30 km.
+        private static double TurnEnd(CelestialBody body, double aimAltitude)
+        {
+            return body.atmosphere ? Math.Min(body.atmosphereDepth * TurnEndShare, aimAltitude) : Math.Min(TurnEndWithoutAirLimit, aimAltitude * TurnEndShare);
+        }
+
+        // The pitch of the turn at a height, in degrees over the horizon: 90 at the height the turn started, falling along the curve to none at its end.
+        internal static double PitchAtHeight(double height, double turnStart, double end)
+        {
+            if (height > end || !(end > turnStart)) return 0.0;
+            double fraction = Math.Pow(Math.Max(0.0, (height - turnStart) / (end - turnStart)), TurnShapeExponent);
             return Math.Max(0.01, Math.Min(89.99, 90.0 - fraction * 90.0));
         }
 
@@ -107,55 +119,21 @@ namespace ReDefinition.Autopilot.Guidance
             return conic.Closed ? conic.A * (1.0 + conic.E) : double.PositiveInfinity;
         }
 
-        // The share of the full throttle that a fall which is even in time has at the burn left, 1 at most: the burn is a T / 2 times the throttle squared.
-        internal static double RampShare(double burn, double acceleration)
-        {
-            return acceleration > 0.0 ? Math.Min(1.0, Math.Sqrt(Math.Max(0.0, burn) / RampBurn(acceleration))) : 1.0;
-        }
+        // How long the fall still lasts, as the last climb worked it out, for the log.
+        internal static double SecondsLeft { get; private set; }
 
-        // The share of the engines' acceleration that reaches the burn, moved towards what a sample over `seconds` showed, kept between a fifth and one and a half.
-        internal static double Blend(double share, double instant, double seconds)
+        // The throttle the even fall has now, 0 to 1: the time it still falls over, which flying the climb ahead on paper gives, over the time it takes to fall from full.
+        private static double RampThrottle(Vessel vessel, State at, double aimAltitude)
         {
-            return share + (Math.Max(0.2, Math.Min(1.5, instant)) - share) * (1.0 - Math.Exp(-seconds / MeasureSeconds));
-        }
-
-        // How much of the engines' acceleration reaches the burn left, as it is measured while the vessel flies. The burn left falls by less than the engines
-        // gain in speed: the vessel climbs, gravity takes part, and the direction of the climb turns. The share is taken from how the burn left fell between
-        // two samples of the game's time while thrust was given, and kept while little is. It is measured once in a frame, by the navigation.
-        private static double effective = 1.0;
-        private static double referenceBurn, referenceTime;
-        private static Guid measured;
-        private const double MeasureSeconds = 2.0;
-        private const double SampleSeconds = 0.5;
-
-        internal static void Measure(Vessel vessel, double burn)
-        {
-            double ut = Planetarium.GetUniversalTime();
-            bool running = Time.timeScale > 0f && TimeWarp.CurrentRate <= 1f;
-            if (vessel.id != measured)
-            {
-                measured = vessel.id;
-                effective = 1.0;
-                referenceBurn = burn;
-                referenceTime = ut;
-                return;
-            }
-            double dt = ut - referenceTime;
-            // A pause, a jump of the time or a time warp changes the burn in ways that thrust does not: the sample is taken anew.
-            if (!running || dt < 0.0 || dt > 4.0 * SampleSeconds)
-            {
-                referenceBurn = burn;
-                referenceTime = ut;
-                return;
-            }
-            if (dt < SampleSeconds) return;
-            double nominal = Engines.Acceleration(vessel);
-            double given = FlightInputHandler.state.mainThrottle;
-            double instant = (referenceBurn - burn) / (dt * nominal * given);
-            if (given > 0.5 && nominal > 0.0 && !double.IsNaN(instant) && !double.IsInfinity(instant))
-                effective = Blend(effective, instant, dt);
-            referenceBurn = burn;
-            referenceTime = ut;
+            CelestialBody body = vessel.mainBody;
+            double thrust, flow;
+            Engines.Output(vessel, out thrust, out flow);
+            V3 axis = KspOrbits.ToV3(body.RotationAxis);
+            double radius = body.Radius, end = TurnEnd(body, aimAltitude), start = actualTurnStart;
+            Func<V3, V3> heading = position => ClimbRamp.Heading(position, PitchAtHeight(position.Length - radius, start, end), axis);
+            double seconds = ClimbRamp.SecondsLeft(at, body.gravParameter, radius + aimAltitude, heading, thrust, flow, vessel.GetTotalMass(), RampSeconds);
+            SecondsLeft = seconds;
+            return Math.Min(1.0, seconds / RampSeconds);
         }
 
         // The climb to a circular orbit at `aimAltitude`: the pitch and heading to fly now, and the ideal throttle. The ideal is the lowest of three limits that change
@@ -178,9 +156,7 @@ namespace ReDefinition.Autopilot.Guidance
             if (!high)
             {
                 double allowed = Heat.Allowed(vessel, out reason);
-                double acceleration = Engines.Acceleration(vessel) * effective;
-                // Following a throttle that falls evenly over the time T, the burn left is a T / 2 times the throttle squared, at full thrust a.
-                double ramp = RampShare(burn, acceleration);
+                double ramp = RampThrottle(vessel, at, aimAltitude);
                 // Not below the least throttle that MechJeb's ascent gives while it raises the apoapsis; it is cut when the burn is done.
                 ramp = Math.Max(LeastThrottle, ramp);
                 ideal = Math.Min(allowed, ramp);

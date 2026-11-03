@@ -23,11 +23,26 @@ namespace ReDefinition.Autopilot.Flight
         internal bool Arrived;
         internal bool Finished;
 
+        // A flight of a route: the next step is planned, and the route planned again from where the vessel is.
         internal AutopilotFlight(Vessel vessel, IList<Destination> route)
         {
             this.vessel = vessel;
             this.route = route;
         }
+
+        private AutopilotFlight(Vessel vessel)
+        {
+            this.vessel = vessel;
+            flyNodes = true;
+        }
+
+        // A flight of the maneuver nodes the vessel holds, which the player made in the map.
+        internal static AutopilotFlight OfNodes(Vessel vessel)
+        {
+            return new AutopilotFlight(vessel);
+        }
+
+        private readonly bool flyNodes;
 
         // Stops the flight and hands the vessel back: the executor is aborted, the warp is brought down.
         internal void Cancel()
@@ -54,10 +69,10 @@ namespace ReDefinition.Autopilot.Flight
         // leaving a flight that is no longer run but still marked as on.
         internal IEnumerator RunSafely()
         {
-            return SafeRun.Guard(route == null ? RunNodes() : Run(), Fail);
+            return SafeRun.Guard(flyNodes ? RunNodes() : Run(), Fail);
         }
 
-        // With no route the flight flies the maneuver nodes the vessel holds, one after the other, as MechJeb executes a node: the player made them in the map.
+        // A flight of the nodes flies the maneuver nodes the vessel holds, one after the other, as MechJeb executes a node: the player made them in the map.
         // The guide of a climb or a descent is no node to fly here. A node that was missed ends the flight, since MechJeb would burn it late and blind.
         private IEnumerator RunNodes()
         {
@@ -150,18 +165,37 @@ namespace ReDefinition.Autopilot.Flight
                     yield break;
                 }
                 NodePlanner.Result plan;
-                try
+                // A search that runs in the background is asked again in the next frame, until it has an answer.
+                while (true)
                 {
-                    RouteState own = RouteState.Of(vessel);
-                    plan = NextStepPlanner.PlanNext(new Frame(vessel), route, PlanOptions.Flown(keepCourse), own != null ? own.ProgressFor(route) : null);
-                    keepCourse = false;
+                    try
+                    {
+                        RouteState own = RouteState.Of(vessel);
+                        plan = NextStepPlanner.PlanNext(new Frame(vessel), route, PlanOptions.Flown(keepCourse), own != null ? own.ProgressFor(route) : null);
+                    }
+                    catch (System.Exception e)
+                    {
+                        Debug.LogError("[ReDefinition] Route: the plan failed: " + e);
+                        Stop("The plan failed: " + e.Message);
+                        yield break;
+                    }
+                    if (!plan.Pending) break;
+                    Status = plan.Why;
+                    yield return null;
+                    // The flight may have been stopped, or the vessel lost or left, while the search ran.
+                    if (cancelled) yield break;
+                    if (Lost)
+                    {
+                        Stop("The vessel was lost.");
+                        yield break;
+                    }
+                    if (vessel != FlightGlobals.ActiveVessel)
+                    {
+                        Stop("The vessel is not the one in focus.");
+                        yield break;
+                    }
                 }
-                catch (System.Exception e)
-                {
-                    Debug.LogError("[ReDefinition] Route: the plan failed: " + e);
-                    Stop("The plan failed: " + e.Message);
-                    yield break;
-                }
+                keepCourse = false;
                 Debug.Log("[ReDefinition] Route: step " + step + ": " + plan.Why);
                 if (plan.Correction)
                 {

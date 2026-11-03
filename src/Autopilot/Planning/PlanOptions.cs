@@ -15,17 +15,20 @@ namespace ReDefinition.Autopilot.Planning
         public double FromUT;
         // The count of stops reached that the plan starts with, instead of the vessel's own.
         public int? ReachedAtStart;
+        // A search that takes long runs in the background, and the plan answers that it is pending until it is done: whoever asks keeps asking. Without, the
+        // plan waits for the answer.
+        public bool Responsive;
 
         // The route as the player has it guided: the descent is his, and a deorbit is a node.
         internal static PlanOptions Guided
         {
-            get { return new PlanOptions { ForPlayer = true }; }
+            get { return new PlanOptions { ForPlayer = true, Responsive = true }; }
         }
 
         // The route flown by the autopilot.
         internal static PlanOptions Flown(bool keepCourse)
         {
-            return new PlanOptions { KeepCourse = keepCourse };
+            return new PlanOptions { KeepCourse = keepCourse, Responsive = true };
         }
 
         // The route the vessel flies on its own while the player is away.

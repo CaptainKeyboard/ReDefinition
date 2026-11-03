@@ -20,15 +20,27 @@ namespace ReDefinition.Autopilot
         // the ground. This is how MechJeb's vessel state has it (VesselState.cs, GPL-3.0).
         internal static double Acceleration(Vessel vessel)
         {
-            double thrust = 0.0;
+            double thrust, flow;
+            Output(vessel, out thrust, out flow);
+            double mass = vessel.GetTotalMass();
+            return mass > 0.0 ? thrust / mass : 0.0;
+        }
+
+        // The force the engines of Acceleration give at full thrust, in kN, and the mass they burn doing so, in t/s.
+        internal static void Output(Vessel vessel, out double thrust, out double flow)
+        {
+            thrust = 0.0;
+            flow = 0.0;
             bool lit = Running(vessel);
             double pressure = vessel.staticPressurekPa * PhysicsGlobals.KpaToAtmospheres;
             foreach (Part part in vessel.parts)
                 foreach (ModuleEngines engine in part.FindModulesImplementing<ModuleEngines>())
                     if (lit ? engine.EngineIgnited && !engine.flameout : part.inverseStage == StageManager.CurrentStage - 1)
+                    {
                         thrust += FullThrust(engine, pressure);
-            double mass = vessel.GetTotalMass();
-            return mass > 0.0 ? thrust / mass : 0.0;
+                        double least = engine.minFuelFlow * engine.flowMultiplier;
+                        flow += least + (engine.maxFuelFlow * engine.flowMultiplier - least) * engine.thrustPercentage / 100.0;
+                    }
         }
 
         // What one engine gives at full throttle at an air pressure (in atmospheres), at its thrust limit, in kN. It is the fuel flow times the

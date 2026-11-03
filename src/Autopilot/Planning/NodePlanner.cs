@@ -42,10 +42,17 @@ namespace ReDefinition.Autopilot.Planning
             public string Why;
             public double UT;
             public V3 DeltaV;
+            // Whether the plan is still being worked out in the background: neither a plan nor a failure, and to be asked again in a moment.
+            public bool Pending;
 
             public static Result Failed(string why)
             {
                 return new Result { Why = why };
+            }
+
+            public static Result Searching(string why)
+            {
+                return new Result { Pending = true, Why = why };
             }
 
             public static Result Ascent(double altitude, string why)

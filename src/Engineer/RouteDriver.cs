@@ -18,8 +18,6 @@ namespace ReDefinition.Engineer
     {
         private const float Interval = 1f;
         private const float Settle = 4f;
-        // How often the saved route is read, for the nodes and a resumed flight: the file holds all the plans.
-        private const float RouteAge = 5f;
 
         internal static RouteDriver Instance;
 
@@ -29,14 +27,16 @@ namespace ReDefinition.Engineer
         private float next;
         // When the vessel in focus was first seen: nothing is done to a vessel just loaded before it has settled.
         private float seen;
-        private float routeRead = -1000f;
-        private List<Destination> route;
+        // The route the driver follows, and where it comes from.
+        private readonly HeldRoute held = new HeldRoute();
+        // What is done when the flight is left with the autopilot on.
+        private SceneExit exit;
 
         // The route the driver holds for the flight, as the planner has it: a probe that leaves the flight as the player does gives it here.
         internal void Remember(List<Destination> destinations)
         {
-            quick = null;
-            route = destinations;
+            held.Clear();
+            held.HoldPlanner(destinations);
         }
         private string status = "";
 
@@ -61,83 +61,21 @@ namespace ReDefinition.Engineer
         {
             Instance = this;
             ParsekBridge.WarnOnce();
-            GameEvents.onGameSceneLoadRequested.Add(OnSceneLoadRequested);
-            GameEvents.onGamePause.Add(OnPause);
-            GameEvents.onSceneConfirmExit.Add(OnConfirmExit);
+            exit = new SceneExit(held, () =>
+            {
+                if (flight != null) flight.Cancel();
+            });
+            exit.Subscribe();
             // What was refused in an earlier flight has been told, or is not the news of this one.
             RouteMessages.Refused.Clear();
             // The player takes the maneuver of a climb or a descent away: the navigation that made it is over.
             GuideNode.OnDismissed = () => SetNavigation(FlightGlobals.ActiveVessel, false);
         }
 
-        // Whether the engines are burning: the autopilot's flight runs the whole time and says nothing of that. Engines that are lit and give no thrust are not.
-        private static bool Burning(Vessel vessel)
-        {
-            return vessel.ctrlState.mainThrottle > 0.01f || Engines.Burning(vessel);
-        }
-
-        // The pause menu's buttons for leaving the flight save the game right after this event and before the scene is asked for, so the route is kept now
-        // for the save to hold it. A route kept only when the scene is asked for is in the game's memory, not in its file.
-        // The exits that do not save (a vessel that burns, or flies, cannot be saved) leave the old game to be loaded: there is nothing to keep it in.
-        private void OnConfirmExit(GameScenes scene)
-        {
-            discarding = FlightGlobals.ClearToSave() != ClearToSaveStatus.CLEAR;
-            if (!discarding) OnPause();
-        }
-
-        // Whether the flight is left without being saved, so that no route is kept for it.
-        private bool discarding;
-
-        // The pause menu is where the flight is left from, and it saves the game before the scene is asked for: the route is kept for the background by then.
-        private void OnPause()
-        {
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            RouteState state = RouteState.Of(vessel);
-            if (vessel == null || state == null || !state.Autopilot || route == null || FlightGlobals.ready == false) return;
-            if (!RouteHandOver.UsesBackground) return;
-            // Under way, with the engines running or in the air, the plan is made when the scene is asked for; the same pause is not planned twice.
-            if (Burning(vessel) || vessel.situation == Vessel.Situations.FLYING || BackgroundRoutes.Holds(vessel, route)) return;
-            string problem = RouteHandOver.ToBackground(vessel, route, false);
-            if (problem != null) ScreenMessages.PostScreenMessage("The route is not flown while you are away: " + problem, 12f, ScreenMessageStyle.UPPER_CENTER);
-        }
-
-        // The player leaves the flight with the autopilot on: the rest of the route is planned. The vessel flies it in the background
-        // (BackgroundRoutes), or Parsek plays it as a recording and puts the vessel back at its end.
-        private void OnSceneLoadRequested(GameScenes scene)
-        {
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            RouteState state = RouteState.Of(vessel);
-            if ((scene != GameScenes.SPACECENTER && scene != GameScenes.TRACKSTATION) || vessel == null || state == null) return;
-            if (discarding)
-            {
-                discarding = false;
-                return;
-            }
-            if (!state.Autopilot || route == null)
-            {
-                BackgroundRoutes.Cancel(vessel);
-                return;
-            }
-            // A burn that is under way ends here: the vessel is recorded, and put back, without thrust, and the route is planned again from its orbit.
-            bool burning = Burning(vessel);
-            if (flight != null) flight.Cancel();
-            FlightInputHandler.state.mainThrottle = 0f;
-            // The route was kept when the pause menu opened; the time stands still now, which a plan of a launch cannot be made in.
-            bool background = RouteHandOver.UsesBackground;
-            if (!burning && background && BackgroundRoutes.Holds(vessel, route))
-            {
-                Debug.Log(Log.Tag + " Route: the flight is left with the autopilot on; the route kept when the pause menu opened stays.");
-                return;
-            }
-            string problem = background ? RouteHandOver.ToBackground(vessel, route, true) : RouteHandOver.ToParsek(vessel, route);
-            if (problem != null && background) RouteMessages.Refused.Add(problem);
-        }
-
         private void OnDestroy()
         {
-            GameEvents.onGameSceneLoadRequested.Remove(OnSceneLoadRequested);
-            GameEvents.onGamePause.Remove(OnPause);
-            GameEvents.onSceneConfirmExit.Remove(OnConfirmExit);
+            if (exit != null) exit.Unsubscribe();
+            DeorbitAim.Abandon();
             if (Instance == this) Instance = null;
             if (flight != null) flight.Cancel();
             GuideNode.Release();
@@ -151,11 +89,9 @@ namespace ReDefinition.Engineer
             if (state == null || flight != null || destinations == null) return;
             GuideNode.Release();
             // The climb the navigation guides stays its route when the autopilot flies it and when it is over.
-            if (!ReferenceEquals(destinations, quick)) quick = null;
+            held.HoldPlanner(destinations);
             state.Autopilot = true;
-            route = destinations;
-            routeRead = Time.realtimeSinceStartup;
-            Begin(vessel, state, destinations);
+            Begin(vessel, state, new AutopilotFlight(vessel, destinations));
         }
 
         // The button of the autopilot starts what there is to fly, or lets the vessel go. First the route the navigation holds: the climb or the descent it
@@ -175,7 +111,7 @@ namespace ReDefinition.Engineer
                 ScreenMessages.PostScreenMessage(status, 6f, ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
-            List<Destination> destinations = state.Navigation ? ReadRoute(vessel) : RouteSource.For(vessel.vesselName);
+            List<Destination> destinations = state.Navigation ? held.Read(vessel) : RouteSource.For(vessel.vesselName);
             if (destinations != null)
             {
                 StartFlight(vessel, destinations);
@@ -184,10 +120,9 @@ namespace ReDefinition.Engineer
             if (GuideNode.First(vessel) != null)
             {
                 // A flight of nodes holds no route: one left from before would be handed over when the flight is left.
-                route = null;
-                quick = null;
+                held.Clear();
                 state.Autopilot = true;
-                Begin(vessel, state, null);
+                Begin(vessel, state, AutopilotFlight.OfNodes(vessel));
                 return;
             }
             status = "There is nothing to fly: no route in the planner and no maneuver node.";
@@ -213,17 +148,17 @@ namespace ReDefinition.Engineer
             if (state == null) return;
             state.Navigation = on;
             follower = new Navigation();
-            quick = null;
-            route = null;
+            held.Clear();
+            DeorbitAim.Abandon();
             GuideNode.Reset();
             if (!on) GuideNode.Release();
             // The navigation shows the maneuvers of the route, so the ones there are taken away when it starts; those the player adds after are kept.
             if (!state.Autopilot) KspOrbits.ClearNodes(vessel);
         }
 
-        private void Begin(Vessel vessel, RouteState state, List<Destination> destinations)
+        private void Begin(Vessel vessel, RouteState state, AutopilotFlight started)
         {
-            flight = new AutopilotFlight(vessel, destinations);
+            flight = started;
             StartCoroutine(Run(flight, state));
         }
 
@@ -252,9 +187,7 @@ namespace ReDefinition.Engineer
                 followed = vessel;
                 seen = Time.realtimeSinceStartup;
                 follower = new Navigation();
-                route = null;
-                quick = null;
-                routeRead = -1000f;
+                held.Clear();
             }
             RouteState state = RouteState.Of(vessel);
             if (state == null) return;
@@ -271,23 +204,24 @@ namespace ReDefinition.Engineer
             }
             else if (state.Autopilot && flight == null)
             {
-                if (ReadRoute(vessel) == null && GuideNode.First(vessel) != null)
+                List<Destination> saved = held.Read(vessel);
+                if (saved == null && GuideNode.First(vessel) != null)
                 {
-                    Begin(vessel, state, null);
+                    Begin(vessel, state, AutopilotFlight.OfNodes(vessel));
                     return;
                 }
-                if (ReadRoute(vessel) == null)
+                if (saved == null)
                 {
                     status = "The autopilot has no route to fly.";
                     state.Autopilot = false;
                     return;
                 }
                 Debug.Log(Log.Tag + " Route: the flight goes on for " + vessel.vesselName + ".");
-                Begin(vessel, state, route);
+                Begin(vessel, state, new AutopilotFlight(vessel, saved));
             }
             else if (!state.Autopilot && state.Navigation)
             {
-                follower.Tick(vessel, ReadRoute(vessel));
+                follower.Tick(vessel, held.Read(vessel));
             }
         }
 
@@ -299,6 +233,8 @@ namespace ReDefinition.Engineer
             RouteState state = RouteState.Of(vessel);
             if (state != null && !state.Autopilot && state.Navigation)
             {
+                // A plan that is searched for in the background is asked for again in every frame, so that its search goes on as fast as it can.
+                if (follower.Searching) follower.Tick(vessel, held.Read(vessel));
                 follower.Guide(vessel);
                 GuideNode.Ensure(vessel);
             }
@@ -307,13 +243,10 @@ namespace ReDefinition.Engineer
             if (state != null && (state.Autopilot || state.Navigation) && !ParsekBridge.IsGhost(vessel)) WarpGuard.Limit(vessel);
         }
 
-        // The route the player asked for from the map, for a vessel without a plan of its own: it holds until the navigation is switched off.
-        private List<Destination> quick;
-
         // Whether the route held is aimed at a place on the ground.
         internal bool Aimed
         {
-            get { return quick != null && quick.Count > 0 && quick[quick.Count - 1].HasSite; }
+            get { return held.Aimed; }
         }
 
         // The vessel on the ground is guided into the lowest orbit round its body, with no plan made in the planner: the navigation is switched on for this route.
@@ -327,13 +260,11 @@ namespace ReDefinition.Engineer
                 return;
             }
             SetNavigation(vessel, true);
-            quick = new List<Destination>
+            held.HoldQuick(new List<Destination>
             {
                 new Destination { Body = vessel.mainBody, Surface = true, Altitude = 0.0 },
                 new Destination { Body = vessel.mainBody, Surface = false, Altitude = NextStepPlanner.LowOrbit(vessel.mainBody) },
-            };
-            route = quick;
-            routeRead = Time.realtimeSinceStartup;
+            });
             Debug.Log(Log.Tag + " Navigation: " + vessel.vesselName + " is guided into an orbit " + (NextStepPlanner.LowOrbit(vessel.mainBody) / 1000.0).ToString("0") + " km over " + vessel.mainBody.bodyName + ".");
         }
 
@@ -344,26 +275,12 @@ namespace ReDefinition.Engineer
             RouteState state = RouteState.Of(vessel);
             if (state == null || vessel.mainBody == null || flight != null || state.Autopilot) return;
             SetNavigation(vessel, true);
-            quick = new List<Destination>
+            held.HoldQuick(new List<Destination>
             {
                 new Destination { Body = vessel.mainBody, Surface = false, Altitude = 0.5 * (vessel.orbit.PeA + vessel.orbit.ApA) },
                 new Destination { Body = vessel.mainBody, Surface = true, HasSite = true, SiteLatitude = latitude, SiteLongitude = longitude },
-            };
-            route = quick;
-            routeRead = Time.realtimeSinceStartup;
+            });
             Debug.Log(Log.Tag + " Navigation: " + vessel.vesselName + " is guided down to " + latitude.ToString("0.00") + ", " + longitude.ToString("0.00") + " on " + vessel.mainBody.bodyName + ".");
-        }
-
-        // The vessel's saved route, read again every few seconds.
-        private List<Destination> ReadRoute(Vessel vessel)
-        {
-            if (quick != null) return quick;
-            if (route == null || Time.realtimeSinceStartup - routeRead > RouteAge)
-            {
-                route = RouteSource.For(vessel.vesselName);
-                routeRead = Time.realtimeSinceStartup;
-            }
-            return route;
         }
     }
 }

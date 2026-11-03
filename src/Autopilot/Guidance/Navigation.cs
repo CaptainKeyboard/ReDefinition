@@ -46,7 +46,6 @@ namespace ReDefinition.Autopilot.Guidance
                 double asked, burn;
                 bool done;
                 Status = ClimbGuide.Climb(vessel, aim, out asked, out burn, out done);
-                ClimbGuide.Measure(vessel, burn);
                 // Once the apoapsis is reached the climb stays done: the burn left wavers about its least size, and the mark would go up and down.
                 if (done) climbDone = true;
                 done = climbDone;
@@ -111,25 +110,46 @@ namespace ReDefinition.Autopilot.Guidance
             Debug.Log("[ReDefinition] Climb trace: " + vessel.altitude.ToString("0") + " m, apoapsis " + vessel.orbit.ApA.ToString("0") + " m, air " + vessel.atmDensity.ToString("0.000")
                       + ", burn left " + burn.ToString("0") + " m/s, ideal " + GuidanceBoard.Ideal.ToString("0.00") + ", given " + FlightInputHandler.state.mainThrottle.ToString("0.00")
                       + ", need " + GuidanceBoard.Need.ToString("0.00") + ", speed " + vessel.obt_velocity.magnitude.ToString("0.0") + ", full-thrust acceleration "
-                      + Engines.Acceleration(vessel).ToString("0.0") + ".");
+                      + Engines.Acceleration(vessel).ToString("0.0") + ", fall left " + ClimbGuide.SecondsLeft.ToString("0.0") + " s, game time " + Planetarium.GetUniversalTime().ToString("0.00") + ".");
+        }
+
+        // Whether a plan is still being searched for in the background, so that the plan is asked for again without waiting for a trigger.
+        private bool searching;
+
+        internal bool Searching
+        {
+            get { return searching; }
         }
 
         // Called now and then for the vessel; plans where one of the triggers holds.
         internal void Tick(Vessel vessel, IList<Destination> route)
         {
-            if (vessel == null || route == null || Time.realtimeSinceStartup - lastPlan < MinGap) return;
-            if (vessel.situation == Vessel.Situations.FLYING || Engines.Burning(vessel) || MechJebDriver.Busy(vessel)) return;
+            if (vessel == null || route == null || (!searching && Time.realtimeSinceStartup - lastPlan < MinGap)) return;
+            if (vessel.situation == Vessel.Situations.FLYING || Engines.Burning(vessel) || MechJebDriver.Busy(vessel))
+            {
+                // A search that was under way is made again once the vessel is free, whatever the signature says.
+                if (searching) Replan();
+                searching = false;
+                return;
+            }
             string now = Signature(vessel, route);
             PatchedConicSolver solver = vessel.patchedConicSolver;
             ManeuverNode first = GuideNode.First(vessel);
             bool missed = solver != null && first != null && Missed(vessel, first);
-            if (now == signature && !missed) return;
+            if (now == signature && !missed && !searching) return;
             // The nodes of the plan are made on the orbit the vessel has, which the guide's burn would change.
             GuideNode.Release();
             lastPlan = Time.realtimeSinceStartup;
             signature = now;
             RouteState own = RouteState.Of(vessel);
             NodePlanner.Result plan = NextStepPlanner.PlanNext(new Frame(vessel), route, PlanOptions.Guided, own != null ? own.ProgressFor(route) : null);
+            // A search that runs in the background is asked again in the next frame, until it has an answer.
+            searching = plan.Pending;
+            if (plan.Pending)
+            {
+                Status = plan.Why;
+                return;
+            }
             step = plan.Kind;
             aim = plan.Altitude;
             climbDone = false;

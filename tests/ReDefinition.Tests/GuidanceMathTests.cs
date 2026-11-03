@@ -51,29 +51,104 @@ namespace ReDefinition.Tests
             Assert.IsTrue(double.IsPositiveInfinity(ClimbGuide.ApoapsisRadius(open, Mu)));
         }
 
-        // A throttle that falls evenly over T seconds from full has covered a T / 2 times the throttle squared of the burn when it is at the throttle.
+        // The burn that the even fall covers is the area under it: half the acceleration times the time.
         [TestMethod]
-        public void TheEvenFallOfTheThrottleCoversTheBurnAsTheSquareOfTheThrottle()
+        public void TheEvenFallCoversHalfTheAccelerationTimesTheTime()
         {
-            double a = 10.0;
-            Assert.AreEqual(0.5 * a * ClimbGuide.RampSeconds, ClimbGuide.RampBurn(a), 1e-9);
-            double full = ClimbGuide.RampBurn(a);
-            Assert.AreEqual(1.0, ClimbGuide.RampShare(full, a), 1e-12);
-            Assert.AreEqual(0.5, ClimbGuide.RampShare(full * 0.25, a), 1e-12);
-            Assert.AreEqual(0.0, ClimbGuide.RampShare(0.0, a), 1e-12);
-            // More burn than the fall covers asks for full thrust, and no engines ask for it as well.
-            Assert.AreEqual(1.0, ClimbGuide.RampShare(full * 3.0, a), 1e-12);
-            Assert.AreEqual(1.0, ClimbGuide.RampShare(50.0, 0.0), 1e-12);
+            Assert.AreEqual(0.5 * 10.0 * ClimbGuide.RampSeconds, ClimbGuide.RampBurn(10.0), 1e-9);
         }
 
-        // The measured share moves towards a sample by the share of the time constant that went by, and a sample outside the range is kept inside it.
+        // Straight up at 90 degrees, along the horizon at none, and then across the body's axis. Which way along that line is east is the game's own formula;
+        // that it points the way the body turns was seen in flight.
         [TestMethod]
-        public void TheMeasuredShareMovesTowardsTheSampleAndStaysInItsRange()
+        public void TheHeadingPointsUpAtNinetyDegreesAndAlongTheHorizonAtNone()
         {
-            Assert.AreEqual(1.0 + (0.5 - 1.0) * (1.0 - Math.Exp(-1.0)), ClimbGuide.Blend(1.0, 0.5, 2.0), 1e-12);
-            Assert.AreEqual(1.0, ClimbGuide.Blend(1.0, 1.0, 0.5), 1e-12);
-            Assert.AreEqual(1.5, ClimbGuide.Blend(1.0, 9.0, 1e6), 1e-9);
-            Assert.AreEqual(0.2, ClimbGuide.Blend(1.0, -3.0, 1e6), 1e-9);
+            V3 position = new V3(Low, 0.0, 0.0);
+            V3 axis = new V3(0.0, 0.0, 1.0);
+            Assert.AreEqual(0.0, (ClimbRamp.Heading(position, 90.0, axis) - position.Unit).Length, 1e-12);
+            V3 flat = ClimbRamp.Heading(position, 0.0, axis);
+            Assert.AreEqual(1.0, flat.Length, 1e-12);
+            Assert.AreEqual(0.0, V3.Dot(flat, position.Unit), 1e-12);
+            Assert.AreEqual(0.0, V3.Dot(flat, axis), 1e-12);
+        }
+
+        // The turn is 90 degrees where it starts, falls along the curve to the horizon at its end, and is flat above.
+        [TestMethod]
+        public void ThePitchOfTheTurnFallsFromNinetyToNone()
+        {
+            Assert.AreEqual(89.99, ClimbGuide.PitchAtHeight(0.0, 0.0, 5000.0), 1e-9);
+            Assert.AreEqual(90.0 - 90.0 * Math.Pow(0.5, 0.4), ClimbGuide.PitchAtHeight(2500.0, 0.0, 5000.0), 1e-9);
+            Assert.AreEqual(0.0, ClimbGuide.PitchAtHeight(5001.0, 0.0, 5000.0), 1e-12);
+        }
+
+        // The horizontal direction of the orbit's motion at a position, for the flight ahead on paper.
+        private static V3 Along(V3 position)
+        {
+            return V3.Cross(new V3(0.0, 0.0, 1.0), position.Unit);
+        }
+
+        // A vessel of 40 t with engines of 400 kN burning 0.1165 t/s (350 s), 40 km up and just under the speed of a circular orbit there.
+        private const double Thrust = 400.0;
+        private const double Flow = 0.1165;
+        private const double Weight = 40.0;
+        private const double Fall = 20.0;
+
+        private static State Climbing()
+        {
+            return new State(new V3(640000.0, 0.0, 0.0), new V3(0.0, 2330.0, 0.0));
+        }
+
+        [TestMethod]
+        public void TheFlightAheadOnPaperChangesNothingWithoutTime()
+        {
+            State start = Climbing();
+            Assert.AreEqual(ClimbGuide.ApoapsisRadius(start, Mu), ClimbRamp.ApoapsisAfter(start, Mu, Along, Thrust, Flow, Weight, 0.0, Fall), 1e-6);
+        }
+
+        // Where no burn is wanted the throttle falls over no time; where the engines cannot give it, over all of it.
+        [TestMethod]
+        public void TheFallIsNoneWhereTheApoapsisIsHighAndAllOfItWhereTheEnginesCannotReachIt()
+        {
+            State start = Climbing();
+            Assert.AreEqual(0.0, ClimbRamp.SecondsLeft(start, Mu, 639000.0, Along, Thrust, Flow, Weight, Fall), 1e-12);
+            Assert.AreEqual(Fall, ClimbRamp.SecondsLeft(start, Mu, 700000.0, Along, 5.0, Flow, Weight, Fall), 1e-12);
+            Assert.AreEqual(Fall, ClimbRamp.SecondsLeft(start, Mu, 700000.0, Along, 0.0, Flow, Weight, Fall), 1e-12);
+        }
+
+        // The burn is lighter with the fuel gone, so the engines need less time to give it.
+        [TestMethod]
+        public void TheFuelBurnedMakesTheFallShorter()
+        {
+            State start = Climbing();
+            double dry = ClimbRamp.SecondsLeft(start, Mu, 700000.0, Along, Thrust, 0.0, Weight, Fall);
+            double burning = ClimbRamp.SecondsLeft(start, Mu, 700000.0, Along, Thrust, 2.0, Weight, Fall);
+            Assert.IsTrue(burning < dry - 0.2, dry + " " + burning);
+        }
+
+        // Asked for again in every frame, the throttle falls evenly: the time left goes down by the time that passes, and the apoapsis is at the aim when
+        // it is none, whatever the orbit does meanwhile.
+        [TestMethod]
+        public void TheThrottleAskedForEveryFrameFallsEvenlyToTheAim()
+        {
+            State state = Climbing();
+            double aim = 700000.0, weight = Weight, dt = 0.25, time = 0.0;
+            double first = ClimbRamp.SecondsLeft(state, Mu, aim, Along, Thrust, Flow, weight, Fall);
+            Assert.IsTrue(first > 5.0 && first < 19.5, "the fall starts at " + first);
+            double left = first;
+            while (left > 0.05 && time < 40.0)
+            {
+                left = ClimbRamp.SecondsLeft(state, Mu, aim, Along, Thrust, Flow, weight, Fall);
+                Assert.AreEqual(first - time, left, 0.4, "at " + time + " s");
+                // The throttle that the fall has in the middle of the step, as the engines give it over the whole step.
+                double throttle = Math.Max(0.0, left - 0.5 * dt) / Fall;
+                state = Kepler.Propagate(state, 0.5 * dt, Mu);
+                state = new State(state.R, state.V + Along(state.R) * (Thrust * throttle / weight * dt));
+                state = Kepler.Propagate(state, 0.5 * dt, Mu);
+                weight -= Flow * throttle * dt;
+                time += dt;
+            }
+            Assert.IsTrue(time <= Fall, "the fall took " + time + " s");
+            Assert.AreEqual(aim, ClimbGuide.ApoapsisRadius(state, Mu), 300.0);
         }
 
         // An orbit with the place under its track needs no turn, and one with it off the track is turned by the angle between them, which costs 2 v sin(angle / 2).

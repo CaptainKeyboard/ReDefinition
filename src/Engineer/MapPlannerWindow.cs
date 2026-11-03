@@ -284,6 +284,7 @@ namespace ReDefinition.Engineer
             {
                 view.Keep(root);
                 view.Tick();
+                if (nodesPending) PlanNodes();
                 PlanByItself();
                 long listing = PlannerTiming.Start();
                 list.Update();
@@ -472,14 +473,22 @@ namespace ReDefinition.Engineer
         }
 
         // The route of the plan as destinations, from the first stop the vessel has reached: the leg to the next one planned as nodes.
+        private bool nodesPending;
+
         private void PlanNodes()
         {
             List<Destination> route = Route();
-            if (route == null) return;
+            if (route == null)
+            {
+                nodesPending = false;
+                return;
+            }
             RouteState own = RouteState.Of(FlightGlobals.ActiveVessel);
             // The nodes are made on the orbit the vessel has, which the guide's burn would change.
             ReDefinition.Autopilot.Guidance.GuideNode.Release();
-            NodePlanner.Result result = NextStepPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, null, own != null ? own.ProgressFor(route) : null);
+            NodePlanner.Result result = NextStepPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, new PlanOptions { Responsive = true }, own != null ? own.ProgressFor(route) : null);
+            // A search that runs in the background is asked for again in the next frames, until it has an answer.
+            nodesPending = result.Pending;
             status = result.Ok
                 ? result.Why + " The burn is in " + KSPUtil.PrintTimeCompact(result.UT - Planetarium.GetUniversalTime(), false) + ", " + result.DeltaV.Length.ToString("0") + " m/s."
                 : result.Why;
