@@ -22,6 +22,7 @@ proxy, and sets up the light that comes back into Unity's lighting.
 - `RtCamera` fills its `RtScene` each frame from the sources and issues the proxy's render events
   through `RtNative` (`src/Proxy/RtNative.cs`).
 - `RtScene` hands each mesh and material over once and the instances every frame.
+- `RtPacketBuilder` writes the values `RtCamera` hands it into the frame packet's arrays, in place.
 - `RtMaterial`, `RtMaterialIntent`, `RtDeferredLook` and `RtForwardHighlight` work out what a ray
   that hits a surface takes: albedo, shine and the highlight the forward light keeps.
 - `RtStockTerrain` and `RtTerrainColour` work out the ground's colour as KSP's and Parallax's

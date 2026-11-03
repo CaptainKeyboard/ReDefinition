@@ -168,7 +168,7 @@ namespace ReDefinition.Raytracing
         // its level (RtCommon.hlsli, STOCK_WATER; ReDefinitionDeferredReflections.shader).
         internal Func<bool> StockWater = () => false;
         // Unity's ambient light, which its shading adds by itself: the raytraced light
-        // added to the frame is this much less. Handed over facing up, sideways and down.
+        // added to the frame is this much less. Handed over facing up, sideways and down (RtPacketBuilder.Ambient).
         // The probe Unity shades with: RenderSettings.ambientProbe holds only a baked one.
         internal Func<Vector3, SphericalHarmonicsL2> AmbientProbe = at =>
         {
@@ -176,7 +176,6 @@ namespace ReDefinition.Raytracing
             LightProbes.GetInterpolatedProbe(at, null, out probe);
             return probe;
         };
-        private static readonly Vector3[] AmbientDirections = { Vector3.up, Vector3.right, Vector3.down };
         private readonly Color[] ambientValues = new Color[3];
         // Unity's frame count at which the upscaler last asked for DLSS Ray
         // Reconstruction's frames. Until the frame after it, they go undenoised, as Ray
@@ -239,21 +238,6 @@ namespace ReDefinition.Raytracing
         // screen-space shadows. The result is read back a frame or two later, and kept in the camera's own frame,
         // where Unity's fade does not move with it.
         private const int ShadowFadePass = 15;
-        // The light a meadow's blades keep from its ground. Measured at the launch pad on the RTX A4500, 2026-10-25,
-        // with the blades letting through half the sun (rtFoliageTransmission 0.5). The terrain past Parallax's grass
-        // about the vessel is as bright as the terrain in it: 0.99 of it by day and 0.94 in the evening. Medians of
-        // eleven views from 150 m to 4 km, single views 0.81 to 1.10. When the rays saw the grass's
-        // shadow only near the camera (RtCommon.hlsli, RayOrigin), it was 0.77. It goes into the ground's
-        // albedo for sun and sky alike.
-        private const float MeadowShade = 0.82f;
-        // Slots of the packet that carry more than the name of their array says. Params is RtNative.FramePacket.Params.
-        // The sun's shadow strength is in the sun colour's w, and the waves' time in the planet's w.
-        // The meadow's range and the range of the grass about the vessel are in the shadow fade's slots 6 and 11.
-        private const int ParamOcclusion = 0, ParamBounces = 1, ParamDiffuseReach = 2, ParamSpecularReach = 3, ParamClamp = 4,
-                          ParamEnvironment = 5, ParamTextures = 6, ParamGBuffer = 7;
-        private const int SunShadowStrength = 3, PlanetWaveTime = 3, ShadowFadeMeadowRange = 6, ShadowFadeVesselRange = 11;
-        // How far the diffuse and the specular rays go, in metres.
-        private const float RayReach = 100000f;
         private CommandBuffer fadeGrab;
         private RenderTexture fadeTexture;
         private Action<AsyncGPUReadbackRequest> fadeDone;
@@ -765,7 +749,8 @@ namespace ReDefinition.Raytracing
                 command.DrawMesh(screenQuad, Matrix4x4.identity, capture, 0, SurfacePass);
                 // The terrain past Parallax's grass in a meadow's shade, and the space centre's lawn lifted
                 // to the terrain's albedo, into their albedo.
-                if (packet.ShadowFade[ShadowFadeMeadowRange] != 0f || packet.ShadowFade[ShadowFadeVesselRange] != 0f
+                if (packet.ShadowFade[RtPacketBuilder.ShadowFadeMeadowRange] != 0f
+                    || packet.ShadowFade[RtPacketBuilder.ShadowFadeVesselRange] != 0f
                     || RtMaterialIntent.LawnAsTerrain)
                 {
                     command.SetRenderTarget(BuiltinRenderTextureType.GBuffer0);
@@ -843,27 +828,27 @@ namespace ReDefinition.Raytracing
         private Matrix4x4 FillView()
         {
             Matrix4x4 worldToClip = WorldToClipRelative();
-            Write(worldToClip, packet.WorldToClip);
-            Write(StreamlineCamera.Invert(worldToClip), packet.ClipToWorld);
+            RtPacketBuilder.Write(worldToClip, packet.WorldToClip);
+            RtPacketBuilder.Write(StreamlineCamera.Invert(worldToClip), packet.ClipToWorld);
             if (haveHistory)
             {
                 RtPosition shift = WorldShift();
-                Matrix4x4 toPrevious = Translation(position.x + shift.x - previousPosition.x,
-                                                   position.y + shift.y - previousPosition.y,
-                                                   position.z + shift.z - previousPosition.z);
-                Write(previousWorldToClip * toPrevious, packet.PrevWorldToClip);
+                Matrix4x4 toPrevious = RtPacketBuilder.Translation(position.x + shift.x - previousPosition.x,
+                                                                   position.y + shift.y - previousPosition.y,
+                                                                   position.z + shift.z - previousPosition.z);
+                RtPacketBuilder.Write(previousWorldToClip * toPrevious, packet.PrevWorldToClip);
                 // What the bodies carry moved by their shift (offset + nonFrame under
                 // Krakensbane), the camera and the vessels by the near one.
                 RtPosition far = WorldShiftFar != null ? WorldShiftFar() : shift;
-                Matrix4x4 toPreviousFar = Translation(position.x + far.x - previousPosition.x,
-                                                      position.y + far.y - previousPosition.y,
-                                                      position.z + far.z - previousPosition.z);
-                Write(previousWorldToClip * toPreviousFar, packet.PrevWorldToClipFar);
+                Matrix4x4 toPreviousFar = RtPacketBuilder.Translation(position.x + far.x - previousPosition.x,
+                                                                      position.y + far.y - previousPosition.y,
+                                                                      position.z + far.z - previousPosition.z);
+                RtPacketBuilder.Write(previousWorldToClip * toPreviousFar, packet.PrevWorldToClipFar);
             }
             else
             {
-                Write(worldToClip, packet.PrevWorldToClip);
-                Write(worldToClip, packet.PrevWorldToClipFar);
+                RtPacketBuilder.Write(worldToClip, packet.PrevWorldToClip);
+                RtPacketBuilder.Write(worldToClip, packet.PrevWorldToClipFar);
             }
 
             // The camera for AMD's denoiser: its view looking down +z, as StreamlineCamera
@@ -896,30 +881,18 @@ namespace ReDefinition.Raytracing
         private void FillSun(bool deferred)
         {
             Vector4 towards = Sun();
-            Vector3 direction = new Vector3(towards.x, towards.y, towards.z).normalized;
-            packet.SunDirection[0] = direction.x;
-            packet.SunDirection[1] = direction.y;
-            packet.SunDirection[2] = direction.z;
-            packet.SunDirection[3] = towards.w;
             Color sunColour = drawnSunFrame == Time.frameCount ? drawnSunColour : SunColor();
             TracedSunColour = sunColour;
-            packet.SunColor[0] = sunColour.r;
-            packet.SunColor[1] = sunColour.g;
-            packet.SunColor[2] = sunColour.b;
             // How much of the sun Unity's shadows take: its light's shadow strength (KSP's sun
             // 0.75), for the forward light's estimate of what Unity shaded with.
             Light sunLight = SunLight != null ? SunLight() : null;
-            packet.SunColor[SunShadowStrength] = sunLight != null && sunLight.shadows != LightShadows.None ? sunLight.shadowStrength : 1f;
+            float shadowStrength = sunLight != null && sunLight.shadows != LightShadows.None ? sunLight.shadowStrength : 1f;
+            RtPacketBuilder.Sun(ref packet, towards, sunColour, shadowStrength);
             // And how it fades them out towards the shadow distance, its centre turned with
             // the camera.
             bool fades = !deferred && fadeScale.x > 0f;
             Vector3 fadeAt = fades ? cam.cameraToWorldMatrix.MultiplyVector(fadeCentre) : Vector3.zero;
-            packet.ShadowFade[0] = fadeAt.x;
-            packet.ShadowFade[1] = fadeAt.y;
-            packet.ShadowFade[2] = fadeAt.z;
-            packet.ShadowFade[3] = fades ? fadeCentre.w : 0f;
-            packet.ShadowFade[4] = fades ? fadeScale.x : 0f;
-            packet.ShadowFade[5] = fades ? fadeScale.y : 0f;
+            RtPacketBuilder.ShadowFade(ref packet, fades, fadeAt, fadeCentre.w, new Vector2(fadeScale.x, fadeScale.y));
         }
 
         // The frame packet for this frame. It holds the view and the previous one, the inputs, the sun, sky, lights,
@@ -940,23 +913,14 @@ namespace ReDefinition.Raytracing
             // Its blades the camera sees as such end where the farthest level of detail starts: the shade takes the
             // ground from there, as it does past the range.
             if (vesselGrassRange > 0f) grassRange = RtKspMods.ParallaxGrassLodStart;
-            packet.ShadowFade[6] = grassRange;
-            packet.ShadowFade[7] = MeadowShade;
             // The grass Parallax draws about the vessel: the vessel relative to the camera, and how far.
             Vector3 vessel = vesselGrassRange > 0f ? RtKspMods.ParallaxVessel(transform.position) - transform.position : Vector3.zero;
-            packet.ShadowFade[8] = vessel.x;
-            packet.ShadowFade[9] = vessel.y;
-            packet.ShadowFade[10] = vessel.z;
-            packet.ShadowFade[11] = vesselGrassRange;
-            Color sky = SkyColor();
-            packet.SkyColor[0] = sky.r;
-            packet.SkyColor[1] = sky.g;
-            packet.SkyColor[2] = sky.b;
-            packet.SkyColor[3] = Mathf.Clamp01(SkyNeutral());
+            RtPacketBuilder.Meadow(ref packet, grassRange, vessel, vesselGrassRange);
+            RtPacketBuilder.Sky(ref packet, SkyColor(), SkyNeutral());
             bool composite = !RtLighting.ReflectionsReplaced;
-            FillAmbient(composite);
-            FillParams(deferred, withEnvironment);
-            bool stockWater = FillLights();
+            RtPacketBuilder.Ambient(ref packet, composite, AmbientProbe, composite ? transform.position : Vector3.zero, ambientValues);
+            RtPacketBuilder.Params(ref packet, Settings, deferred, withEnvironment);
+            bool stockWater = RtPacketBuilder.Lights(ref packet, Lights, SunMirror, StockWater, NightLight);
             FillBody(stockWater);
             uint signals = FillSignals(deferred, composite);
             FillFlags(deferred, withMotion);
@@ -964,104 +928,27 @@ namespace ReDefinition.Raytracing
             return worldToClip;
         }
 
-        // Unity's ambient light, as it shades by itself; none where the raytraced light replaces it.
-        private void FillAmbient(bool composite)
-        {
-            for (int i = 0; i < 12; i++) packet.Ambient[i] = 0f;
-            if (composite)
-            {
-                AmbientProbe(transform.position).Evaluate(AmbientDirections, ambientValues);
-                for (int i = 0; i < 3; i++)
-                {
-                    packet.Ambient[i * 4] = ambientValues[i].r;
-                    packet.Ambient[i * 4 + 1] = ambientValues[i].g;
-                    packet.Ambient[i * 4 + 2] = ambientValues[i].b;
-                }
-                packet.Ambient[3] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
-            }
-        }
-
-        // The rays' settings: the occlusion, the bounces, how far the rays go, the clamp and which inputs there are.
-        private void FillParams(bool deferred, bool withEnvironment)
-        {
-            packet.Params[ParamOcclusion] = Settings.OcclusionDistance;
-            packet.Params[ParamBounces] = Settings.Bounces;
-            packet.Params[ParamDiffuseReach] = RayReach;
-            packet.Params[ParamSpecularReach] = RayReach;
-            packet.Params[ParamClamp] = Settings.Clamp;
-            packet.Params[ParamEnvironment] = withEnvironment ? 1f : 0f;
-            packet.Params[ParamTextures] = 1f;
-            packet.Params[ParamGBuffer] = deferred ? 1f : 0f;
-        }
-
-        // The bodies lit by the sun as lights, and the least light a surface gets. It returns whether the sea is KSP's own.
-        private bool FillLights()
-        {
-            for (int i = 0; i < 16; i++) packet.Lights[i] = 0f;
-            for (int i = 0; i < 8; i++) packet.LightSurface[i] = 0f;
-            packet.LightParams[0] = Mathf.Clamp(Lights(packet.Lights, packet.LightSurface), 0, 2);
-            // Unity's colours are gamma-space values in gamma space; the light transport
-            // takes them to linear (RtCommon.hlsli, InputColor).
-            packet.LightParams[1] = QualitySettings.activeColorSpace == ColorSpace.Gamma ? 1f : 0f;
-            packet.LightParams[2] = Mathf.Max(SunMirror(), 0f);
-            bool stockWater = StockWater();
-            packet.LightParams[3] = stockWater ? 1f : 0f;
-            // KSP's flat ambient light, as Deferred takes it (RefreshLegacyAmbient).
-            Color night = RenderSettings.ambientLight * Mathf.Clamp01(NightLight());
-            packet.NightLight[0] = night.r;
-            packet.NightLight[1] = night.g;
-            packet.NightLight[2] = night.b;
-            return stockWater;
-        }
-
         // The main body: its albedo, the time of its sea's waves, its sphere and the sea's frame.
         private void FillBody(bool stockWater)
         {
             Color planet = PlanetAlbedo();
-            packet.Planet[0] = planet.r;
-            packet.Planet[1] = planet.g;
-            packet.Planet[2] = planet.b;
             // The time for the waves of KSP's own sea (RtCommon.hlsli, StockWaves), within a
             // day: the waves jump where it starts again, and a float still counts 8 ms by
             // its end, a ripple's move of millimetres.
-            packet.Planet[PlanetWaveTime] = WaveTimeHeld ?? Time.time % 86400f;
+            float waveTime = WaveTimeHeld ?? Time.time % 86400f;
             Vector4 body = Body();
             // The sea's sphere for the reflections' shader, in Unity's world: none but for
             // KSP's own sea.
             Shader.SetGlobalVector(WaterSphereId, stockWater ? body : Vector4.zero);
-            packet.BodySphere[0] = (float)(body.x - position.x);
-            packet.BodySphere[1] = (float)(body.y - position.y);
-            packet.BodySphere[2] = (float)(body.z - position.z);
-            packet.BodySphere[3] = body.w;
-            for (int i = 0; i < 12; i++) packet.Sea[i] = 0f;
-            Vector3 seaOrigin, seaEast, seaNorth;
-            if (!SeaFrameLeftOut && Sea(out seaOrigin, out seaEast, out seaNorth))
-            {
-                packet.Sea[0] = seaOrigin.x;
-                packet.Sea[1] = seaOrigin.y;
-                packet.Sea[2] = seaOrigin.z;
-                packet.Sea[4] = seaEast.x;
-                packet.Sea[5] = seaEast.y;
-                packet.Sea[6] = seaEast.z;
-                packet.Sea[8] = seaNorth.x;
-                packet.Sea[9] = seaNorth.y;
-                packet.Sea[10] = seaNorth.z;
-            }
+            Vector3 seaOrigin = Vector3.zero, seaEast = Vector3.zero, seaNorth = Vector3.zero;
+            bool hasSea = !SeaFrameLeftOut && Sea(out seaOrigin, out seaEast, out seaNorth);
+            RtPacketBuilder.Body(ref packet, planet, waveTime, body, position, hasSea, seaOrigin, seaEast, seaNorth);
         }
 
         // The passes to trace this frame; the parity check's, where it runs, among them. It returns the signals.
         private uint FillSignals(bool deferred, bool composite)
         {
-            // The sun's pass always: its output keeps the view depth the next frame finds
-            // its pixels by.
-            uint signals = RtNative.SignalSun;
-            if (Settings.Diffuse) signals |= RtNative.SignalDiffuse;
-            if (Settings.Reflections) signals |= RtNative.SignalSpecular;
-            // Where Deferred's reflections pass does not take it -- forward rendering, or
-            // Unity's own deferred lighting --, the light to add to the frame; it reads
-            // the diffuse light, which replaces the flat ambient light.
-            if (composite && (Settings.Diffuse || Settings.Reflections))
-                signals |= RtNative.SignalForwardLight | RtNative.SignalDiffuse;
+            uint signals = RtPacketBuilder.Signals(Settings.Diffuse, Settings.Reflections, composite);
             parityFlag = 0u;
             if (ParityProbe && deferred && parityHandle != IntPtr.Zero)
             {
@@ -1096,13 +983,10 @@ namespace ReDefinition.Raytracing
             bool reconstruct = ReconstructionLease >= Time.frameCount - 1;
             bool switched = reconstruct != reconstructedBefore;
             reconstructedBefore = reconstruct;
-            packet.Flags = RtNative.FlagSameFrame | (Settings.Denoise && !reconstruct ? RtNative.FlagDenoise : 0u)
-                           | (!haveHistory || Cut() || switched ? RtNative.FlagReset : 0u)
-                           | (withMotion ? RtNative.FlagMotionVectors : 0u)
-                           | (reconstruct ? RtNative.FlagGuides : 0u)
-                           | (LegacySmoothness() && !DeferredSmoothness ? RtNative.FlagLegacySmoothness : 0u)
-                           | (SurfaceIntent(deferred) ? RtNative.FlagSurfaceIntent : 0u)
-                           | parityFlag;
+            bool reset = !haveHistory || Cut() || switched;
+            bool legacySmoothness = LegacySmoothness() && !DeferredSmoothness;
+            packet.Flags = RtPacketBuilder.Flags(Settings.Denoise && !reconstruct, reset, withMotion, reconstruct, legacySmoothness,
+                                                 SurfaceIntent(deferred), parityFlag);
             if (reconstruct)
             {
                 GuidesFrame = Time.frameCount;
@@ -1160,24 +1044,6 @@ namespace ReDefinition.Raytracing
         private bool SurfaceIntent(bool deferred)
         {
             return deferred && TraceBeforeLighting && LegacySmoothness() && Settings.Shadows && !SurfacesAsDeferred;
-        }
-
-        // A translation by x, y, z, in single precision.
-        private static Matrix4x4 Translation(double x, double y, double z)
-        {
-            Matrix4x4 m = Matrix4x4.identity;
-            m.m03 = (float)x;
-            m.m13 = (float)y;
-            m.m23 = (float)z;
-            return m;
-        }
-
-        // Rows first, as the proxy takes them: Unity's [row, column].
-        internal static void Write(Matrix4x4 m, float[] target)
-        {
-            for (int row = 0; row < 4; row++)
-                for (int column = 0; column < 4; column++)
-                    target[row * 4 + column] = m[row, column];
         }
 
         // The frame's targets at the given size, with their native textures; made anew, and the history dropped, where
