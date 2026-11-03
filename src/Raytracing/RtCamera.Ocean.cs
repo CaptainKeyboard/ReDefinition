@@ -61,7 +61,7 @@ namespace ReDefinition.Raytracing
             // A G-buffer where there is one: Scatterer's ocean brings its surfaces as one, KSP's
             // sea under the deferred path has Unity's; without a G-buffer the water takes its
             // normal from the depth.
-            oceanPacket.Params[ParamGBuffer] = scatterer || packet.Params[ParamGBuffer] > 0.5f ? 1f : 0f;
+            oceanPacket.Params[RtPacketBuilder.ParamGBuffer] = scatterer || packet.Params[RtPacketBuilder.ParamGBuffer] > 0.5f ? 1f : 0f;
             for (int i = 0; i < 8; i++) oceanPacket.Outputs[i] = IntPtr.Zero;
             if (scatterer)
             {

@@ -60,6 +60,7 @@ SOURCES = [
     'src/Raytracing/RtCamera.Probe.cs',
     'src/Raytracing/RtCamera.Reflections.cs',
     'src/Raytracing/RtCamera.Sun.cs',
+    'src/Raytracing/RtPacketBuilder.cs',
     'src/Proxy/PacketRing.cs',
     'src/Proxy/StreamlineCamera.cs',
     # The upscalers, for the turn through each (RtTurnUpscale.cs).

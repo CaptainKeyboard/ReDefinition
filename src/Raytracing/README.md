@@ -22,12 +22,15 @@ proxy, and sets up the light that comes back into Unity's lighting.
 - `RtCamera` fills its `RtScene` each frame from the sources and issues the proxy's render events
   through `RtNative` (`src/Proxy/RtNative.cs`).
 - `RtScene` hands each mesh and material over once and the instances every frame.
+- `RtPacketBuilder` writes the values `RtCamera` hands it into the frame packet's arrays, in place.
 - `RtMaterial`, `RtMaterialIntent`, `RtDeferredLook` and `RtForwardHighlight` work out what a ray
   that hits a surface takes: albedo, shine and the highlight the forward light keeps.
 - `RtStockTerrain` and `RtTerrainColour` work out the ground's colour as KSP's and Parallax's
   terrain shaders give it.
-- `Ksp/RtKspMods.cs` reaches into the installed mods (Deferred, Scatterer, PlanetShine, Kopernicus,
-  Parallax), each only where it is there.
+- `Ksp/RtKspMods.cs` is where the rest of the raytracing asks for the installed mods (Deferred,
+  Scatterer, PlanetShine, Kopernicus, Parallax), each only where it is there. `Ksp/KopernicusStars.cs`,
+  `Ksp/ParallaxScatterReader.cs`, `Ksp/PlanetShineHold.cs` and `Ksp/OceanReflections.cs` reach into them
+  by reflection, through `Ksp/RtLoadedMods.cs`.
 - `Ksp/RtReflectors.cs`, `RtReflectorLight`, `CloudLightBlend` and `Ksp/NightAdaptation.cs` make
   the moons' light; `Ksp/EveCloudMoonlight.cs` and `Ksp/EveCloudRelight.cs` put it on EVE's clouds.
 - `Ksp/RtEveClouds.cs`, `Ksp/SeaFrameAnchor.cs`, `Ksp/SeaHighlights.cs`, `Ksp/MoonGlow.cs` and
