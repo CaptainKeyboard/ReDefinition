@@ -13,14 +13,20 @@ fixes for other mods' filters, and the pieces frame generation needs from the ga
 | `src/Upscaler/Rig/UpscalerInputs.cs` | The capture of depth, motion vectors and masks. |
 | `src/Upscaler/MotionVectors/UnityMotionRepair.cs` | The repair of Unity's motion vectors on the flight camera. |
 | `src/Upscaler/Compatibility/HostStack.cs` | Other mods' temporal filters: read, switched off, restored. |
+| `src/Upscaler/Compatibility/IHostFilter.cs` | What each filter's control does for `HostStack`: apply, reassert, restore, report. |
 | `src/Upscaler/FrameGeneration/VesselShadowLayer.cs` | What frame generation gets that the plain frame lacks. |
 
 ## What it does
 
 - `Rig` holds the rig, split over `UpscalerRig.*.cs` by job: the proxy's upscalers, DLSS Ray
-  Reconstruction, the HUD-less copy, the hooks other mods register, the preview and the diagnostics.
+  Reconstruction, the hooks other mods register, the preview and the diagnostics.
+- `Rig/HudLessCapture.cs` holds frame generation's HUD-less copy of the backbuffer,
+  `Rig/CameraMotionMeter.cs` the instrument for camera turns, cuts and floating origin shifts, and
+  `Rig/RigHooks.cs` the calls of the hooks other mods register.
 - `Rig` also holds the rig's parts: cameras, textures, masks, the shader bundle, the mipmap bias
   and the quality overrides.
+- `Rig/RigReport.cs`, `Rig/RigReadback.cs` and `Rig/RigPreview.cs` hold the text and statistics of the
+  diagnostics, the CPU readback they use, and the tinted preview of the diagnostics window.
 - `MotionVectors` writes what Unity does not: distant planets, EVE's clouds, skinned meshes and
   the active vessel.
 - `MotionVectors/UnityMotionRepair.cs` fills Unity's motion vectors where they were not written.
@@ -29,6 +35,9 @@ fixes for other mods' filters, and the pieces frame generation needs from the ga
 - `Compatibility` sizes EVE's clouds, Scatterer's godrays and Deferred's reflections to the render
   size, and keeps Scatterer's, TUFX's and Deferred's own antialiasing from running twice.
 - `Compatibility/TufxPostProcessing.cs` splits TUFX's profile around the upscaler.
+- `Compatibility` holds one control per filter that `HostStack` coordinates: `ScattererTaaControl`,
+  `TufxAaControl`, `SmaaControl` and `KfgControl`. `DuplicateAaControl` keeps a second antialiasing off a
+  camera. `ForeignReflection` and `HostCameras` are what they share.
 - `FrameGeneration` draws the vessel between its physics steps, and takes its shadow out of the
   motion that frame generation follows.
 

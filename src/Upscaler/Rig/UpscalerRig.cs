@@ -63,6 +63,10 @@ namespace ReDefinition.Upscaler
         // Jitter off separates the jitter from the camera redirect.
         public bool EnableJitter = true;
 
+        // The Debug switch that asks the proxy for its motion vector check on every
+        // fast camera turn (CameraMotionMeter); off at every start.
+        public bool RecordFastTurns;
+
         // Skinned renderers -- kerbals, flags -- made to draw their own motion
         // (SkinnedMotionVectors). Live.
         internal bool ForceSkinnedMotionVectors = true;
@@ -165,8 +169,8 @@ namespace ReDefinition.Upscaler
         private readonly MotionVectorAudit motionAudit = new MotionVectorAudit();
         private readonly VesselMotionVectors vesselMotion = new VesselMotionVectors();
         private readonly VesselShadowLayer vesselShadow = new VesselShadowLayer();
-        // VesselShadowLayer.Enabled as the HUD-less capture was recorded with it.
-        private bool hudLessWithShadow;
+        // The instrument for camera motion and the floating origin.
+        private readonly CameraMotionMeter motion = new CameraMotionMeter();
         private readonly SkinnedMotionVectors skinned = new SkinnedMotionVectors();
         private int skinnedSeenLoads = -1;
         private static bool loggedPassThroughMsaa;
@@ -174,7 +178,7 @@ namespace ReDefinition.Upscaler
         private bool resetHistory = true;
 
         // The time of a timer that is not running: it never comes.
-        private const float NotScheduled = float.MaxValue;
+        internal const float NotScheduled = float.MaxValue;
 
         // How long after the rig first sees a scene its skinned renderers are reported, and after a load
         // that keeps the rig the mipmap bias is applied to the whole scene again; and how often Parallax's
@@ -261,7 +265,7 @@ namespace ReDefinition.Upscaler
         // frame not shown as rendered.
         internal bool FrameGenerationReceives
         {
-            get { return FrameGeneration && hudLessBuffer != null && !PresentsRendered; }
+            get { return FrameGeneration && hudLess.Attached && !PresentsRendered; }
         }
 
         // Whether Present shows the rendered image as it is, sending neither the
@@ -279,7 +283,7 @@ namespace ReDefinition.Upscaler
             {
                 UpscalerRig rig = Current;
                 return rig != null && !rig.TornDown && rig.textures.LowRes != null && !rig.PresentsRendered
-                       && (!rig.PassThrough || rig.hudLessBuffer != null);
+                       && (!rig.PassThrough || rig.hudLess.Attached);
             }
         }
 
@@ -367,7 +371,7 @@ namespace ReDefinition.Upscaler
                 Status = "No 3D cameras found to redirect.";
                 return false;
             }
-            if (FrameGeneration && FrameGenerationBridge.InputsUsable) AttachHudLessCapture(cameras.Presenter, true);
+            if (FrameGeneration && FrameGenerationBridge.InputsUsable) AttachHudLess(true);
             inputs.ScaledMotion.Attach(cameras.Redirects, renderSize);
 
             // Before the first frame renders: TUFX's layers are split from it on.
@@ -472,9 +476,9 @@ namespace ReDefinition.Upscaler
             // Once: Detach, OnDisable and OnDestroy each call it.
             if (TornDown) return;
             TornDown = true;
-            ReportCameraMotionIfDue(true);
-            ReleaseHooks();
-            DetachHudLessCapture();
+            motion.ReportIfDue(true);
+            hooks.Release();
+            hudLess.Detach();
             tufx.Dispose();
             inputs.DisposeParts();
             skinned.Restore();
@@ -513,9 +517,8 @@ namespace ReDefinition.Upscaler
             }
             textures.ReleaseInputs();
 
-            if (probePixel != null) { Destroy(probePixel); probePixel = null; }
-            if (readback != null) { Destroy(readback); readback = null; }
-            if (preview != null) { Destroy(preview); preview = null; }
+            readback.Release();
+            previewer.Release();
 
             Status = "off";
         }
@@ -540,7 +543,7 @@ namespace ReDefinition.Upscaler
         // KSP's events the rig follows: the floating origin's shift, vessels loaded and the editors' ship changed.
         private void Awake()
         {
-            GameEvents.onFloatingOriginShift.Add(OnFloatingOriginShift);
+            GameEvents.onFloatingOriginShift.Add(motion.OnFloatingOriginShift);
             GameEvents.onVesselLoaded.Add(OnVesselLoaded);
             GameEvents.onEditorShipModified.Add(OnEditorShipModified);
         }
@@ -559,7 +562,7 @@ namespace ReDefinition.Upscaler
         // player's own.
         private void OnDestroy()
         {
-            GameEvents.onFloatingOriginShift.Remove(OnFloatingOriginShift);
+            GameEvents.onFloatingOriginShift.Remove(motion.OnFloatingOriginShift);
             GameEvents.onVesselLoaded.Remove(OnVesselLoaded);
             GameEvents.onEditorShipModified.Remove(OnEditorShipModified);
             vesselMotion.Disable();
@@ -702,18 +705,14 @@ namespace ReDefinition.Upscaler
             if (!RebuildWanted && cam != null && cam.allowHDR != EffectiveHdr)
                 RequestRebuild("the camera's HDR is now " + (cam.allowHDR ? "on" : "off"));
 
-            // Once, a few seconds after the rig was built. See AttachHudLessCapture.
-            if (Time.unscaledTime >= hudLessRecheckTime)
-                RecheckHudLessCapture();
+            // Once, a few seconds after the rig was built. See HudLessCapture.Attach.
+            if (hudLess.RecheckDue) RecheckHudLess();
 
             ReportSkinnedIfDue();
 
-            ReportCameraMotionIfDue(false);
-            if (pendingTurnLine != null)
-            {
-                Debug.Log(pendingTurnLine);
-                pendingTurnLine = null;
-            }
+            motion.ReportIfDue(false);
+            string turnLine = motion.TakeTurnLine();
+            if (turnLine != null) Debug.Log(turnLine);
             // A scene load that keeps the rig -- the editors' switch between VAB
             // and SPH -- brings skinned renderers without any of the sweep's events.
             if (sceneLoads != skinnedSeenLoads)
@@ -727,17 +726,7 @@ namespace ReDefinition.Upscaler
             tufx.Refresh(cameras.Redirects, cam, TufxAfterUpscaling && !DebugView && !PassThrough, EffectiveHdr, displaySize);
             RecordInputs();
 
-            // The HUD-less copy only while frame generation can use it: it is a
-            // blit of the whole backbuffer on every carrier camera, every frame.
-            bool wantHudLess = FrameGeneration && FrameGenerationBridge.InputsUsable;
-            if (wantHudLess != (hudLessBuffer != null) && cameras.Presenter != null)
-            {
-                if (wantHudLess) AttachHudLessCapture(cameras.Presenter, true);
-                else DetachHudLessCapture();
-            }
-            // The vessel's shadow switched in or out of the HUD-less copy (VesselShadowLayer).
-            else if (hudLessBuffer != null && hudLessWithShadow != VesselShadowLayer.Enabled && cameras.Presenter != null)
-                AttachHudLessCapture(cameras.Presenter, false);
+            SyncHudLess();
             RefreshOverlay();
 
             if (Bypass)
@@ -927,7 +916,7 @@ namespace ReDefinition.Upscaler
             // (ProgrammingGuideDLSS_G.md, checklist). The frames sent then are a frozen
             // scene under a menu, nothing to interpolate.
             bool paused = PauseMenu.exists && PauseMenu.isOpen;
-            FrameGenerationBridge.SetEnabled(FrameGeneration && hudLessBuffer != null && !paused);
+            FrameGenerationBridge.SetEnabled(FrameGeneration && hudLess.Attached && !paused);
 
             dispatchBuffer.Clear();
             RenderTexture result = textures.Upscaled;
@@ -962,13 +951,13 @@ namespace ReDefinition.Upscaler
             // frame's cameras draw: the proxy generates from frames with a packet,
             // and so never from a copy nobody wrote -- in the frame's own order,
             // which SetEnabled, taking effect at once, is not.
-            if (FrameGeneration && hudLessBuffer != null) SubmitFramePacket();
+            if (FrameGeneration && hudLess.Attached) SubmitFramePacket();
             Probe.GpuProfiler.Mark(dispatchBuffer, "ReDefinition upscaler: frame generation packet");
 
             Graphics.ExecuteCommandBuffer(dispatchBuffer);
             StageDump.AfterDispatch(cam, CameraRedirect.JitterActive ? cam.nonJitteredProjectionMatrix : cam.projectionMatrix,
                                     dispatch.JitterOffset, Reconstructing, textures.LowRes, result);
-            RunAfterUpscalingHooks(result);
+            hooks.RunAfterUpscaling(result, cam);
             Probe.GpuProfiler.MarkNow("ReDefinition upscaler: after-upscaling hooks");
 
             if (!tufx.Render(result, destination, textures.DepthCopy, textures.MotionVectors))
@@ -978,18 +967,8 @@ namespace ReDefinition.Upscaler
             // After the frame is out, and fenced: an instrument does not stop a
             // frame. On a failure it says so once and stops. With the diagnostic
             // measurements, or for the Debug switch for fast turns, which it drives.
-            if (!instrumentFailed && (ReDefinitionAddon.DebugMode || RecordFastTurns))
-            {
-                try
-                {
-                    SampleCameraMotion(cut);
-                }
-                catch (System.Exception e)
-                {
-                    instrumentFailed = true;
-                    Debug.LogWarning(Log.Tag + " Camera instrument stopped: " + e.Message);
-                }
-            }
+            if (!motion.Failed && (ReDefinitionAddon.DebugMode || RecordFastTurns))
+                motion.TrySample(cam, cut, RecordFastTurns && FrameGeneration && hudLess.Attached);
             return true;
         }
 

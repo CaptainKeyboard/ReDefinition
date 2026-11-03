@@ -1,218 +1,40 @@
-using System.Collections.Generic;
-using System.Text;
 using ReDefinition.Proxy;
-using ReDefinition.Core;
-using UnityEngine.Rendering;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
-    // The rig's part for frame generation's HUD-less copy: the backbuffer taken
-    // after the last camera that draws the scene, before the UI.
+    // The rig's part for frame generation's HUD-less copy: when the capture is attached, detached and attached
+    // again (HudLessCapture).
     public partial class UpscalerRig
     {
-        // Frame generation's HUD-less capture into UpscalerTextures.HudLess. See
-        // AttachHudLessCapture.
-        private CommandBuffer hudLessBuffer;
-        private readonly List<Camera> hudLessCameras = new List<Camera>();
-        private float hudLessRecheckTime = NotScheduled;
+        // Frame generation's HUD-less copy of the backbuffer.
+        private readonly HudLessCapture hudLess = new HudLessCapture();
 
-        // How long after attaching the capture takes its one second look at the cameras.
-        private const float HudLessRecheckDelaySeconds = 5f;
-        private bool hudLessComposed;
-        private bool hudLessCopyLogged;
-
-        // Cameras that draw onto the backbuffer after the presenter and are still
-        // scene, not UI. They are not redirected (UpscalerCameras.SceneCameras), and
-        // frame generation's HUD-less snapshot is taken after them: effects they
-        // draw are scene and are interpolated; if they draw nothing, a copy after
-        // them changes nothing.
-        private static readonly string[] EffectCameras = { "FXDepthCamera", "FXCamera" };
-
-        // The HUD-less image for frame generation.
-        //
-        // FSR keeps the UI out of interpolation by comparing the presented frame
-        // with a copy of it that has no UI; whatever differs is UI. AMD documents
-        // three ways of handling UI, and this is the one it added "for
-        // compatibility with engines that can not apply either of the other two
-        // options". The other two are a callback that draws the UI a second time, or the UI in a
-        // texture of its own. KSP is such an engine: its UI and every mod's OnGUI
-        // window go straight onto the backbuffer.
-        private void AttachHudLessCapture(Camera presenterCam, bool recheckLater)
+        // Attaches the capture to the presenter and the effect cameras behind it.
+        private void AttachHudLess(bool recheckLater)
         {
-            DetachHudLessCapture();
-            if (!FrameGenerationBridge.Available || presenterCam == null || textures.HudLess == null) return;
+            hudLess.Attach(cameras.Presenter, recheckLater, textures.HudLess, vesselShadow, renderSize);
+        }
 
-            hudLessBuffer = new CommandBuffer { name = "ReDefinition.HudLessCapture" };
-            hudLessWithShadow = VesselShadowLayer.Enabled;
-            RecordHudLessCopy();
+        // Once, a few seconds after the capture was attached: the one look at the cameras.
+        private void RecheckHudLess()
+        {
+            hudLess.Recheck(cameras.Presenter, textures.HudLess, vesselShadow, renderSize);
+        }
 
-            // AfterEverything: after the presenter's OnRenderImage blit, and
-            // after an effect camera's own drawing.
-            foreach (Camera carrier in HudLessCarriers(presenterCam))
+        // From Update. The HUD-less copy only while frame generation can use it: it is a
+        // blit of the whole backbuffer on every carrier camera, every frame.
+        private void SyncHudLess()
+        {
+            bool wantHudLess = FrameGeneration && FrameGenerationBridge.InputsUsable;
+            if (wantHudLess != hudLess.Attached && cameras.Presenter != null)
             {
-                carrier.AddCommandBuffer(CameraEvent.AfterEverything, hudLessBuffer);
-                hudLessCameras.Add(carrier);
+                if (wantHudLess) AttachHudLess(true);
+                else hudLess.Detach();
             }
-
-            // One more look a few seconds in: effect cameras can be created after
-            // the rig, and the survey then shows the stack as it really runs.
-            hudLessRecheckTime = recheckLater ? Time.unscaledTime + HudLessRecheckDelaySeconds : NotScheduled;
-
-            LogHudLessCapture();
-        }
-
-        // The frame with the active vessel's shadow taken out where frame generation
-        // would drag it along with the ground (VesselShadowLayer), or the frame as it is.
-        // Recorded again into the same buffer, still on its carriers, where the vessel
-        // shadow's textures were made anew (RefreshHudLessComposition). The copy is a Blit recorded in the
-        // CommandBuffer, so Unity orders it with the rest of the frame's drawing. The proxy copies this texture at
-        // Present, once all of it is submitted (FrameGeneration::RegisterInputs).
-        private void RecordHudLessCopy()
-        {
-            hudLessBuffer.Clear();
-            bool composed = hudLessWithShadow
-                            && vesselShadow.Compose(hudLessBuffer, BuiltinRenderTextureType.CameraTarget, textures.HudLess, renderSize);
-            if (!composed) hudLessBuffer.Blit(BuiltinRenderTextureType.CameraTarget, textures.HudLess);
-            if (composed == hudLessComposed && hudLessCopyLogged) return;
-            hudLessComposed = composed;
-            hudLessCopyLogged = true;
-            Debug.Log(Log.Tag + " HUD-less copy: " + (composed ? "with the vessel's shadow taken out (VesselShadowLayer)"
-                                                              : hudLessWithShadow ? "the frame as it is -- the vessel shadow's"
-                                                                                    + " composition could not be set up"
-                                                                                  : "the frame as it is") + ".");
-        }
-
-        // Before the HUD-less buffer runs this frame: recorded again where the textures
-        // it was recorded with are no longer the vessel shadow's.
-        private void RefreshHudLessComposition()
-        {
-            if (hudLessBuffer != null && hudLessComposed && !vesselShadow.ComposedCurrent(textures.HudLess))
-                RecordHudLessCopy();
-        }
-
-        // The presenter, and every effect camera drawing onto the backbuffer after
-        // it. The upscaler's output would differ from the backbuffer everywhere: half float against 8 bit, and
-        // without what the effect cameras draw after the presenter. So the rig copies the backbuffer itself, at the
-        // end of every camera that draws scene content. Camera.allCameras lists only enabled cameras; one switched off
-        // later keeps the capture and simply does not render, and the copy taken
-        // after the presenter then stands.
-        private static List<Camera> HudLessCarriers(Camera presenterCam)
-        {
-            List<Camera> carriers = new List<Camera> { presenterCam };
-            foreach (Camera other in Camera.allCameras)
-            {
-                if (other == null || other == presenterCam || other.targetTexture != null) continue;
-                if (System.Array.IndexOf(EffectCameras, other.name) < 0) continue;
-                if (other.depth <= presenterCam.depth) continue;
-                carriers.Add(other);
-            }
-            return carriers;
-        }
-
-        // The one look a few seconds after attaching: the capture moved to the carriers there are now, or the
-        // same ones logged again, and the camera survey written.
-        private void RecheckHudLessCapture()
-        {
-            hudLessRecheckTime = NotScheduled;
-
-            Camera presenterCam = cameras.Presenter;
-            if (presenterCam == null)
-            {
-                DetachHudLessCapture();
-                return;
-            }
-
-            List<Camera> current = HudLessCarriers(presenterCam);
-            bool unchanged = current.Count == hudLessCameras.Count
-                             && current.TrueForAll(c => hudLessCameras.Contains(c));
-
-            if (unchanged) LogHudLessCapture();
-            else AttachHudLessCapture(presenterCam, false);
-
-            CameraSurvey.Write();
-        }
-
-        // Takes the HUD-less buffer off its carriers and frees it: frame generation off, or the rig torn down.
-        private void DetachHudLessCapture()
-        {
-            if (hudLessBuffer != null)
-            {
-                foreach (Camera carrier in hudLessCameras)
-                    if (carrier != null) carrier.RemoveCommandBuffer(CameraEvent.AfterEverything, hudLessBuffer);
-
-                hudLessBuffer.Release();
-                hudLessBuffer = null;
-            }
-            hudLessComposed = false;
-            hudLessCopyLogged = false;
-
-            hudLessCameras.Clear();
-            hudLessRecheckTime = NotScheduled;
-        }
-
-        // Which cameras the snapshot follows, and what is drawn onto the
-        // backbuffer after the last of them. The last of them to render leaves the finished scene. Whatever is
-        // drawn after that is UI to FSR, and is logged by name. The proxy's "HUD-less check" measures the result. A post-processing layer there would
-        // change every pixel after the snapshot; FSR would take the whole image
-        // for UI and interpolation would quietly do nothing -- so that case is
-        // called out by name.
-        private void LogHudLessCapture()
-        {
-            if (hudLessCameras.Count == 0) return;
-
-            float lastDepth = float.MinValue;
-            StringBuilder sb = new StringBuilder();
-            sb.Append(Log.Tag).Append(" HUD-less snapshot at the end of");
-            foreach (Camera carrier in hudLessCameras)
-            {
-                if (carrier == null) continue;
-                sb.Append(" '").Append(carrier.name).Append("' (").Append(carrier.depth.ToString("0.##")).Append(')');
-                lastDepth = Mathf.Max(lastDepth, carrier.depth);
-            }
-
-            sb.Append(". Drawn after the last of them, and therefore UI to frame generation:");
-
-            Camera[] cameras = Camera.allCameras;
-            System.Array.Sort(cameras, (a, b) => a.depth.CompareTo(b.depth));
-
-            bool any = false;
-            foreach (Camera other in cameras)
-            {
-                if (other == null || other.targetTexture != null || other.depth <= lastDepth) continue;
-
-                any = true;
-                sb.Append(" '").Append(other.name).Append("' (").Append(other.depth.ToString("0.##")).Append(')');
-                if (HasComponentNamed(other, "PostProcessLayer"))
-                    sb.Append(" [WARNING: post-processing after the snapshot -- FSR would see the whole image as UI]");
-            }
-
-            if (!any) sb.Append(" no camera");
-            sb.Append(", then every OnGUI window and screen-space overlay canvas.");
-            Debug.Log(sb.ToString());
-        }
-
-        // The carriers of the HUD-less copy with their depths, for "Write diagnostics to log".
-        private string DescribeHudLessCarriers()
-        {
-            if (hudLessCameras.Count == 0) return "not attached";
-
-            StringBuilder sb = new StringBuilder();
-            foreach (Camera carrier in hudLessCameras)
-            {
-                if (sb.Length > 0) sb.Append(", ");
-                if (carrier == null) { sb.Append("(destroyed)"); continue; }
-                sb.Append("'").Append(carrier.name).Append("' (").Append(carrier.depth.ToString("0.##")).Append(')');
-            }
-            return sb.ToString();
-        }
-
-        // Whether host carries a component of that type name, for types of mods that may not be installed.
-        private static bool HasComponentNamed(Component host, string typeName)
-        {
-            foreach (Component component in host.GetComponents<Component>())
-                if (component != null && component.GetType().Name == typeName) return true;
-            return false;
+            // The vessel's shadow switched in or out of the HUD-less copy (VesselShadowLayer).
+            else if (hudLess.Attached && hudLess.WithShadow != VesselShadowLayer.Enabled && cameras.Presenter != null)
+                AttachHudLess(false);
         }
     }
 }

@@ -24,63 +24,67 @@ namespace ReDefinition.Upscaler
     // disableTaaBelowFrameRateThreshold (TemporalAntiAliasing.OnPreCull). Where no
     // Scatterer TAA resolves -- the editors, the tracking station, the main menu --
     // nothing changes.
-    internal static partial class HostStack
+    internal sealed class DuplicateAaControl
     {
         // Post Processing v2's layer, the component TUFX's antialiasing runs on.
         private const string PostProcessLayerTypeName = "UnityEngine.Rendering.PostProcessing.PostProcessLayer";
 
         // The layers set to None here, with the mode each had.
-        private static readonly Dictionary<Component, object> duplicateLayers = new Dictionary<Component, object>();
-        private static readonly List<Component> resolvingLayers = new List<Component>();
-        private static readonly List<Component> givenBack = new List<Component>();
-        private static float nextDuplicateCheck;
-        private static MethodInfo effectiveRole;
-        private static bool duplicatesFailed;
+        private readonly Dictionary<Component, object> duplicateLayers = new Dictionary<Component, object>();
+        private readonly List<Component> resolvingLayers = new List<Component>();
+        private readonly List<Component> givenBack = new List<Component>();
+
+        private float nextDuplicateCheck;
+        private MethodInfo effectiveRole;
+        private bool duplicatesFailed;
+
+        // The Scatterer TAA components of the last check, kept between checks so that each makes no list.
+        private readonly List<Component> taaFound = new List<Component>();
 
         // Whether a layer is set to None here at the moment.
-        public static bool DuplicatesTaken
+        public bool Taken
         {
             get { return duplicateLayers.Count > 0; }
         }
 
         // Every frame from the add-on: wanted, the check once a second (or at once with
         // now); not wanted, every layer given back.
-        internal static void SyncDuplicates(bool wanted, bool now)
+        internal void Sync(bool wanted, bool now)
         {
             if (!wanted)
             {
-                if (duplicateLayers.Count > 0) GiveBackDuplicates("taken over or switched off");
+                if (duplicateLayers.Count > 0) GiveBackAll("taken over or switched off");
                 return;
             }
             if (duplicatesFailed || (!now && Time.unscaledTime < nextDuplicateCheck)) return;
-            nextDuplicateCheck = Time.unscaledTime + ReassertInterval;
+            nextDuplicateCheck = Time.unscaledTime + HostStack.ReassertInterval;
             try
             {
-                TakeDuplicates();
+                Take();
             }
             catch (Exception e)
             {
                 duplicatesFailed = true;
                 CompatibilityLog.Warn("aa-duplicates", "The mods' second antialiasing on one camera is left as it is ("
                                                        + CompatibilityLog.Reason(e) + ").");
-                GiveBackDuplicates("failed");
+                GiveBackAll("failed");
             }
         }
 
         // Sets None on the PostProcessLayer of every camera a Scatterer TAA resolves on, and gives the layers back where
         // it no longer does.
-        private static void TakeDuplicates()
+        private void Take()
         {
-            Type taaType = TypeLookup.Find(ScattererTaaTypeName);
+            Type taaType = TypeLookup.Find(ScattererTaaControl.TypeName);
             Type layerType = TypeLookup.Find(PostProcessLayerTypeName);
             resolvingLayers.Clear();
             if (taaType != null && layerType != null && ForeignAssumptions.ScattererTemporalAa.Holds)
             {
                 if (effectiveRole == null)
-                    effectiveRole = taaType.GetMethod("EffectiveRole", Any, null, Type.EmptyTypes, null);
-                foreach (Component taa in ScattererTaaComponents(taaScratch))
+                    effectiveRole = taaType.GetMethod("EffectiveRole", TypeLookup.Any, null, Type.EmptyTypes, null);
+                foreach (Component taa in HostStack.ScattererTaa.Components(taaFound))
                 {
-                    if (taa == null || !IsEnabled(taa) || effectiveRole == null) continue;
+                    if (taa == null || !ScattererTaaControl.IsEnabled(taa) || effectiveRole == null) continue;
                     object role = effectiveRole.Invoke(taa, null);
                     if (role == null || role.ToString() != "JitterAndResolve") continue;
                     Component layer = taa.GetComponent(layerType);
@@ -103,14 +107,14 @@ namespace ReDefinition.Upscaler
             foreach (Component layer in resolvingLayers)
             {
                 object mode;
-                if (!TryGet(layer, layer.GetType(), "antialiasingMode", out mode) || mode == null) continue;
+                if (!ForeignReflection.TryGet(layer, layer.GetType(), "antialiasingMode", out mode) || mode == null) continue;
                 bool none = mode.ToString() == "None";
                 // Kept anew where TUFX handed the layer another mode since (a profile
                 // applied, its window): that is the one given back.
                 if (!none || !duplicateLayers.ContainsKey(layer)) duplicateLayers[layer] = mode;
                 if (none) continue;
                 object noneValue = Enum.Parse(mode.GetType(), "None");
-                if (TrySet(layer, layer.GetType(), "antialiasingMode", noneValue)) taken++;
+                if (ForeignReflection.TrySet(layer, layer.GetType(), "antialiasingMode", noneValue)) taken++;
             }
             if (taken > 0 || givenBack.Count > 0)
                 Debug.Log(Log.Tag + " One antialiasing per camera: TUFX's taken on " + taken + " camera(s) where Scatterer's TAA"
@@ -122,14 +126,14 @@ namespace ReDefinition.Upscaler
         {
             object now;
             // Only where it still holds the None set here.
-            if (before == null || !TryGet(layer, layer.GetType(), "antialiasingMode", out now) || now == null
+            if (before == null || !ForeignReflection.TryGet(layer, layer.GetType(), "antialiasingMode", out now) || now == null
                 || now.ToString() != "None")
                 return;
-            TrySet(layer, layer.GetType(), "antialiasingMode", before);
+            ForeignReflection.TrySet(layer, layer.GetType(), "antialiasingMode", before);
         }
 
         // Gives every layer set to None here its mode back and logs `why`.
-        private static void GiveBackDuplicates(string why)
+        private void GiveBackAll(string why)
         {
             int count = 0;
             foreach (KeyValuePair<Component, object> entry in duplicateLayers)

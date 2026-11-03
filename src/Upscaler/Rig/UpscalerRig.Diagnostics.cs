@@ -1,20 +1,17 @@
 using System.Text;
-using System;
 using ReDefinition.Proxy;
 using ReDefinition.Core;
-using UnityEngine.Rendering;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
     // The rig's part for "Write diagnostics to log": what the cameras, the
     // inputs, the masks and the proxy's textures hold, read back where numbers
-    // are needed.
+    // are needed. The text and statistics that need no rig state are in RigReport.
     public partial class UpscalerRig
     {
-        // The CPU textures the readbacks land in: one pixel for SamplePixel, the downscaled image for ReadBack.
-        private Texture2D probePixel;
-        private Texture2D readback;
+        // The CPU textures the readbacks land in.
+        private readonly RigReadback readback = new RigReadback();
 
         // Whether the proxy can address the rig's textures, and whether the
         // address holds: a pointer that changed since setup would have to be asked
@@ -25,39 +22,14 @@ namespace ReDefinition.Upscaler
             sb.Append("captured on frame ").Append(textures.HandleFrame)
               .Append(", now frame ").Append(Time.frameCount);
 
-            AppendHandle(sb, "upscaled", textures.Upscaled, textures.UpscaledHandle);
+            RigReport.AppendHandle(sb, "upscaled", textures.Upscaled, textures.UpscaledHandle);
             if (nativeSharpener != null)
-                AppendHandle(sb, UpscalerBackends.Name(Backend) + " output (RCAS input)", nativeSharpener.Input,
+                RigReport.AppendHandle(sb, UpscalerBackends.Name(Backend) + " output (RCAS input)", nativeSharpener.Input,
                     nativeSharpenInputHandle);
-            AppendHandle(sb, "depthCopy", textures.DepthCopy, textures.DepthHandle);
-            AppendHandle(sb, "motionVectors", textures.MotionVectors, textures.MotionHandle);
+            RigReport.AppendHandle(sb, "depthCopy", textures.DepthCopy, textures.DepthHandle);
+            RigReport.AppendHandle(sb, "motionVectors", textures.MotionVectors, textures.MotionHandle);
 
             return sb.ToString();
-        }
-
-        // One texture's line: size, format and native pointer, against the pointer taken at setup.
-        private static void AppendHandle(StringBuilder sb, string label, RenderTexture texture, IntPtr atSetup)
-        {
-            sb.AppendLine().Append("      ").Append(label.PadRight(28));
-
-            if (texture == null)
-            {
-                sb.Append("texture is null");
-                return;
-            }
-
-            IntPtr now = texture.GetNativeTexturePtr();
-
-            sb.Append(texture.width).Append('x').Append(texture.height)
-              .Append(' ').Append(texture.format)
-              .Append("  ptr 0x").Append(now.ToInt64().ToString("X"));
-
-            if (now == IntPtr.Zero)
-                sb.Append("  -- NULL, no D3D resource behind it");
-            else if (now == atSetup)
-                sb.Append("  -- unchanged since setup");
-            else
-                sb.Append("  -- CHANGED, was 0x").Append(atSetup.ToInt64().ToString("X"));
         }
 
         // What a black or wrong image does not show: whether the cameras render
@@ -76,14 +48,14 @@ namespace ReDefinition.Upscaler
             else sb.Append(textures.LowRes.width).Append("x").Append(textures.LowRes.height)
                    .Append(" created=").Append(textures.LowRes.IsCreated())
                    .Append(" format=").Append(textures.LowRes.format)
-                   .Append(" centre pixel=").Append(SamplePixel(textures.LowRes));
+                   .Append(" centre pixel=").Append(readback.SamplePixel(textures.LowRes));
             sb.AppendLine();
 
             sb.Append("  upscaled: ");
             if (textures.Upscaled == null) sb.Append("not present");
             else sb.Append(textures.Upscaled.width).Append("x").Append(textures.Upscaled.height)
                    .Append(" created=").Append(textures.Upscaled.IsCreated())
-                   .Append(" centre pixel=").Append(SamplePixel(textures.Upscaled));
+                   .Append(" centre pixel=").Append(readback.SamplePixel(textures.Upscaled));
             sb.AppendLine();
 
             sb.Append("  sharpness ").Append(Sharpness.ToString("0.00"))
@@ -95,7 +67,7 @@ namespace ReDefinition.Upscaler
             sb.Append("  motion vectors: ");
             if (textures.MotionVectors == null) sb.Append("not present");
             else sb.Append(textures.MotionVectors.width).Append("x").Append(textures.MotionVectors.height)
-                   .Append("  ").Append(DescribeMotion(textures.MotionVectors));
+                   .Append("  ").Append(RigReport.DescribeMotion(readback.ReadBack(textures.MotionVectors), renderSize));
             sb.AppendLine();
             sb.Append("  EVE's cloud motion vectors: ")
               .Append(inputs.CloudMotion.State == null ? "blended in" : "left out -- " + inputs.CloudMotion.State).AppendLine();
@@ -106,7 +78,7 @@ namespace ReDefinition.Upscaler
             sb.AppendLine();
             sb.Append("  skinned renderers: ").Append(skinned.Describe(VisibleLayerMask())).AppendLine();
             sb.Append("  frame generation: ").Append(FrameGenerationBridge.Describe()).AppendLine();
-            sb.Append("  HUD-less snapshot after: ").Append(DescribeHudLessCarriers()).AppendLine();
+            sb.Append("  HUD-less snapshot after: ").Append(hudLess.Describe()).AppendLine();
             sb.Append("  TUFX effects after FSR: ").Append(tufx.Describe()).AppendLine();
             sb.Append("  masks: ").Append(DescribeInputMasks()).AppendLine();
 
@@ -115,7 +87,8 @@ namespace ReDefinition.Upscaler
             sb.Append("  depth: ");
             if (textures.DepthCopy == null) sb.Append("not present");
             else sb.Append(textures.DepthCopy.width).Append("x").Append(textures.DepthCopy.height)
-                   .Append("  ").Append(DescribeDepth(textures.DepthCopy));
+                   .Append("  ").Append(RigReport.DescribeDepth(cam != null ? cam.nearClipPlane : 0.2f,
+                                                                readback.ReadLuminance(textures.DepthCopy)));
             sb.AppendLine();
 
             // Every switch position, so a diagnostics block can be attributed.
@@ -153,15 +126,15 @@ namespace ReDefinition.Upscaler
 
                 if (redirect.DidJitter)
                 {
-                    sb.Append(" | found ").Append(ClipRange(redirect.CapturedProjection))
-                      .Append(" | set ").Append(ClipRange(redirect.AppliedProjection));
+                    sb.Append(" | found ").Append(RigReport.ClipRange(redirect.CapturedProjection))
+                      .Append(" | set ").Append(RigReport.ClipRange(redirect.AppliedProjection));
                     sb.AppendLine();
-                    sb.Append("      ").Append(DescribeShear(redirect));
+                    sb.Append("      ").Append(RigReport.DescribeShear(redirect));
                 }
                 else
                 {
                     sb.Append(" | no jitter, matrix untouched: ")
-                      .Append(ClipRange(other.projectionMatrix));
+                      .Append(RigReport.ClipRange(other.projectionMatrix));
                 }
                 sb.AppendLine();
             }
@@ -182,162 +155,12 @@ namespace ReDefinition.Upscaler
 
                 // CommandBuffers of other mods -- EVE, Scatterer and TUFX hook in
                 // this way -- name the mod involved.
-                string hooks = DescribeHooks(other);
+                string hooks = RigReport.DescribeHooks(other);
                 if (hooks.Length > 0) sb.Append(" | hooks: ").Append(hooks);
                 sb.AppendLine();
             }
 
             Debug.Log(sb.ToString());
-        }
-
-        // Whether the jitter reached the render.
-        //
-        // The shear sits in m02/m12 of the projection matrix. Other code writes
-        // camera.projectionMatrix too -- Scatterer's TemporalAntiAliasing in its own
-        // OnPreCull -- and where it overwrites the jitter, the upscaler gets an
-        // image without subpixel offset while computing against a jitter that is
-        // not in it.
-        private static string DescribeShear(CameraRedirect redirect)
-        {
-            float wantedX = redirect.AppliedProjection.m02 - redirect.CapturedProjection.m02;
-            float wantedY = redirect.AppliedProjection.m12 - redirect.CapturedProjection.m12;
-
-            if (!redirect.CapturedRendered)
-                return "shear requested " + Shear(wantedX, wantedY) + ", rendered value not captured";
-
-            float actualX = redirect.RenderedProjection.m02 - redirect.CapturedProjection.m02;
-            float actualY = redirect.RenderedProjection.m12 - redirect.CapturedProjection.m12;
-
-            // Relative comparison: the absolute values are around 1e-4, an
-            // absolute threshold would say nothing.
-            float wanted = Mathf.Sqrt(wantedX * wantedX + wantedY * wantedY);
-            float actual = Mathf.Sqrt(actualX * actualX + actualY * actualY);
-            string verdict;
-            if (wanted <= 1e-12f) verdict = "no shear requested";
-            else if (actual > 1.5f * wanted) verdict = "AMPLIFIED -- another jitter on top of the rig's";
-            else if (actual >= 0.5f * wanted) verdict = "survived";
-            else
-            {
-                // The shear is gone. An element-wise comparison tells the two
-                // causes apart: a rendered matrix bit for bit the one found means
-                // KSP's matrix was written back over the jittered one and the jitter
-                // was lost; a different one was recomputed -- Scatterer's
-                // OnPostRender calls ResetProjectionMatrix -- after the jitter was
-                // in the image, and only the reading point lies too late.
-                verdict = MaxElementDelta(redirect.RenderedProjection, redirect.CapturedProjection) == 0f
-                    ? "LOST -- KSP's matrix was written back over the jittered one"
-                    : "gone at read time, but matrix was recomputed (Scatterer reset) -- jitter probably did render";
-            }
-
-            // The clip range of the rendered matrix shows the same: the range
-            // "found" for KSP's matrix written back, Unity's own for a matrix
-            // recomputed by ResetProjectionMatrix. KSP's own matrix encodes a far
-            // plane of roughly 880804 on Camera 00, Unity's recomputed one
-            // farClipPlane, 750000.
-            return "shear requested " + Shear(wantedX, wantedY)
-                   + ", rendered " + Shear(actualX, actualY) + "  -> " + verdict
-                   + "  [rendered range " + ClipRange(redirect.RenderedProjection)
-                   + ", apply/release per frame " + redirect.ApplyCount + "/" + redirect.ReleaseCount
-                   + ", redirects on this camera "
-                   + redirect.GetComponents<CameraRedirect>().Length + "]";
-        }
-
-        // The largest difference between two matrices, element by element; 0 where they are the same bit for bit.
-        private static float MaxElementDelta(Matrix4x4 a, Matrix4x4 b)
-        {
-            float worst = 0f;
-            for (int i = 0; i < 16; i++)
-            {
-                float delta = Mathf.Abs(a[i] - b[i]);
-                if (delta > worst) worst = delta;
-            }
-            return worst;
-        }
-
-        // A projection's jitter terms (m02, m12) as a pair with six decimals.
-        private static string Shear(float x, float y)
-        {
-            return "(" + x.ToString("0.000000") + ", " + y.ToString("0.000000") + ")";
-        }
-
-        // The command buffers on the camera's common events, as event:name, for the camera list in the log.
-        private static string DescribeHooks(Camera camera)
-        {
-            CameraEvent[] events =
-            {
-                CameraEvent.BeforeForwardOpaque, CameraEvent.AfterForwardOpaque,
-                CameraEvent.BeforeImageEffects, CameraEvent.AfterImageEffects,
-                CameraEvent.BeforeForwardAlpha, CameraEvent.AfterForwardAlpha,
-                CameraEvent.AfterEverything, CameraEvent.BeforeGBuffer,
-                CameraEvent.AfterGBuffer, CameraEvent.AfterLighting,
-            };
-
-            StringBuilder sb = new StringBuilder();
-            foreach (CameraEvent evt in events)
-            {
-                CommandBuffer[] buffers = camera.GetCommandBuffers(evt);
-                if (buffers == null || buffers.Length == 0) continue;
-                foreach (CommandBuffer buffer in buffers)
-                {
-                    if (sb.Length > 0) sb.Append(", ");
-                    sb.Append(evt).Append(':').Append(buffer.name);
-                }
-            }
-            return sb.ToString();
-        }
-
-        // Depth across the whole buffer: in KSP a centre pixel mostly hits the sky
-        // and reports the far plane.
-        //
-        // The values are device depth with a reversed Z axis: 1 is near, 0 is
-        // far. Everything at 0 means no depth arrives, and without depth the
-        // upscaler cannot detect disocclusion.
-        private string DescribeDepth(RenderTexture source)
-        {
-            float[] values = ReadLuminance(source);
-            System.Array.Sort(values);
-
-            // With KSP's small near plane all values sit just above zero. In
-            // metres they compare with what is on screen: distance ~ near plane /
-            // depth, while the far plane is far away.
-            float near = cam != null ? cam.nearClipPlane : 0.2f;
-            float nearest = values[values.Length - 1];
-            float median = values[values.Length / 2];
-
-            return "nearest point " + Distance(near, nearest)
-                   + "  median " + Distance(near, median)
-                   + "  (raw max " + nearest.ToString("0.00000") + ")";
-        }
-
-        // Near and far plane from a projection matrix. Where they differ from the
-        // camera's nearClipPlane/farClipPlane, KSP set a projection of its own.
-        private static string ClipRange(Matrix4x4 projection)
-        {
-            float m22 = projection.m22;
-            float m23 = projection.m23;
-            float denominatorNear = m22 - 1f;
-            float denominatorFar = m22 + 1f;
-
-            if (Mathf.Abs(denominatorNear) < 1e-9f || Mathf.Abs(denominatorFar) < 1e-9f)
-                return "n/f not determinable";
-
-            // With KSP's wide-range cameras the denominator of the far recovery
-            // cancels almost completely; the value is then flagged unreliable.
-            float far = m23 / denominatorFar;
-            bool farIsNoise = Mathf.Abs(denominatorFar) < 1e-5f;
-
-            return "n=" + (m23 / denominatorNear).ToString("0.###")
-                   + " f=" + (farIsNoise ? "~" + far.ToString("0") + " (unreliable)" : far.ToString("0"));
-        }
-
-        // A reversed device depth as a distance, near plane / depth, in m or km; infinite at the far plane.
-        private static string Distance(float near, float depth)
-        {
-            if (depth <= 1e-7f) return "infinite";
-            float metres = near / depth;
-            return metres >= 1000f
-                ? (metres / 1000f).ToString("0.0") + " km"
-                : metres.ToString("0.0") + " m";
         }
 
         // The masks the rig sends: the transparency mask's coverage, the reactive source and its coverage, and for
@@ -354,95 +177,10 @@ namespace ReDefinition.Upscaler
             return sb.ToString();
         }
 
-        // How much of a mask marks anything (red above 0.01) and its mean, from the downscaled readback.
+        // How much of a mask marks anything, read back; "not present" without the texture.
         private string Coverage(RenderTexture texture)
         {
-            if (texture == null) return "not present";
-            Color[] pixels = ReadBack(texture);
-            int marked = 0;
-            float sum = 0f;
-            foreach (Color pixel in pixels)
-            {
-                if (pixel.r > 0.01f) marked++;
-                sum += pixel.r;
-            }
-            return "marks " + (100f * marked / pixels.Length).ToString("0.00") + "% (mean "
-                   + (sum / pixels.Length).ToString("0.000") + ")";
-        }
-
-        // Read back downscaled: 320x180 is enough for a statistic.
-        private Color[] ReadBack(RenderTexture source)
-        {
-            const int width = PreviewWidth;
-            const int height = PreviewHeight;
-
-            RenderTexture small = RenderTexture.GetTemporary(
-                width, height, 0, RenderTextureFormat.ARGBHalf, RenderTextureReadWrite.Linear);
-            small.filterMode = FilterMode.Point;
-            Graphics.Blit(source, small);
-
-            if (readback == null)
-                readback = new Texture2D(width, height, TextureFormat.RGBAHalf, false, true);
-
-            RenderTexture previous = RenderTexture.active;
-            RenderTexture.active = small;
-            readback.ReadPixels(new Rect(0f, 0f, width, height), 0, 0, false);
-            readback.Apply(false);
-            RenderTexture.active = previous;
-            RenderTexture.ReleaseTemporary(small);
-
-            return readback.GetPixels();
-        }
-
-        // The red channel of the downscaled readback: depth, or a mask, one value per pixel.
-        private float[] ReadLuminance(RenderTexture source)
-        {
-            Color[] pixels = ReadBack(source);
-            float[] values = new float[pixels.Length];
-            for (int i = 0; i < pixels.Length; i++) values[i] = pixels[i].r;
-            return values;
-        }
-
-        // Statistics across the whole buffer: motion at the edge of the image --
-        // the vehicles around the space centre, a rotating part -- leaves the
-        // centre pixel at zero.
-        private string DescribeMotion(RenderTexture source)
-        {
-            const float movingThresholdPx = 0.25f;
-
-            Color[] pixels = ReadBack(source);
-            float[] magnitudes = new float[pixels.Length];
-            int moving = 0;
-
-            for (int i = 0; i < pixels.Length; i++)
-            {
-                float magnitude = MotionMagnitude(pixels[i]);
-                magnitudes[i] = magnitude;
-                if (magnitude > movingThresholdPx) moving++;
-            }
-
-            System.Array.Sort(magnitudes);
-
-            return "moving pixels " + (100f * moving / magnitudes.Length).ToString("0.00") + "%"
-                   + "  p50 " + magnitudes[magnitudes.Length / 2].ToString("0.000")
-                   + "  p95 " + magnitudes[(int)(magnitudes.Length * 0.95f)].ToString("0.000")
-                   + "  max " + magnitudes[magnitudes.Length - 1].ToString("0.000") + " px";
-        }
-
-        // A single pixel tells an image from a black one.
-        private string SamplePixel(RenderTexture texture)
-        {
-            if (probePixel == null) probePixel = new Texture2D(1, 1, TextureFormat.RGBAFloat, false);
-
-            RenderTexture previous = RenderTexture.active;
-            RenderTexture.active = texture;
-            probePixel.ReadPixels(new Rect(texture.width / 2f, texture.height / 2f, 1, 1), 0, 0, false);
-            probePixel.Apply(false);
-            RenderTexture.active = previous;
-
-            Color c = probePixel.GetPixel(0, 0);
-            return "(" + c.r.ToString("0.000") + ", " + c.g.ToString("0.000")
-                   + ", " + c.b.ToString("0.000") + ")";
+            return texture == null ? "not present" : RigReport.Coverage(readback.ReadBack(texture));
         }
     }
 }

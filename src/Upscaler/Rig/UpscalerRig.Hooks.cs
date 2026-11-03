@@ -1,34 +1,14 @@
-using System;
 using ReDefinition.Api.Internal;
-using UnityEngine.Rendering;
 using UnityEngine;
 
 namespace ReDefinition.Upscaler
 {
     // The rig's part for the hooks other mods register (ReDefinition.Api.Hooks,
-    // SharedFrame): motion vectors into the capture, the upscaled image, and an
-    // overlay after the scene.
+    // SharedFrame): the camera's two Unity messages that feed the capture, and the overlay camera's call (RigHooks).
     public partial class UpscalerRig
     {
-        // The buffer the after-upscaling handlers record into, made with the first of them and run in Present.
-        private CommandBuffer afterUpscalingBuffer;
-
-        // The overlay: a camera behind the last camera that draws the scene, made
-        // only while a handler is registered, with a buffer at AfterEverything the
-        // handlers fill as it culls.
-        private GameObject overlayObject;
-        private Camera overlayCamera;
-        private readonly AttachedBuffer overlayAttached = new AttachedBuffer("ReDefinition.OverlayHooks", CameraEvent.AfterEverything);
-        private CommandBuffer overlayBuffer { get { return overlayAttached.Buffer; } }
-        private float overlayDepthCheck;
-        // How often the overlay camera's depth is looked at again, as effect cameras can come later.
-        private const float OverlayDepthCheckSeconds = 1f;
-
-        // Cached, so the hooks' calls allocate nothing per frame.
-        private Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> callMotionVectorHook;
-        private Action<Action<CommandBuffer, RenderTexture, Camera>> callAfterUpscalingHook;
-        private Action<Action<CommandBuffer, Camera>> callOverlayHook;
-        private RenderTexture afterUpscalingImage;
+        // The hooks the rig runs for other mods.
+        private readonly RigHooks hooks = new RigHooks();
 
         // The frame the motion vector hooks were recorded for; -1 once RecordInputs has
         // recorded the capture anew.
@@ -55,7 +35,7 @@ namespace ReDefinition.Upscaler
             Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: the vessel's depth");
             vesselMotion.RecordRepair(inputs.Capture, textures.MotionVectors, textures.DepthCopy);
             Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: the vessel's motion vectors");
-            RecordMotionVectorHooks();
+            hooks.RecordMotionVectors(inputs.Capture, textures.MotionVectors, textures.DepthCopy, cam);
             Probe.GpuProfiler.Mark(inputs.Capture, "ReDefinition inputs: other mods' motion vector hooks");
             // After the hooks: they read the motion vectors as the upscaler gets them.
             // Diagnostic measurements only (ReDefinitionAddon.DebugMode).
@@ -66,10 +46,10 @@ namespace ReDefinition.Upscaler
             }
             vesselMotion.End();
             // The camera's matrices for the vessel's shadow, without the jitter.
-            if (hudLessBuffer != null && hudLessWithShadow)
+            if (hudLess.Attached && hudLess.WithShadow)
             {
                 vesselShadow.Begin(cam, renderSize);
-                RefreshHudLessComposition();
+                hudLess.RefreshComposition(textures.HudLess, vesselShadow, renderSize);
             }
         }
 
@@ -84,99 +64,22 @@ namespace ReDefinition.Upscaler
         {
             if (textures.LowRes == null || inputs.Capture == null || vesselShadowFrame == Time.frameCount) return;
             vesselShadowFrame = Time.frameCount;
-            if (hudLessBuffer != null && hudLessWithShadow)
+            if (hudLess.Attached && hudLess.WithShadow)
                 vesselShadow.Record(inputs.Capture, textures.DepthCopy, textures.MotionVectors);
-        }
-
-        // Into the capture at BeforeImageEffects, after Unity's motion vectors and
-        // EVE's clouds are written into motionVectors.
-        private void RecordMotionVectorHooks()
-        {
-            if (!SharedFrame.MotionVectorHooks.Any) return;
-            if (callMotionVectorHook == null)
-                callMotionVectorHook = handler => handler(inputs.Capture, textures.MotionVectors, textures.DepthCopy, cam);
-            SharedFrame.MotionVectorHooks.Invoke(callMotionVectorHook);
-        }
-
-        // In Present, once the upscaler has written image, before TUFX's effects after
-        // it and before frame generation's HUD-less copy.
-        private void RunAfterUpscalingHooks(RenderTexture image)
-        {
-            if (!SharedFrame.AfterUpscalingHooks.Any || image == null) return;
-            if (afterUpscalingBuffer == null)
-                afterUpscalingBuffer = new CommandBuffer { name = "ReDefinition.AfterUpscalingHooks" };
-            if (callAfterUpscalingHook == null)
-                callAfterUpscalingHook = handler => handler(afterUpscalingBuffer, afterUpscalingImage, cam);
-
-            afterUpscalingBuffer.Clear();
-            afterUpscalingImage = image;
-            SharedFrame.AfterUpscalingHooks.Invoke(callAfterUpscalingHook);
-            afterUpscalingImage = null;
-            Graphics.ExecuteCommandBuffer(afterUpscalingBuffer);
         }
 
         // From Update: the overlay camera made, placed and taken down as handlers come
         // and go.
         private void RefreshOverlay()
         {
-            if (!SharedFrame.OverlayHooks.Any || cameras.Presenter == null)
-            {
-                DestroyOverlay();
-                return;
-            }
-
-            if (overlayObject == null)
-            {
-                // One destroyed from outside leaves its buffer.
-                overlayAttached.Detach();
-                overlayObject = new GameObject("ReDefinitionOverlay");
-                overlayCamera = HelperCamera.AddTo(overlayObject, false);
-                overlayAttached.AttachTo(overlayCamera);
-                overlayObject.AddComponent<UpscalerOverlay>().Rig = this;
-                overlayDepthCheck = 0f;
-            }
-
-            // Behind the presenter and every effect camera after it -- the cameras frame
-            // generation's HUD-less copy follows -- looked at once a second, as effect
-            // cameras can come later.
-            if (Time.unscaledTime >= overlayDepthCheck)
-            {
-                overlayDepthCheck = Time.unscaledTime + OverlayDepthCheckSeconds;
-                float depth = float.MinValue;
-                foreach (Camera carrier in HudLessCarriers(cameras.Presenter))
-                    if (carrier != null) depth = Mathf.Max(depth, carrier.depth);
-                overlayCamera.depth = depth + 0.05f;
-            }
+            hooks.RefreshOverlay(this, cameras.Presenter);
         }
 
         // From the overlay camera's OnPreCull: every scene camera of the frame has
         // rendered, and the handlers see the frame's final camera.
         internal void FillOverlay()
         {
-            if (overlayBuffer == null) return;
-            overlayBuffer.Clear();
-            if (callOverlayHook == null) callOverlayHook = handler => handler(overlayBuffer, cam);
-            SharedFrame.OverlayHooks.Invoke(callOverlayHook);
-        }
-
-        // Takes the overlay camera down with its buffer, while no handler is registered or with the rig.
-        private void DestroyOverlay()
-        {
-            overlayAttached.Detach();
-            if (overlayObject != null) Destroy(overlayObject);
-            overlayObject = null;
-            overlayCamera = null;
-        }
-
-        // At teardown: the overlay camera and the after-upscaling buffer.
-        private void ReleaseHooks()
-        {
-            DestroyOverlay();
-            if (afterUpscalingBuffer != null)
-            {
-                afterUpscalingBuffer.Release();
-                afterUpscalingBuffer = null;
-            }
+            hooks.FillOverlay(cam);
         }
     }
 }
