@@ -338,7 +338,9 @@ namespace ReDefinition.Core
             new ForeignAssumption("parallax-tessellation", "Parallax", "Parallax's tessellation kept at display density")
                 .Type("Parallax.ParallaxSettings")
                 .Method("Parallax.ParallaxSettings", "SaveSettings")
-                .Tested("84470e62cb62") // Parallax Continued 1.0.0
+                // Parallax Continued 1.0.0, and 1.1.0, whose save writes one more setting,
+                // scaledRaymarchedShadowMaxStars (IL compared).
+                .Tested("84470e62cb62", "690e8bc7306d")
                 .TestedVersions("1.0.0.0")
                 .OnChange(WhenChanged.Fallback, "Parallax's tessellation follows the render size");
 
