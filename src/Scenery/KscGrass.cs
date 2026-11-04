@@ -146,6 +146,17 @@ namespace ReDefinition.Scenery
         private static readonly int ReachId = Shader.PropertyToID("_Reach");
         private static readonly int InstanceDataId = Shader.PropertyToID("_InstanceData");
 
+        // Whether the material is one of the space centre's ground: KSP's Diffuse Ground KSC shaders, or
+        // the shader Parallax Continued 1.1.0 puts on those materials (StructureGroundTerrain, from
+        // StructureGround.cfg), which keeps their blend mask.
+        private static bool IsKscGround(Material material)
+        {
+            if (material == null || material.shader == null) return false;
+            string name = material.shader.name;
+            return name.IndexOf("Diffuse Ground KSC", StringComparison.Ordinal) >= 0
+                   || name == "Custom/ParallaxKSCTerrain";
+        }
+
         // Waits up to a minute for Parallax's grass renderers, loads the lift, maps the lawns and starts drawing; maps
         // them again ten seconds later, when the space centre stands whole.
         private IEnumerator Start()
@@ -685,9 +696,7 @@ namespace ReDefinition.Scenery
                 for (int s = 0; s < ground.subMeshCount && s < materials.Count; s++)
                 {
                     Material material = materials[s];
-                    if (material == null || material.shader == null
-                        || material.shader.name.IndexOf("Diffuse Ground KSC", StringComparison.Ordinal) < 0)
-                        continue;
+                    if (!IsKscGround(material)) continue;
                     Texture maskTexture = material.HasProperty("_BlendMaskTexture") ? material.GetTexture("_BlendMaskTexture") : null;
                     Vector4 maskScale = material.HasProperty("_BlendMaskTexture_ST")
                         ? material.GetVector("_BlendMaskTexture_ST") : new Vector4(1, 1, 0, 0);
