@@ -85,6 +85,9 @@ namespace ReDefinition.Probe
                     return DetailAsDiffuse();
                 case "flagProbes":
                     return FlagProbes();
+                case "noFlagRays":
+                    Raytracing.RtScenerySource.LeaveOutSkinned = true;
+                    return "the baked flags are left out of the rays";
                 case "noFlags":
                     int hidden = 0;
                     foreach (Renderer renderer in UnityEngine.Object.FindObjectsOfType<Renderer>())

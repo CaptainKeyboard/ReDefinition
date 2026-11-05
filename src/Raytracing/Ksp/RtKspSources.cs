@@ -239,7 +239,7 @@ namespace ReDefinition.Raytracing
                     index++;
                     // BakeMesh leaves the mesh in the renderer's space, without its scale.
                     Transform t = skinned.transform;
-                    RtFilter.Add(skinned, bake.Mesh, Matrix4x4.TRS(t.position, t.rotation, Vector3.one), into);
+                    RtFilter.Add(skinned, bake.Mesh, Matrix4x4.TRS(t.position, t.rotation, t.lossyScale), into);
                 }
             }
             bakeCursor++;
@@ -478,6 +478,9 @@ namespace ReDefinition.Raytracing
     // near the camera; in the editors, the VAB's and SPH's halls.
     internal sealed class RtScenerySource : IRtSource
     {
+        // For a probe: the baked skinned meshes of the sites, the waving flags, are left out of the rays, to see whether a look of the flag comes from them.
+        internal static bool LeaveOutSkinned;
+
         // A city's (or an editor hall's) mesh filters with their renderers, found when its
         // hierarchy last changed, and the sphere they lie in, relative to its root.
         private sealed class Site
@@ -621,13 +624,14 @@ namespace ReDefinition.Raytracing
                 }
                 foreach (SkinnedMeshRenderer skinned in site.Skinned)
                 {
-                    if (!RtFilter.Drawn(skinned)) continue;
+                    if (LeaveOutSkinned || !RtFilter.Drawn(skinned)) continue;
                     Transform t = skinned.transform;
                     if ((t.position - eye).sqrMagnitude > range * range) continue;
                     int before = into.Count;
                     Mesh mesh = Baked(skinned);
-                    // BakeMesh leaves the mesh in the renderer's space, without its scale.
-                    RtFilter.Add(skinned, mesh, Matrix4x4.TRS(t.position, t.rotation, Vector3.one), into, RtNative.InstanceScenery);
+                    // BakeMesh leaves the mesh in the renderer's space, without its scale: the space centre's flags are scaled up by four and a half, and a copy
+                    // at scale one is a small flag near the pole that the sun's and the occlusion's rays hit instead of the cloth.
+                    RtFilter.Add(skinned, mesh, Matrix4x4.TRS(t.position, t.rotation, t.lossyScale), into, RtNative.InstanceScenery);
                     if (into.Count > before) Renderers++;
                 }
             }
