@@ -113,12 +113,33 @@ namespace ReDefinition.Probe
                 yield return run.Current;
             }
             Debug.Log(Log.Tag + " Probe: route: ended, arrived " + flight.Arrived + ", " + flight.Status + " In " + vessel.mainBody.bodyName + " at " + vessel.orbit.PeA.ToString("0", culture) + " x " + vessel.orbit.ApA.ToString("0", culture) + " m.");
+            RouteVerdict(flight);
             MapView.EnterMapView();
             yield return ProbeSteps.Frames(90);
             UnityEngine.ScreenCapture.CaptureScreenshot(Path.Combine(folder, "route-" + bodyName + ".png"));
             yield return ProbeSteps.Frames(5);
             MapView.ExitMapView();
             Debug.Log(Log.Tag + " Probe: route done.");
+        }
+
+        // The flight against what the route may take. The switches name the most burns of the transfer and its corrections together
+        // (-redefinitionProbeBudgetEncounter), the most burns in all (-redefinitionProbeBudgetTotal) and the most the vessel may turn while it coasts,
+        // in thousandths of rad/s, 20 without (-redefinitionProbeBudgetSpinMilli). The probe says FAILED itself where one is not kept.
+        private static void RouteVerdict(AutopilotFlight flight)
+        {
+            var culture = CultureInfo.InvariantCulture;
+            int encounter = CommandLine.Int("-redefinitionProbeBudgetEncounter", int.MaxValue);
+            int total = CommandLine.Int("-redefinitionProbeBudgetTotal", int.MaxValue);
+            double spin = CommandLine.Int("-redefinitionProbeBudgetSpinMilli", 20) / 1000.0;
+            foreach (string line in flight.Ledger.Lines) Debug.Log(Log.Tag + " Probe: route: " + line);
+            Debug.Log(Log.Tag + " Probe: route: " + flight.Ledger.Summary());
+            var failures = new System.Collections.Generic.List<string>();
+            if (!flight.Arrived) failures.Add("the flight did not arrive (" + flight.Status + ")");
+            if (flight.Ledger.UntilEncounter > encounter) failures.Add(flight.Ledger.UntilEncounter + " burns until the encounter, at most " + encounter);
+            if (flight.Ledger.Total > total) failures.Add(flight.Ledger.Total + " burns in all, at most " + total);
+            if (flight.Ledger.CoastRate > spin) failures.Add("the vessel turned at " + flight.Ledger.CoastRate.ToString("0.000", culture) + " rad/s while coasting, at most " + spin.ToString("0.000", culture));
+            if (failures.Count > 0) Debug.LogError(Log.Tag + " Probe: FAILED: route: " + string.Join("; ", failures.ToArray()) + ".");
+            else Debug.Log(Log.Tag + " Probe: route check: OK, " + flight.Ledger.Summary());
         }
 
         private static IEnumerator NodeShots(string folder)
@@ -145,7 +166,7 @@ namespace ReDefinition.Probe
             }
             vessel.patchedConicSolver.UpdateFlightPlan();
 
-            foreach (string name in new[] { "Mun", "Minmus" })
+            foreach (string name in new[] { "Mun", "Minmus", "Ike" })
             {
                 CelestialBody target = FlightGlobals.Bodies.Find(b => b.bodyName == name);
                 if (target == null) continue;

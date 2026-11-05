@@ -41,7 +41,7 @@ namespace ReDefinition.Autopilot.Planning
             double total = first.Magnitude + second.Magnitude;
             return new Result
             {
-                Ok = true, UT = firstUT, DeltaV = first.DeltaV,
+                Ok = true, UT = firstUT, DeltaV = first.DeltaV, Purpose = BurnPurpose.Orbit,
                 Why = "Orbit at " + (altitude / 1000.0).ToString("0.#") + " km: two burns, " + total.ToString("0") + " m/s.",
             };
         }
@@ -64,7 +64,7 @@ namespace ReDefinition.Autopilot.Planning
             if (KspOrbits.AddNode(frame, ut, deltaV) == null) return Result.Failed("The vessel has no flight plan.");
             return new Result
             {
-                Ok = true, UT = ut, DeltaV = deltaV,
+                Ok = true, UT = ut, DeltaV = deltaV, Purpose = BurnPurpose.Capture,
                 Why = "Capture at " + body.bodyName + ": " + deltaV.Length.ToString("0") + " m/s at the periapsis, " + ((at.R.Length - body.Radius) / 1000.0).ToString("0.#") + " km up.",
             };
         }
@@ -98,7 +98,7 @@ namespace ReDefinition.Autopilot.Planning
             double ut = now + burn.Delay;
             KspOrbits.ClearNodes(frame);
             if (KspOrbits.AddNode(frame, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
-            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = name + ": " + burn.Magnitude.ToString("0") + " m/s " + (V3.Dot(burn.DeltaV, Kepler.Propagate(here, burn.Delay, mu).V) < 0.0 ? "retrograde" : "prograde") + " at the apoapsis." };
+            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Purpose = BurnPurpose.Deorbit, Why = name + ": " + burn.Magnitude.ToString("0") + " m/s " + (V3.Dot(burn.DeltaV, Kepler.Propagate(here, burn.Delay, mu).V) < 0.0 ? "retrograde" : "prograde") + " at the apoapsis." };
         }
 
         // The burn that lifts a periapsis that lies too deep to the height of a pass through the air, for an aerobraking pass that slows the vessel.
@@ -134,7 +134,7 @@ namespace ReDefinition.Autopilot.Planning
             double ut = frame.Now + delay;
             KspOrbits.ClearNodes(frame);
             if (KspOrbits.AddNode(frame, ut, deltaV) == null) return Result.Failed("The vessel has no flight plan.");
-            return new Result { Ok = true, UT = ut, DeltaV = deltaV, Why = "Lift the periapsis out of the ground: " + deltaV.Length.ToString("0") + " m/s." };
+            return new Result { Ok = true, UT = ut, DeltaV = deltaV, Purpose = BurnPurpose.Orbit, Why = "Lift the periapsis out of the ground: " + deltaV.Length.ToString("0") + " m/s." };
         }
 
         // The second burn of a change of orbit, or the whole of one that is one apsis from done: the orbit rounded at the apsis at the altitude.
@@ -146,7 +146,7 @@ namespace ReDefinition.Autopilot.Planning
             double ut = frame.Now + burn.Delay;
             KspOrbits.ClearNodes(frame);
             if (KspOrbits.AddNode(frame, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
-            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Why = "Round the orbit at the " + (atApoapsis ? "apoapsis" : "periapsis") + ": " + burn.Magnitude.ToString("0") + " m/s." };
+            return new Result { Ok = true, UT = ut, DeltaV = burn.DeltaV, Purpose = BurnPurpose.Orbit, Why = "Round the orbit at the " + (atApoapsis ? "apoapsis" : "periapsis") + ": " + burn.Magnitude.ToString("0") + " m/s." };
         }
     }
 }

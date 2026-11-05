@@ -15,6 +15,22 @@ namespace ReDefinition.Autopilot.Planning
         // leadTime).
         internal const double LeadTime = 30.0;
 
+        // What a burn is for, for the flight's count of them.
+        internal enum BurnPurpose
+        {
+            Other,
+            // The burn that leaves the orbit for another body: an ejection from a planet or a moon's transfer.
+            Transfer,
+            // A burn that brings the periapsis at the target body to the aim after the transfer.
+            Correction,
+            // The burn at the target body's periapsis that makes the orbit round it.
+            Capture,
+            // A change of the orbit round the body the vessel is at: circularizing, lifting the periapsis, the two burns to an altitude.
+            Orbit,
+            // The burn that brings the vessel down to the ground or into the air.
+            Deorbit,
+        }
+
         // What a step of a plan is: a burn as a node, a launch into an orbit, or a descent to the ground.
         internal enum StepKind
         {
@@ -42,6 +58,8 @@ namespace ReDefinition.Autopilot.Planning
             public string Why;
             public double UT;
             public V3 DeltaV;
+            // What the burn is for.
+            public BurnPurpose Purpose;
             // Whether the plan is still being worked out in the background: neither a plan nor a failure, and to be asked again in a moment.
             public bool Pending;
 

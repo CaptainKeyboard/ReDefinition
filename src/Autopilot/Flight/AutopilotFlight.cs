@@ -12,11 +12,19 @@ namespace ReDefinition.Autopilot.Flight
     internal sealed class AutopilotFlight
     {
         private const int MaxFailures = 3;
+        // The turn, in rad/s, under which a vessel counts as at rest before it warps.
+        private const double SteadyRate = 0.01;
 
         private readonly Vessel vessel;
         private readonly IList<Destination> route;
         private bool cancelled;
         private float nextNote;
+        // The corrections burned on the way to the stop of the route that they are counted for, and whether the last burn was lit.
+        private int corrections, correctionGoal = -1;
+        private bool lastBurnLit;
+
+        // The burns of the flight and how the vessel behaved between them, for the log and the probes.
+        internal readonly FlightLedger Ledger = new FlightLedger();
 
         // What the flight is doing, and how it ended: Arrived, or the reason it stopped.
         internal string Status = "";
@@ -50,6 +58,7 @@ namespace ReDefinition.Autopilot.Flight
             cancelled = true;
             WarpGuard.SelfWarpUntil = 0.0;
             MechJebDriver.Abort(vessel);
+            MechJebDriver.RestoreSettings(vessel);
             MechJebDriver.StopRendezvous(vessel);
             MechJebDriver.StopDocking(vessel);
             // The ascent and the landing are let go here, not where the coroutine that waits for them next wakes: it may not wake.
@@ -121,7 +130,7 @@ namespace ReDefinition.Autopilot.Flight
                     Stop("MechJeb cannot fly the maneuver node.");
                     yield break;
                 }
-                yield return Burn(node.UT);
+                yield return Burn(node.UT, NodePlanner.BurnPurpose.Other);
             }
         }
 
@@ -202,6 +211,23 @@ namespace ReDefinition.Autopilot.Flight
                     if (!double.IsNaN(lastError) && plan.Error >= lastError)
                     {
                         // The last correction did not help: the course is kept as it is, and the plan goes on from there.
+                        KspOrbits.ClearNodes(vessel);
+                        keepCourse = true;
+                        lastError = double.NaN;
+                        continue;
+                    }
+                    // A route is allowed this many corrections between the transfer and the capture: the miss that is left is the capture's to live with.
+                    Destination goal = plan.Goal >= 0 && plan.Goal < route.Count ? route[plan.Goal] : null;
+                    int allowed = CorrectionLimit(goal != null ? goal.Body : null);
+                    // The limit is for each stop of the route: a transfer to the next one starts the count again.
+                    if (plan.Goal != correctionGoal)
+                    {
+                        correctionGoal = plan.Goal;
+                        corrections = 0;
+                    }
+                    if (corrections >= allowed)
+                    {
+                        Debug.Log("[ReDefinition] Route: the " + allowed + " correction" + (allowed == 1 ? "" : "s") + " allowed " + (allowed == 1 ? "is" : "are") + " burned; the course is kept.");
                         KspOrbits.ClearNodes(vessel);
                         keepCourse = true;
                         lastError = double.NaN;
@@ -345,8 +371,16 @@ namespace ReDefinition.Autopilot.Flight
                     Stop("MechJeb would not take the node.");
                     yield break;
                 }
-                yield return Burn(plan.UT);
+                yield return Burn(plan.UT, plan.Purpose);
+                if (plan.Purpose == NodePlanner.BurnPurpose.Correction && lastBurnLit) corrections++;
             }
+        }
+
+        // How many corrections a transfer to the body may take: one to a moon, which is near, and two to a planet, where a small miss of the ejection grows
+        // over the long way.
+        internal static int CorrectionLimit(CelestialBody target)
+        {
+            return target != null && target.referenceBody == Planetarium.fetch.Sun ? 2 : 1;
         }
 
         // Whether the vessel is gone: destroyed, or not there.
@@ -528,10 +562,12 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // Waits while MechJeb flies the node, lighting the next stage where no engine runs for the burn.
-        private IEnumerator Burn(double nodeUT)
+        private IEnumerator Burn(double nodeUT, NodePlanner.BurnPurpose purpose)
         {
             float nextStage = 0f;
             float began = Time.realtimeSinceStartup;
+            ManeuverNode first = vessel.patchedConicSolver != null && vessel.patchedConicSolver.maneuverNodes.Count > 0 ? vessel.patchedConicSolver.maneuverNodes[0] : null;
+            var watch = new BurnWatch(vessel, first, purpose, Ledger.Total);
             while (!cancelled && !Lost && MechJebDriver.Busy(vessel))
             {
                 // A burn that goes on for an hour of the player's time is not one: MechJeb is let go, and the route is planned again from where the vessel is.
@@ -544,6 +580,7 @@ namespace ReDefinition.Autopilot.Flight
                 string state = MechJebDriver.State(vessel);
                 Status = "Burn: " + state + ", " + KSPUtil.PrintTimeCompact(nodeUT - Planetarium.GetUniversalTime(), false) + " to the node.";
                 Note();
+                watch.Sample();
                 if ((state == "LEAD" || state == "BURN") && Time.realtimeSinceStartup > nextStage)
                 {
                     nextStage = Time.realtimeSinceStartup + 2f;
@@ -551,6 +588,25 @@ namespace ReDefinition.Autopilot.Flight
                 }
                 yield return new WaitForSeconds(0.5f);
             }
+            Debug.Log("[ReDefinition] Route: " + watch.Finish(Ledger));
+            lastBurnLit = watch.Burned;
+        }
+
+        // The vessel brought to rest after a burn, before it coasts or warps: MechJeb lets the attitude go when the burn is done, and a vessel that still turns
+        // keeps turning through the warp where PersistentRotation holds its spin. The stability assist is switched on, and the turn waited for.
+        private IEnumerator Steady()
+        {
+            // A vessel that cannot hold its attitude has nothing to wait for.
+            if (vessel.angularVelocity.magnitude <= SteadyRate || vessel.Autopilot == null || !vessel.Autopilot.Enabled) yield break;
+            bool wasOn = vessel.ActionGroups[KSPActionGroup.SAS];
+            vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
+            if (vessel.Autopilot != null && vessel.Autopilot.Enabled) vessel.Autopilot.SetMode(VesselAutopilot.AutopilotMode.StabilityAssist);
+            float from = Time.realtimeSinceStartup;
+            double rate = vessel.angularVelocity.magnitude;
+            while (!cancelled && !Lost && vessel.angularVelocity.magnitude > SteadyRate && Time.realtimeSinceStartup - from < 60f)
+                yield return new WaitForSeconds(0.5f);
+            Debug.Log("[ReDefinition] Route: the vessel turned at " + rate.ToString("0.000") + " rad/s after the burn; the stability assist " + (wasOn ? "was on" : "was switched on")
+                      + " and it turned at " + vessel.angularVelocity.magnitude.ToString("0.000") + " rad/s after " + (Time.realtimeSinceStartup - from).ToString("0") + " s.");
         }
 
         // Warps to the end of the orbit the vessel is on, where the next one starts: the change of the body it is round.
@@ -564,12 +620,20 @@ namespace ReDefinition.Autopilot.Flight
             }
             CelestialBody before = vessel.mainBody;
             double until = orbit.EndUT + 1.0;
+            yield return Steady();
             WarpGuard.SelfWarpUntil = until;
             TimeWarp.fetch.WarpTo(until);
             float started = Time.realtimeSinceStartup;
+            double coastFrom = Planetarium.GetUniversalTime(), fastest = 0.0, rateAtStart = vessel.angularVelocity.magnitude;
             while (!cancelled && vessel.mainBody == before && Planetarium.GetUniversalTime() < until && Time.realtimeSinceStartup - started < 600f)
+            {
+                fastest = System.Math.Max(fastest, vessel.angularVelocity.magnitude);
                 yield return new WaitForSeconds(0.5f);
+            }
             TimeWarp.SetRate(0, true);
+            Ledger.Coasted(Planetarium.GetUniversalTime() - coastFrom, fastest);
+            Debug.Log("[ReDefinition] Route: coast of " + (Planetarium.GetUniversalTime() - coastFrom).ToString("0") + " s: the vessel turned at " + rateAtStart.ToString("0.000")
+                      + " rad/s at the start, at most " + fastest.ToString("0.000") + " rad/s, and at " + vessel.angularVelocity.magnitude.ToString("0.000") + " rad/s at the end.");
             yield return new WaitForSeconds(1f);
         }
 
@@ -593,7 +657,9 @@ namespace ReDefinition.Autopilot.Flight
 
         private void Stop(string why)
         {
+            if (!Finished) Debug.Log("[ReDefinition] Route: flight summary: " + Ledger.Summary() + " Ended: " + why);
             WarpGuard.SelfWarpUntil = 0.0;
+            MechJebDriver.RestoreSettings(vessel);
             Status = why;
             Finished = true;
             ParsekBridge.StopRecording();

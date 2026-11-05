@@ -76,9 +76,22 @@ namespace ReDefinition.Autopilot.Flight
             if (executor == null || vessel.patchedConicSolver == null || vessel.patchedConicSolver.maneuverNodes.Count == 0) return false;
             // The guide of a climb or a descent is the navigation's to follow, and no burn for MechJeb to execute.
             if (Guidance.GuideNode.Is(vessel.patchedConicSolver.maneuverNodes[0])) return false;
+            // The setting is the player's, and global in MechJeb: it is put back when the flight is over.
+            if (!playersAutowarp.HasValue) playersAutowarp = (bool)autowarpField.GetValue(executor);
             autowarpField.SetValue(executor, warp);
             executor.GetType().GetMethod("ExecuteOneNode").Invoke(executor, new[] { user });
             return true;
+        }
+
+        private static bool? playersAutowarp;
+
+        // Puts back what the flight changed of the player's own MechJeb settings.
+        internal static void RestoreSettings(Vessel vessel)
+        {
+            if (!playersAutowarp.HasValue) return;
+            object executor = Executor(vessel);
+            if (executor != null) autowarpField.SetValue(executor, playersAutowarp.Value);
+            playersAutowarp = null;
         }
 
         // Takes the node away from MechJeb at once: the engines off, the warp down.

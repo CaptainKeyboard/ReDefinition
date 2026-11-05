@@ -34,30 +34,45 @@ namespace ReDefinition.Autopilot.Planning
             double impact = aim * Math.Sqrt(1.0 + 2.0 * target.gravParameter / (aim * excess * excess));
             V3 sideways = V3.Cross(V3.Cross(ship.R, ship.V).Unit, best.Arrival.Unit).Unit;
             Result result = Result.Failed("No encounter with " + target.bodyName + " came out of the transfer.");
+            var tried = new System.Text.StringBuilder();
+            double tolerance = Math.Max(1000.0, 0.03 * periapsisAltitude);
             foreach (double side in new[] { 1.0, -1.0 })
             {
-                double reach = impact;
-                for (int pass = 0; pass < 8; pass++)
+                // The distance of the aim point from the target's centre is searched between a distance that leaves the periapsis under the aim (low) and
+                // one that leaves it over (high). It is not worked out from the patch's excess speed: at a slow encounter the patch round the target is an
+                // ellipse, which has none, and a step made from it throws the aim point to the other side.
+                double reach = impact, low = 0.0, high = double.PositiveInfinity;
+                for (int pass = 0; pass < 24 && reach >= 1.0 && high - low >= 1.0; pass++)
                 {
                     double leave;
                     V3 deltaV;
                     Orbit patch = Place(frame, target, ship, goal, mu, now, best, sideways * (reach * side), out leave, out deltaV);
-                    if (patch == null || patch.inclination > 90.0)
+                    tried.Append(" [side ").Append(side > 0.0 ? "+" : "-").Append(", pass ").Append(pass).Append(", reach ").Append(reach.ToString("0")).Append(" m: ")
+                         .Append(patch == null ? "no patch" : "periapsis " + (patch.PeR - target.Radius).ToString("0") + " m, inclination " + patch.inclination.ToString("0")).Append(']');
+                    if (patch != null && patch.inclination > 90.0)
                     {
-                        result = Result.Failed("No prograde encounter with " + target.bodyName + ".");
+                        result = Result.Failed("No prograde encounter with " + target.bodyName + "." + tried);
                         break;
                     }
-                    double error = aim - patch.PeR;
-                    if (Math.Abs(error) <= Math.Max(1000.0, 0.03 * periapsisAltitude))
-                        return new Result
-                        {
-                            Ok = true, UT = leave, DeltaV = deltaV,
-                            Why = "Transfer to " + target.bodyName + ", periapsis " + (patch.PeR - target.Radius).ToString("0") + " m over it.",
-                        };
-                    double speedSquared = -target.gravParameter / patch.semiMajorAxis;
-                    double rp = Math.Max(1.0, patch.PeR);
-                    reach = Math.Max(1.0, reach + error * (rp + target.gravParameter / speedSquared) / reach);
-                    result = Result.Failed("The periapsis at " + target.bodyName + " is " + (patch.PeR - target.Radius).ToString("0") + " m, not " + periapsisAltitude.ToString("0") + ".");
+                    if (patch == null)
+                    {
+                        // Too far off for the plan to meet the target at all.
+                        high = Math.Min(high, reach);
+                    }
+                    else
+                    {
+                        double error = aim - patch.PeR;
+                        if (Math.Abs(error) <= tolerance)
+                            return new Result
+                            {
+                                Ok = true, UT = leave, DeltaV = deltaV, Purpose = BurnPurpose.Transfer,
+                                Why = "Transfer to " + target.bodyName + ", periapsis " + (patch.PeR - target.Radius).ToString("0") + " m over it.",
+                            };
+                        if (error > 0.0) low = Math.Max(low, reach);
+                        else high = Math.Min(high, reach);
+                        result = Result.Failed("The periapsis at " + target.bodyName + " is " + (patch.PeR - target.Radius).ToString("0") + " m, not " + periapsisAltitude.ToString("0") + ".");
+                    }
+                    reach = double.IsInfinity(high) ? 2.0 * reach : 0.5 * (low + high);
                 }
             }
             KspOrbits.ClearNodes(frame);
@@ -119,13 +134,18 @@ namespace ReDefinition.Autopilot.Planning
             }
             return new Result
             {
-                Ok = true, UT = ut, DeltaV = burn.DeltaV,
+                Ok = true, UT = ut, DeltaV = burn.DeltaV, Purpose = BurnPurpose.Transfer,
                 Why = "Leave " + here.bodyName + " for " + target.bodyName + ": " + burn.Magnitude.ToString("0") + " m/s, excess speed " + excess.Length.ToString("0") + " m/s.",
             };
         }
 
+        // How long before a correction's burn it is planned at least, in s. The vessel needs the time to turn to it. A burn that comes late is burned off
+        // the node's time, which the periapsis at the target answers for.
+        internal const double CorrectionLead = 180.0;
+
         // Brings a transfer back to its aim with one small burn, early on the way. The burn is tried against KSP's own plan until the periapsis
-        // at the target is within 3 % or a kilometre of the one asked for. No node where the vessel is on course already.
+        // at the target is within half the band of the one asked for. No node where the vessel is within the band already: the band is what counts as
+        // on the orbit (Near), so that a miss the capture does not mind is not corrected.
         internal static Result CorrectCourse(Frame frame, CelestialBody target, double aimAltitude, bool keepCourse = false)
         {
             if (frame.Solver == null) return Result.Failed("The vessel has no flight plan.");
@@ -133,12 +153,13 @@ namespace ReDefinition.Autopilot.Planning
             Orbit patch = KspOrbits.PatchAhead(frame, target);
             if (patch == null) return Result.Failed("The plan has no encounter with " + target.bodyName + ".");
             double aim = target.Radius + aimAltitude;
-            double tolerance = Math.Max(1000.0, 0.03 * aimAltitude);
+            double tolerance = Near(aimAltitude);
             string over = (patch.PeR - target.Radius).ToString("0") + " m over " + target.bodyName + ".";
             if (Math.Abs(patch.PeR - aim) <= tolerance) return new Result { Ok = true, Why = "On course, periapsis " + over };
             if (keepCourse) return new Result { Ok = true, Why = "The course is kept, periapsis " + over };
-            double at = frame.Now + 2.0 * LeadTime;
-            if (at >= frame.Orbit.EndUT) return Result.Failed("The encounter is too close for a correction.");
+            double at = frame.Now + Math.Max(2.0 * LeadTime, CorrectionLead);
+            // Too near the encounter to turn and burn: the course is kept, and the capture takes what the miss leaves.
+            if (at >= frame.Orbit.EndUT) return new Result { Ok = true, Why = "The encounter is too close for a correction; the course is kept, periapsis " + over };
             PatchedConicSolver solver = frame.Solver;
             ManeuverNode node = solver.AddManeuverNode(at);
             Vector3d burn = Vector3d.zero;
@@ -167,7 +188,7 @@ namespace ReDefinition.Autopilot.Planning
             }
             return new Result
             {
-                Ok = true, UT = at, DeltaV = KspOrbits.ToV3(burn), Correction = true, Error = Math.Abs(patch.PeR - aim),
+                Ok = true, UT = at, DeltaV = KspOrbits.ToV3(burn), Correction = true, Purpose = BurnPurpose.Correction, Error = Math.Abs(patch.PeR - aim),
                 Why = "Correction of " + burn.magnitude.ToString("0.0") + " m/s, periapsis " + (periapsis - target.Radius).ToString("0") + " m over " + target.bodyName + ".",
             };
         }

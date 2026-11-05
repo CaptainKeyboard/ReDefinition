@@ -116,7 +116,7 @@ namespace ReDefinition.Autopilot.Planning
             string near = miss < 1000.0 ? miss.ToString("0") + " m" : (miss / 1000.0).ToString("0.0") + " km";
             return new NodePlanner.Result
             {
-                Ok = true, UT = turn.HasValue ? turnUT : ut, DeltaV = turn.HasValue ? turn.Value.DeltaV : burn, Error = miss,
+                Ok = true, UT = turn.HasValue ? turnUT : ut, DeltaV = turn.HasValue ? turn.Value.DeltaV : burn, Error = miss, Purpose = NodePlanner.BurnPurpose.Deorbit,
                 Why = (turn.HasValue ? "Turn the plane: " + turn.Value.Magnitude.ToString("0") + " m/s, then deorbit" : "Deorbit to the marker") + ": " + burn.Length.ToString("0")
                       + " m/s, the descent comes down " + near + " from the marker.",
             };
