@@ -127,10 +127,46 @@ namespace ReDefinition.Autopilot.Planning
             double ut = now + burn.Delay;
             KspOrbits.ClearNodes(frame);
             if (KspOrbits.AddNode(frame, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
-            if (KspOrbits.PatchAround(frame, parent) == null)
+            Orbit leaving = KspOrbits.PatchAround(frame, parent);
+            if (leaving == null)
             {
                 KspOrbits.ClearNodes(frame);
                 return Result.Failed("The burn does not leave " + here.bodyName + ".");
+            }
+            // Back to the body this one orbits: the excess speed is worked out for the centres, so the periapsis there is off by the sphere of influence's
+            // offset. KSP's own plan shows where it comes out, and the speed is moved until it is on the aim, instead of a burn at the periapsis lifting it.
+            if (target == parent)
+            {
+                double aimRadius = parent.Radius + aimAltitude, within = Near(aimAltitude);
+                Vector3d direction = KspOrbits.ToVector(excess.Unit);
+                double speed = excess.Length;
+                Burn best = burn;
+                double bestMiss = Math.Abs(leaving.PeR - aimRadius);
+                double a = speed, fa = leaving.PeR - aimRadius, b = speed * 1.03, fb = double.NaN;
+                for (int pass = 0; pass < 10 && bestMiss > within; pass++)
+                {
+                    Burn trial = Ejection.Cheapest(ship, mu, KspOrbits.ToV3(direction) * b, depart - leaveGuess - period, period);
+                    if (trial.Delay < LeadTime) break;
+                    KspOrbits.ClearNodes(frame);
+                    if (KspOrbits.AddNode(frame, now + trial.Delay, trial.DeltaV) == null) break;
+                    Orbit patch = KspOrbits.PatchAround(frame, parent);
+                    if (patch == null) break;
+                    fb = patch.PeR - aimRadius;
+                    if (Math.Abs(fb) < bestMiss)
+                    {
+                        bestMiss = Math.Abs(fb);
+                        best = trial;
+                    }
+                    if (Math.Abs(fb - fa) < 1.0) break;
+                    double next = b - fb * (b - a) / (fb - fa);
+                    a = b;
+                    fa = fb;
+                    b = Math.Max(0.5 * speed, Math.Min(1.5 * speed, next));
+                }
+                burn = best;
+                ut = now + burn.Delay;
+                KspOrbits.ClearNodes(frame);
+                if (KspOrbits.AddNode(frame, ut, burn.DeltaV) == null) return Result.Failed("The vessel has no flight plan.");
             }
             return new Result
             {
