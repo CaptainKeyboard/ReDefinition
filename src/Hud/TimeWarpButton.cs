@@ -15,14 +15,13 @@ namespace ReDefinition.Hud
     // (BetterTimeWarp.OnGUI: `GUI.Toggle(new Rect(scale * y, x, ...), windowOpen,
     // buttonContent, skin.button)`; its source read). A UI theme's panel does
     // not keep that place. The mod draws it in every scene its OnGUI runs in, the loading
-    // between scenes too. Here a copy of the panel's MET button (its sprites, states and theme;
-    // the panel read with UnityPy from sharedassets7), square, stands at the end of
-    // the warp row. It is as high as the row, as wide as the warp-to-sunrise button below
-    // it (UIWarpToNextMorning.button) and right above it, showing the mod's arrow
-    // and opening the mod's window (BetterTimeWarp.UIOpen). TimeWarpBar keeps it in
-    // its place. The mod's own IMGUI button is not drawn while the copy stands
-    // (Toggle), nor where there is no time panel. Where the mod's own settings switch
-    // the mod or its drop-down button off, no copy stands either (ModDrawsButton).
+    // between scenes too. The panel's WARP label is a TextMeshProUGUI and nothing else (the
+    // panel read with UnityPy from sharedassets7), so it does nothing in the stock game. Here it
+    // is the button: TimeWarpBar makes it clickable, shows the mod's arrow right of it and
+    // opens the mod's window (BetterTimeWarp.UIOpen) under the panel. The mod's own IMGUI
+    // button is not drawn while the label stands in for it (Toggle), nor where there is no
+    // time panel. Where the mod's own settings switch the mod or its drop-down button off,
+    // the label stays plain text (ModDrawsButton).
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class TimeWarpButton : MonoBehaviour
     {
