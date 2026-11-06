@@ -126,7 +126,7 @@ namespace ReDefinition.Probe
                 yield return ProbeSteps.Frames(10);
                 if (!KspInFront())
                 {
-                    Debug.LogWarning(Log.Tag + " Probe: vendor keys not sent -- another window is in front.");
+                    ProbeSteps.Failed("vendor keys not sent -- another window is in front");
                     yield break;
                 }
             }

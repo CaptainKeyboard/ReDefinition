@@ -84,7 +84,11 @@ namespace ReDefinition.Probe
         // proxy keys every pose shot, with its timings, surfaces and overlay where the switches ask for them.
         public static IEnumerator Run(string folder, string shot, string views)
         {
-            if (FlightCamera.fetch == null || ReDefinitionAddon.Instance == null) yield break;
+            if (FlightCamera.fetch == null || ReDefinitionAddon.Instance == null)
+            {
+                ProbeSteps.Failed("views: no flight camera or add-on");
+                yield break;
+            }
             // -redefinitionProbeLand: the sun's height at the pod; quit where the first run is to be made again (LandProbe).
             if (LandProbe.Report())
             {
@@ -208,7 +212,10 @@ namespace ReDefinition.Probe
             float pitch, distance, heading;
             if (parts.Length < 3 || !Number(parts[0], out pitch) || !Number(parts[1], out distance)
                 || !Number(parts[2], out heading))
+            {
+                ProbeSteps.Failed("views: the pose '" + pose + "' is not pitch,distance,heading");
                 yield break;
+            }
             FlightCamera.fetch.camPitch = pitch * Mathf.Deg2Rad;
             FlightCamera.fetch.camHdg = startHeading + heading * Mathf.Deg2Rad;
             FlightCamera.fetch.SetDistance(distance);
@@ -272,6 +279,8 @@ namespace ReDefinition.Probe
         // Six seconds of the raytracing passes' GPU times and the frame time at a pose, averaged, into the log.
         private static IEnumerator Timings(string name)
         {
+            // The proxy stamps the passes only on request.
+            ProxyIni.Set("rtGpuTimings", "1");
             float[] passes = new float[8];
             float[] sum = new float[8];
             double frames = 0, seconds = 0;

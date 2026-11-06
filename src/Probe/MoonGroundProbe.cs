@@ -125,7 +125,11 @@ namespace ReDefinition.Probe
             string name = CommandLine.After(Argument);
             CelestialBody moon = name != null ? FlightGlobals.Bodies.Find(b => b.bodyName == name) : null;
             CelestialBody star = RtKspMods.StarBody();
-            if (moon == null || star == null || FlightCamera.fetch == null || FlightGlobals.ActiveVessel == null) yield break;
+            if (moon == null || star == null || FlightCamera.fetch == null || FlightGlobals.ActiveVessel == null)
+            {
+                ProbeSteps.Failed("moon ground: no body " + name + ", or no star, flight camera or vessel");
+                yield break;
+            }
             FlightCamera flight = FlightCamera.fetch;
             Vessel vessel = FlightGlobals.ActiveVessel;
             GameEvents.onHideUI.Fire();

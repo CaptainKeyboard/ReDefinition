@@ -560,6 +560,8 @@ namespace ReDefinition.Probe
         private static IEnumerator Shot(string folder, string name)
         {
             float until = Time.realtimeSinceStartup + SettleSeconds;
+            // The proxy stamps the passes only on request.
+            ProxyIni.Set("rtGpuTimings", "1");
             float[] timings = new float[8];
             float[] sum = new float[8];
             int frames = 0;

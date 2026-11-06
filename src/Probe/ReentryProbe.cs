@@ -471,7 +471,11 @@ namespace ReDefinition.Probe
         {
             ReDefinitionAddon addon = ReDefinitionAddon.Instance;
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (addon == null || vessel == null || FlightCamera.fetch == null) yield break;
+            if (addon == null || vessel == null || FlightCamera.fetch == null)
+            {
+                ProbeSteps.Failed("reentry: no add-on, vessel or flight camera");
+                yield break;
+            }
             GameEvents.onHideUI.Fire();
             float until = Time.realtimeSinceStartup + 240f;
             while (vessel.altitude > 85000.0 && Time.realtimeSinceStartup < until) yield return null;

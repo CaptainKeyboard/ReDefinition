@@ -52,6 +52,14 @@ namespace redefinition
     // at again on a later frame, so the check cannot stall the game.
     void FrameGeneration::CheckHudLessLocked(bool copied)
     {
+        // Off (fgChecks): no copy, no readback, no staging textures, and a request dropped.
+        if (!Config().fgChecks)
+        {
+            checkRequestedAt.store(0);
+            if (checkPresented != nullptr || checkPending || checkHavePrevious)
+                ReleaseCheckTexturesLocked();
+            return;
+        }
         if (checkBroken || context11 == nullptr || backBuffer11 == nullptr || !S(hudLess).Valid())
         {
             // A pair whose second frame cannot be taken ends here, so the next

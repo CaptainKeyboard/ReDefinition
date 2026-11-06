@@ -225,7 +225,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved)
         redefinition::LogOpen();
         redefinition::LogLine("ReDefinition dxgi proxy attached");
         redefinition::LoadConfig();
-        redefinition::LoadMonitor::Get().SetAllowed(redefinition::Config().enabled);
+        redefinition::LoadMonitor::Get().SetAllowed(redefinition::Config().enabled && redefinition::Config().loadMonitor);
         break;
 
     case DLL_PROCESS_DETACH:

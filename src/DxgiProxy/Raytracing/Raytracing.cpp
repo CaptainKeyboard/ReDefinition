@@ -402,10 +402,10 @@ namespace redefinition
         Slot& slot = *frame.slot;
 
         frame.built = BuildMeshesLocked(slot);
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampMeshesBuilt);
+        StampLocked(frame.timestampBase + kTimestampMeshesBuilt);
         // A frame that stops early is submitted all the same (SubmitLocked).
         if (!UploadMaterialTexturesLocked(slot)
-            || (list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampMaterialsUploaded), false)
+            || (StampLocked(frame.timestampBase + kTimestampMaterialsUploaded), false)
             || (!ReuseSceneLocked(frame)
                 && !BuildSceneLocked(slot, frame.slotNumber, packet->frameIndex, frame.inputs[kRtInputInstances],
                                      frame.instanceCount)))
@@ -423,7 +423,7 @@ namespace redefinition
             builtSceneFrame = packet->frameIndex;
             builtSceneInstances = frame.instanceCount;
         }
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + 1);
+        StampLocked(frame.timestampBase + 1);
         if (!TakeNoisyTargetsLocked(frame))
         {
             SubmitLocked(slot, frame.inputs, frame.outputs);
@@ -504,8 +504,15 @@ namespace redefinition
         queue->Wait(copied12.Get(), inputsCopied);
     }
 
+    void Raytracing::StampLocked(UINT index)
+    {
+        if (stamping)
+            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, index);
+    }
+
     Raytracing::Slot* Raytracing::BeginSlotLocked(UINT& slotNumber)
     {
+        stamping = Config().rtGpuTimings || GpuProfiler::Get().Enabled();
         slotNumber = slotIndex;
         Slot& slot = slots[slotIndex];
         slotIndex = (slotIndex + 1) % kSlots;
@@ -528,7 +535,7 @@ namespace redefinition
         if (frame.slot == nullptr)
             return false;
         frame.timestampBase = frame.slotNumber * kTimestampsPerSlot;
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase);
+        StampLocked(frame.timestampBase);
         return true;
     }
 
@@ -732,7 +739,7 @@ namespace redefinition
                 RunDenoisersLocked(frame);
             if (index == kRtPassCache)
                 ResolveRadianceCacheLocked(frame);
-            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + 2 + position);
+            StampLocked(frame.timestampBase + 2 + position);
         }
     }
 
@@ -829,7 +836,7 @@ namespace redefinition
                   D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         guides.fromFrame = true;
         guides.frame = packet.frameIndex;
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampGuidesEnd);
+        StampLocked(frame.timestampBase + kTimestampGuidesEnd);
         frame.slot->guided = true;
     }
 
@@ -840,10 +847,11 @@ namespace redefinition
         // The timings are the frame's; a further trace of it (the ocean's) is timed apart,
         // its scene build and the rest, its end marked here as its passes do not.
         if (frame.extra)
-            list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase + kTimestampTraceEnd);
-        list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase, kTimestampsPerSlot,
-                               timestampReadback.Get(), static_cast<UINT64>(frame.timestampBase) * sizeof(UINT64));
-        frame.slot->timed = true;
+            StampLocked(frame.timestampBase + kTimestampTraceEnd);
+        if (stamping)
+            list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, frame.timestampBase, kTimestampsPerSlot,
+                                   timestampReadback.Get(), static_cast<UINT64>(frame.timestampBase) * sizeof(UINT64));
+        frame.slot->timed = stamping;
         frame.slot->extra = frame.extra;
         frame.slot->reconstruction = false;
         const UINT64 finished = SubmitLocked(*frame.slot, frame.inputs, frame.outputs);

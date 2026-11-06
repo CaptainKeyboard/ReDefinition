@@ -75,7 +75,11 @@ namespace ReDefinition.Probe
         {
             float delay = CommandLine.Float(StagingArgument, 10f);
             Vessel vessel = FlightGlobals.ActiveVessel;
-            if (vessel == null) yield break;
+            if (vessel == null)
+            {
+                ProbeSteps.Failed("staging: no active vessel");
+                yield break;
+            }
             Debug.Log(Log.Tag + " Probe: staging: " + vessel.vesselName + ", " + vessel.parts.Count + " parts.");
             FlightInputHandler.state.mainThrottle = 1f;
             yield return new WaitForSeconds(1f);

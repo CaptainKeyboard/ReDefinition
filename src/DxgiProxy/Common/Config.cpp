@@ -43,6 +43,15 @@ namespace redefinition
             return GetPrivateProfileIntW(L"Proxy", key, fallback ? 1 : 0, file.c_str()) != 0;
         }
 
+        // Whether an environment variable the harnesses set is there, and, with value, holds it. The
+        // development switches take it as well as the ini.
+        bool EnvIs(const wchar_t* name, const wchar_t* value = nullptr)
+        {
+            wchar_t text[16] = {};
+            const DWORD length = GetEnvironmentVariableW(name, text, 16);
+            return length > 0 && (value == nullptr || wcscmp(text, value) == 0);
+        }
+
         // A [Proxy] key as a whole number, held to lowest..highest; fallback where the file or the
         // key is missing.
         int ReadInt(const wchar_t* key, const std::wstring& file, int fallback, int lowest = INT_MIN, int highest = INT_MAX)
@@ -494,6 +503,12 @@ namespace redefinition
                  + " xessFgResetDebounce=" + std::to_string(c.xessFgResetDebounce)
                  + " xellLimitLive=" + (c.xellLimitLive ? "1" : "0")
                  + " rtOwnQueue=" + (c.rtOwnQueue ? "1" : "0")
+                 + " loadMonitor=" + (c.loadMonitor ? "1" : "0")
+                 + " fgChecks=" + (c.fgChecks ? "1" : "0")
+                 + " d3d12DebugLayer=" + (c.d3d12DebugLayer ? "1" : "0")
+                 + " recordGameFrames=" + (c.recordGameFrames ? "1" : "0")
+                 + " rtOmmSimulateNoCaps=" + (c.rtOmmSimulateNoCaps ? "1" : "0")
+                 + " rtGpuTimings=" + (c.rtGpuTimings ? "1" : "0")
                  + " rtCutoutTest=" + std::to_string(c.rtCutoutTest)
                  + " rtOpacityMicromaps=" + std::to_string(c.rtOpacityMicromaps)
                  + " rtOmmMaxSubdivision=" + std::to_string(c.rtOmmMaxSubdivision)
@@ -602,6 +617,12 @@ namespace redefinition
             target.xell = ReadFlag(L"xell", file, true);
             target.xellLowLatencyBoost = ReadFlag(L"xellLowLatencyBoost", file, false);
             target.rtOwnQueue = ReadFlag(L"rtOwnQueue", file, false);
+            target.loadMonitor = ReadFlag(L"loadMonitor", file, true);
+            target.fgChecks = ReadFlag(L"fgChecks", file, true);
+            target.d3d12DebugLayer = ReadFlag(L"d3d12DebugLayer", file, false) || EnvIs(L"REDEFINITION_D3D12_DEBUG", L"1");
+            target.recordGameFrames = ReadFlag(L"recordGameFrames", file, false) || EnvIs(L"REDEFINITION_RECORD_GAME_FRAMES");
+            target.rtOmmSimulateNoCaps = ReadFlag(L"rtOmmSimulateNoCaps", file, false) || EnvIs(L"REDEFINITION_OMM_CAPS", L"none");
+            target.rtGpuTimings = ReadFlag(L"rtGpuTimings", file, false);
             target.rtCutoutTest = ReadInt(L"rtCutoutTest", file, 0);
             target.rtOpacityMicromaps = ReadInt(L"rtOpacityMicromaps", file, 0, 0, 1);
             target.rtOmmMaxSubdivision = ReadInt(L"rtOmmMaxSubdivision", file, 6, 2, 8);
@@ -788,6 +809,7 @@ namespace redefinition
             fresh.enabled = g_config.enabled;
             fresh.frameGeneration = g_config.frameGeneration;
             fresh.measureOnly = g_config.measureOnly;
+            fresh.loadMonitor = g_config.loadMonitor;
             fresh.allowTearing = g_config.allowTearing;
 
             // The settings that change how the context was built.
@@ -800,7 +822,7 @@ namespace redefinition
             }
             LogLine("Config reloaded: " + Describe(g_config)
                     + (needsRebuild ? "   (frame generation context will be rebuilt)" : "")
-                    + "   (enabled, allowTearing, measureOnly and frameGeneration as at load; frameGenerationTechnique,"
+                    + "   (enabled, allowTearing, measureOnly, loadMonitor and frameGeneration as at load; frameGenerationTechnique,"
                       " the folders, rtOwnQueue, streamlineImgui, vendorDiagnostics, xell, xellLowLatencyBoost,"
                       " xessFgUiMode, xessFgOwnWaitable, xessFgAllowOld, rrPath and the most xessFgFrames apply when"
                       " what they serve starts)");

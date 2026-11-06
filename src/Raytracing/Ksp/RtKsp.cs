@@ -392,12 +392,14 @@ namespace ReDefinition.Raytracing
                 .Append(attached.Scene.MeshCount).Append(" meshes, ").Append(attached.Scene.MaterialCount).Append(" materials");
             if (attached.Scene.Skipped > 0)
                 line.Append(", ").Append(attached.Scene.Skipped).Append(" skipped (").Append(attached.Scene.LastSkip).Append(')');
-            line.Append("; GPU ms sun ").Append(attached.PassTimings[0].ToString("0.00"))
-                .Append(", occlusion ").Append(attached.PassTimings[1].ToString("0.00"))
-                .Append(", diffuse ").Append(attached.PassTimings[2].ToString("0.00"))
-                .Append(", reflections ").Append(attached.PassTimings[3].ToString("0.00"))
-                .Append(", denoiser ").Append(attached.PassTimings[6].ToString("0.00"))
-                .Append("; ").Append(RtReflectors.Describe())
+            // The passes' times exist only where the proxy stamps them (rtGpuTimings, or the GPU profiler).
+            if (attached.PassTimings[0] > 0f || attached.PassTimings[3] > 0f)
+                line.Append("; GPU ms sun ").Append(attached.PassTimings[0].ToString("0.00"))
+                    .Append(", occlusion ").Append(attached.PassTimings[1].ToString("0.00"))
+                    .Append(", diffuse ").Append(attached.PassTimings[2].ToString("0.00"))
+                    .Append(", reflections ").Append(attached.PassTimings[3].ToString("0.00"))
+                    .Append(", denoiser ").Append(attached.PassTimings[6].ToString("0.00"));
+            line.Append("; ").Append(RtReflectors.Describe())
                 .Append("; ").Append(status);
             Debug.Log(line.ToString());
         }

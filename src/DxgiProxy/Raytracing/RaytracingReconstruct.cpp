@@ -171,7 +171,7 @@ namespace redefinition
         Slot& slot = *taken;
 
         const UINT timestampBase = slotNumber * kTimestampsPerSlot;
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrStart);
+        StampLocked(timestampBase + kTimestampRrStart);
 
         // The guides, at the render size.
         if (!prepared && !EnsureGuidesLocked(slot.held, width, height))
@@ -246,19 +246,20 @@ namespace redefinition
                       D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
 
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrGuides);
+        StampLocked(timestampBase + kTimestampRrGuides);
         reconstructionEvaluated = true;
         std::string notEvaluated = "Ray Reconstruction did not evaluate (the proxy's log has Streamline's reason)";
         const bool evaluated = route == Route::Ngx ? EvaluateReconstructNgxLocked(frame, back, notEvaluated)
                                                    : EvaluateReconstructStreamlineLocked(frame, back);
         // Timed where it evaluated; WaitForSlotLocked reads the three stamps once the slot's
         // list is done.
-        list->EndQuery(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase + kTimestampRrEnd);
-        list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
-                               timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
-        slot.timed = evaluated;
+        StampLocked(timestampBase + kTimestampRrEnd);
+        if (stamping)
+            list->ResolveQueryData(timestamps.Get(), D3D12_QUERY_TYPE_TIMESTAMP, timestampBase, kTimestampsPerSlot,
+                                   timestampReadback.Get(), static_cast<UINT64>(timestampBase) * sizeof(UINT64));
+        slot.timed = evaluated && stamping;
         slot.extra = false;
-        slot.reconstruction = evaluated;
+        slot.reconstruction = evaluated && stamping;
         const HRESULT hr = list->Close();
         if (FAILED(hr))
         {

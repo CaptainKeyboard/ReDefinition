@@ -129,8 +129,8 @@ namespace redefinition
     {
         if (omm.caps < 0)
         {
-            // Asked once a device. REDEFINITION_OMM_CAPS=none stands in for a driver without
-            // them, for the harness.
+            // Asked once a device. rtOmmSimulateNoCaps stands in for a driver without them, for the
+            // harness.
             omm.getCaps = NvapiInterface(nvomm::kGetRaytracingCaps);
             omm.setOptions = NvapiInterface(nvomm::kSetCreatePipelineStateOptions);
             omm.getArrayPrebuild = NvapiInterface(nvomm::kGetArrayPrebuildInfo);
@@ -138,12 +138,10 @@ namespace redefinition
             omm.getPrebuildEx = NvapiInterface(nvomm::kGetPrebuildInfoEx);
             omm.buildEx = NvapiInterface(nvomm::kBuildStructureEx);
             std::string why;
-            char simulated[16] = {};
-            if (GetEnvironmentVariableA("REDEFINITION_OMM_CAPS", simulated, sizeof(simulated)) > 0
-                && strcmp(simulated, "none") == 0)
+            if (Config().rtOmmSimulateNoCaps)
             {
                 omm.caps = 0;
-                why = "the driver's capability simulated as none (REDEFINITION_OMM_CAPS)";
+                why = "the driver's capability simulated as none (rtOmmSimulateNoCaps)";
             }
             else if (omm.getCaps == nullptr)
             {

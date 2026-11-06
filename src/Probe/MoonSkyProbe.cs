@@ -53,7 +53,11 @@ namespace ReDefinition.Probe
         {
             string name = CommandLine.After(Argument);
             CelestialBody moon = name != null ? FlightGlobals.Bodies.Find(b => b.bodyName == name) : null;
-            if (moon == null || FlightCamera.fetch == null || FlightGlobals.ActiveVessel == null) yield break;
+            if (moon == null || FlightCamera.fetch == null || FlightGlobals.ActiveVessel == null)
+            {
+                ProbeSteps.Failed("moon sky: no body " + name + ", or no flight camera or vessel");
+                yield break;
+            }
             FlightCamera flight = FlightCamera.fetch;
             GameEvents.onHideUI.Fire();
             flight.SetDistance(200f);

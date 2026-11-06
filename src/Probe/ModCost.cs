@@ -170,9 +170,13 @@ namespace ReDefinition.Probe
         // Only with the switch: the exception counter on and the run started.
         private void Start()
         {
-            if (!CommandLine.Has(Argument)) return;
+            if (!CommandLine.Has(Argument))
+            {
+                Destroy(this);
+                return;
+            }
             Application.logMessageReceived += CountExceptions;
-            StartCoroutine(Run());
+            StartCoroutine(ProbeSteps.Safe(Run(), "mod cost"));
         }
 
         // The target switched off: its custom switch, its behaviours, its renderers and its command buffers.

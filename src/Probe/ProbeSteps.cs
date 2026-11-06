@@ -14,7 +14,13 @@ namespace ReDefinition.Probe
         internal const string SceneCameraName = "Camera 00";
 
         // The line a probe writes when its flow threw an exception, which the scripts that run the probes end on.
-        internal const string FailedLine = "Probe: failed";
+        internal const string FailedLine = "Probe: FAILED";
+
+        // A probe that cannot do what it was asked says so in the line the scripts end on, instead of going quiet.
+        internal static void Failed(string reason)
+        {
+            Debug.LogError(Core.Log.Tag + " " + FailedLine + ": " + reason + ".");
+        }
 
         // Runs a flow so that an exception in it, or in a flow it runs inside it, is written to the log as a line the scripts end on, at once.
         // An exception in a coroutine ends it with no sign but the log's exception, and a probe waiting for its closing line would wait for ever.

@@ -9,6 +9,7 @@
 
 #include "ScreenRecorder.h"
 
+#include "Config.h"
 #include "D3d12Util.h"
 #include "FileUtil.h"
 #include "Log.h"
@@ -252,7 +253,7 @@ namespace redefinition
                     hr = output5->DuplicateOutput1(device.Get(), 0, ARRAYSIZE(formats), formats, &duplication);
                 }
                 // The proxy harness checks the game's-frames path with this set.
-                if (GetEnvironmentVariableW(L"REDEFINITION_RECORD_GAME_FRAMES", nullptr, 0) > 0)
+                if (Config().recordGameFrames)
                 {
                     duplication.Reset();
                     hr = DXGI_ERROR_UNSUPPORTED;

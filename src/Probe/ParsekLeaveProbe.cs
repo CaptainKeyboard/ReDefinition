@@ -34,7 +34,7 @@ namespace ReDefinition.Probe
     {
         private IEnumerator Start()
         {
-            return ParsekLeaveWatch.Run();
+            return ProbeSteps.Safe(ParsekLeaveWatch.Run(), "parsek leave");
         }
     }
 
@@ -44,7 +44,7 @@ namespace ReDefinition.Probe
     {
         private IEnumerator Start()
         {
-            return ParsekLeaveWatch.Run();
+            return ProbeSteps.Safe(ParsekLeaveWatch.Run(), "parsek leave");
         }
     }
 

@@ -55,6 +55,8 @@ namespace ReDefinition.Probe
                     QualitySettings.vSyncCount = 0;
                     Application.targetFrameRate = -1;
                     var times = new List<float>();
+                    // The proxy stamps the passes only on request.
+                    ProxyIni.Set("rtGpuTimings", "1");
                     float[] timings = new float[8], sum = new float[8];
                     int timed = 0;
                     float until = Time.realtimeSinceStartup + 6f;

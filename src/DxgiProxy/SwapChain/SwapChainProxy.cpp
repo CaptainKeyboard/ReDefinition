@@ -291,17 +291,16 @@ namespace redefinition
             intelAdapter = SUCCEEDED(adapter->GetDesc(&adapterDesc)) && adapterDesc.VendorId == 0x8086;
         }
 
-        // Direct3D 12's debug layer for the harnesses, where REDEFINITION_D3D12_DEBUG is set:
-        // its messages go into the log (Raytracing::Status). Never in a player's game.
+        // Direct3D 12's debug layer for development (Config::d3d12DebugLayer): its messages go into
+        // the log (Raytracing::Status). Never in a player's game.
         {
-            wchar_t value[8] = {};
-            if (GetEnvironmentVariableW(L"REDEFINITION_D3D12_DEBUG", value, 8) > 0 && value[0] == L'1')
+            if (Config().d3d12DebugLayer)
             {
                 ComPtr<ID3D12Debug> debug;
                 if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debug))))
                 {
                     debug->EnableDebugLayer();
-                    LogLine("Direct3D 12's debug layer on (REDEFINITION_D3D12_DEBUG)");
+                    LogLine("Direct3D 12's debug layer on (d3d12DebugLayer)");
                 }
             }
         }

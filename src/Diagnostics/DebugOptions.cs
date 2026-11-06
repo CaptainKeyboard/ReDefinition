@@ -324,6 +324,13 @@ namespace ReDefinition.Diagnostics
             if (count < times.Length) count++;
         }
 
+        // Forgets every frame time kept.
+        public void Clear()
+        {
+            next = 0;
+            count = 0;
+        }
+
         // 0 is the oldest of those kept.
         public float this[int index]
         {

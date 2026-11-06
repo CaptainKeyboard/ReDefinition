@@ -1324,7 +1324,7 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12Device5> device;
         Microsoft::WRL::ComPtr<ID3D12CommandQueue> queue;
         // The device for Status, and the debug layer's messages where it is on
-        // (REDEFINITION_D3D12_DEBUG), under statusLock: Status, from the main thread,
+        // (d3d12DebugLayer), under statusLock: Status, from the main thread,
         // does not wait for the mutex.
         Microsoft::WRL::ComPtr<ID3D12Device5> statusDevice;
         Microsoft::WRL::ComPtr<ID3D12InfoQueue> debugMessages;
@@ -1374,6 +1374,10 @@ namespace redefinition
         Microsoft::WRL::ComPtr<ID3D12QueryHeap> timestamps;
         Microsoft::WRL::ComPtr<ID3D12Resource> timestampReadback;
         UINT64 timestampFrequency = 0;
+        // Whether the list being recorded stamps timestamps, taken with its slot (Config::rtGpuTimings,
+        // or the GPU profiler on): off, no query is written, resolved or read. StampLocked writes one.
+        bool stamping = false;
+        void StampLocked(UINT index);
 
         Microsoft::WRL::ComPtr<ID3D12Resource> materialTextures;
         UINT materialTextureLayers = 0;

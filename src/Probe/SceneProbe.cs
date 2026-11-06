@@ -94,6 +94,11 @@ namespace ReDefinition.Probe
         // save loaded and the flight of its vessel started.
         private IEnumerator Start()
         {
+            return ProbeSteps.Safe(Run(), "scene probe launcher");
+        }
+
+        private IEnumerator Run()
+        {
             if (SceneProbe.Launched || !SceneProbe.Requested) yield break;
             SceneProbe.Launched = true;
             yield return new WaitForSeconds(3f);
@@ -368,6 +373,11 @@ namespace ReDefinition.Probe
         // the others back to the flight of the vessel on the pad.
         private IEnumerator Start()
         {
+            return ProbeSteps.Safe(Run(), "scene probe return");
+        }
+
+        private IEnumerator Run()
+        {
             // The new launch the probe asked for (StagingProbe), once the space centre stands.
             if (SceneProbe.Requested && StagingProbe.Pending)
             {
@@ -412,6 +422,11 @@ namespace ReDefinition.Probe
     {
         // 35 s in: the VAB's shots, then the space centre.
         private IEnumerator Start()
+        {
+            return ProbeSteps.Safe(Run(), "scene probe editor");
+        }
+
+        private IEnumerator Run()
         {
             if (!SceneProbe.Requested || SceneProbe.ScenesLeft < 0 || HighLogic.SaveFolder != SceneProbe.SaveFolder)
                 yield break;
@@ -512,6 +527,11 @@ namespace ReDefinition.Probe
         // scene round trips, else the default measurement. That measurement is the baseline, each variant asked for,
         // and the baseline again. Then the reads are finished, meta.txt is written, and KSP quits.
         private IEnumerator Start()
+        {
+            return ProbeSteps.Safe(Run(), "scene probe");
+        }
+
+        private IEnumerator Run()
         {
             // A new launch (StagingProbe) is the probe's flight whatever save folder KSP names then.
             bool probeFlight = HighLogic.SaveFolder == SceneProbe.SaveFolder || StagingProbe.Launched || TargetProbe.Active;

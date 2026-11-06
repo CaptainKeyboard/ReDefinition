@@ -85,9 +85,23 @@ namespace ReDefinition.Diagnostics
         // presented frames include generated ones and come from the proxy's running
         // totals (KspFgCounters), read at the start and the end of the same second.
         // Taken once a second, so the number can be read; and every frame's time
-        // for the strip's graph. The load line is asked for only while the window is open.
+        // for the strip's graph. Nothing is measured, and the proxy not asked, while the window is closed;
+        // the readings start over when it opens.
         public void Update(bool windowVisible)
         {
+            if (!windowVisible)
+            {
+                if (fpsWindowStart >= 0f)
+                {
+                    fpsWindowStart = -1f;
+                    renderedFps = -1f;
+                    shownFps = -1f;
+                    presentedPerRendered = 0f;
+                    frameTimes.Clear();
+                    loadText = "Load: measuring ...";
+                }
+                return;
+            }
             frameTimes.Add(Time.unscaledDeltaTime * 1000f);
             float now = Time.unscaledTime;
             if (fpsWindowStart < 0f)
@@ -127,12 +141,9 @@ namespace ReDefinition.Diagnostics
             countedPresented = presented;
 
             // Where the frame's time goes, from the proxy (LoadMonitor): whether
-            // a smaller render size can buy anything at all. Asked only while
-            // the window shows it: being read makes the proxy collect
-            // Windows' GPU counters every second.
-            // While it is closed the line starts over, so figures from an earlier
-            // visit cannot pass for current ones.
-            loadText = windowVisible ? DescribeLoad() : "Load: measuring ...";
+            // a smaller render size can buy anything at all. Being read makes the
+            // proxy collect Windows' GPU counters every second.
+            loadText = DescribeLoad();
         }
 
         // The load line: the main thread's, the render thread's and the GPU's share of the frame, or why there is none.

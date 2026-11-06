@@ -373,6 +373,38 @@ namespace redefinition
         // swapchain is created.
         bool rtOwnQueue = false;
 
+        // The load monitor (LoadMonitor.h): a thread sampling the main and render threads' CPU time and the
+        // GPU's load once a second, for the log and the mod's load display. Off, the thread is never started
+        // and the mod reads "switched off". Read once at load, like enabled.
+        bool loadMonitor = true;
+
+        // The HUD-less and motion vector checks (FrameGenerationCheck.cpp). Every reportSeconds, and when
+        // the mod asks, a few frames are copied, read back and compared. The result goes into the log.
+        // On by default, as the log is where a wrong convention shows. Off, nothing is copied or read back.
+        // Re-read while the game runs.
+        bool fgChecks = true;
+
+        // For development, false by default: Direct3D 12's debug layer on the proxy's device, its messages
+        // into the log. The harnesses' REDEFINITION_D3D12_DEBUG=1 sets it too. Read when the swapchain is
+        // made. Never for a player's game: it slows the device.
+        bool d3d12DebugLayer = false;
+
+        // For development, false by default: the screen recording takes the game's own frames at its
+        // Presents even where desktop duplication works (ScreenRecorder.cpp). The harnesses'
+        // REDEFINITION_RECORD_GAME_FRAMES sets it too. Read when a recording starts.
+        bool recordGameFrames = false;
+
+        // For development, false by default: the driver's micromap capability simulated as none, as on a GPU
+        // without it (RaytracingOmm.cpp). The harnesses' REDEFINITION_OMM_CAPS=none sets it too. Read once a
+        // device.
+        bool rtOmmSimulateNoCaps = false;
+
+        // For measuring, false by default: the raytracing's and Ray Reconstruction's GPU timestamps
+        // (Raytracing::StampLocked). Off, a list writes no timestamp query, resolves none and reads none
+        // back, and the status's build and pass times stay 0 and the slow-frame lines stay out of the log.
+        // The GPU profiler being on stamps them too. Re-read while the game runs, taken with each list.
+        bool rtGpuTimings = false;
+
         // For measuring, 0 by default: what the cut-out surfaces' tests cost the rays.
         // 1 decides their hits without reading their textures, 2 takes every surface as
         // opaque (RtContract.h, RT_FLAG_CUTOUT_PLAIN and RT_FLAG_CUTOUT_OPAQUE). The
