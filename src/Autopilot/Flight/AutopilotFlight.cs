@@ -511,11 +511,11 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // MechJeb's docking runs until the ports have coupled, or it gives up; the vessel that is in focus afterwards is the one that goes on.
-        // It is given twice the time the distance takes at MechJeb's docking speed.
+        // It is given twice the time the distance takes at MechJeb's docking speed, and at least five minutes: it first lines the vessel up with the port.
         private IEnumerator Dock(Vessel target)
         {
             double speed = System.Math.Max(MechJebDriver.DockingSpeed(vessel), 0.1);
-            double until = Planetarium.GetUniversalTime() + 2.0 * (target.GetWorldPos3D() - vessel.GetWorldPos3D()).magnitude / speed;
+            double until = Planetarium.GetUniversalTime() + System.Math.Max(300.0, 2.0 * (target.GetWorldPos3D() - vessel.GetWorldPos3D()).magnitude / speed);
             while (!cancelled && !Lost && vessel != null && MechJebDriver.DockingBusy(vessel) && Planetarium.GetUniversalTime() < until)
             {
                 Status = "Docking.";

@@ -80,6 +80,18 @@ namespace ReDefinition.Probe
             MapView.ExitMapView();
             yield return ProbeSteps.Frames(30);
             Debug.Log(Log.Tag + " Probe: meet: the target is " + target.situation + ", " + (LiveMenu.IsMeetable(vessel, target) ? "meetable" : "not meetable") + ", with a docking port: " + LiveMenu.HasDockingPort(target) + ".");
+            foreach (Part part in vessel.parts)
+            {
+                ModuleDockingNode port = part.FindModuleImplementing<ModuleDockingNode>();
+                if (port != null) Debug.Log(Log.Tag + " Probe: meet: own port " + part.partInfo.name + " is " + port.state + ", type " + port.nodeType + ", gendered " + port.gendered + "/" + port.genderFemale + ".");
+                foreach (ModuleRCS rcs in part.FindModulesImplementing<ModuleRCS>())
+                    Debug.Log(Log.Tag + " Probe: meet: RCS " + part.partInfo.name + " enabled " + rcs.rcsEnabled + ", flameout " + rcs.flameout + ", usable " + rcs.isEnabled + ".");
+            }
+            foreach (Part part in target.parts)
+            {
+                ModuleDockingNode port = part.FindModuleImplementing<ModuleDockingNode>();
+                if (port != null) Debug.Log(Log.Tag + " Probe: meet: target port is " + port.state + ", type " + port.nodeType + ", gendered " + port.gendered + "/" + port.genderFemale + ".");
+            }
             bool dock = LiveMenu.HasDockingPort(target);
             LiveMenu.Meet(window, vessel, target, dock);
             yield return new WaitForSeconds(10f);
@@ -93,7 +105,8 @@ namespace ReDefinition.Probe
             {
                 yield return new WaitForSeconds(15f);
                 Vessel flown = FlightGlobals.ActiveVessel;
-                Debug.Log(Log.Tag + " Probe: meet: " + (flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude.ToString("0") + " m to the target (" + RouteDriver.Instance.Status + ").");
+                Debug.Log(Log.Tag + " Probe: meet: " + (flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude.ToString("0") + " m to the target (" + RouteDriver.Instance.Status + "), RCS "
+                          + (flown.ActionGroups[KSPActionGroup.RCS] ? "on" : "off") + ", " + flown.parts.Count + " parts, target " + target.parts.Count + ".");
             }
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-end.png"));
             yield return ProbeSteps.Frames(10);

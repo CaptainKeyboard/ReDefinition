@@ -284,6 +284,8 @@ namespace ReDefinition.Autopilot.Flight
             }
             if (own == null || !HasRcs(vessel)) return false;
             own.MakeReferenceTransform();
+            // The docking moves the vessel by its RCS thrusters, which the vessel's RCS switch has to let fire.
+            vessel.ActionGroups.SetGroup(KSPActionGroup.RCS, true);
             if (!SetTarget(vessel, target)) return false;
             Use(module, true);
             return Enabled(module);
