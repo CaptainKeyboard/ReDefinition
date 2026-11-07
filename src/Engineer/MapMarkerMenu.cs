@@ -33,6 +33,9 @@ namespace ReDefinition.Engineer
         // While the menu is made, the hook on the map's menus leaves its options alone.
         internal static bool Making;
 
+        // The probe has no mouse: where the click is taken to be, on the screen.
+        internal static Vector2? ClickAt;
+
         private void Update()
         {
             if (Time.unscaledTime < nextLook) return;
@@ -134,7 +137,7 @@ namespace ReDefinition.Engineer
         // only for a point in front of the camera: z above zero.
         private sealed class At : IScreenCaster
         {
-            private readonly Vector3 point = new Vector3(Input.mousePosition.x, Input.mousePosition.y, 1f);
+            private readonly Vector3 point = ClickAt.HasValue ? new Vector3(ClickAt.Value.x, ClickAt.Value.y, 1f) : new Vector3(Input.mousePosition.x, Input.mousePosition.y, 1f);
 
             public Vector3 GetScreenSpacePoint()
             {

@@ -25,6 +25,8 @@ namespace ReDefinition.Probe
             string craft = CommandLine.After(LaunchArgument);
             if (craft == null) return null;
             string path = Path.Combine(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "Ships"), "VAB"), craft + ".craft");
+            // A craft of the SPH, a rover or a plane, is launched from the pad the same way.
+            if (!File.Exists(path)) path = Path.Combine(Path.Combine(Path.Combine(KSPUtil.ApplicationRootPath, "Ships"), "SPH"), craft + ".craft");
             return File.Exists(path) ? path : null;
         }
 

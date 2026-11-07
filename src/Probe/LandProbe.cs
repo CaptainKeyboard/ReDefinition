@@ -235,6 +235,22 @@ namespace ReDefinition.Probe
             new OrbitSnapshot(orbit).Save(orbitNode);
             node.AddNode(orbitNode);
             game.flightState.protoVessels.RemoveAll(v => v.vesselID == vessel.id);
+            // -redefinitionProbeTarget: a docking port alone in a circular orbit 20 km higher and 20 degrees ahead, for a rendezvous.
+            if (CommandLine.Has("-redefinitionProbeTarget"))
+            {
+                var targetOrbit = new Orbit(0.0, 0.0, body.Radius + altitude + 20000.0, 0.0, 0.0, 20.0 * Math.PI / 180.0, ut, body);
+                ConfigNode port = ProtoVessel.CreatePartNode("dockingPort2", ShipConstruction.GetUniqueFlightID(game.flightState));
+                // The part node carries no modules: the port is given its module, as the game saves a vessel with one.
+                ConfigNode module = new ConfigNode("MODULE");
+                module.AddValue("name", "ModuleDockingNode");
+                port.AddNode(module);
+                ConfigNode target = ProtoVessel.CreateVesselNode("ProbeTarget", VesselType.Probe, targetOrbit, 0, new[] { port });
+                target.SetValue("sit", Vessel.Situations.ORBITING.ToString());
+                target.SetValue("landed", "False");
+                target.SetValue("splashed", "False");
+                game.flightState.protoVessels.Add(new ProtoVessel(target, game));
+            }
+            // The flown vessel goes last: the flight is started on the last one.
             game.flightState.protoVessels.Add(new ProtoVessel(node, game));
             CraftInOrbitDone = true;
             Debug.Log(Log.Tag + " Probe: orbit: " + vessel.vesselName + " with " + vessel.parts.Count + " parts put in an orbit round " + bodyName + " at "

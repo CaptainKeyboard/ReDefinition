@@ -130,6 +130,7 @@ namespace ReDefinition.Probe
             for (int i = 0; i < names.Length; i++)
             {
                 object marker = System.Enum.Parse(clicked.GetParameters()[0].ParameterType, names[i]);
+                MapMarkerMenu.ClickAt = ScreenOf(vessel, names[i]);
                 clicked.Invoke(menu, new object[] { marker, Mouse.Buttons.Left });
                 yield return new WaitForSeconds(2f);
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-marker-" + names[i] + ".png"));
@@ -138,6 +139,18 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: goals: the " + names[i] + " menu is " + (open != null ? "open" : "not open") + ".");
                 if (open != null) ((MapContextMenu)open).Dismiss();
             }
+        }
+
+        // Where the icon of the orbit's apoapsis or ascending node stands on the screen: the place on the orbit, in the map's scaled space, seen by the map's camera.
+        private static Vector2 ScreenOf(Vessel vessel, string marker)
+        {
+            Orbit orbit = vessel.orbit;
+            double ut = Planetarium.GetUniversalTime();
+            double anomaly = marker == "Apoapsis" ? System.Math.PI : -orbit.argumentOfPeriapsis * System.Math.PI / 180.0;
+            Vector3d local = orbit.getPositionFromTrueAnomaly(anomaly).xzy + orbit.referenceBody.position;
+            Vector3 screen = PlanetariumCamera.Camera.WorldToScreenPoint(ScaledSpace.LocalToScaledSpace(local));
+            Debug.Log(Log.Tag + " Probe: goals: the " + marker + " icon stands at " + screen.x.ToString("0") + ", " + screen.y.ToString("0") + ".");
+            return new Vector2(screen.x, screen.y);
         }
 
         // The game's own menu of a body in the map, as it makes it for a click on the icon, as a shot.

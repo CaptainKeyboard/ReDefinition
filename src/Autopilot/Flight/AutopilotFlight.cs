@@ -458,8 +458,12 @@ namespace ReDefinition.Autopilot.Flight
         private IEnumerator DriveTo(Destination place)
         {
             float started = Time.realtimeSinceStartup;
+            float still = 0f;
             while (!cancelled && !Lost && MechJebDriver.DrivingBusy(vessel) && Time.realtimeSinceStartup - started < 3600f)
             {
+                // A rover that stands still for half a minute is held by something in its way: the drive ends, and the step asks again or gives up.
+                still = vessel.srfSpeed < 0.3 && Time.realtimeSinceStartup - started > 15f ? still + 1f : 0f;
+                if (still >= 30f) break;
                 Vector3d spot = place.Body.GetWorldSurfacePosition(place.SiteLatitude, place.SiteLongitude, place.Body.TerrainAltitude(place.SiteLatitude, place.SiteLongitude));
                 Status = "Driving: " + ((spot - vessel.GetWorldPos3D()).magnitude / 1000.0).ToString("0.0") + " km to go, " + vessel.srfSpeed.ToString("0") + " m/s.";
                 Note();

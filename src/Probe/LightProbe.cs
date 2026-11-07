@@ -87,6 +87,16 @@ namespace ReDefinition.Probe
                     yield return CloudShots(addon, folder);
                     yield break;
                 }
+                if (CommandLine.Has(NodesArgument) && CommandLine.Has("-redefinitionProbeDrive"))
+                {
+                    yield return DriveRun(folder);
+                    yield break;
+                }
+                if (CommandLine.Has(NodesArgument) && CommandLine.Has("-redefinitionProbeMeet"))
+                {
+                    yield return MeetRun(folder);
+                    yield break;
+                }
                 if (CommandLine.Has(NodesArgument) && CommandLine.Has("-redefinitionProbeGoals"))
                 {
                     yield return GoalsRun(folder);
