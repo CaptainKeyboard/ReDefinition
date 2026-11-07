@@ -5,6 +5,8 @@ using FinePrint;
 using KSP.UI;
 using KSP.UI.Screens.Mapview;
 using KSP.UI.Screens.Mapview.MapContextMenuOptions;
+using ReDefinition.Autopilot.Flight;
+using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -12,9 +14,10 @@ namespace ReDefinition.Engineer
 {
     // The map's own menu of an object has an entry for the vessel that the player flies. That menu is the one with "Set as target" and "Focus", which a
     // click on the icon of a vessel or a body opens. The game casts no menu on the vessel flown, since it leaves out its own icon. So the cast takes it
-    // in while it stands on the ground or flies in an orbit, and the menu has its one entry. On the ground it is "Launch to orbit": the navigation is
-    // started on a route into the lowest orbit round the body, with no plan made in the planner. In an orbit it is "Land at marker": the player
-    // clicks on the body, and a burn is aimed at the place. Both are maneuvers that the player flies. A vessel on the pad stands under the icon of the
+    // in while it stands on the ground or flies in an orbit, and the menu has its one entry. On the ground it is "Launch to orbit": the planner's route is
+    // set to a climb into the lowest orbit round the body. In an orbit it is "Land at marker": the player clicks on the body, and the route is set to a
+    // landing at the place. The entries only set the plan; the Live button flies it. With Shift held the entry adds the stop to the route instead of
+    // replacing it. The menu of another body has "Navigate to" entries with the same effect. A vessel on the pad stands under the icon of the
     // launch site, which takes the click. So the menu of every launch site has the entry for the vessel whose icon it covers: the space center,
     // the runways, and every other site the game lists.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
@@ -113,11 +116,47 @@ namespace ReDefinition.Engineer
 
         private static void AddCore(IScreenCaster sc, ref MapContextMenuOption[] options)
         {
-            if (!(sc is OrbitRendererBase.OrbitCastHit)) return;
+            if (!(sc is OrbitRendererBase.OrbitCastHit) || MapMarkerMenu.Making) return;
             OrbitRendererBase.OrbitCastHit hit = (OrbitRendererBase.OrbitCastHit)sc;
             Vessel vessel = hit.driver != null ? hit.driver.vessel : null;
-            if (OnTheGround(vessel)) options = new MapContextMenuOption[] { new LaunchToOrbit(vessel) };
+            if (OnTheGround(vessel))
+                options = MechJebDriver.CanDrive(vessel)
+                    ? new MapContextMenuOption[] { new LaunchToOrbit(vessel), new DriveToMarker(vessel) }
+                    : new MapContextMenuOption[] { new LaunchToOrbit(vessel) };
             else if (InOrbit(vessel)) options = new MapContextMenuOption[] { new LandAtMarker(vessel) };
+            else if (vessel == null) AddNavigate(hit, ref options);
+            else AddMeet(vessel, ref options);
+        }
+
+        // The menu of another vessel in an orbit: the route set to a meeting with it, or to docking with it.
+        private static void AddMeet(Vessel other, ref MapContextMenuOption[] options)
+        {
+            Vessel flown = FlightGlobals.ActiveVessel;
+            if (MapPlannerWindow.Instance == null || !InOrbit(flown) || !LiveMenu.IsMeetable(flown, other)) return;
+            bool dock = LiveMenu.HasDockingPort(other);
+            int count = options != null ? options.Length : 0;
+            var longer = new MapContextMenuOption[count + (dock ? 2 : 1)];
+            if (count > 0) options.CopyTo(longer, 0);
+            longer[count] = new MeetWith(flown, other, false);
+            if (dock) longer[count + 1] = new MeetWith(flown, other, true);
+            options = longer;
+        }
+
+        // The menu of a body other than the one the vessel is round: the two places the route can be set to.
+        private static void AddNavigate(OrbitRendererBase.OrbitCastHit hit, ref MapContextMenuOption[] options)
+        {
+            CelestialBody body = hit.driver != null ? hit.driver.celestialBody : null;
+            Vessel flown = FlightGlobals.ActiveVessel;
+            if (body == null || body.Equals(null) || flown == null || flown.mainBody == null || MapPlannerWindow.Instance == null || RouteDriver.Instance == null) return;
+            // The sun has no orbit to go to, and the body the vessel is round is reached by the other entries.
+            if (body.referenceBody == body || body == flown.mainBody) return;
+            int count = options != null ? options.Length : 0;
+            int extra = body.hasSolidSurface && body.pqsController != null ? 2 : 1;
+            var longer = new MapContextMenuOption[count + extra];
+            if (count > 0) options.CopyTo(longer, 0);
+            longer[count] = new NavigateTo(flown, body, false);
+            if (extra == 2) longer[count + 1] = new NavigateTo(flown, body, true);
+            options = longer;
         }
 
         // The ids the game gives the waypoints of its launch sites: the space center, the runways, and every other site, those of mods too.
@@ -217,6 +256,22 @@ namespace ReDefinition.Engineer
             }
         }
 
+        private sealed class DriveToMarker : MapContextMenuOption
+        {
+            private readonly Vessel vessel;
+
+            internal DriveToMarker(Vessel vessel) : base("Drive to marker")
+            {
+                this.vessel = vessel;
+            }
+
+            protected override void OnSelect()
+            {
+                if (vessel == null || LandingMarker.Instance == null) return;
+                LandingMarker.Instance.Place(vessel, true);
+            }
+        }
+
         private sealed class LaunchToOrbit : MapContextMenuOption
         {
             private readonly Vessel vessel;
@@ -228,8 +283,48 @@ namespace ReDefinition.Engineer
 
             protected override void OnSelect()
             {
-                if (vessel == null || RouteDriver.Instance == null) return;
-                RouteDriver.Instance.StartAscent(vessel);
+                if (vessel == null || vessel.mainBody == null || MapPlannerWindow.Instance == null) return;
+                MapPlannerWindow.Instance.PlanGoal(vessel, vessel.mainBody, false, NextStepPlanner.LowOrbit(vessel.mainBody), MapPlannerWindow.Adding);
+            }
+        }
+
+        private sealed class MeetWith : MapContextMenuOption
+        {
+            private readonly Vessel flown;
+            private readonly Vessel other;
+            private readonly bool dock;
+
+            internal MeetWith(Vessel flown, Vessel other, bool dock) : base(dock ? "Dock with" : "Rendezvous with")
+            {
+                this.flown = flown;
+                this.other = other;
+                this.dock = dock;
+            }
+
+            protected override void OnSelect()
+            {
+                if (flown == null || other == null || MapPlannerWindow.Instance == null) return;
+                LiveMenu.Meet(MapPlannerWindow.Instance, flown, other, dock);
+            }
+        }
+
+        private sealed class NavigateTo : MapContextMenuOption
+        {
+            private readonly Vessel vessel;
+            private readonly CelestialBody body;
+            private readonly bool surface;
+
+            internal NavigateTo(Vessel vessel, CelestialBody body, bool surface) : base("Navigate to " + (surface ? "Surface" : "Orbit"))
+            {
+                this.vessel = vessel;
+                this.body = body;
+                this.surface = surface;
+            }
+
+            protected override void OnSelect()
+            {
+                if (vessel == null || body == null || MapPlannerWindow.Instance == null) return;
+                MapPlannerWindow.Instance.PlanGoal(vessel, body, surface, NextStepPlanner.LowOrbit(body), MapPlannerWindow.Adding);
             }
         }
     }

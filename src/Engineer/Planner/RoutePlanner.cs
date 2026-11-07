@@ -86,6 +86,22 @@ namespace ReDefinition.Engineer
         // On the way to a landing on parachutes: into an orbit first, rather than
         // straight into the air.
         public bool OrbitFirst;
+        // The place on the ground a landing is aimed at, in degrees, where the player chose one on the map.
+        public bool HasSite;
+        public double SiteLatitude, SiteLongitude;
+        // A vessel the orbit is met with, by its id and the name it had when it was chosen; with Dock, the vessel docks with it (at DockWith's port
+        // where the player chose one). Empty where the stop is no meeting.
+        public System.Guid MeetWith;
+        public string MeetName = "";
+        // The shape of an orbit that is not round: the apoapsis over the ground (0 for a round orbit; the periapsis is Altitude).
+        // The inclination in degrees, where one is asked for. The vessel whose orbital plane is asked for, by id and name.
+        public double Apoapsis;
+        public bool HasInclination;
+        public double Inclination;
+        public System.Guid MatchPlaneWith;
+        public string MatchPlaneName = "";
+        public bool Dock;
+        public uint DockWith;
         // The way across here in two steps: the burn that leaves, and the one that
         // arrives (RouteSteps).
         public bool SplitBurns;

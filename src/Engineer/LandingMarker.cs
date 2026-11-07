@@ -8,8 +8,8 @@ using UnityEngine.EventSystems;
 namespace ReDefinition.Engineer
 {
     // The place on a body that the vessel in orbit is to land on. The player picks the menu entry in the map, then clicks on the body, and a marker stands
-    // there. The marker is KSP's own custom waypoint, with its icon, its menu to delete it and its place in the save. The navigation is then switched on
-    // for a route down to the marker, and the deorbit burn is a maneuver node aimed at it.
+    // there. The marker is KSP's own custom waypoint, with its icon, its menu to delete it and its place in the save. The planner's route is then set to a
+    // landing at the marker; the Live button flies it, and the navigation guides it where the player flies it.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class LandingMarker : MonoBehaviour
     {
@@ -21,6 +21,8 @@ namespace ReDefinition.Engineer
         private const string Name = "Landing marker";
 
         private Vessel placing;
+        // The place is one to drive to over the ground, not to land on.
+        private bool driving;
         private float since;
         private float nextCheck;
         private Waypoint marker;
@@ -36,12 +38,13 @@ namespace ReDefinition.Engineer
         }
 
         // The player is to click on the body the vessel is round.
-        internal void Place(Vessel vessel)
+        internal void Place(Vessel vessel, bool drive = false)
         {
             if (vessel == null || vessel.mainBody == null) return;
             placing = vessel;
+            driving = drive;
             since = Time.unscaledTime;
-            ScreenMessages.PostScreenMessage("Click on " + vessel.mainBody.bodyName + " to place the landing marker. Escape cancels.", 8f, ScreenMessageStyle.UPPER_CENTER);
+            ScreenMessages.PostScreenMessage("Click on " + vessel.mainBody.bodyName + " to place the " + (drive ? "place to drive to" : "landing marker") + ". Escape cancels.", 8f, ScreenMessageStyle.UPPER_CENTER);
         }
 
         // The markers of this kind are taken away, those of earlier flights too: the game keeps a waypoint in the save.
@@ -75,7 +78,15 @@ namespace ReDefinition.Engineer
             if (!Pick(placing.mainBody, out latitude, out longitude)) return;
             Vessel vessel = placing;
             placing = null;
-            Set(vessel, latitude, longitude);
+            if (driving) Drive(vessel, latitude, longitude);
+            else Set(vessel, latitude, longitude);
+        }
+
+        // The route is set to a drive over the ground to the place.
+        private static void Drive(Vessel vessel, double latitude, double longitude)
+        {
+            if (vessel == null || vessel.mainBody == null || MapPlannerWindow.Instance == null) return;
+            MapPlannerWindow.Instance.PlanGoal(vessel, vessel.mainBody, true, 0.0, MapPlannerWindow.Adding, true, latitude, longitude);
         }
 
         // Where the cursor is over the body in the map, in degrees. The body's picture in the map has a collider of its own, which the ray meets.
@@ -92,7 +103,7 @@ namespace ReDefinition.Engineer
             return true;
         }
 
-        // The marker stands at the place, and the vessel is guided down to it.
+        // The marker stands at the place, and the route is set to a landing there.
         internal void Set(Vessel vessel, double latitude, double longitude)
         {
             if (vessel == null || vessel.mainBody == null || RouteDriver.Instance == null) return;
@@ -118,7 +129,8 @@ namespace ReDefinition.Engineer
                 marker = made;
             }
             else Debug.Log(Log.Tag + " Navigation: the game has no custom waypoints here; the landing marker is not drawn.");
-            RouteDriver.Instance.StartDescent(vessel, latitude, longitude);
+            if (MapPlannerWindow.Instance != null)
+                MapPlannerWindow.Instance.PlanGoal(vessel, vessel.mainBody, true, 0.0, MapPlannerWindow.Adding, true, latitude, longitude);
         }
     }
 }

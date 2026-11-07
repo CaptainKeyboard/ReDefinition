@@ -107,6 +107,54 @@ namespace ReDefinition.Engineer
             model.AddStop();
         }
 
+        // Whether the plan is read and its route can be replaced; the route replaced, with the old one kept once; and whether it is empty.
+        internal bool Ready
+        {
+            get { return model.Ready(); }
+        }
+
+        internal bool RouteEmpty
+        {
+            get { return model.RouteEmpty; }
+        }
+
+        internal void SetRoute(IList<RouteStop> stops)
+        {
+            model.SetRoute(stops);
+        }
+
+        internal void ClearRoute()
+        {
+            model.ClearRoute();
+        }
+
+        internal bool DeployOnArrival
+        {
+            get { return model.DeployOnArrival; }
+        }
+
+        internal void ToggleDeployOnArrival()
+        {
+            model.ToggleDeployOnArrival();
+        }
+
+        // The route emptied after its flight, and the name of the vessel the plan is kept under.
+        internal void EndRoute()
+        {
+            model.EndRoute();
+        }
+
+        internal string VesselName
+        {
+            get { return model.Host.VesselName(); }
+        }
+
+        // The stop put at the route's end, or in the destination that is not picked yet; false where the route has no room.
+        internal bool PutStop(RouteStop stop)
+        {
+            return model.PutStop(stop);
+        }
+
         // Writes the plan to the file now, for the probes, which change the route behind the rows' backs.
         internal void SaveNow()
         {

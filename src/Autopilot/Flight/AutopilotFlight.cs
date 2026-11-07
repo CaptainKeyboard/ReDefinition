@@ -52,6 +52,18 @@ namespace ReDefinition.Autopilot.Flight
 
         private readonly bool flyNodes;
 
+        // The route the flight flies, as RoutePlan.SignatureOf has it; empty for a flight of nodes.
+        internal string RouteSignature
+        {
+            get { return route != null ? RoutePlan.SignatureOf(route) : ""; }
+        }
+
+        // Whether the flight is one of a route, not of the nodes the player made.
+        internal bool OfRoute
+        {
+            get { return !flyNodes; }
+        }
+
         // Stops the flight and hands the vessel back: the executor is aborted, the warp is brought down.
         internal void Cancel()
         {
@@ -66,6 +78,7 @@ namespace ReDefinition.Autopilot.Flight
             {
                 MechJebDriver.StopAscent(vessel);
                 MechJebDriver.StopLanding(vessel);
+                MechJebDriver.StopDriving(vessel);
             }
             catch (System.Exception e)
             {
@@ -269,6 +282,23 @@ namespace ReDefinition.Autopilot.Flight
                     yield return Ascend();
                     continue;
                 }
+                if (plan.Kind == NodePlanner.StepKind.Drive)
+                {
+                    Destination place = plan.Goal >= 0 && plan.Goal < route.Count ? route[plan.Goal] : null;
+                    if (place == null || !place.HasSite || ++drives > MostDrives)
+                    {
+                        Stop(place == null || !place.HasSite ? "The drive has no place to go to." : "The rover did not get to the place.");
+                        yield break;
+                    }
+                    Status = plan.Why;
+                    if (!MechJebDriver.StartDriving(vessel, place.SiteLatitude, place.SiteLongitude))
+                    {
+                        Stop("MechJeb would not start the rover.");
+                        yield break;
+                    }
+                    yield return DriveTo(place);
+                    continue;
+                }
                 if (plan.Kind == NodePlanner.StepKind.Landing)
                 {
                     Status = plan.Why;
@@ -420,6 +450,24 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // Waits while MechJeb's landing flies, and ends it a moment after the vessel stands still on the ground.
+        // The most drives a route is given: a rover that stops short is sent again, and then the route stops.
+        private const int MostDrives = 3;
+        private int drives;
+
+        // MechJeb's rover drives until it has reached the waypoint (it sets the index back) or the time the distance takes at a walking pace is up.
+        private IEnumerator DriveTo(Destination place)
+        {
+            float started = Time.realtimeSinceStartup;
+            while (!cancelled && !Lost && MechJebDriver.DrivingBusy(vessel) && Time.realtimeSinceStartup - started < 3600f)
+            {
+                Vector3d spot = place.Body.GetWorldSurfacePosition(place.SiteLatitude, place.SiteLongitude, place.Body.TerrainAltitude(place.SiteLatitude, place.SiteLongitude));
+                Status = "Driving: " + ((spot - vessel.GetWorldPos3D()).magnitude / 1000.0).ToString("0.0") + " km to go, " + vessel.srfSpeed.ToString("0") + " m/s.";
+                Note();
+                yield return new WaitForSeconds(1f);
+            }
+            MechJebDriver.StopDriving(vessel);
+        }
+
         private IEnumerator Descend()
         {
             float started = Time.realtimeSinceStartup;

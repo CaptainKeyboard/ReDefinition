@@ -87,7 +87,10 @@ namespace ReDefinition.Autopilot.Planning
                 {
                     if (stop.Body == null) break;
                     text.Append(stop.Body.bodyName).Append(stop.Surface ? "/s/" : "/o/").Append(stop.Altitude.ToString("0")).Append(stop.Direct ? "/d" : "").Append(stop.Aerobrake ? "/a" : "")
-                        .Append(stop.HasSite ? "/@" + stop.SiteLatitude.ToString("0.0000") + "," + stop.SiteLongitude.ToString("0.0000") : "").Append(';');
+                        .Append(stop.HasSite ? "/@" + stop.SiteLatitude.ToString("0.0000") + "," + stop.SiteLongitude.ToString("0.0000") : "")
+                        .Append(stop.Apoapsis > stop.Altitude ? "/p" + stop.Apoapsis.ToString("0") : "").Append(stop.HasInclination ? "/i" + stop.Inclination.ToString("0.###") : "")
+                        .Append(stop.MatchPlaneWith != System.Guid.Empty ? "/n" + stop.MatchPlaneWith.ToString("N") : "")
+                        .Append(stop.MeetWith != System.Guid.Empty ? (stop.Dock ? "/D" : "/M") + stop.MeetWith.ToString("N") + stop.DockWith : "").Append(';');
                 }
             return text.ToString();
         }
@@ -282,11 +285,12 @@ namespace ReDefinition.Autopilot.Planning
             return plan;
         }
 
-        // The state of a frame as a text, to the metre: the body, the apsides and the plane.
+        // The state of a frame as a text, to the metre: the body, the apsides and the plane with its node.
         private static string StateKey(Frame frame)
         {
             Orbit orbit = frame.Orbit;
-            return orbit.referenceBody.bodyName + "|" + System.Math.Round(orbit.PeA) + "|" + System.Math.Round(orbit.ApA) + "|" + System.Math.Round(orbit.inclination, 1);
+            return orbit.referenceBody.bodyName + "|" + System.Math.Round(orbit.PeA) + "|" + System.Math.Round(orbit.ApA) + "|" + System.Math.Round(orbit.inclination, 1)
+                   + "|" + System.Math.Round(orbit.LAN, 1);
         }
 
         // The state after a step: where its last node stands, or, for a step with no burn, where the orbit goes on into the next patch. Null where

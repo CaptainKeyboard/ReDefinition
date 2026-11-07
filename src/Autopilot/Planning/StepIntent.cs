@@ -6,6 +6,8 @@ namespace ReDefinition.Autopilot.Planning
         // A launch into the orbit of the stop; and a hop from the surface to the surface, which is not planned.
         Ascent,
         HopNotPlanned,
+        // A drive over the ground to the place of the stop: the vessel stands on the ground with wheels, and the place is farther than the drive's reach.
+        Drive,
         // The landing on the body the vessel is round. It is made straight in from the approach, with the air slowing the vessel at the periapsis,
         // by a capture first, by the deorbit burn the player flies, or by the autopilot's own landing.
         LandStraightIn,
@@ -37,6 +39,7 @@ namespace ReDefinition.Autopilot.Planning
         public bool SameBody;
         // The vessel stands on the ground or the pad, flies in the air, or climbs on a suborbital arc that has not yet reached the orbit asked for.
         public bool OnGround;
+        public bool CanDrive;
         public bool Flying;
         public bool Climbing;
         // The orbit is open; it is an escape from its body.
@@ -64,7 +67,7 @@ namespace ReDefinition.Autopilot.Planning
         internal StepIntent Intend()
         {
             bool landing = StopSurface && SameBody && !OnGround;
-            if (!landing && (OnGround || Flying || Climbing)) return SameBody && StopSurface ? StepIntent.HopNotPlanned : StepIntent.Ascent;
+            if (!landing && (OnGround || Flying || Climbing)) return SameBody && StopSurface ? (CanDrive ? StepIntent.Drive : StepIntent.HopNotPlanned) : StepIntent.Ascent;
             if (StopSurface && SameBody)
             {
                 if (Open) return Direct ? StepIntent.LandStraightIn : Aerobrake ? StepIntent.LandByAir : StepIntent.LandByCapture;

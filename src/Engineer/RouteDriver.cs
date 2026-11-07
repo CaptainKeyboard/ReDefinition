@@ -125,8 +125,9 @@ namespace ReDefinition.Engineer
                 Begin(vessel, state, AutopilotFlight.OfNodes(vessel));
                 return;
             }
-            status = "There is nothing to fly: no route in the planner and no maneuver node.";
-            ScreenMessages.PostScreenMessage(status, 6f, ScreenMessageStyle.UPPER_CENTER);
+            // Nothing to fly: the button offers what the vessel can be sent to, and the choice sets the route.
+            status = "There is nothing to fly yet: choose where to go.";
+            LiveMenu.Open(vessel);
         }
 
         internal void StopFlight(Vessel vessel)
@@ -159,12 +160,21 @@ namespace ReDefinition.Engineer
         private void Begin(Vessel vessel, RouteState state, AutopilotFlight started)
         {
             flight = started;
-            StartCoroutine(Run(flight, state));
+            StartCoroutine(Run(flight, state, vessel));
         }
 
-        private IEnumerator Run(AutopilotFlight running, RouteState state)
+        private IEnumerator Run(AutopilotFlight running, RouteState state, Vessel flown)
         {
             yield return running.RunSafely();
+            // The route is flown to its end: the planner is empty for the next one.
+            if (running.Arrived && running.OfRoute)
+            {
+                string vesselName = flown.vesselName;
+                // A docking ends the flown vessel in the one it joined, which is the one in focus then.
+                Vessel arrived = flown != null && flown.state != Vessel.State.DEAD ? flown : FlightGlobals.ActiveVessel;
+                if (MapPlannerWindow.DeploysOnArrival(vesselName)) Deployables.Extend(arrived);
+                MapPlannerWindow.RouteDone(vesselName, running.RouteSignature);
+            }
             if (flight == running)
             {
                 status = running.Status;
@@ -184,6 +194,7 @@ namespace ReDefinition.Engineer
             {
                 if (flight != null) flight.Cancel();
                 flight = null;
+                LiveMenu.Close();
                 followed = vessel;
                 seen = Time.realtimeSinceStartup;
                 follower = new Navigation();

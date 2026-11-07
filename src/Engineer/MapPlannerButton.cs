@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace ReDefinition.Engineer
 {
-    // The planner's button among the game's own toolbar buttons (the top group, not the mods' below it), which shows in the map view and slides the planner's panel in and out. A click tells the
+    // The planner's button among the game's own toolbar buttons (the top group, not the mods' below it), which shows in the flight and in the map view and slides the planner's panel in and out. A click tells the
     // window; the window tells the button where the panel was opened or shut another way.
     internal sealed class MapPlannerButton
     {
@@ -62,8 +62,8 @@ namespace ReDefinition.Engineer
             if (icon == null) icon = Draw();
             button = ApplicationLauncher.Instance.AddApplication(() => setOpen(true), () => setOpen(false), null, null, null, null, icon);
             if (button == null) return;
-            // The game's own buttons are in every scene unless told: this one is in the map view.
-            button.VisibleInScenes = ApplicationLauncher.AppScenes.MAPVIEW;
+            // The game's own buttons are in every scene unless told: this one is in the flight and in the map view.
+            button.VisibleInScenes = ApplicationLauncher.AppScenes.FLIGHT | ApplicationLauncher.AppScenes.MAPVIEW;
             if (button.gameObject != null) UiHygiene.Tooltip(button.gameObject, Tooltip);
             Show(open);
         }

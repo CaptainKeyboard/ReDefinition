@@ -74,6 +74,22 @@ namespace ReDefinition.Orbits
             return true;
         }
 
+        // The normal of the plane with the inclination asked for (degrees), from the orbit's normal and the body's pole, turned about the line of nodes.
+        // The angle between normal and pole is the inclination or its supplement, depending on the handedness of the axes the vectors are in; the
+        // inclination the game reports for the orbit now tells which.
+        internal static V3 NormalForInclination(V3 normal, V3 pole, double wantedDegrees, double reportedInclination)
+        {
+            double angle = V3.Angle(normal, pole) * 180.0 / Math.PI;
+            bool supplement = Math.Abs((180.0 - angle) - reportedInclination) < Math.Abs(angle - reportedInclination);
+            double wantedAngle = supplement ? 180.0 - wantedDegrees : wantedDegrees;
+            V3 line = V3.Cross(pole, normal);
+            if (line.Length < 1e-9) line = V3.Cross(pole, Math.Abs(pole.X) < 0.9 ? new V3(1.0, 0.0, 0.0) : new V3(0.0, 1.0, 0.0));
+            V3 about = line.Unit;
+            double turn = (wantedAngle - angle) * Math.PI / 180.0;
+            V3 a = normal.Rotated(about, turn), b = normal.Rotated(about, -turn);
+            return Math.Abs(V3.Angle(a, pole) * 180.0 / Math.PI - wantedAngle) <= Math.Abs(V3.Angle(b, pole) * 180.0 / Math.PI - wantedAngle) ? a : b;
+        }
+
         // The three directions of KSP's maneuver node frame at a state: radial out, normal (the orbit's own, north for an eastward orbit) and
         // prograde. Unity's world is left-handed, so there the cross product of position and velocity points the other way: `leftHanded`.
         private static void NodeAxes(State at, bool leftHanded, out V3 radial, out V3 normal, out V3 prograde)

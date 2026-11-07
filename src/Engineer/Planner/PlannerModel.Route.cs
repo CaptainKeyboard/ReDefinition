@@ -78,7 +78,51 @@ namespace ReDefinition.Engineer
             if (!HasBody(index)) return Letter(index) + "  no destination yet";
             string text = Letter(index) + "  " + RouteSteps.Place(Bodies.Bodies, stop);
             if (stop.Kind == StopKind.Orbit) text += ", " + AltitudeKm(index) + " km";
+            if (stop.Kind == StopKind.Orbit && stop.Apoapsis > stop.Altitude) text += " x " + (stop.Apoapsis / 1000.0).ToString("0", CultureInfo.InvariantCulture) + " km";
+            if (stop.Kind == StopKind.Orbit && stop.HasInclination) text += ", " + stop.Inclination.ToString("0.#", CultureInfo.InvariantCulture) + " deg";
+            if (stop.Kind == StopKind.Orbit && stop.MatchPlaneWith != Guid.Empty)
+                text += ", plane of " + (string.IsNullOrEmpty(stop.MatchPlaneName) ? "the target" : stop.MatchPlaneName);
+            if (stop.MeetWith != Guid.Empty) text += (stop.Dock ? ", docks with " : ", meets ") + (string.IsNullOrEmpty(stop.MeetName) ? "the target" : stop.MeetName);
             return text;
+        }
+
+        // The apoapsis typed in kilometres: above the periapsis, the orbit is not round; empty or not above it, it is round again.
+        internal string ApoapsisKm(int index)
+        {
+            return Shown(index) && State.Stops[index].Apoapsis > State.Stops[index].Altitude
+                ? (State.Stops[index].Apoapsis / 1000.0).ToString("0", CultureInfo.InvariantCulture) : "";
+        }
+
+        internal void SetApoapsis(int index, string text)
+        {
+            double km;
+            if (!HasBody(index)) return;
+            RouteStop stop = State.Stops[index];
+            double apoapsis = 0.0;
+            if (double.TryParse((text ?? "").Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out km) && km * 1000.0 > stop.Altitude)
+                apoapsis = Math.Min(km * 1000.0, Bodies.MaxAltitude(stop.Body));
+            if (Math.Abs(apoapsis - stop.Apoapsis) < 0.5) return;
+            stop.Apoapsis = apoapsis;
+            Changed();
+        }
+
+        // The inclination typed in degrees; empty leaves the plane as it is.
+        internal string InclinationText(int index)
+        {
+            return Shown(index) && State.Stops[index].HasInclination ? State.Stops[index].Inclination.ToString("0.#", CultureInfo.InvariantCulture) : "";
+        }
+
+        internal void SetInclination(int index, string text)
+        {
+            double degrees;
+            if (!HasBody(index)) return;
+            RouteStop stop = State.Stops[index];
+            bool has = double.TryParse((text ?? "").Replace(',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out degrees);
+            degrees = Math.Max(0.0, Math.Min(180.0, degrees));
+            if (has == stop.HasInclination && (!has || Math.Abs(degrees - stop.Inclination) < 0.05)) return;
+            stop.HasInclination = has;
+            stop.Inclination = has ? degrees : 0.0;
+            Changed();
         }
 
         // Typed in kilometres, kept between the lowest safe orbit and the edge of the
@@ -92,6 +136,7 @@ namespace ReDefinition.Engineer
             double altitude = Math.Max(Bodies.Bodies[stop.Body].LowOrbitAltitude, Math.Min(km * 1000.0, Bodies.MaxAltitude(stop.Body)));
             if (Math.Abs(altitude - stop.Altitude) < 0.5) return;
             stop.Altitude = altitude;
+            if (stop.Apoapsis <= stop.Altitude) stop.Apoapsis = 0.0;
             Changed();
         }
 
@@ -120,6 +165,11 @@ namespace ReDefinition.Engineer
             if (!Shown(index) || body < 0 || body >= Bodies.Bodies.Count) return;
             RouteStop stop = State.Stops[index];
             stop.Body = body;
+            stop.HasSite = false;
+            stop.MeetWith = Guid.Empty;
+            stop.MatchPlaneWith = Guid.Empty;
+            stop.Apoapsis = 0.0;
+            stop.HasInclination = false;
             stop.Altitude = Bodies.Bodies[body].LowOrbitAltitude;
             if (!Bodies.Bodies[body].HasAtmosphere) stop.UseAtmosphere = false;
             AutoChutes(index);
@@ -131,6 +181,11 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || State.Stops[index].Kind == kind) return;
             State.Stops[index].Kind = kind;
+            State.Stops[index].MeetWith = Guid.Empty;
+            State.Stops[index].MatchPlaneWith = Guid.Empty;
+            State.Stops[index].Apoapsis = 0.0;
+            State.Stops[index].HasInclination = false;
+            State.Stops[index].HasSite = false;
             if (kind == StopKind.Orbit && State.Stops[index].Altitude <= 0.0 && HasBody(index))
                 State.Stops[index].Altitude = Bodies.Bodies[State.Stops[index].Body].LowOrbitAltitude;
             AutoChutes(index);
@@ -164,6 +219,99 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || !HasAtmosphere(index)) return;
             State.Stops[index].UseAtmosphere = !State.Stops[index].UseAtmosphere;
+            Changed();
+        }
+
+        // The route and the sections' places as they were before the route was last replaced, for Undo.
+        private List<RouteStop> before;
+        private List<StopRelease> beforeReleases;
+        private int[] beforeDeploy;
+
+        // Whether a replaced route can be brought back.
+        internal bool CanUndo
+        {
+            get { return before != null; }
+        }
+
+        // Whether the plan has no route: the start and a destination that is not picked.
+        internal bool RouteEmpty
+        {
+            get { return !Ready() || PickedStops().Count < 2; }
+        }
+
+        // The route replaced by `stops`, with the old one kept once for Undo. The sections' places belong to the old route and go with it.
+        internal void SetRoute(IList<RouteStop> stops)
+        {
+            if (!Ready() || stops == null || stops.Count < 2 || stops.Count > HardStops) return;
+            before = State.Stops.ConvertAll(stop => stop.Copy());
+            beforeReleases = new List<StopRelease>(State.Releases);
+            beforeDeploy = State.Sections.ConvertAll(section => section.DeployAt).ToArray();
+            foreach (PlannedSection section in State.Sections) section.DeployAt = -1;
+            State.Releases.Clear();
+            Apply(stops);
+        }
+
+        // The route as it was before the last replacement.
+        internal void Undo()
+        {
+            if (before == null || !Ready()) return;
+            List<RouteStop> back = before;
+            before = null;
+            State.Releases.Clear();
+            State.Releases.AddRange(beforeReleases);
+            for (int i = 0; i < State.Sections.Count && i < beforeDeploy.Length; i++) State.Sections[i].DeployAt = beforeDeploy[i];
+            Apply(back);
+        }
+
+        // The route empty again: from the home body's surface to a destination that is not picked.
+        internal void ClearRoute()
+        {
+            if (!Ready()) return;
+            SetRoute(PlannerState.Default(Bodies).Stops);
+        }
+
+        // The stop where the route ends: in the destination that is not picked yet, else after the last stop. Nothing is kept for Undo.
+        internal bool PutStop(RouteStop stop)
+        {
+            if (!Ready()) return false;
+            int open = State.Stops.FindIndex(existing => existing.Body < 0);
+            if (open >= 0) State.Stops[open] = stop;
+            else if (State.Stops.Count < HardStops) State.Stops.Add(stop);
+            else return false;
+            if (StopsReshaped != null) StopsReshaped();
+            Changed();
+            return true;
+        }
+
+        // Whether the parts that fold are put out where the route ends; the choice turned over.
+        internal bool DeployOnArrival
+        {
+            get { return Ready() && State.DeployOnArrival; }
+        }
+
+        internal void ToggleDeployOnArrival()
+        {
+            if (!Ready()) return;
+            State.DeployOnArrival = !State.DeployOnArrival;
+            Changed();
+        }
+
+        // The route flown to its end: empty again, with nothing to bring back.
+        internal void EndRoute()
+        {
+            if (!Ready()) return;
+            before = null;
+            foreach (PlannedSection section in State.Sections) section.DeployAt = -1;
+            State.Releases.Clear();
+            Apply(PlannerState.Default(Bodies).Stops);
+        }
+
+        private void Apply(IList<RouteStop> stops)
+        {
+            CloseLists();
+            State.Stops.Clear();
+            State.Stops.AddRange(stops);
+            if (StopsReshaped != null) StopsReshaped();
             Changed();
         }
 

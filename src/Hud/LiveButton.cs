@@ -12,7 +12,8 @@ namespace ReDefinition.Hud
 {
     // The button of the autopilot, at the top of the screen right of the time panel, big, with a red lamp. The lamp is lit while the autopilot flies, dark while it does not.
     // One press starts what there is to fly: the route of the planner or the climb and the descent the navigation guides, else the maneuver nodes made in
-    // the map, flown by MechJeb. Another press lets the vessel go. Where MechJeb cannot fly the button cannot be pressed.
+    // the map, flown by MechJeb. Where there is nothing to fly it offers the goals the vessel can be sent to (LiveMenu), which only set the planner's
+    // route. Another press lets the vessel go. Where MechJeb cannot fly the button cannot be pressed.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class LiveButton : MonoBehaviour
     {

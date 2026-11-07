@@ -8,6 +8,12 @@ namespace ReDefinition.Autopilot.Planning
         public CelestialBody Body;
         public bool Surface;
         public double Altitude;
+        // For an orbit: the apoapsis over the ground where the orbit is not round (the periapsis is Altitude); 0 for a round one. The inclination
+        // in degrees where one is asked for, and the vessel whose orbital plane the orbit is to lie in.
+        public double Apoapsis;
+        public bool HasInclination;
+        public double Inclination;
+        public System.Guid MatchPlaneWith;
         // The place on the ground a landing is aimed at, in degrees, where the player chose one (the landing marker); the landing is not aimed otherwise.
         public bool HasSite;
         public double SiteLatitude, SiteLongitude;

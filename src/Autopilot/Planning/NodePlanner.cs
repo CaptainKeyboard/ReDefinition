@@ -40,6 +40,8 @@ namespace ReDefinition.Autopilot.Planning
             Aerobrake,
             Release,
             Rendezvous,
+            // The rover drives over the ground to the place of the stop.
+            Drive,
         }
 
         // What a plan came to: a burn at a time, and why, or the reason there is none. Ok with a time of zero is a plan that needs no burn.
@@ -99,6 +101,11 @@ namespace ReDefinition.Autopilot.Planning
             public static Result Rendezvous(System.Guid target, uint port, bool dock, string why)
             {
                 return new Result { Ok = true, Kind = StepKind.Rendezvous, Target = target, Port = port, Dock = dock, Why = why };
+            }
+
+            public static Result Drive(string why)
+            {
+                return new Result { Ok = true, Kind = StepKind.Drive, Why = why };
             }
 
             public static Result Release(SectionRelease section, string why)

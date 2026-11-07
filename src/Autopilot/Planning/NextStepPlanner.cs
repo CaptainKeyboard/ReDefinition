@@ -63,7 +63,12 @@ namespace ReDefinition.Autopilot.Planning
                 {
                     note = "The air is not used: " + refused + " ";
                     Debug.Log("[ReDefinition] Route: " + note);
-                    stop = new Destination { Body = stop.Body, Surface = stop.Surface, Altitude = stop.Altitude, MeetWith = stop.MeetWith, DockWith = stop.DockWith, Releases = stop.Releases };
+                    stop = new Destination
+                    {
+                        Body = stop.Body, Surface = stop.Surface, Altitude = stop.Altitude, MeetWith = stop.MeetWith, DockWith = stop.DockWith, Releases = stop.Releases,
+                        Apoapsis = stop.Apoapsis, HasInclination = stop.HasInclination, Inclination = stop.Inclination, MatchPlaneWith = stop.MatchPlaneWith,
+                        HasSite = stop.HasSite, SiteLatitude = stop.SiteLatitude, SiteLongitude = stop.SiteLongitude, Dock = stop.Dock,
+                    };
                 }
             }
             // A surface on another body is reached through an orbit round it.
@@ -75,6 +80,8 @@ namespace ReDefinition.Autopilot.Planning
             {
                 case StepIntent.HopNotPlanned:
                     return NodePlanner.Result.Failed("A hop on the surface is not planned yet.");
+                case StepIntent.Drive:
+                    return NodePlanner.Result.Drive("Drive to " + stop.SiteLatitude.ToString("0.00") + ", " + stop.SiteLongitude.ToString("0.00") + " on " + stop.Body.bodyName + ".");
                 case StepIntent.Ascent:
                     return NodePlanner.Result.Ascent(aim, "Launch into an orbit " + (aim / 1000.0).ToString("0.#") + " km over " + frame.Body.bodyName + ".");
                 case StepIntent.LandStraightIn:
@@ -98,7 +105,7 @@ namespace ReDefinition.Autopilot.Planning
                     return NodePlanner.Result.Rendezvous(meet.id, stop.DockWith, stop.Dock, (stop.Dock ? "Meet and dock with " : "Meet ") + meet.vesselName + ".");
                 }
                 case StepIntent.ChangeOrbit:
-                    return NodePlanner.ChangeOrbit(frame, stop.Altitude);
+                    return NodePlanner.ShapeOrbit(frame, stop);
                 case StepIntent.AirPassEndsPlan:
                     // The orbit is wider than the one asked for: the air is to bring it down, in a pass of the depth the simulation finds. A plan
                     // ahead does not simulate the pass unless it is flown without the player: it ends there.
@@ -141,7 +148,7 @@ namespace ReDefinition.Autopilot.Planning
             bool closedHere = sameBody && !stop.Surface && orbit.eccentricity < 1.0;
             var facts = new StepFacts
             {
-                StopSurface = stop.Surface, SameBody = sameBody, OnGround = frame.OnGround, Flying = frame.Situation == Vessel.Situations.FLYING,
+                StopSurface = stop.Surface, SameBody = sameBody, OnGround = frame.OnGround, CanDrive = sameBody && Driveable(frame, stop), Flying = frame.Situation == Vessel.Situations.FLYING,
                 Climbing = frame.Situation == Vessel.Situations.SUB_ORBITAL && orbit.PeA < 0.0 && orbit.ApA < 0.98 * aim,
                 Open = orbit.eccentricity >= 1.0, Escaping = orbit.eccentricity >= 1.0 && orbit.patchEndTransition == Orbit.PatchTransitionType.ESCAPE,
                 Direct = stop.Direct, Aerobrake = stop.Aerobrake, ForPlayer = options.ForPlayer, PeriapsisOverGround = orbit.PeA >= 0.0,
@@ -156,6 +163,24 @@ namespace ReDefinition.Autopilot.Planning
             };
             facts.HasEncounter = !sameBody && facts.IsChildOfBody && KspOrbits.PatchAhead(frame, stop.Body) != null;
             return facts;
+        }
+
+        // How far from the place the vessel may stand and count as there, in metres: the rover's own waypoint radius is much smaller.
+        internal const double DriveReach = 300.0;
+
+        // Whether the vessel stands on the ground away from the place the stop names, and can drive there: it has wheels, and a MechJeb unit with the
+        // rover controller.
+        private static bool Driveable(Frame frame, Destination stop)
+        {
+            if (!frame.OnGround || !stop.Surface || !stop.HasSite || stop.Body != frame.Body) return false;
+            return DistanceToSite(frame, stop) > DriveReach && MechJebDriver.CanDrive(frame.Vessel);
+        }
+
+        // The straight distance from the vessel to the place of the stop on the ground, in metres.
+        private static double DistanceToSite(Frame frame, Destination stop)
+        {
+            Vector3d place = stop.Body.GetWorldSurfacePosition(stop.SiteLatitude, stop.SiteLongitude, stop.Body.TerrainAltitude(stop.SiteLatitude, stop.SiteLongitude));
+            return (place - frame.Vessel.GetWorldPos3D()).magnitude;
         }
 
         // A pass through the air that brings a closed orbit down to the one asked for: the depth the simulation finds, the burn that gets the periapsis there,
@@ -330,7 +355,12 @@ namespace ReDefinition.Autopilot.Planning
         private static bool Passed(Frame frame, Destination stop, int index)
         {
             if (stop.Body != frame.Body) return false;
-            if (stop.Surface) return index == 0 || frame.OnGround;
+            if (stop.Surface)
+            {
+                if (index == 0 || !frame.OnGround) return index == 0;
+                // A place on the ground is reached where the vessel stands near it; a vessel that cannot drive stays where it landed.
+                return !stop.HasSite || DistanceToSite(frame, stop) <= DriveReach || !MechJebDriver.CanDrive(frame.Vessel);
+            }
             if (frame.OnGround || frame.Orbit.eccentricity >= 1.0) return false;
             // A stop that is met with a vessel is reached when they have met, or when the target is gone because they docked.
             if (!frame.Ahead && stop.MeetWith != System.Guid.Empty)
@@ -341,6 +371,7 @@ namespace ReDefinition.Autopilot.Planning
                 if (stop.DockWith != 0u && frame.Vessel.parts.Exists(p => p.persistentId == stop.DockWith)) return true;
                 if (stop.Dock && Docked(frame.Vessel)) return true;
             }
+            if (NodePlanner.Shaped(stop)) return NodePlanner.ApsidesMatch(frame.Orbit, stop) && NodePlanner.PlaneMatches(frame.Orbit, stop);
             double tolerance = System.Math.Max(2000.0, 0.1 * stop.Altitude);
             return System.Math.Abs(frame.Orbit.PeA - stop.Altitude) <= tolerance && System.Math.Abs(frame.Orbit.ApA - stop.Altitude) <= tolerance;
         }

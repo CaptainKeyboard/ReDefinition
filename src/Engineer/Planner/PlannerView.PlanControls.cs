@@ -19,7 +19,7 @@ namespace ReDefinition.Engineer
             return "<color=" + Dim + ">Off</color>";
         }
 
-        // The part's one row: the two choices side by side.
+        // The part's rows: the navigation and the autopilot side by side, undo and clear, and MechJeb's switches in two rows.
         private IEnumerable<DialogGUIBase> GuidanceRows()
         {
             float button = Mathf.Floor((width - Divider - Gap * 2f - RowEnd) / 2f);
@@ -31,6 +31,42 @@ namespace ReDefinition.Engineer
             autopilot.tooltipText = "Fly the whole route with MechJeb.";
             yield return new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft, navigation,
                 PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line), autopilot);
+            DialogGUIButton undo = Choice("Undo", () => false, () => model.Undo(), button);
+            undo.OptionInteractableCondition = () => model.CanUndo && Controls != null && !Controls.Flying;
+            undo.tooltipText = "Bring back the route the last choice replaced.";
+            DialogGUIButton clear = Choice("Clear", () => false, () => model.ClearRoute(), button);
+            clear.OptionInteractableCondition = () => !model.RouteEmpty && Controls != null && !Controls.Flying;
+            clear.tooltipText = "Empty the route.";
+            yield return new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft, undo,
+                PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line), clear);
+            yield return SwitchRow(button, "Auto Staging", MechJebSwitch.AutoStaging, "MechJeb stages by itself when the stage runs dry.",
+                "Deploy on Arrival", MechJebSwitch.LimitPressure, false, "Put out the solar panels, antennas and radiators where the route ends.");
+            yield return SwitchRow(button, "Limit Pressure", MechJebSwitch.LimitPressure, "Hold the throttle back above MechJeb's dynamic pressure limit.",
+                "Limit Acceleration", MechJebSwitch.LimitAcceleration, true, "Hold the throttle back above MechJeb's acceleration limit.");
+        }
+
+        // Two choices side by side: MechJeb's own switch on the left; on the right another of MechJeb's (`rightIsMechJeb`) or the planner's own choice
+        // to put the folded parts out on arrival.
+        private GatedRow SwitchRow(float button, string leftLabel, MechJebSwitch left, string leftTip, string rightLabel, MechJebSwitch right,
+            bool rightIsMechJeb, string rightTip)
+        {
+            DialogGUIButton first = Choice(leftLabel, () => Controls != null && Controls.IsOn(left), () => Controls.Toggle(left), button);
+            first.OptionInteractableCondition = () => Controls != null && Controls.Has(left) && Controls.AutopilotProblem == null;
+            first.tooltipText = leftTip;
+            DialogGUIButton second;
+            if (rightIsMechJeb)
+            {
+                second = Choice(rightLabel, () => Controls != null && Controls.IsOn(right), () => Controls.Toggle(right), button);
+                second.OptionInteractableCondition = () => Controls != null && Controls.Has(right) && Controls.AutopilotProblem == null;
+            }
+            else
+            {
+                second = Choice(rightLabel, () => Controls != null && Controls.DeployOnArrival, () => Controls.ToggleDeployOnArrival(), button);
+                second.OptionInteractableCondition = () => Controls != null;
+            }
+            second.tooltipText = rightTip;
+            return new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft, first,
+                PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line), second);
         }
     }
 }

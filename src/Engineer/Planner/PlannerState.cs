@@ -45,6 +45,8 @@ namespace ReDefinition.Engineer
         // the sections, with the planner's found ones once kept.
         public readonly List<RouteStop> Stops = new List<RouteStop>();
         public double Margin = 0.1;
+        // The solar panels, antennas and radiators are put out where the autopilot's route ends.
+        public bool DeployOnArrival;
         public readonly List<PlannedSection> Sections = new List<PlannedSection>();
         // The satellites let go at the stops, by the part that separates them, as the planner last worked them out; kept so that a flight that
         // is loaded again still knows what is to be let go.
@@ -210,6 +212,7 @@ namespace ReDefinition.Engineer
             node.AddValue("vessel", Key(vessel));
             node.AddValue("margin", Margin.ToString("0.00", CultureInfo.InvariantCulture));
             node.AddValue("nextSection", nextId);
+            if (DeployOnArrival) node.AddValue("deployOnArrival", true);
             foreach (SectionKind kind in Dismissed) node.AddValue("dismissed", kind);
             foreach (PlannedSection section in Sections)
             {
@@ -244,6 +247,25 @@ namespace ReDefinition.Engineer
                 stopNode.AddValue("refuel", string.Join(", ", Array.ConvertAll(stop.Refuel, flag => flag.ToString())));
                 stopNode.AddValue("refuelFrom", string.Join(", ", Array.ConvertAll(stop.RefuelFrom, stage => stage.ToString())));
                 stopNode.AddValue("orbitFirst", stop.OrbitFirst);
+                if (stop.Apoapsis > stop.Altitude) stopNode.AddValue("apoapsis", stop.Apoapsis.ToString("0", CultureInfo.InvariantCulture));
+                if (stop.HasInclination) stopNode.AddValue("inclination", stop.Inclination.ToString("0.###", CultureInfo.InvariantCulture));
+                if (stop.MatchPlaneWith != Guid.Empty)
+                {
+                    stopNode.AddValue("matchPlane", stop.MatchPlaneWith.ToString("N"));
+                    stopNode.AddValue("matchPlaneName", stop.MatchPlaneName ?? "");
+                }
+                if (stop.MeetWith != Guid.Empty)
+                {
+                    stopNode.AddValue("meetWith", stop.MeetWith.ToString("N"));
+                    stopNode.AddValue("meetName", stop.MeetName ?? "");
+                    stopNode.AddValue("dock", stop.Dock);
+                    if (stop.DockWith != 0u) stopNode.AddValue("dockPort", stop.DockWith);
+                }
+                if (stop.HasSite)
+                {
+                    stopNode.AddValue("siteLatitude", stop.SiteLatitude.ToString("0.#####", CultureInfo.InvariantCulture));
+                    stopNode.AddValue("siteLongitude", stop.SiteLongitude.ToString("0.#####", CultureInfo.InvariantCulture));
+                }
                 stopNode.AddValue("splitBurns", stop.SplitBurns);
                 for (int i = 0; i < RouteStop.Roles; i++)
                 {
@@ -271,6 +293,8 @@ namespace ReDefinition.Engineer
             double margin;
             if (double.TryParse(node.GetValue("margin"), NumberStyles.Float, CultureInfo.InvariantCulture, out margin))
                 state.Margin = Math.Max(0.0, Math.Min(margin, 1.0));
+            bool deploy;
+            if (bool.TryParse(node.GetValue("deployOnArrival"), out deploy)) state.DeployOnArrival = deploy;
             foreach (string dismissed in node.GetValues("dismissed"))
                 if (Enum.IsDefined(typeof(SectionKind), dismissed)) state.Dismissed.Add((SectionKind)Enum.Parse(typeof(SectionKind), dismissed));
             foreach (ConfigNode sectionNode in node.GetNodes("SECTION"))
@@ -327,6 +351,38 @@ namespace ReDefinition.Engineer
                 if (bool.TryParse(stopNode.GetValue("orbitFirst"), out orbitFirst)) stop.OrbitFirst = orbitFirst;
                 bool split;
                 if (bool.TryParse(stopNode.GetValue("splitBurns"), out split)) stop.SplitBurns = split;
+                double apoapsis, inclination;
+                if (double.TryParse(stopNode.GetValue("apoapsis"), NumberStyles.Float, CultureInfo.InvariantCulture, out apoapsis) && apoapsis > stop.Altitude)
+                    stop.Apoapsis = apoapsis;
+                if (double.TryParse(stopNode.GetValue("inclination"), NumberStyles.Float, CultureInfo.InvariantCulture, out inclination))
+                {
+                    stop.HasInclination = true;
+                    stop.Inclination = Math.Max(0.0, Math.Min(180.0, inclination));
+                }
+                Guid matchPlane;
+                if (Guid.TryParse(stopNode.GetValue("matchPlane") ?? "", out matchPlane) && matchPlane != Guid.Empty)
+                {
+                    stop.MatchPlaneWith = matchPlane;
+                    stop.MatchPlaneName = stopNode.GetValue("matchPlaneName") ?? "";
+                }
+                Guid meetWith;
+                if (Guid.TryParse(stopNode.GetValue("meetWith") ?? "", out meetWith) && meetWith != Guid.Empty)
+                {
+                    stop.MeetWith = meetWith;
+                    stop.MeetName = stopNode.GetValue("meetName") ?? "";
+                    bool dock;
+                    if (bool.TryParse(stopNode.GetValue("dock"), out dock)) stop.Dock = dock;
+                    uint port;
+                    if (uint.TryParse(stopNode.GetValue("dockPort"), out port)) stop.DockWith = port;
+                }
+                double siteLatitude, siteLongitude;
+                if (double.TryParse(stopNode.GetValue("siteLatitude"), NumberStyles.Float, CultureInfo.InvariantCulture, out siteLatitude)
+                    && double.TryParse(stopNode.GetValue("siteLongitude"), NumberStyles.Float, CultureInfo.InvariantCulture, out siteLongitude))
+                {
+                    stop.HasSite = true;
+                    stop.SiteLatitude = siteLatitude;
+                    stop.SiteLongitude = siteLongitude;
+                }
                 // With a stop before it gone, the steps here are not the ones the
                 // stages were chosen for.
                 if (!skipped)

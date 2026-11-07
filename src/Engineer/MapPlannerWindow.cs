@@ -11,9 +11,9 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Engineer
 {
-    // The planner in the map view: a panel at the right edge of the screen that slides out over the map, opened and closed by a button in KSP's
-    // toolbar (MapPlannerButton). It holds the planner's rows as the editor's panel does (PlannerView), over the vessel in flight (FlightPlannerHost). It is
-    // there while the map view is, and the plan it shows is the vessel's, kept under the vessel's name.
+    // The planner in flight: a panel at the right edge of the screen that slides out over the view, the map or the vessel's own, opened and closed by a
+    // button in KSP's toolbar (MapPlannerButton). It holds the planner's rows as the editor's panel does (PlannerView), over the vessel in flight
+    // (FlightPlannerHost). It is there while a vessel is flown, and the plan it shows is the vessel's, kept under the vessel's name.
     //
     // It is made once the flight scene has a vessel, out of KSP's own elements: the rows are dialog rows (DialogGUIBase) created into a scroll
     // list in a frame of its own, on the main canvas.
@@ -45,10 +45,10 @@ namespace ReDefinition.Engineer
         // What the last press of a button came to, shown under the buttons.
         private string status = "";
 
-        // Whether the panel is up: the map view is on and a vessel is flown.
+        // Whether the panel is up: a vessel is flown, in the map view or out of it.
         private static bool Wanted
         {
-            get { return MapView.MapIsEnabled && FlightGlobals.ActiveVessel != null && HighLogic.LoadedSceneIsFlight; }
+            get { return FlightGlobals.ActiveVessel != null && HighLogic.LoadedSceneIsFlight; }
         }
 
         // Whether the panel may be made before the map is opened: some seconds into the flight, with the vessel resting or in orbit and its engines
@@ -233,6 +233,119 @@ namespace ReDefinition.Engineer
             launcher.Register();
         }
 
+        // What a goal asks of the orbit beyond its altitude: the apoapsis (0 for a round orbit), an inclination, the plane of a vessel.
+        internal sealed class Shape
+        {
+            public double Apoapsis;
+            public bool HasInclination;
+            public double Inclination;
+            public Vessel MatchPlane;
+        }
+
+        // Whether Shift is held: an entry of a menu adds its stop to the route instead of replacing the route.
+        internal static bool Adding
+        {
+            get { return Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift); }
+        }
+
+        // The route a menu chose, put into the plan once the window can take it: it may have to be made first.
+        private System.Func<PlannerView, bool> pending;
+        private float pendingUntil;
+
+        private void TryPending()
+        {
+            if (Time.unscaledTime > pendingUntil)
+            {
+                pending = null;
+                return;
+            }
+            if (pending(view)) pending = null;
+        }
+
+        // A goal put into the plan, and the window opened to show it. A goal replaces the route, planned from where the vessel is now (the old route
+        // is kept for Undo); with `add` it goes after the last stop. Nothing is flown: the Live button does that.
+        internal void PlanGoal(Vessel vessel, CelestialBody body, bool surface, double altitude, bool add, bool hasSite = false, double latitude = 0.0,
+            double longitude = 0.0, Vessel meet = null, bool dock = false, Shape shape = null)
+        {
+            if (vessel == null || body == null) return;
+            pending = planner => ApplyGoal(planner, vessel, body, surface, altitude, add, hasSite, latitude, longitude, meet, dock, shape);
+            pendingUntil = Time.unscaledTime + 15f;
+            SetOpen(true);
+        }
+
+        private bool ApplyGoal(PlannerView planner, Vessel vessel, CelestialBody body, bool surface, double altitude, bool add, bool hasSite, double latitude,
+            double longitude, Vessel meet, bool dock, Shape shape)
+        {
+            if (vessel == null || vessel != FlightGlobals.ActiveVessel) return true;
+            if (!planner.Ready) return false;
+            PlannerBodies bodies = planner.BodyList;
+            int goal = bodies.IndexOf(body.bodyName);
+            int here = vessel.mainBody != null ? bodies.IndexOf(vessel.mainBody.bodyName) : -1;
+            if (goal < 0 || here < 0)
+            {
+                status = "The planner does not know " + body.bodyName + ".";
+                return true;
+            }
+            var stop = new RouteStop
+            {
+                Body = goal, Kind = surface ? StopKind.Surface : StopKind.Orbit, Altitude = surface ? 0.0 : altitude,
+                HasSite = surface && hasSite, SiteLatitude = latitude, SiteLongitude = longitude,
+            };
+            if (shape != null && !surface)
+            {
+                stop.Apoapsis = shape.Apoapsis;
+                stop.HasInclination = shape.HasInclination;
+                stop.Inclination = shape.Inclination;
+                if (shape.MatchPlane != null)
+                {
+                    stop.MatchPlaneWith = shape.MatchPlane.id;
+                    stop.MatchPlaneName = shape.MatchPlane.vesselName;
+                }
+            }
+            if (meet != null && !surface)
+            {
+                stop.MeetWith = meet.id;
+                stop.MeetName = meet.vesselName;
+                stop.Dock = dock;
+            }
+            if (add && !planner.RouteEmpty)
+            {
+                if (!planner.PutStop(stop)) status = "The route has no room for another stop.";
+                planner.SaveNow();
+                return true;
+            }
+            bool bound = vessel.orbit != null && vessel.orbit.eccentricity < 1.0;
+            bool inOrbit = (vessel.situation == Vessel.Situations.ORBITING || vessel.situation == Vessel.Situations.ESCAPING) && vessel.orbit != null;
+            double orbitAltitude = inOrbit ? System.Math.Max(1000.0, bound ? 0.5 * (vessel.orbit.PeA + vessel.orbit.ApA) : vessel.orbit.PeA) : 0.0;
+            var start = new RouteStop { Body = here, Kind = inOrbit ? StopKind.Orbit : StopKind.Surface, Altitude = orbitAltitude };
+            planner.SetRoute(new List<RouteStop> { start, stop });
+            planner.SaveNow();
+            status = "The route is set; press the autopilot button to fly it.";
+            return true;
+        }
+
+        // The route flown to its end (`flown` is its signature): the plan is empty again for the next one, unless the player set another meanwhile.
+        // The vessel's plan is changed in the file where the window is not made for that vessel.
+        internal static void RouteDone(string vesselName, string flown)
+        {
+            if (Instance != null && Instance.view != null && Instance.view.Ready && Instance.view.VesselName == vesselName)
+            {
+                if (RoutePlan.SignatureOf(RouteSource.FromStops(Instance.view.RouteStops, Instance.view.BodyList, Instance.view.ReleasesAt)) != flown) return;
+                Instance.view.EndRoute();
+                Instance.view.SaveNow();
+                Instance.ForgetPlan();
+                return;
+            }
+            PlannerBodies bodies = PlannerBodies.Read();
+            PlannerState state = PlannerState.Load(vesselName, bodies);
+            if (RoutePlan.SignatureOf(RouteSource.FromStops(state.Stops, bodies, state.ReleasesAt)) != flown) return;
+            state.Stops.Clear();
+            state.Stops.AddRange(PlannerState.Default(bodies).Stops);
+            state.Releases.Clear();
+            foreach (PlannedSection section in state.Sections) section.DeployAt = -1;
+            state.Save(vesselName, bodies);
+        }
+
         // The toolbar button's click, or the probes: the panel slides out or in, and the button shows which.
         private void SetOpen(bool value)
         {
@@ -246,7 +359,8 @@ namespace ReDefinition.Engineer
             bool wanted = Wanted;
             if (root == null)
             {
-                if (!wanted && !QuietFlight) return;
+                // Made where the map is, where the player asks for it, or while nothing is flown; not in the middle of a climb with the view out of the map.
+                if (!(wanted && (open || MapView.MapIsEnabled)) && !QuietFlight) return;
                 try
                 {
                     Build();
@@ -284,6 +398,7 @@ namespace ReDefinition.Engineer
             {
                 view.Keep(root);
                 view.Tick();
+                if (pending != null) TryPending();
                 if (nodesPending) PlanNodes();
                 PlanByItself();
                 long listing = PlannerTiming.Start();
@@ -441,6 +556,60 @@ namespace ReDefinition.Engineer
         public string AutopilotProblem
         {
             get { return MechJebDriver.Unavailable; }
+        }
+
+        // MechJeb's switches are read from it about once a second, not by every row in every frame.
+        private readonly bool[] switchHas = new bool[3], switchOn = new bool[3];
+        private float switchesAt = -10f;
+
+        private void ReadSwitches()
+        {
+            if (Time.unscaledTime - switchesAt < 1f) return;
+            switchesAt = Time.unscaledTime;
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            for (int i = 0; i < switchHas.Length; i++)
+            {
+                bool on;
+                switchHas[i] = MechJebDriver.GetSwitch(vessel, (MechJebDriver.Switch)i, out on);
+                switchOn[i] = switchHas[i] && on;
+            }
+        }
+
+        public bool Has(MechJebSwitch which)
+        {
+            ReadSwitches();
+            return switchHas[(int)which];
+        }
+
+        public bool IsOn(MechJebSwitch which)
+        {
+            ReadSwitches();
+            return switchOn[(int)which];
+        }
+
+        public void Toggle(MechJebSwitch which)
+        {
+            if (!Has(which)) return;
+            MechJebDriver.SetSwitch(FlightGlobals.ActiveVessel, (MechJebDriver.Switch)(int)which, !switchOn[(int)which]);
+            switchesAt = -10f;
+        }
+
+        public bool DeployOnArrival
+        {
+            get { return view != null && view.DeployOnArrival; }
+        }
+
+        public void ToggleDeployOnArrival()
+        {
+            if (view != null) view.ToggleDeployOnArrival();
+        }
+
+        // Whether the vessel's plan puts the folded parts out where the route ends: from the window where it holds that vessel's plan, else the file.
+        internal static bool DeploysOnArrival(string vesselName)
+        {
+            if (Instance != null && Instance.view != null && Instance.view.Ready && Instance.view.VesselName == vesselName) return Instance.view.DeployOnArrival;
+            PlannerBodies bodies = PlannerBodies.Read();
+            return PlannerState.Load(vesselName, bodies).DeployOnArrival;
         }
 
         // Each switch turns the other off: the navigation stops a flight and takes the plan over, the autopilot flies where the navigation was.

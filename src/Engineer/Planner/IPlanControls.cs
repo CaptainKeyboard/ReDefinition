@@ -1,5 +1,13 @@
 namespace ReDefinition.Engineer
 {
+    // The switches of MechJeb that the planner's window offers.
+    public enum MechJebSwitch
+    {
+        AutoStaging,
+        LimitPressure,
+        LimitAcceleration,
+    }
+
     // What the planner's part "Guidance" asks of the window it stands in: whether the route is planned, which of the navigation and the autopilot
     // is on, the lines that say what the route is doing, and the two switches. The editor has none, and then the part is left out.
     internal interface IPlanControls
@@ -18,6 +26,12 @@ namespace ReDefinition.Engineer
         // And how fast it moves round the body, in m/s, while it is on its way up from a surface: 0 on the ground and in orbit.
         int Reached { get; }
         double LaunchSpeed { get; }
+        // MechJeb's own switches and the planner's choice to put the folded parts out on arrival; whether MechJeb has each in this build.
+        bool Has(MechJebSwitch which);
+        bool IsOn(MechJebSwitch which);
+        void Toggle(MechJebSwitch which);
+        bool DeployOnArrival { get; }
+        void ToggleDeployOnArrival();
         // Each switch turns the other off.
         void ToggleNavigation();
         void ToggleAutopilot();

@@ -296,6 +296,28 @@ namespace ReDefinition.Engineer
                 lower, typed, new DialogGUILabel("<color=" + Dim + ">km</color>", 24f), raise);
             altitude.OptionEnabledCondition = () => model.HasBody(index) && model.Kind(index) == StopKind.Orbit;
             yield return altitude;
+
+            // The orbit's shape: an apoapsis above the altitude (the altitude is then the periapsis) and an inclination, both optional.
+            DialogGUITextInput apoapsisField = new DialogGUITextInput("", false, 7, text =>
+            {
+                model.SetApoapsis(index, text);
+                return text;
+            }, () => model.ApoapsisKm(index), TMPro.TMP_InputField.ContentType.DecimalNumber, Square);
+            apoapsisField.size = new Vector2(72f, Square);
+            DialogGUITextInput inclinationField = new DialogGUITextInput("", false, 6, text =>
+            {
+                model.SetInclination(index, text);
+                return text;
+            }, () => model.InclinationText(index), TMPro.TMP_InputField.ContentType.DecimalNumber, Square);
+            inclinationField.size = new Vector2(60f, Square);
+            altitudeFields.Add(apoapsisField);
+            altitudeFields.Add(inclinationField);
+            DialogGUIHorizontalLayout shape = new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(),
+                TextAnchor.MiddleLeft, TimelineLine(RowHeight + 2f), new DialogGUISpace(LetterWidth),
+                new DialogGUILabel("<color=" + Dim + ">Ap</color>", 18f), apoapsisField, new DialogGUILabel("<color=" + Dim + ">km</color>", 24f),
+                new DialogGUILabel("<color=" + Dim + ">Inc</color>", 24f), inclinationField, new DialogGUILabel("<color=" + Dim + ">deg</color>", 30f));
+            shape.OptionEnabledCondition = () => model.HasBody(index) && model.Kind(index) == StopKind.Orbit && index > 0;
+            yield return shape;
         }
 
         // After the last stop: its dot, the next letter and "+" to add it there.

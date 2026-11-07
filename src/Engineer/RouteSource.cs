@@ -22,7 +22,21 @@ namespace ReDefinition.Engineer
                 if (stop.Kind == StopKind.Entry || stop.Kind == StopKind.Transfer) continue;
                 string id = stop.Body >= 0 && stop.Body < bodies.Bodies.Count ? bodies.Bodies[stop.Body].Id : null;
                 CelestialBody body = id != null ? FlightGlobals.Bodies.Find(b => b.bodyName == id) : null;
-                Destination destination = Arrival(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude }, stop, bodies);
+                Destination destination = Arrival(new Destination { Body = body, Surface = stop.Kind == StopKind.Surface, Altitude = stop.Altitude,
+                    HasSite = stop.HasSite && stop.Kind == StopKind.Surface, SiteLatitude = stop.SiteLatitude, SiteLongitude = stop.SiteLongitude }, stop, bodies);
+                if (stop.Kind == StopKind.Orbit)
+                {
+                    destination.Apoapsis = stop.Apoapsis;
+                    destination.HasInclination = stop.HasInclination;
+                    destination.Inclination = stop.Inclination;
+                    destination.MatchPlaneWith = stop.MatchPlaneWith;
+                }
+                if (stop.MeetWith != Guid.Empty && stop.Kind == StopKind.Orbit && ForeignAssumptions.MechJebRendezvous.Holds)
+                {
+                    destination.MeetWith = stop.MeetWith;
+                    destination.Dock = stop.Dock;
+                    destination.DockWith = stop.DockWith;
+                }
                 if (releasesAt != null) destination.Releases = releasesAt(at);
                 route.Add(destination);
             }
@@ -38,6 +52,7 @@ namespace ReDefinition.Engineer
             ITargetable target = FlightGlobals.fetch != null ? FlightGlobals.fetch.VesselTarget : null;
             Vessel vessel = target != null ? target.GetVessel() : null;
             Destination last = route[route.Count - 1];
+            if (last.MeetWith != Guid.Empty) return;
             if (!ForeignAssumptions.MechJebRendezvous.Holds) return;
             if (vessel == null || last.Surface || last.Body == null || vessel.mainBody != last.Body || vessel == FlightGlobals.ActiveVessel) return;
             // Only a vessel in an orbit can be met.

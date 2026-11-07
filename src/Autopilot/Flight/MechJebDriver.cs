@@ -425,6 +425,173 @@ namespace ReDefinition.Autopilot.Flight
             }
         }
 
+        // The switches of MechJeb's own that the planner's window shows. They are MechJeb's settings and are read from it each time: without the
+        // member in this build the switch is not there.
+        internal enum Switch
+        {
+            AutoStaging,
+            LimitPressure,
+            LimitAcceleration,
+        }
+
+        // Where a switch lives: the object and the member that holds it; null where the build has none.
+        private static bool Locate(Vessel vessel, Switch which, out object owner, out PropertyInfo property, out FieldInfo field)
+        {
+            owner = null;
+            property = null;
+            field = null;
+            try
+            {
+                owner = Module(vessel, "Thrust");
+                field = owner != null ? owner.GetType().GetField(which == Switch.LimitPressure ? "LimitDynamicPressure" : "LimitAcceleration", TypeLookup.Any) : null;
+                return field != null && field.FieldType == typeof(bool);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " MechJeb: no switch " + which + ": " + e.Message);
+                return false;
+            }
+        }
+
+        // MechJeb's own "Autostage" checkbox is the thrust window being a user of the staging controller, with the choice saved in the window
+        // (MechJebModuleThrustWindow.Autostage); the controller's Enabled is true for other users as well. Null where the build has no such pair.
+        private static bool StagingUsers(Vessel vessel, out object window, out object users, out FieldInfo saved)
+        {
+            window = ComputerModule(vessel, "MechJebModuleThrustWindow");
+            object staging = Module(vessel, "Staging");
+            FieldInfo pool = staging != null ? staging.GetType().GetField("Users", TypeLookup.Any) : null;
+            users = pool != null ? pool.GetValue(staging) : null;
+            saved = window != null ? window.GetType().GetField("autostageSavedState", TypeLookup.Any) : null;
+            return window != null && users is System.Collections.IList;
+        }
+
+        // Whether the switch exists in this MechJeb, and whether it is on.
+        internal static bool GetSwitch(Vessel vessel, Switch which, out bool on)
+        {
+            on = false;
+            if (which == Switch.AutoStaging)
+            {
+                object thrustWindow, users;
+                FieldInfo saved;
+                if (!StagingUsers(vessel, out thrustWindow, out users, out saved)) return false;
+                on = ((System.Collections.IList)users).Contains(thrustWindow);
+                return true;
+            }
+            object owner;
+            PropertyInfo property;
+            FieldInfo field;
+            if (!Locate(vessel, which, out owner, out property, out field)) return false;
+            on = (bool)(property != null ? property.GetValue(owner, null) : field.GetValue(owner));
+            return true;
+        }
+
+        internal static bool SetSwitch(Vessel vessel, Switch which, bool on)
+        {
+            if (which == Switch.AutoStaging)
+            {
+                object thrustWindow, users;
+                FieldInfo saved;
+                if (!StagingUsers(vessel, out thrustWindow, out users, out saved)) return false;
+                // The pool's own Add and Remove, which enable and disable the controller; the list's would not.
+                MethodInfo change = users.GetType().GetMethod(on ? "Add" : "Remove", TypeLookup.Any, null, new[] { typeof(object) }, null);
+                if (change == null) return false;
+                bool has = ((System.Collections.IList)users).Contains(thrustWindow);
+                if (on != has) change.Invoke(users, new[] { thrustWindow });
+                if (saved != null && saved.FieldType == typeof(bool)) saved.SetValue(thrustWindow, on);
+                return true;
+            }
+            object owner;
+            PropertyInfo property;
+            FieldInfo field;
+            if (!Locate(vessel, which, out owner, out property, out field)) return false;
+            if (property != null) property.SetValue(owner, on, null);
+            else field.SetValue(owner, on);
+            return true;
+        }
+
+        // MechJeb's rover controller drives the vessel over the ground to a waypoint. The module and its members are looked up by name; a vessel
+        // without wheels, or a build without them, cannot drive.
+        private const string RoverModule = "MechJebModuleRoverController";
+
+        internal static bool CanDrive(Vessel vessel)
+        {
+            if (vessel == null || !vessel.loaded || RouteTuning.NoMechJeb) return false;
+            // A motor drives the wheels; landing legs are wheels of the game too, and drive nowhere.
+            if (vessel.FindPartModulesImplementing<ModuleWheels.ModuleWheelMotor>().Count == 0) return false;
+            object rover = ComputerModule(vessel, RoverModule);
+            return rover != null && rover.GetType().GetField("Waypoints", TypeLookup.Any) != null && rover.GetType().GetField("WaypointIndex", TypeLookup.Any) != null;
+        }
+
+        // Sends the rover to the place: its waypoint list is replaced by the one waypoint, and it steers and keeps its speed by itself.
+        internal static bool StartDriving(Vessel vessel, double latitude, double longitude)
+        {
+            try
+            {
+                object rover = ComputerModule(vessel, RoverModule);
+                Type waypoint = TypeLookup.Find("MuMech.MechJebWaypoint");
+                if (rover == null || waypoint == null) return false;
+                ConstructorInfo made = null;
+                foreach (ConstructorInfo each in waypoint.GetConstructors())
+                {
+                    ParameterInfo[] parameters = each.GetParameters();
+                    if (parameters.Length >= 2 && parameters[0].ParameterType == typeof(double) && parameters[1].ParameterType == typeof(double)) made = each;
+                }
+                if (made == null) return false;
+                ParameterInfo[] all = made.GetParameters();
+                var arguments = new object[all.Length];
+                arguments[0] = latitude;
+                arguments[1] = longitude;
+                for (int i = 2; i < all.Length; i++)
+                    arguments[i] = all[i].HasDefaultValue ? all[i].DefaultValue : (all[i].ParameterType.IsValueType ? Activator.CreateInstance(all[i].ParameterType) : null);
+                Type type = rover.GetType();
+                var list = (System.Collections.IList)type.GetField("Waypoints", TypeLookup.Any).GetValue(rover);
+                list.Clear();
+                list.Add(made.Invoke(arguments));
+                type.GetField("WaypointIndex", TypeLookup.Any).SetValue(rover, 0);
+                FieldInfo heading = type.GetField("ControlHeading", TypeLookup.Any), speed = type.GetField("ControlSpeed", TypeLookup.Any);
+                if (heading != null) heading.SetValue(rover, true);
+                if (speed != null) speed.SetValue(rover, true);
+                PropertyInfo enabled = type.GetProperty("Enabled", TypeLookup.Any);
+                if (enabled != null) enabled.SetValue(rover, true, null);
+                return true;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " MechJeb: the rover did not start: " + e.Message);
+                return false;
+            }
+        }
+
+        // Whether the rover still has its waypoint to drive to; MechJeb sets the index back to -1 at the last one.
+        internal static bool DrivingBusy(Vessel vessel)
+        {
+            object rover = ComputerModule(vessel, RoverModule);
+            if (rover == null) return false;
+            FieldInfo index = rover.GetType().GetField("WaypointIndex", TypeLookup.Any);
+            return index != null && (int)index.GetValue(rover) > -1 && Enabled(rover);
+        }
+
+        internal static void StopDriving(Vessel vessel)
+        {
+            try
+            {
+                object rover = ComputerModule(vessel, RoverModule);
+                if (rover == null) return;
+                Type type = rover.GetType();
+                FieldInfo heading = type.GetField("ControlHeading", TypeLookup.Any), speed = type.GetField("ControlSpeed", TypeLookup.Any);
+                if (heading != null) heading.SetValue(rover, false);
+                if (speed != null) speed.SetValue(rover, false);
+                type.GetField("WaypointIndex", TypeLookup.Any).SetValue(rover, -1);
+                ((System.Collections.IList)type.GetField("Waypoints", TypeLookup.Any).GetValue(rover)).Clear();
+                PropertyInfo enabled = type.GetProperty("Enabled", TypeLookup.Any);
+                if (enabled != null) enabled.SetValue(rover, false, null);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " MechJeb: the rover did not stop: " + e.Message);
+            }
+        }
+
         internal static bool LandingBusy(Vessel vessel)
         {
             return Enabled(Module(vessel, "Landing"));
