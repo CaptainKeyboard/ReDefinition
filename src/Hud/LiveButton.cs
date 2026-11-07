@@ -5,7 +5,6 @@ using ReDefinition.Autopilot.Flight;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
 using ReDefinition.Ui;
-using KSP.UI.Screens.Flight;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -112,28 +111,19 @@ namespace ReDefinition.Hud
             rect.anchoredPosition = new Vector2(right + 7.5f * Gap, 0f);
         }
 
-        // The right edge, in the canvas's units, of the buttons the game stands right of the altimeter and the stage gauge (gear, lights, alert), found as
-        // the buttons in the top strip of the screen right of the altimeter's drums. Null where they are not found.
+        // The right edge, in the canvas's units, of the game's buttons for the lights, the gear and the brakes beside the altimeter and the stage
+        // gauge, which the game names ButtonActionGroup... Null where they are not found.
         private float? BesideGauge()
         {
-            AltitudeTumbler tumbler = AltitudeTumbler.Instance;
-            if (tumbler == null || root == null) return null;
+            if (root == null) return null;
             var corners = new Vector3[4];
-            ((RectTransform)tumbler.transform).GetWorldCorners(corners);
-            float from = root.InverseTransformPoint(corners[2]).x;
             float? best = null;
             foreach (Selectable selectable in root.GetComponentsInChildren<Selectable>(false))
             {
-                if (selectable == null || selectable.gameObject == made) continue;
-                var rt = selectable.transform as RectTransform;
-                if (rt == null || rt.rect.width < 20f || rt.rect.width > 120f) continue;
-                rt.GetWorldCorners(corners);
-                Vector3 low = root.InverseTransformPoint(corners[0]);
-                Vector3 high = root.InverseTransformPoint(corners[2]);
-                // In the top strip, past the altimeter's right edge and no further than the gauge's buttons reach.
-                if (high.y < root.rect.yMax - 140f || low.y > root.rect.yMax + 1f) continue;
-                if (low.x < from - 10f || high.x > from + 420f) continue;
-                if (!best.HasValue || high.x > best.Value) best = high.x;
+                if (selectable == null || !selectable.name.StartsWith("ButtonActionGroup")) continue;
+                ((RectTransform)selectable.transform).GetWorldCorners(corners);
+                float right = root.InverseTransformPoint(corners[2]).x;
+                if (!best.HasValue || right > best.Value) best = right;
             }
             return best;
         }
