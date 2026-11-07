@@ -5,6 +5,7 @@ using ReDefinition.Autopilot.Flight;
 using ReDefinition.Core;
 using ReDefinition.Engineer;
 using ReDefinition.Ui;
+using KSP.UI.Screens.Flight;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -30,6 +31,8 @@ namespace ReDefinition.Hud
         private KSP.UI.TooltipTypes.TooltipController_Text tooltip;
         private Sprite lit, dark;
         private float asked;
+        private float nextLook;
+        private float? beside;
         private bool possible;
         private string reason;
 
@@ -86,6 +89,16 @@ namespace ReDefinition.Hud
         {
             RectTransform rect = face != null ? (RectTransform)face.transform : null;
             if (rect == null || root == null) return;
+            if (Time.unscaledTime > nextLook)
+            {
+                nextLook = Time.unscaledTime + 1f;
+                beside = BesideGauge();
+            }
+            if (beside.HasValue)
+            {
+                rect.anchoredPosition = new Vector2(beside.Value - root.rect.xMin + 0.6f * Gap, 0f);
+                return;
+            }
             float right = 0f;
             if (panel != null)
             {
@@ -95,8 +108,34 @@ namespace ReDefinition.Hud
                 area.GetWorldCorners(corners);
                 right = root.InverseTransformPoint(corners[2]).x - root.rect.xMin;
             }
-            // Past the sunrise button, which slides out at the panel's right edge as it opens, and level with the panel's row, which is about as high.
+            // Without the gauge's buttons: past the sunrise button, which slides out at the panel's right edge as it opens.
             rect.anchoredPosition = new Vector2(right + 7.5f * Gap, 0f);
+        }
+
+        // The right edge, in the canvas's units, of the buttons the game stands right of the altimeter and the stage gauge (gear, lights, alert), found as
+        // the buttons in the top strip of the screen right of the altimeter's drums. Null where they are not found.
+        private float? BesideGauge()
+        {
+            AltitudeTumbler tumbler = AltitudeTumbler.Instance;
+            if (tumbler == null || root == null) return null;
+            var corners = new Vector3[4];
+            ((RectTransform)tumbler.transform).GetWorldCorners(corners);
+            float from = root.InverseTransformPoint(corners[2]).x;
+            float? best = null;
+            foreach (Selectable selectable in root.GetComponentsInChildren<Selectable>(false))
+            {
+                if (selectable == null || selectable.gameObject == made) continue;
+                var rt = selectable.transform as RectTransform;
+                if (rt == null || rt.rect.width < 20f || rt.rect.width > 120f) continue;
+                rt.GetWorldCorners(corners);
+                Vector3 low = root.InverseTransformPoint(corners[0]);
+                Vector3 high = root.InverseTransformPoint(corners[2]);
+                // In the top strip, past the altimeter's right edge and no further than the gauge's buttons reach.
+                if (high.y < root.rect.yMax - 140f || low.y > root.rect.yMax + 1f) continue;
+                if (low.x < from - 10f || high.x > from + 420f) continue;
+                if (!best.HasValue || high.x > best.Value) best = high.x;
+            }
+            return best;
         }
 
         private void LateUpdate()
