@@ -2,6 +2,7 @@ using System.Collections;
 using System.IO;
 using KSP.UI;
 using KSP.UI.Screens;
+using KSP.UI.Screens.Mapview;
 using ReDefinition.Autopilot.Flight;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
@@ -44,6 +45,12 @@ namespace ReDefinition.Probe
             yield return new WaitForSeconds(10f);
             ReportPlan(window, "Mun orbit");
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-mun.png"));
+            yield return ProbeSteps.Frames(10);
+
+            // Navigate to Surface: no site, so no plane turn and no marker, only the burn that brings the orbit down.
+            window.PlanGoal(vessel, mun, true, 0.0, false);
+            yield return new WaitForSeconds(10f);
+            ReportPlan(window, "Mun surface");
             yield return ProbeSteps.Frames(10);
 
             // A shaped orbit: an apoapsis and an inclination, planned by the autopilot's own planner.
@@ -91,6 +98,12 @@ namespace ReDefinition.Probe
                       + " km, inclination " + now.inclination.ToString("0.0") + " degrees; asked " + (apoapsis / 1000.0).ToString("0.0") + " km and " + inclination.ToString("0.0") + " degrees.");
             yield return new WaitForSeconds(3f);
             Debug.Log(Log.Tag + " Probe: goals: the route afterwards " + (window.RouteIsEmpty ? "is empty" : "is not empty") + ".");
+            // The orbit is no longer round and no longer in the equator: the icons of its apsides and nodes have something to offer.
+            MapView.EnterMapView();
+            yield return new WaitForSeconds(4f);
+            if (FlightGlobals.ActiveVessel.mapObject != null) PlanetariumCamera.fetch.SetTarget(FlightGlobals.ActiveVessel.mapObject);
+            yield return new WaitForSeconds(3f);
+            yield return MarkerMenuShot(folder, FlightGlobals.ActiveVessel);
             Debug.Log(Log.Tag + " Probe: goals done.");
         }
 
@@ -101,6 +114,30 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: goals: " + what + ": " + (plan == null ? "no plan (" + window.Status + ")" : plan.Steps.Count + " step(s), " + plan.DeltaV.ToString("0") + " m/s, "
                       + (plan.Failed ? "FAILED: " : "") + (plan.Ended ?? "no end")));
             if (plan != null) foreach (PlannedStep step in plan.Steps) Debug.Log(Log.Tag + " Probe: goals:   step " + step.Kind + " goal " + step.Goal + ": " + step.Why);
+        }
+
+        // A click on the apoapsis icon and on the ascending node icon, as the map's menu makes it for them, as shots.
+        private static IEnumerator MarkerMenuShot(string folder, Vessel vessel)
+        {
+            MapMarkerMenu menu = Object.FindObjectOfType<MapMarkerMenu>();
+            System.Reflection.MethodInfo clicked = typeof(MapMarkerMenu).GetMethod("Clicked", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (menu == null || clicked == null)
+            {
+                Debug.Log(Log.Tag + " Probe: goals: the marker menu was not found.");
+                yield break;
+            }
+            string[] names = { "Apoapsis", "AscendingNode" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                object marker = System.Enum.Parse(clicked.GetParameters()[0].ParameterType, names[i]);
+                clicked.Invoke(menu, new object[] { marker, Mouse.Buttons.Left });
+                yield return new WaitForSeconds(2f);
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-marker-" + names[i] + ".png"));
+                yield return new WaitForSeconds(1f);
+                object open = typeof(MapMarkerMenu).GetField("open", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(menu);
+                Debug.Log(Log.Tag + " Probe: goals: the " + names[i] + " menu is " + (open != null ? "open" : "not open") + ".");
+                if (open != null) ((MapContextMenu)open).Dismiss();
+            }
         }
 
         // The game's own menu of a body in the map, as it makes it for a click on the icon, as a shot.

@@ -100,8 +100,10 @@ namespace ReDefinition.Engineer
             Making = true;
             try
             {
-                var hit = new OrbitRendererBase.OrbitCastHit { driver = vessel.orbitDriver, or = vessel.orbitDriver.Renderer, mouseTA = orbit.trueAnomaly };
-                open = MapContextMenu.Create(MarkerTitle(marker), hit, () => open = null, options.ToArray());
+                MapContextMenu made = null;
+                // The game calls this when the menu is gone, which for the one before comes after the next is made.
+                made = MapContextMenu.Create(MarkerTitle(marker), new At(), () => { if (open == made) open = null; }, options.ToArray());
+                open = made;
             }
             finally
             {
@@ -126,6 +128,18 @@ namespace ReDefinition.Engineer
             foreach (KeyValuePair<MapNode, Callback<MapNode, Mouse.Buttons>> pair in hooked)
                 if (pair.Key != null) pair.Key.OnClick -= pair.Value;
             hooked.Clear();
+        }
+
+        // Where the menu hangs: at the mouse as it clicked the icon, on the screen, where it stays while the map's camera moves. The game shows a menu
+        // only for a point in front of the camera: z above zero.
+        private sealed class At : IScreenCaster
+        {
+            private readonly Vector3 point = new Vector3(Input.mousePosition.x, Input.mousePosition.y, 1f);
+
+            public Vector3 GetScreenSpacePoint()
+            {
+                return point;
+            }
         }
 
         private sealed class Entry : MapContextMenuOption
