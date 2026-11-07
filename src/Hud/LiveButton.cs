@@ -10,15 +10,16 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Hud
 {
-    // The button of the autopilot, at the top of the screen right of the time panel, big, with a red lamp. The lamp is lit while the autopilot flies, dark while it does not.
+    // The button of the autopilot, at the top of the screen right of the time panel, small, in the panel's row, with a red lamp in a grey ring. The lamp is lit
+    // while the autopilot flies, dark while it does not.
     // One press starts what there is to fly: the route of the planner or the climb and the descent the navigation guides, else the maneuver nodes made in
     // the map, flown by MechJeb. Where there is nothing to fly it offers the goals the vessel can be sent to (LiveMenu), which only set the planner's
     // route. Another press lets the vessel go. Where MechJeb cannot fly the button cannot be pressed.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     public class LiveButton : MonoBehaviour
     {
-        // The edge of the button, in the canvas's units, and the gap to the panel above it and to the screen's edge.
-        private const float Size = 76f;
+        // The edge of the button, in the canvas's units, and the gap that its place right of the time panel is counted in.
+        private const float Size = 38f;
         private const float Gap = 10f;
 
         private RectTransform root;
@@ -94,8 +95,8 @@ namespace ReDefinition.Hud
                 area.GetWorldCorners(corners);
                 right = root.InverseTransformPoint(corners[2]).x - root.rect.xMin;
             }
-            // Past the sunrise button, which slides out at the panel's right edge as it opens.
-            rect.anchoredPosition = new Vector2(right + 4f * Gap, -Gap);
+            // Past the sunrise button, which slides out at the panel's right edge as it opens, and level with the panel's row, which is about as high.
+            rect.anchoredPosition = new Vector2(right + 7.5f * Gap, 0f);
         }
 
         private void LateUpdate()
