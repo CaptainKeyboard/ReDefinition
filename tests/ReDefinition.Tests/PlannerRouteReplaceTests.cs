@@ -206,5 +206,26 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Station", read.Stops[1].MatchPlaneName);
             Assert.AreEqual(0.0, read.Stops[0].Apoapsis);
         }
+
+        // An orbit with an apoapsis and an inclination costs what raising the apoapsis and turning the plane cost, on top of the round orbit.
+        [TestMethod]
+        public void TheShapeOfAnOrbitIsInTheLegsDeltaV()
+        {
+            PlannerBodies bodies = PlannerModelFixture.Bodies();
+            PlannerBody kerbin = bodies.Bodies[Kerbin];
+            var from = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 80000.0 };
+            var round = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 80000.0 };
+            var shaped = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 80000.0, Apoapsis = 250000.0, HasInclination = true, Inclination = 30.0 };
+
+            Leg flat = RoutePlanner.LegOf(bodies.Bodies, from, round, 0, false);
+            Leg leg = RoutePlanner.LegOf(bodies.Bodies, from, shaped, 0, false);
+
+            double rp = kerbin.Radius + 80000.0, ra = kerbin.Radius + 250000.0;
+            double raise = System.Math.Sqrt(kerbin.Mu * (2.0 / rp - 2.0 / (rp + ra))) - System.Math.Sqrt(kerbin.Mu / rp);
+            double turn = 2.0 * System.Math.Sqrt(kerbin.Mu / rp) * System.Math.Sin(15.0 * System.Math.PI / 180.0);
+            Assert.AreEqual(flat.DeltaV + raise + turn, leg.DeltaV, 1.0);
+            Assert.IsTrue(leg.Lines.Exists(line => line.Name.StartsWith("Raise the apoapsis")));
+            Assert.IsTrue(leg.Lines.Exists(line => line.Name.StartsWith("Turn the plane")));
+        }
     }
 }

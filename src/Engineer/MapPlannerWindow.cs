@@ -703,6 +703,17 @@ namespace ReDefinition.Engineer
             for (int i = 0; i < count && view != null; i++) view.AddStopNow();
         }
 
+        // For the probes: the route emptied, and whether it is.
+        internal void ClearNow()
+        {
+            if (view != null) view.ClearRoute();
+        }
+
+        internal bool RouteIsEmpty
+        {
+            get { return view == null || view.RouteEmpty; }
+        }
+
         // For the probes: the panel out, whether it was made before they asked or not.
         internal void OpenNow()
         {

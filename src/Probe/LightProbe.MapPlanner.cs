@@ -138,6 +138,11 @@ namespace ReDefinition.Probe
                 yield return UiTourRun(folder);
                 yield break;
             }
+            if (CommandLine.Has("-redefinitionProbeGoals"))
+            {
+                yield return GoalsRun(folder);
+                yield break;
+            }
             if (CommandLine.Has("-redefinitionProbeNodesFly"))
             {
                 yield return NodesFlyRun(folder);

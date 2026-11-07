@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Ui;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace ReDefinition.Engineer
 {
@@ -23,7 +24,7 @@ namespace ReDefinition.Engineer
             if (onGround)
                 entries.Add(Entry("Launch to Orbit", () => window.PlanGoal(vessel, here, false, NextStepPlanner.LowOrbit(here), MapPlannerWindow.Adding)));
             if (inOrbit && here.hasSolidSurface && here.pqsController != null)
-                entries.Add(Entry("Land on " + here.displayName.LocalizeRemoveGender(), () => window.PlanGoal(vessel, here, true, 0.0, MapPlannerWindow.Adding)));
+                entries.Add(Entry("Land on " + here.bodyName, () => window.PlanGoal(vessel, here, true, 0.0, MapPlannerWindow.Adding)));
             // An orbit that is not round is rounded at its apoapsis or its periapsis: the planner's change of orbit to that altitude is one burn there.
             if (inOrbit && vessel.orbit != null && vessel.orbit.eccentricity < 1.0 && vessel.orbit.eccentricity > 0.01)
             {
@@ -40,12 +41,12 @@ namespace ReDefinition.Engineer
             }
             CelestialBody home = FlightGlobals.GetHomeBody();
             if (home != null && home != here && (inOrbit || onGround))
-                entries.Add(Entry("Return to " + home.displayName.LocalizeRemoveGender(), () => window.PlanGoal(vessel, home, false, NextStepPlanner.LowOrbit(home), MapPlannerWindow.Adding)));
+                entries.Add(Entry("Return to " + home.bodyName, () => window.PlanGoal(vessel, home, false, NextStepPlanner.LowOrbit(home), MapPlannerWindow.Adding)));
             foreach (CelestialBody body in onGround || inOrbit ? Reachable(here) : new CelestialBody[0])
             {
                 CelestialBody goal = body;
                 if (goal == home && home != here) continue;
-                entries.Add(Entry(goal.displayName.LocalizeRemoveGender() + " Orbit", () => window.PlanGoal(vessel, goal, false, NextStepPlanner.LowOrbit(goal), MapPlannerWindow.Adding)));
+                entries.Add(Entry(goal.bodyName + " Orbit", () => window.PlanGoal(vessel, goal, false, NextStepPlanner.LowOrbit(goal), MapPlannerWindow.Adding)));
             }
             Vessel meet = Meetable(vessel);
             if (meet != null && inOrbit)
@@ -54,11 +55,12 @@ namespace ReDefinition.Engineer
                 if (HasDockingPort(meet)) entries.Add(Entry("Dock with " + meet.vesselName, () => Meet(window, vessel, meet, true)));
             }
             entries.Add(Entry("Open Planner", window.OpenNow));
-            entries.Add(new DialogGUIButton("Close", () => { }, 220f, 26f, true));
-            var dialog = new MultiOptionDialog("ReDefinitionLiveMenu", "", "Autopilot", HighLogic.UISkin, 240f,
-                new DialogGUIVerticalLayout(220f, -1f, 2f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, entries.ToArray()));
+            entries.Add(new DialogGUIButton("Close", () => { }, 170f, 26f, true));
+            var dialog = new MultiOptionDialog("ReDefinitionLiveMenu", "", "Autopilot", HighLogic.UISkin, 190f,
+                new DialogGUIVerticalLayout(170f, -1f, 2f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, entries.ToArray()));
             var anchor = new Vector2(0.2f, 0.72f);
             shown = PopupDialog.SpawnPopupDialog(anchor, anchor, dialog, false, HighLogic.UISkin, false);
+            PlaceUnderButton();
             UnityMouseEvents.Shield(ScreenFit.Add(shown));
             UiHygiene.MouseOnly(shown.gameObject);
         }
@@ -113,6 +115,20 @@ namespace ReDefinition.Engineer
             window.PlanGoal(flown, meet.mainBody, false, altitude, MapPlannerWindow.Adding, false, 0.0, 0.0, meet, dock);
         }
 
+        // The menu hangs from the lower left corner of the Live button, which is where the player pressed.
+        private static void PlaceUnderButton()
+        {
+            GameObject button = GameObject.Find("ReDefinitionLiveButton");
+            RectTransform rect = shown != null ? shown.RTrf : null;
+            if (button == null || rect == null) return;
+            var corners = new Vector3[4];
+            ((RectTransform)button.transform).GetWorldCorners(corners);
+            Canvas.ForceUpdateCanvases();
+            LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
+            Vector3 size = new Vector3(rect.rect.width * rect.lossyScale.x, rect.rect.height * rect.lossyScale.y, 0f);
+            rect.position = new Vector3(corners[0].x + size.x * rect.pivot.x, corners[0].y - size.y * (1f - rect.pivot.y), rect.position.z);
+        }
+
         internal static void Close()
         {
             if (shown != null) shown.Dismiss();
@@ -121,7 +137,7 @@ namespace ReDefinition.Engineer
 
         private static DialogGUIButton Entry(string label, Callback choose)
         {
-            return new DialogGUIButton(label, choose, 220f, 26f, true);
+            return new DialogGUIButton(label, choose, 170f, 26f, true);
         }
 
         // The bodies the route can go to from the one the vessel is round: its moons, the body it circles and the bodies that circle that one too.
@@ -131,7 +147,8 @@ namespace ReDefinition.Engineer
                 foreach (CelestialBody moon in here.orbitingBodies) yield return moon;
             CelestialBody parent = here.referenceBody;
             if (parent == null || parent == here) yield break;
-            yield return parent;
+            // The sun has no orbit to go to.
+            if (parent.referenceBody != parent) yield return parent;
             if (parent.orbitingBodies != null)
                 foreach (CelestialBody sibling in parent.orbitingBodies)
                     if (sibling != here) yield return sibling;

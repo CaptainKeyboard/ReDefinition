@@ -203,10 +203,41 @@ namespace ReDefinition.Engineer
         // with the plane change between the bodies' orbits on the way across.
         internal static Leg LegOf(IList<PlannerBody> bodies, RouteStop from, RouteStop to, int index, bool planeChanges)
         {
+            Leg leg = LegCore(bodies, from, to, index, planeChanges);
+            AddShape(leg, bodies, from, to.Kind == StopKind.Transfer && to.Final != null ? to.Final : to);
+            return leg;
+        }
+
+        // The burns that give the stop's orbit its shape, after those that reach it as a round orbit. The apoapsis is raised at the periapsis.
+        // The plane is turned from the inclination of the stop before, the equator where that has none. The plane of another vessel is not known here and costs nothing.
+        private static void AddShape(Leg leg, IList<PlannerBody> bodies, RouteStop from, RouteStop stop)
+        {
+            if (stop.Kind != StopKind.Orbit || stop.Body < 0 || stop.Body >= bodies.Count) return;
+            PlannerBody body = bodies[stop.Body];
+            double rp = body.Radius + stop.Altitude;
+            if (stop.Apoapsis > stop.Altitude)
+            {
+                double ra = body.Radius + stop.Apoapsis;
+                double round = Math.Sqrt(body.Mu / rp);
+                double ellipse = Math.Sqrt(body.Mu * (2.0 / rp - 2.0 / (rp + ra)));
+                leg.Add("Raise the apoapsis to " + Km(stop.Apoapsis), ellipse - round, stop.Body, rp);
+            }
+            if (stop.HasInclination)
+            {
+                double before = from.Kind == StopKind.Orbit && from.HasInclination ? from.Inclination : 0.0;
+                double turn = Math.Abs(stop.Inclination - before) * Math.PI / 180.0;
+                double speed = Math.Sqrt(body.Mu / rp);
+                leg.Add("Turn the plane to " + stop.Inclination.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " degrees", 2.0 * speed * Math.Sin(0.5 * turn),
+                    stop.Body, rp);
+            }
+        }
+
+        private static Leg LegCore(IList<PlannerBody> bodies, RouteStop from, RouteStop to, int index, bool planeChanges)
+        {
             // A way across split in two: the burn that leaves, then the rest.
-            if (to.Kind == StopKind.Transfer && to.Final != null) return Part(LegOf(bodies, from, to.Final, index, planeChanges), true);
+            if (to.Kind == StopKind.Transfer && to.Final != null) return Part(LegCore(bodies, from, to.Final, index, planeChanges), true);
             if (from.Kind == StopKind.Transfer && from.Origin != null)
-                return Part(LegOf(bodies, from.Origin, to, index, planeChanges), false);
+                return Part(LegCore(bodies, from.Origin, to, index, planeChanges), false);
             Leg leg = new Leg { From = index, To = index + 1 };
             PlannerBody start = bodies[from.Body];
             PlannerBody end = bodies[to.Body];
