@@ -106,13 +106,13 @@ namespace ReDefinition.Probe
                 RouteDriver.Instance.ToggleAutopilot(vessel);
                 float flownFrom = Time.realtimeSinceStartup;
                 yield return new WaitForSeconds(5f);
-                while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - flownFrom < 1500f)
+                while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - flownFrom < 1000f)
                 {
                     yield return new WaitForSeconds(15f);
                     Debug.Log(Log.Tag + " Probe: click: flying, inclination " + vessel.orbit.inclination.ToString("0.00") + ", angle to the target's plane "
                               + Vector3d.Angle(vessel.orbit.GetOrbitNormal(), other.orbit.GetOrbitNormal()).ToString("0.00") + ", " + RouteDriver.Instance.Status + ".");
                 }
-                Debug.Log(Log.Tag + " Probe: click: the flight ended (" + RouteDriver.Instance.Status + "), the angle to the target's plane "
+                Debug.Log(Log.Tag + " Probe: click: the flight ended (" + RouteDriver.Instance.Status + "; flying: " + RouteDriver.Instance.Flying + ", " + ((Vector3d)vessel.GetWorldPos3D() - (Vector3d)other.GetWorldPos3D()).magnitude.ToString("0") + " m from the target), the angle to the target's plane "
                           + Vector3d.Angle(vessel.orbit.GetOrbitNormal(), other.orbit.GetOrbitNormal()).ToString("0.00") + " degrees.");
             }
             Debug.Log(Log.Tag + " Probe: click done.");
