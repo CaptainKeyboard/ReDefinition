@@ -37,11 +37,14 @@ namespace ReDefinition.Probe
             ReportPlan(window, "drive 450 m west");
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "drive-plan.png"));
             yield return ProbeSteps.Frames(10);
+            if (CommandLine.Has("-redefinitionProbeStuck")) HoldBrakes(vessel);
             RouteDriver.Instance.ToggleAutopilot(vessel);
             float started = Time.realtimeSinceStartup;
             yield return new WaitForSeconds(5f);
             while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - started < 600f)
             {
+                // -redefinitionProbeStuck: the brakes are held on, so that the rover cannot get to the place and its drive has to be given up and tried again.
+                if (CommandLine.Has("-redefinitionProbeStuck")) HoldBrakes(vessel);
                 yield return new WaitForSeconds(10f);
                 Vector3d site = body.GetWorldSurfacePosition(latitude, longitude, body.TerrainAltitude(latitude, longitude));
                 Debug.Log(Log.Tag + " Probe: drive: " + ((Vector3d)vessel.GetWorldPos3D() - site).magnitude.ToString("0") + " m to the place, speed " + vessel.srfSpeed.ToString("0.0") + " m/s.");
@@ -51,6 +54,40 @@ namespace ReDefinition.Probe
             Vector3d end = body.GetWorldSurfacePosition(latitude, longitude, body.TerrainAltitude(latitude, longitude));
             Debug.Log(Log.Tag + " Probe: drive: the drive ended (" + RouteDriver.Instance.Status + "): " + ((Vector3d)FlightGlobals.ActiveVessel.GetWorldPos3D() - end).magnitude.ToString("0") + " m from the place.");
             Debug.Log(Log.Tag + " Probe: drive done.");
+        }
+
+        // Every wheel's brake at its full and its motor off, the vessel's brake group on.
+        private static void HoldBrakes(Vessel vessel)
+        {
+            vessel.ActionGroups.SetGroup(KSPActionGroup.Brakes, true);
+            foreach (Part part in vessel.parts)
+            {
+                foreach (ModuleWheels.ModuleWheelBrakes brake in part.FindModulesImplementing<ModuleWheels.ModuleWheelBrakes>())
+                    brake.brakeInput = 1f;
+                foreach (ModuleWheels.ModuleWheelMotor motor in part.FindModulesImplementing<ModuleWheels.ModuleWheelMotor>())
+                    motor.motorEnabled = false;
+            }
+        }
+
+        // -redefinitionProbeClick: the icons of an eccentric orbit are clicked with the system's mouse, and the menus the planner gives them are shot.
+        private static IEnumerator ClickRun(string folder)
+        {
+            for (float waited = 0f; waited < 60f && (MapPlannerWindow.Instance == null || FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.situation != Vessel.Situations.ORBITING); waited += 1f)
+                yield return new WaitForSeconds(1f);
+            yield return ProbeSteps.Frames(60);
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            if (vessel == null || MapPlannerWindow.Instance == null || vessel.situation != Vessel.Situations.ORBITING)
+            {
+                ProbeSteps.Failed("click: no vessel in an orbit or no planner.");
+                yield break;
+            }
+            if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            MapView.EnterMapView();
+            yield return new WaitForSeconds(4f);
+            if (vessel.mapObject != null) PlanetariumCamera.fetch.SetTarget(vessel.mapObject);
+            yield return new WaitForSeconds(3f);
+            yield return MarkerMenuShot(folder, vessel);
+            Debug.Log(Log.Tag + " Probe: click done.");
         }
 
         private static IEnumerator MeetRun(string folder)

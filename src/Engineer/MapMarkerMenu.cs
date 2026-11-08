@@ -25,6 +25,7 @@ namespace ReDefinition.Engineer
 
         private static readonly string[] Fields = { "apNode", "peNode", "ascNode", "descNode" };
         private static FieldInfo[] fieldInfos;
+        private static FieldInfo[] patchFields;
         private readonly Dictionary<MapNode, Callback<MapNode, Mouse.Buttons>> hooked = new Dictionary<MapNode, Callback<MapNode, Mouse.Buttons>>();
         private float nextLook;
         private bool reported;
@@ -70,14 +71,23 @@ namespace ReDefinition.Engineer
                     fieldInfos[i] = typeof(OrbitRendererBase).GetField(Fields[i], BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
             }
             for (int i = 0; i < fieldInfos.Length; i++)
-            {
-                MapNode node = fieldInfos[i] != null ? fieldInfos[i].GetValue(renderer) as MapNode : null;
-                if (node == null || hooked.ContainsKey(node)) continue;
-                Marker marker = (Marker)i;
-                Callback<MapNode, Mouse.Buttons> handler = (clicked, buttons) => Clicked(marker, buttons);
-                node.OnClick += handler;
-                hooked[node] = handler;
-            }
+                Hook(fieldInfos[i] != null ? fieldInfos[i].GetValue(renderer) as MapNode : null, (Marker)i);
+            // The icons that show on the flown vessel's orbit belong to the map's patch renderings, not to the vessel's own orbit renderer.
+            PatchedConicRenderer patches = vessel.patchedConicRenderer;
+            if (patches == null || patches.patchRenders == null || patches.patchRenders.Count == 0) return;
+            if (patchFields == null)
+                patchFields = new[] { typeof(PatchRendering).GetField("mnAp", BindingFlags.Instance | BindingFlags.NonPublic), typeof(PatchRendering).GetField("mnPe", BindingFlags.Instance | BindingFlags.NonPublic) };
+            PatchRendering first = patches.patchRenders[0];
+            Hook(patchFields[0] != null ? patchFields[0].GetValue(first) as MapNode : null, Marker.Apoapsis);
+            Hook(patchFields[1] != null ? patchFields[1].GetValue(first) as MapNode : null, Marker.Periapsis);
+        }
+
+        private void Hook(MapNode node, Marker marker)
+        {
+            if (node == null || hooked.ContainsKey(node)) return;
+            Callback<MapNode, Mouse.Buttons> handler = (clicked, buttons) => Clicked(marker, buttons);
+            node.OnClick += handler;
+            hooked[node] = handler;
         }
 
         private void Clicked(Marker marker, Mouse.Buttons buttons)

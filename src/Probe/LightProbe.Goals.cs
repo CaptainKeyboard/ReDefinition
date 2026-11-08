@@ -117,7 +117,7 @@ namespace ReDefinition.Probe
         }
 
         // A click on the apoapsis icon and on the ascending node icon, as the map's menu makes it for them, as shots.
-        private static IEnumerator MarkerMenuShot(string folder, Vessel vessel)
+        internal static IEnumerator MarkerMenuShot(string folder, Vessel vessel)
         {
             MapMarkerMenu menu = Object.FindObjectOfType<MapMarkerMenu>();
             System.Reflection.MethodInfo clicked = typeof(MapMarkerMenu).GetMethod("Clicked", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
@@ -126,12 +126,27 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: goals: the marker menu was not found.");
                 yield break;
             }
-            string[] names = { "Apoapsis", "AscendingNode" };
+            string[] names = CommandLine.Has("-redefinitionProbeClick") ? new[] { "Apoapsis", "Periapsis" } : new[] { "Apoapsis", "AscendingNode" };
             for (int i = 0; i < names.Length; i++)
             {
                 object marker = System.Enum.Parse(clicked.GetParameters()[0].ParameterType, names[i]);
-                MapMarkerMenu.ClickAt = ScreenOf(vessel, names[i]);
-                clicked.Invoke(menu, new object[] { marker, Mouse.Buttons.Left });
+                Vector2 icon = ScreenOf(vessel, names[i]);
+                if (CommandLine.Has("-redefinitionProbeClick"))
+                {
+                    // The system's own mouse, over the icon: the game reads the press as it reads a hand.
+                    MapMarkerMenu.ClickAt = null;
+                    ProbeMouse.Focus();
+                    yield return new WaitForSecondsRealtime(1f);
+                    ProbeMouse.Move(icon);
+                    yield return new WaitForSecondsRealtime(1f);
+                    Debug.Log(Log.Tag + " Probe: click: the mouse is at " + Input.mousePosition.x.ToString("0") + ", " + Input.mousePosition.y.ToString("0") + " of " + Screen.width + " x " + Screen.height + ", the icon at " + icon.x.ToString("0") + ", " + icon.y.ToString("0") + ".");
+                    yield return ProbeMouse.Click();
+                }
+                else
+                {
+                    MapMarkerMenu.ClickAt = icon;
+                    clicked.Invoke(menu, new object[] { marker, Mouse.Buttons.Left });
+                }
                 yield return new WaitForSeconds(2f);
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-marker-" + names[i] + ".png"));
                 yield return new WaitForSeconds(1f);
@@ -144,9 +159,21 @@ namespace ReDefinition.Probe
         // Where the icon of the orbit's apoapsis or ascending node stands on the screen: the place on the orbit, in the map's scaled space, seen by the map's camera.
         private static Vector2 ScreenOf(Vessel vessel, string marker)
         {
+            // The game's own icon, where it is drawn: the icon is a control of the map's canvas, named for the vessel and what it marks.
+            string word = marker == "AscendingNode" ? "Ascending" : marker;
+            foreach (MapNode each in Resources.FindObjectsOfTypeAll<MapNode>())
+            {
+                if (each == null || !each.gameObject.scene.IsValid() || !each.gameObject.activeInHierarchy || each.targetGraphic == null) continue;
+                if (!each.name.Contains(vessel.vesselName) || !each.name.Contains(word)) continue;
+                // As the game itself finds out whether the mouse is on the icon: its graphic seen by the interface's camera.
+                RectTransform graphic = each.targetGraphic.rectTransform;
+                Vector2 drawn = RectTransformUtility.WorldToScreenPoint(UIMasterController.Instance.uiCamera, graphic.TransformPoint(graphic.rect.center));
+                Debug.Log(Log.Tag + " Probe: goals: the " + marker + " icon is drawn at " + drawn.x.ToString("0") + ", " + drawn.y.ToString("0") + ".");
+                return drawn;
+            }
             Orbit orbit = vessel.orbit;
             double ut = Planetarium.GetUniversalTime();
-            double anomaly = marker == "Apoapsis" ? System.Math.PI : -orbit.argumentOfPeriapsis * System.Math.PI / 180.0;
+            double anomaly = marker == "Apoapsis" ? System.Math.PI : marker == "Periapsis" ? 0.0 : -orbit.argumentOfPeriapsis * System.Math.PI / 180.0;
             Vector3d local = orbit.getPositionFromTrueAnomaly(anomaly).xzy + orbit.referenceBody.position;
             Vector3 screen = PlanetariumCamera.Camera.WorldToScreenPoint(ScaledSpace.LocalToScaledSpace(local));
             Debug.Log(Log.Tag + " Probe: goals: the " + marker + " icon stands at " + screen.x.ToString("0") + ", " + screen.y.ToString("0") + ".");

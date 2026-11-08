@@ -92,6 +92,11 @@ namespace ReDefinition.Probe
                     yield return DriveRun(folder);
                     yield break;
                 }
+                if (CommandLine.Has(NodesArgument) && CommandLine.Has("-redefinitionProbeClick"))
+                {
+                    yield return ClickRun(folder);
+                    yield break;
+                }
                 if (CommandLine.Has(NodesArgument) && CommandLine.Has("-redefinitionProbeMeet"))
                 {
                     yield return MeetRun(folder);
