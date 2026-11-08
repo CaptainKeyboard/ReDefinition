@@ -116,6 +116,11 @@ namespace ReDefinition.Engineer
 
         private static void AddCore(IScreenCaster sc, ref MapContextMenuOption[] options)
         {
+            if (sc is PatchedConics.PatchCastHit && !MapMarkerMenu.Making)
+            {
+                options = MapMarkerMenu.WithNodeEntries(options);
+                return;
+            }
             if (!(sc is OrbitRendererBase.OrbitCastHit) || MapMarkerMenu.Making) return;
             OrbitRendererBase.OrbitCastHit hit = (OrbitRendererBase.OrbitCastHit)sc;
             Vessel vessel = hit.driver != null ? hit.driver.vessel : null;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using KSP.UI;
 using KSP.UI.Screens.Mapview;
 using KSP.UI.Screens.Mapview.MapContextMenuOptions;
 using ReDefinition.Autopilot.Planning;
@@ -90,12 +91,9 @@ namespace ReDefinition.Engineer
             hooked[node] = handler;
         }
 
-        private void Clicked(Marker marker, Mouse.Buttons buttons)
+        // What the planner offers at an icon of the flown vessel's orbit.
+        private static List<MapContextMenuOption> Options(Marker marker, Vessel vessel, MapPlannerWindow window)
         {
-            if ((buttons & Mouse.Buttons.Left) == 0) return;
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            MapPlannerWindow window = MapPlannerWindow.Instance;
-            if (vessel == null || vessel.orbit == null || window == null || vessel.situation != Vessel.Situations.ORBITING || vessel.orbit.eccentricity >= 1.0) return;
             var options = new List<MapContextMenuOption>();
             Orbit orbit = vessel.orbit;
             bool round = orbit.eccentricity <= 0.01;
@@ -108,6 +106,40 @@ namespace ReDefinition.Engineer
                 Vessel target = LiveMenu.Meetable(vessel);
                 if (target != null) options.Add(new Entry("Match Plane with " + target.vesselName, () => LiveMenu.TurnPlane(window, vessel, target, false)));
             }
+            return options;
+        }
+
+        // The game gives a click on the ascending or descending node no event of its own: it opens its menu of the orbit there. Where the cursor is
+        // on the node's icon, the entries for the plane are put in that menu.
+        internal static MapContextMenuOption[] WithNodeEntries(MapContextMenuOption[] options)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            MapPlannerWindow window = MapPlannerWindow.Instance;
+            if (vessel == null || vessel.orbit == null || window == null || vessel.situation != Vessel.Situations.ORBITING || vessel.orbit.eccentricity >= 1.0) return options;
+            foreach (MapNode node in Resources.FindObjectsOfTypeAll<MapNode>())
+            {
+                if (node == null || !node.gameObject.scene.IsValid() || !node.gameObject.activeInHierarchy || node.targetGraphic == null) continue;
+                Marker marker;
+                if (node.name == "AN Map Node") marker = Marker.AscendingNode;
+                else if (node.name == "DN Map Node") marker = Marker.DescendingNode;
+                else continue;
+                if (!RectTransformUtility.RectangleContainsScreenPoint(node.targetGraphic.rectTransform, Input.mousePosition, UIMasterController.Instance.uiCamera)) continue;
+                List<MapContextMenuOption> more = Options(marker, vessel, window);
+                if (more.Count == 0) return options;
+                var all = new List<MapContextMenuOption>(options ?? new MapContextMenuOption[0]);
+                all.AddRange(more);
+                return all.ToArray();
+            }
+            return options;
+        }
+
+        private void Clicked(Marker marker, Mouse.Buttons buttons)
+        {
+            if ((buttons & Mouse.Buttons.Left) == 0) return;
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            MapPlannerWindow window = MapPlannerWindow.Instance;
+            if (vessel == null || vessel.orbit == null || window == null || vessel.situation != Vessel.Situations.ORBITING || vessel.orbit.eccentricity >= 1.0) return;
+            List<MapContextMenuOption> options = Options(marker, vessel, window);
             if (options.Count == 0) return;
             if (open != null) open.Dismiss();
             Making = true;

@@ -82,6 +82,9 @@ namespace ReDefinition.Probe
                 yield break;
             }
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            // With a target the map draws the nodes where the orbits cross.
+            Vessel other = FlightGlobals.Vessels.Find(v => v.vesselName == "ProbeTarget");
+            if (other != null) FlightGlobals.fetch.SetVesselTarget(other);
             MapView.EnterMapView();
             yield return new WaitForSeconds(4f);
             if (vessel.mapObject != null) PlanetariumCamera.fetch.SetTarget(vessel.mapObject);

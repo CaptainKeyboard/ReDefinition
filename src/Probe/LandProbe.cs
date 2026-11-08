@@ -216,13 +216,15 @@ namespace ReDefinition.Probe
             double ut = Planetarium.GetUniversalTime();
             double inclination;
             if (!double.TryParse(CommandLine.After("-redefinitionProbeOrbitInclination") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out inclination)) inclination = 0.0;
-            var orbit = new Orbit(inclination, 0.0, body.Radius + altitude, 0.0, 0.0, 0.0, ut, body);
+            double argument;
+            if (!double.TryParse(CommandLine.After("-redefinitionProbeOrbitArgument") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out argument)) argument = 0.0;
+            var orbit = new Orbit(inclination, 0.0, body.Radius + altitude, 0.0, argument, 0.0, ut, body);
             // With -redefinitionProbeOrbitApoapsis (an altitude) the orbit is an ellipse from the altitude up to it, the vessel at its apoapsis.
             double apoapsis;
             if (double.TryParse(CommandLine.After("-redefinitionProbeOrbitApoapsis") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out apoapsis) && apoapsis > altitude)
             {
                 double rp = body.Radius + altitude, ra = body.Radius + apoapsis;
-                orbit = new Orbit(inclination, (ra - rp) / (ra + rp), 0.5 * (rp + ra), 0.0, 0.0, Math.PI, ut, body);
+                orbit = new Orbit(inclination, (ra - rp) / (ra + rp), 0.5 * (rp + ra), 0.0, argument, Math.PI, ut, body);
             }
             var node = new ConfigNode("VESSEL");
             vessel.BackupVessel().Save(node);

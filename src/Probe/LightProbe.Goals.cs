@@ -126,7 +126,7 @@ namespace ReDefinition.Probe
                 Debug.Log(Log.Tag + " Probe: goals: the marker menu was not found.");
                 yield break;
             }
-            string[] names = CommandLine.Has("-redefinitionProbeClick") ? new[] { "Apoapsis", "Periapsis" } : new[] { "Apoapsis", "AscendingNode" };
+            string[] names = CommandLine.Has("-redefinitionProbeClick") ? new[] { "Apoapsis", "Periapsis", "AscendingNode" } : new[] { "Apoapsis", "AscendingNode" };
             for (int i = 0; i < names.Length; i++)
             {
                 object marker = System.Enum.Parse(clicked.GetParameters()[0].ParameterType, names[i]);
@@ -151,7 +151,11 @@ namespace ReDefinition.Probe
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-marker-" + names[i] + ".png"));
                 yield return new WaitForSeconds(1f);
                 object open = typeof(MapMarkerMenu).GetField("open", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).GetValue(menu);
-                Debug.Log(Log.Tag + " Probe: goals: the " + names[i] + " menu is " + (open != null ? "open" : "not open") + ".");
+                // The nodes' entries stand in the game's own menu of the orbit: they are found as text on the screen.
+                bool entry = false;
+                foreach (TMPro.TextMeshProUGUI text in Resources.FindObjectsOfTypeAll<TMPro.TextMeshProUGUI>())
+                    if (text != null && text.gameObject.activeInHierarchy && text.gameObject.scene.IsValid() && text.text != null && (text.text == "Equatorial Orbit" || text.text.StartsWith("Match Plane with"))) entry = true;
+                Debug.Log(Log.Tag + " Probe: goals: the " + names[i] + " menu is " + (open != null || entry ? "open" : "not open") + (entry ? ", with the plane's entry" : "") + ".");
                 if (open != null) ((MapContextMenu)open).Dismiss();
             }
         }
@@ -164,7 +168,9 @@ namespace ReDefinition.Probe
             foreach (MapNode each in Resources.FindObjectsOfTypeAll<MapNode>())
             {
                 if (each == null || !each.gameObject.scene.IsValid() || !each.gameObject.activeInHierarchy || each.targetGraphic == null) continue;
-                if (!each.name.Contains(vessel.vesselName) || !each.name.Contains(word)) continue;
+                // The nodes where the orbit crosses the target's plane are named for what they are, not for the vessel.
+                bool plane = marker == "AscendingNode" && each.name == "AN Map Node";
+                if (!plane && (!each.name.Contains(vessel.vesselName) || !each.name.Contains(word))) continue;
                 // As the game itself finds out whether the mouse is on the icon: its graphic seen by the interface's camera.
                 RectTransform graphic = each.targetGraphic.rectTransform;
                 Vector2 drawn = RectTransformUtility.WorldToScreenPoint(UIMasterController.Instance.uiCamera, graphic.TransformPoint(graphic.rect.center));
