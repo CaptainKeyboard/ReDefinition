@@ -93,6 +93,30 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: click done.");
         }
 
+        private static int portShots;
+
+        // Where the vessel's ports and the target's stand, as the coupling needs them: apart by less than half a metre, facing each other.
+        private static IEnumerator PortsShot(string folder, Vessel flown, Vessel target)
+        {
+            foreach (Part own in flown.parts)
+            {
+                ModuleDockingNode port = own.FindModuleImplementing<ModuleDockingNode>();
+                if (port == null) continue;
+                foreach (Part there in target.parts)
+                {
+                    ModuleDockingNode other = there.FindModuleImplementing<ModuleDockingNode>();
+                    if (other == null) continue;
+                    Debug.Log(Log.Tag + " Probe: meet: ports " + port.state + " and " + other.state + " are " + (port.nodeTransform.position - other.nodeTransform.position).magnitude.ToString("0.00")
+                              + " m apart, facing at " + Vector3.Angle(port.nodeTransform.forward, other.nodeTransform.forward).ToString("0") + " degrees, acquire range " + port.acquireRange + ", angle " + port.acquireMinFwdDot + ".");
+                }
+            }
+            if (portShots++ < 2)
+            {
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-ports" + portShots + ".png"));
+                yield return ProbeSteps.Frames(10);
+            }
+        }
+
         private static IEnumerator MeetRun(string folder)
         {
             for (float waited = 0f; waited < 60f && (MapPlannerWindow.Instance == null || FlightGlobals.ActiveVessel == null || FlightGlobals.ActiveVessel.situation != Vessel.Situations.ORBITING); waited += 1f)
@@ -152,6 +176,7 @@ namespace ReDefinition.Probe
                 Vessel flown = FlightGlobals.ActiveVessel;
                 Debug.Log(Log.Tag + " Probe: meet: " + (flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude.ToString("0") + " m to the target (" + RouteDriver.Instance.Status + "), RCS "
                           + (flown.ActionGroups[KSPActionGroup.RCS] ? "on" : "off") + ", " + flown.parts.Count + " parts, target " + target.parts.Count + "; docking: " + MechJebDriver.DockingState(flown) + ".");
+                if ((flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude < 8.0) yield return PortsShot(folder, flown, target);
             }
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-end.png"));
             yield return ProbeSteps.Frames(10);
