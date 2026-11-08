@@ -20,6 +20,14 @@ namespace ReDefinition.Tests
             return "Test craft";
         }
 
+        // Where the vessel is, which a test sets; null is no flight.
+        public RouteStop Position { get; set; }
+
+        public RouteStop Here(PlannerBodies bodies)
+        {
+            return Position;
+        }
+
         public void WatchVessel(Action changed, Action fresh)
         {
         }

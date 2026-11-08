@@ -145,6 +145,14 @@ namespace ReDefinition.Engineer
         {
             List<Choice> choices = new List<Choice>();
             if (!Shown(index)) return choices;
+            // In flight the vessel's own place comes first: its orbit or its spot on the surface, where the route starts from or ends at.
+            RouteStop here = Host.Here(Bodies);
+            if (here != null)
+                choices.Add(new Choice
+                {
+                    Label = "Current Position", Tooltip = "Where the vessel is now: its orbit round " + Bodies.Bodies[here.Body].Name + ", or its place on the surface.",
+                    Pick = () => SetHere(index, here),
+                });
             foreach (int body in Bodies.Order)
             {
                 int picked = body;
@@ -157,6 +165,27 @@ namespace ReDefinition.Engineer
                 });
             }
             return choices;
+        }
+
+        // The stop becomes where the vessel is: its body, and its orbit with the plane it is in or its place on the surface.
+        private void SetHere(int index, RouteStop here)
+        {
+            if (!Shown(index) || here == null || here.Body < 0 || here.Body >= Bodies.Bodies.Count) return;
+            RouteStop stop = State.Stops[index];
+            stop.Body = here.Body;
+            stop.Kind = here.Kind;
+            stop.Altitude = here.Altitude;
+            stop.HasInclination = here.HasInclination;
+            stop.Inclination = here.Inclination;
+            stop.HasSite = here.HasSite;
+            stop.SiteLatitude = here.SiteLatitude;
+            stop.SiteLongitude = here.SiteLongitude;
+            stop.MeetWith = Guid.Empty;
+            stop.MatchPlaneWith = Guid.Empty;
+            stop.Apoapsis = 0.0;
+            if (!Bodies.Bodies[here.Body].HasAtmosphere) stop.UseAtmosphere = false;
+            AutoChutes(index);
+            Changed();
         }
 
         // The stop goes to `body`, at its low orbit; without air, the way down does not use it.

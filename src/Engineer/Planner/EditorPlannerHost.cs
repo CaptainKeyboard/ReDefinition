@@ -31,6 +31,12 @@ namespace ReDefinition.Engineer
             get { return null; }
         }
 
+        // The ship on the table is nowhere yet.
+        public RouteStop Here(PlannerBodies bodies)
+        {
+            return null;
+        }
+
         public void WatchVessel(Action changed, Action fresh)
         {
             this.changed = changed;

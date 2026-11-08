@@ -106,6 +106,29 @@ namespace ReDefinition.Probe
             Debug.Log(Log.Tag + " Probe: menu: staging controller with Auto Staging off: " + offEnabled + ", on: " + onEnabled + ".");
             if (offEnabled || !onEnabled) ProbeSteps.Failed("menu: the Auto Staging switch does not switch MechJeb's staging controller (off: " + offEnabled + ", on: " + onEnabled + ").");
 
+            // The planner's list of bodies offers the vessel's own place first.
+            window.OpenNow();
+            yield return new WaitForSecondsRealtime(2f);
+            Button start = ProbeMouse.ButtonWith("Kerbin");
+            if (start == null) ProbeSteps.Failed("menu: the start's body button is not in the planner.");
+            else
+            {
+                start.onClick.Invoke();
+                yield return new WaitForSecondsRealtime(1.5f);
+                Button position = ProbeMouse.ButtonWith("Current Position");
+                Debug.Log(Log.Tag + " Probe: menu: the list of bodies offers \"Current Position\": " + (position != null) + ".");
+                if (position == null) ProbeSteps.Failed("menu: the list of bodies does not offer \"Current Position\".");
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "menu-body-list.png"));
+                yield return new WaitForSecondsRealtime(1f);
+                if (position != null)
+                {
+                    position.onClick.Invoke();
+                    yield return new WaitForSecondsRealtime(2f);
+                    ScreenCapture.CaptureScreenshot(Path.Combine(folder, "menu-body-picked.png"));
+                    yield return new WaitForSecondsRealtime(1f);
+                }
+            }
+
             // The map view: the button stands where it covers nothing.
             MapView.EnterMapView();
             yield return new WaitForSecondsRealtime(4f);

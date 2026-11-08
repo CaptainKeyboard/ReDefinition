@@ -16,6 +16,10 @@ namespace ReDefinition.Engineer
         // The route worked out from the vessel to its last stop (the Plan button in flight); null where there is none, as in the editor.
         RoutePlan Plan { get; }
 
+        // The stop that is where the vessel is now, in the planner's bodies: its orbit, or its place on the surface. Null where there is no flight, as
+        // in the editor, or the body is not one the planner knows.
+        RouteStop Here(PlannerBodies bodies);
+
         // Calls `changed` where another vessel, or the same one anew, is in the window, and `fresh` where a new vessel was begun.
         void WatchVessel(Action changed, Action fresh);
 

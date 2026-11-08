@@ -40,6 +40,34 @@ namespace ReDefinition.Engineer
             }
         }
 
+        // Where the vessel is: its orbit round its body, with the plane it is in, or the place where it stands on the surface.
+        public RouteStop Here(PlannerBodies bodies)
+        {
+            Vessel active = FlightGlobals.ActiveVessel;
+            if (active == null || active.mainBody == null || bodies == null) return null;
+            int body = bodies.Bodies.FindIndex(each => each.Id == active.mainBody.bodyName);
+            if (body < 0) return null;
+            bool inOrbit = (active.situation == Vessel.Situations.ORBITING || active.situation == Vessel.Situations.ESCAPING) && active.orbit != null;
+            var here = new RouteStop { Body = body, Kind = inOrbit ? StopKind.Orbit : StopKind.Surface };
+            if (inOrbit)
+            {
+                bool bound = active.orbit.eccentricity < 1.0;
+                here.Altitude = Math.Max(1000.0, bound ? 0.5 * (active.orbit.PeA + active.orbit.ApA) : active.orbit.PeA);
+                if (bound)
+                {
+                    here.HasInclination = true;
+                    here.Inclination = active.orbit.inclination;
+                }
+            }
+            else if (active.LandedOrSplashed)
+            {
+                here.HasSite = true;
+                here.SiteLatitude = active.latitude;
+                here.SiteLongitude = active.longitude;
+            }
+            return here;
+        }
+
         public void WatchVessel(Action changed, Action fresh)
         {
             this.changed = changed;

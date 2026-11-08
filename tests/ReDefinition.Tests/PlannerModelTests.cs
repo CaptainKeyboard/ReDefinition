@@ -187,6 +187,29 @@ namespace ReDefinition.Tests
             Assert.IsTrue(model.Steps.Sum(step => step.Leg.DeltaV) < fromKerbin, "from an orbit the climb is not paid for");
         }
 
+        // In flight the list of bodies starts with the vessel's own place; picking it makes the stop that orbit, with its plane, or that spot.
+        [TestMethod]
+        public void TheListOfBodiesOffersTheCurrentPositionInFlight()
+        {
+            PlannerModel model = Strong(PlannerModelFixture.ToKerbinOrbit());
+            Assert.AreNotEqual("Current Position", model.BodyChoices(0)[0].Label, "the editor has no position");
+
+            ((FakePlannerHost)model.Host).Position = new RouteStop
+            {
+                Body = Mun, Kind = StopKind.Orbit, Altitude = 45000.0, HasInclination = true, Inclination = 12.5,
+            };
+            Choice here = model.BodyChoices(0)[0];
+            Assert.AreEqual("Current Position", here.Label);
+            here.Pick();
+
+            RouteStop start = model.State.Stops[0];
+            Assert.AreEqual(Mun, start.Body);
+            Assert.AreEqual(StopKind.Orbit, start.Kind);
+            Assert.AreEqual(45000.0, start.Altitude, 1e-6);
+            Assert.IsTrue(start.HasInclination);
+            Assert.AreEqual(12.5, start.Inclination, 1e-6);
+        }
+
         // The list of bodies puts each moon under its planet, one level of 12 units deeper, and marks the stop's own.
         [TestMethod]
         public void TheListOfBodiesPutsEachMoonUnderItsPlanet()
