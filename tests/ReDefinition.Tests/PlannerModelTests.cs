@@ -210,6 +210,24 @@ namespace ReDefinition.Tests
             Assert.AreEqual(12.5, start.Inclination, 1e-6);
         }
 
+        // The stop picked as Current Position follows the vessel as it moves, until another body or an altitude is chosen for it.
+        [TestMethod]
+        public void TheCurrentPositionFollowsTheVesselUntilAnotherIsChosen()
+        {
+            PlannerModel model = Strong(PlannerModelFixture.ToKerbinOrbit());
+            var host = (FakePlannerHost)model.Host;
+            host.Position = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 300000.0 };
+            model.BodyChoices(0)[0].Pick();
+            host.Position = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 900000.0 };
+            model.Evaluate();
+            Assert.AreEqual(900000.0, model.State.Stops[0].Altitude, 1e-6);
+
+            model.BodyChoices(0)[2].Pick();
+            host.Position = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 1200000.0 };
+            model.Evaluate();
+            Assert.AreNotEqual(1200000.0, model.State.Stops[0].Altitude);
+        }
+
         // The list of bodies puts each moon under its planet, one level of 12 units deeper, and marks the stop's own.
         [TestMethod]
         public void TheListOfBodiesPutsEachMoonUnderItsPlanet()

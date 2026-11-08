@@ -89,6 +89,8 @@ namespace ReDefinition.Engineer
         // The place on the ground a landing is aimed at, in degrees, where the player chose one on the map.
         public bool HasSite;
         public double SiteLatitude, SiteLongitude;
+        // The stop is the vessel's own place and follows the vessel in flight: its height, its plane or its spot are read again as it moves.
+        public bool Here;
         // A vessel the orbit is met with, by its id and the name it had when it was chosen; with Dock, the vessel docks with it (at DockWith's port
         // where the player chose one). Empty where the stop is no meeting.
         public System.Guid MeetWith;

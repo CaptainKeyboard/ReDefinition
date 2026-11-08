@@ -87,7 +87,7 @@ namespace ReDefinition.Probe
             var route = new System.Collections.Generic.List<Destination>
             {
                 new Destination { Body = vessel.mainBody, Surface = onGround, Altitude = onGround ? 0.0 : vessel.orbit.PeA },
-                new Destination { Body = target, Surface = CommandLine.Has("-redefinitionProbeRouteSurface"), Altitude = altitude },
+                new Destination { Body = target, Surface = CommandLine.Has("-redefinitionProbeRouteSurface"), Altitude = altitude, Aerobrake = CommandLine.Has("-redefinitionProbeRouteAerobrake") },
             };
             if (CommandLine.Has("-redefinitionProbeTrace")) FlightTrace.Begin(Path.Combine(folder, "flight-trace.csv"));
             var flight = new AutopilotFlight(vessel, route);

@@ -135,6 +135,7 @@ namespace ReDefinition.Engineer
             RouteStop stop = State.Stops[index];
             double altitude = Math.Max(Bodies.Bodies[stop.Body].LowOrbitAltitude, Math.Min(km * 1000.0, Bodies.MaxAltitude(stop.Body)));
             if (Math.Abs(altitude - stop.Altitude) < 0.5) return;
+            stop.Here = false;
             stop.Altitude = altitude;
             if (stop.Apoapsis <= stop.Altitude) stop.Apoapsis = 0.0;
             Changed();
@@ -172,6 +173,19 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || here == null || here.Body < 0 || here.Body >= Bodies.Bodies.Count) return;
             RouteStop stop = State.Stops[index];
+            stop.MeetWith = Guid.Empty;
+            stop.MatchPlaneWith = Guid.Empty;
+            stop.Apoapsis = 0.0;
+            stop.Here = true;
+            TakeHere(stop, here);
+            if (!Bodies.Bodies[here.Body].HasAtmosphere) stop.UseAtmosphere = false;
+            AutoChutes(index);
+            Changed();
+        }
+
+        // The stop's body, kind, height, plane and spot as the vessel has them.
+        private void TakeHere(RouteStop stop, RouteStop here)
+        {
             stop.Body = here.Body;
             stop.Kind = here.Kind;
             stop.Altitude = Math.Min(here.Altitude, Bodies.MaxAltitude(here.Body));
@@ -180,12 +194,26 @@ namespace ReDefinition.Engineer
             stop.HasSite = here.HasSite;
             stop.SiteLatitude = here.SiteLatitude;
             stop.SiteLongitude = here.SiteLongitude;
-            stop.MeetWith = Guid.Empty;
-            stop.MatchPlaneWith = Guid.Empty;
-            stop.Apoapsis = 0.0;
-            if (!Bodies.Bodies[here.Body].HasAtmosphere) stop.UseAtmosphere = false;
-            AutoChutes(index);
-            Changed();
+        }
+
+        // The stops that are the vessel's place are read again from the vessel. True where one moved enough to matter.
+        private bool FollowVessel()
+        {
+            bool moved = false;
+            if (!Ready()) return false;
+            RouteStop here = null;
+            foreach (RouteStop stop in State.Stops)
+            {
+                if (!stop.Here) continue;
+                if (here == null) here = Host.Here(Bodies);
+                if (here == null || here.Body < 0 || here.Body >= Bodies.Bodies.Count) continue;
+                double before = stop.Altitude;
+                int body = stop.Body;
+                StopKind kind = stop.Kind;
+                TakeHere(stop, here);
+                moved |= body != stop.Body || kind != stop.Kind || Math.Abs(before - stop.Altitude) > 500.0 || stop.HasSite;
+            }
+            return moved;
         }
 
         // The stop goes to `body`, at its low orbit; without air, the way down does not use it.
@@ -194,6 +222,7 @@ namespace ReDefinition.Engineer
             if (!Shown(index) || body < 0 || body >= Bodies.Bodies.Count) return;
             RouteStop stop = State.Stops[index];
             stop.Body = body;
+            stop.Here = false;
             stop.HasSite = false;
             stop.MeetWith = Guid.Empty;
             stop.MatchPlaneWith = Guid.Empty;
@@ -210,6 +239,7 @@ namespace ReDefinition.Engineer
         {
             if (!Shown(index) || State.Stops[index].Kind == kind) return;
             State.Stops[index].Kind = kind;
+            State.Stops[index].Here = false;
             State.Stops[index].MeetWith = Guid.Empty;
             State.Stops[index].MatchPlaneWith = Guid.Empty;
             State.Stops[index].Apoapsis = 0.0;
@@ -226,6 +256,7 @@ namespace ReDefinition.Engineer
         {
             if (!HasBody(index)) return;
             RouteStop stop = State.Stops[index];
+            stop.Here = false;
             double lowest = Bodies.Bodies[stop.Body].LowOrbitAltitude;
             double altitude = stop.Altitude + direction * AltitudeStep;
             stop.Altitude = Math.Max(lowest, Math.Min(altitude, Bodies.MaxAltitude(stop.Body)));

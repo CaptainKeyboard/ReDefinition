@@ -268,6 +268,7 @@ namespace ReDefinition.Engineer
                     stopNode.AddValue("siteLatitude", stop.SiteLatitude.ToString("0.#####", CultureInfo.InvariantCulture));
                     stopNode.AddValue("siteLongitude", stop.SiteLongitude.ToString("0.#####", CultureInfo.InvariantCulture));
                 }
+                if (stop.Here) stopNode.AddValue("here", true);
                 stopNode.AddValue("splitBurns", stop.SplitBurns);
                 for (int i = 0; i < RouteStop.Roles; i++)
                 {
@@ -382,6 +383,8 @@ namespace ReDefinition.Engineer
                     uint port;
                     if (uint.TryParse(stopNode.GetValue("dockPort"), out port)) stop.DockWith = port;
                 }
+                bool followsVessel;
+                if (bool.TryParse(stopNode.GetValue("here"), out followsVessel)) stop.Here = followsVessel;
                 double siteLatitude, siteLongitude;
                 if (double.TryParse(stopNode.GetValue("siteLatitude"), NumberStyles.Float, CultureInfo.InvariantCulture, out siteLatitude)
                     && double.TryParse(stopNode.GetValue("siteLongitude"), NumberStyles.Float, CultureInfo.InvariantCulture, out siteLongitude))

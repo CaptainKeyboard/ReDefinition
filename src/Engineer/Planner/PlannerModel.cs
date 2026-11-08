@@ -270,6 +270,7 @@ namespace ReDefinition.Engineer
             long whole = PlannerTiming.Start();
             long t = whole;
             Version++;
+            FollowVessel();
             EditorReadout readout = Host.Readout ?? new EditorReadout();
             StageLabels.Clear();
             // The planner's own simulation only where the vessel or the launch changed.
