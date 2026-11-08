@@ -101,8 +101,49 @@ namespace ReDefinition.Probe
                 ReportPlan(MapPlannerWindow.Instance, "match the plane of " + other.vesselName + " (target inclination " + other.orbit.inclination.ToString("0.0") + ")");
                 ScreenCapture.CaptureScreenshot(Path.Combine(folder, "click-plane-budget.png"));
                 yield return ProbeSteps.Frames(10);
+                yield return StackButtonClicks(vessel);
+                // The plan is flown: the plane is turned to the target's, then the vessel meets it.
+                RouteDriver.Instance.ToggleAutopilot(vessel);
+                float flownFrom = Time.realtimeSinceStartup;
+                yield return new WaitForSeconds(5f);
+                while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - flownFrom < 1500f)
+                {
+                    yield return new WaitForSeconds(15f);
+                    Debug.Log(Log.Tag + " Probe: click: flying, inclination " + vessel.orbit.inclination.ToString("0.00") + ", angle to the target's plane "
+                              + Vector3d.Angle(vessel.orbit.GetOrbitNormal(), other.orbit.GetOrbitNormal()).ToString("0.00") + ", " + RouteDriver.Instance.Status + ".");
+                }
+                Debug.Log(Log.Tag + " Probe: click: the flight ended (" + RouteDriver.Instance.Status + "), the angle to the target's plane "
+                          + Vector3d.Angle(vessel.orbit.GetOrbitNormal(), other.orbit.GetOrbitNormal()).ToString("0.00") + " degrees.");
             }
             Debug.Log(Log.Tag + " Probe: click done.");
+        }
+
+        // The Auto Staging button of the staging stack, pressed twice with the system's mouse: MechJeb's switch is read before and after each press.
+        private static IEnumerator StackButtonClicks(Vessel vessel)
+        {
+            Transform found = null;
+            foreach (UnityEngine.UI.Button each in Resources.FindObjectsOfTypeAll<UnityEngine.UI.Button>())
+                if (each != null && each.name == "ReDefinitionAutoStaging" && each.gameObject.activeInHierarchy) found = each.transform;
+            if (found == null)
+            {
+                ProbeSteps.Failed("click: the Auto Staging button is not in the stack.");
+                yield break;
+            }
+            bool before;
+            MechJebDriver.GetSwitch(vessel, MechJebDriver.Switch.AutoStaging, out before);
+            ProbeMouse.Focus();
+            for (int press = 1; press <= 2; press++)
+            {
+                ProbeMouse.Move(ProbeMouse.ScreenOf((RectTransform)found));
+                yield return new WaitForSecondsRealtime(0.5f);
+                yield return ProbeMouse.Click();
+                yield return new WaitForSecondsRealtime(0.6f);
+                bool after;
+                MechJebDriver.GetSwitch(vessel, MechJebDriver.Switch.AutoStaging, out after);
+                Debug.Log(Log.Tag + " Probe: click: Auto Staging button, press " + press + ": " + before + " -> " + after + (after != before ? " (switched)." : " (NOT switched)."));
+                if (after == before) ProbeSteps.Failed("click: the Auto Staging button did not switch MechJeb.");
+                before = after;
+            }
         }
 
         private static int portShots;
