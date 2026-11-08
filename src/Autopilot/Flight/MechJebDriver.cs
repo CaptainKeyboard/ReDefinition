@@ -109,6 +109,17 @@ namespace ReDefinition.Autopilot.Flight
             return executor != null ? stateField.GetValue(executor).ToString() : null;
         }
 
+        // What MechJeb's rendezvous says it is doing, the executor's state and the time warp, for the probes; empty where there is no such module.
+        internal static string RendezvousState(Vessel vessel)
+        {
+            object module = ComputerModule(vessel, "MechJebModuleRendezvousAutopilot");
+            if (module == null) return "";
+            object text = module.GetType().GetField("status", TypeLookup.Any) != null ? module.GetType().GetField("status", TypeLookup.Any).GetValue(module) : null;
+            object phase = module.GetType().GetField("mode", TypeLookup.Any) != null ? module.GetType().GetField("mode", TypeLookup.Any).GetValue(module) : null;
+            return "executor " + State(vessel) + ", rendezvous " + (phase ?? "?") + " '" + (text ?? "") + "', warp index " + TimeWarp.CurrentRateIndex + ", nodes "
+                   + (vessel.patchedConicSolver != null ? vessel.patchedConicSolver.maneuverNodes.Count : 0);
+        }
+
         // Whether MechJeb is flying a node now.
         internal static bool Busy(Vessel vessel)
         {

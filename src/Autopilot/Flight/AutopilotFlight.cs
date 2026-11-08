@@ -501,15 +501,8 @@ namespace ReDefinition.Autopilot.Flight
         private IEnumerator Meet(Vessel target)
         {
             double until = Planetarium.GetUniversalTime() + (MechJebDriver.RendezvousOrbits(vessel) + 2.0) * vessel.orbit.period;
-            // MechJeb's rendezvous stays on once it has met the target and holds it there: the meeting is over when the vessel has been near the target
-            // and at rest to it for ten seconds.
-            double metSince = -1.0;
             while (!cancelled && !Lost && target != null && MechJebDriver.RendezvousBusy(vessel) && Planetarium.GetUniversalTime() < until)
             {
-                double now = Planetarium.GetUniversalTime();
-                if (!NextStepPlanner.Met(vessel, target)) metSince = -1.0;
-                else if (metSince < 0.0) metSince = now;
-                else if (now - metSince >= 10.0) break;
                 Status = "Rendezvous: " + ((target.GetWorldPos3D() - vessel.GetWorldPos3D()).magnitude / 1000.0).ToString("0.0") + " km, "
                          + (target.obt_velocity - vessel.obt_velocity).magnitude.ToString("0.0") + " m/s to " + target.vesselName + ".";
                 Note();

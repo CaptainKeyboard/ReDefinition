@@ -27,6 +27,7 @@ namespace ReDefinition.Probe
                 yield break;
             }
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            if (!Preflight("drive", vessel, false, false, true)) yield break;
             Debug.Log(Log.Tag + " Probe: drive: " + vessel.vesselName + " can drive: " + MechJebDriver.CanDrive(vessel) + ".");
             CelestialBody body = vessel.mainBody;
             // 450 m due west on the ground.
@@ -82,6 +83,7 @@ namespace ReDefinition.Probe
                 yield break;
             }
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
+            if (!Preflight("click", vessel, true, false, false)) yield break;
             // With a target the map draws the nodes where the orbits cross.
             Vessel other = FlightGlobals.Vessels.Find(v => v.vesselName == "ProbeTarget");
             if (other != null) FlightGlobals.fetch.SetVesselTarget(other);
@@ -104,11 +106,12 @@ namespace ReDefinition.Probe
                 yield return StackButtonClicks(vessel);
                 // The plan is flown: the plane is turned to the target's, then the vessel meets it.
                 RouteDriver.Instance.ToggleAutopilot(vessel);
-                float flownFrom = Time.realtimeSinceStartup;
+                float flownFrom = Time.realtimeSinceStartup, clickStalled = -1f;
                 yield return new WaitForSeconds(5f);
                 while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - flownFrom < 1000f)
                 {
                     yield return new WaitForSeconds(15f);
+                    if (BurnStalled("click", vessel, ref clickStalled)) break;
                     Debug.Log(Log.Tag + " Probe: click: flying, inclination " + vessel.orbit.inclination.ToString("0.00") + ", angle to the target's plane "
                               + Vector3d.Angle(vessel.orbit.GetOrbitNormal(), other.orbit.GetOrbitNormal()).ToString("0.00") + ", " + RouteDriver.Instance.Status + ".");
                 }
@@ -183,6 +186,7 @@ namespace ReDefinition.Probe
                 ProbeSteps.Failed("meet: the planner is " + (window != null ? "there" : "missing") + "; the target is " + (target != null ? "there" : "missing") + ".");
                 yield break;
             }
+            if (!Preflight("meet", vessel, true, LiveMenu.HasDockingPort(target), false)) yield break;
             if (UIMasterController.Instance != null) UIMasterController.Instance.ShowUI();
             MapView.EnterMapView();
             yield return new WaitForSeconds(3f);
@@ -225,14 +229,15 @@ namespace ReDefinition.Probe
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-plan.png"));
             yield return ProbeSteps.Frames(10);
             RouteDriver.Instance.ToggleAutopilot(vessel);
-            float started = Time.realtimeSinceStartup;
+            float started = Time.realtimeSinceStartup, stalled = -1f;
             yield return new WaitForSeconds(5f);
-            while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - started < 1000f)
+            while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - started < (CommandLine.Has("-redefinitionProbeShort") ? 240f : 1000f))
             {
                 yield return new WaitForSeconds(15f);
                 Vessel flown = FlightGlobals.ActiveVessel;
+                if (BurnStalled("meet", flown, ref stalled)) break;
                 Debug.Log(Log.Tag + " Probe: meet: " + (flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude.ToString("0") + " m to the target (" + RouteDriver.Instance.Status + "), RCS "
-                          + (flown.ActionGroups[KSPActionGroup.RCS] ? "on" : "off") + ", " + flown.parts.Count + " parts, target " + target.parts.Count + "; docking: " + MechJebDriver.DockingState(flown) + ".");
+                          + (flown.ActionGroups[KSPActionGroup.RCS] ? "on" : "off") + ", " + flown.parts.Count + " parts, target " + target.parts.Count + "; docking: " + MechJebDriver.DockingState(flown) + "; " + MechJebDriver.RendezvousState(flown) + ".");
                 if ((flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude < 8.0) yield return PortsShot(folder, flown, target);
             }
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-end.png"));
