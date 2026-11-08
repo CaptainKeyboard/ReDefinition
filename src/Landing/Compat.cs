@@ -87,10 +87,5 @@ namespace ReDefinition.Landing
             }
             return ret;
         }
-
-        public static bool PhysicsRunning()
-        {
-            return TimeWarp.WarpMode == TimeWarp.Modes.LOW || TimeWarp.CurrentRateIndex == 0;
-        }
     }
 }

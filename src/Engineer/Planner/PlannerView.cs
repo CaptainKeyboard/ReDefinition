@@ -43,11 +43,6 @@ namespace ReDefinition.Engineer
             get { return pool.Stages; }
         }
 
-        internal int Level
-        {
-            get { return level; }
-        }
-
         internal int RequiredLevel
         {
             get { return requiredLevel; }

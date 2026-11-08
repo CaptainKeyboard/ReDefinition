@@ -36,17 +36,6 @@ namespace ReDefinition.Vendor
             get { return status; }
         }
 
-        // Whether the row stands: on an RTX GPU without DLSS frame generation of its own,
-        // or with the package in place -- which then answers NVAPI with a newer GPU.
-        public static bool Offered()
-        {
-            if (Installed()) return true;
-            uint architecture;
-            uint implementation;
-            return FrameGenerationBridge.NvidiaGpu(out architecture, out implementation)
-                   && NvidiaFiles.DlssRuns(architecture, implementation) && !NvidiaFiles.FrameGenerationRuns(architecture);
-        }
-
         // Looked at at most once a second, as the zip: the row asks every frame.
         private static bool installed;
         private static float installedLookedAt = float.NegativeInfinity;
@@ -66,27 +55,7 @@ namespace ReDefinition.Vendor
             }
             return installed;
         }
-
-        // The super-resolution files of the package (AmperePackage.Part.SuperResolution),
-        // looked at as often as the package.
-        private static bool superResolutionInstalled;
         private static float superResolutionLookedAt = float.NegativeInfinity;
-
-        // Whether the package's super-resolution files are in place.
-        public static bool SuperResolutionInstalled()
-        {
-            if (Time.realtimeSinceStartup - superResolutionLookedAt < 1f) return superResolutionInstalled;
-            superResolutionLookedAt = Time.realtimeSinceStartup;
-            try
-            {
-                superResolutionInstalled = AmperePackage.SuperResolutionInstalled(NvidiaDownloader.GameFolder);
-            }
-            catch (Exception)
-            {
-                superResolutionInstalled = false;
-            }
-            return superResolutionInstalled;
-        }
 
         // The package's ini choices (AmpereOptions) as the file holds them, read at most once
         // a second and again after the window writes one. The package reads its ini when KSP

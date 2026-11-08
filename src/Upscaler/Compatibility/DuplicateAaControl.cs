@@ -41,12 +41,6 @@ namespace ReDefinition.Upscaler
         // The Scatterer TAA components of the last check, kept between checks so that each makes no list.
         private readonly List<Component> taaFound = new List<Component>();
 
-        // Whether a layer is set to None here at the moment.
-        public bool Taken
-        {
-            get { return duplicateLayers.Count > 0; }
-        }
-
         // Every frame from the add-on: wanted, the check once a second (or at once with
         // now); not wanted, every layer given back.
         internal void Sync(bool wanted, bool now)

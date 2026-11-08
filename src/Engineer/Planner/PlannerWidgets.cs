@@ -190,11 +190,6 @@ namespace ReDefinition.Engineer
     // show them, symbols and blocks in a row.
     internal static class PlannerWidgets
     {
-        // A button of KSP's skin with a symbol on it.
-        internal static DialogGUIButton IconButton(string icon, Callback click, float size, string tip, AfterCreate after)
-        {
-            return IconButton(icon, click, size, size, size, tip, after);
-        }
 
         // A button of `width` by `height` with a symbol of `symbol` units on it.
         internal static DialogGUIButton IconButton(string icon, Callback click, float width, float height, float symbol, string tip,

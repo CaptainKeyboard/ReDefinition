@@ -26,13 +26,6 @@ namespace ReDefinition.Autopilot.Planning
             return new Vector3d(v.X, v.Y, v.Z);
         }
 
-        // The orbit the vessel is on at `ut`, by the flight plan with the nodes it holds: the last patch that has begun by then, or the vessel's own.
-        // KSP ends a patch after one revolution where the next node lies further off, so the end of a patch does not say where its orbit stops.
-        internal static Orbit OrbitAt(Frame frame, double ut)
-        {
-            return OrbitAt(frame.Vessel, ut);
-        }
-
         internal static Orbit OrbitAt(Vessel vessel, double ut)
         {
             PatchedConicSolver solver = vessel.patchedConicSolver;

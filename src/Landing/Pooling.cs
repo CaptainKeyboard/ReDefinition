@@ -64,30 +64,5 @@ namespace ReDefinition.Landing
             list.Clear();
             lock (free) free.Push(list);
         }
-
-        public Disposable<List<T>> BorrowDisposable()
-        {
-            return new Disposable<List<T>>(Borrow(), this);
-        }
-    }
-
-    // A borrowed list that goes back to its pool when it is disposed.
-    public struct Disposable<T> : IDisposable where T : class
-    {
-        public readonly T value;
-        private readonly object pool;
-
-        public Disposable(T value, object pool)
-        {
-            this.value = value;
-            this.pool = pool;
-        }
-
-        public void Dispose()
-        {
-            var lists = pool as ListPool<Vector3d>;
-            var list = value as List<Vector3d>;
-            if (lists != null && list != null) lists.Release(list);
-        }
     }
 }

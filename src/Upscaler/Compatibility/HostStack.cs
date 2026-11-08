@@ -93,12 +93,6 @@ namespace ReDefinition.Upscaler
         // The cached report rows, as Refresh last built them.
         public static List<Line> Lines { get { return cachedLines; } }
 
-        // Whether a layer is set to None here at the moment.
-        public static bool DuplicatesTaken
-        {
-            get { return Duplicates.Taken; }
-        }
-
         // Rebuilds the report rows, at most every RefreshInterval unless forced.
         public static void Refresh(bool force)
         {
@@ -178,12 +172,6 @@ namespace ReDefinition.Upscaler
         {
             nextReassert = 0f;
             Reassert();
-        }
-
-        // Fills `found` (emptied first) with the components of `type` on the cameras (HostCameras.OnCameras).
-        internal static void OnCameras(Type type, List<Component> found)
-        {
-            HostCameras.OnCameras(type, found);
         }
 
         // Switches off again what the mods brought back since, once a second while applied. Scatterer rebuilds its

@@ -122,17 +122,4 @@ namespace ReDefinition.Migration
             changes.Add(new SettingsChange(key, before, after, Text));
         }
     }
-
-    // A change that keeps every player's value on purpose, said so: a new standard that only a fresh file takes, or a setting
-    // whose meaning changed in a way a value need not follow.
-    internal sealed class KeptSetting : SettingsStep
-    {
-        public KeptSetting(string id, string text) : base(id, text)
-        {
-        }
-
-        public override void Apply(IDictionary<string, string> values, List<SettingsChange> changes)
-        {
-        }
-    }
 }

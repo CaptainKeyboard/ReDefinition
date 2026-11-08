@@ -101,19 +101,6 @@ namespace ReDefinition.Settings
             throw new NotSupportedException("A " + type.Name + " setting cannot be set from text.");
         }
 
-        // The same text for the same value, however the mod's file wrote it.
-        public static string Normalize(string text, Type type)
-        {
-            try
-            {
-                return Text(Parse(text, type));
-            }
-            catch (Exception)
-            {
-                return text;
-            }
-        }
-
         // A switch's text turned round, for a setting the registration inverts; null stays null.
         public static string Invert(string text)
         {

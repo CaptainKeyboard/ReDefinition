@@ -623,38 +623,6 @@ namespace ReDefinition.Landing
             return newtonianTemperatureFactor * HighLogic.CurrentGame.Parameters.Difficulty.ReentryHeatScale * _mainBody.shockTemperatureMultiplier;
         }
 
-        private double _nextLog;
-
-        public void Log(Vector3d pos, Vector3d vel)
-        {
-            if (_t > _nextLog)
-            {
-                _nextLog = _t + 10;
-
-                double altitude = pos.magnitude - _bodyRadius;
-                Vector3d airVel = SurfaceVelocity(pos, vel);
-
-                double atmosphericTemperature = GetTemperature(pos, altitude);
-
-                double speedOfSound = _mainBody.GetSpeedOfSound(Pressure(pos), AirDensity(pos, altitude));
-                float mach = Mathf.Min((float)(airVel.magnitude / speedOfSound), 50f);
-
-                float dynamicPressurekPa = (float)(0.0005 * AirDensity(pos, altitude) * airVel.sqrMagnitude);
-
-
-                _result.DebugLog += "\n "
-                    + (_t - _startUT).ToString("F2").PadLeft(8)
-                    + " Alt:" + altitude.ToString("F0").PadLeft(6)
-                    + " Vel:" + vel.magnitude.ToString("F2").PadLeft(8)
-                    + " AirVel:" + airVel.magnitude.ToString("F2").PadLeft(8)
-                    + " SoS:" + speedOfSound.ToString("F2").PadLeft(6)
-                    + " mach:" + mach.ToString("F2").PadLeft(6)
-                    + " dynP:" + dynamicPressurekPa.ToString("F5").PadLeft(9)
-                    + " Temp:" + atmosphericTemperature.ToString("F2").PadLeft(8)
-                    + " Lat:" + _referenceFrame.Latitude(pos).ToString("F2").PadLeft(6);
-            }
-        }
-
         public enum Outcome { LANDED, AEROBRAKED, TIMED_OUT, NO_REENTRY, ERROR }
 
         public struct Prediction
@@ -704,8 +672,6 @@ namespace ReDefinition.Landing
             public Orbit InputInitialOrbit;
 
             public double InputUT;
-
-            public List<SimulatedParachute> InputParachuteList;
             public IDescentSpeedPolicy InputDescentSpeedPolicy;
             public double InputDecelEndAltitudeASL;
             public double InputMaxThrustAccel;
@@ -713,8 +679,6 @@ namespace ReDefinition.Landing
             public double InputProbableLandingSiteASL;
             public bool InputMultiplierHasError;
             public double InputDT;
-
-            public string DebugLog;
 
             private static readonly Pool<Result> _pool = new Pool<Result>(Create, Reset);
 
@@ -738,8 +702,6 @@ namespace ReDefinition.Landing
 
             public Prediction Prediction;
 
-            public Vector3d RelativeEndPosition() => WorldEndPosition() - Body.position;
-
             public Vector3d WorldEndPosition() => ReferenceFrame.WorldPositionAtCurrentTime(EndPosition);
 
             private Vector3d WorldEndVelocity() => ReferenceFrame.WorldVelocityAtCurrentTime(EndVelocity);
@@ -749,32 +711,6 @@ namespace ReDefinition.Landing
             public Vector3d WorldAeroBrakePosition() => ReferenceFrame.WorldPositionAtCurrentTime(AeroBrakePosition);
 
             public Vector3d WorldAeroBrakeVelocity() => ReferenceFrame.WorldVelocityAtCurrentTime(AeroBrakeVelocity);
-
-            public Orbit AeroBrakeOrbit() => Compat.OrbitFromStateVectors(WorldAeroBrakePosition(), WorldAeroBrakeVelocity(), Body, EndUT);
-
-            public Disposable<List<Vector3d>> WorldTrajectory(double timeStep, bool world = true)
-            {
-                Disposable<List<Vector3d>> ret = ListPool<Vector3d>.Instance.BorrowDisposable();
-
-                if (Trajectory.Count == 0) return ret;
-
-                ret.value.Add(world
-                    ? ReferenceFrame.WorldPositionAtCurrentTime(Trajectory[0])
-                    : ReferenceFrame.BodyPositionAtCurrentTime(Trajectory[0]));
-                double lastTime = Trajectory[0].UT;
-                for (int i = 0; i < Trajectory.Count; i++)
-                {
-                    AbsoluteVector absolute = Trajectory[i];
-                    if (absolute.UT > lastTime + timeStep)
-                    {
-                        ret.value.Add(
-                            world ? ReferenceFrame.WorldPositionAtCurrentTime(absolute) : ReferenceFrame.BodyPositionAtCurrentTime(absolute));
-                        lastTime = absolute.UT;
-                    }
-                }
-
-                return ret;
-            }
 
             public override string ToString()
             {
@@ -863,10 +799,6 @@ namespace ReDefinition.Landing
         }
 
         public Vector3d WorldPositionAtCurrentTime(AbsoluteVector absolute) => _referenceBody.position + WorldVelocityAtCurrentTime(absolute);
-
-        public Vector3d BodyPositionAtCurrentTime(AbsoluteVector absolute) => _referenceBody.position +
-            absolute.Radius * _referenceBody.GetSurfaceNVector(absolute.Latitude,
-                absolute.Longitude);
 
         public Vector3d WorldVelocityAtCurrentTime(AbsoluteVector absolute)
         {

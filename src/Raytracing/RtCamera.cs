@@ -1149,8 +1149,6 @@ namespace ReDefinition.Raytracing
         internal RenderTexture SurfaceTexture { get { return surface; } }
         // How each surface was found, beside SurfaceTexture (RT_SURFACE_*, RT_REGION_*).
         internal RenderTexture SurfaceModeTexture { get { return surfaceMode; } }
-        // The sky's cube map unwrapped into 256 by 128 texels, as the proxy reads it.
-        internal RenderTexture EnvironmentTexture { get { return environment; } }
         // The raytraced light the forward light adds to the frame.
         internal RenderTexture ForwardTexture { get { return forward; } }
         // Without a G-buffer: the ratio the forward light relights the frame's colour by.

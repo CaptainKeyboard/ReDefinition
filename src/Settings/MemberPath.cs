@@ -429,12 +429,6 @@ namespace ReDefinition.Settings
             return new ModFolder(found);
         }
 
-        // Whether the assembly is one of the folder's.
-        public bool Contains(Assembly assembly)
-        {
-            return assemblies.Contains(assembly);
-        }
-
         // Whether code of the folder's assemblies loads the string -- a shader
         // property or global the mod sets by name (ForeignCode).
         public bool Loads(string literal)

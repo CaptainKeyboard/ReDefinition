@@ -57,13 +57,6 @@ namespace ReDefinition.Probe
             };
         }
 
-        // A field of the settings that holds an enum, set by the name of its value.
-        private static void SetEnum(OwnSettings settings, string field, string value)
-        {
-            FieldInfo info = typeof(OwnSettings).GetField(field);
-            if (info != null) info.SetValue(settings, Enum.Parse(info.FieldType, value));
-        }
-
         // The settings the variants change, as the window would apply them: before to after through the add-on.
         private static void Change(OwnSettings before, Action<OwnSettings> edit)
         {
@@ -177,20 +170,6 @@ namespace ReDefinition.Probe
             int n;
             renders.TryGetValue(key, out n);
             renders[key] = n + 1;
-        }
-
-        // Firefly's airstream texture of the vessel, or null.
-        private static RenderTexture AirstreamTexture(Vessel vessel)
-        {
-            Type moduleType = TypeLookup.Find("Firefly.AtmoFxModule");
-            foreach (VesselModule module in vessel.vesselModules)
-            {
-                if (module == null || module.GetType() != moduleType) continue;
-                object fx = moduleType.GetField("fxVessel", BindingFlags.Public | BindingFlags.Instance).GetValue(module);
-                if (fx == null) return null;
-                return fx.GetType().GetField("airstreamTexture", BindingFlags.Public | BindingFlags.Instance).GetValue(fx) as RenderTexture;
-            }
-            return null;
         }
 
         // Firefly's command buffer of the vessel, or null.

@@ -78,11 +78,6 @@ namespace ReDefinition.Engineer
             get { return parts; }
         }
 
-        internal List<PartGroupChoice> Groups
-        {
-            get { return groups; }
-        }
-
         internal List<LiveSection> Live
         {
             get { return live; }
