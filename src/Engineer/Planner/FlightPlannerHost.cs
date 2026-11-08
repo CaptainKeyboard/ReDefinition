@@ -47,19 +47,21 @@ namespace ReDefinition.Engineer
             if (active == null || active.mainBody == null || bodies == null) return null;
             int body = bodies.Bodies.FindIndex(each => each.Id == active.mainBody.bodyName);
             if (body < 0) return null;
-            bool inOrbit = (active.situation == Vessel.Situations.ORBITING || active.situation == Vessel.Situations.ESCAPING) && active.orbit != null;
-            var here = new RouteStop { Body = body, Kind = inOrbit ? StopKind.Orbit : StopKind.Surface };
-            if (inOrbit)
+            // The place is where the vessel is now, at its height above the body, not an orbit it might have: on an escape course or an orbit
+            // that dips into the air, the orbit is not what the vessel is in.
+            double air = active.mainBody.atmosphere ? active.mainBody.atmosphereDepth : 0.0;
+            bool inSpace = !active.LandedOrSplashed && active.altitude > air;
+            var here = new RouteStop { Body = body, Kind = inSpace ? StopKind.Orbit : StopKind.Surface };
+            if (inSpace)
             {
-                bool bound = active.orbit.eccentricity < 1.0;
-                here.Altitude = Math.Max(1000.0, bound ? 0.5 * (active.orbit.PeA + active.orbit.ApA) : active.orbit.PeA);
-                if (bound)
+                here.Altitude = Math.Max(1000.0, active.altitude);
+                if (active.orbit != null && active.orbit.eccentricity < 1.0)
                 {
                     here.HasInclination = true;
                     here.Inclination = active.orbit.inclination;
                 }
             }
-            else if (active.LandedOrSplashed)
+            else
             {
                 here.HasSite = true;
                 here.SiteLatitude = active.latitude;

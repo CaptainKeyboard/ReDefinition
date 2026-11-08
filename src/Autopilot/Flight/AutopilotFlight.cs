@@ -574,12 +574,7 @@ namespace ReDefinition.Autopilot.Flight
         {
             vessel.ActionGroups.SetGroup(KSPActionGroup.SAS, true);
             float started = Time.realtimeSinceStartup;
-            double toPeriapsis = vessel.orbit.timeToPe - NodePlanner.LeadTime;
-            if (toPeriapsis > 30.0)
-            {
-                WarpGuard.SelfWarpUntil = Planetarium.GetUniversalTime() + toPeriapsis;
-                TimeWarp.fetch.WarpTo(WarpGuard.SelfWarpUntil);
-            }
+            float nextWarp = 0f;
             bool entered = false;
             bool guarding = false;
             double peak = 0.0;
@@ -587,6 +582,17 @@ namespace ReDefinition.Autopilot.Flight
             {
                 bool inAir = vessel.situation == Vessel.Situations.FLYING;
                 entered |= inAir;
+                // The warp to the periapsis is asked for again where it has stopped or was never taken: the game drops it at times, and the vessel
+                // would then sit out the way to the periapsis at the pace of real time.
+                double toPeriapsis = vessel.orbit.timeToPe - NodePlanner.LeadTime;
+                if (!inAir && toPeriapsis > 30.0 && TimeWarp.CurrentRateIndex == 0 && Time.realtimeSinceStartup > nextWarp)
+                {
+                    nextWarp = Time.realtimeSinceStartup + 5f;
+                    WarpGuard.SelfWarpUntil = Planetarium.GetUniversalTime() + toPeriapsis;
+                    TimeWarp.fetch.WarpTo(WarpGuard.SelfWarpUntil);
+                    Debug.Log("[ReDefinition] Route: the aerobrake warps to " + KSPUtil.PrintTimeCompact(toPeriapsis, false) + " before the periapsis; the warp is at rate "
+                              + TimeWarp.CurrentRateIndex + " after the request.");
+                }
                 string hottest;
                 double share = Heat.Hottest(vessel, out hottest);
                 if (inAir) peak = System.Math.Max(peak, share);

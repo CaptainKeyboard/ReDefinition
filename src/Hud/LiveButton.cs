@@ -106,6 +106,16 @@ namespace ReDefinition.Hud
             LiveMenu.Open(FlightGlobals.ActiveVessel, true);
         }
 
+        private float busyUntil;
+
+        // Whether the mouse is on the button.
+        private bool PointerOver(RectTransform rect)
+        {
+            Canvas canvas = rect.GetComponentInParent<Canvas>();
+            Camera camera = canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
+            return RectTransformUtility.RectangleContainsScreenPoint(rect, Input.mousePosition, camera);
+        }
+
         // The right button's press on the button, which the Button component does not pass on.
         private sealed class RightClick : MonoBehaviour, IPointerClickHandler
         {
@@ -122,7 +132,9 @@ namespace ReDefinition.Hud
         {
             RectTransform rect = face != null ? (RectTransform)face.transform : null;
             if (rect == null || root == null) return;
-            if (Time.unscaledTime > nextLook)
+            // The menu and the tooltip open under the button and would count as a control in its place; the place is kept while they are up.
+            if (LiveMenu.IsOpen || PointerOver(rect)) busyUntil = Time.unscaledTime + 1.5f;
+            if (Time.unscaledTime > nextLook && Time.unscaledTime > busyUntil)
             {
                 nextLook = Time.unscaledTime + 1f;
                 // In the map view the top frame with the gauge is drawn away: the button stands past the time panel there, not where the gauge was.

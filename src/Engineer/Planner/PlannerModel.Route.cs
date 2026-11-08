@@ -150,7 +150,7 @@ namespace ReDefinition.Engineer
             if (here != null)
                 choices.Add(new Choice
                 {
-                    Label = "Current Position", Tooltip = "Where the vessel is now: its orbit round " + Bodies.Bodies[here.Body].Name + ", or its place on the surface.",
+                    Label = "Current Position", Tooltip = "Where the vessel is now: its height above " + Bodies.Bodies[here.Body].Name + ", or its place on the surface.",
                     Pick = () => SetHere(index, here),
                 });
             foreach (int body in Bodies.Order)
@@ -174,7 +174,7 @@ namespace ReDefinition.Engineer
             RouteStop stop = State.Stops[index];
             stop.Body = here.Body;
             stop.Kind = here.Kind;
-            stop.Altitude = here.Altitude;
+            stop.Altitude = Math.Min(here.Altitude, Bodies.MaxAltitude(here.Body));
             stop.HasInclination = here.HasInclination;
             stop.Inclination = here.Inclination;
             stop.HasSite = here.HasSite;
