@@ -268,9 +268,10 @@ namespace ReDefinition.Engineer
             // one column on every stop.
             DialogGUISpace noAir = new DialogGUISpace(Divider + 4f + 76f);
             noAir.OptionEnabledCondition = () => !(index > 0 && model.HasAtmosphere(index));
-            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => model.RemoveStop(index), Square, Square, 14f,
-                "Remove this destination.", after);
-            remove.OptionEnabledCondition = () => model.Ready() && model.State.Stops.Count > 2;
+            // The last destination's cross empties the route, a flight under way stopped first: the plan can always be deleted where it is chosen.
+            DialogGUIButton remove = PlannerWidgets.IconButton("Remove", () => RemoveOrClear(index), Square, Square, 14f,
+                "Remove this destination; the last one empties the route.", after);
+            remove.OptionEnabledCondition = () => model.Ready() && (model.State.Stops.Count > 2 || (index == 1 && !model.RouteEmpty));
 
             DialogGUIHorizontalLayout row = new GatedRow(width, Icon + 4f, 4f, new RectOffset(0, 0, 2, 0),
                 TextAnchor.MiddleLeft, dot, new DialogGUILabel(Text(() => "<b>" + Letter(index) + "</b>"), LetterWidth), body,

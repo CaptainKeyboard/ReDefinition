@@ -34,15 +34,29 @@ namespace ReDefinition.Engineer
             DialogGUIButton undo = Choice("Undo", () => false, () => model.Undo(), button);
             undo.OptionInteractableCondition = () => model.CanUndo && Controls != null && !Controls.Flying;
             undo.tooltipText = "Bring back the route the last choice replaced.";
-            DialogGUIButton clear = Choice("Clear", () => false, () => model.ClearRoute(), button);
-            clear.OptionInteractableCondition = () => !model.RouteEmpty && Controls != null && !Controls.Flying;
-            clear.tooltipText = "Empty the route.";
+            DialogGUIButton clear = Choice("Clear", () => false, () => ClearPlan(), button);
+            clear.OptionInteractableCondition = () => !model.RouteEmpty && Controls != null;
+            clear.tooltipText = "Empty the route; a flight under way is stopped.";
             yield return new GatedRow(width, RowHeight + 2f, Gap, new RectOffset(), TextAnchor.MiddleLeft, undo,
                 PlannerWidgets.Block(Divider, RowHeight - 4f, PlannerColors.Line), clear);
             yield return SwitchRow(button, "Auto Staging", MechJebSwitch.AutoStaging, "MechJeb stages by itself when the stage runs dry.",
                 "Deploy on Arrival", MechJebSwitch.LimitPressure, false, "Put out the solar panels, antennas and radiators where the route ends.");
             yield return SwitchRow(button, "Limit Pressure", MechJebSwitch.LimitPressure, "Hold the throttle back above MechJeb's dynamic pressure limit.",
                 "Limit Acceleration", MechJebSwitch.LimitAcceleration, true, "Hold the throttle back above MechJeb's acceleration limit.");
+        }
+
+        // The route emptied, after the flight under way is stopped: the player can always delete the plan.
+        private void ClearPlan()
+        {
+            if (Controls != null && Controls.Flying) Controls.ToggleAutopilot();
+            model.ClearRoute();
+        }
+
+        // A destination's cross: the stop removed, or, where only the start and one destination are left, the route emptied.
+        private void RemoveOrClear(int index)
+        {
+            if (model.Ready() && model.State.Stops.Count <= 2) ClearPlan();
+            else model.RemoveStop(index);
         }
 
         // Two choices side by side: MechJeb's own switch on the left; on the right another of MechJeb's (`rightIsMechJeb`) or the planner's own choice
