@@ -242,7 +242,11 @@ namespace ReDefinition.Probe
             // -redefinitionProbeTarget: a docking port alone in a circular orbit 20 km higher and 20 degrees ahead, for a rendezvous.
             if (CommandLine.Has("-redefinitionProbeTarget"))
             {
-                var targetOrbit = new Orbit(0.0, 0.0, body.Radius + altitude + 20000.0, 0.0, 0.0, 20.0 * Math.PI / 180.0, ut, body);
+                // -redefinitionProbeTargetRise (metres) and -redefinitionProbeTargetPhase (degrees ahead) say where it stands: 20 km up and 20 degrees without them.
+                double rise, phase;
+                if (!double.TryParse(CommandLine.After("-redefinitionProbeTargetRise") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out rise)) rise = 20000.0;
+                if (!double.TryParse(CommandLine.After("-redefinitionProbeTargetPhase") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out phase)) phase = 20.0;
+                var targetOrbit = new Orbit(0.0, 0.0, body.Radius + altitude + rise, 0.0, 0.0, phase * Math.PI / 180.0, ut, body);
                 ConfigNode port = ProtoVessel.CreatePartNode("dockingPort2", ShipConstruction.GetUniqueFlightID(game.flightState));
                 // The part node carries no modules: the port is given its module, as the game saves a vessel with one.
                 ConfigNode module = new ConfigNode("MODULE");
