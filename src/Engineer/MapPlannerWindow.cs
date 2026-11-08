@@ -319,7 +319,13 @@ namespace ReDefinition.Engineer
             bool bound = vessel.orbit != null && vessel.orbit.eccentricity < 1.0;
             bool inOrbit = (vessel.situation == Vessel.Situations.ORBITING || vessel.situation == Vessel.Situations.ESCAPING) && vessel.orbit != null;
             double orbitAltitude = inOrbit ? System.Math.Max(1000.0, bound ? 0.5 * (vessel.orbit.PeA + vessel.orbit.ApA) : vessel.orbit.PeA) : 0.0;
+            // The start is the orbit the vessel is in, with its inclination: a turn of the plane is counted from it.
             var start = new RouteStop { Body = here, Kind = inOrbit ? StopKind.Orbit : StopKind.Surface, Altitude = orbitAltitude };
+            if (inOrbit && bound)
+            {
+                start.HasInclination = true;
+                start.Inclination = vessel.orbit.inclination;
+            }
             planner.SetRoute(new List<RouteStop> { start, stop });
             planner.SaveNow();
             status = "The route is set; press the autopilot button to fly it.";

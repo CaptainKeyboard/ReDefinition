@@ -257,6 +257,8 @@ namespace ReDefinition.Tests
 
             Assert.IsTrue(RoutePlanner.LegOf(bodies.Bodies, from, landing, 0, false).DeltaV > 0.0);
             Assert.AreEqual(0.0, RoutePlanner.LegOf(bodies.Bodies, from, drive, 0, false).DeltaV, 0.001);
+            Assert.AreEqual(0, RouteSteps.RolesBetween(bodies.Bodies, from, drive).Count);
+            Assert.AreEqual(2, RouteSteps.RolesBetween(bodies.Bodies, from, landing).Count);
         }
     }
 }

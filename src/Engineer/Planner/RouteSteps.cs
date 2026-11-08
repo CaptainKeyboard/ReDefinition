@@ -325,6 +325,8 @@ namespace ReDefinition.Engineer
         internal static List<StepRole> RolesBetween(IList<PlannerBody> bodies, RouteStop from, RouteStop goal)
         {
             List<StepRole> roles = new List<StepRole>();
+            // A drive over the ground is no launch and no landing: it takes no burn.
+            if (goal.Drives && goal.Kind == StopKind.Surface && from.Kind == StopKind.Surface && from.Body == goal.Body) return roles;
             if (from.Kind == StopKind.Surface) roles.Add(StepRole.Launch);
             if (Crosses(from, goal))
             {

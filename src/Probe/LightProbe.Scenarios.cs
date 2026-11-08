@@ -90,6 +90,18 @@ namespace ReDefinition.Probe
             if (vessel.mapObject != null) PlanetariumCamera.fetch.SetTarget(vessel.mapObject);
             yield return new WaitForSeconds(3f);
             yield return MarkerMenuShot(folder, vessel);
+            if (other != null)
+            {
+                // The plane of the target as the stop's goal: the planner's budget shows the turn.
+                MapView.ExitMapView();
+                yield return new WaitForSeconds(3f);
+                MapPlannerWindow.Instance.PlanGoal(vessel, vessel.mainBody, false, System.Math.Max(1000.0, 0.5 * (vessel.orbit.PeA + vessel.orbit.ApA)), false,
+                    shape: new MapPlannerWindow.Shape { MatchPlane = other });
+                yield return new WaitForSeconds(8f);
+                ReportPlan(MapPlannerWindow.Instance, "match the plane of " + other.vesselName + " (target inclination " + other.orbit.inclination.ToString("0.0") + ")");
+                ScreenCapture.CaptureScreenshot(Path.Combine(folder, "click-plane-budget.png"));
+                yield return ProbeSteps.Frames(10);
+            }
             Debug.Log(Log.Tag + " Probe: click done.");
         }
 
