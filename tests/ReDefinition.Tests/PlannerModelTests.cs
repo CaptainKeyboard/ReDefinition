@@ -155,6 +155,38 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1, reshaped);
         }
 
+        // Taking out the start makes the second stop the start: the budget then counts from there, with no launch from the first.
+        [TestMethod]
+        public void TakingOutTheStartMakesTheSecondStopTheStartAndTheBudgetCountsFromThere()
+        {
+            PlannerModel model = Strong(PlannerTests.Surface(Kerbin), PlannerTests.Orbit(Kerbin, 80000), PlannerTests.Orbit(Mun, 30000));
+            double whole = model.Steps.Sum(step => step.Leg.DeltaV);
+            Assert.IsTrue(model.Steps.Any(step => step.Role == StepRole.Launch), "the whole route lifts off");
+
+            model.RemoveStop(0);
+            model.Evaluate();
+
+            Assert.AreEqual(2, model.State.Stops.Count);
+            Assert.AreEqual(StopKind.Orbit, model.State.Stops[0].Kind, "the orbit is the start now");
+            Assert.AreEqual(Kerbin, model.State.Stops[0].Body);
+            Assert.AreEqual(Mun, model.State.Stops[1].Body);
+            Assert.IsFalse(model.Steps.Any(step => step.Role == StepRole.Launch), "no lift-off from an orbit");
+            Assert.IsTrue(model.Steps.Sum(step => step.Leg.DeltaV) < whole, "only the transfer is left to pay for");
+        }
+
+        // The start can be another body or another kind: the budget counts the route from wherever it begins.
+        [TestMethod]
+        public void AnotherStartChangesWhatTheRouteNeeds()
+        {
+            PlannerModel model = Strong(PlannerTests.Surface(Kerbin), PlannerTests.Orbit(Mun, 30000));
+            double fromKerbin = model.Steps.Sum(step => step.Leg.DeltaV);
+
+            model.SetKind(0, StopKind.Orbit);
+            model.Evaluate();
+
+            Assert.IsTrue(model.Steps.Sum(step => step.Leg.DeltaV) < fromKerbin, "from an orbit the climb is not paid for");
+        }
+
         // The list of bodies puts each moon under its planet, one level of 12 units deeper, and marks the stop's own.
         [TestMethod]
         public void TheListOfBodiesPutsEachMoonUnderItsPlanet()
