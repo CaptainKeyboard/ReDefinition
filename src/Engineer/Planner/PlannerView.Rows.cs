@@ -84,6 +84,7 @@ namespace ReDefinition.Engineer
                     route.AddRange(StepBlock(i, role));
             }
             route.Add(AddRow());
+            route.Add(ClearRow());
             route.AddRange(SummaryRows());
             rows.AddRange(Section("Route", () => routeShown, () => { routeShown = !routeShown; model.Touch(); },
                 "The destinations and the steps between them.", RouteSummary, route));
@@ -335,6 +336,15 @@ namespace ReDefinition.Engineer
             // Once every destination has its body.
             row.OptionEnabledCondition = model.CanAddStop;
             return row;
+        }
+
+        // Under the destinations: one button that removes them all. It stays in view and is dimmed where there is nothing to remove.
+        private DialogGUIBase ClearRow()
+        {
+            DialogGUIButton clear = new DialogGUIButton("Clear Route", ClearPlan, 110f, Square, false);
+            clear.tooltipText = "Remove every destination and start the route over; a flight under way is stopped.";
+            clear.OptionInteractableCondition = () => model.Ready() && (!model.RouteEmpty || model.State.Stops.Count > 2);
+            return new GatedRow(width, Square + 2f, 4f, new RectOffset(0, 0, 2, 0), TextAnchor.MiddleLeft, new DialogGUISpace(Timeline), clear);
         }
 
         // The timeline's line through a row of that height.
