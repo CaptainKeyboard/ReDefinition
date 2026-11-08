@@ -47,6 +47,25 @@ namespace ReDefinition.Probe
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-mun.png"));
             yield return ProbeSteps.Frames(10);
 
+            // A third stop added after the Mun, then the route emptied by the Clear Route button's own call: shots of where the route can be deleted.
+            CelestialBody minmus = FlightGlobals.Bodies.Find(b => b.bodyName == "Minmus");
+            window.PlanGoal(vessel, minmus, false, NextStepPlanner.LowOrbit(minmus), true);
+            yield return new WaitForSeconds(10f);
+            ReportPlan(window, "Mun, then Minmus orbit");
+            ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-three-stops.png"));
+            yield return ProbeSteps.Frames(10);
+            window.ClearNow();
+            yield return new WaitForSeconds(3f);
+            ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-route-emptied.png"));
+            yield return ProbeSteps.Frames(10);
+            if (CommandLine.Has("-redefinitionProbeShort"))
+            {
+                Debug.Log(Log.Tag + " Probe: goals done.");
+                yield break;
+            }
+            window.PlanGoal(vessel, mun, false, NextStepPlanner.LowOrbit(mun), false);
+            yield return new WaitForSeconds(10f);
+
             // Navigate to Surface: no site, so no plane turn and no marker, only the burn that brings the orbit down.
             window.PlanGoal(vessel, mun, true, 0.0, false);
             yield return new WaitForSeconds(10f);
