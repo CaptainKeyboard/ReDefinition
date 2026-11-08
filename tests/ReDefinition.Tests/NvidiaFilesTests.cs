@@ -139,7 +139,7 @@ namespace ReDefinition.Tests
                 standIns.Add(new NvidiaFiles.Entry
                 {
                     Name = entry.Name, FileName = entry.FileName, Size = content.Length,
-                    Sha256 = NvidiaFiles.Sha256(content), Use = entry.Use, Notice = entry.Notice,
+                    Sha256 = NvidiaFiles.Sha256(new System.IO.MemoryStream(content)), Use = entry.Use, Notice = entry.Notice,
                     ExactVersion = entry.ExactVersion,
                 });
                 if (!entry.Notice) File.WriteAllBytes(Path.Combine(folder, entry.FileName), content);
@@ -202,7 +202,7 @@ namespace ReDefinition.Tests
                 Offset = 0,
                 CompressedSize = compressedSize,
                 Size = content.Length,
-                Sha256 = NvidiaFiles.Sha256(content),
+                Sha256 = NvidiaFiles.Sha256(new System.IO.MemoryStream(content)),
             };
         }
 
@@ -262,7 +262,7 @@ namespace ReDefinition.Tests
             Assert.ThrowsException<InvalidDataException>(() => Extracted(entry, renamed), "another name");
 
             NvidiaFiles.Entry otherChecksum = Archived("bin/x64/sl.interposer.dll", content, out range);
-            otherChecksum.Sha256 = NvidiaFiles.Sha256(new byte[] { 1, 2, 3 });
+            otherChecksum.Sha256 = NvidiaFiles.Sha256(new System.IO.MemoryStream(new byte[] { 1, 2, 3 }));
             Assert.ThrowsException<InvalidDataException>(() => Extracted(otherChecksum, range), "checksum");
 
             byte[] corrupted = (byte[])range.Clone();

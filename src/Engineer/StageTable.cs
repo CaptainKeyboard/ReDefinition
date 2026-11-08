@@ -47,13 +47,6 @@ namespace ReDefinition.Engineer
     // works with them. Free of Unity, tested.
     internal static class StageTable
     {
-        // The delta-v a stage gets from its engines' specific impulse and the
-        // propellant it burns: Tsiolkovsky, with standard gravity as KSP uses it.
-        internal static double RocketDeltaV(double isp, double startMass, double endMass)
-        {
-            if (isp <= 0.0 || startMass <= 0.0 || endMass <= 0.0 || endMass >= startMass) return 0.0;
-            return isp * StandardGravity * System.Math.Log(startMass / endMass);
-        }
 
         // The propellant thrusters can burn from what is held, in tonnes. They draw
         // their propellants in the mix they burn them in (`mix`, per resource its

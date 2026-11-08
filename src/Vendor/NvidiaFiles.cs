@@ -443,11 +443,6 @@ namespace ReDefinition.Vendor
             using (SHA256 sha = SHA256.Create()) return Hex(sha.ComputeHash(stream));
         }
 
-        // The SHA-256 of the bytes, in upper-case hex.
-        public static string Sha256(byte[] data)
-        {
-            using (SHA256 sha = SHA256.Create()) return Hex(sha.ComputeHash(data));
-        }
 
         // The hash as upper-case hex, as the entries' checksums are written.
         private static string Hex(byte[] hash)

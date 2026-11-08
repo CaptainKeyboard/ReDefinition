@@ -30,14 +30,13 @@ namespace ReDefinition.Tests
             Assert.IsFalse(FrameGenerationChoice.Valid(null));
         }
 
-        // Every choice is offered and no note shown while the technique has reported nothing.
+        // Every choice is offered while the technique has reported nothing.
         [TestMethod]
         public void EverythingIsOfferedWhileTheTechniqueHasSaidNothing()
         {
             FrameGenerationChoice.Limits none = new FrameGenerationChoice.Limits { Dynamic = -1 };
             foreach (string choice in FrameGenerationChoice.All)
                 Assert.IsTrue(FrameGenerationChoice.Offered(choice, none), choice);
-            Assert.IsNull(FrameGenerationChoice.Note(none, false));
         }
 
         // DLSS offers the multipliers up to the most its state reports, and a larger choice runs as that most.
@@ -73,27 +72,6 @@ namespace ReDefinition.Tests
             FrameGenerationChoice.Limits xess = new FrameGenerationChoice.Limits { Technique = 3, Most = 3, Dynamic = 0 };
             Assert.IsTrue(FrameGenerationChoice.Offered("3x", xess));
             Assert.IsFalse(FrameGenerationChoice.Offered("4x", xess));
-        }
-
-        // The note names the steps not offered and why. The reason is the package's or the GPU's limit, with how to raise
-        // the package's, FSR's one frame between two, or Dynamic being DLSS's alone. There is no note where all are offered.
-        [TestMethod]
-        public void TheNoteSaysWhichStepsAreNotOfferedAndWhy()
-        {
-            string package = FrameGenerationChoice.Note(Dlss(3, 0), true);
-            StringAssert.StartsWith(package, "4x to 6x: the package allows up to 3x");
-            StringAssert.Contains(package, "raise its multiplier");
-            StringAssert.Contains(package, "restart of KSP");
-            StringAssert.Contains(package, "Dynamic: not supported here");
-
-            string gpu = FrameGenerationChoice.Note(Dlss(4, 1), false);
-            Assert.AreEqual("5x and 6x: this GPU allows up to 4x.", gpu);
-
-            string fsr = FrameGenerationChoice.Note(new FrameGenerationChoice.Limits { Technique = 1, Most = 2 }, false);
-            StringAssert.StartsWith(fsr, "3x to 6x: FSR 3 generates one frame between two.");
-            StringAssert.Contains(fsr, "Dynamic: DLSS frame generation only.");
-
-            Assert.IsNull(FrameGenerationChoice.Note(Dlss(6, 1), false), "all offered");
         }
 
         // The technique row holds the switch and the technique, the multiplier row the multiplier.
@@ -145,16 +123,6 @@ namespace ReDefinition.Tests
                 "nothing said yet");
         }
 
-        // Where Dynamic is chosen but not supported the note says 2x runs instead; for a multiplier it does not.
-        [TestMethod]
-        public void TheNoteSaysWhatDynamicRunsAsWhereItIsNotSupported()
-        {
-            StringAssert.Contains(FrameGenerationChoice.Note(Dlss(4, 0), false, "Dynamic"), "2x runs instead.");
-            StringAssert.Contains(FrameGenerationChoice.Note(new FrameGenerationChoice.Limits { Technique = 1, Most = 2 }, false,
-                                                             "Dynamic"), "2x runs instead.");
-            Assert.IsFalse(FrameGenerationChoice.Note(Dlss(4, 0), false, "3x").Contains("runs instead"));
-        }
-
         // The switch profiles set is still a setting but no row of the window; the multiplier is a row.
         [TestMethod]
         public void TheProfilesSwitchIsStillThereButNotARow()
@@ -162,8 +130,8 @@ namespace ReDefinition.Tests
             ModuleSetting enabled = OurModules.FrameGeneration.Setting("enabled");
             Assert.IsNotNull(enabled);
             Assert.IsFalse(enabled.Present());
-            Assert.IsTrue(OurModules.Rows().Contains(OurModules.FrameGeneration.Setting("mode")));
-            Assert.IsFalse(OurModules.Rows().Contains(enabled));
+            Assert.IsTrue(OurModules.Rows(ReDefinition.Settings.SettingCategory.General).Contains(OurModules.FrameGeneration.Setting("mode")));
+            Assert.IsFalse(OurModules.Rows(ReDefinition.Settings.SettingCategory.General).Contains(enabled));
         }
 
         // The label says dynamic only for DLSS; XeSS and FSR keep their own text.

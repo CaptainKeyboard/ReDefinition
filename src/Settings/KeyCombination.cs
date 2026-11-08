@@ -114,14 +114,6 @@ namespace ReDefinition.Settings
             return CanBind(key) ? new KeyCombination(key, FirstModifier, SecondModifier) : this;
         }
 
-        // The same combination with at most that many modifiers: for a mod that
-        // keeps fewer than two.
-        public KeyCombination WithAtMost(int modifiers)
-        {
-            if (ModifierCount <= modifiers) return this;
-            if (modifiers <= 0) return new KeyCombination(Key, KeyCode.None, KeyCode.None);
-            return new KeyCombination(Key, FirstModifier, KeyCode.None);
-        }
 
         // Whether the key is one of the modifiers, left or right.
         public static bool IsModifier(KeyCode key)

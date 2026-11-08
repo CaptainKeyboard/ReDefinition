@@ -193,13 +193,6 @@ namespace ReDefinition.Engineer
         // Where an aerobraking pass dips to, as a share of the atmosphere's depth.
         internal const double AerobrakeDepth = 0.5;
 
-        // What each step from one stop to the next costs.
-        internal static List<Leg> Legs(IList<PlannerBody> bodies, IList<RouteStop> stops, bool planeChanges)
-        {
-            List<Leg> legs = new List<Leg>();
-            for (int i = 0; i + 1 < stops.Count; i++) legs.Add(LegOf(bodies, stops[i], stops[i + 1], i, planeChanges));
-            return legs;
-        }
 
         // The burn that leaves an orbit on the way across; every other burn of a
         // transfer arrives.

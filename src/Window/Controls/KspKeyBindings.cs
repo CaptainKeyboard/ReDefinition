@@ -273,12 +273,6 @@ namespace ReDefinition.Window
             return text.Length == 0 ? name : char.ToUpperInvariant(text[0]) + text.Substring(1);
         }
 
-        // The group a field name belongs to; General where it matches none.
-        internal static string GroupOf(string name)
-        {
-            KeyGroup group = GroupFor(name);
-            return group != null ? group.Name : "General";
-        }
 
         // The situations of one of KSP's groups by its name; everywhere for any
         // other section.
@@ -298,12 +292,6 @@ namespace ReDefinition.Window
             return names;
         }
 
-        // The situations a field name's binding counts in; everywhere where it matches no group.
-        internal static int SituationsOf(string name)
-        {
-            KeyGroup group = GroupFor(name);
-            return group != null ? group.Situations : Everywhere;
-        }
 
         // The first group with a prefix the name starts with, case aside; null for none.
         private static KeyGroup GroupFor(string name)

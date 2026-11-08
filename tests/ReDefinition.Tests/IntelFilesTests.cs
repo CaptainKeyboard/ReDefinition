@@ -282,7 +282,7 @@ namespace ReDefinition.Tests
 
             NvidiaFiles.Entry otherChecksum = NvidiaFilesTests.Archived("bin/libxell.dll", content, out range, true);
             otherChecksum.Release = "Intel's release";
-            otherChecksum.Sha256 = NvidiaFiles.Sha256(new byte[] { 1, 2, 3 });
+            otherChecksum.Sha256 = NvidiaFiles.Sha256(new System.IO.MemoryStream(new byte[] { 1, 2, 3 }));
             InvalidDataException checksum = Assert.ThrowsException<InvalidDataException>(() => Extracted(otherChecksum, range));
             StringAssert.Contains(checksum.Message, "Intel's release");
         }
@@ -294,7 +294,7 @@ namespace ReDefinition.Tests
             byte[] range;
             NvidiaFiles.Entry entry = NvidiaFilesTests.Archived("bin/x64/sl.common.dll",
                                                                 NvidiaFilesTests.Content(), out range);
-            entry.Sha256 = NvidiaFiles.Sha256(new byte[] { 1 });
+            entry.Sha256 = NvidiaFiles.Sha256(new System.IO.MemoryStream(new byte[] { 1 }));
             InvalidDataException e = Assert.ThrowsException<InvalidDataException>(() => Extracted(entry, range));
             StringAssert.Contains(e.Message, "NVIDIA's release");
         }

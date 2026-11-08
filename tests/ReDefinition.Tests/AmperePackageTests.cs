@@ -76,9 +76,9 @@ namespace ReDefinition.Tests
 
             string game = Path.Combine(folder, "KSP");
             Directory.CreateDirectory(game);
-            Assert.IsFalse(AmperePackage.SuperResolutionInstalled(game));
+            Assert.IsFalse(File.Exists(Path.Combine(game, "dlssg_sm86", "sr", "nvngx_dlss.dll")));
             Assert.AreEqual(2, AmperePackage.Install(zip, game, AmperePackage.Part.SuperResolution));
-            Assert.IsTrue(AmperePackage.SuperResolutionInstalled(game));
+            Assert.IsTrue(File.Exists(Path.Combine(game, "dlssg_sm86", "sr", "nvngx_dlss.dll")));
             // Not the package itself: that is another install.
             Assert.IsFalse(AmperePackage.Installed(game));
             Assert.IsFalse(File.Exists(Path.Combine(game, "version.dll")));

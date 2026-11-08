@@ -126,7 +126,7 @@ namespace ReDefinition.Tests
         {
             List<string> keys = new List<string>();
             for (int i = 0; i < texts.Length; i++) keys.Add(((char)('a' + i)).ToString());
-            return Conflicts.Sharing(keys, texts, situations, modes, shipped);
+            return Conflicts.Sharing(keys, texts, situations, modes, shipped, null);
         }
 
         // Two rows on the same combination in the same situation are both marked; a row on another key is not.
@@ -223,21 +223,10 @@ namespace ReDefinition.Tests
                 new string[] { null, null }).Count);
         }
 
-        // Fitted to a mod that keeps fewer modifiers, a combination keeps the first ones, and one that fits stays.
-        [TestMethod]
-        public void AModWithOneModifierKeepsTheFirst()
-        {
-            KeyCombination combination = KeyCombination.Parse("LeftControl+LeftAlt+F10");
-            Assert.AreEqual("LeftControl+F10", combination.WithAtMost(1).ToString());
-            Assert.AreEqual("F10", combination.WithAtMost(0).ToString());
-            // What already fits stays as it is.
-            Assert.AreEqual("LeftControl+LeftAlt+F10", combination.WithAtMost(2).ToString());
-        }
 
-        // KSP's field names in their several spellings read as words in sentence case, each in its group, and
-        // a binding counts in the situations of its group.
+        // KSP's field names in their several spellings read as words in sentence case.
         [TestMethod]
-        public void KspsFieldNamesAreReadableAndGrouped()
+        public void KspsFieldNamesAreReadable()
         {
             Assert.AreEqual("Pitch down", KspKeyBindings.Readable("PITCH_DOWN"));
             Assert.AreEqual("Time warp increase", KspKeyBindings.Readable("TIME_WARP_INCREASE"));
@@ -246,15 +235,6 @@ namespace ReDefinition.Tests
             Assert.AreEqual("Custom action group 10", KspKeyBindings.Readable("CustomActionGroup10"));
             Assert.AreEqual("Eva pack forward", KspKeyBindings.Readable("EVA_Pack_forward"));
 
-            Assert.AreEqual("Flight", KspKeyBindings.GroupOf("PITCH_DOWN"));
-            Assert.AreEqual("Flight", KspKeyBindings.GroupOf("CustomActionGroup1"));
-            Assert.AreEqual("Flight", KspKeyBindings.GroupOf("Docking_toggleRotLin"));
-            Assert.AreEqual("Camera", KspKeyBindings.GroupOf("CAMERA_ORBIT_UP"));
-            Assert.AreEqual("EVA", KspKeyBindings.GroupOf("EVA_forward"));
-            Assert.AreEqual("Editor", KspKeyBindings.GroupOf("Editor_pitchUp"));
-            Assert.AreEqual("General", KspKeyBindings.GroupOf("PAUSE"));
-            Assert.AreEqual(KspKeyBindings.Everywhere, KspKeyBindings.SituationsOf("QUICKSAVE"));
-            Assert.AreEqual(KspKeyBindings.Eva, KspKeyBindings.SituationsOf("EVA_Board"));
         }
     }
 }

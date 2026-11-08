@@ -23,20 +23,10 @@ namespace ReDefinition.Upscaler
     // code, tested.
     internal static class SceneMotion
     {
-        // `projection` and `previousProjection`: GL.GetGPUProjectionMatrix(...,
-        // false) without jitter. `position` and `rotation`: the camera's against the
-        // body, this frame and the one before.
-        internal static Matrix4x4 ClipToPreviousClip(Matrix4x4 projection, Matrix4x4 previousProjection,
-                                                     Vector3d position, Quaternion rotation,
-                                                     Vector3d previousPosition, Quaternion previousRotation)
-        {
-            return ClipToPreviousClipWithInverse(StreamlineCamera.Invert(projection), previousProjection,
-                                                 position, rotation, previousPosition, previousRotation);
-        }
-
-        // The same with the inverse of `projection` given, for callers that move two cameras
-        // through one projection or have it already (the inverse of the identity is the
-        // identity, exactly).
+        // `inverseProjection`: the inverse of GL.GetGPUProjectionMatrix(..., false) without jitter.
+        // Callers that move two cameras through one projection have it already.
+        // The inverse of the identity is the identity, exactly. `previousProjection`: that of the frame before.
+        // `position` and `rotation`: the camera's against the body, this frame and the one before.
         internal static Matrix4x4 ClipToPreviousClipWithInverse(Matrix4x4 inverseProjection, Matrix4x4 previousProjection,
                                                                 Vector3d position, Quaternion rotation,
                                                                 Vector3d previousPosition, Quaternion previousRotation)

@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Proxy;
 using ReDefinition.Upscaler;
 using UnityEngine;
 
@@ -43,6 +44,14 @@ namespace ReDefinition.Tests
             return new Vector2((clip.x / clip.w - before.x / before.w) * 0.5f, (clip.y / clip.w - before.y / before.w) * 0.5f);
         }
 
+        // The clip-space matrix with the inverse of `projection` worked out here.
+        private static Matrix4x4 Clip(Matrix4x4 projection, Matrix4x4 previousProjection, Vector3d position, Quaternion rotation,
+                                      Vector3d previousPosition, Quaternion previousRotation)
+        {
+            return SceneMotion.ClipToPreviousClipWithInverse(StreamlineCamera.Invert(projection), previousProjection,
+                                                             position, rotation, previousPosition, previousRotation);
+        }
+
         // A turn by `degrees` about a unit axis; Quaternion.AngleAxis is native code.
         private static Quaternion Turn(float degrees, float x, float y, float z)
         {
@@ -58,7 +67,7 @@ namespace ReDefinition.Tests
         {
             Quaternion turn = Turn(35f, 1f, 2f, 3f);
             Vector3d at = new Vector3d(1000.0, 200000.0, -30000.0);
-            Matrix4x4 m = SceneMotion.ClipToPreviousClip(Projection(), Projection(), at, turn, at, turn);
+            Matrix4x4 m = Clip(Projection(), Projection(), at, turn, at, turn);
             Vector2 motion = Motion(m, new Vector2(0.3f, -0.2f), DepthAt(150000.0));
             Assert.AreEqual(0f, motion.magnitude, 1e-6f);
         }
@@ -72,7 +81,7 @@ namespace ReDefinition.Tests
             // right since the frame before.
             Quaternion turn = Quaternion.identity;
             Vector3d now = new Vector3d(10.0, 0.0, 0.0);
-            Matrix4x4 m = SceneMotion.ClipToPreviousClip(Projection(), Projection(), now, turn, Vector3d.zero, turn);
+            Matrix4x4 m = Clip(Projection(), Projection(), now, turn, Vector3d.zero, turn);
             Vector2 motion = Motion(m, Vector2.zero, DepthAt(150000.0));
 
             // The point ahead stood 10 m to the right of the camera before: at
@@ -95,8 +104,8 @@ namespace ReDefinition.Tests
             Vector3d here = new Vector3d(0.0, 0.0, 0.0);
             Vector3d far = new Vector3d(-56259.66, 139028.45, 2369.80);
 
-            Matrix4x4 near = SceneMotion.ClipToPreviousClip(Projection(), Projection(), here + step, now, here, before);
-            Matrix4x4 distant = SceneMotion.ClipToPreviousClip(Projection(), Projection(), far + step, now, far, before);
+            Matrix4x4 near = Clip(Projection(), Projection(), here + step, now, here, before);
+            Matrix4x4 distant = Clip(Projection(), Projection(), far + step, now, far, before);
             foreach (Vector2 ndc in new[] { Vector2.zero, new Vector2(0.8f, 0.5f), new Vector2(-0.6f, -0.9f) })
             {
                 Vector2 a = Motion(near, ndc, DepthAt(150000.0));
@@ -115,7 +124,7 @@ namespace ReDefinition.Tests
             // plane moves across the screen by that angle, nothing of the distance.
             Quaternion before = Quaternion.identity;
             Quaternion now = Turn(0.1f, 0f, 1f, 0f);
-            Matrix4x4 m = SceneMotion.ClipToPreviousClip(Projection(), Projection(), Vector3d.zero, now, Vector3d.zero, before);
+            Matrix4x4 m = Clip(Projection(), Projection(), Vector3d.zero, now, Vector3d.zero, before);
             Vector2 motion = Motion(m, Vector2.zero, 0f);
             float f = 1f / Mathf.Tan(Fov * 0.5f * Mathf.Deg2Rad) / Aspect;
             Assert.AreEqual(f * Mathf.Tan(0.1f * Mathf.Deg2Rad) * 0.5f, Mathf.Abs(motion.x), 1e-6f);
@@ -139,7 +148,7 @@ namespace ReDefinition.Tests
             Vector3d from = new Vector3d(1000.0, 200000.0, -30000.0);
             Vector3d to = from + new Vector3d(3.0, -2.0, 11.0);
 
-            Matrix4x4 direct = SceneMotion.ClipToPreviousClip(Projection(), Projection(), to, now, from, before);
+            Matrix4x4 direct = Clip(Projection(), Projection(), to, now, from, before);
             Matrix4x4 reused = SceneMotion.ClipToPreviousClipWithInverse(
                 ReDefinition.Proxy.StreamlineCamera.Invert(Projection()), Projection(), to, now, from, before);
 
@@ -154,7 +163,7 @@ namespace ReDefinition.Tests
             Quaternion turn = Turn(35f, 1f, 2f, 3f);
             Vector3d at = new Vector3d(5.0, 6.0, 7.0);
 
-            AssertSame(SceneMotion.ClipToPreviousClip(Matrix4x4.identity, Projection(), at, turn, Vector3d.zero, turn),
+            AssertSame(Clip(Matrix4x4.identity, Projection(), at, turn, Vector3d.zero, turn),
                        SceneMotion.ClipToPreviousClipWithInverse(Matrix4x4.identity, Projection(), at, turn, Vector3d.zero, turn));
         }
     }

@@ -193,13 +193,5 @@ namespace ReDefinition.Tests
             Assert.IsTrue(tilted.Lines.Any(line => line.Name == "Plane change"));
         }
 
-        // A route of four stops is three legs, one between each two.
-        [TestMethod]
-        public void ARouteOfFourStopsHasThreeLegs()
-        {
-            List<RouteStop> stops = new List<RouteStop> { Surface(Kerbin), Orbit(Kerbin, 80000), Orbit(Mun, 14000), Surface(Mun) };
-
-            Assert.AreEqual(3, RoutePlanner.Legs(Stock(), stops, false).Count);
-        }
     }
 }

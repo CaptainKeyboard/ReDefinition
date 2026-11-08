@@ -146,13 +146,6 @@ namespace ReDefinition.Window
         // Each binding's `apart` group at the last count.
         private static readonly List<string> apartNow = new List<string>();
 
-        // The same without crossed bindings kept apart.
-        internal static List<string> Sharing(IList<string> keys, IList<string> texts, IList<int> situations,
-                                             IList<int> modes, IList<string> shipped)
-        {
-            return Sharing(keys, texts, situations, modes, shipped, null);
-        }
-
         // Which of the bindings given share a combination with another that counts
         // in the same situation.
         // shipped holds KSP's default of each of its own bindings, null for the others.

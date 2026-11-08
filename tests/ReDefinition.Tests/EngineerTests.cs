@@ -116,14 +116,5 @@ namespace ReDefinition.Tests
             CollectionAssert.AreEqual(new[] { "aaa bbb", "ccc" }, EngineerFormat.Wrap("aaa bbb ccc", -5));
         }
 
-        // Delta-v is Isp times KSP's standard gravity of 9.80665 m/s^2 times the log of the mass ratio, and none
-        // where the mass does not fall.
-        [TestMethod]
-        public void RocketDeltaVIsTsiolkovskyWithKspsStandardGravity()
-        {
-            // 300 s, from 10 t to 5 t: 300 * 9.80665 * ln 2.
-            Assert.AreEqual(2039.2, StageTable.RocketDeltaV(300, 10, 5), 0.1);
-            Assert.AreEqual(0.0, StageTable.RocketDeltaV(300, 5, 10), "no propellant burnt");
-        }
     }
 }

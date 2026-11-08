@@ -80,13 +80,6 @@ namespace ReDefinition.Vendor
                    && File.Exists(Path.Combine(game, Runtime.Replace('/', Path.DirectorySeparatorChar)));
         }
 
-        // Whether the super-resolution files lie where the package's ini wants them.
-        public static bool SuperResolutionInstalled(string game)
-        {
-            return File.Exists(Path.Combine(game, SuperResolutionRuntime.Replace('/', Path.DirectorySeparatorChar)))
-                   && File.Exists(Path.Combine(game, SuperResolutionKernels.Replace('/', Path.DirectorySeparatorChar)));
-        }
-
         // The newest release zip in KSP's folder, or null.
         public static string FindZip(string game)
         {

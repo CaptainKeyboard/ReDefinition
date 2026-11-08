@@ -199,7 +199,7 @@ namespace ReDefinition.Tests
         {
             CollectionAssert.AreEqual(new[] { "Upscaler", "Mode", "Sharpness", "One antialiasing per camera", "Frame generation", "Multiplier",
                                             "Low latency", "Raytracing", "Ray Reconstruction", "Moonlight", "Moon reflection", "Moon glow", "Sun reflection", "Night clouds", "Night light" },
-                OurModules.Rows().Select(setting => setting.Title).ToArray());
+                OurModules.Rows(SettingCategory.General).Select(setting => setting.Title).ToArray());
         }
 
         // The mode's list runs Auto first, then from Ultra Performance, the smallest render size, to AA only.

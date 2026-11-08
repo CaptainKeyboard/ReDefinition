@@ -782,12 +782,6 @@ namespace ReDefinition.Modules
             return null;
         }
 
-        // Every module's settings under General in the order their rows stand; those
-        // not present (ModuleSetting.Present) left out.
-        public static List<ModuleSetting> Rows()
-        {
-            return Rows(SettingCategory.General);
-        }
 
         // The rows of a tab that stand in Display (or the tab itself) or in Detail's group.
         public static List<ModuleSetting> Rows(SettingCategory tab, bool detail)

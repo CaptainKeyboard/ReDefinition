@@ -108,12 +108,5 @@ namespace ReDefinition.Orbits
             return new V3(V3.Dot(deltaV, radial), V3.Dot(deltaV, normal), V3.Dot(deltaV, prograde));
         }
 
-        // The other way: a change of velocity from the node frame to the inertial one.
-        internal static V3 FromNodeFrame(State at, V3 nodeDeltaV, bool leftHanded = false)
-        {
-            V3 radial, normal, prograde;
-            NodeAxes(at, leftHanded, out radial, out normal, out prograde);
-            return radial * nodeDeltaV.X + normal * nodeDeltaV.Y + prograde * nodeDeltaV.Z;
-        }
     }
 }

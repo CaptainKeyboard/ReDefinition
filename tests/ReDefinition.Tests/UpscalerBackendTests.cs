@@ -15,7 +15,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheRowOffersFsr3DlssAmdAndXessInThatOrder()
         {
-            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Upscaler");
+            ModuleSetting row = OurModules.Rows(SettingCategory.General).Single(setting => setting.Title == "Upscaler");
             CollectionAssert.AreEqual(new[] { "Off", "Auto", "Fsr3", "Dlss", "Amd", "Xess" }, row.Choices);
         }
 
@@ -34,7 +34,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void XessIsWrittenAndReadByName()
         {
-            ModuleSetting row = OurModules.Rows().Single(setting => setting.Title == "Upscaler");
+            ModuleSetting row = OurModules.Rows(SettingCategory.General).Single(setting => setting.Title == "Upscaler");
             OwnSettings settings = new OwnSettings();
 
             row.Write(settings, "Xess");

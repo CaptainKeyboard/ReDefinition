@@ -1,6 +1,3 @@
-using System.Collections.Generic;
-using System.Text;
-
 namespace ReDefinition.Proxy
 {
     // The frame generation row's choices -- Off, 2x to 6x, Dynamic -- and which of them the
@@ -104,51 +101,6 @@ namespace ReDefinition.Proxy
             if (limits.Technique == 1) return "FSR 3 generates one frame between two.";
             return (limits.Technique == 3 ? "XeSS frame generation" : "DLSS frame generation") + " allows up to "
                    + limits.Most + "x here.";
-        }
-
-        // Why each step that is not offered is not, in a few lines, or null where all are.
-        // amperePackage: the RTX 30/20 package is installed, whose MaxGeneratedFrames sets the most.
-        public static string Note(Limits limits, bool amperePackage, string choice = null)
-        {
-            if (!limits.Known) return null;
-            List<string> missing = new List<string>();
-            foreach (string step in Steps)
-                if (Multiplier(step) > limits.Most) missing.Add(step);
-            StringBuilder note = new StringBuilder();
-            if (missing.Count > 0)
-            {
-                note.Append(Range(missing)).Append(": ");
-                if (limits.Technique == 1)
-                    note.Append("FSR 3 generates one frame between two.");
-                else if (limits.Technique == 3)
-                    note.Append("XeSS-FG generates up to ").Append(limits.Most).Append("x on this GPU.");
-                else if (amperePackage)
-                    note.Append("the package allows up to ").Append(limits.Most)
-                        .Append("x; raise its multiplier under DLSS-G on RTX 30/20 below (applies after a restart of KSP).");
-                else
-                    note.Append("this GPU allows up to ").Append(limits.Most).Append("x.");
-            }
-            string runs = choice == Dynamic ? " " + DynamicFallback + " runs instead." : "";
-            if (limits.Technique == 2 && limits.Dynamic == 0)
-            {
-                if (note.Length > 0) note.Append(' ');
-                note.Append("Dynamic: not supported here (needs multi frame generation and NVIDIA driver 595.41 or newer).")
-                    .Append(runs);
-            }
-            else if (limits.Technique != 2)
-            {
-                if (note.Length > 0) note.Append(' ');
-                note.Append("Dynamic: DLSS frame generation only.").Append(runs);
-            }
-            return note.Length == 0 ? null : note.ToString();
-        }
-
-        // "5x and 6x", "3x to 6x".
-        private static string Range(List<string> steps)
-        {
-            if (steps.Count == 1) return steps[0];
-            if (steps.Count == 2) return steps[0] + " and " + steps[1];
-            return steps[0] + " to " + steps[steps.Count - 1];
         }
     }
 }
