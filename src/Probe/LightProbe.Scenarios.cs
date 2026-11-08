@@ -215,7 +215,11 @@ namespace ReDefinition.Probe
                     if (resource.resourceName == "MonoPropellant") mono += resource.amount;
             Debug.Log(Log.Tag + " Probe: meet: the vessel carries " + mono.ToString("0") + " units of monopropellant, mass " + vessel.GetTotalMass().ToString("0.0") + " t.");
             bool dock = LiveMenu.HasDockingPort(target);
-            LiveMenu.Meet(window, vessel, target, dock);
+            // -redefinitionProbeMatchPlane: the plane of the target is asked for as well, in one plan with the meeting (and the docking).
+            if (CommandLine.Has("-redefinitionProbeMatchPlane"))
+                window.PlanGoal(vessel, vessel.mainBody, false, System.Math.Max(1000.0, 0.5 * (vessel.orbit.PeA + vessel.orbit.ApA)), false, meet: target, dock: dock,
+                    shape: new MapPlannerWindow.Shape { MatchPlane = target });
+            else LiveMenu.Meet(window, vessel, target, dock);
             yield return new WaitForSeconds(10f);
             ReportPlan(window, dock ? "dock with the target" : "meet the target");
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-plan.png"));
@@ -223,7 +227,7 @@ namespace ReDefinition.Probe
             RouteDriver.Instance.ToggleAutopilot(vessel);
             float started = Time.realtimeSinceStartup;
             yield return new WaitForSeconds(5f);
-            while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - started < 1200f)
+            while (RouteDriver.Instance.Flying && !ProbeWatch.Lost && Time.realtimeSinceStartup - started < 1000f)
             {
                 yield return new WaitForSeconds(15f);
                 Vessel flown = FlightGlobals.ActiveVessel;
