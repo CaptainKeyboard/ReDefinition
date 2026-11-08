@@ -12,6 +12,8 @@ namespace ReDefinition.Autopilot
         // The route is flown by MechJeb; it is planned and kept up to date for the player to fly. The autopilot includes the navigation.
         public bool Autopilot;
         public bool Navigation;
+        // MechJeb stages by itself; on unless the player switched it off, and applied to MechJeb when the vessel comes into focus.
+        public bool AutoStaging = true;
         // How far along the route the vessel has come, kept with it.
         internal RouteProgress Progress = new RouteProgress();
 
@@ -34,6 +36,8 @@ namespace ReDefinition.Autopilot
         {
             bool.TryParse(node.GetValue("autopilot"), out Autopilot);
             bool.TryParse(node.GetValue("navigation"), out Navigation);
+            string staging = node.GetValue("autoStaging");
+            AutoStaging = staging == null || !bool.TryParse(staging, out AutoStaging) || AutoStaging;
             int reached;
             Progress = new RouteProgress { Key = node.GetValue("reachedFor") ?? "", Reached = int.TryParse(node.GetValue("reached"), out reached) ? reached : -1 };
         }
@@ -42,6 +46,7 @@ namespace ReDefinition.Autopilot
         {
             if (Autopilot) node.AddValue("autopilot", true);
             if (Navigation) node.AddValue("navigation", true);
+            if (!AutoStaging) node.AddValue("autoStaging", false);
             if (Progress.Reached >= 0)
             {
                 node.AddValue("reached", Progress.Reached);

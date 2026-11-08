@@ -58,6 +58,7 @@ namespace ReDefinition.Probe
             yield return new WaitForSeconds(3f);
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "goals-route-emptied.png"));
             yield return ProbeSteps.Frames(10);
+            yield return MenuChecks(folder, vessel, window);
             if (CommandLine.Has("-redefinitionProbeShort"))
             {
                 Debug.Log(Log.Tag + " Probe: goals done.");

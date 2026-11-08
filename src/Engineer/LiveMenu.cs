@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Ui;
 using UnityEngine;
@@ -12,7 +13,15 @@ namespace ReDefinition.Engineer
     {
         private static PopupDialog shown;
 
-        internal static void Open(Vessel vessel)
+        // Whether the menu is on the screen: a press of the button that finds it open puts it away.
+        internal static bool IsOpen
+        {
+            get { return shown != null && shown.gameObject != null; }
+        }
+
+        // `withRoute`: the menu is asked for while there is a route, so that it offers to cancel it.
+        // Only what makes sense where the vessel is stands in the first list: from the ground the launch, from an orbit the body's moons. The other bodies stand under "Navigate to ...".
+        internal static void Open(Vessel vessel, bool withRoute = false)
         {
             Close();
             MapPlannerWindow window = MapPlannerWindow.Instance;
@@ -21,6 +30,7 @@ namespace ReDefinition.Engineer
             var entries = new List<DialogGUIBase>();
             bool onGround = vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.PRELAUNCH || vessel.situation == Vessel.Situations.SPLASHED;
             bool inOrbit = vessel.situation == Vessel.Situations.ORBITING;
+            if (withRoute) entries.Add(Entry("Cancel Route", () => CancelRoute(vessel)));
             if (onGround)
                 entries.Add(Entry("Launch to Orbit", () => window.PlanGoal(vessel, here, false, NextStepPlanner.LowOrbit(here), MapPlannerWindow.Adding)));
             if (inOrbit && here.hasSolidSurface && here.pqsController != null)
@@ -42,12 +52,17 @@ namespace ReDefinition.Engineer
             CelestialBody home = FlightGlobals.GetHomeBody();
             if (home != null && home != here && (inOrbit || onGround))
                 entries.Add(Entry("Return to " + home.bodyName, () => window.PlanGoal(vessel, home, false, NextStepPlanner.LowOrbit(home), MapPlannerWindow.Adding)));
+            // From an orbit the moons of the body are one choice away; every other body is under "Navigate to ...".
+            var others = new List<CelestialBody>();
             foreach (CelestialBody body in onGround || inOrbit ? Reachable(here) : new CelestialBody[0])
             {
                 CelestialBody goal = body;
                 if (goal == home && home != here) continue;
-                entries.Add(Entry(goal.bodyName + " Orbit", () => window.PlanGoal(vessel, goal, false, NextStepPlanner.LowOrbit(goal), MapPlannerWindow.Adding)));
+                if (inOrbit && goal.referenceBody == here)
+                    entries.Add(Entry(goal.bodyName + " Orbit", () => window.PlanGoal(vessel, goal, false, NextStepPlanner.LowOrbit(goal), MapPlannerWindow.Adding)));
+                else others.Add(goal);
             }
+            if (others.Count > 0) entries.Add(Entry("Navigate to ...", () => OpenNavigate(vessel, withRoute, others), false));
             Vessel meet = Meetable(vessel);
             if (meet != null && inOrbit)
             {
@@ -55,14 +70,50 @@ namespace ReDefinition.Engineer
                 if (HasDockingPort(meet)) entries.Add(Entry("Dock with " + meet.vesselName, () => Meet(window, vessel, meet, true)));
             }
             entries.Add(Entry("Open Planner", window.OpenNow));
-            entries.Add(new DialogGUIButton("Close", () => { }, 170f, 26f, true));
-            var dialog = new MultiOptionDialog("ReDefinitionLiveMenu", "", "Autopilot", HighLogic.UISkin, 190f,
+            entries.Add(Entry("Close", () => { }));
+            Show("Autopilot / MechJeb", entries);
+        }
+
+        // The second list: the bodies that are not one choice away, each as the orbit round it. "Back" brings the first list again.
+        private static void OpenNavigate(Vessel vessel, bool withRoute, List<CelestialBody> bodies)
+        {
+            Close();
+            MapPlannerWindow window = MapPlannerWindow.Instance;
+            if (vessel == null || window == null) return;
+            var entries = new List<DialogGUIBase>();
+            foreach (CelestialBody body in bodies)
+            {
+                CelestialBody goal = body;
+                entries.Add(Entry(goal.bodyName + " Orbit", () => window.PlanGoal(vessel, goal, false, NextStepPlanner.LowOrbit(goal), MapPlannerWindow.Adding)));
+            }
+            entries.Add(Entry("Back", () => Open(vessel, withRoute), false));
+            entries.Add(Entry("Close", () => { }));
+            Show("Navigate to", entries);
+        }
+
+        // The list on the screen under the button, put on the screen like the other dialogs.
+        private static void Show(string title, List<DialogGUIBase> entries)
+        {
+            var dialog = new MultiOptionDialog("ReDefinitionLiveMenu", "", title, HighLogic.UISkin, 190f,
                 new DialogGUIVerticalLayout(170f, -1f, 2f, new RectOffset(4, 4, 4, 4), TextAnchor.UpperLeft, entries.ToArray()));
             var anchor = new Vector2(0.2f, 0.72f);
             shown = PopupDialog.SpawnPopupDialog(anchor, anchor, dialog, false, HighLogic.UISkin, false);
             PlaceUnderButton();
             UnityMouseEvents.Shield(ScreenFit.Add(shown));
             UiHygiene.MouseOnly(shown.gameObject);
+        }
+
+        // The flight stopped and the route emptied: what the menu's "Cancel Route" does.
+        internal static void CancelRoute(Vessel vessel)
+        {
+            RouteDriver driver = RouteDriver.Instance;
+            if (driver != null && vessel != null)
+            {
+                driver.StopFlight(vessel);
+                RouteState state = RouteState.Of(vessel);
+                if (state != null && state.Navigation) driver.SetNavigation(vessel, false);
+            }
+            if (MapPlannerWindow.Instance != null) MapPlannerWindow.Instance.ClearNow();
         }
 
         // The route set to a round orbit at the altitude, from the orbit now.
@@ -126,7 +177,9 @@ namespace ReDefinition.Engineer
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(rect);
             Vector3 size = new Vector3(rect.rect.width * rect.lossyScale.x, rect.rect.height * rect.lossyScale.y, 0f);
-            rect.position = new Vector3(corners[0].x + size.x * rect.pivot.x, corners[0].y - size.y * (1f - rect.pivot.y), rect.position.z);
+            // Under the button's tooltip, which stands there while the pointer is on the button: two lines of it.
+            float tooltip = 50f * rect.lossyScale.y;
+            rect.position = new Vector3(corners[0].x + size.x * rect.pivot.x, corners[0].y - tooltip - size.y * (1f - rect.pivot.y), rect.position.z);
         }
 
         internal static void Close()
@@ -135,9 +188,10 @@ namespace ReDefinition.Engineer
             shown = null;
         }
 
-        private static DialogGUIButton Entry(string label, Callback choose)
+        // `dismiss` false where the choice puts another list up itself.
+        private static DialogGUIButton Entry(string label, Callback choose, bool dismiss = true)
         {
-            return new DialogGUIButton(label, choose, 170f, 26f, true);
+            return new DialogGUIButton(label, choose, 170f, 26f, dismiss);
         }
 
         // The bodies the route can go to from the one the vessel is round: its moons, the body it circles and the bodies that circle that one too.

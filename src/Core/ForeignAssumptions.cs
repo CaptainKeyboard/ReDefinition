@@ -746,6 +746,33 @@ namespace ReDefinition.Core
                 .TestedVersions("2.15.4.0", "2.16.0.0")
                 .OnChange(WhenChanged.Fallback, "the route stops at the orbit instead of meeting the target");
 
+        // The autopilot button's tooltip names what MechJeb does now (Hud/AutopilotActivity): the status text of its rendezvous and docking
+        // autopilots and the time the warp controller takes warp to. MechJeb 2.16, source read.
+        public static readonly ForeignAssumption MechJebActivity =
+            new ForeignAssumption("mechjeb-activity", "MechJeb", "the autopilot button's tooltip names what MechJeb does")
+                .Type("MuMech.MechJebModuleWarpController").Type("MuMech.MechJebModuleRendezvousAutopilot").Type("MuMech.MechJebModuleDockingAutopilot")
+                .Field("MuMech.MechJebModuleRendezvousAutopilot", "status")
+                .Field("MuMech.MechJebModuleDockingAutopilot", "status")
+                .Method("MuMech.MechJebModuleWarpController", "get_warpToUT")
+                .Tested("c514c9e45f46") // MechJeb 2.15.4.0
+                .OnChange(WhenChanged.Fallback, "the tooltip leaves out MechJeb's own status and warp target");
+
+        // The Auto Staging switch also takes the ascent autopilot's own autostage choice (Autopilot/Flight/MechJebDriver.SetSwitch).
+        public static readonly ForeignAssumption MechJebAscentStaging =
+            new ForeignAssumption("mechjeb-ascent-staging", "MechJeb", "the Auto Staging switch also switches the ascent autopilot's staging")
+                .Type("MuMech.MechJebModuleAscentSettings")
+                .Method("MuMech.MechJebModuleAscentSettings", "set_Autostage", Bool)
+                .Tested("73ab98b6051f") // MechJeb 2.15.4.0
+                .OnChange(WhenChanged.Fallback, "the ascent autopilot keeps staging with the switch off");
+
+        // The Auto Staging switch also takes the landing autopilot's own autostage choice (Autopilot/Flight/MechJebDriver.SetSwitch). Builds that
+        // do not have the field keep the landing autopilot's staging as it is.
+        public static readonly ForeignAssumption MechJebLandingStaging =
+            new ForeignAssumption("mechjeb-landing-staging", "MechJeb", "the Auto Staging switch also switches the landing autopilot's staging")
+                .Type("MuMech.MechJebModuleHoverslamAutopilot")
+                .Field("MuMech.MechJebModuleHoverslamAutopilot", "Autostage")
+                .OnChange(WhenChanged.Fallback, "the landing autopilot keeps staging with the switch off");
+
         // Parsek's ghosts as the autopilot tells them (Autopilot/ParsekBridge). Parsek has no API: a ghost is told by its persistent id through
         // reflection. Parsek 0.10.6, source read (a beta: the format is generation 4 and changes). Nothing of Parsek is written. Each further
         // thing the autopilot takes from Parsek gets an entry of its own, so that a change in one switches off that one alone.
@@ -828,7 +855,7 @@ namespace ReDefinition.Core
         public static readonly ForeignAssumption[] All =
         {
             EveCloudJitter, EveCloudMotion, ScattererCloudReconstruction, EveCloudComposite, EveShadows,
-            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, MechJebRendezvous, ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording,
+            ScattererGodrays, ScattererGodrayHistory, ScattererCloudLight, EveCloudRelight, ScattererCloudAtmosphere, EveCloudKinds, MechJebAutopilot, MechJebRendezvous, MechJebActivity, MechJebAscentStaging, MechJebLandingStaging, ParsekGhost, ParsekRecorder, ParsekStart, ParsekRecording,
             ScattererTemporalAa, ScattererSmaa, ScattererOceanMask,
             ScattererOceanReflections, ScattererOceanSun, ScattererSettings,
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,

@@ -598,7 +598,13 @@ namespace ReDefinition.Engineer
         public void Toggle(MechJebSwitch which)
         {
             if (!Has(which)) return;
-            MechJebDriver.SetSwitch(FlightGlobals.ActiveVessel, (MechJebDriver.Switch)(int)which, !switchOn[(int)which]);
+            bool now = !switchOn[(int)which];
+            MechJebDriver.SetSwitch(FlightGlobals.ActiveVessel, (MechJebDriver.Switch)(int)which, now);
+            if (which == MechJebSwitch.AutoStaging)
+            {
+                RouteState kept = RouteState.Of(FlightGlobals.ActiveVessel);
+                if (kept != null) kept.AutoStaging = now;
+            }
             switchesAt = -10f;
         }
 

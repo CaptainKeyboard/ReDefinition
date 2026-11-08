@@ -160,6 +160,7 @@ namespace ReDefinition.Engineer
         private void Begin(Vessel vessel, RouteState state, AutopilotFlight started)
         {
             flight = started;
+            MechJebDriver.SetSwitch(vessel, MechJebDriver.Switch.AutoStaging, state.AutoStaging);
             StartCoroutine(Run(flight, state, vessel));
         }
 
@@ -199,6 +200,8 @@ namespace ReDefinition.Engineer
                 seen = Time.realtimeSinceStartup;
                 follower = new Navigation();
                 held.Clear();
+                RouteState focused = RouteState.Of(vessel);
+                if (focused != null) MechJebDriver.SetSwitch(vessel, MechJebDriver.Switch.AutoStaging, focused.AutoStaging);
             }
             RouteState state = RouteState.Of(vessel);
             if (state == null) return;

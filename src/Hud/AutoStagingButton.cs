@@ -1,5 +1,6 @@
 using System.Collections;
 using KSP.UI.Screens;
+using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Flight;
 using ReDefinition.Core;
 using ReDefinition.Ui;
@@ -72,7 +73,12 @@ namespace ReDefinition.Hud
         private void Toggle()
         {
             bool on;
-            if (Has(out on)) MechJebDriver.SetSwitch(FlightGlobals.ActiveVessel, MechJebDriver.Switch.AutoStaging, !on);
+            if (Has(out on))
+            {
+                MechJebDriver.SetSwitch(FlightGlobals.ActiveVessel, MechJebDriver.Switch.AutoStaging, !on);
+                RouteState kept = RouteState.Of(FlightGlobals.ActiveVessel);
+                if (kept != null) kept.AutoStaging = !on;
+            }
             Refresh();
         }
 

@@ -128,7 +128,7 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // A module of the vessel's MechJeb unit by the name of the core's field, or null.
-        private static object Module(Vessel vessel, string field)
+        internal static object Module(Vessel vessel, string field)
         {
             if (vessel == null || !Available) return null;
             try
@@ -145,7 +145,7 @@ namespace ReDefinition.Autopilot.Flight
         }
 
         // A module of the master core by its class's name, which the core's GetComputerModule finds; null where there is none.
-        private static object ComputerModule(Vessel vessel, string name)
+        internal static object ComputerModule(Vessel vessel, string name)
         {
             if (vessel == null || !Available) return null;
             try
@@ -508,6 +508,45 @@ namespace ReDefinition.Autopilot.Flight
             return window != null && users is System.Collections.IList;
         }
 
+        // Puts the user into the pool or takes it out with the pool's own Add and Remove; false where the pool has no such method.
+        private static bool ChangeUser(object users, object user, bool on)
+        {
+            if (users == null || user == null) return false;
+            MethodInfo change = users.GetType().GetMethod(on ? "Add" : "Remove", TypeLookup.Any, null, new[] { typeof(object) }, null);
+            if (change == null) return false;
+            if (on != ((System.Collections.IList)users).Contains(user)) change.Invoke(users, new[] { user });
+            return true;
+        }
+
+        // The ascent and landing autopilots stage on their own while they are users of the staging controller. Their own autostage choices go
+        // with the switch, and an engaged one joins or leaves the pool. A missing member is skipped.
+        private static void SetOtherStagingUsers(Vessel vessel, object users, bool on)
+        {
+            try
+            {
+                object settings = Module(vessel, "AscentSettings");
+                if (settings != null)
+                {
+                    PropertyInfo autostage = settings.GetType().GetProperty("Autostage", TypeLookup.Any);
+                    if (autostage != null && autostage.PropertyType == typeof(bool) && autostage.CanWrite) autostage.SetValue(settings, on, null);
+                    PropertyInfo ascent = settings.GetType().GetProperty("AscentAutopilot", TypeLookup.Any);
+                    object ascentAutopilot = ascent != null ? ascent.GetValue(settings, null) : null;
+                    if (ascentAutopilot != null && (!on || Enabled(ascentAutopilot))) ChangeUser(users, ascentAutopilot, on);
+                }
+                object hoverslam = ComputerModule(vessel, "MechJebModuleHoverslamAutopilot");
+                if (hoverslam != null)
+                {
+                    FieldInfo autostage = hoverslam.GetType().GetField("Autostage", TypeLookup.Any);
+                    if (autostage != null && autostage.FieldType == typeof(bool)) autostage.SetValue(hoverslam, on);
+                    if (!on || Enabled(hoverslam)) ChangeUser(users, hoverslam, on);
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(Log.Tag + " MechJeb: the other staging users did not follow: " + e.Message);
+            }
+        }
+
         // Whether the switch exists in this MechJeb, and whether it is on.
         internal static bool GetSwitch(Vessel vessel, Switch which, out bool on)
         {
@@ -536,11 +575,9 @@ namespace ReDefinition.Autopilot.Flight
                 FieldInfo saved;
                 if (!StagingUsers(vessel, out thrustWindow, out users, out saved)) return false;
                 // The pool's own Add and Remove, which enable and disable the controller; the list's would not.
-                MethodInfo change = users.GetType().GetMethod(on ? "Add" : "Remove", TypeLookup.Any, null, new[] { typeof(object) }, null);
-                if (change == null) return false;
-                bool has = ((System.Collections.IList)users).Contains(thrustWindow);
-                if (on != has) change.Invoke(users, new[] { thrustWindow });
+                if (!ChangeUser(users, thrustWindow, on)) return false;
                 if (saved != null && saved.FieldType == typeof(bool)) saved.SetValue(thrustWindow, on);
+                SetOtherStagingUsers(vessel, users, on);
                 return true;
             }
             object owner;
