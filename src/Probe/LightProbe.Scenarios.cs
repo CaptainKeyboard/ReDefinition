@@ -132,6 +132,11 @@ namespace ReDefinition.Probe
                 ModuleDockingNode port = part.FindModuleImplementing<ModuleDockingNode>();
                 if (port != null) Debug.Log(Log.Tag + " Probe: meet: target port is " + port.state + ", type " + port.nodeType + ", gendered " + port.gendered + "/" + port.genderFemale + ".");
             }
+            double mono = 0.0;
+            foreach (Part part in vessel.parts)
+                foreach (PartResource resource in part.Resources)
+                    if (resource.resourceName == "MonoPropellant") mono += resource.amount;
+            Debug.Log(Log.Tag + " Probe: meet: the vessel carries " + mono.ToString("0") + " units of monopropellant, mass " + vessel.GetTotalMass().ToString("0.0") + " t.");
             bool dock = LiveMenu.HasDockingPort(target);
             LiveMenu.Meet(window, vessel, target, dock);
             yield return new WaitForSeconds(10f);
@@ -146,7 +151,7 @@ namespace ReDefinition.Probe
                 yield return new WaitForSeconds(15f);
                 Vessel flown = FlightGlobals.ActiveVessel;
                 Debug.Log(Log.Tag + " Probe: meet: " + (flown.GetWorldPos3D() - target.GetWorldPos3D()).magnitude.ToString("0") + " m to the target (" + RouteDriver.Instance.Status + "), RCS "
-                          + (flown.ActionGroups[KSPActionGroup.RCS] ? "on" : "off") + ", " + flown.parts.Count + " parts, target " + target.parts.Count + ".");
+                          + (flown.ActionGroups[KSPActionGroup.RCS] ? "on" : "off") + ", " + flown.parts.Count + " parts, target " + target.parts.Count + "; docking: " + MechJebDriver.DockingState(flown) + ".");
             }
             ScreenCapture.CaptureScreenshot(Path.Combine(folder, "meet-end.png"));
             yield return ProbeSteps.Frames(10);

@@ -202,6 +202,36 @@ namespace ReDefinition.Autopilot.Flight
             return EditableOf(ComputerModule(vessel, "MechJebModuleDockingAutopilot"), "speedLimit", 1.0);
         }
 
+        // Where MechJeb's docking is: its step and the line it shows, for the probes' log.
+        internal static string DockingState(Vessel vessel)
+        {
+            object module = ComputerModule(vessel, "MechJebModuleDockingAutopilot");
+            if (module == null) return "no docking unit";
+            try
+            {
+                object step = module.GetType().GetField("dockingStep", TypeLookup.Any).GetValue(module);
+                object status = module.GetType().GetField("status", TypeLookup.Any).GetValue(module);
+                object safe = module.GetType().GetField("safeDistance", TypeLookup.Any).GetValue(module);
+                object state = module.GetType().GetProperty("VesselState", TypeLookup.Any)?.GetValue(module, null);
+                object thrust = state != null ? state.GetType().GetField("rcsThrustAvailable", TypeLookup.Any)?.GetValue(state) : null;
+                var parts = new System.Text.StringBuilder();
+                MethodInfo magnitude = thrust != null ? thrust.GetType().GetMethod("GetMagnitude", TypeLookup.Any) : null;
+                if (magnitude != null)
+                {
+                    Type vector = magnitude.GetParameters()[0].ParameterType;
+                    double[][] axes = { new[] { 1.0, 0.0, 0.0 }, new[] { 0.0, 1.0, 0.0 }, new[] { 0.0, 0.0, 1.0 } };
+                    foreach (double[] axis in axes)
+                        parts.Append(magnitude.Invoke(thrust, new[] { Activator.CreateInstance(vector, axis[0], axis[1], axis[2]) }) + " kN; ");
+                }
+                else parts.Append(thrust == null ? "no thrust record" : thrust.ToString());
+                return step + ", safe distance " + safe + " m, " + status + ", rcs thrust " + parts;
+            }
+            catch (Exception e)
+            {
+                return "unreadable: " + e.Message;
+            }
+        }
+
         // The value of one of a module's editable numbers; the fallback where it is not there.
         private static double EditableOf(object module, string field, double fallback)
         {
