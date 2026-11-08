@@ -253,7 +253,9 @@ namespace ReDefinition.Engineer
                 {
                     stopNode.AddValue("matchPlane", stop.MatchPlaneWith.ToString("N"));
                     stopNode.AddValue("matchPlaneName", stop.MatchPlaneName ?? "");
+                    stopNode.AddValue("matchPlaneInclination", stop.MatchPlaneInclination.ToString("0.###", CultureInfo.InvariantCulture));
                 }
+                if (stop.Drives) stopNode.AddValue("drives", true);
                 if (stop.MeetWith != Guid.Empty)
                 {
                     stopNode.AddValue("meetWith", stop.MeetWith.ToString("N"));
@@ -364,7 +366,12 @@ namespace ReDefinition.Engineer
                 {
                     stop.MatchPlaneWith = matchPlane;
                     stop.MatchPlaneName = stopNode.GetValue("matchPlaneName") ?? "";
+                    double planeTilt;
+                    if (double.TryParse(stopNode.GetValue("matchPlaneInclination"), NumberStyles.Float, CultureInfo.InvariantCulture, out planeTilt))
+                        stop.MatchPlaneInclination = Math.Max(0.0, Math.Min(180.0, planeTilt));
                 }
+                bool drives;
+                if (bool.TryParse(stopNode.GetValue("drives"), out drives)) stop.Drives = drives;
                 Guid meetWith;
                 if (Guid.TryParse(stopNode.GetValue("meetWith") ?? "", out meetWith) && meetWith != Guid.Empty)
                 {

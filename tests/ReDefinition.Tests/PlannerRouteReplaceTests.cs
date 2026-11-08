@@ -227,5 +227,36 @@ namespace ReDefinition.Tests
             Assert.IsTrue(leg.Lines.Exists(line => line.Name.StartsWith("Raise the apoapsis")));
             Assert.IsTrue(leg.Lines.Exists(line => line.Name.StartsWith("Turn the plane")));
         }
+
+        // The plane of another vessel costs the turn to the inclination it had when it was chosen.
+        [TestMethod]
+        public void ThePlaneOfAnotherVesselIsInTheLegsDeltaV()
+        {
+            PlannerBodies bodies = PlannerModelFixture.Bodies();
+            PlannerBody kerbin = bodies.Bodies[Kerbin];
+            var from = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 80000.0 };
+            var round = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 80000.0 };
+            var match = new RouteStop { Body = Kerbin, Kind = StopKind.Orbit, Altitude = 80000.0, MatchPlaneWith = System.Guid.NewGuid(), MatchPlaneName = "Station", MatchPlaneInclination = 20.0 };
+
+            double flat = RoutePlanner.LegOf(bodies.Bodies, from, round, 0, false).DeltaV;
+            Leg leg = RoutePlanner.LegOf(bodies.Bodies, from, match, 0, false);
+
+            double turn = 2.0 * System.Math.Sqrt(kerbin.Mu / (kerbin.Radius + 80000.0)) * System.Math.Sin(10.0 * System.Math.PI / 180.0);
+            Assert.AreEqual(flat + turn, leg.DeltaV, 1.0);
+            Assert.IsTrue(leg.Lines.Exists(line => line.Name == "Match the plane of Station"));
+        }
+
+        // A drive over the ground between two surface stops takes no delta-v; a landing does.
+        [TestMethod]
+        public void ADriveBetweenSurfaceStopsCostsNothing()
+        {
+            PlannerBodies bodies = PlannerModelFixture.Bodies();
+            var from = new RouteStop { Body = Kerbin, Kind = StopKind.Surface };
+            var landing = new RouteStop { Body = Kerbin, Kind = StopKind.Surface };
+            var drive = new RouteStop { Body = Kerbin, Kind = StopKind.Surface, Drives = true };
+
+            Assert.IsTrue(RoutePlanner.LegOf(bodies.Bodies, from, landing, 0, false).DeltaV > 0.0);
+            Assert.AreEqual(0.0, RoutePlanner.LegOf(bodies.Bodies, from, drive, 0, false).DeltaV, 0.001);
+        }
     }
 }

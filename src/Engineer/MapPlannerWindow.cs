@@ -291,6 +291,7 @@ namespace ReDefinition.Engineer
                 Body = goal, Kind = surface ? StopKind.Surface : StopKind.Orbit, Altitude = surface ? 0.0 : altitude,
                 HasSite = surface && hasSite, SiteLatitude = latitude, SiteLongitude = longitude,
             };
+            stop.Drives = surface && hasSite && vessel.mainBody == body && vessel.LandedOrSplashed && MechJebDriver.CanDrive(vessel);
             if (shape != null && !surface)
             {
                 stop.Apoapsis = shape.Apoapsis;
@@ -300,6 +301,7 @@ namespace ReDefinition.Engineer
                 {
                     stop.MatchPlaneWith = shape.MatchPlane.id;
                     stop.MatchPlaneName = shape.MatchPlane.vesselName;
+                    stop.MatchPlaneInclination = shape.MatchPlane.orbit != null ? shape.MatchPlane.orbit.inclination : 0.0;
                 }
             }
             if (meet != null && !surface)

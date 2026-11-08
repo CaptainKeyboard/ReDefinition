@@ -100,8 +100,12 @@ namespace ReDefinition.Engineer
         public double Inclination;
         public System.Guid MatchPlaneWith;
         public string MatchPlaneName = "";
+        // The inclination of that vessel's orbit in degrees, as it was when the vessel was chosen; the budget turns the plane to it.
+        public double MatchPlaneInclination;
         public bool Dock;
         public uint DockWith;
+        // A surface stop that is reached by driving over the ground: the wheels take no delta-v.
+        public bool Drives;
         // The way across here in two steps: the burn that leaves, and the one that
         // arrives (RouteSteps).
         public bool SplitBurns;
@@ -209,7 +213,7 @@ namespace ReDefinition.Engineer
         }
 
         // The burns that give the stop's orbit its shape, after those that reach it as a round orbit. The apoapsis is raised at the periapsis.
-        // The plane is turned from the inclination of the stop before, the equator where that has none. The plane of another vessel is not known here and costs nothing.
+        // The plane is turned from the inclination of the stop before, the equator where that has none; the plane of another vessel counts with the inclination it had when it was chosen.
         private static void AddShape(Leg leg, IList<PlannerBody> bodies, RouteStop from, RouteStop stop)
         {
             if (stop.Kind != StopKind.Orbit || stop.Body < 0 || stop.Body >= bodies.Count) return;
@@ -222,13 +226,16 @@ namespace ReDefinition.Engineer
                 double ellipse = Math.Sqrt(body.Mu * (2.0 / rp - 2.0 / (rp + ra)));
                 leg.Add("Raise the apoapsis to " + Km(stop.Apoapsis), ellipse - round, stop.Body, rp);
             }
-            if (stop.HasInclination)
+            bool matches = !stop.HasInclination && stop.MatchPlaneWith != System.Guid.Empty;
+            if (stop.HasInclination || matches)
             {
+                double asked = stop.HasInclination ? stop.Inclination : stop.MatchPlaneInclination;
                 double before = from.Kind == StopKind.Orbit && from.HasInclination ? from.Inclination : 0.0;
-                double turn = Math.Abs(stop.Inclination - before) * Math.PI / 180.0;
+                double turn = Math.Abs(asked - before) * Math.PI / 180.0;
                 double speed = Math.Sqrt(body.Mu / rp);
-                leg.Add("Turn the plane to " + stop.Inclination.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " degrees", 2.0 * speed * Math.Sin(0.5 * turn),
-                    stop.Body, rp);
+                string name = matches ? "Match the plane of " + (string.IsNullOrEmpty(stop.MatchPlaneName) ? "the target" : stop.MatchPlaneName)
+                    : "Turn the plane to " + asked.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + " degrees";
+                leg.Add(name, 2.0 * speed * Math.Sin(0.5 * turn), stop.Body, rp);
             }
         }
 
@@ -243,7 +250,7 @@ namespace ReDefinition.Engineer
             PlannerBody end = bodies[to.Body];
 
             double departRadius = OrbitRadius(start, from);
-            if (from.Kind == StopKind.Surface) leg.Add("Launch to " + Km(start.LowOrbitAltitude) + " orbit", Launch(start));
+            if (from.Kind == StopKind.Surface && !(to.Drives && to.Kind == StopKind.Surface && from.Body == to.Body)) leg.Add("Launch to " + Km(start.LowOrbitAltitude) + " orbit", Launch(start));
 
             double arriveRadius = OrbitRadius(end, to);
 
@@ -266,7 +273,7 @@ namespace ReDefinition.Engineer
             {
                 if (from.Kind == StopKind.Surface && to.Kind == StopKind.Surface)
                 {
-                    leg.Add("Landing", Landing(end, to.UseAtmosphere));
+                    leg.Add(to.Drives ? "Drive" : "Landing", to.Drives ? 0.0 : Landing(end, to.UseAtmosphere));
                     return leg;
                 }
                 double first, second;
