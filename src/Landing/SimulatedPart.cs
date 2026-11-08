@@ -22,8 +22,6 @@ namespace ReDefinition.Landing
 
         private static readonly Pool<SimulatedPart> pool = new Pool<SimulatedPart>(Create, Reset);
 
-        public static int PoolSize => pool.Size;
-
         private static SimulatedPart Create()
         {
             var part = new SimulatedPart();

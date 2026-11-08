@@ -14,8 +14,6 @@ namespace ReDefinition.Landing
 
         private static readonly Pool<SimulatedVessel> pool = new Pool<SimulatedVessel>(Create, Reset);
 
-        public static int PoolSize => pool.Size;
-
         private static SimulatedVessel Create() => new SimulatedVessel();
 
         public void Release() => pool.Release(this);

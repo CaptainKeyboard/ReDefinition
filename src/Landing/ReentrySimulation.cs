@@ -86,8 +86,6 @@ namespace ReDefinition.Landing
 
         private static readonly Pool<ReentrySimulation> _pool = new Pool<ReentrySimulation>(Create, Reset);
 
-        public static int PoolSize => _pool.Size;
-
         private static ReentrySimulation Create() => new ReentrySimulation();
 
         public void Release() => _pool.Release(this);

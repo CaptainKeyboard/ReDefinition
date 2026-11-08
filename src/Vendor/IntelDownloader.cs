@@ -36,12 +36,6 @@ namespace ReDefinition.Vendor
             get { return download.Running; }
         }
 
-        // Placed this session: the row then offers nothing more.
-        public static bool Installed
-        {
-            get { return download.Installed; }
-        }
-
         // What the settings row says below its button: the download's progress or
         // outcome, else the DLLs in place with their versions, null for neither.
         public static string Status

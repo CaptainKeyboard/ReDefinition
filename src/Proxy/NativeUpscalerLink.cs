@@ -47,16 +47,6 @@ namespace ReDefinition.Proxy
             }
         }
 
-        // The next technique in order that can run here.
-        internal static UpscalerBackend Next(UpscalerBackend backend)
-        {
-            int count = Enum.GetValues(typeof(UpscalerBackend)).Length;
-            UpscalerBackend next = backend;
-            do next = (UpscalerBackend)(((int)next + 1) % count);
-            while (next != UpscalerBackend.Fsr3 && WhyNotOffered(next) != null);
-            return next;
-        }
-
         // The proxy's side of a technique that runs there; null for FSR 3.
         internal static NativeUpscalerLink Link(UpscalerBackend backend)
         {

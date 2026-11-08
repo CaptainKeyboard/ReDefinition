@@ -30,12 +30,6 @@ namespace ReDefinition.Engineer
         public readonly HashSet<int> Save = new HashSet<int>();
         public readonly HashSet<int> DropAfter = new HashSet<int>();
 
-        // Whether the player chose nothing for the leg.
-        public bool Empty
-        {
-            get { return Save.Count == 0 && DropAfter.Count == 0; }
-        }
-
         // A copy to change without changing this plan.
         public StagePlan Copy()
         {

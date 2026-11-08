@@ -20,8 +20,6 @@ namespace ReDefinition.Landing
 
         private static readonly Pool<SimulatedParachute> pool = new Pool<SimulatedParachute>(Create, Reset);
 
-        public new static int PoolSize => pool.Size;
-
         private static SimulatedParachute Create() => new SimulatedParachute();
 
         public override void Release()

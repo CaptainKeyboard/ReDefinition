@@ -49,15 +49,6 @@ namespace ReDefinition.Settings
             return url == null || url.StartsWith("ReDefinition/", StringComparison.OrdinalIgnoreCase);
         }
 
-        // The registrations in the nodes given, all counted as ReDefinition's own:
-        // the check outside the game reads its files this way.
-        internal static List<ModRegistration> Read(IEnumerable nodes, List<string> problems)
-        {
-            List<KeyValuePair<ConfigNode, string>> sources = new List<KeyValuePair<ConfigNode, string>>();
-            foreach (object item in nodes) sources.Add(new KeyValuePair<ConfigNode, string>(item as ConfigNode, null));
-            return ReadSources(sources, problems, null);
-        }
-
         // Each node with the place of its file in GameData. A registration from
         // anywhere else -- the mod's own folder, a visual pack -- counts over
         // ReDefinition's of the same name, whatever order KSP read their folders in,

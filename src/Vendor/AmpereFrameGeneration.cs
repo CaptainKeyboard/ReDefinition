@@ -30,12 +30,6 @@ namespace ReDefinition.Vendor
         // The install's progress or outcome; null before one.
         private static string status;
 
-        // What the settings row says: the install's progress or outcome, null before one.
-        public static string Status
-        {
-            get { return status; }
-        }
-
         // Looked at at most once a second, as the zip: the row asks every frame.
         private static bool installed;
         private static float installedLookedAt = float.NegativeInfinity;

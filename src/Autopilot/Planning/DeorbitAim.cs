@@ -122,12 +122,6 @@ namespace ReDefinition.Autopilot.Planning
             };
         }
 
-        // The distance over the ground between two places, in m.
-        private static double Distance(CelestialBody body, double latitudeA, double longitudeA, double latitudeB, double longitudeB)
-        {
-            return Distance(body.Radius, latitudeA, longitudeA, latitudeB, longitudeB);
-        }
-
         internal static double Distance(double radius, double latitudeA, double longitudeA, double latitudeB, double longitudeB)
         {
             double a = latitudeA * Math.PI / 180.0, b = latitudeB * Math.PI / 180.0;

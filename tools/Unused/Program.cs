@@ -166,7 +166,8 @@ namespace Unused
                     if (method != null && method.MethodKind == MethodKind.Constructor && usedBySrc.Contains(symbol.ContainingType.OriginalDefinition)) continue;
                     string name = symbol.Name;
                     int line = node.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
-                    string kind = name.Length > 3 && Regex.IsMatch(stringsText, "\\b" + Regex.Escape(name) + "\\b") ? "string  " : tests ? "test    " : "unused  ";
+                    // Only a string that is the name itself can be a reflection lookup; a word inside a longer text is not.
+                    string kind = stringsText.Contains("\"" + name + "\"") ? "string  " : tests ? "test    " : "unused  ";
                     report.Add(kind + path + ":" + line + "  " + Describe(symbol));
                 }
             }

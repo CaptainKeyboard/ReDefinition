@@ -36,13 +36,6 @@ namespace ReDefinition.Vendor
             get { return download.Running; }
         }
 
-        // Placed this session: until KSP is restarted, DLSS frame generation does not
-        // run from them.
-        public static bool Installed
-        {
-            get { return download.Installed; }
-        }
-
         // What the settings row says: the download's progress or outcome, null before one.
         public static string Status
         {
