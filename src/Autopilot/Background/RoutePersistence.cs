@@ -60,7 +60,7 @@ namespace ReDefinition.Autopilot.Background
             foreach (string propellant in route.GetValues("propellant")) entry.Propellants.Add(propellant);
             foreach (ConfigNode stepNode in route.GetNodes("STEP"))
             {
-                RouteStep step = ReadStep(stepNode);
+                BackgroundStep step = ReadStep(stepNode);
                 if (step == null)
                 {
                     // The steps after it were planned on the vessel having been through it.
@@ -74,11 +74,11 @@ namespace ReDefinition.Autopilot.Background
         }
 
         // The step in the node, or null where its figures cannot be the step of a vessel: a body that is not named, an orbit that is not one, a time that is not a time.
-        internal static RouteStep ReadStep(ConfigNode node)
+        internal static BackgroundStep ReadStep(ConfigNode node)
         {
             StepKind kind;
             if (!Enum.TryParse(node.GetValue("kind") ?? "", out kind) || !Enum.IsDefined(typeof(StepKind), kind)) return null;
-            var step = new RouteStep
+            var step = new BackgroundStep
             {
                 Kind = kind, Body = node.GetValue("body") ?? "", Why = node.GetValue("why") ?? "", UT = Read(node, "ut"), Inclination = Read(node, "inc"),
                 Eccentricity = Read(node, "ecc"), SemiMajorAxis = Read(node, "sma"), Lan = Read(node, "lan"), ArgumentOfPeriapsis = Read(node, "arg"), MeanAnomaly = Read(node, "mna"),
@@ -145,11 +145,11 @@ namespace ReDefinition.Autopilot.Background
                 }
                 route.AddValue("reached", entry.Reached);
                 foreach (string name in entry.Propellants) route.AddValue("propellant", name);
-                foreach (RouteStep step in entry.Steps) WriteStep(route.AddNode("STEP"), step);
+                foreach (BackgroundStep step in entry.Steps) WriteStep(route.AddNode("STEP"), step);
             }
         }
 
-        internal static void WriteStep(ConfigNode node, RouteStep step)
+        internal static void WriteStep(ConfigNode node, BackgroundStep step)
         {
             node.AddValue("kind", step.Kind.ToString());
             node.AddValue("body", step.Body ?? "");

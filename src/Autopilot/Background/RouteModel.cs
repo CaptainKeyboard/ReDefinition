@@ -20,7 +20,7 @@ namespace ReDefinition.Autopilot.Background
     }
 
     // One thing that happens at a time: the vessel is on this orbit from then, with this share of its propellant kept.
-    internal sealed class RouteStep
+    internal sealed class BackgroundStep
     {
         public double UT;
         public string Body;
@@ -54,7 +54,7 @@ namespace ReDefinition.Autopilot.Background
         public Guid Vessel;
         public string Name = "";
         public readonly List<string> Propellants = new List<string>();
-        public readonly List<RouteStep> Steps = new List<RouteStep>();
+        public readonly List<BackgroundStep> Steps = new List<BackgroundStep>();
         // Set once the vessel was seen out of the flight: before that it is the vessel the route is handed over from, still loaded.
         public bool Left;
         // The route the steps were planned for (RoutePlan.Signature) and the last stop reached by the steps made so far.

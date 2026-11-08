@@ -15,7 +15,7 @@ namespace ReDefinition.Autopilot.Background
     internal static class StepExecutor
     {
         // The vessel on the orbit of the step from its time, with the propellant it leaves.
-        internal static bool Make(Vessel vessel, RouteEntry entry, RouteStep step)
+        internal static bool Make(Vessel vessel, RouteEntry entry, BackgroundStep step)
         {
             if (step.Kind == StepKind.Release)
             {
@@ -64,7 +64,7 @@ namespace ReDefinition.Autopilot.Background
         }
 
         // What a step does to the vessel besides its orbit: the propellant its tanks keep after the burn, and the parts let go.
-        internal static void Let(Vessel vessel, RouteEntry entry, RouteStep step)
+        internal static void Let(Vessel vessel, RouteEntry entry, BackgroundStep step)
         {
             foreach (ProtoPartSnapshot part in vessel.protoVessel.protoPartSnapshots)
             {
@@ -101,7 +101,7 @@ namespace ReDefinition.Autopilot.Background
 
         // The vessel set down where the descent met the ground, or on the water: the place from the orbit and the turn of the body since, the height
         // from the body's terrain. The game sets it on the ground when it is loaded, as it does a vessel that was saved on the ground.
-        internal static bool Touch(Vessel vessel, RouteEntry entry, RouteStep step, CelestialBody body, Orbit descent)
+        internal static bool Touch(Vessel vessel, RouteEntry entry, BackgroundStep step, CelestialBody body, Orbit descent)
         {
             // The parts let go at the touchdown fall on their own: they go before the vessel is set on the ground.
             Let(vessel, entry, step);

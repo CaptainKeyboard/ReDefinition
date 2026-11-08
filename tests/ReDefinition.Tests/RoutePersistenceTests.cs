@@ -8,12 +8,12 @@ namespace ReDefinition.Tests
     [TestClass]
     public class RoutePersistenceTests
     {
-        private static RouteStep Orbit(double ut)
+        private static BackgroundStep Orbit(double ut)
         {
-            return new RouteStep { Kind = StepKind.Orbit, UT = ut, Body = "Minmus", Inclination = 0.1, Eccentricity = 0.2, SemiMajorAxis = 100000.0, Lan = 10.0, ArgumentOfPeriapsis = 20.0, MeanAnomaly = 1.5, Epoch = ut, Keep = 0.8, Why = "capture", Reached = 1 };
+            return new BackgroundStep { Kind = StepKind.Orbit, UT = ut, Body = "Minmus", Inclination = 0.1, Eccentricity = 0.2, SemiMajorAxis = 100000.0, Lan = 10.0, ArgumentOfPeriapsis = 20.0, MeanAnomaly = 1.5, Epoch = ut, Keep = 0.8, Why = "capture", Reached = 1 };
         }
 
-        private static RouteStep RoundTrip(RouteStep step)
+        private static BackgroundStep RoundTrip(BackgroundStep step)
         {
             var node = new ConfigNode("STEP");
             RoutePersistence.WriteStep(node, step);
@@ -23,10 +23,10 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AnOrbitStepIsReadAsItWasWritten()
         {
-            RouteStep step = Orbit(1500000.5);
+            BackgroundStep step = Orbit(1500000.5);
             step.Keeps[42u] = 0.25;
             step.Cuts.Add(new PartsCut { Name = "Debris", Parts = { 7u, 8u } });
-            RouteStep read = RoundTrip(step);
+            BackgroundStep read = RoundTrip(step);
             Assert.IsNotNull(read);
             Assert.AreEqual(StepKind.Orbit, read.Kind);
             Assert.AreEqual(1500000.5, read.UT);
@@ -42,9 +42,9 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AReleaseStepNeedsNoOrbit()
         {
-            var step = new RouteStep { Kind = StepKind.Release, UT = 1000.0, Why = "release" };
+            var step = new BackgroundStep { Kind = StepKind.Release, UT = 1000.0, Why = "release" };
             step.Cuts.Add(new PartsCut { Name = "Satellite", Parts = { 3u } });
-            RouteStep read = RoundTrip(step);
+            BackgroundStep read = RoundTrip(step);
             Assert.IsNotNull(read);
             Assert.AreEqual(StepKind.Release, read.Kind);
         }
@@ -52,18 +52,18 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AStepThatCannotBeAnOrbitIsLeftOut()
         {
-            RouteStep noBody = Orbit(1000.0);
+            BackgroundStep noBody = Orbit(1000.0);
             noBody.Body = "";
             Assert.IsNull(RoundTrip(noBody));
-            RouteStep flat = Orbit(1000.0);
+            BackgroundStep flat = Orbit(1000.0);
             flat.SemiMajorAxis = 0.0;
             Assert.IsNull(RoundTrip(flat));
-            RouteStep notANumber = Orbit(1000.0);
+            BackgroundStep notANumber = Orbit(1000.0);
             notANumber.Inclination = double.NaN;
             Assert.IsNull(RoundTrip(notANumber));
-            RouteStep noTime = Orbit(0.0);
+            BackgroundStep noTime = Orbit(0.0);
             Assert.IsNull(RoundTrip(noTime));
-            RouteStep tooMuch = Orbit(1000.0);
+            BackgroundStep tooMuch = Orbit(1000.0);
             tooMuch.Keep = 1.5;
             Assert.IsNull(RoundTrip(tooMuch));
         }
@@ -79,7 +79,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AnOpenOrbitHasANegativeSemiMajorAxis()
         {
-            RouteStep hyperbola = Orbit(1000.0);
+            BackgroundStep hyperbola = Orbit(1000.0);
             hyperbola.Eccentricity = 1.5;
             hyperbola.SemiMajorAxis = -500000.0;
             Assert.IsNotNull(RoundTrip(hyperbola));
@@ -88,10 +88,10 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AnEllipseWithANegativeAxisAndAHyperbolaWithAPositiveOneAreLeftOut()
         {
-            RouteStep ellipse = Orbit(1000.0);
+            BackgroundStep ellipse = Orbit(1000.0);
             ellipse.SemiMajorAxis = -100000.0;
             Assert.IsNull(RoundTrip(ellipse));
-            RouteStep hyperbola = Orbit(1000.0);
+            BackgroundStep hyperbola = Orbit(1000.0);
             hyperbola.Eccentricity = 1.5;
             Assert.IsNull(RoundTrip(hyperbola));
         }

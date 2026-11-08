@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ReDefinition.Autopilot.Background
 {
     // Parts let go of a vessel that is not loaded: a spent stage, or a satellite that is let go at a stop. The vessel's saved node is split
-    // (VesselSplit); the vessel keeps its identity with the parts that stay, and each group of parts that goes is a vessel of its own on the same orbit.
+    // (PartsSplit); the vessel keeps its identity with the parts that stay, and each group of parts that goes is a vessel of its own on the same orbit.
     internal static class VesselDetach
     {
         // How far behind the vessel on its orbit a vessel that was let go is put, in seconds: far enough that the two are not loaded together.
@@ -20,7 +20,7 @@ namespace ReDefinition.Autopilot.Background
             var node = new ConfigNode("VESSEL");
             proto.Save(node);
             List<ConfigNode> gone;
-            ConfigNode kept = VesselSplit.Split(node, parts, out gone);
+            ConfigNode kept = PartsSplit.Split(node, parts, out gone);
             if (kept == null || gone.Count == 0) return false;
             // The crew of the parts that leave is no longer the carrier's; the vessels made from the node take them aboard.
             foreach (ProtoPartSnapshot snapshot in proto.protoPartSnapshots)

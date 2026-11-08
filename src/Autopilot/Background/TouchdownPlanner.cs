@@ -51,7 +51,7 @@ namespace ReDefinition.Autopilot.Background
         // A plan that ends in a landing is carried to the ground. From an orbit that stays above it, a burn at the orbit's start brings the periapsis
         // down to it. The vessel touches down where the orbit meets the ground. A body with air takes the vessel down on its parachutes.
         // An airless one costs the speed the vessel arrives with, the delta-v of a landing burn.
-        internal static RouteStep Plan(Vessel vessel, RouteEntry entry, RoutePlan plan, FuelBudget budget, IList<Destination> route, IVesselFigures figures)
+        internal static BackgroundStep Plan(Vessel vessel, RouteEntry entry, RoutePlan plan, FuelBudget budget, IList<Destination> route, IVesselFigures figures)
         {
             PlannedStep last = plan.Steps.Count > 0 ? plan.Steps[plan.Steps.Count - 1] : null;
             if (last == null || last.Kind != NodePlanner.StepKind.Landing || plan.Legs.Count == 0) return null;
@@ -60,7 +60,7 @@ namespace ReDefinition.Autopilot.Background
             CelestialBody body = orbit != null ? orbit.referenceBody : null;
             // What is left of the vessel by then is what stands on the ground: the parts let go on the way do not reach down.
             var let = new HashSet<uint>();
-            foreach (RouteStep before in entry.Steps)
+            foreach (BackgroundStep before in entry.Steps)
                 foreach (PartsCut cut in before.Cuts) foreach (uint part in cut.Parts) let.Add(part);
             if (let.Count > 0) entry.Lowest = LowestPoint(vessel, out entry.Footprint, let);
             // A landing in the air of a body is made on parachutes, and the route says so (a direct entry or a pass first); without them the vessel would not live.
@@ -82,7 +82,7 @@ namespace ReDefinition.Autopilot.Background
                 var descent = new Orbit();
                 descent.UpdateFromStateVectors(at, speed.normalized * wanted, body, from);
                 double burn = Math.Abs(speed.magnitude - wanted);
-                RouteStep deorbit = RouteCompiler.Elements(descent, from, "deorbit, " + burn.ToString("0") + " m/s", entry.Steps.Count > 0 ? entry.Steps[entry.Steps.Count - 1].Reached : entry.Reached);
+                BackgroundStep deorbit = RouteCompiler.Elements(descent, from, "deorbit, " + burn.ToString("0") + " m/s", entry.Steps.Count > 0 ? entry.Steps[entry.Steps.Count - 1].Reached : entry.Reached);
                 budget.Apply(deorbit, burn);
                 entry.Steps.Add(deorbit);
                 orbit = descent;
@@ -120,7 +120,7 @@ namespace ReDefinition.Autopilot.Background
             // The landing costs what the body takes: nothing on parachutes where the air is thick, the thin air's rest, a landing burn on the way to the ground
             // where there is none; the speed it arrives with in the air or without it is the planner's estimate.
             double arrival = body.atmosphere ? figures.LandingDeltaV(body, air) : orbit.getOrbitalSpeedAtDistance(body.Radius);
-            RouteStep touch = RouteCompiler.Elements(orbit, trigger, "landing, " + arrival.ToString("0") + " m/s", last.Goal);
+            BackgroundStep touch = RouteCompiler.Elements(orbit, trigger, "landing, " + arrival.ToString("0") + " m/s", last.Goal);
             budget.Apply(touch, arrival);
             touch.Kind = StepKind.Touchdown;
             touch.GroundUT = high;

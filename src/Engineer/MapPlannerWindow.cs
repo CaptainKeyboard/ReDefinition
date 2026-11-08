@@ -18,7 +18,7 @@ namespace ReDefinition.Engineer
     // It is made once the flight scene has a vessel, out of KSP's own elements: the rows are dialog rows (DialogGUIBase) created into a scroll
     // list in a frame of its own, on the main canvas.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
-    public class MapPlannerWindow : MonoBehaviour, IPlanControls
+    public class MapPlannerWindow : MonoBehaviour, IPlanControls, IFlightPlanSource
     {
         // The panel's width, and the room left above, below and at its right for KSP's own bars and the toolbar column, in canvas units.
         private const float PanelWidth = 460f, TopMargin = 96f, BottomMargin = 70f, RightMargin = 56f;
@@ -420,7 +420,7 @@ namespace ReDefinition.Engineer
         private void Build()
         {
             UISkinDef skin = UISkinManager.GetSkin("MiniSettingsSkin") ?? HighLogic.UISkin;
-            host = new FlightPlannerHost();
+            host = new FlightPlannerHost(this);
             root = new GameObject("ReDefinitionMapPlanner", typeof(RectTransform));
             root.layer = LayerMask.NameToLayer("UI");
             RectTransform rootRect = (RectTransform)root.transform;
@@ -735,6 +735,16 @@ namespace ReDefinition.Engineer
         }
 
         // The route drawn on the map and the plan behind it are those of a vessel that is no longer flown.
+        RoutePlan IFlightPlanSource.WholePlan
+        {
+            get { return WholePlan; }
+        }
+
+        void IFlightPlanSource.ForgetPlan()
+        {
+            ForgetPlan();
+        }
+
         internal void ForgetPlan()
         {
             WholePlan = null;

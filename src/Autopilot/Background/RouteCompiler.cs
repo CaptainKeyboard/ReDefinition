@@ -52,7 +52,7 @@ namespace ReDefinition.Autopilot.Background
             // The route in pieces: the orbits up to a landing, and, where the route goes on from the ground, the launch from it and the pieces after.
             for (int round = 0; round < 6; round++)
             {
-                RouteStep touch = AddSegment(vessel, entry, plan, budget, stages, route, figures);
+                BackgroundStep touch = AddSegment(vessel, entry, plan, budget, stages, route, figures);
                 if (entry.Problem != null || touch == null) break;
                 PlannedStep landing = plan.Steps[plan.Steps.Count - 1];
                 if (route == null || landing.Goal < 0 || landing.Goal + 1 >= route.Count) break;
@@ -81,7 +81,7 @@ namespace ReDefinition.Autopilot.Background
         // The steps are made in the order of their times, the head of the list first: a step of the same time stays where it was.
         internal static void SortByTime(RouteEntry entry)
         {
-            List<RouteStep> ordered = entry.Steps.OrderBy(step => step.UT).ToList();
+            List<BackgroundStep> ordered = entry.Steps.OrderBy(step => step.UT).ToList();
             entry.Steps.Clear();
             entry.Steps.AddRange(ordered);
         }
@@ -93,7 +93,7 @@ namespace ReDefinition.Autopilot.Background
             orbit = null;
             endUT = 0.0;
             double launch = figures.LaunchDeltaV(body, altitude);
-            var ascent = new RouteStep { Why = "ascent, " + launch.ToString("0") + " m/s", Reached = reached };
+            var ascent = new BackgroundStep { Why = "ascent, " + launch.ToString("0") + " m/s", Reached = reached };
             double began = stages != null ? stages.Elapsed : 0.0;
             double shortBefore = stages != null ? stages.Short : 0.0;
             budget.Apply(ascent, launch);
@@ -156,13 +156,13 @@ namespace ReDefinition.Autopilot.Background
             double cost = best.Total(true);
             int reached = entry.Steps.Count > 0 ? entry.Steps[entry.Steps.Count - 1].Reached : entry.Reached;
             // A docking is still to be made; a meeting alone is the stop.
-            RouteStep step = Elements(meeting, arrival, "meeting with " + target.vesselName + ", " + cost.ToString("0") + " m/s", end.Dock ? reached : Math.Max(reached, end.Goal));
+            BackgroundStep step = Elements(meeting, arrival, "meeting with " + target.vesselName + ", " + cost.ToString("0") + " m/s", end.Dock ? reached : Math.Max(reached, end.Goal));
             budget.Apply(step, cost);
             entry.Steps.Add(step);
         }
 
         // The orbits of a plan as steps, with the releases in them, and the landing it ends in: the step of the touchdown, or null where it ends otherwise.
-        internal static RouteStep AddSegment(Vessel vessel, RouteEntry entry, RoutePlan plan, FuelBudget budget, IBurnShare stages, IList<Destination> route, IVesselFigures figures)
+        internal static BackgroundStep AddSegment(Vessel vessel, RouteEntry entry, RoutePlan plan, FuelBudget budget, IBurnShare stages, IList<Destination> route, IVesselFigures figures)
         {
             if (plan.AirProblem != null)
             {
@@ -192,7 +192,7 @@ namespace ReDefinition.Autopilot.Background
                 int reached = entry.Reached;
                 foreach (KeyValuePair<double, int> met in plan.ReachedAt)
                     if (met.Key <= leg.StartUT + 1.0) reached = Math.Max(reached, met.Value);
-                RouteStep flown = Elements(leg.Orbit, leg.StartUT, leg.Air ? "pass through the air" : deltaV.ToString("0") + " m/s", reached);
+                BackgroundStep flown = Elements(leg.Orbit, leg.StartUT, leg.Air ? "pass through the air" : deltaV.ToString("0") + " m/s", reached);
                 budget.Apply(flown, deltaV);
                 entry.Steps.Add(flown);
             }
@@ -213,9 +213,9 @@ namespace ReDefinition.Autopilot.Background
         }
 
         // The orbit as a step from the UT on.
-        internal static RouteStep Elements(Orbit orbit, double ut, string why, int reached)
+        internal static BackgroundStep Elements(Orbit orbit, double ut, string why, int reached)
         {
-            return new RouteStep
+            return new BackgroundStep
             {
                 Reached = reached, UT = ut, Body = orbit.referenceBody.bodyName, Inclination = orbit.inclination, Eccentricity = orbit.eccentricity,
                 SemiMajorAxis = orbit.semiMajorAxis, Lan = orbit.LAN, ArgumentOfPeriapsis = orbit.argumentOfPeriapsis, MeanAnomaly = orbit.meanAnomalyAtEpoch,
@@ -259,7 +259,7 @@ namespace ReDefinition.Autopilot.Background
                 int reached = entry.Reached;
                 foreach (KeyValuePair<double, int> met in plan.ReachedAt)
                     if (met.Key <= letting.At + 1.0) reached = Math.Max(reached, met.Value);
-                var step = new RouteStep { Kind = StepKind.Release, UT = letting.At, Reached = reached, Why = "release of the " + letting.Planned.Section.Name.ToLowerInvariant() };
+                var step = new BackgroundStep { Kind = StepKind.Release, UT = letting.At, Reached = reached, Why = "release of the " + letting.Planned.Section.Name.ToLowerInvariant() };
                 step.Cuts.Add(letting.PartsCut);
                 int place = entry.Steps.FindLastIndex(other => other.UT <= letting.At + 1e-3) + 1;
                 entry.Steps.Insert(place, step);

@@ -18,7 +18,7 @@ namespace ReDefinition.Autopilot.Background
         public IBurnShare Stages;
         public string Name = "";
 
-        public void Apply(RouteStep step, double deltaV)
+        public void Apply(BackgroundStep step, double deltaV)
         {
             if (Stages == null)
             {

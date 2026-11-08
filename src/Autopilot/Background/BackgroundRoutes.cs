@@ -192,7 +192,7 @@ namespace ReDefinition.Autopilot.Background
                 }
                 while (!vessel.loaded && entry.Steps.Count > 0 && entry.Steps[0].UT <= now)
                 {
-                    RouteStep step = entry.Steps[0];
+                    BackgroundStep step = entry.Steps[0];
                     entry.Steps.RemoveAt(0);
                     if (Make(vessel, entry, step)) entry.Reached = step.Reached;
                 }
@@ -206,7 +206,7 @@ namespace ReDefinition.Autopilot.Background
         }
 
         // A step made: the vessel is changed as the step says. A step that cannot be made is dropped with the reason, so that it is not tried again every frame.
-        private static bool Make(Vessel vessel, RouteEntry entry, RouteStep step)
+        private static bool Make(Vessel vessel, RouteEntry entry, BackgroundStep step)
         {
             try
             {

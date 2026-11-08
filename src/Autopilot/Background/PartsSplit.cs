@@ -8,7 +8,7 @@ namespace ReDefinition.Autopilot.Background
     // A saved vessel split in two without the vessel being loaded: the parts that go, and the parts that stay. It works on the vessel's saved node,
     // which is what KSP loads a vessel from. Each part refers to the others by their place in the node: its parent, its symmetric parts, the parts on
     // its attachment nodes. The places are numbered again for each vessel that comes out, and a link to a part that is gone points to none.
-    internal static class VesselSplit
+    internal static class PartsSplit
     {
         // The parts of the node named by `away` (their saved persistent ids) taken out: the vessel that stays, and a vessel for each group of them that
         // holds together. Null where none of the parts is there, or all are.
