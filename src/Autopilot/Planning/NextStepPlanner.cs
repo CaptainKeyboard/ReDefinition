@@ -58,7 +58,7 @@ namespace ReDefinition.Autopilot.Planning
             // Where the air would load the vessel beyond what it takes, the stop is reached by burning, as a stop that does not use the air.
             if ((!frame.Ahead || frame.Passes) && (stop.Direct || stop.Aerobrake))
             {
-                string refused = AirRefused(frame, stop);
+                string refused = RouteTuning.AirAlways ? null : AirRefused(frame, stop);
                 if (refused != null)
                 {
                     note = "The air is not used: " + refused + " ";
@@ -189,7 +189,8 @@ namespace ReDefinition.Autopilot.Planning
         {
             string why;
             double pass = AerobrakePass.FromOrbit(frame.Vessel, frame.Orbit, frame.Now, stop.Altitude, out why);
-            if (pass < 0.0) return NodePlanner.Result.Failed(why);
+            if (pass < 0.0 && !RouteTuning.AirAlways) return NodePlanner.Result.Failed(why);
+            if (pass < 0.0) pass = frame.Orbit.PeA;
             double tolerance = System.Math.Max(1000.0, 0.03 * pass);
             if (frame.Orbit.PeA < pass - tolerance) return NodePlanner.LiftToAirPass(frame, pass);
             if (frame.Orbit.PeA > pass + tolerance && frame.Orbit.PeA >= frame.Body.atmosphereDepth)

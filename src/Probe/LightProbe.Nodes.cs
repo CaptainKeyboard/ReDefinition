@@ -96,12 +96,35 @@ namespace ReDefinition.Probe
             string last = "";
             float nextLine = 0f;
             ProbeWatch.Arm(vessel);
+            bool airCheck = CommandLine.Has("-redefinitionProbeRouteAerobrake");
+            bool verdict = true;
+            float waitingSince = -1f;
             while (!flight.Finished && Time.realtimeSinceStartup - started < 1500f)
             {
                 if (ProbeWatch.Gone(vessel))
                 {
                     flight.Cancel();
                     break;
+                }
+                // With -redefinitionProbeRouteAerobrake the run ends on the question whether the vessel is warped to the periapsis: the status says it
+                // waits for it with minutes to go, and some warp has to be seen within 90 s.
+                if (airCheck && flight.Status.StartsWith("Aerobrake: waiting") && vessel.orbit.timeToPe > 180.0)
+                {
+                    if (waitingSince < 0f) waitingSince = Time.realtimeSinceStartup;
+                    if (TimeWarp.CurrentRateIndex > 0)
+                    {
+                        Debug.Log(Log.Tag + " Probe: aerobrake check: OK, the vessel is warped (rate " + TimeWarp.CurrentRateIndex + ") with " + vessel.orbit.timeToPe.ToString("0", culture) + " s to the periapsis.");
+                        flight.Cancel();
+                        verdict = false;
+                        break;
+                    }
+                    if (Time.realtimeSinceStartup - waitingSince > 90f)
+                    {
+                        Debug.LogError(Log.Tag + " Probe: FAILED: aerobrake: no time warp in 90 s of waiting for the periapsis, " + vessel.orbit.timeToPe.ToString("0", culture) + " s away.");
+                        flight.Cancel();
+                        verdict = false;
+                        break;
+                    }
                 }
                 if (!run.MoveNext()) break;
                 if (flight.Status != last || Time.realtimeSinceStartup > nextLine)
@@ -113,7 +136,9 @@ namespace ReDefinition.Probe
                 yield return run.Current;
             }
             Debug.Log(Log.Tag + " Probe: route: ended, arrived " + flight.Arrived + ", " + flight.Status + " In " + vessel.mainBody.bodyName + " at " + vessel.orbit.PeA.ToString("0", culture) + " x " + vessel.orbit.ApA.ToString("0", culture) + " m.");
-            RouteVerdict(flight);
+            if (verdict && airCheck && !flight.Status.StartsWith("Aerobrake"))
+                Debug.LogError(Log.Tag + " Probe: FAILED: aerobrake: the flight never waited for the periapsis in the air (" + flight.Status + ").");
+            else if (verdict) RouteVerdict(flight);
             MapView.EnterMapView();
             yield return ProbeSteps.Frames(90);
             UnityEngine.ScreenCapture.CaptureScreenshot(Path.Combine(folder, "route-" + bodyName + ".png"));

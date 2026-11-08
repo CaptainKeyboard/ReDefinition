@@ -224,7 +224,10 @@ namespace ReDefinition.Probe
             if (double.TryParse(CommandLine.After("-redefinitionProbeOrbitApoapsis") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out apoapsis) && apoapsis > altitude)
             {
                 double rp = body.Radius + altitude, ra = body.Radius + apoapsis;
-                orbit = new Orbit(inclination, (ra - rp) / (ra + rp), 0.5 * (rp + ra), 0.0, argument, Math.PI, ut, body);
+                // -redefinitionProbeOrbitAnomaly: the mean anomaly in degrees the vessel starts at, 180 (the apoapsis) without it; 0 is the periapsis.
+                double anomaly;
+                if (!double.TryParse(CommandLine.After("-redefinitionProbeOrbitAnomaly") ?? "", NumberStyles.Float, CultureInfo.InvariantCulture, out anomaly)) anomaly = 180.0;
+                orbit = new Orbit(inclination, (ra - rp) / (ra + rp), 0.5 * (rp + ra), 0.0, argument, anomaly * Math.PI / 180.0, ut, body);
             }
             var node = new ConfigNode("VESSEL");
             vessel.BackupVessel().Save(node);

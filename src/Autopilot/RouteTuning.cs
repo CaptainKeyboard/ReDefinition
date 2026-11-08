@@ -22,6 +22,13 @@ namespace ReDefinition.Autopilot
         internal static readonly double HeatShareScale = CommandLine.Float("-redefinitionProbeHeatShareScale", 1f);
         // The flight does not ask for the ground under the vessel with a ray; the route's meeting docks where the target is a vessel; Parsek is not asked
         // to record the flight.
+        // The air is used for a stop that asks for it, also where the check of the pass would refuse it: a probe vessel without a heat shield
+        // can then fly the aerobrake's wait for the periapsis.
+        internal static bool AirAlways
+        {
+            get { return CommandLine.Has("-redefinitionProbeAirAlways"); }
+        }
+
         internal static bool NoGroundRay
         {
             get { return CommandLine.Has("-redefinitionProbeNoGroundRay"); }
