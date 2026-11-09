@@ -25,7 +25,7 @@ The example is `DashboardNetwork`, a switch that the dashboard reads every frame
 4. If something has to happen when the value changes, leave `live` off and add three things in
    `src/Modules`. Add a private field and its load line in `ReDefinitionAddon.LoadSettings`
    (`src/Modules/ReDefinitionAddon.Settings.cs`). Add a line to `ReDefinitionAddon.Collect`.
-   Add a setter in `src/Modules/ReDefinitionAddon.Setters.cs` and call it from
+   Add a setter in `src/Modules/SettingsController.Setters.cs` and call it from
    `ReDefinitionAddon.ApplyChanges`.
 5. Add the row to the module in `src/Modules/OurModules.cs`: a `ModuleSetting` with `Key`,
    `Title`, `Tooltip`, `Order`, `Control`, `Read` and `Write`. `Read` and `Write` convert
@@ -45,7 +45,7 @@ The example is `DashboardNetwork`, a switch that the dashboard reads every frame
    dashboard setting.
 
 A developer's flag can also be a debug switch in
-`src/Diagnostics/ReDefinitionAddon.DiagnosticsOptions.cs`. That is optional.
+`src/Diagnostics/DiagnosticsWindow.Options.cs`. That is optional.
 
 ## A setting of another mod
 
@@ -80,7 +80,7 @@ steps around it.
   ReDefinition's own, and the mod's `.cfg` in `GameData/ReDefinition/Mods` for another mod.
 * A profile's value: `ReDefinition-Profiles.cfg` for the own `MODULE` nodes, the `PROFILE`
   blocks of the registration for another mod.
-* What a change does at once: the setter in `src/Modules/ReDefinitionAddon.Setters.cs`.
+* What a change does at once: the setter in `src/Modules/SettingsController.Setters.cs`.
 
 ## What can go wrong
 

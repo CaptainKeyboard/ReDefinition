@@ -41,7 +41,7 @@ sphere (`PQS`), so most rows name KSP's classes.
 | Shader | KSP's `Terrain/PQS/*` shaders, among them `PQS Main - Optimised`, `PQS Main Shader`, `PQS Triplanar Zoom Rotation` and the texture-array one. Kopernicus enforces a level only if `EnforceShaders` is set. | **[src]** KOP `*Loader.SHADER_NAME`, `TerrainQualitySetter` |
 | Layer | Each quad takes its sphere's layer. Kopernicus names layer 15 for local space, 10 for scaled space, 9 for scaled atmosphere. | **[src]** KSP `PQS.AssignQuad`; KOP `GameLayers` |
 | Shadows | A quad casts a shadow only if `GameSettings.CELESTIAL_BODIES_CAST_SHADOWS` and `meshCastShadows`. Kopernicus's `ShadowMan` sets `meshCastShadows` and `meshRecieveShadows` on every body in flight, space centre and tracking station. | **[src]** KSP `PQS.AssignQuad`; KOP `ShadowMan.SetShadows` |
-| Mesh | `PQS.BuildQuad` runs every height mod, then every colour mod, per vertex. A vertex is `directionFromCenter * vertHeight` in the sphere's own frame. ReDefinition reads the mesh on the CPU. | **[src]** KSP `PQS.BuildQuad`, `PQS.BuildVertexHeight`; `src/Scenery/KscGround.cs`, `MakeColours` |
+| Mesh | `PQS.BuildQuad` runs every height mod, then every colour mod, per vertex. A vertex is `directionFromCenter * vertHeight` in the sphere's own frame. ReDefinition reads the mesh on the CPU. | **[src]** KSP `PQS.BuildQuad`, `PQS.BuildVertexHeight` |
 | Edges | A neighbour's subdivision swaps the leaf's index buffer (`cacheIndices[edgeState]`) on the same `Mesh` and queues a normal update. | **[src]** KSP `PQ.UpdateVisibility` |
 
 ### What decides isVisible
@@ -146,10 +146,7 @@ The colour query is what Kopernicus's `PlanetTextureExporter.UpdateTextures` doe
   `_WaterTex1` with `cycleTextures`.
   **[src]** KOP `PQSOceanSurfaceQuadLoader.SHADER_NAME`; KSP `PQSMod_OceanFX.OnUpdateFinished`
 * `FindObjectsOfType<PQ>()` returns every sphere's quads, ocean quads included. `PQ.sphereRoot`
-  tells them apart. `src/Scenery/KscGround.cs` filters on `quad.sphereRoot == city.sphere` and
-  counts the rest as `otherSpheres`. **[src]**
-* `KscGround.cs` notes white vertex colours on the ocean's quads under the space centre.
-  **[meas]** (a comment by the author) **[open]** which mods the stock ocean carries.
+  tells them apart. **[src]**
 * Scatterer replaces it: `FakeOceanPQS.Apply` sets the ocean's `surfaceMaterial` to
   `Scatterer/invisible`, stops its coroutines and calls `DeactivateSphere`, again every ten
   fixed updates. The quads stay, `isVisible` stays set, the renderers are off. Scatterer
@@ -160,7 +157,7 @@ The colour query is what Kopernicus's `PlanetTextureExporter.UpdateTextures` doe
 
 | Fact | Contract | Source |
 |---|---|---|
-| Objects | `PQSCity` named `KSC` and `PQSMod_MapDecalTangent` named `KSC`, both under the home body's `PQS`. The buildings and the ground meshes are children of the city. | **[src]** KOP `KSC.Start`; `src/Scenery/KscGround.cs` |
+| Objects | `PQSCity` named `KSC` and `PQSMod_MapDecalTangent` named `KSC`, both under the home body's `PQS`. The buildings and the ground meshes are children of the city. | **[src]** KOP `KSC.Start` |
 | Placement | `Orientate` sets `localPosition` to `repositionRadial * (radius + offset)`, or to the surface height with `repositionToSphereSurface`, then turns the up axis to the radial. Kopernicus overwrites those fields from its `KSC` node and restarts `SpaceCenter`. | **[src]** KSP `PQSCity.Orientate`; KOP `KSC.Start` |
 | Flattening | Inside `inclusionAngle` the decal sets `vertHeight` to `Lerp(vertHeight, deformity * height / dot + (absolute ? radius + offset : 0), smoothFactor)`. Its `quadActive` and `buildHeight` come from `OnQuadPreBuild` and `OnQuadBuilt`. | **[src]** KSP `PQSMod_MapDecalTangent` |
 | Ground meshes | Renderers under the city with `KSP/Scenery/Diffuse Ground KSC` or its `Specular` variant: `_NearGrassTexture` times `_GrassColor`, `_TarmacTexture` on uv0, `_BlendMaskTexture` red on uv1, no vertex colour. | **[src]** `src/Raytracing/RtStockTerrain.cs`, `KscColours` |
@@ -222,8 +219,7 @@ What another mod reads today, and what the catalogue pins (`src/Core/ForeignAssu
 | The star | `KopernicusStar.Current`, `.shifter`, `LightShifter.sunlightColor`; `Sun.sunLight` | Kopernicus field | `kopernicus-star` |
 | Not pinned yet | `Kopernicus.Components.KSC.Instance`, `SharedScaledSpaceFader`, `Ring` (`ringMr`, `innerRadius`, `outerRadius`), `KopernicusStar.sunRotationPrecision` | Kopernicus field | none |
 
-* `src/Scenery/KscGround.cs` finds the city by `city.name == "KSC"` and reads `city.sphere`.
-  `src/Raytracing/Ksp/RtKspMods.cs` loads the star by reflection over the assembly named
+* `src/Raytracing/Ksp/RtKspMods.cs` loads the star by reflection over the assembly named
   `Kopernicus`. **[src]**
 * `src/Raytracing/RtTerrainColour.cs` and `RtStockTerrain.cs` read the quad meshes' colours
   with `Mesh.colors32` and `GetUVs(1)`, `GetUVs(2)`. **[src]**

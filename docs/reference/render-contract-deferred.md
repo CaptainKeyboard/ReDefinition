@@ -132,10 +132,8 @@ reflections turn that into a sheen at grazing angles.
   **[src]**. The installed `wetSurfaces.cfg` sets scenery `wetSmoothness` 0.6,
   `puddleAccumulationSpeed` 0.01 and `maxPuddleAccumulation` 0.75. The wetness follows rain
   history; the log shows a catch-up at the scene start **[meas]**.
-* With Parallax installed, ReDefinition draws these materials with its own shader. It keeps the
-  tarmac smoothness, the 0.89 cap and the dielectric specular, and replaces the lawn **[src]**
-  (`src/Scenery/KscGround.cs`,
-  `unity/Assets/ReDefinition/Shaders/ReDefinitionKscGround.shader`).
+* With Parallax installed, Parallax applies its own terrain shader to the space centre's ground.
+  ReDefinition no longer replaces the lawn with its own shader. **[doc]**
 * `KSCModelNormalsFixer.FixKSCModels` rewrites mesh normals and tangents at start. Tarmac
   normals point up by `_BlendMaskTexture.r`. On the runway they snap to the x or z axis. The
   vertices stay **[src]**.

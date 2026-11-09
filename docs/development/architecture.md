@@ -52,7 +52,7 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 | `Common` | What both packages stand on: the log, reflection into other mods, optional Harmony hooks, the dialog helpers | `src/Common/HarmonyHooks.cs` |
 | `Core` | The paths and the catalogue of what ReDefinition takes for granted about other mods | `src/Core/ForeignAssumptions.cs` |
 | `Dashboard` | The web dashboard's server and its telemetry | `src/Dashboard/DashboardServer.cs` |
-| `Diagnostics` | The diagnostics window and the report on other mods | `src/Diagnostics/ReDefinitionAddon.Diagnostics.cs` |
+| `Diagnostics` | The diagnostics window and the report on other mods | `src/Diagnostics/DiagnosticsWindow.cs` |
 | `Planner` | The route stack as a mod of its own: the planner, the navigation, the autopilot, the orbit maths and the landing prediction | `src/Planner/PlannerSeams.cs` |
 | `Fsr3` | AMD's FSR 3 upscaler, adapted from FSR3Unity | `src/Fsr3/Fsr3Upscaler.cs` |
 | `Hud` | Additions to KSP's flight interface, staging stack and time panel | `src/Hud/FlightUiSwitch.cs` |

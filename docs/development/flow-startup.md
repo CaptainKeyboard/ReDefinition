@@ -108,7 +108,6 @@ whole run.
 | `KscArrivalDescent` | `src/Menu/KscArrival.cs` | SpaceCentre |
 | `SceneProbeReturn` | `src/Probe/SceneProbe.cs` | SpaceCentre |
 | `RunwayLights` | `src/Scenery/RunwayLights.cs` | FlightAndKSC |
-| `KscGround` | `src/Scenery/KscGround.cs` | FlightAndKSC |
 | `KscGrass` | `src/Scenery/KscGrass.cs` | FlightAndKSC |
 | `KscButtons` | `src/Hud/KscButtons.cs` | FlightEditorAndKSC |
 | `ProbeSwitchReset` | `src/Probe/ProbeSwitchReset.cs` | EveryScene |

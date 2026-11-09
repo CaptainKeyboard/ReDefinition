@@ -42,7 +42,7 @@ takes effect through the add-on's setters. Read the section that matches your se
    the value of each setting from `BundledSettings.Current`. The rows are copies. Choosing a
    profile fills them (`SettingsEdit.ChooseProfile`), and nothing reaches a mod before
    *Accept*.
-9. *Accept* runs `SettingsWindow.Apply` in `src/Window/SettingsWindow/SettingsWindow.Apply.cs`.
+9. *Accept* runs `SettingsWindow.Apply` in `src/Window/SettingsWindow/SettingsApply.cs`.
    Its `ApplyBundled` step walks `SettingsEdit.Steps` and calls `BundledSettings.Set`,
    `Release` or `ResetTo` for each changed row.
 10. `BundledStore.Set` adjusts the value through `Requirements`, keeps it in the ledger and
@@ -99,7 +99,7 @@ flowchart LR
    calls `ReDefinitionAddon.ApplyChanges`.
 7. `ApplyChanges` compares the two copies field by field and calls the setter of each
    difference (`SetQuality`, `SetBackend`, `SetFrameGeneration` and the rest in
-   `src/Modules/ReDefinitionAddon.Setters.cs`). It switches off first and on last.
+   `src/Modules/SettingsController.Setters.cs`). It switches off first and on last.
 8. A setter changes the running rig live, or calls `ReDefinitionAddon.Reattach`. However many
    settings ask, `RebuildRig` builds one new rig before `Apply` returns. `ChangeLiveSettings`
    copies the live fields into the object that features read (see [features](flow-game-ui.md)).

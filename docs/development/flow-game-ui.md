@@ -36,7 +36,6 @@ scenes](flow-startup.md) lists every add-on, including the ones without a switch
 | Fireworks behind the menu | Main menu | `src/Menu/MenuFireworks.cs` | `menuFireworks` |
 | Zoom from the menu to the space centre | Main menu, space centre | `src/Menu/KscArrival.cs` | `menuKscZoom` |
 | Grass on the lawns | Flight, space centre | `src/Scenery/KscGrass.cs` | `kscGrass` |
-| Lawns drawn as terrain | Flight, space centre | `src/Scenery/KscGround.cs` | `kscLawnTerrain` |
 | Re-entry effects skipped while unseen | Flight | `src/Scenery/FireflyIdle.cs` | `fireflyIdle` |
 | Runway lights dimmed | Flight, space centre | `src/Scenery/RunwayLights.cs` | none |
 
