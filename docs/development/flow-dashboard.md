@@ -17,7 +17,7 @@ sends commands. Read this page to find out where a key lives, or to add one.
 2. `DashboardServer.Update` starts the server on `DashboardServer.Port` (8765). It listens on
    127.0.0.1 only, or on every interface when `OwnSettings.DashboardNetwork` is set. A changed
    setting or key starts the server again (`DashboardServer.Listen`).
-3. The page loads from `GameData/ReDefinition/Dashboard`. `WebSocketServer.ServeFile` answers a
+3. The page loads from `GameData/ReDefinition/Main/Dashboard`. `WebSocketServer.ServeFile` answers a
    plain `GET` with `index.html` or a file of the types in `WebSocketServer.ContentTypes`.
    The files need no key, and nothing outside the folder is served.
 4. `index.html` loads `navball.js`, `pages.js`, `menu.js`, `ksc.js`, `editor.js` and
@@ -82,7 +82,7 @@ sequenceDiagram
 3. For a command, add `actions[...]` or `sceneActions[...]` the same way. It runs on the main
    thread, so it may touch the game.
 4. Ask for the key in the browser. A flight key goes into the list in `subscription` in
-   `GameData/ReDefinition/Dashboard/scripts/widget.js`. A scene page lists its keys in its own
+   `GameData/ReDefinition/Main/Dashboard/scripts/widget.js`. A scene page lists its keys in its own
    `KEYS`, in `menu.js`, `ksc.js` or `editor.js`.
 5. Read it from `data["your.key"]` in the page's `render`. Send a command with
    `window.Dashboard.run("your.command[1]")`.
@@ -92,7 +92,7 @@ sequenceDiagram
 
 ## The iCUE widget
 
-`GameData/ReDefinition/Dashboard/manifest.json` makes the folder an iCUE widget. Its
+`GameData/ReDefinition/Main/Dashboard/manifest.json` makes the folder an iCUE widget. Its
 `permissions` name port 8765, which is the reason the port is fixed. The build packs the folder
 into `ksp-dashboard.icuewidget` (the `PackageIcueWidget` target in `src/ReDefinition.csproj`).
 `tools/icuewidget/package.json` only validates the folder: run `npm install` and

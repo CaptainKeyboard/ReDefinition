@@ -18,7 +18,7 @@ does not load ReDefinition without it.
 **2. Extract ReDefinition's zip** into the KSP folder, the one with `KSP_x64.exe`:
 
 ```
-GameData/ReDefinition/                          merges into your GameData
+GameData/ReDefinition/                          merges into your GameData: Main, Common and Planner
 dxgi.dll                                        the proxy: DLSS, AMD's upscaler DLL, XeSS, frame generation
 dxgi_LICENSE-NVIDIA.txt                         licences of the NVIDIA headers the proxy is built with
 dxgi_LICENSE-FidelityFX.txt                     licence of the AMD headers the proxy is built with
@@ -59,7 +59,8 @@ the *Graphics* tab has all five
 
 Search for *ReDefinition* in CKAN and install it. If CKAN does not list it, its entry
 there is not accepted yet, and the release zip above is the way in. CKAN
-installs Harmony with it, and puts `dxgi.dll` and AMD's runtime next to `KSP_x64.exe`.
+installs Harmony and ReDefinition Common with it, offers ReDefinition Planner, and
+puts `dxgi.dll` and AMD's runtime next to `KSP_x64.exe`.
 CKAN does not replace a `dxgi.dll` it did not install, so move another one away first.
 
 ## Get the files for DLSS, XeSS and AMD's upscaler
@@ -142,12 +143,12 @@ then passes everything through to Windows' own `dxgi.dll`. It writes
 
 | File | Holds |
 |---|---|
-| `GameData/ReDefinition/PluginData/settings.cfg` | ReDefinition's own settings: the upscaler, frame generation and raytracing, the four hotkeys, the flight switches, the main menu's and the space centre's rows, the window's pause, and the navball's place |
-| `GameData/ReDefinition/PluginData/bundled.cfg` | the chosen profile, the values ReDefinition keeps for the other mods, and each setting's value from before ReDefinition first changed it |
-| `GameData/ReDefinition/PluginData/bindings.cfg` | the key bindings ReDefinition keeps for mods that ask it for their keys |
-| `GameData/ReDefinition/PluginData/flightpanel.cfg` | the flight panel's profiles, for every save |
-| `GameData/ReDefinition/PluginData/gauge.cfg` | the round gauge's chosen figure |
-| `GameData/ReDefinition/PluginData/planner.cfg` | the planner's plans, by the vessel's name |
+| `GameData/ReDefinition/Main/PluginData/settings.cfg` | ReDefinition's own settings: the upscaler, frame generation and raytracing, the four hotkeys, the flight switches, the main menu's and the space centre's rows, the window's pause, and the navball's place |
+| `GameData/ReDefinition/Main/PluginData/bundled.cfg` | the chosen profile, the values ReDefinition keeps for the other mods, and each setting's value from before ReDefinition first changed it |
+| `GameData/ReDefinition/Main/PluginData/bindings.cfg` | the key bindings ReDefinition keeps for mods that ask it for their keys |
+| `GameData/ReDefinition/Main/PluginData/flightpanel.cfg` | the flight panel's profiles, for every save |
+| `GameData/ReDefinition/Main/PluginData/gauge.cfg` | the round gauge's chosen figure |
+| `GameData/ReDefinition/Planner/PluginData/planner.cfg` | the planner's plans, by the vessel's name |
 
 An update does not touch them.
 

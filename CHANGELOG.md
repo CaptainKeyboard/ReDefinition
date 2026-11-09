@@ -5,15 +5,24 @@
 ### Added
 
 - **ReDefinition Planner as a mod of its own.** The route planner, the navigation and the
-  autopilot are `GameData/ReDefinitionPlanner`, released as `ReDefinitionPlanner_<version>.zip`
+  autopilot are `GameData/ReDefinition/Planner`, released as `ReDefinitionPlanner_<version>.zip`
   and carried by the full zip too. It needs neither Harmony nor ZTheme nor ReDefinition;
   MechJeb and ReDefinition are recommended. With ReDefinition installed it is integrated
   as before. Without it, the planner keeps two switches of its own under *Planner Settings* in
   the *Live* menu, and leaves out the hooks that need Harmony, each with a line in `KSP.log`.
-  Both packages ship `ReDefinition.Common.dll`; the game keeps the one with the higher version.
+  Both mods share one copy of `ReDefinition.Common.dll`.
   Neither mod needs the other: without the planner, ReDefinition shows no guidance gauge, no
   burn overlay on the navball and no planner rows on the dashboard, and all else stays.
   How it works: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
+- **One shared folder, `GameData/ReDefinition`.** It holds `Main` (ReDefinition), `Planner`
+  and `Common`, the one copy of `ReDefinition.Common.dll`. The full zip carries all three.
+  `ReDefinitionPlanner_<version>.zip` holds `Planner` and `Common`, and
+  `ReDefinitionCommon_<version>.zip` holds `Common` alone, so CKAN can install it as a module
+  of its own. Extracting any of them merges into the same folder, and an older planner zip
+  extracted over a newer full zip replaces the one Common DLL with an older one, so keep the
+  releases together. ReDefinition's settings are in `GameData/ReDefinition/Main/PluginData`.
+  The settings of unreleased builds in the old `GameData/ReDefinition/PluginData` are not
+  carried over.
 - **Intel XeSS files.** A *Download ...* button under *Display* fetches Intel's
   `libxess.dll`, `libxess_fg.dll` and `libxell.dll` from Intel's release of the XeSS SDK
   3.0.2 on GitHub, after you accept Intel's licence. Every file is checked against the

@@ -7,7 +7,7 @@ for the value a profile starts from.
 with its default, its kind and where the value was read.
 
 This is the inventory *Reset* and the profiles are built on. The values
-are in each mod's registration in `GameData/ReDefinition/Mods`, as `default` and in
+are in each mod's registration in `GameData/ReDefinition/Main/Mods`, as `default` and in
 `DEFAULTS` blocks.
 
 A key in the tables below is the mod's own. ReDefinition's key for it is the mod's id, a

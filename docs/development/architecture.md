@@ -15,8 +15,8 @@ them.
 | The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as three DLLs: `ReDefinition.dll`, `ReDefinition.Planner.dll` and `ReDefinition.Common.dll` |
 | The proxy | `src/DxgiProxy/` | C++ | In KSP's process, as `dxgi.dll` in place of the system's |
 | The shaders | `unity/Assets/ReDefinition/` | HLSL and ShaderLab | In Unity, from the bundle `redefinition.shaders` |
-| The dashboard | `GameData/ReDefinition/Dashboard/`, served by `src/Dashboard/` | JavaScript | In a browser on a phone or a PC |
-| The data | `GameData/ReDefinition/` | KSP config nodes | Read by the plugin and by ModuleManager |
+| The dashboard | `GameData/ReDefinition/Main/Dashboard/`, served by `src/Dashboard/` | JavaScript | In a browser on a phone or a PC |
+| The data | `GameData/ReDefinition/Main/` | KSP config nodes | Read by the plugin and by ModuleManager |
 | Tools and tests | `tools/`, `tests/` | Python, PowerShell, C#, C++ | On the developer's machine |
 
 The proxy has its own HLSL, in `src/DxgiProxy/Raytracing/Shaders/`. The build compiles it into
@@ -31,7 +31,7 @@ flowchart LR
     proxy --> gpu["The Direct3D 12 device:<br/>upscalers, frame generation,<br/>raytracing"]
     plugin -- "loads" --> bundle["Shader bundle"]
     plugin -- "WebSocket" --> dash["Dashboard in a browser"]
-    data["GameData/ReDefinition"] --> plugin
+    data["GameData/ReDefinition/Main"] --> plugin
 ```
 
 The plugin and the proxy share one process. They talk through exported functions, render events
@@ -84,9 +84,9 @@ flowchart LR
 
 | Assembly | Package | Needs |
 |---|---|---|
-| `ReDefinition.Common.dll` | both | KSP and Unity |
-| `ReDefinition.Planner.dll` | `GameData/ReDefinitionPlanner`, and the full zip | Common. Not ReDefinition, not Harmony, not ZTheme |
-| `ReDefinition.dll` | `GameData/ReDefinition` | Common and Harmony. Not the planner |
+| `ReDefinition.Common.dll` | `GameData/ReDefinition/Common`, the one copy both mods use | KSP and Unity |
+| `ReDefinition.Planner.dll` | `GameData/ReDefinition/Planner` | Common. Not ReDefinition, not Harmony, not ZTheme |
+| `ReDefinition.dll` | `GameData/ReDefinition/Main` | Common and Harmony. Not the planner |
 
 Neither of the two mods names the other. They meet in Common, and each works without the other:
 
@@ -123,10 +123,11 @@ The click shield is in Common too. `WindowShield` and `DialogWindow` are used by
 click on a window of either does not reach the buildings, the switches or the map behind it.
 ReDefinition adds the windows only it has (`src/Ui/UnityMouseEvents.cs`).
 
-Both packages ship Common. The game keeps one DLL of a name: the one with the higher assembly
-version, and on equal versions the one in `GameData/ReDefinition/Plugins` [meas]. So a
-change in `src/Common/` needs a new `CommonVersion` in `Directory.Build.props`, and
-`CommonVersionTests` fails until it has one.
+Every zip ships Common in the same place, `GameData/ReDefinition/Common`, so the game holds one
+copy and has no duplicate to resolve [src]. A change in `src/Common/` still needs a new
+`CommonVersion` in `Directory.Build.props`, and `CommonVersionTests` fails until it has one.
+[packaging.md](packaging.md#the-planners-and-commons-packages) says what happens when zips of
+different releases are extracted over each other.
 
 The namespaces of the planner are `ReDefinition.Planner.Engineer`, `.Autopilot`, `.Orbits`,
 `.Landing` and `.Hud`. The table below treats each as an area; the planner's `Hud` is `PlannerHud`

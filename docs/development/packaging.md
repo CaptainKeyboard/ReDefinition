@@ -49,9 +49,11 @@ depend on `Harmony2`, ZTheme depends on HUDReplacer, and the version file is rea
 
 ## What every build does
 
-Every `dotnet build` generates `build/GameData/ReDefinition/ReDefinition.version` from the
-project's version. It copies that file, the DLL, `ReDefinition.xml` and the iCUE widget
-`ksp-dashboard.icuewidget` into the game. It copies the repository's static `GameData`
+Every `dotnet build` generates `ReDefinition.version` in `GameData/ReDefinition/Main` of the
+build output from the project's version [src]. It generates `ReDefinitionPlanner.version`
+in `Planner` and `ReDefinitionCommon.version` in `Common` beside it. It copies the version
+files, the three DLLs, `ReDefinition.xml` and the iCUE widget `ksp-dashboard.icuewidget`
+into the game's `GameData/ReDefinition`. It copies the repository's static `GameData`
 files too: the profiles, the registrations, the patches, the icons and the dashboard's pages.
 
 The version file carries all three keys above. `URL` is the copy on the repository's
@@ -63,7 +65,7 @@ built and tested against. `KSP_VERSION_MIN` is 1.12.0 and `KSP_VERSION_MAX` is 1
 because 1.12.0 and up run the same KSP interfaces this mod uses. That is the range EVE and
 Kopernicus give.
 
-The build writes the same version file into the repository root as well. The release
+The build writes the same three version files into the repository root as well. The release
 package refuses a working tree that differs from `HEAD`, so a version goes out only with
 its copy committed.
 
@@ -78,12 +80,12 @@ dotnet build src/ReDefinition.csproj -c Release -p:ReleasePackage=true
 It is built without `DEVELOPMENT_BUILD`, so FSR's debug checks and its debug view pass are
 compiled out. The developer builds keep them.
 
-It assembles `build/release/ReDefinition_<version>.zip`:
+It assembles `build/release/ReDefinition_<version>.zip` [src]. All three mods share one
+folder, `GameData/ReDefinition`, with a part for each:
 
 ```
-GameData/ReDefinition/
+GameData/ReDefinition/Main/
     Plugins/ReDefinition.dll
-    Plugins/ReDefinition.Common.dll  the shared DLL, also in the planner's folder
     Plugins/ReDefinition.xml  the interface for mods, documented for an IDE
     Shaders/redefinition.shaders
     Profiles/ReDefinition-Profiles.cfg
@@ -100,11 +102,13 @@ GameData/ReDefinition/
     LICENSE-Telemachus.txt    Telemachus, MIT, whose API the dashboard follows
     LICENSE-QR-Code-generator.txt  Project Nayuki's QR code generator, MIT, which the
                               dashboard's QR code follows
+    LICENSE-Bruneton.txt      Bruneton's atmosphere model, BSD-3-Clause
     SOURCE.md                 where the source is
     CREDITS.md                docs/credits-and-licences.md
-    README.md                 the folder's own note, GameData/ReDefinition/README.md
+    README.md                 the part's own note, GameData/ReDefinition/Main/README.md
     ReDefinitionProxy.ini     template for the proxy's settings, see below
-GameData/ReDefinitionPlanner/ the planner's package, see below
+GameData/ReDefinition/Common/ the shared DLL, see below
+GameData/ReDefinition/Planner/ the planner, see below
 dxgi.dll                      the proxy
 dxgi_LICENSE-NVIDIA.txt       the MIT notices of NVIDIA's Streamline and NVAPI
                               headers compiled into dxgi.dll
@@ -134,40 +138,57 @@ Next to the zip goes `ReDefinition_<version>_source.zip`, the complete source of
 commit it was built from, made with `git archive`. GPL-3.0 section 6(d) asks for the
 source to be offered in the same place as the binary.
 
-## The planner's package
+## The planner's and Common's packages
 
-The same build makes a second zip, `build/release/ReDefinitionPlanner_<version>.zip`,
-beside the full one. The full zip carries the planner's folder too, so that a player who
-installs ReDefinition needs nothing else.
+The same build makes two more zips beside the full one [src]. The full zip carries both
+parts too, so that a player who installs ReDefinition needs nothing else.
+
+`build/release/ReDefinitionPlanner_<PlannerVersion>.zip` holds the planner and Common:
 
 ```
-GameData/ReDefinitionPlanner/
+GameData/ReDefinition/Planner/
     Plugins/ReDefinition.Planner.dll
-    Plugins/ReDefinition.Common.dll
     Icons/*.png               the planner's tiles, symbols and the Live button's pictures
     ReDefinitionPlanner.version
     LICENSE, EXCEPTIONS.md, CHANGELOG.md
-    README.md                 the folder's own note, src/Planner/README.md
+    README.md                 the part's own note, src/Planner/README.md
+GameData/ReDefinition/Common/
+    Plugins/ReDefinition.Common.dll
+    ReDefinitionCommon.version
 ```
 
-`GameData/ReDefinition/Plugins` holds `ReDefinition.dll` and its own copy of
-`ReDefinition.Common.dll`. The two copies come from one build.
+`build/release/ReDefinitionCommon_<CommonVersion>.zip` holds `GameData/ReDefinition/Common`
+alone, with its own KSP-AVC file, so that CKAN can install Common as a module of its own.
+Common is the one copy of `ReDefinition.Common.dll`, and both mods use it.
+
+Extracting any of the three zips into the KSP folder merges into the same
+`GameData/ReDefinition`. The zips carry no `PluginData`. Without ReDefinition, the planner
+writes its two switches to `Planner/PluginData/settings.cfg` itself
+(`src/Planner/PlannerSettings.cs`) [src].
 
 | Version | Where it is set | What it is for |
 |---|---|---|
 | ReDefinition's | `<Version>` in `src/ReDefinition.csproj` | `ReDefinition.version` and the zip's name |
 | the planner's | `PlannerVersion` in `Directory.Build.props` | `ReDefinitionPlanner.version`, the zip's name, the DLL's assembly version |
-| Common's | `CommonVersion` in `Directory.Build.props` | The DLL's assembly version, which the game compares |
+| Common's | `CommonVersion` in `Directory.Build.props` | `ReDefinitionCommon.version`, its zip's name, the DLL's assembly version |
 
-The game keeps one `ReDefinition.Common.dll`, the one with the higher assembly version
-[src]. On equal versions it kept the one in `GameData/ReDefinition/Plugins` [meas]. If the
-copy in one package is older, the newer one runs for both. Raise `CommonVersion` whenever
-`src/Common/` changes. `src/Common/version.lock` and `CommonVersionTests` make the build
-refuse a change without it.
+With one copy of `ReDefinition.Common.dll` in the game there is no duplicate for KSP to
+resolve [src]. The caveat is the zips' order. A planner zip of an older release extracted
+over a newer full zip replaces the one Common DLL with an older one, so keep the releases
+together. Raise `CommonVersion` whenever `src/Common/` changes. `src/Common/version.lock`
+and `CommonVersionTests` make the build refuse a change without it.
 
-The deploy of a developer build copies both folders into the game and removes a
-`ReDefinition.Planner.dll` left in `GameData/ReDefinition/Plugins`. Two copies of one assembly
-version leave the game to keep one of them, and not necessarily the new one.
+The deploy of a developer build keeps one copy of the DLL too. It deletes a
+`ReDefinition.Common.dll` or `ReDefinition.Planner.dll` left in `Main/Plugins` and a Common
+copy in `Planner/Plugins`, and copies Common to `Common/Plugins` [src].
+
+It cleans up the layout of earlier builds as well. It moves the old `Shaders` and
+`PluginData` into `Main`, and the old planner folder's `PluginData` into `Planner`, unless
+those exist there already. It then removes the old top-level `Plugins`, `Profiles`, `Mods`,
+`Patches`, `Icons`, `Dashboard` and `GameData/ReDefinitionPlanner`, because KSP would read
+their textures, configs and DLLs a second time [src]. ReDefinition does not read the old
+`GameData/ReDefinition/PluginData` any more, and nothing from the settings of earlier
+builds is carried over by the game itself.
 
 ## When the release build refuses
 
@@ -190,11 +211,11 @@ and one left from an earlier build is removed:
 
 ## What is not in the zip
 
-* The player's `PluginData/settings.cfg` and `bundled.cfg`. They are the player's.
+* The player's `Main/PluginData/settings.cfg` and `bundled.cfg`. They are the player's.
 * A `ReDefinitionProxy.ini` in the game folder. One there holds the player's settings,
   which an update must not overwrite, and CKAN would refuse to install over it. The proxy
   writes the file itself, as the [settings file](#the-proxys-settings-file) describes. The
-  copy in `GameData/ReDefinition` is the same template, for reading. The same goes for
+  copy in `GameData/ReDefinition/Main` is the same template, for reading. The same goes for
   `ReDefinitionProxy.defaults`, which the proxy keeps beside the ini.
 * **NVIDIA's DLLs.** These are `nvngx_dlss.dll` for DLSS, and `sl.interposer.dll`,
   `sl.common.dll`, `sl.dlss_g.dll`, `sl.reflex.dll`, `sl.pcl.dll` and `nvngx_dlssg.dll`
@@ -267,7 +288,7 @@ https://support.curseforge.com/support/solutions/articles/9000197279-moderation-
 
 The template is `src/DxgiProxy/ReDefinitionProxy.ini`. CMake builds it into `dxgi.dll` as a
 resource (`src/DxgiProxy/ReDefinitionProxy.rc.in`), and the release build copies it into
-`GameData/ReDefinition` as well. At every start the proxy completes the file next to
+`GameData/ReDefinition/Main` as well. At every start the proxy completes the file next to
 `KSP_x64.exe` from its own copy (`CompleteIni` in `src/DxgiProxy/Common/Config.cpp`):
 
 * Without a file, it writes the template as it is.
@@ -284,30 +305,43 @@ and this version's template has another default, the proxy sets the new default 
 A value the player changed stays. A key without a record counts as the proxy's where it
 holds today's default, and as the player's otherwise.
 
-## The planner's CKAN metadata
+## The CKAN modules
 
-The planner's file is `NetKAN/ReDefinitionPlanner.netkan` [open: not yet submitted]. It
-reads the planner's zip and `ReDefinitionPlanner.version`. It recommends MechJeb2 and
-ReDefinition, and installs `GameData/ReDefinitionPlanner`. ReDefinition's file installs only
-`GameData/ReDefinition` and recommends the planner, so CKAN never writes the same file twice.
-ReDefinition works without the planner.
+CKAN gets three modules, one file each in https://github.com/KSP-CKAN/NetKAN under
+`NetKAN/` [open: not yet submitted]. Each reads its own zip of the same GitHub release and
+its own KSP-AVC file:
 
-## The CKAN metadata
+| Module | Zip | Installs | Depends on | Recommends |
+|---|---|---|---|---|
+| `ReDefinition` | `ReDefinition_<version>.zip` | `Main` and the files for the game folder | `Harmony2`, `ReDefinitionCommon` | `ReDefinitionPlanner` |
+| `ReDefinitionPlanner` | `ReDefinitionPlanner_<PlannerVersion>.zip` | `Planner` | `ReDefinitionCommon` | `MechJeb2`, `ReDefinition` |
+| `ReDefinitionCommon` | `ReDefinitionCommon_<CommonVersion>.zip` | `Common` | nothing | nothing |
 
-The file goes to https://github.com/KSP-CKAN/NetKAN as `NetKAN/ReDefinition.netkan`. The
-file below is the current one. Git does not track the copy in `build/ckan`, and it is older.
-Every `file` is in the release zip [src]. The identifiers in `depends` and `supports` are
-not checked against the NetKAN repository [open].
+CKAN installs a `file` that is a directory under its last path component. To keep each part
+below `GameData/ReDefinition`, every entry names the part and installs it to
+`GameData/ReDefinition`, which the spec allows as a sub-folder of `GameData` [doc]. No two
+modules own the same file, so CKAN never refuses an install. The full zip carries all three
+parts, and each module takes only its own.
+
+ReDefinition works without the planner. The planner works without ReDefinition. Both need
+Common, and that is why Common is a module of its own.
+
+## The CKAN metadata of ReDefinition
+
+The local drafts are `build/ckan/ReDefinition.netkan`, `ReDefinitionPlanner.netkan` and
+`ReDefinitionCommon.netkan`. Git does not track them. The YAML on this page is the current
+one. Every `file` is in its release zip [src]. The identifiers in `depends`, `recommends`
+and `supports` are not checked against the NetKAN repository [open].
 
 | Key | What it does |
 |---|---|
-| `$kref` | takes the GitHub release; `asset_match` picks the player zip, not `ReDefinition_<version>_source.zip` beside it |
+| `$kref` | takes the GitHub release; `asset_match` picks the player zip, not `ReDefinition_<version>_source.zip` or the planner's zip beside it |
 | `$vref` | reads `ReDefinition.version` in the zip for the KSP versions |
 | `x_netkan_trust_version_file` | takes the mod's version from that file too, so it reads the project's version and not the tag's `v` in front of it |
 | `license` | `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation and denoiser runtimes |
-| `depends` | `Harmony2`, which ReDefinition requires to load |
-| `recommends` | `ReDefinitionPlanner`, which the full zip carries but CKAN installs from its own package. ReDefinition works without it |
-| `install` | `GameData/ReDefinition` into `GameData`; `dxgi.dll`, AMD's two runtimes and the licences into `GameRoot` |
+| `depends` | `Harmony2`, which ReDefinition requires to load, and `ReDefinitionCommon` |
+| `recommends` | `ReDefinitionPlanner`, which the full zip carries but CKAN installs from its own module. ReDefinition works without it |
+| `install` | `GameData/ReDefinition/Main` into `GameData/ReDefinition`; `dxgi.dll`, AMD's two runtimes and the licences into `GameRoot` |
 
 CKAN has no identifier for the Modding and Linking Exceptions. They are in `LICENSE` and
 `EXCEPTIONS.md` in the zip.
@@ -334,6 +368,7 @@ tags:
   - library
 depends:
   - name: Harmony2
+  - name: ReDefinitionCommon
 recommends:
   - name: ReDefinitionPlanner
 supports:
@@ -351,8 +386,8 @@ supports:
   - name: HUDReplacer
   - name: ZTheme
 install:
-  - file: GameData/ReDefinition
-    install_to: GameData
+  - file: GameData/ReDefinition/Main
+    install_to: GameData/ReDefinition
   - file: dxgi.dll
     install_to: GameRoot
   - file: dxgi_LICENSE-NVIDIA.txt
@@ -373,4 +408,62 @@ install:
     install_to: GameRoot
   - file: amd_fidelityfx_denoiser_dx12_LICENSE.md
     install_to: GameRoot
+```
+
+## The CKAN metadata of the planner
+
+`NetKAN/ReDefinitionPlanner.netkan` reads `ReDefinitionPlanner.version` in its zip. It
+depends on `ReDefinitionCommon`, recommends MechJeb2 and ReDefinition, and installs
+`Planner`. It carries `GPL-3.0` only, because AMD's runtimes belong to ReDefinition's module.
+
+```yaml
+identifier: ReDefinitionPlanner
+name: ReDefinition Planner
+abstract: >-
+  Plans a route for a vessel (launch, transfers, landing, rendezvous) in the map and the editor,
+  and flies it with the autopilot, with MechJeb where it is installed.
+author: CaptainKeyboard
+$kref: '#/ckan/github/CaptainKeyboard/ReDefinition/asset_match/^ReDefinitionPlanner_[0-9.]+\.zip$'
+$vref: '#/ckan/ksp-avc'
+x_netkan_trust_version_file: true
+license:
+  - GPL-3.0
+tags:
+  - plugin
+  - control
+  - convenience
+depends:
+  - name: ReDefinitionCommon
+recommends:
+  - name: MechJeb2
+  - name: ReDefinition
+supports:
+  - name: Parsek
+  - name: ZTheme
+install:
+  - file: GameData/ReDefinition/Planner
+    install_to: GameData/ReDefinition
+```
+
+## The CKAN metadata of Common
+
+`NetKAN/ReDefinitionCommon.netkan` is the module of the shared library. It reads
+`ReDefinitionCommon.version` in `ReDefinitionCommon_<CommonVersion>.zip`, and its tag is
+`library`.
+
+```yaml
+identifier: ReDefinitionCommon
+name: ReDefinition Common
+abstract: >-
+  A shared library of ReDefinition and ReDefinition Planner.
+author: CaptainKeyboard
+$kref: '#/ckan/github/CaptainKeyboard/ReDefinition/asset_match/^ReDefinitionCommon_[0-9.]+\.zip$'
+$vref: '#/ckan/ksp-avc'
+x_netkan_trust_version_file: true
+license: GPL-3.0
+tags:
+  - library
+install:
+  - file: GameData/ReDefinition/Common
+    install_to: GameData/ReDefinition
 ```

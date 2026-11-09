@@ -15,7 +15,7 @@ cannot compile shaders at run time, and the proxy compiles its passes when you b
 flowchart LR
     subgraph Unity["Unity route"]
         A["Shaders folder: .shader, .compute"] --> B["BundleBuilder: redefinition.shaders"]
-        B --> C["GameData/ReDefinition/Shaders"]
+        B --> C["GameData/ReDefinition/Main/Shaders"]
         C --> D["ShaderBundle loads by name"]
         D --> E["Materials and command buffers"]
     end
@@ -35,7 +35,7 @@ flowchart LR
 2. `BundleBuilder.Build` in `unity/Assets/ReDefinition/Editor/BundleBuilder.cs` makes one
    AssetBundle, `redefinition.shaders`. `BundleBuilder.EnsureGraphicsApis` first sets
    Direct3D 11 and Direct3D 12 for the build, because a bundle without Direct3D 12 kernels
-   fails every `Dispatch` there. It writes the file to `GameData/ReDefinition/Shaders`.
+   fails every `Dispatch` there. It writes the file to `GameData/ReDefinition/Main/Shaders`.
 3. `ShaderBundle` in `src/Upscaler/Rig/ShaderBundle.cs` loads the file from
    `ShaderBundle.BundlePath`. A bundle from another Unity version is rejected without a word.
 4. Callers ask the bundle by name. `ShaderBundle.LoadShader` finds a shader by its `Shader`

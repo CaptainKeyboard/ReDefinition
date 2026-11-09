@@ -13,12 +13,13 @@ HarmonyKSP nor ZTheme nor ReDefinition. MechJeb and ReDefinition are recommended
 ## Install it
 
 1. Extract `ReDefinitionPlanner_<version>.zip` into the KSP folder, the one with
-   `KSP_x64.exe`. `GameData/ReDefinitionPlanner` goes into `GameData`.
-2. If you use CKAN, install *ReDefinition Planner* there. CKAN suggests MechJeb and
-   ReDefinition.
+   `KSP_x64.exe`. `GameData/ReDefinition/Planner` and `GameData/ReDefinition/Common` go
+   into `GameData`.
+2. If you use CKAN, install *ReDefinition Planner* there. CKAN installs *ReDefinition
+   Common* with it and suggests MechJeb and ReDefinition.
 
-The full ReDefinition zip carries the same folder. If you install ReDefinition, you do not
-need this one.
+The full ReDefinition zip carries the same two folders. If you install ReDefinition, you do
+not need this one.
 
 ## What it does without the others
 
@@ -32,7 +33,7 @@ need this one.
 ## Its two switches
 
 *Planner Settings* in the autopilot's *Live* menu holds two switches. They are saved in
-`GameData/ReDefinitionPlanner/PluginData/settings.cfg`.
+`GameData/ReDefinition/Planner/PluginData/settings.cfg`.
 
 | Switch | What it does |
 |---|---|
@@ -48,6 +49,7 @@ stay where they are.
 
 ReDefinition does not need the planner either: without it, ReDefinition shows no guidance
 gauge, no burn overlay on the navball and no planner rows on the dashboard, and everything else
-stays. The two share one small file, `ReDefinition.Common.dll`, and the game keeps the newer
-copy. If ReDefinition and the planner come from different releases, update both to the same
-release; `KSP.log` names a copy that is older than the one a mod was built against.
+stays. The two share one small file, `ReDefinition.Common.dll`, in
+`GameData/ReDefinition/Common`. If ReDefinition and the planner come from different
+releases, update both to the same release. Extracting an older planner zip over a newer
+ReDefinition replaces that one file with an older copy.

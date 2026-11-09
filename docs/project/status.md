@@ -60,7 +60,7 @@ Released: 0.1.3.
 |---|---|
 | ReDefinition is active only while a graphics profile is chosen; *Reset* chooses High | choosing High after a reset changes nothing |
 | The other mods' antialiasing is switched off at run time while the upscaler runs, never in their settings | without the upscaler their antialiasing is the only one there is |
-| Each profile sets the render height that the upscaler's *Auto* mode aims for | `GameData/ReDefinition/Profiles/ReDefinition-Profiles.cfg` |
+| Each profile sets the render height that the upscaler's *Auto* mode aims for | `GameData/ReDefinition/Main/Profiles/ReDefinition-Profiles.cfg` |
 | A profile sets quality, and a mod's taste only where that mod needs it changed to run with the upscaler; High is the mod authors' defaults; *Reset* resets everything | [player/graphics-profiles.md](../player/graphics-profiles.md) |
 | A requirement of an installed mod is enforced whatever profile is chosen | [reference/requirements.md](../reference/requirements.md) |
 | Settings are saved in each mod through its own routine, with the values from before kept for a restore | [development/flow-setting.md](../development/flow-setting.md) |

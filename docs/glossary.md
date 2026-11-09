@@ -9,7 +9,7 @@
 | Word | Means |
 |---|---|
 | bundled mod | A mod whose settings ReDefinition shows in its window. A mod is bundled once it is installed and a registration for it was read. |
-| registration | The config file that tells ReDefinition about a mod: a `MOD_SETTINGS` node with the mod's settings, defaults, profile values, key bindings and requirements. ReDefinition ships one per bundled mod in `GameData/ReDefinition/Mods`, and a mod can ship its own. |
+| registration | The config file that tells ReDefinition about a mod: a `MOD_SETTINGS` node with the mod's settings, defaults, profile values, key bindings and requirements. ReDefinition ships one per bundled mod in `GameData/ReDefinition/Main/Mods`, and a mod can ship its own. |
 | setting | One value ReDefinition keeps for a mod, with its control and its default. |
 | setting key | The name a setting is kept under: `<mod>.<setting>`, for example `scatterer.oceanFoam`. |
 | key, key binding | A keyboard key, with its modifiers, that does something in the game. The *Controls* tab holds them all. |
@@ -33,7 +33,8 @@
 | Word | Means |
 |---|---|
 | planner | The mode of the VAB and the SPH that lays out a route from stop to stop, works out the delta-v of each leg and shares the vessel's stages out over the legs. Its button, with *Δv* on it, is next to KSP's mode buttons above the parts list. |
-| planner package | ReDefinition Planner: the planner, the navigation and the autopilot as a mod of their own, in GameData/ReDefinitionPlanner. The full ReDefinition zip carries it too. |
+| planner package | ReDefinition Planner: the planner, the navigation and the autopilot as a mod of their own, in `GameData/ReDefinition/Planner`. The full ReDefinition zip carries it too. |
+| common package | The one copy of `ReDefinition.Common.dll`, in `GameData/ReDefinition/Common`, that ReDefinition and the planner share. It has a zip of its own. |
 | fuel plan | The planner's table of stages by legs: what each stage gives to each leg. |
 | pin | A stage the player sets to pay for a leg, in a cell of the fuel plan. A leg with pins burns its pinned stages only. |
 | stop | A place on the planner's route: a body, on its surface or in an orbit at an altitude. |
@@ -49,7 +50,7 @@
 | Word | Means |
 |---|---|
 | the store | The part of ReDefinition that hands values to the mods, keeps what a mod has not saved yet, and remembers what each mod held before. |
-| `bundled.cfg` | The store's file, in `GameData/ReDefinition/PluginData`. It holds whether the mods are bundled, the chosen profile, which mods the main menu already asked about, the values ReDefinition keeps for the mods, and the values from before ReDefinition. |
+| `bundled.cfg` | The store's file, in `GameData/ReDefinition/Main/PluginData`. It holds whether the mods are bundled, the chosen profile, which mods the main menu already asked about, the values ReDefinition keeps for the mods, and the values from before ReDefinition. |
 | value from before ReDefinition | What a setting held when ReDefinition changed it for the first time. *Restore settings from before ReDefinition* puts it back. Only a setting ReDefinition has changed has one. |
 | requirement | A value an installed mod needs of another mod's setting. ReDefinition keeps it that way whatever a profile or the player sets, and says why. |
 

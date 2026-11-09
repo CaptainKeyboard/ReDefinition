@@ -36,7 +36,7 @@ The example is `DashboardNetwork`, a switch that the dashboard reads every frame
 7. If the player's *Reset* must keep the value, copy it in `OwnSettingsReset.From`
    (`src/Modules/OwnSettingsReset.cs`). The dashboard key is kept there.
 8. If a profile should set it, name its key in a `MODULE` node of
-   `GameData/ReDefinition/Profiles/ReDefinition-Profiles.cfg`, in each of the five tiers. A
+   `GameData/ReDefinition/Main/Profiles/ReDefinition-Profiles.cfg`, in each of the five tiers. A
    value may differ by card: `K (Rtx20 Rtx30), Default`. `ModuleProfiles.CanSet` refuses a
    `Taste` setting, a `Detail` row and any row outside `SettingCategory.General`.
 9. Hold it in a test in `tests/ReDefinition.Tests`.
@@ -50,13 +50,13 @@ A developer's flag can also be a debug switch in
 ## A setting of another mod
 
 The example is Firefly's re-entry glow strength in
-`GameData/ReDefinition/Mods/Firefly.cfg`. The format of the node is in
+`GameData/ReDefinition/Main/Mods/Firefly.cfg`. The format of the node is in
 [the registration reference](../modders/registration-reference.md). This section covers the
 steps around it.
 
 1. Find where the mod keeps the value, and read its code to see when the mod reads it. That
    decides `takesEffect`: `Live`, `NextScene` or `Restart`.
-2. Open the mod's file in `GameData/ReDefinition/Mods`. Add a `SETTING` node inside its
+2. Open the mod's file in `GameData/ReDefinition/Main/Mods`. Add a `SETTING` node inside its
    `MOD_SETTINGS` node, with `name`, `member`, `default`, `title`, `tooltip`, `kind` and `row`.
    If the value is a number, add `min` and `max`.
 3. If the value is a quality setting, add it to the `PROFILE` blocks of the tiers that change
@@ -65,7 +65,7 @@ steps around it.
    `src/Settings/Behaviours`.
 5. Add the setting to the inventory in `docs/reference/mod-defaults.md`, with its source.
 6. Run `dotnet test`. `ShippedRegistrationTests.EveryShippedRegistrationReadsWithoutAProblem`
-   reads every file in `GameData/ReDefinition/Mods` and fails on the first problem.
+   reads every file in `GameData/ReDefinition/Main/Mods` and fails on the first problem.
 7. With the mod installed, run `tools/checks/check_bundled_mods.ps1` with
    `powershell -NoProfile -File`. It builds each registration against the installed DLL
    and reports a member it cannot find.
@@ -77,7 +77,7 @@ steps around it.
 ## Where to change it
 
 * A new row in the window: `src/Modules/OurModules.cs` and `src/Modules/OwnSettings.cs` for
-  ReDefinition's own, and the mod's `.cfg` in `GameData/ReDefinition/Mods` for another mod.
+  ReDefinition's own, and the mod's `.cfg` in `GameData/ReDefinition/Main/Mods` for another mod.
 * A profile's value: `ReDefinition-Profiles.cfg` for the own `MODULE` nodes, the `PROFILE`
   blocks of the registration for another mod.
 * What a change does at once: the setter in `src/Modules/SettingsController.Setters.cs`.

@@ -70,7 +70,7 @@ The HUD and editor features build uGUI objects of KSP's own. They use the helper
 - `ScreenFit`, `UnityMouseEvents.Shield` and `DialogOverWindow` keep a dialog on the screen and
   clicks out of the game.
 - `TooltipText.WrapAll` breaks the tooltips of a dialog's elements at 83 characters.
-- `IconSprites.Load` makes a sprite of a texture under `GameData/ReDefinition/Icons`, as the
+- `IconSprites.Load` makes a sprite of a texture under `GameData/ReDefinition/Main/Icons`, as the
   planner's button does.
 - `WorldButton` in `src/Hud` stands a button in the world and takes its look from `KscButtons`.
 

@@ -10,8 +10,8 @@ and one WebSocket, sends the values the page asks for and runs the commands it s
 | `src/Dashboard/DashboardServer.cs` | The add-on: starting the server, queued messages, and the per-client update loop. |
 | `src/Dashboard/Telemetry.cs` | The keys a page can read and the commands it can run, by name. |
 | `src/Dashboard/WebSocketServer.cs` | The WebSocket and HTTP server, the handshake and who is let in. |
-| `GameData/ReDefinition/Dashboard/index.html` | The page, and the order its scripts load in. |
-| `GameData/ReDefinition/Dashboard/scripts/widget.js` | The flight panels, the connection to the mod and `window.Dashboard`. |
+| `GameData/ReDefinition/Main/Dashboard/index.html` | The page, and the order its scripts load in. |
+| `GameData/ReDefinition/Main/Dashboard/scripts/widget.js` | The flight panels, the connection to the mod and `window.Dashboard`. |
 | `src/Dashboard/FlyByWire.cs` | Steering the active vessel from the page. |
 
 ## What it does
@@ -21,7 +21,7 @@ and one WebSocket, sends the values the page asks for and runs the commands it s
 - `Telemetry` holds the flight readers and commands. `GameTelemetry`, `MenuTelemetry`,
   `KscTelemetry`, `EditorTelemetry` and `FuelTelemetry` add the keys of the game, the menu, the
   space centre, the editors and the resource tapes.
-- `WebSocketServer` also serves the files in `GameData/ReDefinition/Dashboard` over HTTP.
+- `WebSocketServer` also serves the files in `GameData/ReDefinition/Main/Dashboard` over HTTP.
 - `Json` writes and reads the little JSON the dashboard needs. `QrCode` and `ConnectDialog` show
   the address for a phone in the settings window.
 - `FlyByWire` turns rates and a target attitude from the page into the vessel's controls.
@@ -48,4 +48,4 @@ It uses Core, Engineer and Modules. Modules uses it.
 - A rate from the page holds for `FlyByWire.HoldSeconds`, so a dropped connection never leaves the
   controls deflected (`src/Dashboard/FlyByWire.cs`).
 - In `index.html`, `pages.js` loads before `menu.js`, `ksc.js` and `editor.js`, and `widget.js`
-  loads last (`GameData/ReDefinition/Dashboard/index.html`).
+  loads last (`GameData/ReDefinition/Main/Dashboard/index.html`).

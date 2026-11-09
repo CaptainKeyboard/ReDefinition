@@ -28,7 +28,7 @@ it ([modders/registering-a-mod.md](../modders/registering-a-mod.md)). Its keys:
 | R7 | DLSS frame generation runs in a build without V-Sync support | KSP V-Sync | off | the guide, 22.1: V-Sync only where `bIsVsyncSupportAvailable` is set |
 | R8 | Intel's XeLL lowers the latency, with XeSS frame generation or alone on an Intel GPU | KSP V-Sync | off, or every refresh | Intel's XeLL developer guide, Integration Checklist: "when VSync is enabled, sync interval for IDXGISwapChain::Present must always be 1 when Low Latency is active" |
 
-R6 to R8 are in KSP's registration, `GameData/ReDefinition/Mods/KSP.cfg`, as the
+R6 to R8 are in KSP's registration, `GameData/ReDefinition/Main/Mods/KSP.cfg`, as the
 checks `DlssFrameGenerationEveryRefresh`, `DlssFrameGenerationVSync` and
 `XellEveryRefresh` ([modders/registration-reference.md](../modders/registration-reference.md)).
 While ReDefinition's frame generation is off, or while FSR 3 presents it, R6 and R7 pass

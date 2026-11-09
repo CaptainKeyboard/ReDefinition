@@ -262,7 +262,7 @@ there is. A mod with its own temporal or spatial antialiasing switches it off wh
 `build` limits either block to one of your builds. The blocks are taken as the
 `DEFAULTS` blocks are: those for every build first, then those for the installed build.
 
-The profiles themselves are in `GameData/ReDefinition/Profiles`. A block for a
+The profiles themselves are in `GameData/ReDefinition/Main/Profiles`. A block for a
 profile that is not there is reported and does nothing.
 
 A player who installs your mod after choosing a profile gets these values at the next

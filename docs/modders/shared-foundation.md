@@ -18,7 +18,7 @@ built this way: [development/flow-mod-interface.md](../development/flow-mod-inte
 |---|---|---|
 | The shader include | a shader that reads the frame's state | copy [`ReDefinition.cginc`](../../unity/Assets/ReDefinition/Include/ReDefinition.cginc) from ReDefinition's repository into your shader project and `#include "ReDefinition.cginc"`. Without ReDefinition every function returns what the game has without it. MIT |
 | The wrapper | a mod that runs with or without ReDefinition | copy [examples/ReDefinitionApi.cs](examples/ReDefinitionApi.cs) into your mod and put it in your namespace. `ReDefinitionApi.Installed` says whether ReDefinition is there. MIT |
-| A reference | a mod that requires ReDefinition | reference `GameData/ReDefinition/Plugins/ReDefinition.dll`, declare `[assembly: KSPAssemblyDependency("ReDefinition", 0, 1)]`, and use `ReDefinition.Api`. `ReDefinition.xml` beside the DLL documents every member in your IDE |
+| A reference | a mod that requires ReDefinition | reference `GameData/ReDefinition/Main/Plugins/ReDefinition.dll`, declare `[assembly: KSPAssemblyDependency("ReDefinition", 0, 1)]`, and use `ReDefinition.Api`. `ReDefinition.xml` beside the DLL documents every member in your IDE |
 
 Call every member from the main thread. `ApiInfo.Version` counts changes of the
 interface. The wrapper returns what the game has without ReDefinition while the

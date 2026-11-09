@@ -11,7 +11,7 @@ takes effect through the add-on's setters. Read the section that matches your se
 
 ## Another mod's setting
 
-1. A registration is a `MOD_SETTINGS` node in `GameData/ReDefinition/Mods/*.cfg`, one per mod.
+1. A registration is a `MOD_SETTINGS` node in `GameData/ReDefinition/Main/Mods/*.cfg`, one per mod.
    `Firefly.cfg` names the mod's `detect` type, its `save` method, a `SETTING` per value with a
    `member` path and a `default`, and `PROFILE` blocks. A mod or a pack can ship its own.
 2. `ModRegistry.LoadAll` in `src/Settings/ModRegistry.cs` reads every node from the
@@ -82,13 +82,13 @@ flowchart LR
 1. `OwnSettings` in `src/Modules/OwnSettings.cs` holds each value as a field with its default.
    `OwnSettings.Fields` lists the key in `settings.cfg`, how to parse and format it, and
    whether the add-on reads it live. The file is
-   `GameData/ReDefinition/PluginData/settings.cfg`.
+   `GameData/ReDefinition/Main/PluginData/settings.cfg`.
 2. `OurModules` in `src/Modules/OurModules.cs` groups them into `GraphicsModule`s (`upscaler`,
    `frameGeneration`, `latency`, `raytracing`, `flightUi` and more). A `ModuleSetting` has a
    `Read` and a `Write` over `OwnSettings`, its `Kind`, tab (`Row`), `Order` and `TakesEffect`.
 3. The window and KSP's settings dialog draw their rows from `OurModules.Rows`.
    `KspSettingsSection.Edit` holds the pair of copies, `Before` and `After`, that both edit.
-4. The profiles come from `GameData/ReDefinition/Profiles/ReDefinition-Profiles.cfg`: five
+4. The profiles come from `GameData/ReDefinition/Main/Profiles/ReDefinition-Profiles.cfg`: five
    `GRAPHICS_PROFILE` nodes, `low` to `max`, each with a `MODULE` node per module.
 5. `ModuleProfiles.Values` in `src/Modules/ModuleProfiles.cs` reads a `MODULE` node into
    `ModuleSetting` values. A value can differ by card (`ProfileValue.Resolve`).
@@ -115,8 +115,8 @@ flowchart LR
 
 - A new setting of either kind, step by step: [add a setting](howto-add-a-setting.md).
 - A value a mod needs, or a default per build: the registration in
-  `GameData/ReDefinition/Mods`.
-- What a tier sets for ReDefinition's own features: `GameData/ReDefinition/Profiles`.
+  `GameData/ReDefinition/Main/Mods`.
+- What a tier sets for ReDefinition's own features: `GameData/ReDefinition/Main/Profiles`.
 - When a value reaches a mod: `BundledStore.ReapplyStored` and `BundledSettingsAddon`.
 
 ## What can go wrong

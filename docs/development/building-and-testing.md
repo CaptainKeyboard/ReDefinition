@@ -26,18 +26,22 @@ environment variable or with `-p:KspRoot=...`.
 
 Every build deploys into the game:
 
-* `ReDefinition.dll` and `ReDefinition.xml` into `GameData/ReDefinition/Plugins`. The
+* `ReDefinition.dll` and `ReDefinition.xml` into `GameData/ReDefinition/Main/Plugins`. The
   XML file is the interface's documentation for a mod's IDE;
-* `ReDefinition.version`, generated from the project's version, and the iCUE widget
-  `ksp-dashboard.icuewidget`;
+* `ReDefinition.Common.dll` into `GameData/ReDefinition/Common/Plugins` and
+  `ReDefinition.Planner.dll` into `GameData/ReDefinition/Planner/Plugins`;
+* the three version files, generated from the versions in the build, each in its part's
+  folder, and the iCUE widget `ksp-dashboard.icuewidget` into `Main`;
 * the repository's static `GameData` files: the registrations, the profiles, the
   patches, the icons and the dashboard's pages.
 
 The build writes the DLL into `build/`, where the check scripts load it from.
 
-What the build ships is removed from the game first (`Profiles/ReDefinition-*.cfg`,
-`Mods/*.cfg` and `Patches/*.cfg`), so a file dropped from the repository leaves the game
-too. `PluginData` is never touched.
+What the build ships is removed from the game first (`Main/Profiles/ReDefinition-*.cfg`,
+`Main/Mods/*.cfg` and `Main/Patches/*.cfg`), so a file dropped from the repository leaves
+the game too. `PluginData` is never touched. The deploy also moves the shaders and settings
+of an install from before the shared folder into `Main` and removes that layout's old
+folders ([packaging.md](packaging.md#the-planners-and-commons-packages)).
 
 The solution builds the unit tests and the example mod as well. The example mod is
 `docs/modders/examples/ReDefinitionExample`. It goes into `build/examples/ReDefinitionExample`
@@ -148,7 +152,7 @@ In the editor, open `unity/`, then choose *ReDefinition → Set KSP path* if nee
 ```
 
 The bundle goes straight into the game, as
-`GameData/ReDefinition/Shaders/redefinition.shaders`. Shader errors go into the log
+`GameData/ReDefinition/Main/Shaders/redefinition.shaders`. Shader errors go into the log
 file. The process exits 1 only where the build itself fails.
 
 `unity/Packages/manifest.json` must contain `com.unity.modules.assetbundle`. Without it

@@ -24,7 +24,7 @@ flowchart LR
 
 The plugin settles what to do and talks to KSP and the other mods. The proxy stands in for the
 system's `dxgi.dll` and does the work that needs Direct3D 12. The shaders run in Unity. The data
-the plugin reads, the registrations and profiles, is in `GameData/ReDefinition/`.
+the plugin reads, the registrations and profiles, is in `GameData/ReDefinition/Main/`.
 
 ## What the code does not show you
 

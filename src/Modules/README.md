@@ -21,7 +21,7 @@ that applies a change.
 - `OurModules` declares eleven modules: `upscaler`, `frameGeneration`, `latency`, `raytracing`,
   `hotkeys`, `flightUi`, `uiScaling`, `mainMenu`, `spaceCentre`, `reEntry` and `dashboard`.
 - `OwnSettings` holds the values and reads and writes
-  `GameData/ReDefinition/PluginData/settings.cfg`.
+  `GameData/ReDefinition/Main/PluginData/settings.cfg`.
 - `ModuleProfiles` puts a graphics profile's `MODULE` nodes onto those settings.
 - `AutoSettings` turns *Auto* into a technique, a mode and Ray Reconstruction for the card.
 - `TechniqueAvailability` decides which techniques are offered and which wait for files

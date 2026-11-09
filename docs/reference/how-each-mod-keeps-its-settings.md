@@ -9,7 +9,7 @@ value reaches it, how it is saved, and when it takes effect.
 Each entry was read from that mod's source and checked against the installed build,
 decompiled where the version matters. KSP was decompiled from 1.12.5.
 
-The registrations that reach these places are in `GameData/ReDefinition/Mods`
+The registrations that reach these places are in `GameData/ReDefinition/Main/Mods`
 ([modders/registering-a-mod.md](../modders/registering-a-mod.md)). A setting no member
 path reaches needs a behaviour, for the whole mod or for that setting alone.
 
