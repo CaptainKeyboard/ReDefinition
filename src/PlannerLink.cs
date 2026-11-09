@@ -10,8 +10,8 @@ using UnityEngine;
 
 namespace ReDefinition
 {
-    // What ReDefinition gives the planner (ReDefinition.Planner) when both are installed: its settings, its scale, the space centre's buttons and the
-    // click shields. The planner works without any of it. The two are released apart, so the planner's seams carry a level, and a planner of another
+    // What ReDefinition gives the planner (ReDefinition.Planner) when both are installed: its settings, its scale, and the space centre's buttons.
+    // The planner works without any of it. The two are released apart, so the planner's seams carry a level, and a planner of another
     // level than this one is left to stand alone.
     internal static class PlannerLink
     {
@@ -33,7 +33,7 @@ namespace ReDefinition
             if (!fits)
             {
                 Debug.LogWarning(Log.Tag + " The installed ReDefinition Planner is not the version this ReDefinition was made for;"
-                                 + " it stands alone, without ReDefinition's settings, scale and shields. Update both to the same release.");
+                                 + " it stands alone, without ReDefinition's settings, scale and space centre buttons. Update both to the same release.");
                 return;
             }
             Fill();

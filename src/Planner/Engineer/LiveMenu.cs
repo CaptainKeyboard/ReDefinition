@@ -102,7 +102,6 @@ namespace ReDefinition.Planner.Engineer
             shown = PopupDialog.SpawnPopupDialog(anchor, anchor, dialog, false, HighLogic.UISkin, false);
             PlaceUnderButton();
             DialogWindow.Show(shown);
-            UiHygiene.MouseOnly(shown.gameObject);
         }
 
         // The flight stopped and the route emptied: what the menu's "Cancel Route" does.

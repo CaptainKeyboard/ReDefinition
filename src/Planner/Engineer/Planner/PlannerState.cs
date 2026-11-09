@@ -34,7 +34,7 @@ namespace ReDefinition.Planner.Engineer
     // One vessel's plan: its route, with who flies to each destination and the
     // choices for the steps before it, the stages saved or dropped on each step, the
     // margin, whether plane changes count, and the vessel's sections. Kept per vessel
-    // name in GameData/ReDefinition/PluginData/planner.cfg, so that a craft brings its
+    // name in GameData/ReDefinitionPlanner/PluginData/planner.cfg, so that a craft brings its
     // plan back when it is loaded into the editor again.
     internal sealed class PlannerState
     {
