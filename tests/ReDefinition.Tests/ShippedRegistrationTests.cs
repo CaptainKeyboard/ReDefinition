@@ -6,7 +6,7 @@ using ReDefinition.Window;
 
 namespace ReDefinition.Tests
 {
-    // The registrations ReDefinition ships (GameData/ReDefinition/Mods), read as the
+    // The registrations ReDefinition ships (GameData/ReDefinition/Main/Mods), read as the
     // game reads them: no problem in any, and the values the compatibility audit
     // checked against the mods' code; also KSP's own ranges and the key-conflict check (Conflicts).
     [TestClass]
@@ -16,7 +16,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void EveryShippedRegistrationReadsWithoutAProblem()
         {
-            string folder = Path.Combine(Repository(), "GameData", "ReDefinition", "Mods");
+            string folder = Path.Combine(Repository(), "GameData", "ReDefinition", "Main", "Mods");
             foreach (string file in Directory.GetFiles(folder, "*.cfg"))
             {
                 List<string> problems = new List<string>();
@@ -101,11 +101,11 @@ namespace ReDefinition.Tests
                 new string[] { null, null }, new[] { "mod", "mod" }).Count);
         }
 
-        // The shipped registration of that file name in GameData/ReDefinition/Mods, which must read.
+        // The shipped registration of that file name in GameData/ReDefinition/Main/Mods, which must read.
         private static ModRegistration Mod(string file)
         {
             List<string> problems = new List<string>();
-            ModRegistration mod = Read(Path.Combine(Repository(), "GameData", "ReDefinition", "Mods", file + ".cfg"),
+            ModRegistration mod = Read(Path.Combine(Repository(), "GameData", "ReDefinition", "Main", "Mods", file + ".cfg"),
                 problems);
             Assert.IsNotNull(mod, file);
             return mod;
@@ -118,10 +118,10 @@ namespace ReDefinition.Tests
             return ModRegistration.FromConfigNode(node, problems);
         }
 
-        // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition.
+        // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition/Main.
         private static string Repository()
         {
-            return RepoRoot.Root("GameData", "ReDefinition");
+            return RepoRoot.Root("GameData", "ReDefinition", "Main");
         }
     }
 }

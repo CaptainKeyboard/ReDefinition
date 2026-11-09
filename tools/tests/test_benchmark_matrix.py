@@ -483,7 +483,7 @@ class InstallTest(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
         self.ksp = os.path.join(self.root, "ksp")
-        os.makedirs(os.path.join(self.ksp, "GameData", "ReDefinition", "PluginData"))
+        os.makedirs(os.path.join(self.ksp, "GameData", "ReDefinition", "Main", "PluginData"))
         self.write(os.path.join(self.ksp, "settings.cfg"), "ksp")
         self.write(os.path.join(self.ksp, bm.PROXY_INI), "[Proxy]\nenabled=1\n")
         self.write(os.path.join(self.ksp, bm.SETTINGS_REL), "ReDefinition\n{\n}\n")
@@ -514,7 +514,7 @@ class InstallTest(unittest.TestCase):
     def test_restore_removes_settings_files_the_run_made(self):
         snap = os.path.join(self.root, "snap")
         self.install.snap(snap)
-        made = os.path.join("GameData", "ReDefinition", "PluginData", "bundled.cfg")
+        made = os.path.join("GameData", "ReDefinition", "Main", "PluginData", "bundled.cfg")
         self.write(os.path.join(self.ksp, made), "new")
         self.write(os.path.join(self.ksp, "squadcorefx.ksp"), "KSP's own")
         report = self.install.restore(snap)

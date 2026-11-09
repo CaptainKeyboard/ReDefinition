@@ -31,7 +31,7 @@ namespace ReDefinition.Planner.Engineer
     public class EditorEngineer : MonoBehaviour
     {
         // Where the planner button's own drawn tiles lie, without the state (Normal, Hover, Active).
-        private const string TilePath = "ReDefinitionPlanner/Icons/EngineerButton_";
+        private const string TilePath = "ReDefinition/Planner/Icons/EngineerButton_";
         // The vessel is read again only where it changed. A read follows KSP modifying, loading or
         // starting a new one (onEditorShipModified, which the part action window's
         // fields and resource sliders fire too; onEditorLoad, onEditorRestart).

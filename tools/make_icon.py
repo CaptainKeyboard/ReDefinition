@@ -5,17 +5,17 @@ The toolbar icon is a bank of sliders, in the stock toolbar's own colours: the
 button's grey is #3e3d44, the glyphs are #e5e5e8, both read from a screenshot of KSP's
 launcher. It says what the button opens -- every graphics mod's settings on one panel.
 KSP draws the button in a square box, so the icon fills its square. It goes to
-GameData/ReDefinition/Icons/ReDefinitionIcon.png at 128x128, the size Kopernicus ships
+GameData/ReDefinition/Main/Icons/ReDefinitionIcon.png at 128x128, the size Kopernicus ships
 and hands to AddModApplication.
 
 The flight panel's tabs are glyphs in the style of KSP's maneuver panel tabs, 45x40,
-light with a glow while on and black while off: GameData/ReDefinition/Icons/FlightPanel_*.png.
+light with a glow while on and black while off: GameData/ReDefinition/Main/Icons/FlightPanel_*.png.
 
 The planner's symbols are white on clear, 64x64, for KSP's buttons to show them over
-their own background: GameData/ReDefinitionPlanner/Icons/Planner_*.png.
+their own background: GameData/ReDefinition/Planner/Icons/Planner_*.png.
 
 The navball's docking marker is an orange ring with ticks and a centre dot, 64x64, on clear:
-GameData/ReDefinition/Icons/Navball_Docking.png.
+GameData/ReDefinition/Main/Icons/Navball_Docking.png.
 
 The picture for a page is "Re:" on a planet's night side, the atmosphere lit at the
 lower right. It is too fine for a toolbar button but carries a forum post or a mod site,
@@ -56,7 +56,7 @@ GLYPH_WHITE = (229, 229, 232, 255)
 ACCENT = (120, 190, 245, 255)        # the blue this mod uses elsewhere
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-IN_GAME = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "ReDefinitionIcon.png")
+IN_GAME = os.path.join(ROOT, "GameData", "ReDefinition", "Main", "Icons", "ReDefinitionIcon.png")
 LARGE = os.path.join(ROOT, ".local", "icon")
 
 
@@ -233,7 +233,7 @@ TILE_STATES = {
                  (41, 52, 55, 255), (61, 102, 105, 255)),
 }
 TAB_GREY = [(4, 229), (20, 170), (40, 139), (60, 110), (68, 90)]
-ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinitionPlanner", "Icons", "EngineerButton_%s.png")
+ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinition", "Planner", "Icons", "EngineerButton_%s.png")
 
 
 def ramp_at(stops, y):
@@ -252,7 +252,7 @@ def ramp_at(stops, y):
 # The glyph alone, for the game to lay on the cargo button's tiles as they are, KSP's or
 # a theme's: "Δv" as a mask, white on clear. ModeButtonTiles fits it into the tile's
 # face and tints it in the colour of the glyph it replaces.
-GLYPH_MASKS = os.path.join(ROOT, "GameData", "ReDefinitionPlanner", "Icons", "EngineerGlyph_%s.png")
+GLYPH_MASKS = os.path.join(ROOT, "GameData", "ReDefinition", "Planner", "Icons", "EngineerGlyph_%s.png")
 
 
 def draw_glyph_mask(border):
@@ -316,7 +316,7 @@ def draw_engineer_tile(face_stops, glyph, rim):
 
 # The planner's symbols: white on clear, so that a button's own background shows
 # through and the code can tint them. Each is drawn at 512 and stored at 64.
-PLANNER_ICONS = os.path.join(ROOT, "GameData", "ReDefinitionPlanner", "Icons", "Planner_%s.png")
+PLANNER_ICONS = os.path.join(ROOT, "GameData", "ReDefinition", "Planner", "Icons", "Planner_%s.png")
 PLANNER_SIZE = 512
 WHITE = (255, 255, 255, 255)
 
@@ -451,8 +451,8 @@ def draw_planet():
 # tabs (ManNode_ManIcon01: 45x40, a light glyph with a soft glow while the tab is
 # on, a black one while it is off; sharedassets7). Drawn at ten times their size
 # as a mask, then coloured and scaled down.
-# GameData/ReDefinition/Icons/FlightPanel_<name>_On.png and _Off.png.
-PANEL_ICONS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "FlightPanel_%s_%s.png")
+# GameData/ReDefinition/Main/Icons/FlightPanel_<name>_On.png and _Off.png.
+PANEL_ICONS = os.path.join(ROOT, "GameData", "ReDefinition", "Main", "Icons", "FlightPanel_%s_%s.png")
 PANEL_SIZE = (450, 400)
 PANEL_ON = (214, 220, 227)
 PANEL_OFF = (3, 3, 4)
@@ -538,9 +538,9 @@ def panel_icon(mask, on):
 
 # The navball's docking alignment marker: an orange ring with a cross, in the
 # navball markers' own manner (each a picture on a quad, KSP's in purple and
-# yellow), so that it stands apart from them. 64x64, GameData/ReDefinition/Icons/
+# yellow), so that it stands apart from them. 64x64, GameData/ReDefinition/Main/Icons/
 # Navball_Docking.png.
-NAVBALL_DOCKING = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Navball_Docking.png")
+NAVBALL_DOCKING = os.path.join(ROOT, "GameData", "ReDefinition", "Main", "Icons", "Navball_Docking.png")
 DOCKING_COLOUR = (255, 150, 30, 255)
 
 

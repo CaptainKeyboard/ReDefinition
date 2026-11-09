@@ -113,7 +113,7 @@ namespace ReDefinition.Tests
         // where it sets none; the profile must read without problems.
         private static string Chosen(string profileName, GpuClass gpu, string module, string key)
         {
-            string file = Path.Combine(Repository(), "GameData", "ReDefinition", "Profiles", "ReDefinition-Profiles.cfg");
+            string file = Path.Combine(Repository(), "GameData", "ReDefinition", "Main", "Profiles", "ReDefinition-Profiles.cfg");
             ConfigNode root = ConfigNode.Parse(File.ReadAllText(file));
             foreach (ConfigNode node in root.GetNodes("GRAPHICS_PROFILE"))
             {
@@ -129,10 +129,10 @@ namespace ReDefinition.Tests
             return null;
         }
 
-        // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition.
+        // The repository's root, found as the first folder above the test's that holds GameData/ReDefinition/Main.
         private static string Repository()
         {
-            return RepoRoot.Root("GameData", "ReDefinition");
+            return RepoRoot.Root("GameData", "ReDefinition", "Main");
         }
     }
 }

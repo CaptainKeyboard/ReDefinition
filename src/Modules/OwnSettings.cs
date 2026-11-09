@@ -186,7 +186,7 @@ namespace ReDefinition.Modules
         // The settings file's node, which holds every key.
         private const string RootName = "ReDefinition";
 
-        // The settings file, GameData/ReDefinition/PluginData/settings.cfg.
+        // The settings file, GameData/ReDefinition/Main/PluginData/settings.cfg.
         public static string Path
         {
             get { return PluginData.Path("settings.cfg"); }

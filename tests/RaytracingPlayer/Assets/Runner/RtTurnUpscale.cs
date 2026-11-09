@@ -125,7 +125,7 @@ namespace ReDefinition.RaytracingPlayer
         {
             string missing = null;
             string path = RtTurnRunner.Argument("-bundle")
-                          ?? @"C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\GameData\ReDefinition\Shaders\redefinition.shaders";
+                          ?? @"C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\GameData\ReDefinition\Main\Shaders\redefinition.shaders";
             AssetBundle bundle = File.Exists(path) ? AssetBundle.LoadFromFile(path) : null;
             if (bundle == null)
             {

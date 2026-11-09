@@ -7,7 +7,7 @@ DEFAULT_KSP = r"C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Progr
 DEFAULT_MATRIX = os.path.join(REPO, "tools", "benchmark_matrix.json")
 DOC = os.path.join(REPO, "docs", "development", "benchmarks.md")
 RESULTS = os.path.join(REPO, "docs", "development", "benchmarks")
-SETTINGS_REL = os.path.join("GameData", "ReDefinition", "PluginData", "settings.cfg")
+SETTINGS_REL = os.path.join("GameData", "ReDefinition", "Main", "PluginData", "settings.cfg")
 PROXY_INI = "ReDefinitionProxy.ini"
 SHOT = "bench"
 

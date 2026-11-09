@@ -1,5 +1,5 @@
 ﻿# Checks the bundled mods outside the game. It loads the installed graphics mods,
-# then reads every registration in GameData\ReDefinition\Mods and builds its mod
+# then reads every registration in GameData\ReDefinition\Main\Mods and builds its mod
 # with the built DLL, the reader and the registry the game runs. It reports
 # whether it found every member it needs, and which settings it offers. It
 # reports the rows, defaults and requirements it derives from them. It also
@@ -109,7 +109,15 @@ function As-Mods($items) {
     return ,$array
 }
 $registryType = $mod.GetType('ReDefinition.Settings.ModRegistry', $true)
-$readRegistrations = $registryType.GetMethod('Read', $sflags)
+$readSources = $registryType.GetMethod('ReadSources', $sflags)
+$sourceType = [Collections.Generic.KeyValuePair`2].MakeGenericType($configNodeType, [string])
+$sourceListType = [Collections.Generic.List`1].MakeGenericType($sourceType)
+# The nodes as the registry reads them: each with the place of its file in GameData, ReDefinition's own folder.
+function Read-Registrations($nodes, $problems) {
+    $sources = [Activator]::CreateInstance($sourceListType)
+    foreach ($n in $nodes) { $sources.Add([Activator]::CreateInstance($sourceType, [object[]]@($n, 'ReDefinition/Main/Mods/check'))) }
+    return ,$readSources.Invoke($null, [object[]]@($sources, $problems, $null))
+}
 $buildRegistered = $registryType.GetMethod('Build', $sflags)
 $registrations = @()
 $registered = @()
@@ -118,13 +126,13 @@ $registeredList = As-Mods @()
 $byId = New-Object 'System.Collections.Generic.Dictionary[string,object]'
 try {
     $registrationNodes = (New-Object 'System.Collections.Generic.List[object]').PSObject.BaseObject
-    foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Mods'), '*.cfg')) {
+    foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Main\Mods'), '*.cfg')) {
         $fileRoot = $loadNode.Invoke($null, [object[]]@($file))
         foreach ($n in $fileRoot.GetNodes('MOD_SETTINGS')) { $registrationNodes.Add($n) }
     }
     $registrationProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
     # The list itself for Build: wrapped in an array it is no IList of registrations.
-    $registrationList = $readRegistrations.Invoke($null, [object[]]@($registrationNodes, $registrationProblems))
+    $registrationList = Read-Registrations $registrationNodes $registrationProblems
     $registrations = @($registrationList)
     $registered = @($buildRegistered.Invoke($null, [object[]]@($registrationList, $registrationProblems)))
     $installed = @()
@@ -324,7 +332,7 @@ try {
 
     $refused = @()
     $profileNames = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Profiles'), '*.cfg')) {
+    foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Main\Profiles'), '*.cfg')) {
         $fileName = [IO.Path]::GetFileName($file)
         $root = $loadNode.Invoke($null, [object[]]@($file))
         foreach ($v in $root.values) { $refused += "${fileName}: '$($v.name) = $($v.value)' stands outside any node" }
@@ -445,7 +453,6 @@ catch {
 $settingValues = $mod.GetType('ReDefinition.Settings.SettingValues', $true)
 $text = $settingValues.GetMethod('Text', $sflags)
 $parse = $settingValues.GetMethod('Parse', $sflags)
-$normalize = $settingValues.GetMethod('Normalize', $sflags)
 $invert = $settingValues.GetMethod('Invert', $sflags)
 $same = $settingValues.GetMethod('Same', $sflags)
 # A conversion that throws must fail its check, not skip it: without this the
@@ -557,7 +564,7 @@ try {
     function Check-Registrations($label, $nodes, $atLeast) {
         $nodes = $nodes.PSObject.BaseObject
         $extraProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
-        $extraList = $readRegistrations.Invoke($null, [object[]]@($nodes, $extraProblems))
+        $extraList = Read-Registrations $nodes $extraProblems
         $extraBuilt = @($buildRegistered.Invoke($null, [object[]]@($extraList, $extraProblems)))
         foreach ($p in $extraProblems) { "      $p" }
         $extraNames = @($extraBuilt | ForEach-Object { $_.Id }) -join ', '
@@ -601,7 +608,7 @@ try {
         $nodes = (New-Object 'System.Collections.Generic.List[object]').PSObject.BaseObject
         foreach ($n in $parseNode.Invoke($null, [object[]]@($text)).GetNodes('MOD_SETTINGS')) { $nodes.Add($n) }
         $script:caseProblems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject
-        $regs = $readRegistrations.Invoke($null, [object[]]@($nodes, $script:caseProblems))
+        $regs = Read-Registrations $nodes $script:caseProblems
         return @($buildRegistered.Invoke($null, [object[]]@($regs, $script:caseProblems)))
     }
     # The text of a test registration of Waterfall's settings under the name, holding the SETTING bodies given.
@@ -690,7 +697,7 @@ Expect "true is True" (Call $same @('true', 'True'))
 # `-not $null` would pass for a method that crashed.
 Expect "names compare exactly: Cinematic is not cinematic" ((Call $same @('Cinematic', 'cinematic')) -eq $false)
 Expect "a whole number goes into an int: 128" ((Call $parse @('128', [int])) -eq 128)
-Expect "a file's float is normalised: 0.209999993 as 0.21" ((Call $normalize @('0.209999993', [single])) -eq '0.21')
+Expect "a file's float is normalised: 0.209999993 as 0.21" ((Call $text @((Call $parse @('0.209999993', [single])))) -eq '0.21')
 # Scatterer's cascade splits are vectors: parsed from a file's spacing, written
 # back as a ConfigNode holds them, and compared item by item.
 $vectorType = $null

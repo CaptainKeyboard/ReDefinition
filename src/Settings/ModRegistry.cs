@@ -6,7 +6,7 @@ using ReDefinition.Core;
 namespace ReDefinition.Settings
 {
     // The registrations of the mods ReDefinition bundles, from the GameDatabase --
-    // its own in GameData/ReDefinition/Mods and any another mod or pack ships -- and
+    // its own in GameData/ReDefinition/Main/Mods and any another mod or pack ships -- and
     // the mods built from them.
     internal static class ModRegistry
     {
@@ -43,10 +43,10 @@ namespace ReDefinition.Settings
         }
 
         // Whether a file's place in GameData, as KSP's GameDatabase names it
-        // ("ReDefinition/Mods/KSP"), is ReDefinition's own folder.
+        // ("ReDefinition/Main/Mods/KSP"), is ReDefinition's own folder.
         internal static bool IsOwn(string url)
         {
-            return url == null || url.StartsWith("ReDefinition/", StringComparison.OrdinalIgnoreCase);
+            return url == null || url.StartsWith("ReDefinition/Main/",StringComparison.OrdinalIgnoreCase);
         }
 
         // Each node with the place of its file in GameData. A registration from

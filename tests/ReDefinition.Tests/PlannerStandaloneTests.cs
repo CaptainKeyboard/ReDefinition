@@ -23,9 +23,9 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void EachModKeepsItsFilesInItsOwnPluginData()
         {
-            string path = ModFolder.PluginFile("root", "ReDefinitionPlanner", "settings.cfg");
-            Assert.AreEqual(Path.Combine("root", "GameData", "ReDefinitionPlanner", "PluginData", "settings.cfg"), path);
-            Assert.AreNotEqual(path, ModFolder.PluginFile("root", "ReDefinition", "settings.cfg"));
+            string path = ModFolder.PluginFile("root", "ReDefinition/Planner", "settings.cfg");
+            Assert.AreEqual(Path.Combine("root", "GameData", "ReDefinition/Planner", "PluginData", "settings.cfg"), path);
+            Assert.AreNotEqual(path, ModFolder.PluginFile("root", "ReDefinition/Main", "settings.cfg"));
         }
 
         [TestMethod]

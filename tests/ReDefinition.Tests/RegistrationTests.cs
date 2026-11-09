@@ -105,15 +105,17 @@ namespace ReDefinition.Tests
             return new KeyValuePair<ConfigNode, string>(
                 Node(ModRegistration.NodeName, "MOD_SETTINGS\n{\n name = shared\n title = " + title
                                                + "\n detect = No.Such.Shared\n}"),
-                own ? "ReDefinition/Mods/Shared" : "SomePack/Registrations");
+                own ? "ReDefinition/Main/Mods/Shared" : "SomePack/Registrations");
         }
 
         // KSP's GameDatabase names a file's place without GameData and with slashes.
         [TestMethod]
         public void OnlyReDefinitionsOwnFolderCountsAsOwn()
         {
-            Assert.IsTrue(ModRegistry.IsOwn("ReDefinition/Mods/KSP"));
-            Assert.IsTrue(ModRegistry.IsOwn("redefinition/Mods/KSP"));
+            Assert.IsTrue(ModRegistry.IsOwn("ReDefinition/Main/Mods/KSP"));
+            Assert.IsTrue(ModRegistry.IsOwn("redefinition/main/Mods/KSP"));
+            Assert.IsFalse(ModRegistry.IsOwn("ReDefinition/Planner/Icons"));
+            Assert.IsFalse(ModRegistry.IsOwn("ReDefinition/Mods/KSP"));
             Assert.IsFalse(ModRegistry.IsOwn("ReDefinitionExtras/Mods"));
             Assert.IsFalse(ModRegistry.IsOwn("Scatterer/ReDefinition"));
             Assert.IsFalse(ModRegistry.IsOwn(""));

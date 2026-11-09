@@ -28,7 +28,7 @@ namespace Surface
             var lines = new SortedDictionary<string, string>(StringComparer.Ordinal);
             OwnSettings(build, repo, lines);
             Foreign(build, lines);
-            string gameData = Path.Combine(repo, "GameData", "ReDefinition");
+            string gameData = Path.Combine(repo, "GameData", "ReDefinition", "Main");
             if (Directory.Exists(gameData))
                 foreach (string file in Directory.GetFiles(gameData, "*.cfg", SearchOption.AllDirectories).OrderBy(f => f, StringComparer.Ordinal))
                     Config(file, gameData, lines);

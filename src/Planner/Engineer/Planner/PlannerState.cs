@@ -34,7 +34,7 @@ namespace ReDefinition.Planner.Engineer
     // One vessel's plan: its route, with who flies to each destination and the
     // choices for the steps before it, the stages saved or dropped on each step, the
     // margin, whether plane changes count, and the vessel's sections. Kept per vessel
-    // name in GameData/ReDefinitionPlanner/PluginData/planner.cfg, so that a craft brings its
+    // name in GameData/ReDefinition/Planner/PluginData/planner.cfg, so that a craft brings its
     // plan back when it is loaded into the editor again.
     internal sealed class PlannerState
     {
@@ -131,7 +131,7 @@ namespace ReDefinition.Planner.Engineer
         {
             try
             {
-                string path = ModFolder.PluginFile("ReDefinitionPlanner", FileName);
+                string path = ModFolder.PluginFile("ReDefinition/Planner", FileName);
                 if (!File.Exists(path)) return Default(bodies);
                 ConfigNode root = ConfigNode.Load(path);
                 if (root == null) return Default(bodies);
@@ -154,7 +154,7 @@ namespace ReDefinition.Planner.Engineer
         {
             try
             {
-                string path = ModFolder.PluginFile("ReDefinitionPlanner", FileName);
+                string path = ModFolder.PluginFile("ReDefinition/Planner", FileName);
                 ConfigNode root = File.Exists(path) ? ConfigNode.Load(path) ?? new ConfigNode() : new ConfigNode();
                 // The plans saved last are at the end; the oldest go first.
                 List<ConfigNode> others = new List<ConfigNode>();

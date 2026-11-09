@@ -159,7 +159,7 @@ namespace ReDefinition.EditorTools
                     return false;
                 }
                 target = Path.Combine(Path.Combine(kspRoot, Path.Combine("GameData",
-                    Path.Combine("ReDefinition", "Shaders"))), BundleName);
+                    Path.Combine("ReDefinition", Path.Combine("Main", "Shaders")))), BundleName);
             }
 
             Directory.CreateDirectory(Path.GetDirectoryName(target));

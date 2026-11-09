@@ -339,11 +339,11 @@ namespace DocLock
             return text.ToString();
         }
 
-        // The mod registrations under GameData/ReDefinition/Mods: one row per mod, with its settings counted.
+        // The mod registrations under GameData/ReDefinition/Main/Mods: one row per mod, with its settings counted.
         private string Registrations()
         {
-            var text = new StringBuilder("# Registrations\n\nEach file under `GameData/ReDefinition/Mods` registers one mod's settings with ReDefinition. The format is in [the registration reference](" + Repo("docs/modders/registration-reference.md") + ").\n\n| Mod | Settings | File | What it covers |\n|---|---|---|---|\n");
-            foreach (var file in scan.Elements.Where(e => e.Language == "cfg" && e.Path.StartsWith("GameData/ReDefinition/Mods/", StringComparison.Ordinal)).GroupBy(e => e.Path))
+            var text = new StringBuilder("# Registrations\n\nEach file under `GameData/ReDefinition/Main/Mods` registers one mod's settings with ReDefinition. The format is in [the registration reference](" + Repo("docs/modders/registration-reference.md") + ").\n\n| Mod | Settings | File | What it covers |\n|---|---|---|---|\n");
+            foreach (var file in scan.Elements.Where(e => e.Language == "cfg" && e.Path.StartsWith("GameData/ReDefinition/Main/Mods/",StringComparison.Ordinal)).GroupBy(e => e.Path))
             {
                 Element top = file.FirstOrDefault(e => e.Kind == "config");
                 int settings = file.Count(e => e.Kind == "node" && e.Name.Contains("/SETTING["));

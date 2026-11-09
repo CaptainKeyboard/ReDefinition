@@ -15,7 +15,7 @@ namespace ReDefinition.Upscaler
     // AssetBundle".
     internal static class ShaderBundle
     {
-        // The bundle's file name in GameData/ReDefinition/Shaders.
+        // The bundle's file name in GameData/ReDefinition/Main/Shaders.
         public const string BundleName = "redefinition.shaders";
 
         // Order does not matter, but the names have to match the file names in
@@ -47,8 +47,8 @@ namespace ReDefinition.Upscaler
             get
             {
                 return Path.Combine(KSPUtil.ApplicationRootPath,
-                    Path.Combine("GameData", Path.Combine("ReDefinition",
-                        Path.Combine("Shaders", BundleName))));
+                    Path.Combine("GameData", Path.Combine("ReDefinition", Path.Combine("Main",
+                        Path.Combine("Shaders", BundleName)))));
             }
         }
 

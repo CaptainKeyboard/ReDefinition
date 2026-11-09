@@ -4,7 +4,7 @@
 # where it would otherwise be crushed or burnt in seconds. Jool's air reaches 200 km, and a pod is destroyed below 0 m.
 # The pictures go to ReDefinitionCaptures\planets\<body>-<altitude>; tools\planet_sheets.py makes sheets of them.
 #
-# What it changes and puts back: GameData\ReDefinition\PluginData\settings.cfg and saves\ReDefinitionProbe\persistent.sfs.
+# What it changes and puts back: GameData\ReDefinition\Main\PluginData\settings.cfg and saves\ReDefinitionProbe\persistent.sfs.
 # KSP must not run.
 #
 # Usage:
@@ -24,7 +24,7 @@ $orbitList = @($Altitudes -split ',' | Where-Object { $_ } | ForEach-Object { [i
 $airList = @($AirAltitudes -split ',' | Where-Object { $_ } | ForEach-Object { [int]$_ })
 . (Join-Path $PSScriptRoot 'common.ps1')
 $kspRoot = Get-KspRoot
-$settings = Join-Path $kspRoot 'GameData\ReDefinition\PluginData\settings.cfg'
+$settings = Join-Path $kspRoot 'GameData\ReDefinition\Main\PluginData\settings.cfg'
 $save = Join-Path $kspRoot 'saves\ReDefinitionProbe\persistent.sfs'
 $log = Join-Path $kspRoot 'KSP.log'
 $exe = Join-Path $kspRoot 'KSP_x64.exe'

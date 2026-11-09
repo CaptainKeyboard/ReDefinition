@@ -338,7 +338,7 @@ namespace DocLock
                 {
                     string p = m.Groups[1].Value.TrimEnd('.', ',', ')');
                     // What the game writes at run time, other mods' files, and paths shortened with "...".
-                    if (p.Contains("...") || p.StartsWith("GameData/") && (!p.StartsWith("GameData/ReDefinition/") || p.StartsWith("GameData/ReDefinition/PluginData/")))
+                    if (p.Contains("...") || p.StartsWith("GameData/") && (!p.StartsWith("GameData/ReDefinition/") || p.StartsWith("GameData/ReDefinition/Main/PluginData/") || p.StartsWith("GameData/ReDefinition/Planner/PluginData/")))
                         continue;
                     if (p.Contains("/bin/") || p.Contains("/obj/")) continue;
                     if (!files.Contains(p) && !files.Any(f => f.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase)))

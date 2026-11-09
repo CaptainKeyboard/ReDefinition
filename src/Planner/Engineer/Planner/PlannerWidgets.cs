@@ -7,13 +7,13 @@ using UnityEngine.UI;
 
 namespace ReDefinition.Planner.Engineer
 {
-    // The planner's symbols (GameData/ReDefinitionPlanner/Icons/Planner_*.png, drawn by
+    // The planner's symbols (GameData/ReDefinition/Planner/Icons/Planner_*.png, drawn by
     // tools/make_icon.py) are white on clear. They are laid over a button of KSP's skin, so
     // that the button's own states and a UI theme stay as they are.
     internal static class PlannerIcons
     {
         // Where the symbols lie, without the symbol's name.
-        private const string Path = "ReDefinitionPlanner/Icons/Planner_";
+        private const string Path = "ReDefinition/Planner/Icons/Planner_";
 
         // The symbol of that name; null where it is not loaded.
         internal static Sprite Get(string name)

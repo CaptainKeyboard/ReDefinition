@@ -6,7 +6,7 @@
 # (tools/parity_images.py), stops KSP and restores what it changed. The probe's save gets a fixed time of day, so that the runs are
 # alike. The raytracing is set to Light for the runs.
 #
-# What it changes and puts back: GameData\ReDefinition\PluginData\settings.cfg (raytracing)
+# What it changes and puts back: GameData\ReDefinition\Main\PluginData\settings.cfg (raytracing)
 # and saves\ReDefinitionProbe\persistent.sfs (the time). KSP must not run.
 #
 # Usage:

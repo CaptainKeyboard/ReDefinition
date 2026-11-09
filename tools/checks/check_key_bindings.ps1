@@ -38,7 +38,7 @@ try {
     $fromNode = $mod.GetType('ReDefinition.Settings.ModRegistration').GetMethod('FromConfigNode')
     $bindings = 0
     $bad = @()
-    foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Mods'), '*.cfg')) {
+    foreach ($file in [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Main\Mods'), '*.cfg')) {
         $node = $parseNode.Invoke($null, [object[]]@([IO.File]::ReadAllText($file))).GetNode('MOD_SETTINGS')
         if ($null -eq $node) { continue }
         $problems = (New-Object 'System.Collections.Generic.List[string]').PSObject.BaseObject

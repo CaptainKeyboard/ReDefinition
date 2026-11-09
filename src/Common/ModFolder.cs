@@ -1,6 +1,7 @@
 namespace ReDefinition.Core
 {
-    // A mod's settings folder, GameData/<mod>/PluginData. Each package keeps its own files in its own folder.
+    // A mod's settings folder, GameData/<mod>/PluginData, where <mod> is a path below GameData such as
+    // "ReDefinition/Main" or "ReDefinition/Planner". Each package keeps its own files in its own folder.
     internal static class ModFolder
     {
         // The full path of a file in that mod's folder, from KSP's root folder.

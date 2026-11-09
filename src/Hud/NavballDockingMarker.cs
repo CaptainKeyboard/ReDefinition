@@ -32,7 +32,7 @@ namespace ReDefinition.Hud
         {
             float until = Time.unscaledTime + 15f;
             while (Time.unscaledTime < until && (navBall = FindObjectOfType<NavBall>()) == null) yield return null;
-            Texture2D picture = GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture("ReDefinition/Icons/Navball_Docking", false) : null;
+            Texture2D picture = GameDatabase.Instance != null ? GameDatabase.Instance.GetTexture("ReDefinition/Main/Icons/Navball_Docking", false) : null;
             if (navBall == null || navBall.progradeWaypoint == null || picture == null)
             {
                 Debug.Log(Log.Tag + " The navball's docking marker is not shown: the navball, its target marker or the picture was not found.");

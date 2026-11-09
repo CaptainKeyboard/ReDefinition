@@ -7,7 +7,7 @@ namespace DocLock
 {
     // The configuration files' elements, read line by line: an ini file, its sections and its keys
     // (ReDefinitionProxy.ini), and a KSP ConfigNode file and its nodes (the registrations, profiles and
-    // Module Manager patches under GameData/ReDefinition). Their documentation: the comment block directly
+    // Module Manager patches under GameData/ReDefinition/Main). Their documentation: the comment block directly
     // above, or a run of keys or nodes of one name standing together under the comment of the first.
     internal static class ConfigScanner
     {

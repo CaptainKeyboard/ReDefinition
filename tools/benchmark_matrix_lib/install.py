@@ -312,7 +312,7 @@ class Install:
         """The proxy's dxgi.dll and the mod's ReDefinition.dll in the install: the start of each one's
         SHA-256 and its modification time, by path."""
         out = {}
-        for rel in ("dxgi.dll", os.path.join("GameData", "ReDefinition", "Plugins", "ReDefinition.dll")):
+        for rel in ("dxgi.dll", os.path.join("GameData", "ReDefinition", "Main", "Plugins", "ReDefinition.dll")):
             p = self.path(rel)
             if os.path.exists(p):
                 with open(p, "rb") as f:

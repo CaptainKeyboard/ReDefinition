@@ -124,7 +124,7 @@ try {
 
     # The profiles the package ships, read from their files as KSP reads them.
     $load = $ksp.GetType('ConfigNode').GetMethod('Load', [Type[]]@([string]))
-    $shipped = [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Profiles'), '*.cfg')
+    $shipped = [IO.Directory]::GetFiles([IO.Path]::Combine($repo, 'GameData\ReDefinition\Main\Profiles'), '*.cfg')
     $shippedProfiles = 0
     foreach ($file in $shipped) {
         $root = $load.Invoke($null, [object[]]@($file))

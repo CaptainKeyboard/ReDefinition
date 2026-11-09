@@ -11,7 +11,7 @@ using UnityEngine;
 namespace ReDefinition.Dashboard
 {
     // The dashboard's server: telemetry out and commands in over a WebSocket, and the dashboard's
-    // own files (GameData/ReDefinition/Dashboard) for a phone's browser. It listens on this computer
+    // own files (GameData/ReDefinition/Main/Dashboard) for a phone's browser. It listens on this computer
     // always, and on the network where the settings say so (OwnSettings.DashboardNetwork); a change
     // there starts it again. The network threads only queue messages; everything that touches the
     // game runs here in Update.
@@ -69,7 +69,7 @@ namespace ReDefinition.Dashboard
         // The folder the dashboard's pages, scripts and pictures are served from.
         private static string WebRoot
         {
-            get { return KSPUtil.ApplicationRootPath + "GameData/ReDefinition/Dashboard"; }
+            get { return KSPUtil.ApplicationRootPath + "GameData/ReDefinition/Main/Dashboard"; }
         }
 
         // The dashboard's address for a phone on the same network, with its key; null where it may

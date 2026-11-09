@@ -241,7 +241,7 @@ namespace ReDefinition.Planner.Autopilot.Flight
         private static void KeepSnapshot(Vessel vessel, ConfigNode snapshot)
         {
             string name = string.Concat(vessel.vesselName.Split(System.IO.Path.GetInvalidFileNameChars()));
-            string path = ModFolder.PluginFile("ReDefinitionPlanner", System.IO.Path.Combine("route-backups", name + "-" + Planetarium.GetUniversalTime().ToString("0") + ".cfg"));
+            string path = ModFolder.PluginFile("ReDefinition/Planner",System.IO.Path.Combine("route-backups", name + "-" + Planetarium.GetUniversalTime().ToString("0") + ".cfg"));
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
             snapshot.Save(path);
             Debug.Log(Log.Tag + " The vessel's snapshot is kept in " + path + ".");

@@ -29,7 +29,7 @@ function Set-IniKeys([string]$source, [string]$target, [hashtable]$set) {
 # The two files a probe run changes and puts back, with their text as it was: the mod's settings.cfg and the probe
 # save's persistent.sfs. Read before the first change, so that Restore-ProbeFiles can write them back in a finally.
 function Backup-ProbeFiles([string]$kspRoot) {
-    $settings = Join-Path $kspRoot 'GameData\ReDefinition\PluginData\settings.cfg'
+    $settings = Join-Path $kspRoot 'GameData\ReDefinition\Main\PluginData\settings.cfg'
     $save = Join-Path $kspRoot 'saves\ReDefinitionProbe\persistent.sfs'
     [pscustomobject]@{
         Settings = $settings

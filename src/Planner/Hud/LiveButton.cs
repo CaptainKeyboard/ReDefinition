@@ -46,8 +46,8 @@ namespace ReDefinition.Planner.Hud
             float until = Time.unscaledTime + 15f;
             while (Time.unscaledTime < until && (WarpLabel.Find() == null || RouteDriver.Instance == null)) yield return null;
             TextMeshProUGUI label = WarpLabel.Find();
-            lit = IconSprites.Load("ReDefinitionPlanner/Icons/Live_On");
-            dark = IconSprites.Load("ReDefinitionPlanner/Icons/Live_Off");
+            lit = IconSprites.Load("ReDefinition/Planner/Icons/Live_On");
+            dark = IconSprites.Load("ReDefinition/Planner/Icons/Live_Off");
             Canvas canvas = label != null ? label.GetComponentInParent<Canvas>() : null;
             Canvas top = canvas != null ? canvas.rootCanvas : null;
             if (label == null || top == null || lit == null || dark == null)

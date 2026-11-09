@@ -32,7 +32,7 @@ import benchmark_matrix as bm  # noqa: E402
 import imaging  # noqa: E402
 
 DEFAULT_PACKAGE = os.path.join(os.path.dirname(HERE), ".local", "dlssg_x")
-MOD_REL = os.path.join("GameData", "ReDefinition", "Plugins", "ReDefinition.dll")
+MOD_REL = os.path.join("GameData", "ReDefinition", "Main", "Plugins", "ReDefinition.dll")
 ROOT_SETTINGS = "settings.cfg"
 
 # The cases: the package's ini values (section -> key -> value) and the proxy's keys.

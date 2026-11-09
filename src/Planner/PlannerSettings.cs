@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace ReDefinition.Planner
 {
-    // The planner's two switches where ReDefinition is not installed, in GameData/ReDefinitionPlanner/PluginData/settings.cfg. With ReDefinition
+    // The planner's two switches where ReDefinition is not installed, in GameData/ReDefinition/Planner/PluginData/settings.cfg. With ReDefinition
     // they are its own settings (HostSeams), and this file is not read.
     internal static class PlannerSettings
     {
@@ -22,7 +22,7 @@ namespace ReDefinition.Planner
         {
             if (loaded) return;
             loaded = true;
-            Read(ModFolder.PluginFile("ReDefinitionPlanner", FileName));
+            Read(ModFolder.PluginFile("ReDefinition/Planner", FileName));
         }
 
         // The switches from that file; they stay as they are where it is missing or damaged.
@@ -46,7 +46,7 @@ namespace ReDefinition.Planner
         // Writes both switches.
         internal static void Save()
         {
-            Write(ModFolder.PluginFile("ReDefinitionPlanner", FileName));
+            Write(ModFolder.PluginFile("ReDefinition/Planner", FileName));
         }
 
         // Both switches into that file.

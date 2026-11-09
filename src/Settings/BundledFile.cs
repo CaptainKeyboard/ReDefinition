@@ -75,7 +75,7 @@ namespace ReDefinition.Settings
         void Warn(string kind, string message);
     }
 
-    // ReDefinition's file GameData/ReDefinition/PluginData/bundled.cfg: the state,
+    // ReDefinition's file GameData/ReDefinition/Main/PluginData/bundled.cfg: the state,
     // the values kept here, and the values from before ReDefinition with their marks. The part of
     // the store that touches KSP's ConfigNode and the disk.
     internal static class BundledFile

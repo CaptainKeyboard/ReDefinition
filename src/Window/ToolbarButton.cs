@@ -16,7 +16,7 @@ namespace ReDefinition.Window
     //
     // Through KSP's own ApplicationLauncher, in Assembly-CSharp.
     //
-    // The icon comes from GameData/ReDefinition/Icons; the one drawn at run time
+    // The icon comes from GameData/ReDefinition/Main/Icons; the one drawn at run time
     // below stands in where that file is missing.
     internal class ToolbarButton
     {
@@ -24,7 +24,7 @@ namespace ReDefinition.Window
         private const int IconSize = 38;
 
         // The icon in GameData, without the extension, as KSP's GameDatabase holds it.
-        private const string IconPath = "ReDefinition/Icons/ReDefinitionIcon";
+        private const string IconPath = "ReDefinition/Main/Icons/ReDefinitionIcon";
 
         // What the pointer shows over the button.
         private const string Tooltip = "ReDefinition Settings";

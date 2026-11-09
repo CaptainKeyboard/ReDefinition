@@ -359,7 +359,7 @@ namespace ReDefinition.Hud.Panel
         }
 
         // KSP's own icons for the orbit and the intercept; ours for the others
-        // (GameData/ReDefinition/Icons/FlightPanel_*.png, tools/make_icon.py).
+        // (GameData/ReDefinition/Main/Icons/FlightPanel_*.png, tools/make_icon.py).
         private static void Icons(PanelSituation situation, ManeuverNodeEditorTab orbit, ManeuverNodeEditorTab intercept,
                                   out Sprite on, out Sprite off)
         {
@@ -384,7 +384,7 @@ namespace ReDefinition.Hud.Panel
         // One of the panel's own icons, by name; null where it is not loaded.
         internal static Sprite Icon(string name)
         {
-            return IconSprites.Load("ReDefinition/Icons/FlightPanel_" + name);
+            return IconSprites.Load("ReDefinition/Main/Icons/FlightPanel_" + name);
         }
 
         // ----------------------------------------------------------- widening

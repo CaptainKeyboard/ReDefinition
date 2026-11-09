@@ -3,7 +3,7 @@
 # Per body it starts KSP once, or twice where the first run's sun stood too low or too high.
 # The pictures go to ReDefinitionCaptures\planets\<body>; tools\planet_sheets.py makes sheets of them.
 #
-# What it changes and puts back: GameData\ReDefinition\PluginData\settings.cfg and saves\ReDefinitionProbe\persistent.sfs.
+# What it changes and puts back: GameData\ReDefinition\Main\PluginData\settings.cfg and saves\ReDefinitionProbe\persistent.sfs.
 # KSP must not run.
 #
 # Usage:
