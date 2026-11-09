@@ -22,9 +22,14 @@ namespace ReDefinition.Planner
         {
             if (loaded) return;
             loaded = true;
+            Read(ModFolder.PluginFile("ReDefinitionPlanner", FileName));
+        }
+
+        // The switches from that file; they stay as they are where it is missing or damaged.
+        internal static void Read(string path)
+        {
             try
             {
-                string path = ModFolder.PluginFile("ReDefinitionPlanner", FileName);
                 if (!System.IO.File.Exists(path)) return;
                 ConfigNode root = ConfigNode.Load(path);
                 if (root == null) return;
@@ -41,9 +46,14 @@ namespace ReDefinition.Planner
         // Writes both switches.
         internal static void Save()
         {
+            Write(ModFolder.PluginFile("ReDefinitionPlanner", FileName));
+        }
+
+        // Both switches into that file.
+        internal static void Write(string path)
+        {
             try
             {
-                string path = ModFolder.PluginFile("ReDefinitionPlanner", FileName);
                 System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
                 var root = new ConfigNode();
                 root.AddValue("backgroundRoute", BackgroundRoute.ToString());

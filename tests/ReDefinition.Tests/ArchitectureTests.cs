@@ -23,15 +23,16 @@ namespace ReDefinition.Tests
         // Each area and the areas it uses, space-separated.
         private static readonly Dictionary<string, string> Allowed = new Dictionary<string, string>
         {
-            ["(root)"] = "Api Core Hud Planner Scaling Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
+            ["(root)"] = "Api Core Hud Planner PlannerHud Scaling Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
             ["Common"] = "Core",
             ["Core"] = "",
             ["Dashboard"] = "Autopilot Core Engineer Modules",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
-            ["Engineer"] = "Autopilot Core Hud Planner Ui",
+            ["Engineer"] = "Autopilot Core PlannerHud Planner Ui",
             ["Fsr3"] = "Upscaler",
-            ["Hud"] = "Autopilot Core Engineer Planner Modules Ui Window",
+            ["Hud"] = "Autopilot Core Engineer PlannerHud Modules Ui Window",
+            ["PlannerHud"] = "Autopilot Core Engineer Planner Ui",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Migration"] = "",
             ["Autopilot"] = "Core Landing Orbits Planner",
@@ -115,16 +116,31 @@ namespace ReDefinition.Tests
             string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
             var found = new List<string>();
             var probeName = new Regex(@"\bProbe[A-Z]\w*|ReDefinition\.Probe\b|\bCommandLine\b");
-            foreach (string area in new[] { "Autopilot", "Engineer" })
-                foreach (string file in Directory.GetFiles(Path.Combine(src, "Planner", area), "*.cs", SearchOption.AllDirectories))
-                {
-                    string name = Path.GetFileName(file);
-                    if (name == "RouteTuning.cs" || name == "PlannerTiming.cs") continue;
-                    string text = File.ReadAllText(file);
-                    string code = Regex.Replace(Regex.Replace(text, "\"(\\\\.|[^\"\\\\])*\"", "\"\""), "//[^\n]*", "");
-                    foreach (Match m in probeName.Matches(code)) found.Add(area + "/" + name + ": " + m.Value);
-                }
+            // Every folder of the planner, and the files directly in it.
+            var files = new List<string>(Directory.GetFiles(Path.Combine(src, "Planner"), "*.cs", SearchOption.TopDirectoryOnly));
+            foreach (string area in new[] { "Autopilot", "Engineer", "Hud", "Landing", "Orbits" })
+                files.AddRange(Directory.GetFiles(Path.Combine(src, "Planner", area), "*.cs", SearchOption.AllDirectories));
+            foreach (string file in files)
+            {
+                string name = Path.GetFileName(file);
+                if (name == "RouteTuning.cs" || name == "PlannerTiming.cs") continue;
+                string text = File.ReadAllText(file);
+                string code = Regex.Replace(Regex.Replace(text, "\"(\\\\.|[^\"\\\\])*\"", "\"\""), "//[^\n]*", "");
+                foreach (Match m in probeName.Matches(code)) found.Add(file.Substring(src.Length + 1).Replace('\\', '/') + ": " + m.Value);
+            }
             Assert.AreEqual(0, found.Count, "Move to RouteTuning:\n" + string.Join("\n", found));
+        }
+
+        // The planner's side (its folders and Common) uses nothing of ReDefinition beyond Core and Ui, whatever the table allows.
+        // The planner works without ReDefinition, so a using of Window, Modules or Settings in it is a defect even if the table were widened.
+        [TestMethod]
+        public void ThePlannerSideUsesNothingOfReDefinitionBeyondCoreAndUi()
+        {
+            var plannerSide = new HashSet<string> { "Planner", "Autopilot", "Engineer", "Landing", "Orbits", "PlannerHud", "Common" };
+            var fine = new HashSet<string>(plannerSide) { "Core", "Ui" };
+            var found = Edges.Value.Where(e => plannerSide.Contains(e.Key.Item1) && !fine.Contains(e.Key.Item2))
+                .Select(e => e.Key.Item1 + " uses " + e.Key.Item2 + " (" + e.Value + ")").ToList();
+            Assert.AreEqual(0, found.Count, "The planner side may not use these:\n" + string.Join("\n", found));
         }
 
         // The edges found: (area, used area) and one file that makes it. Read once, for both tests: it reads every file of src.
@@ -145,21 +161,31 @@ namespace ReDefinition.Tests
                 string relative = file.Substring(src.Length + 1).Replace('\\', '/');
                 if (relative.StartsWith("obj/") || relative.StartsWith("bin/") || relative.StartsWith("DxgiProxy/")) continue;
                 // The planner's folders are areas of their own, as their namespaces are.
-                if (relative.StartsWith("Planner/") && relative.IndexOf('/', 8) > 0) relative = relative.Substring(8);
+                bool inPlanner = relative.StartsWith("Planner/");
+                if (inPlanner && relative.IndexOf('/', 8) > 0) relative = relative.Substring(8);
                 int slash = relative.IndexOf('/');
                 string area = slash < 0 ? "(root)" : relative.Substring(0, slash);
+                // The planner's Hud (ReDefinition.Planner.Hud) is another area than ReDefinition's own (ReDefinition.Hud).
+                if (inPlanner && area == "Hud") area = "PlannerHud";
                 string text = File.ReadAllText(file);
                 foreach (Match m in usingOfOurs.Matches(text))
-                    AddEdge(result, area, m.Groups[1].Value, relative);
+                    AddEdge(result, area, Named(m), relative);
                 // Names qualified with the area's namespace (ReDefinition.Probe.GpuProfiler) or with its last part
                 // (Probe.GpuProfiler), outside comments and strings, are uses as much as a using is.
                 string code = Regex.Replace(Regex.Replace(text, "\"(\\\\.|[^\"\\\\])*\"", "\"\""), "//[^\n]*", "");
                 foreach (Match m in qualifiedUse.Matches(code))
-                    AddEdge(result, area, m.Groups[1].Value, relative);
+                    AddEdge(result, area, Named(m), relative);
                 foreach (Match m in partlyQualified.Matches(code))
                     AddEdge(result, area, m.Groups[1].Value, relative);
             }
             return result;
+        }
+
+        // The area a using or a qualified name points to; the planner's Hud is told from ReDefinition's own by its namespace.
+        private static string Named(Match match)
+        {
+            string area = match.Groups[1].Value;
+            return area == "Hud" && match.Value.Contains("Planner.Hud") ? "PlannerHud" : area;
         }
 
         // Records that the area uses another, with the first file that shows it; an area's own name is no edge.

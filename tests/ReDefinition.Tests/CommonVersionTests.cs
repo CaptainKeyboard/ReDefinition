@@ -35,7 +35,7 @@ namespace ReDefinition.Tests
                 Assert.Fail("CommonVersion is " + version + " but version.lock was made for " + kept[0] + ": write the lock (see this class).");
         }
 
-        // The code of Common: every source file by its path, with the line ends as LF.
+        // The code of Common: every source file by its path and the project file, with the line ends as LF.
         private static string CodeHash(string folder)
         {
             var text = new StringBuilder();
@@ -44,6 +44,8 @@ namespace ReDefinition.Tests
                                      && !f.Contains(Path.DirectorySeparatorChar + "bin" + Path.DirectorySeparatorChar))
                          .OrderBy(f => f.Substring(folder.Length).Replace('\\', '/'), StringComparer.Ordinal))
                 text.Append(file.Substring(folder.Length).Replace('\\', '/')).Append('\n').Append(File.ReadAllText(file).Replace("\r\n", "\n")).Append('\n');
+            // The project file counts too: a reference or a property in it changes the DLL as a source file does.
+            text.Append("ReDefinition.Common.csproj\n").Append(File.ReadAllText(Path.Combine(folder, "ReDefinition.Common.csproj")).Replace("\r\n", "\n")).Append('\n');
             using (SHA256 sha = SHA256.Create())
                 return BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(text.ToString()))).Replace("-", "").ToLowerInvariant();
         }

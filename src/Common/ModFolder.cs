@@ -6,7 +6,13 @@ namespace ReDefinition.Core
         // The full path of a file in that mod's folder, from KSP's root folder.
         internal static string PluginFile(string mod, string fileName)
         {
-            return System.IO.Path.Combine(KSPUtil.ApplicationRootPath,
+            return PluginFile(KSPUtil.ApplicationRootPath, mod, fileName);
+        }
+
+        // The same from a given root, so that the shape of the path can be tested without the game.
+        internal static string PluginFile(string root, string mod, string fileName)
+        {
+            return System.IO.Path.Combine(root,
                 System.IO.Path.Combine("GameData", System.IO.Path.Combine(mod,
                     System.IO.Path.Combine("PluginData", fileName))));
         }

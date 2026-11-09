@@ -88,10 +88,18 @@ namespace ReDefinition.Ui
             try
             {
                 PlayerLoopSystem loop = PlayerLoop.GetCurrentPlayerLoop();
-                if (Contains(loop, typeof(ReDefinitionWindowShield)))
+                Type present = Find(loop, typeof(ReDefinitionWindowShield).Name);
+                if (present == typeof(ReDefinitionWindowShield))
                 {
                     working = true;
                     return true;
+                }
+                if (present != null)
+                {
+                    // A second copy of this DLL loaded in another assembly context put its systems in: two would remove each other's lock.
+                    Debug.LogWarning(Log.Tag + " Another copy of ReDefinition.Common keeps clicks on windows from reaching what lies behind them;"
+                                     + " the windows of this one are not covered.");
+                    return false;
                 }
 
                 if (!InsertAround(ref loop, typeof(UnityEngine.PlayerLoop.PreUpdate.SendMouseEvents)))
@@ -111,16 +119,18 @@ namespace ReDefinition.Ui
             }
         }
 
-        // Whether the loop or any of its subsystems is of that type.
-        private static bool Contains(PlayerLoopSystem system, Type type)
+        // The type of the first system of the loop or its subsystems that has that name; null for none. Found by name, so that the systems of
+        // another copy of this DLL are seen too.
+        private static Type Find(PlayerLoopSystem system, string name)
         {
-            if (system.type == type) return true;
-            if (system.subSystemList == null) return false;
+            if (system.type != null && system.type.Name == name) return system.type;
+            if (system.subSystemList == null) return null;
             foreach (PlayerLoopSystem child in system.subSystemList)
             {
-                if (Contains(child, type)) return true;
+                Type found = Find(child, name);
+                if (found != null) return found;
             }
-            return false;
+            return null;
         }
 
         // The two systems as the anchor's neighbours, wherever in the loop it is.

@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using ReDefinition.Core;
 using ReDefinition.Hud;
@@ -21,10 +22,22 @@ namespace ReDefinition
         // From the addon's Awake.
         internal static void Connect()
         {
+            Version built = null;
+            foreach (AssemblyName referenced in typeof(PlannerLink).Assembly.GetReferencedAssemblies())
+                if (referenced.Name == "ReDefinition.Common") built = referenced.Version;
+            string problem = CommonProblem(built, typeof(Log).Assembly.GetName().Version);
+            if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
+            Connect(Compatible, Fill, Debug.LogWarning);
+        }
+
+        // Fills the seams when the planner names the level this build fills; true then. A planner without the member or with a type that
+        // does not load (an older one) is the same as one of another level: it stands alone, and `warn` says so.
+        internal static bool Connect(Func<bool> compatible, Action fill, Action<string> warn)
+        {
             bool fits;
             try
             {
-                fits = Compatible();
+                fits = compatible();
             }
             catch (Exception e) when (e is MissingMemberException || e is TypeLoadException || e is TypeInitializationException)
             {
@@ -32,11 +45,21 @@ namespace ReDefinition
             }
             if (!fits)
             {
-                Debug.LogWarning(Log.Tag + " The installed ReDefinition Planner is not the version this ReDefinition was made for;"
-                                 + " it stands alone, without ReDefinition's settings, scale and space centre buttons. Update both to the same release.");
-                return;
+                warn(Log.Tag + " The installed ReDefinition Planner is not the version this ReDefinition was made for;"
+                     + " it stands alone, without ReDefinition's settings, scale and space centre buttons. Update both to the same release.");
+                return false;
             }
-            Fill();
+            fill();
+            return true;
+        }
+
+        // The game keeps one ReDefinition.Common.dll. Where the one loaded is older than the one this build was made against, members are
+        // missing at the first call that needs them; the line says so at the start. Null where it is not older.
+        internal static string CommonProblem(Version built, Version loaded)
+        {
+            if (built == null || loaded == null || loaded >= built) return null;
+            return "ReDefinition.Common " + loaded + " is loaded but this ReDefinition was made against " + built
+                   + ": another mod ships an older copy. Calls into it can fail until it is updated or removed.";
         }
 
         // NoInlining: the check is compiled alone, so that a planner without the member fails here and not in Fill.
