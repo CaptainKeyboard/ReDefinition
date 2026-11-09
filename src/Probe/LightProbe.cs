@@ -87,6 +87,7 @@ namespace ReDefinition.Probe
                     yield return CloudShots(addon, folder);
                     yield break;
                 }
+#if REDEFINITION_PLANNER_PROBES
                 if (CommandLine.Has(NodesArgument) && CommandLine.Has("-redefinitionProbeDrive"))
                 {
                     yield return DriveRun(folder);
@@ -127,6 +128,13 @@ namespace ReDefinition.Probe
                     yield return MapPlannerShots(folder);
                     yield break;
                 }
+#else
+                if (CommandLine.Has("-redefinitionProbeNodes") || CommandLine.Has("-redefinitionProbeMapPlanner"))
+                {
+                    Debug.LogWarning(Log.Tag + " Probe: the planner probes (nodes, drive, click, meet, goals, fly, map planner) are compiled out of this build; build without -p:PlannerProbes=false to run them.");
+                    yield break;
+                }
+#endif
                 if (CommandLine.Has(CloudRatiosArgument))
                 {
                     yield return CloudRatios(addon, folder);

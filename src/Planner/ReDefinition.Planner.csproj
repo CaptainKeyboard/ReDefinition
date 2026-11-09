@@ -21,6 +21,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Only the developer probes of the main mod (src/Probe, built with PlannerProbes) use this; the player package's
+         ReDefinition.dll does not reference the planner. -->
     <InternalsVisibleTo Include="ReDefinition" />
     <InternalsVisibleTo Include="ReDefinition.Tests" />
   </ItemGroup>

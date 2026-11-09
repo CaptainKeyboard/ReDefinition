@@ -110,6 +110,52 @@ namespace ReDefinition.Tests
                 }
             Assert.AreEqual(0, found.Count, string.Join("\n", found));
         }
+
+        // The player build of ReDefinition.dll names nothing of the planner. Only developer probes do, behind REDEFINITION_PLANNER_PROBES.
+        [TestMethod]
+        public void OnlyTheGuardedProbesNameThePlanner()
+        {
+            string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
+            string sep = Path.DirectorySeparatorChar.ToString();
+            var found = new List<string>();
+            foreach (string file in Directory.GetFiles(src, "*.cs", SearchOption.AllDirectories))
+            {
+                string relative = file.Substring(src.Length + 1);
+                if (relative.StartsWith("Planner" + sep) || relative.StartsWith("Common" + sep)) continue;
+                if (relative.Contains(sep + "obj" + sep) || relative.StartsWith("obj" + sep) || relative.Contains(sep + "bin" + sep)) continue;
+                string text = File.ReadAllText(file);
+                int first = text.IndexOf("ReDefinition.Planner", StringComparison.Ordinal);
+                if (first < 0) continue;
+                if (!relative.StartsWith("Probe" + sep)) { found.Add(relative + " names the planner and is not a probe"); continue; }
+                int guard = text.IndexOf("#if REDEFINITION_PLANNER_PROBES", StringComparison.Ordinal);
+                if (guard < 0 || guard > first) found.Add(relative + " names the planner before '#if REDEFINITION_PLANNER_PROBES'");
+            }
+            Assert.AreEqual(0, found.Count, string.Join("\n", found));
+        }
+
+        // The planner is a soft neighbour: ReDefinition does not declare it as a KSP assembly dependency.
+        [TestMethod]
+        public void TheMainModDoesNotDeclareTheAssemblyDependencyOnThePlanner()
+        {
+            string text = File.ReadAllText(Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "KspAssemblyInfo.cs"));
+            Assert.IsFalse(Regex.IsMatch(text, @"KSPAssemblyDependency\(\s*""ReDefinition\.Planner"""), "src/KspAssemblyInfo.cs depends on the planner.");
+        }
+
+        // Every reference to the planner is either the one of the probe build (PlannerProbes) or one that does not reference its assembly.
+        [TestMethod]
+        public void TheMainProjectReferencesThePlannerOnlyForTheProbes()
+        {
+            string text = File.ReadAllText(Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "ReDefinition.csproj"));
+            MatchCollection references = Regex.Matches(text, @"<ProjectReference\b[^>]*ReDefinition\.Planner\.csproj[^>]*>");
+            Assert.IsTrue(references.Count > 0, "The main project no longer builds the planner before it.");
+            foreach (Match reference in references)
+            {
+                bool probes = Regex.IsMatch(reference.Value, @"Condition=""\s*'\$\(PlannerProbes\)'\s*==\s*'true'\s*""");
+                bool notReferenced = reference.Value.Contains("ReferenceOutputAssembly=\"false\"");
+                Assert.IsTrue(probes || notReferenced, "A planner reference that is neither conditioned on PlannerProbes nor ReferenceOutputAssembly=false: " + reference.Value);
+            }
+        }
+
         // The route's code does not know the game's probes: what a probe changes is a switch in RouteTuning, and the command line is read there alone.
         [TestMethod]
         public void TheRouteCodeKnowsNeitherProbesNorTheCommandLine()

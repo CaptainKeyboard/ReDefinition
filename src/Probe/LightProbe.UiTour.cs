@@ -1,3 +1,4 @@
+#if REDEFINITION_PLANNER_PROBES
 using System;
 using System.Collections;
 using System.IO;
@@ -239,3 +240,4 @@ namespace ReDefinition.Probe
         }
     }
 }
+#endif

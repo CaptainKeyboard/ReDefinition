@@ -121,10 +121,12 @@ namespace ReDefinition.Probe
             GameEvents.onVesselWillDestroy.Add(counter.Count);
             yield return new WaitForSeconds(8f);
             // The flight was left by the flight probe at a burn: the recording was made by the route driver, and its end is Parsek's.
+#if REDEFINITION_PLANNER_PROBES
             if (ParsekLeave.EndUT <= 0.0) ParsekLeave.EndUT = ReDefinition.Planner.Autopilot.Flight.ParsekRecording.LatestEnd();
             // A route the vessel flies on itself ends at its last step.
             Vessel flying = FlightGlobals.Vessels.Find(v => ParsekLeave.RemovedPid != 0u ? v.persistentId == ParsekLeave.RemovedPid : v.vesselName == ParsekLeave.Name);
             if (flying != null) ParsekLeave.EndUT = System.Math.Max(ParsekLeave.EndUT, ReDefinition.Planner.Autopilot.Background.BackgroundRoutes.LastStep(flying));
+#endif
             // A route that is not found is waited for anyway, for a look at what the vessel does in that time.
             if (ParsekLeave.EndUT <= 0.0 && CommandLine.Has("-redefinitionProbeLeaveWhenCoasting")) ParsekLeave.EndUT = Planetarium.GetUniversalTime() + 300000.0;
             Tell("on arrival");

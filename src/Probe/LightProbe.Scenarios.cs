@@ -1,3 +1,4 @@
+#if REDEFINITION_PLANNER_PROBES
 using System.Collections;
 using System.IO;
 using KSP.UI;
@@ -247,3 +248,4 @@ namespace ReDefinition.Probe
         }
     }
 }
+#endif

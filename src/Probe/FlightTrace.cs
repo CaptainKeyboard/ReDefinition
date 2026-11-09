@@ -1,3 +1,4 @@
+#if REDEFINITION_PLANNER_PROBES
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -80,3 +81,4 @@ namespace ReDefinition.Probe
         }
     }
 }
+#endif

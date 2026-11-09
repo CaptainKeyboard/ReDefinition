@@ -37,10 +37,24 @@
 
   <!-- The decisions of the store and the settings window are tested without the
        game (tests/ReDefinition.Tests). -->
+  <!-- PlannerProbes: whether this build references the planner. The developer probes (src/Probe) test planner features through
+       its internals; they are compiled in only with the define REDEFINITION_PLANNER_PROBES, which this property sets. It is
+       true by default and false in the player package (-p:ReleasePackage=true), whose ReDefinition.dll must not name
+       ReDefinition.Planner at all (tools/checks/check_no_planner_reference.ps1). Pass -p:PlannerProbes=false to build that way
+       in Debug. In both cases the planner is built before and its DLL lands in the output beside this one (it ships in the
+       package and goes to the game), but with false nothing is referenced. -->
+  <PropertyGroup>
+    <PlannerProbes Condition="'$(PlannerProbes)' == '' And '$(ReleasePackage)' != 'true'">true</PlannerProbes>
+    <PlannerProbes Condition="'$(PlannerProbes)' == ''">false</PlannerProbes>
+    <DefineConstants Condition="'$(PlannerProbes)' == 'true'">$(DefineConstants);REDEFINITION_PLANNER_PROBES</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <Compile Remove="Common\**;Planner\**" />
     <ProjectReference Include="Common\ReDefinition.Common.csproj" />
-    <ProjectReference Include="Planner\ReDefinition.Planner.csproj" />
+    <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' == 'true'" />
+    <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' != 'true'"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>
@@ -388,6 +402,8 @@
     </PropertyGroup>
     <!-- The version against what changed since the last release (tools/checks/check_release_version.ps1). -->
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_release_version.ps1&quot;" />
+    <!-- The player's ReDefinition.dll names nothing of the planner (tools/checks/check_no_planner_reference.ps1). -->
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_planner_reference.ps1&quot; &quot;$(OutputPath)$(ModName).dll&quot;" />
     <Exec Command="git status --porcelain 2&gt;$(_NullDevice)" WorkingDirectory="$(_RepoRoot)" ConsoleToMSBuild="true" StandardOutputImportance="low">
       <Output TaskParameter="ConsoleOutput" PropertyName="_TreeStatus" />
     </Exec>

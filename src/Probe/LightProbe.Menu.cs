@@ -1,3 +1,4 @@
+#if REDEFINITION_PLANNER_PROBES
 using System.Collections;
 using System.IO;
 using ReDefinition.Planner.Autopilot.Flight;
@@ -200,3 +201,4 @@ namespace ReDefinition.Probe
         }
     }
 }
+#endif
