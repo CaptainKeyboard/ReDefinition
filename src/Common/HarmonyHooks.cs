@@ -45,11 +45,29 @@ namespace ReDefinition.Core
     // The Harmony plumbing every hook into KSP or another mod goes through.
     internal static class HarmonyHooks
     {
-        // All or none: one that cannot be installed takes the ones before it
-        // back out. Harmony is named only here; NoInlining keeps it out of the
-        // callers' compilation, which also runs outside the game.
-        [MethodImpl(MethodImplOptions.NoInlining)]
+        // Whether Harmony is loaded. Neither mod requires it: where it is not, the hooks are left out.
+        public static bool Present
+        {
+            get
+            {
+                foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+                    if (assembly.GetName().Name == "0Harmony") return true;
+                return false;
+            }
+        }
+
+        // All or none, and none where Harmony is not loaded (the caller's Safely logs that).
         public static void Install(string harmonyId, Type owner, IEnumerable<HarmonyHook> hooks)
+        {
+            if (!Present) throw new InvalidOperationException("Harmony is not installed");
+            InstallPatches(harmonyId, owner, hooks);
+        }
+
+        // One that cannot be installed takes the ones before it back out. Harmony is named only here and in Method;
+        // NoInlining keeps it out of the callers' compilation, which also runs outside the game, and out of Install,
+        // whose compilation would fail where Harmony is missing.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static void InstallPatches(string harmonyId, Type owner, IEnumerable<HarmonyHook> hooks)
         {
             HarmonyLib.Harmony harmony = new HarmonyLib.Harmony(harmonyId);
             try

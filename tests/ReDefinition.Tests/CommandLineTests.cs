@@ -4,7 +4,7 @@ using ReDefinition.Core;
 
 namespace ReDefinition.Tests
 {
-    // The command line reader (src/Core/CommandLine.cs): a switch the test host was not started with is not found,
+    // The command line reader (src/Common/CommandLine.cs): a switch the test host was not started with is not found,
     // and the readers over a given argument list read what the probes need of it.
     [TestClass]
     public class CommandLineTests

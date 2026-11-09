@@ -25,6 +25,7 @@ namespace ReDefinition.Tests
         {
             ["(root)"] = "Api Core Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
+            ["Common"] = "Core",
             ["Core"] = "",
             ["Dashboard"] = "Autopilot Core Engineer Modules",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
