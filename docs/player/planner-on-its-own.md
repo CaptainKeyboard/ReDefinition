@@ -1,11 +1,5 @@
 # Use the planner without ReDefinition
 
-**For:** players who want the planner and the autopilot but not the rest of ReDefinition.
-**You need:** KSP 1.12 on Windows, and `ReDefinitionPlanner_<version>.zip` from the release
- page.
-**You get:** the planner and the autopilot installed alone, what they do without ReDefinition,
-and how to add ReDefinition later.
-
 ReDefinition Planner is the route planner of ReDefinition as a mod of its own. It lays out a
 route in the map and the editors and flies it with the autopilot. It needs neither
 HarmonyKSP nor ZTheme nor ReDefinition. MechJeb and ReDefinition are recommended.

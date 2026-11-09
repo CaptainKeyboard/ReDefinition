@@ -1,9 +1,7 @@
 # Launch from the editor, and back
 
-**For:** players who go between the VAB or the SPH and the launch pad or the runway.
-**You need:** ReDefinition installed, and the space centre shown once in this game.
-**You get:** buttons in the world that launch a vessel, take it back to its building, and
-leave it for another building before the launch.
+Buttons in the world that launch a vessel, take it back to its building, and leave it for
+another building before the launch.
 
 The buttons look like the space centre's own buttons for the building or the launch site.
 ReDefinition takes their pictures from the space centre as you see it there, a UI theme's

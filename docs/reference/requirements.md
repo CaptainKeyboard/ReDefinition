@@ -1,10 +1,6 @@
 # What the installed mods require
 
-**For:** players wondering why a row is locked, and mod authors writing a `REQUIRES`
-block.
-**You need:** nothing.
-**You get:** every requirement ReDefinition enforces, with its source, and the rules by
-which it holds.
+Every requirement ReDefinition enforces, with its source, and the rules by which it holds.
 
 A requirement is a value one mod needs of another mod's setting. The mod errors or warns
 about that setting whether or not ReDefinition bundles it, so the requirement holds

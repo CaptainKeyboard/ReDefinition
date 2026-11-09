@@ -1,11 +1,5 @@
 # Graphics profiles
 
-**For:** players choosing a profile.
-**You need:** ReDefinition installed, and the settings window open on its *Graphics*
-tab.
-**You get:** what each of the five tiers sets, for KSP, for every bundled mod and for
-ReDefinition's own upscaler, frame generation and raytracing.
-
 Five profiles, Low, Medium, High, Ultra and Max, set the quality of KSP's own graphics,
 of every bundled mod and of ReDefinition's own features together. Choosing one also
 makes ReDefinition active: the upscaler turns on, and while it runs the other mods'

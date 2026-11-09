@@ -1,9 +1,5 @@
 # Add a feature to the proxy
 
-**For:** a developer who adds a native feature to the proxy and the mod code that drives it.
-**You need:** the repository, CMake with the Visual Studio generator, and the Windows SDK.
-**You get:** the list of files a native feature touches, in the order to edit them.
-
 A proxy feature has a native half in `src/DxgiProxy` and a managed half in `src/Proxy`. The
 two meet in three places: the exports, the render events and the `ReDefinitionProxy.ini` keys.
 The worked example is the XeSS upscaler. It has a native class in

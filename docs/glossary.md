@@ -1,8 +1,7 @@
 # Glossary
 
-**For:** anyone reading these pages or the lines ReDefinition writes into `KSP.log`.
-**You need:** nothing.
-**You get:** the one word this documentation uses for each thing, and what it means.
+The one word this documentation and the lines ReDefinition writes into `KSP.log` use for each
+thing, and what it means.
 
 ## The settings window
 

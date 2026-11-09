@@ -1,11 +1,5 @@
 # Raytracing from scene to screen
 
-**For:** anyone changing what the rays see, how they are traced, or how their light reaches
-the picture.
-**You need:** `src/Raytracing`, `src/Proxy/RtNative.cs` and `src/DxgiProxy/Raytracing` open.
-**You get:** the route from a KSP mesh to a lit pixel, which file does each step, and
-where it logs.
-
 The raytracing traces the sun's shadows, the occlusion, the diffuse light and the reflections
 for every pixel of the scene camera. The mod collects the scene and sends it to the proxy.
 The proxy builds acceleration structures on its Direct3D 12 device, traces with compute

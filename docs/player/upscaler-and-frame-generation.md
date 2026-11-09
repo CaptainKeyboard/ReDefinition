@@ -1,11 +1,8 @@
 # The upscaler and frame generation
 
-**For:** players setting up upscaling or frame generation.
-**You need:** ReDefinition installed, a graphics profile chosen, and for DLSS, AMD's
-upscaler DLL, XeSS or frame generation other than FSR 3 the proxy and those files
-([installing.md](installing.md)).
-**You get:** what each setting does, which technique runs on your GPU, what it costs,
-and where it falls short.
+Upscaling and frame generation: what each setting does, which technique runs on which GPU,
+what it costs, and where it falls short. DLSS, AMD's upscaler DLL, XeSS and frame
+generation other than FSR 3 need the proxy and those files ([installing.md](installing.md)).
 
 Both are active only while a graphics profile is chosen
 ([graphics-profiles.md](graphics-profiles.md)). Their settings are under *Display* in
@@ -207,7 +204,7 @@ applies after a restart, and the window says so.
 
 | Row | Choices | Does |
 |---|---|---|
-| *DLSS-G preset* | *Auto*, *A*, *B*, *C (Lite)* | *C* is NVIDIA's lighter frame blending. It costs less GPU time, and in KSP the HUD and the scene come out the same as with *Auto*. Installing the package from the settings window sets *C* where the package's file still has *Auto*. [open] what *A* and *B* do, which only the package's own documentation says |
+| *DLSS-G preset* | *Auto*, *A*, *B*, *C (Lite)* | *C* is the package's own FG Lite preset: cheaper, with slightly lower image quality. It costs less GPU time, and in KSP the HUD and the scene come out the same as with *Auto*. Installing the package from the settings window sets *C* where the package's file still has *Auto*. [open] what *A* and *B* do, which only the package's own documentation says |
 
 Measured on an RTX A4500 at the Medium profile, preset *C* gave 4 to 8 % more rendered
 frames a second than *Auto*. Without raytracing that is 71.1 against 66.1, with it 41.8
@@ -217,7 +214,8 @@ rendered frames'. Along the HUD's edges *C* scored 1 to 3 dB below *Auto*
 
 ### XeSS frame generation
 
-XeSS frame generation needs two DLLs from Intel's XeSS SDK, 2.1 or newer:
+XeSS frame generation needs two DLLs from Intel's XeSS SDK, which has frame generation
+from version 2.1:
 `libxess_fg.dll` and `libxell.dll`. They go next to `KSP_x64.exe`, or into the folder
 named by `xessFgDirectory`. Choosing *XeSS* in the *Frame generation* row fetches both
 from Intel's XeSS SDK 3.0.2, after you accept Intel's licence
@@ -241,7 +239,8 @@ off by itself, and presents the rendered frames alone:
 
 * while the rendered frame rate, over two seconds, is below a minimum. AMD designed FSR
   3.1 frame generation for at least 60 rendered frames a second and FSR 4's for at least
-  30. DLSS frame generation holds off below 30, and XeSS frame generation below 40. It
+  30. ReDefinition holds DLSS frame generation off below 30, its own choice, and XeSS
+  frame generation below 40, the minimum in Intel's developer guide. It
   comes back once the rate is a little above the minimum again;
 * for a single frame that takes more than one and a half times the minimum's frame
   time, such as a hitch while something loads;

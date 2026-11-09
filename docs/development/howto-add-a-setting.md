@@ -1,10 +1,5 @@
 # Add a setting
 
-**For:** a developer who adds a setting to ReDefinition's own features, or to a bundled mod.
-**You need:** the repository, and for a bundled mod the mod's code or a decompile of its DLL.
-**You get:** the files to edit for each kind of setting, in order, and the tests that hold
-them.
-
 A setting is one value with a control and a default. ReDefinition keeps two kinds. The first
 belongs to ReDefinition's own features (the upscaler, raytracing, the dashboard) and lives in
 its own settings file. The second belongs to another mod and lives in that mod, which a

@@ -1,9 +1,5 @@
 # Startup and scenes
 
-**For:** a developer who debugs something that goes wrong at startup or after a scene change.
-**You need:** the repository, and the `KSP.log` of one run to read the order of events in.
-**You get:** the startup order, the add-on of every scene, and what a scene change takes away.
-
 KSP starts ReDefinition as a set of add-ons, each tied to a scene. A few start with the game
 and stay. Most start with one scene and are destroyed with it. Read this page to find the
 add-on to open when a log line is missing at startup, or when something is gone after a scene

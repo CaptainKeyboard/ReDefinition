@@ -1,9 +1,5 @@
 # A setting's path
 
-**For:** a developer who adds a setting, or finds out why a value is not the one chosen.
-**You need:** the repository, and a registration to follow, such as `Mods/Firefly.cfg`.
-**You get:** the path of a value from a config file to a mod's save and back, for both kinds.
-
 A setting is one value with a control and a default. ReDefinition keeps two kinds, and their
 paths meet only in the settings window and the profile chooser. A bundled mod's setting lives
 in that mod, which a registration names. ReDefinition's own setting lives in `settings.cfg` and

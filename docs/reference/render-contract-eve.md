@@ -1,10 +1,8 @@
 # Render contract: EVE
 
-**For:** anyone who changes what the raytracing scene holds so that the rays match the
-picture EVE draws.
-**You need:** the repository, and EVE Redux with the raymarched volumetric clouds installed.
-**You get:** every way EVE puts pixels on screen, which parts a ray can know as geometry,
-the globals and lights EVE touches, and the members another mod reads to detect it.
+Every way EVE puts pixels on screen, which parts a ray can know as geometry, the globals and
+lights EVE touches, and the members another mod reads to detect it. It describes EVE Redux
+with the raymarched volumetric clouds.
 
 Every claim carries a mark: **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](../development/writing-these-pages.md)). A **[src]** names the

@@ -1,11 +1,8 @@
 # Using ReDefinition from your mod
 
-**For:** mod authors who draw, raymarch, reproject, move geometry, or want a compute
-pass on Direct3D 12.
-**You need:** your own mod, and for the compute passes ReDefinition's `dxgi.dll`
-installed.
-**You get:** the frame's state, the hooks into ReDefinition's rendering, the chosen
-profile, your key bindings, and Direct3D 12 compute passes, each with the code to copy.
+The frame's state, the hooks into ReDefinition's rendering, the chosen profile, key
+bindings, and Direct3D 12 compute passes, each with code to copy. The compute passes need
+ReDefinition's `dxgi.dll` installed.
 
 A KSP game has some things only once: the camera's jitter, the frame's motion vectors,
 camera cuts, the floating origin's shifts, the image after upscaling, and a Direct3D 12

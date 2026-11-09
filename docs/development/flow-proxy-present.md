@@ -1,10 +1,5 @@
 # The proxy's present path
 
-**For:** anyone changing what happens between KSP's `Present` call and the screen.
-**You need:** `src/DxgiProxy` open, and a `ReDefinitionProxy.log` from a run to compare with.
-**You get:** the route of one frame through the proxy, which file does each step, and where
-the proxy logs.
-
 Unity draws KSP on Direct3D 11 and never knows the proxy is there. The proxy hands Unity a
 texture to draw into, copies that texture into a Direct3D 12 swapchain, and presents it
 there. Frame generation, the upscalers and the low latency modes all attach to that

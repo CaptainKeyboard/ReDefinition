@@ -1,11 +1,5 @@
 # A frame in the mod
 
-**For:** a developer who changes what the mod does between KSP's cameras and the screen.
-**You need:** the repository, and the glossary for the rig, the presenter and the HUD-less
-copy.
-**You get:** the order in which the mod's C# side handles one rendered frame, and the file that
-does each step.
-
 One frame travels from the scene's cameras to the frame buffer in three parts. The 3D cameras
 render at the render size into a texture of the rig. The upscaler turns that texture into the
 display-size image. The UI cameras then draw on top. Read this page to find out which step owns

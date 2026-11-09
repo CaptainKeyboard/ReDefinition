@@ -1,10 +1,5 @@
 # The dashboard
 
-**For:** a developer who adds a reading or a command to the dashboard, or changes how it
-connects.
-**You need:** the repository, and a phone, a browser or an iCUE touch screen to look at it.
-**You get:** the path of one telemetry value from the game to a page, and of one command back.
-
 The dashboard is a set of web pages for a phone, a browser or a Corsair iCUE touch screen. The
 mod serves the pages and one WebSocket from the same port. Text travels both ways as JSON:
 the page names the keys it wants, the mod sends the ones whose value changed, and the page
@@ -70,7 +65,7 @@ sequenceDiagram
 * The scene tables call the `*Telemetry` classes: `MenuTelemetry`, `GameTelemetry`,
   `KscTelemetry`, `EditorTelemetry` and `FuelTelemetry`. Some keep state between reads.
 * A key may carry arguments in brackets, `r.resource[LiquidFuel]`. `Telemetry.Split` cuts them
-  at the commas. The key names follow Telemachus' API.
+  at the commas. Where a key exists in Telemachus too, its name is Telemachus'.
 
 ## Add a telemetry value
 

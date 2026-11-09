@@ -1,9 +1,8 @@
 # Building and testing
 
-**For:** anyone building ReDefinition, its shaders or its proxy, and running the checks.
-**You need:** the repository, KSP 1.12.5 with HarmonyKSP in `GameData/000_Harmony`, and
-the tool each section names.
-**You get:** the command for every part, what it needs, and what it puts where.
+The command for every part of the build and the checks, what it needs, and what it puts
+where. It requires KSP 1.12.5 with HarmonyKSP in `GameData/000_Harmony`, and the tool each
+section names.
 
 ## Build the mod
 

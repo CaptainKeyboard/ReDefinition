@@ -1,11 +1,5 @@
 # The interface for other mods
 
-**For:** a developer who changes `ReDefinition.Api`, or who has to know what a call from
-another mod does.
-**You need:** the repository, and the modder pages open for the author's side.
-**You get:** where each member of the interface gets its answer, how another mod finds it, and
-how its Direct3D 12 calls reach the proxy.
-
 Other mods read ReDefinition's frame state, add commands to its frame, follow its profile and
 run compute passes on its Direct3D 12 device. They do it through `ReDefinition.Api`, a facade
 of six static classes in `src/Api/`. The facade keeps almost nothing itself. It forwards to

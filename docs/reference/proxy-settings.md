@@ -1,10 +1,9 @@
 # The proxy's settings
 
-**For:** players and developers who change `ReDefinitionProxy.ini`.
-**You need:** the file next to `KSP_x64.exe`, which the proxy writes at its first start
+What each setting in `ReDefinitionProxy.ini` for frame generation, latency, raytracing and
+the DLL folders does, its default, and when the proxy reads it. The proxy writes the file
+next to `KSP_x64.exe` at its first start
 ([player/installing.md](../player/installing.md#change-the-proxys-settings)).
-**You get:** what each setting for frame generation, latency, raytracing and the DLL
-folders does, its default, and when the proxy reads it.
 
 The file describes every setting beside its value. This page lists the ones a player or
 a developer changes. The settings left out are for development: the orientation and

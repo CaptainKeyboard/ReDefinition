@@ -1,11 +1,7 @@
 # Lower the latency
 
-**For:** players who feel a delay between an input and the screen, most with raytracing
-or frame generation.
-**You need:** ReDefinition installed with the proxy ([installing.md](installing.md)) and
-a graphics profile chosen.
-**You get:** what lowers the latency on your GPU, how to see what runs, and which
-settings of the proxy change it.
+Requires ReDefinition installed with the proxy ([installing.md](installing.md)) and a
+graphics profile chosen.
 
 The latency here is the time from the start of a frame on the main thread to the GPU's
 end of that frame's Present. It does not include the way from the GPU to the screen.
@@ -27,7 +23,7 @@ XeLL needs `libxell.dll` from Intel's XeSS SDK next to `KSP_x64.exe`
 ([upscaler-and-frame-generation.md](upscaler-and-frame-generation.md#xess-frame-generation)).
 
 XeLL and Anti-Lag 2 run alone. Intel asks that nothing else lowers the latency while
-XeLL's low latency mode is on, and AMD asks the same of Anti-Lag 2. Reflex and the brake
+XeLL's low latency mode is on. Reflex and the brake
 run together.
 
 ## See what runs

@@ -1,10 +1,8 @@
 # Scatterer's render contract
 
-**For:** developers of ReDefinition's raytracing, who need what Scatterer puts on screen,
-and authors of mods that read Scatterer's renderers.
-**You need:** nothing. The sources are in the first table.
-**You get:** every way Scatterer draws, which of it has geometry, its inputs and reflections,
-how to detect it, and what the picture depends on that rays cannot see.
+Every way Scatterer draws, which of it has geometry, its inputs and reflections, how to
+detect it, and what the picture depends on that rays cannot see. The sources are in the first
+table.
 
 Every claim carries a mark: **[src]**, **[meas]** or **[open]**
 ([writing-these-pages.md](../development/writing-these-pages.md)). A **[src]** names file and

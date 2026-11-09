@@ -1,9 +1,7 @@
 # Connecting your mod: the first setting
 
-**For:** authors of a mod that already has settings of its own.
-**You need:** your mod and ReDefinition installed in the same KSP.
-**You get:** one of your settings in ReDefinition's window, saved and reset like every
-other, in about fifteen minutes.
+How to show one setting of a mod in ReDefinition's window, saved and reset like every
+other. The mod and ReDefinition must be installed in the same KSP.
 
 Nothing about your mod has to change. You add one config file that tells ReDefinition
 where your setting lives. You write no code and take no dependency: without

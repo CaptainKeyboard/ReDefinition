@@ -1,9 +1,7 @@
 # Registering a mod
 
-**For:** mod and visual pack authors whose first registration already works.
-**You need:** a registration that shows one setting
-([getting-started.md](getting-started.md)).
-**You get:** the job you have in front of you, one section each.
+One section for each job a registration does, after a first registration that shows one
+setting ([getting-started.md](getting-started.md)).
 
 Every key these sections use is in
 [registration-reference.md](registration-reference.md).

@@ -1,10 +1,7 @@
 # How each mod keeps its settings
 
-**For:** mod authors looking for a pattern close to their own mod, and anyone working on
-ReDefinition's registrations.
-**You need:** nothing.
-**You get:** for every bundled mod, where its settings live while the game runs, how a
-value reaches it, how it is saved, and when it takes effect.
+For every bundled mod: where its settings live while the game runs, how a value reaches it,
+how it is saved, and when it takes effect.
 
 Each entry was read from that mod's source and checked against the installed build,
 decompiled where the version matters. KSP was decompiled from 1.12.5.

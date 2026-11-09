@@ -97,12 +97,6 @@ foreach ($page in $pages) {
 
     if ($inCode) { Fail "$relative -- a code block is not closed" }
 
-    # The opening: the three lines every page starts with.
-    $head = ($lines | Select-Object -First 8) -join "`n"
-    if ($head -notmatch '\*\*For:\*\*' -or $head -notmatch '\*\*You need:\*\*' -or $head -notmatch '\*\*You get:\*\*') {
-        Style "$relative -- no For / You need / You get at the top"
-    }
-
     # Paragraphs, so that a phrase broken over two lines is still found.
     $paragraphLines = New-Object System.Collections.ArrayList
     $paragraphStart = 0

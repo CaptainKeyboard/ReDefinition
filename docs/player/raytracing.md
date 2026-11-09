@@ -1,11 +1,8 @@
 # Raytracing
 
-**For:** players who want KSP's shadows and light traced through the scene.
-**You need:** ReDefinition installed with the proxy ([installing.md](installing.md)), a
-graphics profile chosen, and a GPU with DirectX Raytracing 1.1: NVIDIA RTX 20 or newer,
-AMD Radeon RX 6000 or newer, or Intel Arc.
-**You get:** what each setting does, what changes on screen, what it costs, and where it
-falls short.
+Requires ReDefinition installed with the proxy ([installing.md](installing.md)), a graphics
+profile chosen, and a GPU with DirectX Raytracing 1.1: NVIDIA RTX 20 or newer, AMD Radeon
+RX 6000 or newer, or Intel Arc.
 
 Raytracing runs on the proxy's Direct3D 12 device beside KSP. It needs no other mod. With
 Deferred installed it uses Deferred's lighting; without it, it adds its light to KSP's

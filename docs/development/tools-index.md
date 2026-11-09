@@ -1,10 +1,5 @@
 # The scripts in tools
 
-**For:** a developer who looks for the script that does a job, or who wonders what one is for.
-**You need:** the repository.
-**You get:** every script in `tools`, grouped by purpose, with what it needs and which ones
-look obsolete.
-
 The purpose of each row comes from the script's own header. "Game" means the script starts KSP
 or reads files the game wrote. "RenderDoc" means it drives RenderDoc. "Neither" means it runs
 on files only. The Python scripts run from the repository root. Those that read images need

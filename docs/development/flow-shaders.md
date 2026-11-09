@@ -1,11 +1,5 @@
 # How shaders reach the game
 
-**For:** anyone who writes or changes a shader in ReDefinition.
-**You need:** the repository, Unity 2019.4.18f1 for the Unity route, and CMake with the
-Windows SDK's `dxc` for the proxy route.
-**You get:** which of the two routes your shader takes, how it gets into the game, and the
-steps to add one.
-
 ReDefinition ships shaders by two routes that never meet. Unity's shaders run inside KSP's
 Direct3D 11 renderer: the upscaler's compute passes, the masks and the lighting shaders. The
 proxy's HLSL runs on its own Direct3D 12 device: the raytracing passes. A Unity player

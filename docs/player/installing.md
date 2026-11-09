@@ -1,10 +1,7 @@
 # Installing ReDefinition
 
-**For:** players.
-**You need:** KSP 1.12 on Windows, and HarmonyKSP in `GameData/000_Harmony`. KSP does
-not load ReDefinition without Harmony.
-**You get:** ReDefinition installed, NVIDIA's and AMD's files in place where you want
-them, and a clean way out again.
+Requires KSP 1.12 on Windows and HarmonyKSP in `GameData/000_Harmony`. KSP does not load
+ReDefinition without Harmony.
 
 FSR 3 and the settings window need nothing beyond KSP and Harmony. The graphics mods
 ReDefinition works with are all optional. A mod that is not installed has no rows.

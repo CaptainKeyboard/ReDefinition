@@ -1,9 +1,7 @@
 # Architecture
 
-**For:** a developer who is new to the repository, or who changes how its parts fit together.
-**You need:** the repository. The [glossary](../glossary.md) names the terms.
-**You get:** the parts of ReDefinition, what each area of the plugin is for, which area may use
-which, and where to read next.
+The parts of ReDefinition, what each area of the plugin is for, which area may use which,
+and where to read next. The [glossary](../glossary.md) names the terms.
 
 ## The parts
 

@@ -1,12 +1,9 @@
 # Benchmarks of upscalers, frame generation, raytracing and latency
 
-**For:** anyone who changes the upscaler, frame generation, the raytracing or the proxy's
-latency code and wants to know what the change did to the frame rate and the latency.
-**You need:** KSP with ReDefinition and the proxy installed, the save the scene probe flies
-(`ReDefinitionProbe`), Python 3, the repository open, and a machine that nobody uses
-while the tool runs.
-**You get:** the comparison tables of the latest runs, how to run the comparison or one of
-its groups with one command, and what each column and each run's record means.
+The comparison tables of the latest runs, how to run the comparison or one of its groups
+with one command, and what each column and each run's record means. The tool needs KSP with
+ReDefinition and the proxy installed, the save the scene probe flies (`ReDefinitionProbe`),
+Python 3, and a machine that nobody uses while it runs.
 
 ## Run the comparison
 

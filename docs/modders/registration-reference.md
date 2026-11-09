@@ -1,13 +1,9 @@
 # Registration reference
 
-**For:** mod and visual pack authors writing a `MOD_SETTINGS` file.
-**You need:** a registration you are writing, and
-[registering-a-mod.md](registering-a-mod.md) for what each block is good for.
-**You get:** every key of the format, what it takes, and what ReDefinition does without
-it.
-
-This lists every key ReDefinition's reader accepts. For a first registration, start
-with [getting-started.md](getting-started.md).
+This lists every key ReDefinition's reader accepts in a `MOD_SETTINGS` file, what it takes,
+and what ReDefinition does without it. For a first registration, start with
+[getting-started.md](getting-started.md); [registering-a-mod.md](registering-a-mod.md) says
+what each block is good for.
 
 ## The file
 

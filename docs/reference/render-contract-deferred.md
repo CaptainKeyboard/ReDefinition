@@ -1,9 +1,7 @@
 # Render contract of Deferred
 
-**For:** anyone who makes ReDefinition's rays show what Deferred's raster pass shows.
-**You need:** the clone of Deferred 1.3.5 and the installed `zzz_Deferred` folder, to check a
-row.
-**You get:** what Deferred puts on screen, from which input, and what a raytracer cannot see.
+What Deferred puts on screen, from which input, and what a raytracer cannot see. A row is
+checked against the clone of Deferred 1.3.5 and the installed `zzz_Deferred` folder.
 
 Every claim carries a mark: **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](../development/writing-these-pages.md)). A source column names the

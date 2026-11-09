@@ -1,8 +1,6 @@
 # Grip for landing legs
 
-**For:** players whose landers slide down slopes.
-**You need:** ReDefinition and ModuleManager installed. No graphics profile is needed.
-**You get:** how to give a landing leg more grip, as a grip pad has.
+Requires ReDefinition and ModuleManager. No graphics profile is needed.
 
 Every landing leg has a *Traction* button in its part menu in the VAB and the SPH, as the
 grip pads have. Each click steps to the next grip, and the button shows the one set:

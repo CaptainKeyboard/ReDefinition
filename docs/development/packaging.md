@@ -1,10 +1,7 @@
 # Packaging
 
-**For:** anyone building the release package, or asking why a file is in it.
-**You need:** nothing to read this. To build the package itself:
-[building-and-testing.md](building-and-testing.md).
-**You get:** what the build puts where, what it leaves out, which licences decide that,
-and the CKAN metadata.
+What the build puts where, what it leaves out, which licences decide that, and the CKAN
+metadata. To build the package itself: [building-and-testing.md](building-and-testing.md).
 
 Every claim here carries its mark: **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](writing-these-pages.md)).
@@ -40,8 +37,8 @@ into the game after each build, and on Release a zip of `GameData/<Mod>` with RE
 changelog inside.
 
 **The forum's add-on posting rules [doc]**, via a search result, because the forum refuses
-automated reads: *"All addons, plugins and similar works ... must be accompanied by the
-source code (if applicable) and a license in both the post and the download file."*
+automated reads: add-ons are to be accompanied by their source code, where applicable,
+and a licence, in both the post and the download file.
 
 **CKAN [doc]**, from comparable plugins' metadata: KSPCommunityFixes and HUDReplacer
 depend on `Harmony2`, ZTheme depends on HUDReplacer, and the version file is read through
@@ -99,9 +96,9 @@ GameData/ReDefinition/Main/
     CHANGELOG.md              what each release changed
     LICENSE-FSR3Unity.txt     FSR3Unity, MIT, compiled into the DLL
     LICENSE-FidelityFX.txt    AMD's FSR 3 shaders, MIT, compiled into the bundle
-    LICENSE-Telemachus.txt    Telemachus, MIT, whose API the dashboard follows
+    LICENSE-Telemachus.txt    Telemachus, MIT, whose key names the dashboard shares where a key exists in both
     LICENSE-QR-Code-generator.txt  Project Nayuki's QR code generator, MIT, which the
-                              dashboard's QR code follows
+                              dashboard's QR code adapts (a C# translation of the Java version)
     LICENSE-Bruneton.txt      Bruneton's atmosphere model, BSD-3-Clause
     SOURCE.md                 where the source is
     CREDITS.md                docs/credits-and-licences.md

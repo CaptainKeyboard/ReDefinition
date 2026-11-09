@@ -1,10 +1,5 @@
 # Plan a mission in the VAB and the SPH
 
-**For:** players building a vessel for a mission to one or more destinations.
-**You need:** ReDefinition installed, and a vessel in the VAB or the SPH.
-**You get:** how to lay out a route, see what each step costs, check that every step has
-enough fuel, and set yourself which stage burns on which step.
-
 The planner lays out a route the way a map app lays out a trip: A → B → C → D. Between
 two destinations it lists the steps the way needs, up into an orbit, across to the next
 body, down onto its surface, and for each who flies it: the whole vessel or one of its

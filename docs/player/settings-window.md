@@ -1,10 +1,5 @@
 # The settings window
 
-**For:** players.
-**You need:** ReDefinition installed ([installing.md](installing.md)).
-**You get:** how to find every setting, apply it, reset it, and put the mods back the
-way they were.
-
 The window holds the upscaler, frame generation, the graphics settings of the
 installed graphics mods, one row per feature, and every setting of KSP's own settings
 screen, sorted by what a setting does. A mod that is not installed has no rows.

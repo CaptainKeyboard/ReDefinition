@@ -1,9 +1,6 @@
 # Writing these pages
 
-**For:** anyone who writes or changes a page under `docs/`.
-**You need:** the repository, and the page you are working on.
-**You get:** the rules every page here follows, and the check to run before you commit
-one.
+The rules every page here follows, and the check to run before a page is committed.
 
 The repository's own `README.md` is the mod's front page and follows none of this. The
 check script leaves it and `docs/project/reviews.md`, which is a log, alone.
@@ -29,15 +26,9 @@ Four pages are none of the four kinds, and that is on purpose: the index
 
 ## How a page starts
 
-Every page opens with a heading and three lines, in this order:
-
-```
-**For:** who reads this page.
-**You need:** what has to be there first.
-**You get:** what the reader can do or look up afterwards.
-```
-
-Then the first section. No preamble, and no history of how the thing came to be.
+Every page opens with a heading and a first paragraph that states the subject of the page.
+Where it matters, the paragraph also names what has to be installed or known first. Then the
+first section. No preamble, and no history of how the thing came to be.
 
 ## Who the reader is
 
@@ -115,8 +106,7 @@ player page carries no marks.
 
 ## Before you commit a page
 
-1. Read the first three lines. Do they say who it is for, what is needed and what the
-   reader gets?
+1. Read the first paragraph. Does it state the subject of the page?
 2. Search the page for ` -- ` outside a table. Every hit is a sentence waiting to be
    split.
 3. Is every section one of the four kinds the page claims to be?
@@ -130,6 +120,5 @@ player page carries no marks.
 
    It fails on a link that leads nowhere, a path under `src/`, `tools/`, `tests/`,
    `unity/`, `licenses/` or `third_party/` that is not there, and a code block that is
-   not closed. It reports, without failing, a page without the three opening lines, a
-   dash aside in prose, and a line over 95 characters. With `-Strict` those three fail
-   the run as well.
+   not closed. It reports, without failing, a dash aside in prose, a line over 95
+   characters, and the phrases listed above. With `-Strict` those fail the run as well.

@@ -1,10 +1,8 @@
 # Render contract: Kopernicus
 
-**For:** anyone who makes ReDefinition's rays show what Kopernicus and KSP's terrain code put
-on screen.
-**You need:** the decompiled KSP and Kopernicus code named under *Sources*, to check a row.
-**You get:** what draws terrain, ocean, scaled space, sun, rings and atmosphere, how to
-read it, and what a scan of the terrain quads misses.
+What draws terrain, ocean, scaled space, sun, rings and atmosphere, how to read it, and what
+a scan of the terrain quads misses. A row is checked against the decompiled KSP and
+Kopernicus code named under *Sources*.
 
 Every claim carries **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](../development/writing-these-pages.md)). A **[src]** names the

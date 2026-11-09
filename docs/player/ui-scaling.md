@@ -1,11 +1,5 @@
 # Readable on large screens
 
-**For:** players on a 1440p or 4K screen, or a TV, who find parts of KSP's interface too
-small.
-**You need:** ReDefinition installed, and the UI scale in KSP's settings set to what you
-want for the rest of the interface.
-**You get:** what ReDefinition sizes that KSP leaves small, and how to set it.
-
 KSP's UI scale (*Settings*, *General*, *UI Scale*) sizes its windows, buttons and panels.
 Some things it leaves at a fixed number of pixels, so that on a 4K screen they are half
 the size they have on 1080p. ReDefinition gives them the UI scale too:

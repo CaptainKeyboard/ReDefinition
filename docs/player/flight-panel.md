@@ -1,9 +1,7 @@
 # Read your flight at a glance
 
-**For:** players in flight who want the numbers for what they are doing in front of them.
-**You need:** ReDefinition installed, and a vessel in flight.
-**You get:** where each figure stands, what the flight panel's profiles show, and how
-the panel picks one.
+The flight panel in the maneuver mode: where each figure stands, what its profiles show, and
+how the panel picks one.
 
 ## The flight panel
 

@@ -1,8 +1,6 @@
 # The delta-v tools in the staging stack
 
-**For:** players who look at the stages' details in KSP's staging stack.
-**You need:** ReDefinition installed.
-**You get:** how the delta-v tools and the stage details work with ReDefinition.
+How the delta-v tools and the stage details of KSP's staging stack work with ReDefinition.
 
 ## Open the tools
 

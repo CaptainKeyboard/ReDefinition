@@ -1,9 +1,8 @@
 # Build and check everything
 
-**For:** a developer who is about to commit a change to ReDefinition.
-**You need:** the repository, the .NET SDK 10, KSP 1.12.5 with HarmonyKSP, Visual Studio Build
-Tools with CMake, Python 3, and a GPU for the harnesses.
-**You get:** every command to run before a commit, in order, and what each one needs.
+Every command to run before a commit, in order, and what each one needs: the .NET SDK 10,
+KSP 1.12.5 with HarmonyKSP, Visual Studio Build Tools with CMake, Python 3, and a GPU for the
+harnesses.
 
 Run every command from the repository root. Skip a step only when your change cannot reach
 it.

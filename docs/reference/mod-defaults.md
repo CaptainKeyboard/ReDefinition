@@ -1,10 +1,7 @@
 # Every setting, its default and its kind
 
-**For:** anyone checking what *Reset* will set, and pack authors looking
-for the value a profile starts from.
-**You need:** nothing.
-**You get:** one row per setting of each bundled mod and of KSP's own settings,
-with its default, its kind and where the value was read.
+One row per setting of each bundled mod and of KSP's own settings, with its default, its
+kind and where the value was read.
 
 This is the inventory *Reset* and the profiles are built on. The values
 are in each mod's registration in `GameData/ReDefinition/Main/Mods`, as `default` and in

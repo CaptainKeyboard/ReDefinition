@@ -1,9 +1,5 @@
 # The features on screen
 
-**For:** a developer who adds or changes a feature that draws into KSP's interface or scenes.
-**You need:** the repository, and a flight, an editor or a main menu to look at.
-**You get:** where each feature starts, what switches it, and the rules every control follows.
-
 ReDefinition adds features that are not part of the upscaler: HUD additions, the editor's
 engineer and planner, interface scaling, the main-menu scene and the space centre's look. Each
 is a `KSPAddon` of its own for the scene it works in. Most read one switch from `OwnSettings`.

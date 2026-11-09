@@ -1,9 +1,5 @@
 # Writing code comments
 
-**For:** anyone who writes or changes code in this repository, human or AI.
-**You need:** the code you are changing.
-**You get:** when a comment is worth writing, what it says, how long it is, and which checks run.
-
 A comment earns its place when it tells the reader something the code does not. The code says
 what happens. A comment says what the code cannot: what the thing is for, why it is done this way,
 what must not change, and what a measurement showed. No element needs a comment because it exists.

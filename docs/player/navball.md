@@ -1,9 +1,5 @@
 # Move the navball
 
-**For:** players who want the navball somewhere other than the bottom centre.
-**You need:** ReDefinition installed. No graphics profile is needed.
-**You get:** how to move the navball sideways, and how to put it back.
-
 The navball can stand anywhere along the bottom of the screen. Everything that belongs
 to it moves with it: the SAS and RCS switches, the SAS modes, the throttle and G gauges,
 the speed and heading, and the delta-v gauge.

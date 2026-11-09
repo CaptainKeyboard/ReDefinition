@@ -1,10 +1,8 @@
 # Render contract of Parallax Continued
 
-**For:** anyone who makes ReDefinition's rays show what Parallax's raster pass shows.
-**You need:** the clone of Parallax Continued and the installed `ParallaxContinued` folder, to
-check a row.
-**You get:** what Parallax puts on screen, from which input, and what a raytracer must know to
-see the same.
+What Parallax puts on screen, from which input, and what a raytracer must know to see the
+same. A row is checked against the clone of Parallax Continued and the installed
+`ParallaxContinued` folder.
 
 Every claim carries a mark: **[src]**, **[doc]**, **[meas]** or **[open]**
 ([writing-these-pages.md](../development/writing-these-pages.md)). `C:` is the clone's `Mod
@@ -14,9 +12,10 @@ Source/Parallax/`, `S:` is its `Assets/Shaders/`.
 
 | What | Version and state | Mark |
 |---|---|---|
-| Clone, `References/KspUpscaler/Parallax-Continued` | commit `3cc1f83`, 2026-10-20, tag 1.0.6 | **[src]** |
-| Installed `ParallaxContinued/Plugins/ParallaxContinued.dll` | file date 2026-09-25, decompiled | **[src]** |
-| Difference that matters | the clone evaluates scatters in `Camera.onPreCull` for the flight cameras only; the installed build does it in `ScatterManager.LateUpdate` in every scene | **[src]** |
+| Clone, `References/KspUpscaler/Parallax-Continued` | commit `3cc1f83`, 2026-10-20, four commits after tag 1.0.6 | **[src]** |
+| Installed `ParallaxContinued/Plugins/ParallaxContinued.dll`, the build that was decompiled | file date 2026-09-25 | **[src]** |
+| Installed `ParallaxContinued.dll` today | file date 2026-11-04, product version commit `1159313` of 2026-10-30 (18 commits after the clone); not decompiled again, so the rows below describe the 2026-09-25 build | **[open]** |
+| Difference that matters (2026-09-25 build) | the clone evaluates scatters in `Camera.onPreCull` for the flight cameras only; the installed build does it in `ScatterManager.LateUpdate` in every scene | **[src]** |
 | Installed shader bundles | `ParallaxScatters`, `ParallaxTerrain`, `ParallaxCompute`: read as source in the clone, not opened | **[open]** |
 
 Where the two builds differ, the installed one decides. `tools/checks/check_foreign_code.ps1`

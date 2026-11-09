@@ -1,8 +1,6 @@
 # Status
 
-**For:** anyone working on ReDefinition.
-**You need:** nothing.
-**You get:** what exists, what is still open, and which decisions are settled.
+What exists, what is still open, and which decisions are settled.
 
 Released: 0.1.3.
 

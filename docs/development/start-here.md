@@ -1,9 +1,7 @@
 # Start here
 
-**For:** a developer, or an AI that works on the code, who has just opened the repository.
-**You need:** the repository.
-**You get:** what ReDefinition is, where its parts live, what the code does not show you, and the
-page for your job.
+What ReDefinition is, where its parts live, what the code does not show, and the page for
+each job.
 
 ## What ReDefinition is
 

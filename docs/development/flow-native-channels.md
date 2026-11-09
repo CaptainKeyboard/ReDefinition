@@ -1,9 +1,6 @@
 # The four channels to native code
 
-**For:** a developer who changes what the C# mod and the proxy tell each other.
-**You need:** the repository. The proxy is `src/DxgiProxy/`, the mod's side of it `src/Proxy/`.
-**You get:** the four ways data crosses into the proxy, who owns the layout of each, and what
-tells you when mod and proxy disagree.
+The proxy is `src/DxgiProxy/`, the mod's side of it `src/Proxy/`.
 
 The mod runs in KSP's process, and the proxy is the `dxgi.dll` that process loaded, so the two
 share an address space. Four channels connect them. Read this page before you add an export, a
