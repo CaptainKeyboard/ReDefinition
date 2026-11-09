@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
 
-namespace ReDefinition.Planner
+namespace ReDefinition.Ui
 {
     // The time warp row's label in the flight interface, which the autopilot button sits beside.
     internal static class WarpLabel

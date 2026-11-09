@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Planner.Autopilot;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Hud.Readouts
@@ -58,7 +58,7 @@ namespace ReDefinition.Hud.Readouts
         // NaN until worked out for the refresh.
         private double maxThrust = double.NaN;
 
-        // What the engines lit now give at full throttle where the vessel is, in kN, each by Engines.FullThrust.
+        // What the engines lit now give at full throttle where the vessel is, in kN, each by VesselFacts.FullThrust.
         internal double MaxThrust
         {
             get
@@ -71,7 +71,7 @@ namespace ReDefinition.Hud.Readouts
                     {
                         ModuleEngines engine = part.Modules[m] as ModuleEngines;
                         if (engine == null || !engine.EngineIgnited || !engine.isOperational || engine.flameout) continue;
-                        sum += Engines.FullThrust(engine, pressure);
+                        sum += VesselFacts.FullThrust(engine, pressure);
                     }
                 return maxThrust = sum;
             }
@@ -206,7 +206,7 @@ namespace ReDefinition.Hud.Readouts
         // The part nearest its temperature limit, by the higher share of its inside's and its skin's.
         private double FindHottest(out string name)
         {
-            return Heat.Hottest(Vessel, out name);
+            return VesselFacts.Hottest(Vessel, 1.0, out name);
         }
 
         // ------------------------------------------------------------- nodes
@@ -367,7 +367,7 @@ namespace ReDefinition.Hud.Readouts
         // Each propellant counts from the parts its thrusters draw it from, as
         // Part.GetConnectedResourceTotals finds them for its flow mode (the part
         // itself, its crossfeed set, or the whole vessel), each part once.
-        // It counts in the mix each kind of thruster burns it in (StageTable.UsablePropellant).
+        // It counts in the mix each kind of thruster burns it in (PropellantMix.UsablePropellant).
         internal double RcsDeltaV
         {
             get
@@ -398,13 +398,13 @@ namespace ReDefinition.Hud.Readouts
                     thrust += power;
                     overIsp += power / isp;
                     if (rcs.propellants == null) continue;
-                    ReDefinition.Planner.Engineer.EditorReadout.AddMix(mixes, rcs.propellants, power / isp);
+                    PropellantMix.AddMix(mixes, rcs.propellants, power / isp);
                     foreach (Propellant propellant in rcs.propellants)
                     {
                         if (propellant == null) continue;
                         HashSet<Part> from;
                         if (!sources.TryGetValue(propellant.name, out from)) sources[propellant.name] = from = new HashSet<Part>();
-                        ReDefinition.Planner.Engineer.EditorReadout.AddRcsSources(part, propellant.GetFlowMode(), part.crossfeedPartSet, Vessel.parts, from);
+                        PropellantMix.AddRcsSources(part, propellant.GetFlowMode(), part.crossfeedPartSet, Vessel.parts, from);
                     }
                 }
             if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
@@ -419,7 +419,7 @@ namespace ReDefinition.Hud.Readouts
                 }
                 held[resource.Key] = mass;
             }
-            double propellantMass = ReDefinition.Planner.Engineer.StageTable.UsablePropellant(mixes, held);
+            double propellantMass = PropellantMix.UsablePropellant(mixes, held);
             double total = Vessel.totalMass;
             if (total <= propellantMass || propellantMass <= 0.0) return 0.0;
             return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(total / (total - propellantMass));

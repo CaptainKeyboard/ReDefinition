@@ -1,4 +1,3 @@
-using ReDefinition.Planner.Hud;
 using System;
 using System.Collections.Generic;
 using ReDefinition.Planner.Autopilot;

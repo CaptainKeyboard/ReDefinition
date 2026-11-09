@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ReDefinition.Core;
 
 namespace ReDefinition.Planner.Engineer
 {
@@ -8,7 +9,7 @@ namespace ReDefinition.Planner.Engineer
     // them, and the delta-v that gives `mass`, in m/s. Of the group's parts only
     // those still attached count (PartFacts.AttachedIn). Only the resources
     // their own RCS thrusters burn count, in the mix they burn them in
-    // (StageTable.UsablePropellant), and no more than what `mass` still holds over those
+    // (PropellantMix.UsablePropellant), and no more than what `mass` still holds over those
     // parts' dry mass. Free of Unity, tested.
     internal static class SectionRcs
     {
@@ -53,7 +54,7 @@ namespace ReDefinition.Planner.Engineer
                     held.TryGetValue(resource.Key, out sum);
                     held[resource.Key] = sum + resource.Value;
                 }
-            propellant = Math.Min(StageTable.UsablePropellant(mix, held), Math.Max(0.0, mass - dry));
+            propellant = Math.Min(PropellantMix.UsablePropellant(mix, held), Math.Max(0.0, mass - dry));
             if (thrust <= 0.0 || overIsp <= 0.0 || propellant <= 0.0 || mass <= propellant) return;
             deltaV = thrust / overIsp * StageTable.StandardGravity * Math.Log(mass / (mass - propellant));
         }

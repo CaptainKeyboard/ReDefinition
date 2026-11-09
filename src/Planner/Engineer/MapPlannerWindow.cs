@@ -486,7 +486,7 @@ namespace ReDefinition.Planner.Engineer
                 listRect.anchorMax = Vector2.one;
                 listRect.offsetMin = listRect.offsetMax = Vector2.zero;
             }
-            PlannerWidgets.Settle(scroll);
+            ScrollListSettle.Apply(scroll);
             view.Finish();
             ScrollThrough.Apply(list.uiItem);
             UiHygiene.MouseOnly(list.uiItem);

@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Planner.Hud
+namespace ReDefinition.Core
 {
     // A vessel a static cache was worked out for, held without keeping it, and
     // the parts it hangs on to, alive once its scene is gone.

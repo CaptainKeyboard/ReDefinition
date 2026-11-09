@@ -81,18 +81,10 @@ namespace ReDefinition.Planner.Engineer
             return Clean(seconds).ToString("0", Invariant) + " s";
         }
 
-        // 1h 02m 03s, 2m 05s, 7.4s; days as KSP counts them are not needed for a
-        // burn.
+        // 1h 02m 03s, 2m 05s, 7.4s, as the Common code writes it.
         internal static string Time(double seconds)
         {
-            double value = Clean(seconds);
-            if (value < 60.0) return value.ToString("0.0", Invariant) + "s";
-            long whole = (long)Math.Round(value);
-            long hours = whole / 3600;
-            long minutes = whole % 3600 / 60;
-            long secs = whole % 60;
-            if (hours > 0) return hours + "h " + minutes.ToString("00", Invariant) + "m " + secs.ToString("00", Invariant) + "s";
-            return minutes + "m " + secs.ToString("00", Invariant) + "s";
+            return ReDefinition.Core.TimeText.Time(seconds);
         }
 
         // Not a number, infinite and negative zero all read as 0: a stage without

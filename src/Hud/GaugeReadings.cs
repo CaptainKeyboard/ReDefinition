@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Planner.Engineer;
+using ReDefinition.Core;
 using ReDefinition.Hud.Readouts;
 
 namespace ReDefinition.Hud
@@ -103,7 +103,7 @@ namespace ReDefinition.Hud
             double share = engines[timed].Left / engines[timed].Full;
             return new GaugeReading
             {
-                Text = EngineerFormat.Time(burnTime),
+                Text = TimeText.Time(burnTime),
                 Fill = share,
                 Caution = TenthToQuarter,
                 Warning = LastTenth,
@@ -117,7 +117,7 @@ namespace ReDefinition.Hud
         {
             return new GaugeReading
             {
-                Text = "T-" + EngineerFormat.Time(until),
+                Text = "T-" + TimeText.Time(until),
                 Fill = TimeScale(until),
                 Caution = LastTenSeconds,
                 Level = until < 10.0 ? 1 : 0,
@@ -144,7 +144,7 @@ namespace ReDefinition.Hud
         // it and caution a third above.
         internal static GaugeReading Impact(double seconds, double countdown)
         {
-            GaugeReading reading = new GaugeReading { Text = EngineerFormat.Time(seconds), Fill = TimeScale(seconds) };
+            GaugeReading reading = new GaugeReading { Text = TimeText.Time(seconds), Fill = TimeScale(seconds) };
             if (double.IsNaN(countdown)) return reading;
             double brake = Math.Max(0.0, seconds - countdown);
             reading.Mark = TimeScale(brake);

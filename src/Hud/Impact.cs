@@ -1,4 +1,4 @@
-using ReDefinition.Planner.Hud;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Hud

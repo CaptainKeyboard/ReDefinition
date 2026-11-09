@@ -142,7 +142,7 @@ namespace ReDefinition.Planner.Engineer
             // The content is laid out with every row first and shrinks as the
             // rows the plan does not need hide. It is held at its top edge, so
             // that it shrinks from the bottom.
-            PlannerWidgets.Settle(list);
+            ScrollListSettle.Apply(list);
             view.Finish();
             // The wheel over a button or a text field scrolls the list, and no
             // control here takes the keyboard's selection (UiHygiene).

@@ -32,20 +32,7 @@ namespace ReDefinition.Planner.Autopilot
         internal static double Hottest(Vessel vessel, out string name)
         {
             // A tuning switch makes the parts count as hotter, to see the live guard act where the plan allowed the pass; 1 otherwise.
-            double scale = RouteTuning.HeatShareScale;
-            double worst = 0.0;
-            name = "";
-            foreach (Part part in vessel.parts)
-            {
-                // A part burns where its inside or its skin goes over its limit.
-                double share = part.maxTemp > 0.0 ? part.temperature / part.maxTemp : 0.0;
-                if (part.skinMaxTemp > 0.0) share = Math.Max(share, part.skinTemperature / part.skinMaxTemp);
-                share *= scale;
-                if (share <= worst) continue;
-                worst = share;
-                name = part.partInfo != null ? part.partInfo.title : part.name;
-            }
-            return worst;
+            return ReDefinition.Core.VesselFacts.Hottest(vessel, RouteTuning.HeatShareScale, out name);
         }
 
         // The throttle both limits allow, the lower of the two.

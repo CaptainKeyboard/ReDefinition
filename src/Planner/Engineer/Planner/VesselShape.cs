@@ -53,7 +53,7 @@ namespace ReDefinition.Planner.Engineer
         // Its RCS thrusters, in four fields. RcsThrust is their thrust in vacuum in kN at their
         // thrust limit. RcsThrustOverIsp is that thrust over their vacuum Isp (so that thrusters
         // combine). RcsMix holds, per mix of propellants they burn (its names joined), per
-        // propellant that flow's share of it by mass (StageTable.UsablePropellant). RcsResources
+        // propellant that flow's share of it by mass (PropellantMix.UsablePropellant). RcsResources
         // holds the mass of each resource that an RCS thruster switched on draws from the part, in
         // tonnes. Thrusters switched off count for nothing.
         public double RcsThrust;

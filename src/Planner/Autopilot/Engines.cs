@@ -43,14 +43,10 @@ namespace ReDefinition.Planner.Autopilot
                     }
         }
 
-        // What one engine gives at full throttle at an air pressure (in atmospheres), at its thrust limit, in kN. It is the fuel flow times the
-        // specific impulse at that pressure times g0, as MechJeb's vessel state and the game work it out. A vacuum engine gives little at the ground.
+        // What one engine gives at full throttle at an air pressure (in atmospheres), in kN, as the Common code works it out.
         internal static double FullThrust(ModuleEngines engine, double pressureAtmospheres)
         {
-            double isp = engine.atmosphereCurve != null ? engine.atmosphereCurve.Evaluate((float)pressureAtmospheres) : 0.0;
-            double most = engine.maxFuelFlow * engine.flowMultiplier * isp * engine.g;
-            double least = engine.minFuelFlow * engine.flowMultiplier * isp * engine.g;
-            return least + (most - least) * engine.thrustPercentage / 100.0;
+            return ReDefinition.Core.VesselFacts.FullThrust(engine, pressureAtmospheres);
         }
 
         // Whether an engine gives thrust now: what the burn is, whoever holds the throttle.

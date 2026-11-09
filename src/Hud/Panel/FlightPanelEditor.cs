@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using ReDefinition.Core;
-using ReDefinition.Planner.Engineer;
 using ReDefinition.Hud.Readouts;
 using ReDefinition.Ui;
 using UnityEngine;
@@ -140,7 +139,7 @@ namespace ReDefinition.Hud.Panel
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionFlightPanelEditor", "", "Flight panel", HighLogic.UISkin,
                 Width, list, buttons);
             shown = PopupDialog.SpawnPopupDialog(Place, Place, dialog, false, HighLogic.UISkin);
-            PlannerWidgets.Settle(list);
+            ScrollListSettle.Apply(list);
             // The wheel over a button scrolls the list, and no control takes the
             // keyboard's selection (UiHygiene).
             ScrollThrough.Apply(shown.gameObject);

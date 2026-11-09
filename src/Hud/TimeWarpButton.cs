@@ -185,7 +185,7 @@ namespace ReDefinition.Hud
         // The warp row's label, looked for again a second after it was not found.
         internal static TextMeshProUGUI Label()
         {
-            return ReDefinition.Planner.WarpLabel.Find();
+            return ReDefinition.Ui.WarpLabel.Find();
         }
     }
 }

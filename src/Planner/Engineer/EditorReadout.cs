@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Planner.Engineer
@@ -129,7 +130,7 @@ namespace ReDefinition.Planner.Engineer
                                 if (propellant == null) continue;
                                 HashSet<Part> from;
                                 if (!rcsReach.TryGetValue(propellant.name, out from)) rcsReach[propellant.name] = from = new HashSet<Part>();
-                                AddRcsSources(part, propellant.GetFlowMode(), part.simulationCrossfeedPartSet ?? part.crossfeedPartSet, parts, from);
+                                PropellantMix.AddRcsSources(part, propellant.GetFlowMode(), part.simulationCrossfeedPartSet ?? part.crossfeedPartSet, parts, from);
                             }
 
             // The vessel's frame: its root part's.
@@ -191,7 +192,7 @@ namespace ReDefinition.Planner.Engineer
                     double power = rcs.thrusterPower * rcs.thrustPercentage * 0.01;
                     fact.RcsThrust += power;
                     fact.RcsThrustOverIsp += power / isp;
-                    AddMix(fact.RcsMix, rcs.propellants, power / isp);
+                    PropellantMix.AddMix(fact.RcsMix, rcs.propellants, power / isp);
                 }
                 for (int i = 0; i < part.Resources.Count; i++)
                 {
@@ -234,35 +235,6 @@ namespace ReDefinition.Planner.Engineer
         private static bool RcsOn(ModuleRCS rcs)
         {
             return rcs != null && rcs.moduleIsEnabled && rcs.rcsEnabled;
-        }
-
-        // The parts a thruster on `part` draws a propellant of flow mode `mode` from,
-        // as Part.GetConnectedResourceTotals takes them. They are its crossfeed set
-        // `crossfeed` (in the editor the one built for its simulation, ShipConstruct:
-        // PartSet.BuildPartSets with Simulate, into Part.simulationCrossfeedPartSet;
-        // decompiled), the whole vessel `parts`, or the part itself. The flight's
-        // readout takes them the same way (ReadoutFrame.FindRcsDeltaV).
-        internal static void AddRcsSources(Part part, ResourceFlowMode mode, PartSet crossfeed, List<Part> parts, HashSet<Part> into)
-        {
-            switch (mode)
-            {
-                case ResourceFlowMode.STACK_PRIORITY_SEARCH:
-                case ResourceFlowMode.STAGE_STACK_FLOW:
-                case ResourceFlowMode.STAGE_STACK_FLOW_BALANCE:
-                    if (crossfeed != null) into.UnionWith(crossfeed.GetParts());
-                    else into.Add(part);
-                    break;
-                case ResourceFlowMode.ALL_VESSEL:
-                case ResourceFlowMode.STAGE_PRIORITY_FLOW:
-                case ResourceFlowMode.ALL_VESSEL_BALANCE:
-                case ResourceFlowMode.STAGE_PRIORITY_FLOW_BALANCE:
-                    foreach (Part other in parts)
-                        if (other != null) into.Add(other);
-                    break;
-                default:
-                    into.Add(part);
-                    break;
-            }
         }
 
         // Fills `fact` with where a part sits, how large it is, and what it turns the vessel with
@@ -563,32 +535,6 @@ namespace ReDefinition.Planner.Engineer
             foreach (ModuleEngines engine in PartModules.Of(part, engineModules))
                 if (engine != null && (!engine.nonThrustMotor || engine.includeinDVCalcs)) return true;
             return false;
-        }
-
-        // Per propellant, its share by mass of the flow of thrusters whose thrust over
-        // Isp is `weight` (so proportional to their mass flow): its ratio times its
-        // density over the mix's. Resources of no mass (electric charge) take none.
-        internal static void AddMix(Dictionary<string, Dictionary<string, double>> mixes, List<Propellant> propellants, double weight)
-        {
-            if (propellants == null || weight <= 0.0) return;
-            List<string> names = new List<string>();
-            foreach (Propellant propellant in propellants)
-                if (propellant != null && propellant.resourceDef != null && propellant.resourceDef.density > 0f) names.Add(propellant.name);
-            names.Sort(string.CompareOrdinal);
-            string key = string.Join("+", names.ToArray());
-            Dictionary<string, double> mix;
-            if (!mixes.TryGetValue(key, out mix)) mixes[key] = mix = new Dictionary<string, double>();
-            double total = 0.0;
-            foreach (Propellant propellant in propellants)
-                if (propellant != null && propellant.resourceDef != null) total += propellant.ratio * propellant.resourceDef.density;
-            if (total <= 0.0) return;
-            foreach (Propellant propellant in propellants)
-            {
-                if (propellant == null || propellant.resourceDef == null || propellant.resourceDef.density <= 0f) continue;
-                double share;
-                mix.TryGetValue(propellant.name, out share);
-                mix[propellant.name] = share + weight * propellant.ratio * propellant.resourceDef.density / total;
-            }
         }
 
         // One stage of KSP's simulation as a row of the planner, for the situation the delta-v app holds.
