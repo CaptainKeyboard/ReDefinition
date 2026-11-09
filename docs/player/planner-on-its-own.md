@@ -46,5 +46,8 @@ the next start. Its two switches then move into ReDefinition's settings window, 
 *Planner Settings* entry disappears. The planner's route, its icons and its settings file
 stay where they are.
 
-If ReDefinition and the planner come from different releases, `KSP.log` says so and the
-planner stands alone. Update both to the same release.
+ReDefinition does not need the planner either: without it, ReDefinition shows no guidance
+gauge, no burn overlay on the navball and no planner rows on the dashboard, and everything else
+stays. The two share one small file, `ReDefinition.Common.dll`, and the game keeps the newer
+copy. If ReDefinition and the planner come from different releases, update both to the same
+release; `KSP.log` names a copy that is older than the one a mod was built against.

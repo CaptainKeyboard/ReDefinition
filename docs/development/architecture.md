@@ -53,7 +53,7 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 | `Core` | The paths and the catalogue of what ReDefinition takes for granted about other mods | `src/Core/ForeignAssumptions.cs` |
 | `Dashboard` | The web dashboard's server and its telemetry | `src/Dashboard/DashboardServer.cs` |
 | `Diagnostics` | The diagnostics window and the report on other mods | `src/Diagnostics/DiagnosticsWindow.cs` |
-| `Planner` | The route stack as a mod of its own: the planner, the navigation, the autopilot, the orbit maths and the landing prediction | `src/Planner/PlannerSeams.cs` |
+| `Planner` | The route stack as a mod of its own: the planner, the navigation, the autopilot, the orbit maths and the landing prediction | `src/Planner/PlannerStartup.cs` |
 | `Fsr3` | AMD's FSR 3 upscaler, adapted from FSR3Unity | `src/Fsr3/Fsr3Upscaler.cs` |
 | `Hud` | Additions to KSP's flight interface, staging stack and time panel | `src/Hud/FlightUiSwitch.cs` |
 | `Menu` | Fireworks and the camera flight in the main menu | `src/Menu/MenuFireworks.cs` |
@@ -78,35 +78,50 @@ The plugin is three projects. The dependencies run one way:
 
 ```mermaid
 flowchart LR
-    main["ReDefinition.dll<br/>src/ (the rest)"] --> planner["ReDefinition.Planner.dll<br/>src/Planner/"]
-    main --> common["ReDefinition.Common.dll<br/>src/Common/"]
-    planner --> common
+    main["ReDefinition.dll<br/>src/ (the rest)"] --> common["ReDefinition.Common.dll<br/>src/Common/"]
+    planner["ReDefinition.Planner.dll<br/>src/Planner/"] --> common
 ```
 
 | Assembly | Package | Needs |
 |---|---|---|
 | `ReDefinition.Common.dll` | both | KSP and Unity |
 | `ReDefinition.Planner.dll` | `GameData/ReDefinitionPlanner`, and the full zip | Common. Not ReDefinition, not Harmony, not ZTheme |
-| `ReDefinition.dll` | `GameData/ReDefinition` | Planner, Common, Harmony |
+| `ReDefinition.dll` | `GameData/ReDefinition` | Common and Harmony. Not the planner |
 
-The planner knows nothing of ReDefinition. What it would ask of ReDefinition is a field in
-`PlannerSeams` with a default that works alone: the interface scale, two settings and the space
-centre's button sprites. `PlannerLink` in `src/` fills them when ReDefinition starts. It checks
-`PlannerSeams.Level` first, so that a planner of another release stays on its defaults instead of
-failing. Raise `PlannerLink.Expected` and `PlannerSeams.Level` together when a seam is added,
-removed or changes its meaning.
+Neither of the two mods names the other. They meet in Common, and each works without the other:
 
-The other direction is not optional. ReDefinition names the planner's types directly, so it
-declares the planner as a dependency (`KSPAssemblyDependency` in `src/KspAssemblyInfo.cs`, met by
-`src/Planner/KspAssemblyInfo.cs`). Where `ReDefinition.Planner.dll` is not there, KSP leaves
-ReDefinition unloaded and writes `has not met dependency 'ReDefinition.Planner'` to `KSP.log`
-[meas]. The full zip carries the planner, and the CKAN entry of ReDefinition depends on the
-planner's.
+* **Seams, from ReDefinition to the planner.** `HostSeams` holds what the planner would ask of
+  ReDefinition, each with a default that works alone: the interface scale, the two switches for the
+  background route and the buttons in the world, whether the planner stands alone, and the space
+  centre's button sprites. `HostLink` in `src/` assigns them when ReDefinition starts. Where
+  ReDefinition is not there, the planner's `PlannerStartup` answers the two switches from its own
+  settings file. Both add-ons start at `Startup.Instantly`, and the result is the same in either
+  order.
+* **Hooks, from the planner to ReDefinition.** `PlannerHooks` holds what ReDefinition reads of the
+  planner: the guidance, the route state, the editor's plan rows, the dry marks of the fuel tapes
+  and the planner's assumptions about other mods. Each is an abstract class with virtual defaults in
+  Common (`GuidanceHook`, `RouteHook`, `EditorPlanHook`, `DryMarksHook`) and no planner type in any
+  signature. The planner's adapters in `src/Planner/Hooks/` fill them in `PlannerStartup` and read
+  the live state on every call. Without the planner the hooks stay null, and ReDefinition shows
+  nothing of them: no guidance gauge, no burn overlay, no guidance or route keys on the dashboard,
+  no dry marks on the tapes.
+* **The helpers both use** are in Common: `HeldVessel`, `WarpLabel`, `WorldButton`, `TimeText`,
+  `VesselFacts`, `PropellantMix` and the rest.
 
-The click shield is no seam. `WindowShield` and `DialogWindow` are in Common, and the planner and
-ReDefinition open their dialogs through them, so a click on a window of either does not reach the
-buildings, the switches or the map behind it. ReDefinition adds the windows only it has
-(`src/Ui/UnityMouseEvents.cs`).
+Common is one DLL for both, so seams and hooks are shared state. The planner of one release next to
+a ReDefinition of another works with the members the Common that the game keeps has. A member added
+to a hook later has a virtual default, so an adapter built against an older Common does not break.
+
+`src/ReDefinition.csproj` keeps the planner out of the player build. The developer probes in
+`src/Probe` test planner features through its internals, so they are compiled only where
+`PlannerProbes` is true, which it is unless `ReleasePackage` is true (or `-p:PlannerProbes=false`).
+There the planner project is referenced for the build order only, and `ReDefinition.dll` carries
+no reference to it. `tools/checks/check_no_planner_reference.ps1` checks that, and the release
+package runs it. Tests keep the rule: only guarded probe files name the planner.
+
+The click shield is in Common too. `WindowShield` and `DialogWindow` are used by both mods, so a
+click on a window of either does not reach the buildings, the switches or the map behind it.
+ReDefinition adds the windows only it has (`src/Ui/UnityMouseEvents.cs`).
 
 Both packages ship Common. The game keeps one DLL of a name: the one with the higher assembly
 version, and on equal versions the one in `GameData/ReDefinition/Plugins` [meas]. So a

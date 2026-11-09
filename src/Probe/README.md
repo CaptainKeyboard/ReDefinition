@@ -39,6 +39,7 @@ switches.
 
 ## Rules of the area
 
+- The probes that test the planner's features name its types, so they are compiled only where `PlannerProbes` is true: in developer builds, not in the player package (`src/ReDefinition.csproj`). Their code stands between `#if REDEFINITION_PLANNER_PROBES` lines, and a switch whose probe is compiled out says so in the log.
 - A probe does nothing without its switch. Only `ProbeSwitchReset` always runs, to turn switches off.
 - The scene probe's other switches work only with `-redefinitionProbe` (`SceneProbe.Argument`).
 - While `SceneProbe.Requested` is true, ReDefinition does not save the player's settings, so the

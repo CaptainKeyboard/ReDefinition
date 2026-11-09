@@ -289,7 +289,8 @@ holds today's default, and as the player's otherwise.
 The planner's file is `NetKAN/ReDefinitionPlanner.netkan` [open: not yet submitted]. It
 reads the planner's zip and `ReDefinitionPlanner.version`. It recommends MechJeb2 and
 ReDefinition, and installs `GameData/ReDefinitionPlanner`. ReDefinition's file installs only
-`GameData/ReDefinition` and depends on the planner, so CKAN never writes the same file twice.
+`GameData/ReDefinition` and recommends the planner, so CKAN never writes the same file twice.
+ReDefinition works without the planner.
 
 ## The CKAN metadata
 
@@ -304,7 +305,8 @@ not checked against the NetKAN repository [open].
 | `$vref` | reads `ReDefinition.version` in the zip for the KSP versions |
 | `x_netkan_trust_version_file` | takes the mod's version from that file too, so it reads the project's version and not the tag's `v` in front of it |
 | `license` | `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation and denoiser runtimes |
-| `depends` | `ReDefinitionPlanner`, which the full zip carries but CKAN installs from its own package, and `Harmony2`, which ReDefinition requires to load |
+| `depends` | `Harmony2`, which ReDefinition requires to load |
+| `recommends` | `ReDefinitionPlanner`, which the full zip carries but CKAN installs from its own package. ReDefinition works without it |
 | `install` | `GameData/ReDefinition` into `GameData`; `dxgi.dll`, AMD's two runtimes and the licences into `GameRoot` |
 
 CKAN has no identifier for the Modding and Linking Exceptions. They are in `LICENSE` and
@@ -331,8 +333,9 @@ tags:
   - graphics
   - library
 depends:
-  - name: ReDefinitionPlanner
   - name: Harmony2
+recommends:
+  - name: ReDefinitionPlanner
 supports:
   - name: Scatterer
   - name: EnvironmentalVisualEnhancements

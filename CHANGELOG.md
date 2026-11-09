@@ -11,6 +11,8 @@
   as before. Without it, the planner keeps two switches of its own under *Planner Settings* in
   the *Live* menu, and leaves out the hooks that need Harmony, each with a line in `KSP.log`.
   Both packages ship `ReDefinition.Common.dll`; the game keeps the one with the higher version.
+  Neither mod needs the other: without the planner, ReDefinition shows no guidance gauge, no
+  burn overlay on the navball and no planner rows on the dashboard, and all else stays.
   How it works: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
 - **Intel XeSS files.** A *Download ...* button under *Display* fetches Intel's
   `libxess.dll`, `libxess_fg.dll` and `libxell.dll` from Intel's release of the XeSS SDK
