@@ -106,10 +106,22 @@ namespace Surface
         // The catalogue of other mods' code the build was checked against: the mods and what each is used for.
         private static void Foreign(Assembly build, SortedDictionary<string, string> lines)
         {
+            const BindingFlags statics = BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
             Type catalogue = build.GetType("ReDefinition.Core.ForeignAssumptions");
-            FieldInfo all = catalogue == null ? null : catalogue.GetField("All", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+            PropertyInfo all = catalogue == null ? null : catalogue.GetProperty("All", statics);
             if (all == null) return;
-            foreach (object assumption in (IEnumerable)all.GetValue(null))
+            var assumptions = new List<object>();
+            foreach (object assumption in (IEnumerable)all.GetValue(null, null)) assumptions.Add(assumption);
+            // The planner's own entries join the catalogue when the planner registers them in the game; here they are read from its DLL beside the build.
+            string plannerPath = Path.Combine(Path.GetDirectoryName(build.Location), "ReDefinition.Planner.dll");
+            if (File.Exists(plannerPath))
+            {
+                Type planner = Assembly.LoadFrom(plannerPath).GetType("ReDefinition.Planner.PlannerAssumptions");
+                FieldInfo own = planner == null ? null : planner.GetField("All", statics);
+                if (own != null)
+                    foreach (object assumption in (IEnumerable)own.GetValue(null)) assumptions.Add(assumption);
+            }
+            foreach (object assumption in assumptions)
             {
                 Type type = assumption.GetType();
                 string id = Convert.ToString(Member(type, "Id", assumption), CultureInfo.InvariantCulture);

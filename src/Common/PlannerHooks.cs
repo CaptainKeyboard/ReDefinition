@@ -8,5 +8,7 @@ namespace ReDefinition.Core
         public static RouteHook Routes;
         public static EditorPlanHook EditorPlan;
         public static DryMarksHook DryMarks;
+        // What the planner takes for granted about MechJeb's and Parsek's code, for the host's report of such assumptions.
+        internal static ForeignAssumption[] ExtraAssumptions;
     }
 }

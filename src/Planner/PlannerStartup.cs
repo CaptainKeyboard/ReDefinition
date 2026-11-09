@@ -15,6 +15,7 @@ namespace ReDefinition.Planner
             if (PlannerHooks.Routes == null) PlannerHooks.Routes = new RouteAdapter();
             if (PlannerHooks.EditorPlan == null) PlannerHooks.EditorPlan = new EditorPlanAdapter();
             if (PlannerHooks.DryMarks == null) PlannerHooks.DryMarks = new DryMarksAdapter();
+            if (PlannerHooks.ExtraAssumptions == null) PlannerHooks.ExtraAssumptions = PlannerAssumptions.All;
             if (!HostSeams.StandsAlone()) return;
             HostSeams.BackgroundRoute = () => { PlannerSettings.Load(); return PlannerSettings.BackgroundRoute; };
             HostSeams.WorldButtons = () => { PlannerSettings.Load(); return PlannerSettings.WorldButtons; };

@@ -712,8 +712,15 @@ namespace ReDefinition.Core
             ToolbarLoadingScreen, MechJebLoadingScreen, ToolbarControlButtons, PersistentRotationButton,
         };
 
-        // The whole catalogue: these, then the planner's.
-        public static readonly ForeignAssumption[] All = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(Own, ReDefinition.Planner.PlannerAssumptions.All));
+        // The whole catalogue: these, then the planner's where the planner has registered its own (PlannerHooks.ExtraAssumptions).
+        public static ForeignAssumption[] All
+        {
+            get
+            {
+                ForeignAssumption[] extra = PlannerHooks.ExtraAssumptions;
+                return extra == null ? Own : System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(Own, extra));
+            }
+        }
 
         // The installed mods' assumptions, in the catalogue's order.
         public static List<ForeignAssumption> Installed()

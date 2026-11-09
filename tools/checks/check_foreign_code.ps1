@@ -34,7 +34,14 @@ foreach ($f in [IO.Directory]::GetFiles($gameData, '*.dll', [IO.SearchOption]::A
 
 $mod = [Reflection.Assembly]::LoadFrom([IO.Path]::Combine($repo, 'build\ReDefinition.dll'))
 $catalogue = $mod.GetType('ReDefinition.Core.ForeignAssumptions', $true)
-$all = $catalogue.GetField('All', [Reflection.BindingFlags]'Static, Public, NonPublic').GetValue($null)
+$member = [Reflection.BindingFlags]'Static, Public, NonPublic'
+$all = @($catalogue.GetProperty('All', $member).GetValue($null, $null))
+# The planner's own entries join the catalogue when the planner registers them in the game; here they are read from its DLL.
+$plannerDll = [IO.Path]::Combine($repo, 'build\ReDefinition.Planner.dll')
+if ([IO.File]::Exists($plannerDll)) {
+    $planner = [Reflection.Assembly]::LoadFrom($plannerDll)
+    $all += @($planner.GetType('ReDefinition.Planner.PlannerAssumptions', $true).GetField('All', $member).GetValue($null))
+}
 $flags = [Reflection.BindingFlags]'Instance, Public, NonPublic'
 # The value of a property, or else of a field, of that name on the object, public or not.
 function Get($object, $name) {
