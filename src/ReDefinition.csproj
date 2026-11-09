@@ -270,6 +270,8 @@
   <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile;PackageIcueWidget"
           Condition="'$(DeployToGameData)' == 'true' And Exists('$(KspGameData)')">
     <MakeDir Directories="$(KspGameData)\$(ModName)\Plugins;$(KspGameData)\$(PlannerName)\Plugins" />
+    <!-- The planner's DLL stands in its own folder only: a second copy of the same assembly version would be kept as often as the new one. -->
+    <Delete Files="$(KspGameData)\$(ModName)\Plugins\ReDefinition.Planner.dll" />
     <!-- Both packages carry the common DLL; the game keeps the one with the higher assembly version (AssemblyLoader.FlagDuplicatedPlugins). -->
     <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(KspGameData)\$(PlannerName)\Plugins" />
