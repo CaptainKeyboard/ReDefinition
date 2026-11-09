@@ -11,7 +11,7 @@
          assembly version is what the game compares, so it changes only when Common does. -->
     <PlannerName>ReDefinitionPlanner</PlannerName>
     <PlannerVersion>0.1.3</PlannerVersion>
-    <CommonVersion>0.1.7</CommonVersion>
+    <CommonVersion>0.1.8</CommonVersion>
   </PropertyGroup>
 
 </Project>

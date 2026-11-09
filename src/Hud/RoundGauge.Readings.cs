@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Planner.Autopilot;
-using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using ReDefinition.Hud.Panel;
 using ReDefinition.Hud.Readouts;
@@ -18,11 +16,12 @@ namespace ReDefinition.Hud
         // the way to a target.
         private static GaugeMode ForSituation(ReadoutFrame frame)
         {
-            if (GuidanceBoard.Current(frame.Vessel) && GuidanceBoard.HasBar)
+            GuidanceHook board = Board(frame.Vessel);
+            if (board != null)
             {
                 // The landing is a manoeuvre: the countdown to its burn, as for any. Once the guidance asks for thrust, or the burn is due, the bar.
                 ManeuverNode brake = Node(frame.Vessel);
-                bool throttleAsked = GuidanceBoard.HasThrottle && GuidanceBoard.Throttle > 0.02;
+                bool throttleAsked = board.HasThrottle && board.Throttle > 0.02;
                 if (brake != null && !throttleAsked && UntilBurn(brake, frame) > 0.0) return GaugeMode.Burn;
                 return GaugeMode.Guidance;
             }
@@ -56,8 +55,16 @@ namespace ReDefinition.Hud
         // to be given, and over it where less is wanted. Without a speed to hold, it is the bar the board has.
         private static GaugeReading GuidanceReading(ReadoutFrame frame)
         {
-            if (!GuidanceBoard.Current(frame.Vessel) || !GuidanceBoard.HasBar) return null;
-            return new GaugeReading { Text = GuidanceBoard.NumberText, Fill = GuidanceBoard.Arc, Mark = GuidanceBoard.MarkAt, Level = GuidanceBoard.Level };
+            GuidanceHook board = Board(frame.Vessel);
+            if (board == null) return null;
+            return new GaugeReading { Text = board.NumberText, Fill = board.Arc, Mark = board.MarkAt, Level = board.Level };
+        }
+
+        // The planner's guidance where it has a bar for this vessel now; null without the planner or without a bar.
+        private static GuidanceHook Board(Vessel vessel)
+        {
+            GuidanceHook board = PlannerHooks.Guidance;
+            return board != null && board.Current(vessel) && board.HasBar ? board : null;
         }
 
         // The stage as KSP's delta-v simulation has it (DeltaVStageInfo:
@@ -104,7 +111,7 @@ namespace ReDefinition.Hud
         // The first manoeuvre node planned; null for none.
         private static ManeuverNode Node(Vessel vessel)
         {
-            return ReDefinition.Planner.Autopilot.Guidance.GuideNode.First(vessel);
+            return StockNodes.FirstOf(vessel);
         }
 
         // The next node. Before its burn, the time until the burn starts, half its

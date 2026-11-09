@@ -4,7 +4,6 @@ using System.Reflection;
 using KSP.UI;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Flight;
-using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -13,7 +12,7 @@ namespace ReDefinition.Hud
     // The gauge right of the navball that the game shows for a maneuver burn shows the navigation's speed in a climb or a descent. The mark in the
     // middle stands for the speed asked for. The bar stands under it where thrust is to be given and over it where less is wanted, and it follows where the
     // speed will be in a few seconds, so that the player sees it coming. The number says how many m/s the speed is over the one asked for or short of
-    // it, and the colour says which way and how far. The navigation's maneuver is a node of the vessel (GuideNode). The game's gauge shows it with its
+    // it, and the colour says which way and how far. The navigation's maneuver is a node of the vessel (the guide node of the planner). The game's gauge shows it with its
     // own texts and buttons, the X button among them. Only the bar, the number and the colour are the navigation's. Where the vessel has no solver for
     // nodes the gauge is shown without the game's help. With a node of the player's own the game's own burn is shown.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
@@ -76,8 +75,9 @@ namespace ReDefinition.Hud
             {
                 guiding = false;
                 Vessel vessel = FlightGlobals.ActiveVessel;
-                bool board = FlightGlobals.ready && vessel != null && GuidanceBoard.Current(vessel) && GuidanceBoard.HasBar && Expanded(__instance);
-                if (board && GuideNode.Holds(vessel))
+                GuidanceHook hook = PlannerHooks.Guidance;
+                bool board = hook != null && FlightGlobals.ready && vessel != null && hook.Current(vessel) && hook.HasBar && Expanded(__instance);
+                if (board && hook.HoldsNode(vessel))
                 {
                     guiding = true;
                     return true;
@@ -117,7 +117,7 @@ namespace ReDefinition.Hud
                 KSP.UI.Screens.HelixGauge gauge = __instance.deltaVGauge;
                 driven = __instance;
                 Paint(__instance, gauge);
-                if (__instance.readoutText != null) __instance.readoutText.text = GuidanceBoard.NumberText;
+                if (__instance.readoutText != null) __instance.readoutText.text = Hook.NumberText;
                 if (__instance.ebtText != null) __instance.ebtText.enabled = false;
                 if (__instance.TdnText != null) __instance.TdnText.enabled = false;
                 if (__instance.sbtText != null) __instance.sbtText.enabled = false;
@@ -136,7 +136,14 @@ namespace ReDefinition.Hud
         // The game's marks of the stages that would burn the node: there are none for the navigation's, whose burn is not a burn to time.
         private static bool SkipMarkers()
         {
-            return !GuideNode.Holds(FlightGlobals.ActiveVessel);
+            GuidanceHook hook = PlannerHooks.Guidance;
+            return hook == null || !hook.HoldsNode(FlightGlobals.ActiveVessel);
+        }
+
+        // The planner's guidance. The bar is only driven while there is one, so the callers below never see it empty.
+        private static GuidanceHook Hook
+        {
+            get { return PlannerHooks.Guidance; }
         }
 
         // The bar, its colour and the mark in the middle.
@@ -160,7 +167,7 @@ namespace ReDefinition.Hud
         // Where the bar is to stand, 0 to 1, with the mark at a half. Under the mark thrust is to be given, over it less is wanted.
         private static float Wanted()
         {
-            return (float)GuidanceBoard.Arc;
+            return (float)Hook.Arc;
         }
 
         // The bar moves towards where it is to stand, a part of the way in every frame.
@@ -189,10 +196,11 @@ namespace ReDefinition.Hud
         private static Color Tint()
         {
             // The bar sliding off at the end of the guidance is no call for thrust.
-            if (GuidanceBoard.Done) return untinted;
+            GuidanceHook hook = Hook;
+            if (hook.Done) return untinted;
             double need = 1.0 - 2.0 * shown;
-            if (Math.Abs(need) < GuidanceBoard.OnTarget) return untinted;
-            float share = (float)Math.Min(1.0, (Math.Abs(need) - GuidanceBoard.OnTarget) / (GuidanceBoard.FullColour - GuidanceBoard.OnTarget));
+            if (Math.Abs(need) < hook.OnTarget) return untinted;
+            float share = (float)Math.Min(1.0, (Math.Abs(need) - hook.OnTarget) / (hook.FullColour - hook.OnTarget));
             return need > 0.0 ? Color.Lerp(MoreFrom, MoreTo, share) : Color.Lerp(LessFrom, LessTo, share);
         }
 
@@ -222,13 +230,13 @@ namespace ReDefinition.Hud
                 mark.ToggleOffsetMarker(true);
             }
             mark.maxValue = gauge.MaxValue;
-            mark.SetValue((float)GuidanceBoard.MarkAt);
+            mark.SetValue((float)Hook.MarkAt);
         }
 
         // The number on the gauge. The buttons beside it are for a node, which there is none of.
         private static void Readout(NavBallBurnVector vector)
         {
-            if (vector.readoutText != null) vector.readoutText.text = GuidanceBoard.NumberText;
+            if (vector.readoutText != null) vector.readoutText.text = Hook.NumberText;
             if (vector.btnAccept != null) vector.btnAccept.gameObject.SetActive(false);
             if (vector.btnDismiss != null) vector.btnDismiss.gameObject.SetActive(false);
             if (vector.btnWarpTo != null) vector.btnWarpTo.gameObject.SetActive(false);
@@ -238,8 +246,8 @@ namespace ReDefinition.Hud
         // The navball's blue marker of a burn stands where the navigation asks the nose to point, as it stands on a node's burn.
         private static void Direct(NavBallBurnVector vector)
         {
-            if (!GuidanceBoard.HasDirection || DirectionField == null || PlaceMarker == null) return;
-            DirectionField.SetValue(vector, (Vector3)GuidanceBoard.Direction);
+            if (!Hook.HasDirection || DirectionField == null || PlaceMarker == null) return;
+            DirectionField.SetValue(vector, (Vector3)Hook.Direction);
             PlaceMarker.Invoke(vector, null);
         }
 

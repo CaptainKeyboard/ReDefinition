@@ -3,7 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using KSP.UI.Screens.Flight;
-using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using ReDefinition.Hud.Readouts;
 using ReDefinition.Ui;

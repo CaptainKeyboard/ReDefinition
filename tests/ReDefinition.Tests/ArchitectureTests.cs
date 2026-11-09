@@ -27,11 +27,12 @@ namespace ReDefinition.Tests
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
             ["Common"] = "Core Ui",
             ["Core"] = "",
-            ["Dashboard"] = "Autopilot Core Engineer Modules",
+            ["Dashboard"] = "Core Engineer Modules",
+            ["Hooks"] = "Autopilot Core Engineer",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
             ["Engineer"] = "Autopilot Core PlannerHud Planner Ui",
             ["Fsr3"] = "Upscaler",
-            ["Hud"] = "Autopilot Core Modules Ui Window",
+            ["Hud"] = "Core Modules Ui Window",
             ["PlannerHud"] = "Autopilot Core Engineer Planner Ui",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Migration"] = "",
@@ -136,7 +137,7 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void ThePlannerSideUsesNothingOfReDefinitionBeyondCoreAndUi()
         {
-            var plannerSide = new HashSet<string> { "Planner", "Autopilot", "Engineer", "Landing", "Orbits", "PlannerHud", "Common" };
+            var plannerSide = new HashSet<string> { "Planner", "Autopilot", "Engineer", "Landing", "Orbits", "PlannerHud", "Hooks", "Common" };
             var fine = new HashSet<string>(plannerSide) { "Core", "Ui" };
             var found = Edges.Value.Where(e => plannerSide.Contains(e.Key.Item1) && !fine.Contains(e.Key.Item2))
                 .Select(e => e.Key.Item1 + " uses " + e.Key.Item2 + " (" + e.Value + ")").ToList();

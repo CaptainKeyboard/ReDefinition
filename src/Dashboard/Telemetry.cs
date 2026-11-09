@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using KSP.UI.Screens;
-using ReDefinition.Planner.Autopilot;
-using ReDefinition.Planner.Autopilot.Guidance;
-using ReDefinition.Planner.Engineer;
+using ReDefinition.Core;
 using UnityEngine;
 
 namespace ReDefinition.Dashboard
@@ -180,15 +178,16 @@ namespace ReDefinition.Dashboard
             // The navigation: where it asks the nose to point (given as n.maneuver is), the throttle it asks for, the bar of the round gauge with its
             // text and level, and the line that says what to do. All are null while it has nothing for this vessel. g.route is what the route is
             // doing, with g.navigation and g.autopilot for the two switches.
-            readers["n.guide"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasDirection ? Local(v, GuidanceBoard.Direction) : null;
-            readers["g.line"] = (v, a) => GuidanceBoard.Current(v) ? GuidanceBoard.Line : null;
-            readers["g.throttle"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasThrottle ? (object)GuidanceBoard.Throttle : null;
-            readers["g.barFill"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.Arc : null;
-            readers["g.barText"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? GuidanceBoard.NumberText : null;
-            readers["g.barLevel"] = (v, a) => GuidanceBoard.Current(v) && GuidanceBoard.HasBar ? (object)GuidanceBoard.Level : null;
-            readers["g.route"] = (v, a) => RouteDriver.Instance != null && RouteDriver.Instance.Status.Length > 0 ? RouteDriver.Instance.Status : null;
-            readers["g.navigation"] = (v, a) => RouteState.Of(v) != null && RouteState.Of(v).Navigation;
-            readers["g.autopilot"] = (v, a) => RouteState.Of(v) != null && RouteState.Of(v).Autopilot;
+            // Without the planner all of them are null, and the two switches are off.
+            readers["n.guide"] = (v, a) => Live(v) && PlannerHooks.Guidance.HasDirection ? Local(v, PlannerHooks.Guidance.Direction) : null;
+            readers["g.line"] = (v, a) => Live(v) ? PlannerHooks.Guidance.Line : null;
+            readers["g.throttle"] = (v, a) => Live(v) && PlannerHooks.Guidance.HasThrottle ? (object)PlannerHooks.Guidance.Throttle : null;
+            readers["g.barFill"] = (v, a) => Live(v) && PlannerHooks.Guidance.HasBar ? (object)PlannerHooks.Guidance.Arc : null;
+            readers["g.barText"] = (v, a) => Live(v) && PlannerHooks.Guidance.HasBar ? PlannerHooks.Guidance.NumberText : null;
+            readers["g.barLevel"] = (v, a) => Live(v) && PlannerHooks.Guidance.HasBar ? (object)PlannerHooks.Guidance.Level : null;
+            readers["g.route"] = (v, a) => RouteStatus();
+            readers["g.navigation"] = (v, a) => PlannerHooks.Routes != null && PlannerHooks.Routes.NavigationOn(v);
+            readers["g.autopilot"] = (v, a) => PlannerHooks.Routes != null && PlannerHooks.Routes.AutopilotOn(v);
             readers["n.steerTarget"] = (v, a) => FlyByWire.Target;       // where a navball drag turns the vessel, or null
             readers["n.steerTargetTop"] = (v, a) => FlyByWire.TargetTop; // where its top will point there, or null
             readers["n.steerAltitude"] = (v, a) => FlyByWire.TargetAltitude; // the turn is done by this altitude, or null
@@ -485,7 +484,21 @@ namespace ReDefinition.Dashboard
         // The vessel's first maneuver node, null without one or before the solver exists.
         private static ManeuverNode FirstNode(Vessel v)
         {
-            return ReDefinition.Planner.Autopilot.Guidance.GuideNode.First(v);
+            return StockNodes.FirstOf(v);
+        }
+
+        // Whether the planner's guidance wrote for this vessel a moment ago; false without the planner.
+        private static bool Live(Vessel v)
+        {
+            return PlannerHooks.Guidance != null && PlannerHooks.Guidance.Current(v);
+        }
+
+        // What the route is doing; null for nothing or without the planner.
+        private static string RouteStatus()
+        {
+            RouteHook routes = PlannerHooks.Routes;
+            string status = routes != null ? routes.Status : null;
+            return string.IsNullOrEmpty(status) ? null : status;
         }
 
         /// <summary>
