@@ -36,7 +36,6 @@ namespace ReDefinition.Hud
         // button is hidden from then on, not only once it stands.
         internal static bool Coming;
         // How many of the mod's two calls Route routed.
-
         private static int routed;
 
         // Whether the mod's own button is drawn through Toggle, which hides it while
