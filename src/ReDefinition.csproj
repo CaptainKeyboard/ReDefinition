@@ -40,6 +40,7 @@
   <ItemGroup>
     <Compile Remove="Common\**;Planner\**" />
     <ProjectReference Include="Common\ReDefinition.Common.csproj" />
+    <ProjectReference Include="Planner\ReDefinition.Planner.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -252,7 +253,7 @@
   <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile;PackageIcueWidget"
           Condition="'$(DeployToGameData)' == 'true' And Exists('$(KspGameData)')">
     <MakeDir Directories="$(KspGameData)\$(ModName)\Plugins" />
-    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll;$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(KspGameData)\$(ModName)" />
     <!-- The static GameData files of the repository (profiles and mod
          registrations), copied the way KSPCommunityFixes copies its own. What
@@ -368,7 +369,7 @@
     <Error Condition="'$(_TreeStatus)' != ''"
            Text="No release zip: the working tree has changes or untracked files, and the source that goes with the package is HEAD's. Commit first." />
 
-    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(_StageMod)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll;$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(_StageMod)\Plugins" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />

@@ -23,20 +23,21 @@ namespace ReDefinition.Tests
         // Each area and the areas it uses, space-separated.
         private static readonly Dictionary<string, string> Allowed = new Dictionary<string, string>
         {
-            ["(root)"] = "Api Core Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
+            ["(root)"] = "Api Core Hud Planner Scaling Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
             ["Common"] = "Core",
-            ["Core"] = "",
+            ["Core"] = "Planner",
             ["Dashboard"] = "Autopilot Core Engineer Modules",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
-            ["Engineer"] = "Autopilot Core Hud Scaling Ui",
+            ["Engineer"] = "Autopilot Core Hud Planner Ui",
             ["Fsr3"] = "Upscaler",
-            ["Hud"] = "Autopilot Core Engineer Modules Ui Window",
+            ["Hud"] = "Autopilot Core Engineer Planner Modules Ui Window",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Migration"] = "",
-            ["Autopilot"] = "Core Landing Orbits",
+            ["Autopilot"] = "Core Landing Orbits Planner",
             ["Landing"] = "",
             ["Orbits"] = "",
+            ["Planner"] = "Core",
             ["Modules"] = "Core Dashboard Diagnostics Hud Migration Probe Proxy Raytracing Scenery Settings Upscaler Vendor Window",
             ["Probe"] = "Autopilot Core Engineer Modules Orbits Proxy Raytracing Scenery Settings Ui Window",
             ["Proxy"] = "Core",
@@ -84,7 +85,7 @@ namespace ReDefinition.Tests
             var found = new List<string>();
             var probeName = new Regex(@"\bProbe[A-Z]\w*|ReDefinition\.Probe\b|\bCommandLine\b");
             foreach (string area in new[] { "Autopilot", "Engineer" })
-                foreach (string file in Directory.GetFiles(Path.Combine(src, area), "*.cs", SearchOption.AllDirectories))
+                foreach (string file in Directory.GetFiles(Path.Combine(src, "Planner", area), "*.cs", SearchOption.AllDirectories))
                 {
                     string name = Path.GetFileName(file);
                     if (name == "RouteTuning.cs" || name == "PlannerTiming.cs") continue;
@@ -112,6 +113,8 @@ namespace ReDefinition.Tests
             {
                 string relative = file.Substring(src.Length + 1).Replace('\\', '/');
                 if (relative.StartsWith("obj/") || relative.StartsWith("bin/") || relative.StartsWith("DxgiProxy/")) continue;
+                // The planner's folders are areas of their own, as their namespaces are.
+                if (relative.StartsWith("Planner/") && relative.IndexOf('/', 8) > 0) relative = relative.Substring(8);
                 int slash = relative.IndexOf('/');
                 string area = slash < 0 ? "(root)" : relative.Substring(0, slash);
                 string text = File.ReadAllText(file);

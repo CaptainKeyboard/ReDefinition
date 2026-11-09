@@ -67,7 +67,7 @@ namespace ReDefinition.Engineer
     }
 
     // The vessel's stages worked out as KSP's delta-v simulation does
-    // (src/Engineer/README.md), with one difference: engines that breathe air
+    // (Engineer/README.md), with one difference: engines that breathe air
     // do not burn in the stages. KSP gives them no thrust in vacuum and lets them
     // drain the liquid fuel they reach, which leaves the rockets sharing those tanks
     // nothing. Instead, where the route starts on a body with oxygen, the
@@ -528,7 +528,7 @@ namespace ReDefinition.Engineer
         }
     }
 
-    // The air-breathing engines' part of the launch (src/Engineer/README.md),
+    // The air-breathing engines' part of the launch (src/Planner/Engineer/README.md),
     // and the planner's stages with them. Free of Unity, tested.
     internal static class AirLaunch
     {

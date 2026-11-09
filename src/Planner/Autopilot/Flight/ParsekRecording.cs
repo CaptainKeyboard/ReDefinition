@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -63,7 +64,7 @@ namespace ReDefinition.Autopilot.Flight
         // Null where it was committed; else the reason it was not.
         internal static string Commit(Vessel vessel, IList<PlannedLeg> legs, double deltaV, bool takeVesselOut = false)
         {
-            if (!ForeignAssumptions.ParsekRecording.Holds) return "Parsek is not there, or is a build the recording was not checked against.";
+            if (!PlannerAssumptions.ParsekRecording.Holds) return "Parsek is not there, or is a build the recording was not checked against.";
             if (vessel == null || legs == null || legs.Count == 0) return "There is no route to record.";
             try
             {
@@ -185,7 +186,7 @@ namespace ReDefinition.Autopilot.Flight
         // So every recording made here is told to the scope from its own start, whatever the time is, when it is committed and at each scene's start.
         internal static void KeepInScope()
         {
-            if (!ForeignAssumptions.ParsekRecording.Holds) return;
+            if (!PlannerAssumptions.ParsekRecording.Holds) return;
             try
             {
                 Type store = TypeLookup.Find("Parsek.RecordingStore");
@@ -214,7 +215,7 @@ namespace ReDefinition.Autopilot.Flight
         internal static double LatestEnd()
         {
             double latest = 0.0;
-            if (!ForeignAssumptions.ParsekRecording.Holds) return latest;
+            if (!PlannerAssumptions.ParsekRecording.Holds) return latest;
             try
             {
                 Type store = TypeLookup.Find("Parsek.RecordingStore");
@@ -240,7 +241,7 @@ namespace ReDefinition.Autopilot.Flight
         private static void KeepSnapshot(Vessel vessel, ConfigNode snapshot)
         {
             string name = string.Concat(vessel.vesselName.Split(System.IO.Path.GetInvalidFileNameChars()));
-            string path = PluginData.Path(System.IO.Path.Combine("route-backups", name + "-" + Planetarium.GetUniversalTime().ToString("0") + ".cfg"));
+            string path = ModFolder.PluginFile("ReDefinitionPlanner", System.IO.Path.Combine("route-backups", name + "-" + Planetarium.GetUniversalTime().ToString("0") + ".cfg"));
             System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path));
             snapshot.Save(path);
             Debug.Log(Log.Tag + " The vessel's snapshot is kept in " + path + ".");

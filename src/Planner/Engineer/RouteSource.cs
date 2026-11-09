@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
@@ -31,7 +32,7 @@ namespace ReDefinition.Engineer
                     destination.Inclination = stop.Inclination;
                     destination.MatchPlaneWith = stop.MatchPlaneWith;
                 }
-                if (stop.MeetWith != Guid.Empty && stop.Kind == StopKind.Orbit && ForeignAssumptions.MechJebRendezvous.Holds)
+                if (stop.MeetWith != Guid.Empty && stop.Kind == StopKind.Orbit && PlannerAssumptions.MechJebRendezvous.Holds)
                 {
                     destination.MeetWith = stop.MeetWith;
                     destination.Dock = stop.Dock;
@@ -53,7 +54,7 @@ namespace ReDefinition.Engineer
             Vessel vessel = target != null ? target.GetVessel() : null;
             Destination last = route[route.Count - 1];
             if (last.MeetWith != Guid.Empty) return;
-            if (!ForeignAssumptions.MechJebRendezvous.Holds) return;
+            if (!PlannerAssumptions.MechJebRendezvous.Holds) return;
             if (vessel == null || last.Surface || last.Body == null || vessel.mainBody != last.Body || vessel == FlightGlobals.ActiveVessel) return;
             // Only a vessel in an orbit can be met.
             if (vessel.orbit == null || vessel.orbit.eccentricity >= 1.0 || vessel.LandedOrSplashed) return;

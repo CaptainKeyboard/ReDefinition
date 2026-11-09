@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using System.Reflection;
 using ReDefinition.Autopilot.Flight;
@@ -34,10 +35,10 @@ namespace ReDefinition.Hud
             string state = MechJebDriver.State(vessel);
             string line = "";
             if (state != null && state != "IDLE") line = NodePhase(vessel, state, now);
-            bool known = ForeignAssumptions.MechJebActivity.Holds;
+            bool known = PlannerAssumptions.MechJebActivity.Holds;
             if (line.Length == 0 && known && MechJebDriver.RendezvousBusy(vessel)) line = StatusOf(vessel, "MechJebModuleRendezvousAutopilot", "Rendezvous");
             if (line.Length == 0 && known && MechJebDriver.DockingBusy(vessel)) line = StatusOf(vessel, "MechJebModuleDockingAutopilot", "Docking");
-            if (!ForeignAssumptions.MechJebActivity.Holds) return line;
+            if (!PlannerAssumptions.MechJebActivity.Holds) return line;
             string warp = WarpTarget(vessel, now);
             if (warp.Length > 0 && line.IndexOf("Warping", StringComparison.Ordinal) < 0) line = line.Length > 0 ? line + "; " + warp : warp;
             return line;

@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
 using ReDefinition.Autopilot.Planning;
@@ -99,7 +100,7 @@ namespace ReDefinition.Engineer
             var anchor = new Vector2(0.2f, 0.72f);
             shown = PopupDialog.SpawnPopupDialog(anchor, anchor, dialog, false, HighLogic.UISkin, false);
             PlaceUnderButton();
-            UnityMouseEvents.Shield(ScreenFit.Add(shown));
+            PlannerSeams.ShieldDialog(ScreenFit.Add(shown));
             UiHygiene.MouseOnly(shown.gameObject);
         }
 

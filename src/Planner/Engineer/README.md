@@ -7,14 +7,14 @@ planner that lays out a route and shares the vessel's stages over its legs.
 
 | File | Read it for |
 |---|---|
-| `src/Engineer/EditorEngineer.cs` | The entry: the planner's button, the mode, and when the vessel is read. |
-| `src/Engineer/EditorReadout.cs` | What the planner takes of the vessel, from KSP's delta-v simulation. |
-| `src/Engineer/PlannerPanel.cs` | The panel KSP brings in and out like its own. |
-| `src/Engineer/Planner/PlannerModel.cs` | The plan held and worked out, free of dialog elements; its other parts are `PlannerModel.*.cs`. |
-| `src/Engineer/Planner/PlannerView.cs` | The rows over the model; its other parts are `PlannerView.*.cs`. |
-| `src/Engineer/Planner/PlannerState.cs` | One vessel's plan and where it is kept. |
-| `src/Engineer/Planner/RouteSteps.cs` | The steps between two stops and who flies them. |
-| `src/Engineer/Planner/StageBudget.cs` | Which stage pays for which leg. |
+| `src/Planner/Engineer/EditorEngineer.cs` | The entry: the planner's button, the mode, and when the vessel is read. |
+| `src/Planner/Engineer/EditorReadout.cs` | What the planner takes of the vessel, from KSP's delta-v simulation. |
+| `src/Planner/Engineer/PlannerPanel.cs` | The panel KSP brings in and out like its own. |
+| `src/Planner/Engineer/Planner/PlannerModel.cs` | The plan held and worked out, free of dialog elements; its other parts are `PlannerModel.*.cs`. |
+| `src/Planner/Engineer/Planner/PlannerView.cs` | The rows over the model; its other parts are `PlannerView.*.cs`. |
+| `src/Planner/Engineer/Planner/PlannerState.cs` | One vessel's plan and where it is kept. |
+| `src/Planner/Engineer/Planner/RouteSteps.cs` | The steps between two stops and who flies them. |
+| `src/Planner/Engineer/Planner/StageBudget.cs` | Which stage pays for which leg. |
 
 ## What it does
 
@@ -43,8 +43,8 @@ planner that lays out a route and shares the vessel's stages over its legs.
   `Planner/PlannerView.Dashboard.cs` hands the view's calls on to it.
 
 The area is a stop on [The features on screen](../../docs/development/flow-game-ui.md).
-More: [the planner's place in the editor](../../src/Engineer/README.md) and
-[the planner](../../src/Engineer/README.md).
+More: [the planner's place in the editor](../../src/Planner/Engineer/README.md) and
+[the planner](../../src/Planner/Engineer/README.md).
 
 ## What it uses and what uses it
 
@@ -57,8 +57,8 @@ Dashboard and Hud name it.
   the staging stack never disagree.
 - The vessel is read at most once in `EditorEngineer.RefreshInterval`, so that a change and the
   simulation it starts make one or two reads.
-- The sums are free of Unity and tested: `src/Engineer/EngineerFormat.cs`,
-  `src/Engineer/StageTable.cs`, `src/Engineer/Planner/RoutePlanner.cs` and the files `BurnCheck`,
+- The sums are free of Unity and tested: `src/Planner/Engineer/EngineerFormat.cs`,
+  `src/Planner/Engineer/StageTable.cs`, `src/Planner/Engineer/Planner/RoutePlanner.cs` and the files `BurnCheck`,
   `ClampedLaunch`, `SectionRcs`, `StageBudget`, `StageSim` and `VesselShape` in `Planner`. So is
   the plan's model: `PlannerModel`, `PlanSections`, `PlanThrust`, `PlanFuel` and `PlannerDashboard`
   hold no dialog elements, and the view only builds rows from them.

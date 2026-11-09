@@ -149,7 +149,7 @@ namespace ReDefinition.Engineer
     }
 
     // Which of the vessel's stages pays for which step of the route
-    // (src/Engineer/README.md). Worked out on the mass the stages push, so
+    // (src/Planner/Engineer/README.md). Worked out on the mass the stages push, so
     // that a stage burning over several steps, or a lander that lands, returns and
     // is carried on to the next body, counts with what it weighs at that moment.
     //
@@ -161,9 +161,8 @@ namespace ReDefinition.Engineer
     // fires goes. A group gone for good takes its stages with what they hold; a group
     // deployed stays at the step's destination with what it weighs.
     //
-    // After a step marked for it, a group, docked again, is refilled from the rest:
-    // each of its stages up to what it held at the start, from the rest's stages: the
-    // one the player names first, then KSP's order. Free of Unity, tested.
+    // After a step marked for it, a group, docked again, is refilled from the rest: each stage up to what it held at the start,
+    // the one the player names first, then KSP's order. Free of Unity, tested.
     internal static class StageBudget
     {
         // One stage's part in one step.

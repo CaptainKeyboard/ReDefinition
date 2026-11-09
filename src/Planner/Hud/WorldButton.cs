@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using KSP.UI;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
@@ -125,7 +126,7 @@ namespace ReDefinition.Hud
         {
             // Again once the space centre's button is held, where the fallback
             // stood till then.
-            KscButtons.Look states = ksc != null ? KscButtons.Get(ksc) : null;
+            SpaceCentreLook states = ksc != null ? PlannerSeams.SpaceCentreButton(ksc) : null;
             if (look == ksc && face.sprite != null && (states == null || kscLook)) return;
             if (states != null)
             {
@@ -216,8 +217,8 @@ namespace ReDefinition.Hud
         // though they stand in the world.
         private static bool InterfaceShows()
         {
-            ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-            if (addon != null && !addon.Live.WorldButtons) return false;
+            
+            if (!PlannerSeams.WorldButtons()) return false;
             UIMasterController ui = UIMasterController.Instance;
             return ui == null || ui.IsUIShowing;
         }

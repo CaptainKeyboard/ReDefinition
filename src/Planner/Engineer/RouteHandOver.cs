@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot;
@@ -21,8 +22,8 @@ namespace ReDefinition.Engineer
         {
             get
             {
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                return addon == null || addon.Live.BackgroundRoute;
+                
+                return PlannerSeams.BackgroundRoute();
             }
         }
 

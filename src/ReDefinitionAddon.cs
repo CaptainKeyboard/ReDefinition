@@ -66,6 +66,7 @@ namespace ReDefinition
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
+            PlannerLink.Connect();
             config = new SettingsController(raytracing);
             rigs = new RigLifecycle(this, config, rates);
             config.Connect(rigs);

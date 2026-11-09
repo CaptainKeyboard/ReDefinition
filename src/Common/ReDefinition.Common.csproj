@@ -42,7 +42,6 @@
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(KspManaged)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(KspManaged)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.ImageConversionModule"><HintPath>$(KspManaged)\UnityEngine.ImageConversionModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Unity.TextMeshPro"><HintPath>$(KspManaged)\Unity.TextMeshPro.dll</HintPath><Private>false</Private></Reference>
     <!-- Named only inside HarmonyHooks.InstallPatches, which runs only where Harmony is loaded. -->
     <Reference Include="0Harmony"><HintPath>$(KspGameData)\000_Harmony\0Harmony.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>

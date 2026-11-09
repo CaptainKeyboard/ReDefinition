@@ -131,7 +131,7 @@ namespace ReDefinition.Engineer
         {
             try
             {
-                string path = PluginData.Path(FileName);
+                string path = ModFolder.PluginFile("ReDefinitionPlanner", FileName);
                 if (!File.Exists(path)) return Default(bodies);
                 ConfigNode root = ConfigNode.Load(path);
                 if (root == null) return Default(bodies);
@@ -154,7 +154,7 @@ namespace ReDefinition.Engineer
         {
             try
             {
-                string path = PluginData.Path(FileName);
+                string path = ModFolder.PluginFile("ReDefinitionPlanner", FileName);
                 ConfigNode root = File.Exists(path) ? ConfigNode.Load(path) ?? new ConfigNode() : new ConfigNode();
                 // The plans saved last are at the end; the oldest go first.
                 List<ConfigNode> others = new List<ConfigNode>();

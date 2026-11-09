@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReDefinition.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Scaling;
+using ReDefinition.Planner;
 using UnityEngine;
 using Vectrosity;
 
@@ -148,7 +148,7 @@ namespace ReDefinition.Engineer
         {
             var points = new List<Vector3>(Samples);
             for (int i = 0; i < Samples; i++) points.Add(Vector3.zero);
-            var line = new VectorLine(name, points, OrbitWidth * UiScaling.World, LineType.Continuous);
+            var line = new VectorLine(name, points, OrbitWidth * PlannerSeams.WorldScale(), LineType.Continuous);
             Material material = MapView.OrbitLinesMaterial;
             if (material != null)
             {
@@ -205,7 +205,7 @@ namespace ReDefinition.Engineer
             if (leg.Line == null) leg.Line = MakeLine(leg.Name, leg.Color);
             leg.Mode = mode;
             VectorLine line = leg.Line;
-            float width = OrbitWidth * UiScaling.World;
+            float width = OrbitWidth * PlannerSeams.WorldScale();
             if (Mathf.Abs(line.lineWidth - width) > 0.01f) line.lineWidth = width;
             // The layer in both modes; the transform is cleared in 3D only, where the mesh is made of absolute scaled-space points. In 2D
             // the line belongs to Vectrosity's canvas, which is left alone.

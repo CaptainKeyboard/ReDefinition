@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using ReDefinition.Autopilot;
 using ReDefinition.Landing;
@@ -145,7 +146,7 @@ namespace ReDefinition.Autopilot.Guidance
         {
             get
             {
-                string version = ReDefinition.Core.ForeignAssumptions.MechJebAutopilot.Version;
+                string version = PlannerAssumptions.MechJebAutopilot.Version;
                 return version != null && version.StartsWith("2.16") ? 300.0 : 200.0;
             }
         }

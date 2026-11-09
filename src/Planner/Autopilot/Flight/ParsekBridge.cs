@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using System.Reflection;
 using UnityEngine;
@@ -20,7 +21,7 @@ namespace ReDefinition.Autopilot.Flight
             get
             {
                 // The first of the things taken from Parsek that does not hold names the problem; the others fail alone, each to its own fallback.
-                foreach (ForeignAssumption assumption in new[] { ForeignAssumptions.ParsekGhost, ForeignAssumptions.ParsekRecorder, ForeignAssumptions.ParsekStart, ForeignAssumptions.ParsekRecording })
+                foreach (ForeignAssumption assumption in new[] { PlannerAssumptions.ParsekGhost, PlannerAssumptions.ParsekRecorder, PlannerAssumptions.ParsekStart, PlannerAssumptions.ParsekRecording })
                 {
                     if (assumption.State == ForeignState.Absent || assumption.Holds) continue;
                     return "Parsek " + assumption.Version + " is not a build the autopilot was checked against (" + assumption.Problem + "): " + assumption.Fallback + ".";
@@ -51,7 +52,7 @@ namespace ReDefinition.Autopilot.Flight
         {
             get
             {
-                if (!ForeignAssumptions.ParsekRecorder.Holds) return null;
+                if (!PlannerAssumptions.ParsekRecorder.Holds) return null;
                 if (!lookedAtRecorder)
                 {
                     lookedAtRecorder = true;
@@ -88,7 +89,7 @@ namespace ReDefinition.Autopilot.Flight
         internal static bool StartRecording()
         {
             started = false;
-            if (!ForeignAssumptions.ParsekStart.Holds || RouteTuning.NoParsekRecording) return false;
+            if (!PlannerAssumptions.ParsekStart.Holds || RouteTuning.NoParsekRecording) return false;
             try
             {
                 Type flight = TypeLookup.Find("Parsek.ParsekFlight");
@@ -138,7 +139,7 @@ namespace ReDefinition.Autopilot.Flight
         // Whether the vessel is one of Parsek's ghosts. False without Parsek, or with a build the bridge was not checked against.
         internal static bool IsGhost(Vessel vessel)
         {
-            if (vessel == null || !ForeignAssumptions.ParsekGhost.Holds) return false;
+            if (vessel == null || !PlannerAssumptions.ParsekGhost.Holds) return false;
             if (!looked)
             {
                 looked = true;

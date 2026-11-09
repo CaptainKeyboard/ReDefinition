@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -43,8 +44,8 @@ namespace ReDefinition.Hud
         private IEnumerator Start()
         {
             float until = Time.unscaledTime + 15f;
-            while (Time.unscaledTime < until && (TimeWarpButton.Label() == null || RouteDriver.Instance == null)) yield return null;
-            TextMeshProUGUI label = TimeWarpButton.Label();
+            while (Time.unscaledTime < until && (WarpLabel.Find() == null || RouteDriver.Instance == null)) yield return null;
+            TextMeshProUGUI label = WarpLabel.Find();
             lit = IconSprites.Load("ReDefinition/Icons/Live_On");
             dark = IconSprites.Load("ReDefinition/Icons/Live_Off");
             Canvas canvas = label != null ? label.GetComponentInParent<Canvas>() : null;

@@ -1,3 +1,4 @@
+using ReDefinition.Planner;
 using System;
 using System.Reflection;
 using ReDefinition.Core;
@@ -22,7 +23,7 @@ namespace ReDefinition.Autopilot.Flight
         {
             get
             {
-                if (!ForeignAssumptions.MechJebAutopilot.Holds) return false;
+                if (!PlannerAssumptions.MechJebAutopilot.Holds) return false;
                 if (masterOf != null) return true;
                 Type extensions = TypeLookup.Find("MuMech.VesselExtensions");
                 Type core = TypeLookup.Find("MuMech.MechJebCore");
@@ -175,7 +176,7 @@ namespace ReDefinition.Autopilot.Flight
         // autowarp. It ends by itself; whether it met the target is judged apart.
         internal static bool StartRendezvous(Vessel vessel, Vessel target)
         {
-            if (!ForeignAssumptions.MechJebRendezvous.Holds) return false;
+            if (!PlannerAssumptions.MechJebRendezvous.Holds) return false;
             object module = ComputerModule(vessel, "MechJebModuleRendezvousAutopilot");
             object executor = Executor(vessel);
             if (module == null || executor == null || !SetTarget(vessel, target)) return false;
@@ -305,7 +306,7 @@ namespace ReDefinition.Autopilot.Flight
 
         internal static bool StartDocking(Vessel vessel, Vessel targetVessel, uint targetPort)
         {
-            if (!ForeignAssumptions.MechJebRendezvous.Holds) return false;
+            if (!PlannerAssumptions.MechJebRendezvous.Holds) return false;
             object module = ComputerModule(vessel, "MechJebModuleDockingAutopilot");
             ModuleDockingNode target = null;
             ModuleDockingNode own = null;

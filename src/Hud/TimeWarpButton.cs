@@ -35,9 +35,8 @@ namespace ReDefinition.Hud
         // The copy is being made in this scene (TimeWarpBar.Start): the mod's toolbar
         // button is hidden from then on, not only once it stands.
         internal static bool Coming;
-        private static TextMeshProUGUI label;
-        // The warp row's label once found, when it was last looked for, and how many of the mod's two calls Route routed.
-        private static float lookedAt = -10f;
+        // How many of the mod's two calls Route routed.
+
         private static int routed;
 
         // Whether the mod's own button is drawn through Toggle, which hides it while
@@ -187,12 +186,7 @@ namespace ReDefinition.Hud
         // The warp row's label, looked for again a second after it was not found.
         internal static TextMeshProUGUI Label()
         {
-            if (label != null) return label;
-            if (Time.unscaledTime - lookedAt < 1f) return null;
-            lookedAt = Time.unscaledTime;
-            foreach (TextMeshProUGUI text in Resources.FindObjectsOfTypeAll<TextMeshProUGUI>())
-                if (text != null && text.name == "Label_Warp" && text.gameObject.scene.IsValid()) label = text;
-            return label;
+            return ReDefinition.Planner.WarpLabel.Find();
         }
     }
 }
