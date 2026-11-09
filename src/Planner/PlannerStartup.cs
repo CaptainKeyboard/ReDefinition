@@ -13,6 +13,8 @@ namespace ReDefinition.Planner
         {
             if (PlannerHooks.Guidance == null) PlannerHooks.Guidance = new GuidanceAdapter();
             if (PlannerHooks.Routes == null) PlannerHooks.Routes = new RouteAdapter();
+            if (PlannerHooks.EditorPlan == null) PlannerHooks.EditorPlan = new EditorPlanAdapter();
+            if (PlannerHooks.DryMarks == null) PlannerHooks.DryMarks = new DryMarksAdapter();
             if (!HostSeams.StandsAlone()) return;
             HostSeams.BackgroundRoute = () => { PlannerSettings.Load(); return PlannerSettings.BackgroundRoute; };
             HostSeams.WorldButtons = () => { PlannerSettings.Load(); return PlannerSettings.WorldButtons; };

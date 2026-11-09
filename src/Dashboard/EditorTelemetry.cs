@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using KSP.UI.Screens;
 using ReDefinition.Core;
-using ReDefinition.Planner.Engineer;
 using UnityEngine;
 
 namespace ReDefinition.Dashboard
@@ -11,8 +10,8 @@ namespace ReDefinition.Dashboard
     // built. It shows its parts, mass, cost and size against what the buildings allow in a career.
     // It shows its stages and their delta-v, TWR, Isp, thrust and burn time in the situation KSP's
     // delta-v app has, and its resources and crew. These are read from KSP's own delta-v simulation as the staging stack shows
-    // them. It also shows the planner (PlannerView.Dashboard.cs), its plan, its lists and its
-    // changes. It reads in the editors only.
+    // them. Where the planner is installed it also shows the planner (PlannerHooks.EditorPlan), its plan, its lists and its
+    // changes; without it those keys answer nothing. It reads in the editors only.
     internal sealed class EditorTelemetry
     {
         // The vessel read again at most this often: KSP's simulation runs by itself as it changes.
@@ -51,9 +50,9 @@ namespace ReDefinition.Dashboard
         // e.plan: the planner's latest snapshot; null where the editor has no planner.
         internal object Plan()
         {
-            PlannerView planner = Planner();
-            if (planner == null) return null;
-            Dictionary<string, object> shot = planner.Snapshot();
+            EditorPlanHook planner = Planner();
+            Dictionary<string, object> shot = planner != null ? planner.Snapshot() : null;
+            if (shot == null) return null;
             if (shot != planShot || plan == null)
             {
                 planShot = shot;
@@ -68,17 +67,16 @@ namespace ReDefinition.Dashboard
             return InEditor ? choices : null;
         }
 
-        // The Engineer's planner in the open editor, null where there is none.
-        private static PlannerView Planner()
+        // The planner's page in the open editor, null where the editor has none or the planner is not installed.
+        private static EditorPlanHook Planner()
         {
-            if (!InEditor || EditorEngineer.Instance == null) return null;
-            return EditorEngineer.Instance.PlannerForDashboard();
+            return InEditor ? PlannerHooks.EditorPlan : null;
         }
 
-        // e.plan[change, numbers...]: a change of the plan (PlannerView.Change).
+        // e.change[change, numbers...]: a change of the plan, as the planner's button for it makes it.
         internal static void Change(string[] args)
         {
-            PlannerView planner = Planner();
+            EditorPlanHook planner = Planner();
             if (planner == null || args.Length == 0) return;
             string[] rest = new string[args.Length - 1];
             Array.Copy(args, 1, rest, 0, rest.Length);
@@ -88,11 +86,11 @@ namespace ReDefinition.Dashboard
         // e.choices[list, a, b]: the list a planner button folds out, answered in e.choiceList.
         internal void AskChoices(string[] args)
         {
-            PlannerView planner = Planner();
+            EditorPlanHook planner = Planner();
             if (planner == null || args.Length == 0) return;
             int a = Int(args, 1), b = Int(args, 2);
             var entries = new List<object>();
-            foreach (Choice choice in planner.ChoicesFor(args[0], a, b))
+            foreach (ChoiceInfo choice in planner.ChoicesFor(args[0], a, b))
                 entries.Add(new Dictionary<string, object>
                 {
                     { "label", choice.Label }, { "tooltip", choice.Tooltip }, { "current", choice.Current }, { "indent", (double)choice.Indent },
@@ -108,7 +106,7 @@ namespace ReDefinition.Dashboard
         // label (URI-encoded, as a label may hold commas and brackets).
         internal static void Pick(string[] args)
         {
-            PlannerView planner = Planner();
+            EditorPlanHook planner = Planner();
             if (planner == null || args.Length < 5) return;
             string label = Uri.UnescapeDataString(string.Join(",", args, 4, args.Length - 4));
             if (!planner.Pick(args[0], Int(args, 1), Int(args, 2), Int(args, 3), label))
@@ -135,7 +133,7 @@ namespace ReDefinition.Dashboard
             {
                 { "facility", vab ? "VAB" : "SPH" },
                 { "name", construct != null ? construct.shipName : null },
-                { "stockOff", EditorReadout.StockOff },
+                { "stockOff", !DeltaVGlobals.DoStockSimulations },
             };
             if (construct == null || construct.parts == null || construct.parts.Count == 0)
             {

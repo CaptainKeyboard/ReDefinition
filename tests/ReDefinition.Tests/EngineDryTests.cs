@@ -2,11 +2,12 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Dashboard;
+using ReDefinition.Planner;
 using ReDefinition.Planner.Engineer;
 
 namespace ReDefinition.Tests
 {
-    // Where the dashboard's resource tapes mark engines running dry (FuelTelemetry.Marks): the
+    // Where the dashboard's resource tapes mark engines running dry (DryMarksAdapter.Marks): the
     // planner's own simulation run on the vessel as it flies.
     [TestClass]
     public class EngineDryTests
@@ -17,7 +18,7 @@ namespace ReDefinition.Tests
         public void TheKerbalXsBoostersRunDryPairByPair()
         {
             List<SimPart> sim = Copy(StockCrafts.Named("Kerbal X").Sim);
-            Dictionary<string, List<object>> marks = FuelTelemetry.Marks(sim, StockCrafts.Density, 8, new HashSet<int>(), Totals(sim));
+            Dictionary<string, List<object>> marks = DryMarksAdapter.Marks(sim, StockCrafts.Density, 8, new HashSet<int>(), Totals(sim));
             CollectionAssert.AreEqual(new object[] { 7200.0, 6120.0, 5040.0, 720.0, 0.0 }, marks["LiquidFuel"]);
             CollectionAssert.AreEqual(new object[] { 8800.0, 7480.0, 6160.0, 880.0, 0.0 }, marks["Oxidizer"]);
         }
@@ -27,7 +28,7 @@ namespace ReDefinition.Tests
         public void AfterTheFirstPairTheOthersFollow()
         {
             List<SimPart> sim = Without(StockCrafts.Named("Kerbal X").Sim, part => part.Clamp || part.DecoupleStage >= 6);
-            Dictionary<string, List<object>> marks = FuelTelemetry.Marks(sim, StockCrafts.Density, 6, new HashSet<int>(), Totals(sim));
+            Dictionary<string, List<object>> marks = DryMarksAdapter.Marks(sim, StockCrafts.Density, 6, new HashSet<int>(), Totals(sim));
             CollectionAssert.AreEqual(new object[] { 6120.0, 5040.0, 720.0, 0.0 }, marks["LiquidFuel"]);
         }
 
@@ -39,7 +40,7 @@ namespace ReDefinition.Tests
             List<SimPart> sim = Without(StockCrafts.Named("Kerbal X").Sim, part => part.Clamp || part.DecoupleStage >= 6);
             HashSet<int> off = new HashSet<int>(Enumerable.Range(0, sim.Count).Where(i => sim[i].Rocket != null && sim[i].ActivatesAt >= 6));
             Assert.IsTrue(off.Count > 0);
-            Dictionary<string, List<object>> marks = FuelTelemetry.Marks(sim, StockCrafts.Density, 6, off, Totals(sim));
+            Dictionary<string, List<object>> marks = DryMarksAdapter.Marks(sim, StockCrafts.Density, 6, off, Totals(sim));
             Assert.IsFalse(marks.ContainsKey("LiquidFuel"));
         }
 
@@ -65,7 +66,7 @@ namespace ReDefinition.Tests
                 Booster(0, 0, 300.0), Booster(0, 0, 300.0),
             };
             Dictionary<string, double> density = new Dictionary<string, double> { { "LiquidFuel", 0.005 }, { "Oxidizer", 0.005 }, { "SolidFuel", 0.0075 } };
-            Dictionary<string, List<object>> marks = FuelTelemetry.Marks(StockCrafts.Linked(sim), density, 3, new HashSet<int>(), Totals(sim));
+            Dictionary<string, List<object>> marks = DryMarksAdapter.Marks(StockCrafts.Linked(sim), density, 3, new HashSet<int>(), Totals(sim));
             CollectionAssert.AreEqual(new object[] { 400.0, 0.0 }, marks["SolidFuel"]);
             CollectionAssert.AreEqual(new object[] { 0.0 }, marks["LiquidFuel"]);
         }

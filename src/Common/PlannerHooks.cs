@@ -6,5 +6,7 @@ namespace ReDefinition.Core
     {
         public static GuidanceHook Guidance;
         public static RouteHook Routes;
+        public static EditorPlanHook EditorPlan;
+        public static DryMarksHook DryMarks;
     }
 }

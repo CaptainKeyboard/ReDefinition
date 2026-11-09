@@ -27,7 +27,7 @@ namespace ReDefinition.Tests
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
             ["Common"] = "Core Ui",
             ["Core"] = "",
-            ["Dashboard"] = "Core Engineer Modules",
+            ["Dashboard"] = "Core Modules",
             ["Hooks"] = "Autopilot Core Engineer",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
             ["Engineer"] = "Autopilot Core PlannerHud Planner Ui",
