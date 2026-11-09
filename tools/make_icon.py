@@ -12,7 +12,7 @@ The flight panel's tabs are glyphs in the style of KSP's maneuver panel tabs, 45
 light with a glow while on and black while off: GameData/ReDefinition/Icons/FlightPanel_*.png.
 
 The planner's symbols are white on clear, 64x64, for KSP's buttons to show them over
-their own background: GameData/ReDefinition/Icons/Planner_*.png.
+their own background: GameData/ReDefinitionPlanner/Icons/Planner_*.png.
 
 The navball's docking marker is an orange ring with ticks and a centre dot, 64x64, on clear:
 GameData/ReDefinition/Icons/Navball_Docking.png.
@@ -233,7 +233,7 @@ TILE_STATES = {
                  (41, 52, 55, 255), (61, 102, 105, 255)),
 }
 TAB_GREY = [(4, 229), (20, 170), (40, 139), (60, 110), (68, 90)]
-ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "EngineerButton_%s.png")
+ENGINEER_TILES = os.path.join(ROOT, "GameData", "ReDefinitionPlanner", "Icons", "EngineerButton_%s.png")
 
 
 def ramp_at(stops, y):
@@ -252,7 +252,7 @@ def ramp_at(stops, y):
 # The glyph alone, for the game to lay on the cargo button's tiles as they are, KSP's or
 # a theme's: "Δv" as a mask, white on clear. ModeButtonTiles fits it into the tile's
 # face and tints it in the colour of the glyph it replaces.
-GLYPH_MASKS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "EngineerGlyph_%s.png")
+GLYPH_MASKS = os.path.join(ROOT, "GameData", "ReDefinitionPlanner", "Icons", "EngineerGlyph_%s.png")
 
 
 def draw_glyph_mask(border):
@@ -316,7 +316,7 @@ def draw_engineer_tile(face_stops, glyph, rim):
 
 # The planner's symbols: white on clear, so that a button's own background shows
 # through and the code can tint them. Each is drawn at 512 and stored at 64.
-PLANNER_ICONS = os.path.join(ROOT, "GameData", "ReDefinition", "Icons", "Planner_%s.png")
+PLANNER_ICONS = os.path.join(ROOT, "GameData", "ReDefinitionPlanner", "Icons", "Planner_%s.png")
 PLANNER_SIZE = 512
 WHITE = (255, 255, 255, 255)
 

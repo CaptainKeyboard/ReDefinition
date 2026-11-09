@@ -9,14 +9,14 @@ namespace ReDefinition.Planner.Engineer
     // replaces them with flat ones. Each state's tile is made from the cargo
     // button's sprite for that state. The cargo glyph is painted over in the face's colours row by
     // row, and "Δv" is laid on in the glyph's own colour
-    // (GameData/ReDefinition/Icons/EngineerGlyph_Fill.png, drawn by
+    // (GameData/ReDefinitionPlanner/Icons/EngineerGlyph_Fill.png, drawn by
     // tools/make_icon.py). So the button has the form, size and colours of its
     // neighbours. Textures are not readable from the CPU, so each is copied
     // through a render texture first.
     internal static class ModeButtonTiles
     {
         // Where the glyph's textures lie, without the part's name (Fill).
-        private const string GlyphPath = "ReDefinition/Icons/EngineerGlyph_";
+        private const string GlyphPath = "ReDefinitionPlanner/Icons/EngineerGlyph_";
 
         // The glyph's height as a share of the face's, as KSP's and ZTheme's
         // cargo glyphs fill it.
