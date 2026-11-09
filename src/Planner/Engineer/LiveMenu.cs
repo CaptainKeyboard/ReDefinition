@@ -2,6 +2,7 @@ using ReDefinition.Planner;
 using System.Collections.Generic;
 using ReDefinition.Planner.Autopilot;
 using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Core;
 using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.UI;
@@ -71,7 +72,7 @@ namespace ReDefinition.Planner.Engineer
                 if (HasDockingPort(meet)) entries.Add(Entry("Dock with " + meet.vesselName, () => Meet(window, vessel, meet, true)));
             }
             entries.Add(Entry("Open Planner", window.OpenNow));
-            if (PlannerSeams.StandsAlone()) entries.Add(Entry("Planner Settings", PlannerSettingsDialog.Open));
+            if (HostSeams.StandsAlone()) entries.Add(Entry("Planner Settings", PlannerSettingsDialog.Open));
             entries.Add(Entry("Close", () => { }));
             Show("Autopilot / MechJeb", entries);
         }

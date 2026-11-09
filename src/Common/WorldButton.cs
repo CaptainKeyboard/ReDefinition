@@ -1,4 +1,3 @@
-using ReDefinition.Planner;
 using KSP.UI;
 using KSP.UI.TooltipTypes;
 using ReDefinition.Core;
@@ -8,7 +7,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-namespace ReDefinition.Planner.Hud
+namespace ReDefinition.Ui
 {
     // A button standing in the world, on a canvas of its own in world space that
     // the scene's camera draws with the rest (Canvas.renderMode WorldSpace, on the
@@ -126,7 +125,7 @@ namespace ReDefinition.Planner.Hud
         {
             // Again once the space centre's button is held, where the fallback
             // stood till then.
-            SpaceCentreLook states = ksc != null ? PlannerSeams.SpaceCentreButton(ksc) : null;
+            SpaceCentreLook states = ksc != null ? HostSeams.SpaceCentreButton(ksc) : null;
             if (look == ksc && face.sprite != null && (states == null || kscLook)) return;
             if (states != null)
             {
@@ -218,7 +217,7 @@ namespace ReDefinition.Planner.Hud
         private static bool InterfaceShows()
         {
             
-            if (!PlannerSeams.WorldButtons()) return false;
+            if (!HostSeams.WorldButtons()) return false;
             UIMasterController ui = UIMasterController.Instance;
             return ui == null || ui.IsUIShowing;
         }

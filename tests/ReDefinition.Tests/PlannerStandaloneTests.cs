@@ -12,47 +12,12 @@ namespace ReDefinition.Tests
     public class PlannerStandaloneTests
     {
         [TestMethod]
-        public void ThePlannerIsJoinedOnlyWhereItNamesTheLevelReDefinitionFills()
-        {
-            var warnings = new List<string>();
-            bool filled = false;
-            Assert.IsTrue(PlannerLink.Connect(() => true, () => filled = true, warnings.Add));
-            Assert.IsTrue(filled);
-            Assert.AreEqual(0, warnings.Count);
-
-            filled = false;
-            Assert.IsFalse(PlannerLink.Connect(() => false, () => filled = true, warnings.Add));
-            Assert.IsFalse(filled);
-            Assert.AreEqual(1, warnings.Count);
-        }
-
-        [TestMethod]
-        public void APlannerWithoutTheMemberOrWithATypeThatDoesNotLoadStandsAlone()
-        {
-            Exception[] old = { new MissingMethodException(), new MissingFieldException(), new TypeLoadException(), new TypeInitializationException("T", null) };
-            foreach (Exception cause in old)
-            {
-                var warnings = new List<string>();
-                bool filled = false;
-                Assert.IsFalse(PlannerLink.Connect(() => { throw cause; }, () => filled = true, warnings.Add), cause.GetType().Name);
-                Assert.IsFalse(filled, cause.GetType().Name);
-                Assert.AreEqual(1, warnings.Count, cause.GetType().Name);
-            }
-        }
-
-        [TestMethod]
-        public void AnyOtherFailureOfTheCheckIsNotHidden()
-        {
-            Assert.ThrowsException<InvalidOperationException>(() => PlannerLink.Connect(() => { throw new InvalidOperationException(); }, () => { }, s => { }));
-        }
-
-        [TestMethod]
         public void AnOlderCommonThanTheOneBuiltAgainstIsNamedAtTheStart()
         {
-            Assert.IsNull(PlannerLink.CommonProblem(new Version(0, 1, 4, 0), new Version(0, 1, 4, 0)));
-            Assert.IsNull(PlannerLink.CommonProblem(new Version(0, 1, 4, 0), new Version(0, 1, 5, 0)));
-            Assert.IsNull(PlannerLink.CommonProblem(null, new Version(0, 1, 3, 0)));
-            StringAssert.Contains(PlannerLink.CommonProblem(new Version(0, 1, 5, 0), new Version(0, 1, 4, 0)), "0.1.4");
+            Assert.IsNull(HostLink.CommonProblem(new Version(0, 1, 4, 0), new Version(0, 1, 4, 0)));
+            Assert.IsNull(HostLink.CommonProblem(new Version(0, 1, 4, 0), new Version(0, 1, 5, 0)));
+            Assert.IsNull(HostLink.CommonProblem(null, new Version(0, 1, 3, 0)));
+            StringAssert.Contains(HostLink.CommonProblem(new Version(0, 1, 5, 0), new Version(0, 1, 4, 0)), "0.1.4");
         }
 
         [TestMethod]

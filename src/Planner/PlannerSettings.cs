@@ -5,7 +5,7 @@ using UnityEngine;
 namespace ReDefinition.Planner
 {
     // The planner's two switches where ReDefinition is not installed, in GameData/ReDefinitionPlanner/PluginData/settings.cfg. With ReDefinition
-    // they are its own settings (PlannerSeams), and this file is not read.
+    // they are its own settings (HostSeams), and this file is not read.
     internal static class PlannerSettings
     {
         private const string FileName = "settings.cfg";
