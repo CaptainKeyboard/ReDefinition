@@ -90,11 +90,20 @@ flowchart LR
 | `ReDefinition.dll` | `GameData/ReDefinition` | Planner, Common, Harmony |
 
 The planner knows nothing of ReDefinition. What it would ask of ReDefinition is a field in
-`PlannerSeams` with a default that works alone: the interface scale, two settings, the space
-centre's button sprites and the click shields. `PlannerLink` in `src/` fills them when
-ReDefinition starts. It checks `PlannerSeams.Level` first, so that a planner of another release
-stays on its defaults instead of failing. Raise `PlannerLink.Expected` and `PlannerSeams.Level`
-together when a seam is added, removed or changes its meaning.
+`PlannerSeams` with a default that works alone: the interface scale, two settings and the space
+centre's button sprites. `PlannerLink` in `src/` fills them when ReDefinition starts. It checks
+`PlannerSeams.Level` first, so that a planner of another release stays on its defaults instead of
+failing. Raise `PlannerLink.Expected` and `PlannerSeams.Level` together when a seam is added,
+removed or changes its meaning.
+
+The other direction is not optional. ReDefinition names the planner's types directly, so it does
+not start without `ReDefinition.Planner.dll`. The full zip carries it, and the CKAN entry of
+ReDefinition depends on the planner's.
+
+The click shield is no seam. `WindowShield` and `DialogWindow` are in Common, and the planner and
+ReDefinition open their dialogs through them, so a click on a window of either does not reach the
+buildings, the switches or the map behind it. ReDefinition adds the windows only it has
+(`src/Ui/UnityMouseEvents.cs`).
 
 Both packages ship Common. The game keeps one DLL of a name: the one with the higher assembly
 version, and on equal versions the one in `GameData/ReDefinition/Plugins` [meas]. So a
@@ -102,7 +111,9 @@ change in `src/Common/` needs a new `CommonVersion` in `Directory.Build.props`, 
 `CommonVersionTests` fails until it has one.
 
 The namespaces of the planner are `ReDefinition.Planner.Engineer`, `.Autopilot`, `.Orbits`,
-`.Landing` and `.Hud`. The table below treats each as an area.
+`.Landing` and `.Hud`. The table below treats each as an area; the planner's `Hud` is `PlannerHud`
+there, to tell it from ReDefinition's own. A test fails if any file of the planner or of Common
+uses more of ReDefinition than `Core` and `Ui`.
 
 ## Which area may use which
 

@@ -180,6 +180,10 @@
 
 ### Fixed
 
+- **Clicks through the planner's windows.** Without ReDefinition, a click on the planner's
+  settings dialog or its Live menu could reach the map or the buildings behind it, and the
+  settings dialog could reach past the screen's edge. They keep the click and stay on the screen
+  now, as ReDefinition's windows do.
 - **Other mods' buttons on the loading screen.** The Toolbar's buttons and MechJeb's menu
   no longer show on KSP's black screen between scenes.
 - **The settings window after a question.** Opened from the pause menu, the window took no

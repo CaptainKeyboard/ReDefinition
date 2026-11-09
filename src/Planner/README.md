@@ -20,4 +20,5 @@ The route stack as a mod of its own, `ReDefinition.Planner.dll`: the planner win
 - The project references `src/Common/` and nothing of ReDefinition. `tests/ReDefinition.Tests/ArchitectureTests.cs` checks that its project file names neither the main mod nor Harmony nor ZTheme.
 - ReDefinition fills `PlannerSeams` in `src/PlannerLink.cs` when it starts, and only if `PlannerSeams.Level` is the level it was made for. Another level leaves the planner on its defaults, with a warning in `KSP.log`.
 - Where Harmony is not loaded, the hooks into the map's menu, the guide node and the SAS are left out. Each says so in the log.
-- The package is `GameData/ReDefinitionPlanner`: the two DLLs, `Icons/` and its version file. Its settings are in `PluginData/` beside them.
+- The package is `GameData/ReDefinitionPlanner`: the two DLLs, `Icons/`, this README and its version file.
+- Its dialogs and panels open through `DialogWindow` and `WindowShield` in `src/Common/`, so a click on them stays on them with or without ReDefinition. Its settings are in `PluginData/` beside them.

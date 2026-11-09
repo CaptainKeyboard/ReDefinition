@@ -12,7 +12,7 @@ mostly one `KSPAddon` per feature, and many with a flight switch.
 | `src/Hud/Panel/FlightProfiles.cs` | The situations, the six built-in profiles and where they are kept. |
 | `src/Hud/Readouts/ReadoutCatalog.cs` | The values the panel can show. |
 | `src/Hud/RoundGauge.cs` | The round gauge and its modes. |
-| `src/Hud/WorldButton.cs` | A button that stands in the world, used by the space centre's buttons. |
+| `src/Planner/Hud/WorldButton.cs` | A button that stands in the world, used by the space centre's buttons (it is the planner's). |
 | `src/Hud/StageInfoColumns.cs` | The stage details in two columns, chosen in the delta-v tools. |
 
 ## What it does
@@ -53,5 +53,5 @@ Engineer, Modules and Window name it.
 - `src/Hud/Readouts/ReadoutMath.cs` stays free of Unity and KSP. `ReadoutMathTests` tests it.
 - `src/Hud/StageGroupFields.cs` reads KSP's private fields through refs, without a `FieldInfo`'s
   boxing, and the ref is null where `StageGroup` has no such field.
-- `src/Hud/HeldVessel.cs` holds the vessel a static cache was worked out for without keeping it
+- `src/Planner/Hud/HeldVessel.cs` holds the vessel a static cache was worked out for without keeping it
   alive.

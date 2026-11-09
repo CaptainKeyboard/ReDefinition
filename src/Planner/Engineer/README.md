@@ -42,9 +42,8 @@ planner that lays out a route and shares the vessel's stages over its legs.
 - `Planner/PlannerDashboard.cs` gives the dashboard's VAB page the planner's rows and handlers;
   `Planner/PlannerView.Dashboard.cs` hands the view's calls on to it.
 
-The area is a stop on [The features on screen](../../docs/development/flow-game-ui.md).
-More: [the planner's place in the editor](../../src/Planner/Engineer/README.md) and
-[the planner](../../src/Planner/Engineer/README.md).
+The area is a stop on [The features on screen](../../../docs/development/flow-game-ui.md).
+More: [the planner as its own package](../README.md).
 
 ## What it uses and what uses it
 

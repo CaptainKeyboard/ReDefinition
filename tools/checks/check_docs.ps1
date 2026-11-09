@@ -143,6 +143,36 @@ foreach ($page in $pages) {
     }
 }
 
+# The READMEs under src hold paths and links too: a file that moved leaves them pointing at nothing. Only these two are checked there, not the style.
+$sourceReadmes = @(Get-ChildItem -Path (Join-Path $root 'src') -Filter README.md -Recurse -File | Where-Object { $_.FullName -notmatch '\\(obj|bin)\\' })
+Write-Host "READMEs under src: $($sourceReadmes.Count)"
+foreach ($readme in $sourceReadmes) {
+    $relative = $readme.FullName.Substring($root.Length + 1).Replace('\', '/')
+    $inCode = $false
+    $lineNumber = 0
+    foreach ($line in Get-Content -LiteralPath $readme.FullName) {
+        $lineNumber++
+        if ($line -match '^\s*```') { $inCode = -not $inCode; continue }
+        if ($inCode) { continue }
+        foreach ($match in [regex]::Matches($line, '\]\(([^)]+)\)')) {
+            $target = $match.Groups[1].Value
+            if ($target -match '^(https?:|#|mailto:)') { continue }
+            $path = ($target -split '#')[0]
+            if ([string]::IsNullOrWhiteSpace($path)) { continue }
+            if (-not (Test-Path -LiteralPath (Join-Path (Split-Path -Parent $readme.FullName) $path))) {
+                Fail "$relative`:$lineNumber -- link to $target leads nowhere"
+            }
+        }
+        foreach ($match in [regex]::Matches($line, '`((?:src|tools|tests|unity|licenses|third_party)/[^`]+)`')) {
+            $path = $match.Groups[1].Value.TrimEnd('.', ',')
+            if ($path -match '[*?<>]') { continue }
+            if (-not (Test-Path -LiteralPath (Join-Path $root $path))) {
+                Fail "$relative`:$lineNumber -- $path is not there"
+            }
+        }
+    }
+}
+
 if ($styleIssues -gt 0) { Write-Host "Style: $styleIssues line(s) to rewrite" }
 if ($Strict) { $failures += $styleIssues }
 

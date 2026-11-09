@@ -83,13 +83,13 @@ It assembles `build/release/ReDefinition_<version>.zip`:
 ```
 GameData/ReDefinition/
     Plugins/ReDefinition.dll
+    Plugins/ReDefinition.Common.dll  the shared DLL, also in the planner's folder
     Plugins/ReDefinition.xml  the interface for mods, documented for an IDE
     Shaders/redefinition.shaders
     Profiles/ReDefinition-Profiles.cfg
     Mods/*.cfg                the registrations of the bundled mods
     Patches/*.cfg             ModuleManager patches: landing leg grip, Parallax grass room
     Icons/*.png               the toolbar button and the HUD's pictures
-GameData/ReDefinitionPlanner/  the planner's package, see below
     Dashboard/                the dashboard's pages
     ksp-dashboard.icuewidget  the same pages as an iCUE widget
     ReDefinition.version
@@ -104,6 +104,7 @@ GameData/ReDefinitionPlanner/  the planner's package, see below
     CREDITS.md                docs/credits-and-licences.md
     README.md                 the folder's own note, GameData/ReDefinition/README.md
     ReDefinitionProxy.ini     template for the proxy's settings, see below
+GameData/ReDefinitionPlanner/ the planner's package, see below
 dxgi.dll                      the proxy
 dxgi_LICENSE-NVIDIA.txt       the MIT notices of NVIDIA's Streamline and NVAPI
                               headers compiled into dxgi.dll
@@ -146,6 +147,7 @@ GameData/ReDefinitionPlanner/
     Icons/*.png               the planner's tiles, symbols and the Live button's pictures
     ReDefinitionPlanner.version
     LICENSE, EXCEPTIONS.md, CHANGELOG.md
+    README.md                 the folder's own note, src/Planner/README.md
 ```
 
 `GameData/ReDefinition/Plugins` holds `ReDefinition.dll` and its own copy of
@@ -165,7 +167,7 @@ refuse a change without it.
 
 The deploy of a developer build copies both folders into the game and removes a
 `ReDefinition.Planner.dll` left in `GameData/ReDefinition/Plugins`. Two copies of one assembly
-version would run whichever the game lists first.
+version leave the game to keep one of them, and not necessarily the new one.
 
 ## When the release build refuses
 
