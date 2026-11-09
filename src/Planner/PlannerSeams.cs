@@ -13,6 +13,9 @@ namespace ReDefinition.Planner
     // What ReDefinition fills in when it is installed. Each has a default that works without it, so the planner stands alone.
     internal static class PlannerSeams
     {
+        // The level of these seams, which ReDefinition compares with the one it fills (PlannerLink.Expected); raised when a seam is added, removed or changes its meaning.
+        internal static int Level { get { return 1; } }
+
         // The factor ReDefinition scales the interface by; 1 without it.
         internal static Func<float> WorldScale = () => 1f;
 
