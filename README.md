@@ -90,6 +90,8 @@ such as ReShade's: move that one away from `KSP_x64.exe` first.
    `GameData/ReDefinition` goes into `GameData`; `dxgi.dll`, AMD's frame generation
    runtime and AMD's denoiser go next to `KSP_x64.exe`.
 
+The zip also holds `GameData/ReDefinitionPlanner`: the route planner and the autopilot as a mod of their own, which needs neither Harmony nor ReDefinition. It is released as its own zip too: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
+
 Then, in the game, open ReDefinition from the toolbar and choose a profile. Details, and
 how to remove ReDefinition again: [docs/player/installing.md](docs/player/installing.md).
 

@@ -88,7 +88,8 @@ GameData/ReDefinition/
     Profiles/ReDefinition-Profiles.cfg
     Mods/*.cfg                the registrations of the bundled mods
     Patches/*.cfg             ModuleManager patches: landing leg grip, Parallax grass room
-    Icons/*.png               the toolbar button, the HUD's and the planner's pictures
+    Icons/*.png               the toolbar button and the HUD's pictures
+GameData/ReDefinitionPlanner/  the planner's package, see below
     Dashboard/                the dashboard's pages
     ksp-dashboard.icuewidget  the same pages as an iCUE widget
     ReDefinition.version
@@ -131,6 +132,40 @@ the rest next to `KSP_x64.exe` ([player/installing.md](../player/installing.md))
 Next to the zip goes `ReDefinition_<version>_source.zip`, the complete source of the
 commit it was built from, made with `git archive`. GPL-3.0 section 6(d) asks for the
 source to be offered in the same place as the binary.
+
+## The planner's package
+
+The same build makes a second zip, `build/release/ReDefinitionPlanner_<version>.zip`,
+beside the full one. The full zip carries the planner's folder too, so that a player who
+installs ReDefinition needs nothing else.
+
+```
+GameData/ReDefinitionPlanner/
+    Plugins/ReDefinition.Planner.dll
+    Plugins/ReDefinition.Common.dll
+    Icons/*.png               the planner's tiles, symbols and the Live button's pictures
+    ReDefinitionPlanner.version
+    LICENSE, EXCEPTIONS.md, CHANGELOG.md
+```
+
+`GameData/ReDefinition/Plugins` holds `ReDefinition.dll` and its own copy of
+`ReDefinition.Common.dll`. The two copies come from one build.
+
+| Version | Where it is set | What it is for |
+|---|---|---|
+| ReDefinition's | `<Version>` in `src/ReDefinition.csproj` | `ReDefinition.version` and the zip's name |
+| the planner's | `PlannerVersion` in `Directory.Build.props` | `ReDefinitionPlanner.version`, the zip's name, the DLL's assembly version |
+| Common's | `CommonVersion` in `Directory.Build.props` | The DLL's assembly version, which the game compares |
+
+The game keeps one `ReDefinition.Common.dll`, the one with the higher assembly version
+[src]. On equal versions it kept the one in `GameData/ReDefinition/Plugins` [meas]. If the
+copy in one package is older, the newer one runs for both. Raise `CommonVersion` whenever
+`src/Common/` changes. `src/Common/version.lock` and `CommonVersionTests` make the build
+refuse a change without it.
+
+The deploy of a developer build copies both folders into the game and removes a
+`ReDefinition.Planner.dll` left in `GameData/ReDefinition/Plugins`. Two copies of one assembly
+version would run whichever the game lists first.
 
 ## When the release build refuses
 
@@ -247,6 +282,13 @@ and this version's template has another default, the proxy sets the new default 
 A value the player changed stays. A key without a record counts as the proxy's where it
 holds today's default, and as the player's otherwise.
 
+## The planner's CKAN metadata
+
+The planner's file is `NetKAN/ReDefinitionPlanner.netkan` [open: not yet submitted]. It
+reads the planner's zip and `ReDefinitionPlanner.version`. It recommends MechJeb2 and
+ReDefinition, and installs `GameData/ReDefinitionPlanner`. ReDefinition's file installs only
+`GameData/ReDefinition` and depends on the planner, so CKAN never writes the same file twice.
+
 ## The CKAN metadata
 
 The file goes to https://github.com/KSP-CKAN/NetKAN as `NetKAN/ReDefinition.netkan`. The
@@ -260,7 +302,7 @@ not checked against the NetKAN repository [open].
 | `$vref` | reads `ReDefinition.version` in the zip for the KSP versions |
 | `x_netkan_trust_version_file` | takes the mod's version from that file too, so it reads the project's version and not the tag's `v` in front of it |
 | `license` | `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation and denoiser runtimes |
-| `depends` | `Harmony2`, which ReDefinition requires to load |
+| `depends` | `ReDefinitionPlanner`, which the full zip carries but CKAN installs from its own package, and `Harmony2`, which ReDefinition requires to load |
 | `install` | `GameData/ReDefinition` into `GameData`; `dxgi.dll`, AMD's two runtimes and the licences into `GameRoot` |
 
 CKAN has no identifier for the Modding and Linking Exceptions. They are in `LICENSE` and
@@ -287,6 +329,7 @@ tags:
   - graphics
   - library
 depends:
+  - name: ReDefinitionPlanner
   - name: Harmony2
 supports:
   - name: Scatterer

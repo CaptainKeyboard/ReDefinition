@@ -33,6 +33,7 @@
 | Word | Means |
 |---|---|
 | planner | The mode of the VAB and the SPH that lays out a route from stop to stop, works out the delta-v of each leg and shares the vessel's stages out over the legs. Its button, with *Δv* on it, is next to KSP's mode buttons above the parts list. |
+| planner package | ReDefinition Planner: the planner, the navigation and the autopilot as a mod of their own, in GameData/ReDefinitionPlanner. The full ReDefinition zip carries it too. |
 | fuel plan | The planner's table of stages by legs: what each stage gives to each leg. |
 | pin | A stage the player sets to pay for a leg, in a cell of the fuel plan. A leg with pins burns its pinned stages only. |
 | stop | A place on the planner's route: a body, on its surface or in an orbit at an altitude. |

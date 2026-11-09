@@ -12,7 +12,7 @@ them.
 
 | Part | Where | Written in | Runs |
 |---|---|---|---|
-| The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as `ReDefinition.dll` |
+| The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as three DLLs: `ReDefinition.dll`, `ReDefinition.Planner.dll` and `ReDefinition.Common.dll` |
 | The proxy | `src/DxgiProxy/` | C++ | In KSP's process, as `dxgi.dll` in place of the system's |
 | The shaders | `unity/Assets/ReDefinition/` | HLSL and ShaderLab | In Unity, from the bundle `redefinition.shaders` |
 | The dashboard | `GameData/ReDefinition/Dashboard/`, served by `src/Dashboard/` | JavaScript | In a browser on a phone or a PC |
@@ -49,10 +49,11 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 |---|---|---|
 | (the add-on) | The add-on that starts with the game and runs the rig's life cycle | `src/ReDefinitionAddon.cs` |
 | `Api` | The interface other mods call | `src/Api/ApiInfo.cs` |
-| `Core` | The log, paths, the command line, reflection into other mods, Harmony hooks | `src/Core/ForeignAssumptions.cs` |
+| `Common` | What both packages stand on: the log, reflection into other mods, optional Harmony hooks, the dialog helpers | `src/Common/HarmonyHooks.cs` |
+| `Core` | The paths and the catalogue of what ReDefinition takes for granted about other mods | `src/Core/ForeignAssumptions.cs` |
 | `Dashboard` | The web dashboard's server and its telemetry | `src/Dashboard/DashboardServer.cs` |
 | `Diagnostics` | The diagnostics window and the report on other mods | `src/Diagnostics/ReDefinitionAddon.Diagnostics.cs` |
-| `Engineer` | The engineer window of the editors, with the planner | `src/Engineer/EditorEngineer.cs` |
+| `Planner` | The route stack as a mod of its own: the planner, the navigation, the autopilot, the orbit maths and the landing prediction | `src/Planner/PlannerSeams.cs` |
 | `Fsr3` | AMD's FSR 3 upscaler, adapted from FSR3Unity | `src/Fsr3/Fsr3Upscaler.cs` |
 | `Hud` | Additions to KSP's flight interface, staging stack and time panel | `src/Hud/FlightUiSwitch.cs` |
 | `Menu` | Fireworks and the camera flight in the main menu | `src/Menu/MenuFireworks.cs` |
@@ -63,13 +64,45 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 | `Scaling` | What KSP leaves at a fixed size, scaled to the UI scale | `src/Scaling/ScalingAddon.cs` |
 | `Scenery` | Fixes to what the game draws at the space centre and in flight | `src/Scenery/KscGrass.cs` |
 | `Settings` | The store, the registrations and the graphics profiles | `src/Settings/BundledSettings.cs` |
-| `Ui` | The helpers every ReDefinition dialog is built with | `src/Ui/UiHygiene.cs` |
+| `Ui` | The dialog helpers that only ReDefinition needs: the mouse events, the backdrop, confirmations | `src/Ui/UnityMouseEvents.cs` |
 | `Upscaler` | The rig that puts an upscaler on the camera stack | `src/Upscaler/Rig/UpscalerRig.cs` |
 | `Vendor` | What the GPU makers need: card class, downloads of their files | `src/Vendor/TechniqueFiles.cs` |
 | `Window` | The settings window and the ways to open it | `src/Window/SettingsWindow/SettingsWindow.cs` |
 
 The rest is in the [flow pages](start-here.md#the-flows). The wiki lists every type,
 every entry point and every dependency, generated from the code.
+
+## The three assemblies
+
+The plugin is three projects. The dependencies run one way:
+
+```mermaid
+flowchart LR
+    main["ReDefinition.dll<br/>src/ (the rest)"] --> planner["ReDefinition.Planner.dll<br/>src/Planner/"]
+    main --> common["ReDefinition.Common.dll<br/>src/Common/"]
+    planner --> common
+```
+
+| Assembly | Package | Needs |
+|---|---|---|
+| `ReDefinition.Common.dll` | both | KSP and Unity |
+| `ReDefinition.Planner.dll` | `GameData/ReDefinitionPlanner`, and the full zip | Common. Not ReDefinition, not Harmony, not ZTheme |
+| `ReDefinition.dll` | `GameData/ReDefinition` | Planner, Common, Harmony |
+
+The planner knows nothing of ReDefinition. What it would ask of ReDefinition is a field in
+`PlannerSeams` with a default that works alone: the interface scale, two settings, the space
+centre's button sprites and the click shields. `PlannerLink` in `src/` fills them when
+ReDefinition starts. It checks `PlannerSeams.Level` first, so that a planner of another release
+stays on its defaults instead of failing. Raise `PlannerLink.Expected` and `PlannerSeams.Level`
+together when a seam is added, removed or changes its meaning.
+
+Both packages ship Common. The game keeps one DLL of a name: the one with the higher assembly
+version, and on equal versions the one in `GameData/ReDefinition/Plugins` [meas]. So a
+change in `src/Common/` needs a new `CommonVersion` in `Directory.Build.props`, and
+`CommonVersionTests` fails until it has one.
+
+The namespaces of the planner are `ReDefinition.Planner.Engineer`, `.Autopilot`, `.Orbits`,
+`.Landing` and `.Hud`. The table below treats each as an area.
 
 ## Which area may use which
 

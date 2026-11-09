@@ -135,8 +135,8 @@ whole run.
 | `UnityMotionRepair` | `src/Upscaler/MotionVectors/UnityMotionRepair.cs` | Flight |
 | `ModCost` | `src/Probe/ModCost.cs` | Flight |
 | `SceneProbeRunner` | `src/Probe/SceneProbe.cs` | Flight |
-| `EditorEngineer` | `src/Engineer/EditorEngineer.cs` | EditorAny |
-| `EditorLaunchButton` | `src/Engineer/EditorLaunchButton.cs` | EditorAny |
+| `EditorEngineer` | `src/Planner/Engineer/EditorEngineer.cs` | EditorAny |
+| `EditorLaunchButton` | `src/Planner/Engineer/EditorLaunchButton.cs` | EditorAny |
 | `HudTooltipsEditor` | `src/Hud/HudTooltips.cs` | EditorAny |
 | `StageInfoColumnsEditor` | `src/Hud/StageInfoColumns.cs` | EditorAny |
 | `DeltaVToolsEditor` | `src/Hud/DeltaVTools.cs` | EditorAny |

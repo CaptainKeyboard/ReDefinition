@@ -117,7 +117,7 @@ and KSP's own bindings in `GameSettings`. The script checks that they have the s
 **`check_foreign_code.ps1`** checks the catalogue of what ReDefinition assumes about other
 mods' code (`src/Core/ForeignAssumptions.cs`) against the installed mods. Each assumption
 names types, methods, fields and string literals, and the methods it rests on with a
-fingerprint of their instructions (`src/Core/ForeignCode.cs`). An assumption passes where
+fingerprint of their instructions (`src/Common/ForeignCode.cs`). An assumption passes where
 all of that is there and the fingerprints match, or where its mod is not installed. It
 fails where something named is missing or the code changed. It then prints the installed
 fingerprint, to add once the new code has been read. The exit code is the number of

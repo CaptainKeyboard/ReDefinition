@@ -4,6 +4,14 @@
 
 ### Added
 
+- **ReDefinition Planner as a mod of its own.** The route planner, the navigation and the
+  autopilot are `GameData/ReDefinitionPlanner`, released as `ReDefinitionPlanner_<version>.zip`
+  and carried by the full zip too. It needs neither Harmony nor ZTheme nor ReDefinition;
+  MechJeb and ReDefinition are recommended. With ReDefinition installed it is integrated
+  as before. Without it, the planner keeps two switches of its own under *Planner Settings* in
+  the *Live* menu, and leaves out the hooks that need Harmony, each with a line in `KSP.log`.
+  Both packages ship `ReDefinition.Common.dll`; the game keeps the one with the higher version.
+  How it works: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
 - **Intel XeSS files.** A *Download ...* button under *Display* fetches Intel's
   `libxess.dll`, `libxess_fg.dll` and `libxell.dll` from Intel's release of the XeSS SDK
   3.0.2 on GitHub, after you accept Intel's licence. Every file is checked against the
@@ -229,6 +237,7 @@
 
 ### Changed
 
+- **The planner's pictures moved** from `GameData/ReDefinition/Icons` to `GameData/ReDefinitionPlanner/Icons`.
 - **The DLSS model is chosen by NVIDIA per mode by default.** *Default* in the *DLSS
   model* row. Low, Medium and High take it, Ultra and Max take *Preset L*.
 - **Frame generation holds off** while KSP's pause menu is open, while the rendered frame
