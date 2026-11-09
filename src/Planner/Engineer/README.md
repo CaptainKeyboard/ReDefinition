@@ -1,69 +1,34 @@
 # Engineer
 
-The engineer window of the VAB and the SPH: the planner mode with its button and panel, and the
-planner that lays out a route and shares the vessel's stages over its legs.
+The vessel and stage maths of the planner: what the vessel is made of, what its stages give and what a burn takes. Nothing in it knows of goals, routes or windows. The route is [Planning](../Planning/README.md) and the windows are [Ui](../Ui/README.md).
 
 ## Start here
 
 | File | Read it for |
 |---|---|
-| `src/Planner/Engineer/EditorEngineer.cs` | The entry: the planner's button, the mode, and when the vessel is read. |
 | `src/Planner/Engineer/EditorReadout.cs` | What the planner takes of the vessel, from KSP's delta-v simulation. |
-| `src/Planner/Engineer/PlannerPanel.cs` | The panel KSP brings in and out like its own. |
-| `src/Planner/Engineer/Planner/PlannerModel.cs` | The plan held and worked out, free of dialog elements; its other parts are `PlannerModel.*.cs`. |
-| `src/Planner/Engineer/Planner/PlannerView.cs` | The rows over the model; its other parts are `PlannerView.*.cs`. |
-| `src/Planner/Engineer/Planner/PlannerState.cs` | One vessel's plan and where it is kept. |
-| `src/Planner/Engineer/Planner/RouteSteps.cs` | The steps between two stops and who flies them. |
-| `src/Planner/Engineer/Planner/StageBudget.cs` | Which stage pays for which leg. |
+| `src/Planner/Engineer/StageTable.cs` | The stages as KSP's simulation gives them, with each stage's thrust at the surface of each body with air. |
+| `src/Planner/Engineer/StageSim.cs` | The planner's own stage simulation, and `AirLaunch` for the air-breathing engines' part of a launch. |
+| `src/Planner/Engineer/VesselShape.cs` | The vessel's parts, its sections and how the mass falls into groups (`VesselSplit`). |
+| `src/Planner/Engineer/VesselSplit.cs` | The stages as the budget reads them (`BudgetStage`) and the groups the vessel falls into. |
+| `src/Planner/Engineer/ClampedLaunch.cs` | The stages lit together on the pad, as launch clamps leave them. |
+| `src/Planner/Engineer/Turning.cs` | How fast what flies a step can turn, and the RCS of a group of parts (`SectionRcs.cs`). |
+| `src/Planner/Engineer/StageBurner.cs` | The burns of a plan shared over the vessel's stages, for the background route. |
 
 ## What it does
 
-- `EditorEngineer` adds the planner button beside KSP's mode buttons and reads the vessel again
-  when it changes.
-- `EditorReadout` and `StageTable` hold the vessel as KSP's delta-v simulation gives it, with each
-  stage's thrust at the surface of each body with air.
-- `PlannerPanel` makes the panel as a copy of KSP's crew panel, and `ModeButtonTiles` makes the
-  button's tiles from the cargo button's.
-- `EditorLaunchButton` puts a launch button over the pad seen through the VAB's door and over the
-  runway seen from the SPH.
-- `Planner/PlannerModel.cs` and `Planner/PlannerModel.*.cs` hold the plan: the route and its edits,
-  the evaluation, the texts of the steps. `Planner/PlanSections.cs` resolves the sections against
-  the vessel's parts, `Planner/PlanThrust.cs` checks the thrust of each step and
-  `Planner/PlanFuel.cs` writes the fuel plan's figures. `Planner/PlanText.cs` holds the colours and
-  small text helpers they share.
-- `Planner/PlannerView.*.cs` build the rows from KSP's dialog elements over the model: sections,
-  route, bars, fuel plan and thrust.
-- `Planner/RouteSteps.cs`, `Planner/RoutePlanner.cs` and `Planner/PlannerBodies.cs` turn a route over
-  the loaded system's bodies into steps.
-- `Planner/StageBudget.cs`, `Planner/StageSim.cs`, `Planner/ClampedLaunch.cs`,
-  `Planner/BurnCheck.cs`, `Planner/Turning.cs` and `Planner/SectionRcs.cs` work out what each step
-  needs and what the stages give.
-- `Planner/PartHighlight.cs` marks parts on the vessel.
-- `Planner/PlannerDashboard.cs` gives the dashboard's VAB page the planner's rows and handlers;
-  `Planner/PlannerView.Dashboard.cs` hands the view's calls on to it.
+- `EditorReadout` and `StageTable` hold the vessel as KSP's delta-v simulation gives it, so that the planner and the staging stack never disagree.
+- `StageSim` works the stages out again where an engine breathes air. `AirLaunch.Plan` takes the part of the launch those engines fly as a function of the Mach number; `LaunchShare` in Planning makes that function from a body.
+- `VesselShape` finds the sections of a vessel and `VesselSplit` shares its mass and stages over them.
+- `StageBurner` implements `IBurnShare` of the background route.
 
-The area is a stop on [The features on screen](../../../docs/development/flow-game-ui.md).
-More: [the planner as its own package](../README.md).
-
-## What it uses and what uses it
-
-It uses Core, Hud, Ui and Window.
-Dashboard and Hud name it.
+The area is a stop on [The features on screen](../../../docs/development/flow-game-ui.md). More: [the planner as its own package](../README.md).
 
 ## Rules of the area
 
-- The planner's vessel numbers are KSP's delta-v simulation's (`EditorReadout`), so the planner and
-  the staging stack never disagree.
-- The vessel is read at most once in `EditorEngineer.RefreshInterval`, so that a change and the
-  simulation it starts make one or two reads.
-- The sums are free of Unity and tested: `src/Planner/Engineer/EngineerFormat.cs`,
-  `src/Planner/Engineer/StageTable.cs`, `src/Planner/Engineer/Planner/RoutePlanner.cs` and the files `BurnCheck`,
-  `ClampedLaunch`, `SectionRcs`, `StageBudget`, `StageSim` and `VesselShape` in `Planner`. So is
-  the plan's model: `PlannerModel`, `PlanSections`, `PlanThrust`, `PlanFuel` and `PlannerDashboard`
-  hold no dialog elements, and the view only builds rows from them.
-- `Planner/PartHighlight.cs` has one marker at a time. Whichever marks parts last takes the other's
-  marks away, and nothing is marked while the pointer is on a part of the vessel.
-- A plan is kept per vessel name in `planner.cfg` in the mod's `PluginData` folder
-  (`PlannerState`).
-- The dashboard changes the plan through the model's commands, the ones the buttons use
-  (`PlannerDashboard.cs`).
+- The sums are free of Unity where they can be, and tested: `EngineerFormat`, `StageTable`, `StageSim`, `VesselShape`, `ClampedLaunch`, `Turning` and `SectionRcs`.
+- It uses nothing of `Planner.Planning`, `Planner.Ui` or the autopilot but the interfaces of `Autopilot.Background` that it implements. `ArchitectureTests` fails otherwise.
+
+## What it uses and what uses it
+
+It uses Core and `Autopilot.Background`. Planning, Ui, the hooks and the autopilot's driver name it.

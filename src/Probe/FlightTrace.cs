@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using UnityEngine;
+using ReDefinition.Planner.Autopilot.Driver;
 using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Planner.Autopilot.Guidance;
 
@@ -75,7 +76,7 @@ namespace ReDefinition.Probe
             bool known = MechJebDriver.LandingNumbers(vessel, out limit, out brakeEnd, out accel, out policy, out limiter);
             line.Append(known ? limit.ToString("0.0", culture) : "").Append(',').Append(known ? brakeEnd.ToString("0.0", culture) : "").Append(',')
                 .Append(known ? accel.ToString("0.00", culture) : "").Append(',').Append(policy).Append(',').Append(limiter).Append(',')
-                .Append(ReDefinition.Planner.Engineer.RouteDriver.Instance != null ? ReDefinition.Planner.Engineer.RouteDriver.Instance.GuidedThrottle.ToString("0.000", culture) : "").Append(',')
+                .Append(RouteDriver.Instance != null ? RouteDriver.Instance.GuidedThrottle.ToString("0.000", culture) : "").Append(',')
                 .Append(Guidance(vessel)).Append('\n');
             File.AppendAllText(path, line.ToString());
         }

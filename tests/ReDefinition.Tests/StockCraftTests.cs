@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Planning;
 
 namespace ReDefinition.Tests
 {
@@ -142,7 +143,7 @@ namespace ReDefinition.Tests
             // As PlannerModel.Evaluate: the planner's own stages where an engine breathes
             // air, then the stages lit on the pad together.
             int airRow;
-            List<StageRow> rows = AirLaunch.Plan(craft.Rows, craft.Parts, StockCrafts.Linked(craft.Sim), StockCrafts.Density,
+            List<StageRow> rows = LaunchShare.Plan(craft.Rows, craft.Parts, StockCrafts.Linked(craft.Sim), StockCrafts.Density,
                 goals[0].Kind == StopKind.Surface ? home : null, "Kerbin", out airRow);
             if (airRow >= 0) labels[airRow] = "Air";
             rows = rows.OrderByDescending(row => row.Number).ToList();

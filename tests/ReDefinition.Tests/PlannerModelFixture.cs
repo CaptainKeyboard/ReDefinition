@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Planning;
 
 namespace ReDefinition.Tests
 {

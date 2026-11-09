@@ -1,13 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using ReDefinition.Planner.Autopilot.Flight;
-using ReDefinition.Planner.Autopilot.Guidance;
-using ReDefinition.Planner.Autopilot.Planning;
-using ReDefinition.Core;
-using ReDefinition.Planner.Landing;
-using ReDefinition.Planner.Orbits;
-using UnityEngine;
 
 namespace ReDefinition.Planner.Autopilot.Background
 {

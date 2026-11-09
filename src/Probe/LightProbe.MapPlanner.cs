@@ -10,6 +10,9 @@ using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Autopilot.Driver;
+using ReDefinition.Planner.Ui;
+using ReDefinition.Planner.Planning;
 using ReDefinition.Planner.Orbits;
 using UnityEngine;
 

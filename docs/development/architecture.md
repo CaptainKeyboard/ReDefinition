@@ -127,10 +127,13 @@ copy and has no duplicate to resolve [src]. A change in `src/Common/` still need
 [packaging.md](packaging.md#the-planners-and-commons-packages) says what happens when zips of
 different releases are extracted over each other.
 
-The namespaces of the planner are `ReDefinition.Planner.Engineer`, `.Autopilot`, `.Orbits`,
-`.Landing` and `.Hud`. The table below treats each as an area; the planner's `Hud` is `PlannerHud`
-there, to tell it from ReDefinition's own. A test fails if any file of the planner or of Common
-uses more of ReDefinition than `Core` and `Ui`.
+The namespaces of the planner are `ReDefinition.Planner.Engineer` (the vessel and stage maths),
+`.Planning` (the plan, the route and the budget), `.Ui` (the windows), `.Autopilot`,
+`.Autopilot.Driver`, `.Orbits`, `.Landing` and `.Hud`. The table below treats each as an area;
+`Planner.Hud` is `PlannerHud`, `Planner.Ui` is `PlannerUi` and `Autopilot.Driver` is `Driver`
+there, to tell them from ReDefinition's own and from the rest of the autopilot. A test fails if any
+file of the planner or of Common uses more of ReDefinition than `Core` and `Ui`, and another if a
+file of `Engineer` uses `Planning`, `Ui` or any `Autopilot` namespace but `Autopilot.Background`.
 
 ## Which area may use which
 

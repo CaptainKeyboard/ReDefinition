@@ -26,7 +26,7 @@ scenes](flow-startup.md) lists every add-on, including the ones without a switch
 | Crew slot buttons | Flight | `src/Hud/CrewSlotButtons.cs` | `crewSlotButtons` |
 | Better Time Warp in the time panel | Flight, space centre | `src/Hud/TimeWarpBar.cs` | `timeWarpPanelButton`, `timeWarpToolbarButton` |
 | Buttons over the buildings | Flight, space centre, editors | `src/Common/WorldButton.cs` | `worldButtons` |
-| Editor engineer and planner | Editors | `src/Planner/Engineer/EditorEngineer.cs` | none |
+| Editor engineer and planner | Editors | `src/Planner/Ui/EditorEngineer.cs` | none |
 | Scaling of KSP's fixed-pixel drawing | Flight, space centre, tracking station | `src/Scaling/ScalingAddon.cs` | KSP's UI scale |
 | Scaling of other mods' windows | every scene | `src/Scaling/ModWindowScale.cs` | `scaleModWindows` |
 | Fireworks behind the menu | Main menu | `src/Menu/MenuFireworks.cs` | `menuFireworks` |

@@ -7,6 +7,9 @@ using KSP.UI.Screens.Mapview.MapContextMenuOptions;
 using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
 using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Autopilot.Driver;
+using ReDefinition.Planner.Ui;
+using ReDefinition.Planner.Planning;
 using UnityEngine;
 
 namespace ReDefinition.Probe

@@ -3,6 +3,8 @@ using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Planning;
+using ReDefinition.Planner.Ui;
 
 namespace ReDefinition.Tests
 {

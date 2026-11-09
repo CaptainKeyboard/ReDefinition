@@ -11,6 +11,9 @@ using ReDefinition.Planner.Autopilot;
 using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Autopilot.Driver;
+using ReDefinition.Planner.Ui;
+using ReDefinition.Planner.Planning;
 using UnityEngine;
 using UnityEngine.UI;
 

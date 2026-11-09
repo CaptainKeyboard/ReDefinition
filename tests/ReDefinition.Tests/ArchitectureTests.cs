@@ -28,12 +28,15 @@ namespace ReDefinition.Tests
             ["Common"] = "Core Ui",
             ["Core"] = "",
             ["Dashboard"] = "Core Modules",
-            ["Hooks"] = "Autopilot Core Engineer",
+            ["Hooks"] = "Autopilot Core Driver Engineer Planning PlannerUi",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
-            ["Engineer"] = "Autopilot Core PlannerHud Planner Ui",
+            ["Engineer"] = "Autopilot Core",
+            ["Planning"] = "Autopilot Core Engineer",
+            ["PlannerUi"] = "Autopilot Core Driver Engineer Planning Ui",
+            ["Driver"] = "Autopilot Core Engineer Planning PlannerUi",
             ["Fsr3"] = "Upscaler",
             ["Hud"] = "Core Modules Ui Window",
-            ["PlannerHud"] = "Autopilot Core Engineer Planner Ui",
+            ["PlannerHud"] = "Autopilot Core Driver PlannerUi Ui",
             ["Menu"] = "Core Modules Probe Upscaler",
             ["Migration"] = "",
             ["Autopilot"] = "Core Landing Orbits Planner",
@@ -41,7 +44,7 @@ namespace ReDefinition.Tests
             ["Orbits"] = "",
             ["Planner"] = "Core",
             ["Modules"] = "Core Dashboard Diagnostics Hud Migration Probe Proxy Raytracing Scenery Settings Upscaler Vendor Window",
-            ["Probe"] = "Autopilot Core Engineer Modules Orbits Proxy Raytracing Scenery Settings Ui Window",
+            ["Probe"] = "Autopilot Core Driver Engineer Modules Planning PlannerUi Orbits Proxy Raytracing Scenery Settings Ui Window",
             ["Proxy"] = "Core",
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",
@@ -165,7 +168,7 @@ namespace ReDefinition.Tests
             var probeName = new Regex(@"\bProbe[A-Z]\w*|ReDefinition\.Probe\b|\bCommandLine\b");
             // Every folder of the planner, and the files directly in it.
             var files = new List<string>(Directory.GetFiles(Path.Combine(src, "Planner"), "*.cs", SearchOption.TopDirectoryOnly));
-            foreach (string area in new[] { "Autopilot", "Engineer", "Hud", "Landing", "Orbits" })
+            foreach (string area in new[] { "Autopilot", "Engineer", "Planning", "Ui", "Hud", "Landing", "Orbits" })
                 files.AddRange(Directory.GetFiles(Path.Combine(src, "Planner", area), "*.cs", SearchOption.AllDirectories));
             foreach (string file in files)
             {
@@ -178,12 +181,28 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, found.Count, "Move to RouteTuning:\n" + string.Join("\n", found));
         }
 
+        // The vessel and stage maths (ReDefinition.Planner.Engineer) knows nothing of goals, routes, the autopilot's driver or the windows:
+        // it uses no using of Planning, Ui or any Autopilot namespace except Autopilot.Background, whose interfaces it implements.
+        [TestMethod]
+        public void TheEngineerMathsUsesNothingOfPlanningTheDriverOrTheWindows()
+        {
+            string folder = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src", "Planner", "Engineer");
+            var forbidden = new Regex(@"ReDefinition\.Planner\.(Planning|Ui)\b|ReDefinition\.Planner\.Autopilot(?!\.Background\b)\b(\.\w+)?");
+            var found = new List<string>();
+            foreach (string file in Directory.GetFiles(folder, "*.cs", SearchOption.AllDirectories))
+            {
+                string code = Regex.Replace(File.ReadAllText(file), "//[^\n]*", "");
+                foreach (Match m in forbidden.Matches(code)) found.Add(Path.GetFileName(file) + ": " + m.Value);
+            }
+            Assert.AreEqual(0, found.Count, "Engineer may not use these:\n" + string.Join("\n", found));
+        }
+
         // The planner's side (its folders and Common) uses nothing of ReDefinition beyond Core and Ui, whatever the table allows.
         // The planner works without ReDefinition, so a using of Window, Modules or Settings in it is a defect even if the table were widened.
         [TestMethod]
         public void ThePlannerSideUsesNothingOfReDefinitionBeyondCoreAndUi()
         {
-            var plannerSide = new HashSet<string> { "Planner", "Autopilot", "Engineer", "Landing", "Orbits", "PlannerHud", "Hooks", "Common" };
+            var plannerSide = new HashSet<string> { "Planner", "Autopilot", "Engineer", "Planning", "PlannerUi", "Driver", "Landing", "Orbits", "PlannerHud", "Hooks", "Common" };
             var fine = new HashSet<string>(plannerSide) { "Core", "Ui" };
             var found = Edges.Value.Where(e => plannerSide.Contains(e.Key.Item1) && !fine.Contains(e.Key.Item2))
                 .Select(e => e.Key.Item1 + " uses " + e.Key.Item2 + " (" + e.Value + ")").ToList();
@@ -199,8 +218,8 @@ namespace ReDefinition.Tests
         {
             string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
             var result = new Dictionary<System.Tuple<string, string>, string>();
-            var usingOfOurs = new Regex(@"^using ReDefinition\.(?:Planner\.(?=Engineer|Autopilot|Orbits|Landing|Hud\b))?(\w+)", RegexOptions.Multiline);
-            var qualifiedUse = new Regex(@"(?<![\w.])ReDefinition\.(?:Planner\.(?=Engineer|Autopilot|Orbits|Landing|Hud\b))?(?!Planner\.[A-Z])(\w+)\.[A-Z]");
+            var usingOfOurs = new Regex(@"^using ReDefinition\.(?:Planner\.(?:Autopilot\.(?=Driver\b)|(?=Engineer|Planning|Autopilot|Orbits|Landing|Hud\b|Ui\b)))?(\w+)", RegexOptions.Multiline);
+            var qualifiedUse = new Regex(@"(?<![\w.])ReDefinition\.(?:Planner\.(?:Autopilot\.(?=Driver\b)|(?=Engineer|Planning|Autopilot|Orbits|Landing|Hud\b|Ui\b)))?(?!Planner\.[A-Z])(\w+)\.[A-Z]");
             // Only areas whose name is not also a common member name, so that a property called Settings is no use.
             var partlyQualified = new Regex(@"(?<![\w.])(Probe|Raytracing|Scenery|Hud|Engineer|Upscaler|Proxy|Vendor|Diagnostics|Modules|Dashboard|Menu|Scaling|Ui)\.[A-Z]");
             foreach (string file in Directory.GetFiles(src, "*.cs", SearchOption.AllDirectories))
@@ -214,6 +233,9 @@ namespace ReDefinition.Tests
                 string area = slash < 0 ? "(root)" : relative.Substring(0, slash);
                 // The planner's Hud (ReDefinition.Planner.Hud) is another area than ReDefinition's own (ReDefinition.Hud).
                 if (inPlanner && area == "Hud") area = "PlannerHud";
+                if (inPlanner && area == "Ui") area = "PlannerUi";
+                // The autopilot's driver (ReDefinition.Planner.Autopilot.Driver) sits above the rest of the autopilot.
+                if (relative.StartsWith("Autopilot/Driver/")) area = "Driver";
                 string text = File.ReadAllText(file);
                 foreach (Match m in usingOfOurs.Matches(text))
                     AddEdge(result, area, Named(m), relative);
@@ -232,7 +254,8 @@ namespace ReDefinition.Tests
         private static string Named(Match match)
         {
             string area = match.Groups[1].Value;
-            return area == "Hud" && match.Value.Contains("Planner.Hud") ? "PlannerHud" : area;
+            if (area == "Hud" && match.Value.Contains("Planner.Hud")) return "PlannerHud";
+            return area == "Ui" && match.Value.Contains("Planner.Ui") ? "PlannerUi" : area;
         }
 
         // Records that the area uses another, with the first file that shows it; an area's own name is no edge.

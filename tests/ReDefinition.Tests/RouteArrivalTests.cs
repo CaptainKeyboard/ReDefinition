@@ -1,7 +1,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Driver;
 using ReDefinition.Planner.Autopilot.Planning;
-using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Planning;
 
 namespace ReDefinition.Tests
 {

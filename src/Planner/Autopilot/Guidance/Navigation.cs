@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
-using ReDefinition.Planner.Autopilot;
 using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Planner.Autopilot.Planning;
 

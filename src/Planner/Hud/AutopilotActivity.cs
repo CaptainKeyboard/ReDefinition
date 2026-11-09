@@ -1,9 +1,8 @@
-using ReDefinition.Planner;
 using System;
 using System.Reflection;
+using ReDefinition.Planner.Autopilot.Driver;
 using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
-using ReDefinition.Planner.Engineer;
 
 namespace ReDefinition.Planner.Hud
 {

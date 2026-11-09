@@ -6,8 +6,10 @@ The route stack as a mod of its own, `ReDefinition.Planner.dll`: the planner win
 
 | Folder or file | Read it for |
 |---|---|
-| `src/Planner/Engineer/` | The planner's model and window, the editor's engineer window, the route driver and the map additions. |
-| `src/Planner/Autopilot/` | The autopilot: planning the next step, flying it, and the background route that flies without the scene. |
+| `src/Planner/Engineer/` | The vessel and stage maths: the vessel as KSP's simulation gives it, the stages, the sections. |
+| `src/Planner/Planning/` | The plan: the route, its steps, the stage budget, and the model and state that hold them. |
+| `src/Planner/Ui/` | The windows and buttons: the editor's engineer window, the planner window in the map, the menus. |
+| `src/Planner/Autopilot/` | The autopilot: planning the next step, flying it, and the background route that flies without the scene. Its `Driver` folder follows the planner's route (`RouteDriver`) and hands it over when the player leaves. |
 | `src/Planner/Orbits/` | The orbit maths, free of Unity and KSP. |
 | `src/Planner/Landing/` | The simulation behind the landing and re-entry predictions. |
 | `src/Planner/Hud/` | The autopilot's buttons and its activity line on the flight screen. |

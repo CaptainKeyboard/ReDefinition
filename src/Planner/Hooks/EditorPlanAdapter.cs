@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ReDefinition.Core;
-using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Planning;
+using ReDefinition.Planner.Ui;
 
 namespace ReDefinition.Planner
 {
