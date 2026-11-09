@@ -48,9 +48,8 @@ namespace redefinition
         }
 
         // Why XeSS-FG cannot use the packet's constants, nullptr where it can. A motion vector scale
-        // of 0 gives XEFG_SWAPCHAIN_RESULT_ERROR_INVALID_ARGUMENT in OptiScaler's fork ("so 0.0f
-        // inputs safely default to 1.0f"). Intel's header names no range, and libxess_fg 1.3.1 took
-        // it in the harness. But it turns every vector to none. A projection from no near plane,
+        // of 0 turns every vector to none. Intel's header names no range, and libxess_fg 1.3.1 took
+        // it in the harness. A projection from no near plane,
         // far plane or field of view is none: "View/Projection matrices required"
         // (xess_fg_developer_guide_english.md, Inputs). The scale is left out where it is made 1
         // instead.

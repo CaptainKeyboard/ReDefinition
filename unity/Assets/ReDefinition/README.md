@@ -24,7 +24,7 @@ The Unity 2019.4.18f1 project that compiles the mod's shaders into the asset bun
   raytracing, and `ReDefinitionScreenSpaceShadows.shader` is Unity's built-in one changed the same
   way. Their headers name the source and the licence.
 - The `ffx_fsr3upscaler_*.compute` files, `ffx_fsr_unity_common.cginc` and `Shaders/shaders` are
-  FSR 3 as FSR3Unity has it, ported to Unity 2019.4 by `tools/port_fsr3_shaders.py`.
+  FSR 3 as FSR3Unity has it, ported to Unity 2019.4 by `tools/port_fsr3_shaders.py`, with FSR 3.1.4's four tuning constants added.
 - `Include/ReDefinition.cginc` gives a mod the frame state, the jitter and the motion vector
   helpers. `Include/ReDefinitionIncludeCheck.shader` calls each function of it.
 - `MotionVectorCheck` holds the player half of the motion vector check. Its four probes cover the

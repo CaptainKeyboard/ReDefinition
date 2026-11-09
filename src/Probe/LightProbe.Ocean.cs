@@ -189,7 +189,7 @@ namespace ReDefinition.Probe
             }
             // Their shadows on the ocean: Scatterer writes them into its ocean's command
             // buffers with EVE's AddOceanShadowCommands when it makes them (Scatterer
-            // 0.0908, OceanCommandBuffer.RecreateCommandBuffers): EVE's delegate dropped,
+            // 0.908, OceanCommandBuffer.RecreateCommandBuffers): EVE's delegate dropped,
             // and the buffers made again as for a new size.
             bool shadows = false;
             try

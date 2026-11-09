@@ -193,7 +193,7 @@ namespace ReDefinition.Core
         // Scatterer's ocean takes the raytraced reflections where Deferred's are held
         // (RtCamera, the ocean's reflections). This rests on its G-buffer as Deferred's
         // reflections read it, and on its switch for them, which it reads with Deferred's
-        // ssrOutput (OceanCommandBuffer, Scatterer 0.0908).
+        // ssrOutput (OceanCommandBuffer, Scatterer 0.908).
         public static readonly ForeignAssumption ScattererOceanReflections =
             new ForeignAssumption("scatterer-ocean-reflections", "Scatterer", "Scatterer's ocean mirrors the raytraced scene")
                 .Type("Scatterer.OceanCommandBuffer").Type("Scatterer.ShaderProperties")
@@ -557,8 +557,8 @@ namespace ReDefinition.Core
 
         // Kerbal Frame Generator's frame blend off while the upscaler runs (HostStack.Kfg):
         // its global switch, KFG_Settings.effectEnabled, a public static bool it reads every
-        // frame. Named from its source without a fingerprint: no build of it was installed
-        // to take one from.
+        // frame. Its source is no longer public. The names have no fingerprint: no build of it
+        // was installed to take one from.
         public static readonly ForeignAssumption KerbalFrameGenerator =
             new ForeignAssumption("kerbal-frame-generator", "Kerbal Frame Generator", "its frame blend off while the upscaler runs")
                 .Type("KFG_Settings")

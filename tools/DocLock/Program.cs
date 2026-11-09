@@ -159,7 +159,7 @@ namespace DocLock
     internal static class Sources
     {
         // Left out is code of others that is vendored or adapted with its own documentation (the proxy's
-        // headers of AMD, NVIDIA, Intel and Microsoft; AMD's FidelityFX shaders and FSR3Unity's port of
+        // headers of AMD, NVIDIA and Intel; AMD's FidelityFX shaders and FSR3Unity's port of
         // them). Also left out are copies (the test player's linked sources, which the build copies from src),
         // what Unity or the build generates, and the documentation itself.
         public static readonly string[] Excluded =

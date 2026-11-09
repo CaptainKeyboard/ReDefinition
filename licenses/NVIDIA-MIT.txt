@@ -4,7 +4,8 @@ verbatim.
 ----------------------------------------------------------------------------
 1. NVIDIA's Streamline SDK headers -- src/DxgiProxy/extern/Streamline/include, among
    them the signature check in sl_security.h -- from license.txt of the Streamline
-   SDK 2.14.1:
+   SDK 2.14.16. The headers carry (c) 2022-2023, 2022-2024 or 2023 NVIDIA CORPORATION;
+   the terms are those of license.txt:
 
 /*
 * Copyright (c) 2023 NVIDIA CORPORATION. All rights reserved
@@ -29,12 +30,12 @@ verbatim.
 */
 
 ----------------------------------------------------------------------------
-2. NVIDIA's NVAPI headers, whose function ids and structures src/DxgiProxy/NvidiaGpu.cpp
-   declares -- from nvapi.h and nvapi_interface.h in external/nvapi of the Streamline
-   SDK 2.14.1 -- and those src/DxgiProxy/RaytracingMegaGeometry.h and
-   src/DxgiProxy/RaytracingOmm.h declare, from nvapi.h and nvapi_interface.h of
-   github.com/NVIDIA/nvapi, whose License.txt has the same terms (Copyright (c) 2024 NVIDIA
-   CORPORATION & AFFILIATES):
+2. NVIDIA's NVAPI headers, whose function ids and structures src/DxgiProxy/Upscalers/NvidiaGpu.cpp
+   declares -- from nvapi.h, nvapi_lite_common.h and nvapi_interface.h in external/nvapi of
+   the Streamline SDK 2.14.16 -- and those src/DxgiProxy/Raytracing/RaytracingMegaGeometry.h
+   and src/DxgiProxy/Raytracing/RaytracingOmm.h declare, from nvapi.h and nvapi_interface.h
+   of github.com/NVIDIA/nvapi (its License.txt, written for its .lib files, has the same MIT
+   terms, Copyright (c) 2024 NVIDIA CORPORATION & AFFILIATES):
 
 SPDX-FileCopyrightText: Copyright (c) 2019-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 SPDX-License-Identifier: MIT

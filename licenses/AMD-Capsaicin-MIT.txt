@@ -1,7 +1,7 @@
 dxgi.dll contains shader code adapted from AMD's MIT-licensed Capsaicin framework --
 src/core/src/render_techniques/gi1/hash_grid_cache.hlsl and src/core/src/math/hash.hlsl,
 from github.com/GPUOpen-LibrariesAndSDKs/Capsaicin -- in ReDefinition's radiance cache
-(src/DxgiProxy/RaytracingShaders/RadianceCache.hlsli, which marks the adapted parts).
+(src/DxgiProxy/Raytracing/Shaders/RadianceCache.hlsli, which marks the adapted parts).
 The notice of those files follows, verbatim, and then the repository's LICENSE.
 
 ----------------------------------------------------------------------------

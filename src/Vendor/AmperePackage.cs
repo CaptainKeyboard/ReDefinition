@@ -6,13 +6,13 @@ using System.Text;
 
 namespace ReDefinition.Vendor
 {
-    // dlssg_for_sm86, sdli1995's community project (MIT; NVIDIA's DLSS frame generation
-    // runtime and kernels rebuilt from it inside), runs DLSS frame generation on
+    // dlssg_for_sm86, sdli1995's community project, runs DLSS frame generation on
     // GeForce RTX 30 and RTX 20. This class handles its release zip, which the player downloads from the
     // project's page and puts into KSP's folder, and what is taken out of it next to
     // KSP_x64.exe (AmpereFrameGeneration). Its version.dll is loaded there by KSP and by
     // ReDefinition's dxgi.dll alike; it answers NVAPI with a newer GPU and has
-    // NVIDIA's runtime run on its own kernels.
+    // NVIDIA's runtime run on its own kernels. Its notices say its own C++ is MIT and its
+    // README says GPLv3. NVIDIA's parts keep NVIDIA's licences.
     //
     // Taken: version.dll, dlssg_sm86.ini and the dlssg_sm86 folder without its
     // super-resolution files (sr, for DLSS Super Resolution, off in its ini), the licence

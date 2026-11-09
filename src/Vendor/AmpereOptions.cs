@@ -30,7 +30,7 @@ namespace ReDefinition.Vendor
         }
 
         // [DLSSG] Preset, [FrameGeneration] MaxGeneratedFrames, [SuperResolution] Mode and
-        // [Logging] FrameTiming of dlssg_for_sm86 0.4.0 (its INSTALL.en.md and the comments
+        // [Logging] FrameTiming of dlssg_for_sm86 0.4.1 (its INSTALL.en.md and the comments
         // in its dlssg_sm86.ini).
         public static readonly Option Preset = new Option
         {
@@ -94,7 +94,7 @@ namespace ReDefinition.Vendor
             Default = "0",
             Title = "DLSS-G frame timing",
             Tooltip = "On: the package writes the GPU time of every frame generation evaluate, per rendered\n"
-                      + "frame, to frames_<pid>.jsonl in dlssg_sm86\\logs. It changes no pixel and costs\n"
+                      + "frame, to frame_timing.txt in dlssg_sm86\\logs. It changes no pixel and costs\n"
                       + "a few microseconds per evaluate.\n"
                       + "Applies after a restart of KSP.",
         };

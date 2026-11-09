@@ -67,15 +67,15 @@ namespace ReDefinition.Dashboard
         // ascent with its automatic turn does. It goes straight up until 5 % of the atmosphere's height
         // or about 99 m/s, then the pitch falls with ((altitude - turn start) / (turn end - turn start))^0.4.
         // The turn ends at 85 % of the atmosphere's height or the target altitude if lower.
-        // The nose stays within 2000 Pa*rad / dynamic pressure of the surface prograde (MechJeb's
-        // Q-alpha limit). Going down it is the S-curve.
+        // The nose stays within 2000 Pa*rad / dynamic pressure of the surface prograde (the Q-alpha
+        // limit of MechJeb's PSG ascent, 2.16). Going down it is the S-curve.
         public enum Curve { Linear, S, Auto } // evenly, slow-faster-slow, or MechJeb's classic ascent
         private static Curve curve = Curve.S; // the shape chosen, the S-curve until the dashboard picks another
         private const double AUTO_SHAPE = 0.4; // the power the share of the way climbed is raised to
         private const double AUTO_TURN_START_SHARE = 0.05, AUTO_TURN_START_SPEED = 98.9; // m/s, MechJeb's 18.5^3 / 64
         private const double AUTO_TURN_END_SHARE = 0.85;
         private const double AUTO_VACUUM_START = 25; // metres climbed first on an airless body
-        private const double Q_ALPHA = 2000;          // Pa * rad, MechJeb's limit on dynamic pressure times angle of attack
+        private const double Q_ALPHA = 2000;          // Pa * rad, the Q-alpha limit of MechJeb's PSG ascent
         // Above the prograde the nose may go this many times further: a climb that has gone flatter
         // than the curve has to be pulled up again, or it would follow its prograde to the horizon.
         private const double AOA_UP = 3;
@@ -187,7 +187,7 @@ namespace ReDefinition.Dashboard
         }
 
         // In the atmosphere a nose far off the airflow costs speed and can flip the vessel: the aim
-        // stays within Q_ALPHA / dynamic pressure of the surface prograde, as MechJeb keeps it. Above
+        // stays within Q_ALPHA / dynamic pressure of the surface prograde, as MechJeb's PSG ascent keeps it. Above
         // the prograde it may go further, so a climb gone too flat is pulled up again.
         private static void KeepNearPrograde(Vessel v, ref Vector3d aim, ref Vector3d aimTop)
         {

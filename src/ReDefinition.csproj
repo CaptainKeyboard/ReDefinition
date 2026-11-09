@@ -360,9 +360,10 @@
        the way KSPCommunityFixes builds its release zip: GameData with the
        mod's folder inside. In it, as the forum's add-on rules and the licences
        ask: this project's licence and exceptions, the MIT notices of FSR3Unity
-       and of AMD's FidelityFX shaders compiled into the bundle, those of
-       Telemachus and Project Nayuki's QR code generator, which the dashboard
-       follows (src/Dashboard), the credits,
+       and of AMD's FidelityFX shaders compiled into the bundle, Unity's
+       built-in shader source in it, those of
+       Telemachus (whose API the dashboard follows) and Project Nayuki's QR Code
+       generator (translated into src/Dashboard/QrCode.cs), the credits,
        and a note on the source. Next to it, the complete source of the commit
        it was built from, as GPL-3.0 section 6(d) asks - so the tree has to be
        committed first. The shader bundle is built by the Unity project into
@@ -475,6 +476,7 @@
     <Copy SourceFiles="$(_RepoRoot)licenses\Telemachus-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-Telemachus.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\QR-Code-generator-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-QR-Code-generator.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Bruneton-INRIA-BSD3.txt" DestinationFiles="$(_StageMod)\LICENSE-Bruneton.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\Unity-builtin-shaders-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-Unity-shaders.txt" />
     <Copy SourceFiles="@(_StaticGameDataZip)" DestinationFolder="$(_Stage)\GameData\%(RecursiveDir)" />
     <Copy SourceFiles="$(_ProxyDll);$(_FfxRuntime);$(_FfxDenoiser)" DestinationFolder="$(_Stage)" />
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_framegeneration_dx12_LICENSE.md" />

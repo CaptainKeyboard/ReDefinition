@@ -113,7 +113,7 @@ namespace redefinition
     // this handle every frame; without it Unity stops right after creation. Under XeSS-FG
     // it is the swapchain's own, or the proxy's semaphore (xessFgOwnWaitable), each
     // call a handle of its own to close: "When you are done with the handle, use
-    // CloseHandle to close the handle" (Microsoft, GetFrameLatencyWaitableObject).
+    // CloseHandle to close it" (Microsoft, GetFrameLatencyWaitableObject).
     HANDLE STDMETHODCALLTYPE SwapChainProxy::GetFrameLatencyWaitableObject()
     {
         if (ownWaitable != nullptr)

@@ -175,7 +175,7 @@ namespace ReDefinition.Vendor
                 + " by sdli1995, runs it on RTX 30 and RTX 20 as well: its version.dll next to KSP_x64.exe has NVIDIA's"
                 + " frame generation runtime run on kernels rebuilt for these GPUs. It is neither NVIDIA's nor"
                 + " ReDefinition's, and ReDefinition neither ships nor downloads it. It holds NVIDIA's runtime; NVIDIA's"
-                + " licences cover NVIDIA's parts, the project's MIT license its own.\n\n"
+                + " licences cover NVIDIA's parts. The project's own notices call its C++ MIT, its README says GPLv3.\n\n"
                 + "1. Open the release page and download " + AmperePackage.ZipPattern.Replace("*", "<version>") + ".\n"
                 + "2. Put the zip, as it is, into KSP's folder:\n    " + NvidiaDownloader.GameFolder + "\n"
                 + "3. Install from the zip: ReDefinition takes version.dll, dlssg_sm86.ini and the dlssg_sm86 folder"

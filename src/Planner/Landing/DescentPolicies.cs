@@ -1,3 +1,5 @@
+// Adapted from MechJeb 2 (MechJeb2/MechJebModuleLandingAutopilot.cs: SafeDescentSpeedPolicy, PoweredCoastDescentSpeedPolicy, GravityTurnDescentSpeedPolicy), GPL-3.0: the speed a descent may have at each height.
+// The names and the numbers are MechJeb's; what differs is the namespace and the reading of the vessel's state, which comes from KSP here.
 using System;
 using UnityEngine;
 

@@ -761,10 +761,10 @@ namespace redefinition
 
     // Installed once, on the thread that begins the game's frames. The game window's messages
     // arrive in that thread's queue. The ping is among them, which PCL Stats posts to the
-    // foreground window (PCLStatsPingThreadProc, pclstats.h). The hook passes no module:
-    // "The hMod parameter must be set to NULL if the dwThreadId parameter specifies a thread
-    // created by the current process and the hook procedure is within the code associated with
-    // the current process" (Microsoft, SetWindowsHookExW).
+    // foreground window (PCLStatsPingThreadProc, pclstats.h). The hook passes no module.
+    // Microsoft (SetWindowsHookExW): "The hMod parameter must be set to NULL if the dwThreadId parameter specifies a thread
+    // created by the current process and if the hook procedure is within the code associated with
+    // the current process".
     void Streamline::InstallPingHook()
     {
         static std::atomic<DWORD> hookedThread{ 0 };

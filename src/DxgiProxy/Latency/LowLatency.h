@@ -162,8 +162,9 @@ namespace redefinition
         // Whether Anti-Lag 2 is on, on the device the ini asked for and it was initialised on. It is
         // the Anti-Lag 2 SDK (ffx_antilag2_dx12.h / ffx_antilag2_dx11.h) on Radeon RX 5000 and
         // later. It runs on the proxy's Direct3D 12 device or Unity's Direct3D 11 device as antiLag2
-        // asks (12, 11, 0 off). With it on, the brake is off: "Any other forms of latency
-        // reduction ... should be disabled".
+        // asks (12, 11, 0 off). With it on, the brake is off. Intel's XeLL guide says "Any other forms of latency
+        // reduction or wait inducing technologies like frame limiters should be disabled"; the
+        // Anti-Lag 2 headers do not repeat it.
         bool AntiLagLocked() const;
         // One latency marker (NV_LATENCY_MARKER_TYPE) for the frame: XeLL's where it is attached
         // (only for an id its sleep was called for), otherwise Reflex's. The first failure is logged.

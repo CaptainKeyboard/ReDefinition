@@ -41,8 +41,8 @@ It uses Core, Engineer and Modules. Modules uses it.
 - Network threads only queue messages. Everything that touches the game runs in
   `DashboardServer.Update` on the main thread (`src/Dashboard/DashboardServer.cs`).
 - The port is fixed at `DashboardServer.Port`, because `manifest.json` has to name it.
-- Key names and the bracket syntax follow Telemachus' API, so dashboards written for it keep
-  working (`src/Dashboard/Telemetry.cs`).
+- Where a key exists in both, the name and the bracket syntax are Telemachus'. The dashboard
+  has 131 keys and Telemachus about 465, with 51 in common (`src/Dashboard/Telemetry.cs`).
 - A client without the dashboard key gets in only from this computer, and only with no origin,
   the origin `null` or a `file://` origin (`WebSocketServer.OriginAllowed`).
 - A rate from the page holds for `FlyByWire.HoldSeconds`, so a dropped connection never leaves the

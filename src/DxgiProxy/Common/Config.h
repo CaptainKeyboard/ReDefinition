@@ -262,7 +262,7 @@ namespace redefinition
 
         // Streamline's ImGUI plugin loaded, which NVIDIA's development DLLs show
         // ("Use the sl.imgui plugin to validate that inputs ... are correct",
-        // ProgrammingGuideDLSS_G.md 15.0). For development: with it the GPU device
+        // ProgrammingGuideDLSS_G.md 17.0). For development: with it the GPU device
         // was removed four seconds after the first frame, while KSP loaded. With
         // NVIDIA's development DLLs in streamlineDirectory and dlssDirectory, DLSS-G's
         // and DLSS's debug visualizations answer their hotkeys without it.
@@ -320,9 +320,9 @@ namespace redefinition
         //
         // xessFgOwnWaitable: which frame latency waitable object KSP gets when it asks for one.
         // The values -1 (auto) and 1 give a semaphore of the proxy's, released after each game
-        // Present, which never holds the game back. OptiScaler calls it "swapchain waitable object
-        // simulation" and made it for Unity games that stuck while loading, which KSP does with
-        // XeSS-FG's own handle. The value 0 gives XeSS-FG's swapchain's own. Read when the swapchain
+        // Present, which never holds the game back. OptiScaler does this for Unity games with
+        // XeSS-FG ("Simulate waitable object event signals for FG swapchain", SimulateWaitableObject).
+        // KSP stuck with XeSS-FG's own handle. The value 0 gives XeSS-FG's swapchain's own. Read when the swapchain
         // is made.
         int xessFgOwnWaitable = -1;
         // xessFgGraceFrames: the game's frames in a row without inputs (no packet, no depth or
@@ -337,7 +337,7 @@ namespace redefinition
         // motion vector scale of 0 or not a number, or a projection from a near plane, far plane or
         // field of view that is not a positive number. The value skip hands the frame no inputs and
         // counts it against xessFgGraceFrames, and nothing locks XeSS-FG out. The value fix makes a
-        // scale of 0 or not a number 1 (OptiScaler's), and a projection that is wrong still skips.
+        // scale of 0 or not a number 1, and a projection that is wrong still skips.
         // The value pass hands them over as they are, and XeSS-FG's refusal switches it off for two
         // seconds. Live.
         int xessFgBadConstants = 0;
@@ -353,8 +353,7 @@ namespace redefinition
         // limit"). Intel allows all three at any time. Live.
         bool xessFgResetOnChange = false;
         // xessFgResetDebounce: a reset (resetHistory) within this many Presents of the
-        // last one handed over is dropped (OptiScaler: 3, "suppress redundant optical flow
-        // purging"). 0: every reset is handed over. Live.
+        // last one handed over is dropped, which suppresses redundant resets. 0: every reset is handed over. Live.
         int xessFgResetDebounce = 0;
         // xellLimitLive: XeLL's frame limit (fgHalfRefreshLimit) follows later changes of
         // that setting and of the monitor's refresh rate: xellSetSleepMode again only when

@@ -9,7 +9,7 @@
 //
 // The DXR 1.2 route (D3D12_RAYTRACING_GEOMETRY_OMM_TRIANGLES_DESC) needs Shader Model 6.9
 // for a RayQuery to say it meets micromaps (RAYQUERY_FLAG_ALLOW_OPACITY_MICROMAPS), and the
-// pipeline flag for earlier shader models "Not shipped yet" (DirectX-Specs, Raytracing,
+// pipeline flag for earlier shader models (DirectX-Specs, Raytracing,
 // D3D12_STATE_OBJECT_FLAG_RAYQUERY_ALLOW_OPACITY_MICROMAPS_ON_PRE_SM69_SHADERS). NVIDIA's
 // route has the driver told once, for every pipeline created after
 // (NvAPI_D3D12_SetCreatePipelineStateOptions, ENABLE_OMM_SUPPORT), and the passes' shaders

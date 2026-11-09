@@ -5,9 +5,9 @@
 // hand DLSS-G. What exists is the HUD-less copy (UpscalerRig.HudLess: the backbuffer at the
 // end of the last scene camera) and the presented frame; where the two differ, the pixel
 // is UI. NVIDIA's guide wants "UI Color and Alpha" such that
-// "Final_Color.RGB = UI.RGB + (1 - UI.Alpha) x Hudless.RGB", "RGB channels pre-multiplied
-// by alpha", alpha 0 "for pixels with no UI elements" and non-zero "for pixels with UI"
-// (ProgrammingGuideDLSS_G.md 5.0, table "Input"), and recomposition on "when both Hudless
+// "Final_Color.RGB = UI.RGB + (1 - UI.Alpha) x Hudless.RGB", "the RGB channels must be
+// pre-multiplied by alpha", alpha 0 "for pixels with no UI elements" and non-zero "for pixels with UI"
+// (ProgrammingGuideDLSS_G.md 5.1, table "Input"), and recomposition on "when both Hudless
 // and a UI buffer are tagged" (6.6).
 //
 // One equation per channel does not give two unknowns. binary takes alpha 1 where the two

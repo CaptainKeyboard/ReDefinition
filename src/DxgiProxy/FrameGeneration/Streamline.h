@@ -45,7 +45,7 @@ namespace redefinition
         // Loads sl.interposer.dll and calls slInit with manual hooking, for this
         // owner: DLSS-G, Reflex, PCL and Ray Reconstruction for frame generation,
         // Ray Reconstruction alone otherwise. Not from DllMain: "slInit must NOT be
-        // called within DLLMain entry point because that can cause a deadlock"
+        // called within DLLMain entry point in your application because that can cause a deadlock"
         // (ProgrammingGuide.md 2.2.1). False while another owner holds it, and on a
         // failure, which is logged with its reason and shows in Describe.
         bool Acquire(const void* owner, bool forFrameGeneration);

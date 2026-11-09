@@ -105,7 +105,7 @@ namespace redefinition
         // KSP asks for FRAME_LATENCY_WAITABLE_OBJECT and waits on its handle every
         // frame; a swapchain without one would stop Unity right after creation
         // (SwapChainProxyForwarding.cpp). The handle asked for here is closed again:
-        // "When you are done with the handle, use CloseHandle to close the handle"
+        // "When you are done with the handle, use CloseHandle to close it"
         // (Microsoft, IDXGISwapChain2::GetFrameLatencyWaitableObject). Intel's own sample
         // waits on XeSS-FG's swapchain's handle every frame (basic_sample_frame_generation,
         // -waitable), which is what xessFgOwnWaitable=0 hands out. auto and 1 hand out a

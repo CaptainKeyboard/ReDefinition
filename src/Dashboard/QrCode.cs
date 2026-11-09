@@ -6,9 +6,9 @@ namespace ReDefinition.Dashboard
 {
     /// <summary>
     /// A QR code for a short text: byte mode, error correction level M, the smallest version (1 to 10)
-    /// that holds it, mask 0. Follows the algorithm of Project Nayuki's QR code generator
-    /// (https://www.nayuki.io/page/qr-code-generator-library, MIT), cut down to what the dashboard's
-    /// address needs.
+    /// that holds it, mask 0. Translated from the Java implementation of Project Nayuki's QR Code generator
+    /// (https://www.nayuki.io/page/qr-code-generator-library, MIT), cut down to byte mode, level M,
+    /// versions 1 to 10 and mask 0.
     /// </summary>
     internal sealed class QrCode
     {

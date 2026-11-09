@@ -1,6 +1,7 @@
 dxgi.dll contains parts of AMD's MIT-licensed FidelityFX SDK headers --
 src/DxgiProxy/extern/FidelityFX: the FidelityFX API, its loader, and the frame
-generation and upscaler API headers. Their notice follows, verbatim from
+generation, upscaler and denoiser API headers (FidelityFX SDK v2.3.0; the denoiser header
+is denoisers/include/ffx_denoiser.h). Their notice follows, verbatim from
 api/include/ffx_api_loader.h and the other headers there.
 
 ----------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 dxgi.dll contains Intel's MIT-licensed XeSS headers -- src/DxgiProxy/extern/XeSS,
-xess.h, xess_d3d12.h, xell.h and xell_d3d12.h, from github.com/intel/xess (inc/ and inc/xell/) --
-which declare the entry points of the XeSS, XeSS frame generation and XeLL libraries the player brings.
+xess.h, xess_d3d12.h, xell.h and xell_d3d12.h, from github.com/intel/xess (inc/xess/ and inc/xell/) --
+which declare the entry points of the XeSS and XeLL libraries the player brings.
+src/DxgiProxy/FrameGeneration/XessFg.h declares the XeSS frame generation entry points by
+hand, from Intel's xefg_swapchain.h and xefg_swapchain_d3d12.h (same licence).
 Their notice follows, verbatim.
 
 ----------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+// Unity built-in shader source. Copyright (c) 2016 Unity Technologies. MIT license
+// (LICENSE-Unity-shaders.txt).
 // Modified version of Unity built-in shader source.
 // This adds the diffuse ambient evaluation here.
 //

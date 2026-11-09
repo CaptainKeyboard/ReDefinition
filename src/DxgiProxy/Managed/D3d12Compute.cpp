@@ -38,9 +38,8 @@ namespace redefinition
             return static_cast<int>(query.MaxSupportedFeatureLevel);
         }
 
-        // "If the shader model version requested is higher than the version the
-        // runtime understands, CheckFeatureSupport returns E_INVALIDARG": asked from
-        // the highest down.
+        // "ID3D12Device::CheckFeatureSupport returns E_INVALIDARG if HighestShaderModel isn't
+        // known by the current runtime": asked from the highest down.
         int HighestShaderModel(ID3D12Device* device)
         {
             const D3D_SHADER_MODEL models[] = {

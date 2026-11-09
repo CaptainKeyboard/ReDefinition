@@ -36,7 +36,7 @@ namespace ReDefinition.Scaling
         // The assemblies of mods that scale their windows themselves, and ReDefinition's own.
         // MechJeb, Kerbal Alarm Clock, RCSBuildAid, Janitor's Closet and CameraTools use a matrix that is the identity
         // at their own scale of 1. Kopernicus, KSPCommunityFixes, RemoteTech and KSP Craft Organizer use UI_SCALE in
-        // their size or text. Their sources were read.
+        // their size or text.
         private static readonly HashSet<string> ScaleThemselves = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "MechJeb2", "KerbalAlarmClock", "RCSBuildAid", "RCSBuildAidToolbar", "JanitorsCloset", "CameraTools",
@@ -187,6 +187,7 @@ namespace ReDefinition.Scaling
             {
                 if (!__state.Applied) return;
                 Matrix4x4 matrix = GUI.matrix;
+                // The rect is mapped through GUI.matrix as ClickThroughBlocker's IMGUIWindowTracker.RecordScreenSpace does (LGPL-3.0).
                 Vector3 a = matrix.MultiplyPoint3x4(new Vector3(__result.xMin, __result.yMin, 0f));
                 Vector3 b = matrix.MultiplyPoint3x4(new Vector3(__result.xMax, __result.yMax, 0f));
                 Note(drawn, __0, Rect.MinMaxRect(Mathf.Min(a.x, b.x), Mathf.Min(a.y, b.y), Mathf.Max(a.x, b.x), Mathf.Max(a.y, b.y)),

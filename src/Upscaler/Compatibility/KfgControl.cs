@@ -8,7 +8,7 @@ namespace ReDefinition.Upscaler
     // Kerbal Frame Generator's frame blend: switched off while the upscaler runs and put back on if it was on (HostStack).
     internal sealed class KfgControl : IHostFilter
     {
-        // Kerbal Frame Generator (MangoTechKSP, MIT) blends each frame with the
+        // MangoTech's Kerbal Frame Generator (its source is no longer public) blends each frame with the
         // one before in OnRenderImage (InterpolationEffect.cs). In flight it sits on
         // the camera KSP's GalaxyCameraControl belongs to, elsewhere on
         // Camera.main (KFG_UI_Controller.LateUpdate), the camera tagged
