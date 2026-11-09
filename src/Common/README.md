@@ -12,6 +12,8 @@ The DLL both packages ship, `ReDefinition.Common.dll`: what ReDefinition and the
 | `src/Common/HarmonyHooks.cs` | Harmony hooks that are left out where Harmony is not loaded. |
 | `src/Common/ModFolder.cs` | The settings folder of a mod: `GameData/<mod>/PluginData`. |
 | `src/Common/UiHygiene.cs` | The helpers every dialog is built with: tooltips, mouse handling, scrolling. |
+| `src/Common/DialogWindow.cs` | The one way a dialog is opened: shielded from clicks, kept within the screen, off the keyboard's navigation. |
+| `src/Common/WindowShield.cs` | Clicks on a window of ours that do not reach the buildings, the switches, the parts or the map behind it. |
 
 ## What it does
 
