@@ -60,7 +60,7 @@ namespace ReDefinition.Dashboard
         private void FindEmpty(Vessel v)
         {
             empty.Clear();
-            HashSet<string> air = AirResources(v.parts);
+            HashSet<string> air = VesselFacts.AirResources(v.parts);
             foreach (Part part in v.parts)
             {
                 if (part == null) continue;
@@ -91,21 +91,5 @@ namespace ReDefinition.Dashboard
             foreach (KeyValuePair<string, List<object>> mark in marks) dry[mark.Key] = mark.Value;
         }
 
-        // The resources engines take in from the air: IntakeAir, as KSP's simulation knows it
-        // (DeltaVGlobals.PropellantsToIgnore), and whatever the vessel's intakes gather (ModuleResourceIntake.resourceName).
-        private static HashSet<string> AirResources(List<Part> parts)
-        {
-            HashSet<string> air = new HashSet<string> { "IntakeAir" };
-            foreach (Part part in parts)
-            {
-                if (part == null) continue;
-                for (int m = 0; m < part.Modules.Count; m++)
-                {
-                    ModuleResourceIntake intake = part.Modules[m] as ModuleResourceIntake;
-                    if (intake != null && !string.IsNullOrEmpty(intake.resourceName)) air.Add(intake.resourceName);
-                }
-            }
-            return air;
-        }
     }
 }

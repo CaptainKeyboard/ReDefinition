@@ -84,7 +84,7 @@ namespace ReDefinition.Planner.Engineer
             rows.Sort((a, b) => a.Number.CompareTo(b.Number));
             readout.Stages = rows;
             readout.PartFacts = FactsOf(shipParts, partInfos);
-            HashSet<string> air = AirResources(shipParts);
+            HashSet<string> air = VesselFacts.AirResources(shipParts);
             if (BreathesAir(shipParts, air))
             {
                 readout.Density = new Dictionary<string, double>();
@@ -316,25 +316,11 @@ namespace ReDefinition.Planner.Engineer
         // The modules of the part being looked at, one list for each kind and reused, so that the loops over
         // the parts allocate no list per part. They are filled and read on the main thread only, and no loop
         // over one of them fills it again.
-        private static readonly List<ModuleResourceIntake> intakes = new List<ModuleResourceIntake>();
         private static readonly List<ModuleEngines> engineModules = new List<ModuleEngines>();
         private static readonly List<ModuleRCS> thrusters = new List<ModuleRCS>();
         private static readonly List<ModuleWheelBase> wheelModules = new List<ModuleWheelBase>();
         private static readonly List<ModuleReactionWheel> reactionWheels = new List<ModuleReactionWheel>();
         private static readonly List<ModuleGimbal> gimbals = new List<ModuleGimbal>();
-
-        // The resources engines take in from the air: IntakeAir, as KSP's simulation
-        // knows it (DeltaVGlobals.PropellantsToIgnore), and whatever the vessel's
-        // intakes gather (ModuleResourceIntake.resourceName), a mod's own air.
-        internal static HashSet<string> AirResources(List<Part> parts)
-        {
-            HashSet<string> air = new HashSet<string> { "IntakeAir" };
-            foreach (Part part in parts)
-                if (part != null)
-                    foreach (ModuleResourceIntake intake in PartModules.Of(part, intakes))
-                        if (intake != null && !string.IsNullOrEmpty(intake.resourceName)) air.Add(intake.resourceName);
-            return air;
-        }
 
         // Whether an engine on the vessel burns one of the air resources: only then does the planner simulate the stages itself.
         private static bool BreathesAir(List<Part> parts, HashSet<string> air)

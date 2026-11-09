@@ -23,6 +23,7 @@
   <ItemGroup>
     <InternalsVisibleTo Include="ReDefinition" />
     <InternalsVisibleTo Include="ReDefinition.Planner" />
+    <InternalsVisibleTo Include="ReDefinition.Dashboard" />
     <InternalsVisibleTo Include="ReDefinition.Tests" />
   </ItemGroup>
 

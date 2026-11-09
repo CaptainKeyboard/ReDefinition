@@ -43,7 +43,7 @@ namespace ReDefinition.Planner
             }
 
             Dictionary<string, double> density = new Dictionary<string, double>();
-            List<SimPart> sim = EditorReadout.SimOf(parts, facts, EditorReadout.AirResources(parts), density, 0.0);
+            List<SimPart> sim = EditorReadout.SimOf(parts, facts, VesselFacts.AirResources(parts), density, 0.0);
             // The engines staged by now and switched off.
             HashSet<int> off = new HashSet<int>();
             for (int i = 0; i < parts.Count; i++)

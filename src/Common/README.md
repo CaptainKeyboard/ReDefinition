@@ -11,6 +11,9 @@ The DLL both mods share, `ReDefinition.Common.dll`: what ReDefinition and the pl
 | `src/Common/ForeignAssumption.cs` | The check of an assumption about another mod's code against the build installed. |
 | `src/Common/HarmonyHooks.cs` | Harmony hooks that are left out where Harmony is not loaded. |
 | `src/Common/ModFolder.cs` | The settings folder of a mod: `GameData/<mod>/PluginData`, where `<mod>` is `ReDefinition/Main` or `ReDefinition/Planner`. |
+| `src/Common/ModSettingsFile.cs` | A mod's settings file in its `PluginData` folder: read with a fallback for a missing or damaged file, written with the folder created, typed key readers. |
+| `src/Common/StockNodes.cs` | The first maneuver node of a vessel that the planner's guidance did not make. |
+| `src/Common/VesselFacts.cs` | Thrust at a pressure, the hottest part, the air resources engines take in. |
 | `src/Common/UiHygiene.cs` | The helpers every dialog is built with: tooltips, mouse handling, scrolling. |
 | `src/Common/DialogWindow.cs` | The one way a dialog is opened: shielded from clicks, kept within the screen, off the keyboard's navigation. |
 | `src/Common/WindowShield.cs` | Clicks on a window of ours that do not reach the buildings, the switches, the parts or the map behind it. |

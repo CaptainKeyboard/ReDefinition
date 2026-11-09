@@ -1,10 +1,28 @@
 using System;
+using System.Collections.Generic;
 
 namespace ReDefinition.Core
 {
     // What a vessel's engines and parts give right now, as the flight readouts and the planner both read it.
     internal static class VesselFacts
     {
+        // The resources engines take in from the air: IntakeAir, as KSP's simulation knows it (DeltaVGlobals.PropellantsToIgnore),
+        // and whatever the vessel's intakes gather (ModuleResourceIntake.resourceName), a mod's own air.
+        internal static HashSet<string> AirResources(List<Part> parts)
+        {
+            HashSet<string> air = new HashSet<string> { "IntakeAir" };
+            foreach (Part part in parts)
+            {
+                if (part == null) continue;
+                for (int m = 0; m < part.Modules.Count; m++)
+                {
+                    ModuleResourceIntake intake = part.Modules[m] as ModuleResourceIntake;
+                    if (intake != null && !string.IsNullOrEmpty(intake.resourceName)) air.Add(intake.resourceName);
+                }
+            }
+            return air;
+        }
+
         // What one engine gives at full throttle at an air pressure (in atmospheres), at its thrust limit, in kN. It is the fuel flow times the
         // specific impulse at that pressure times g0, as MechJeb's vessel state and the game work it out. A vacuum engine gives little at the ground.
         internal static double FullThrust(ModuleEngines engine, double pressureAtmospheres)

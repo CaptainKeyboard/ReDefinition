@@ -104,7 +104,8 @@ Neither of the two mods names the other. They meet in Common, and each works wit
   nothing of them: no guidance gauge, no burn overlay, no guidance or route keys on the dashboard,
   no dry marks on the tapes.
 * **The helpers both use** are in Common: `HeldVessel`, `WarpLabel`, `WorldButton`, `TimeText`,
-  `VesselFacts`, `PropellantMix` and the rest.
+  `VesselFacts`, `PropellantMix`, `StockNodes`, `ModSettingsFile` (a mod's settings file in its
+  `PluginData` folder) and the rest.
 
 Common is one DLL for both, so seams and hooks are shared state. The planner of one release next to
 a ReDefinition of another works with the members the Common that the game keeps has. A member added
