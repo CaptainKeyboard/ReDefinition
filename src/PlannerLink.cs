@@ -12,6 +12,7 @@ namespace ReDefinition
         // From the addon's Awake.
         internal static void Connect()
         {
+            PlannerSeams.StandsAlone = () => false;
             PlannerSeams.WorldScale = () => UiScaling.World;
             PlannerSeams.BackgroundRoute = () => ReDefinitionAddon.Instance == null || ReDefinitionAddon.Instance.Live.BackgroundRoute;
             PlannerSeams.WorldButtons = () => ReDefinitionAddon.Instance == null || ReDefinitionAddon.Instance.Live.WorldButtons;

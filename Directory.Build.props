@@ -7,6 +7,11 @@
     <KspManaged>$(KspRoot)\KSP_x64_Data\Managed</KspManaged>
     <KspGameData>$(KspRoot)\GameData</KspGameData>
     <ModName>ReDefinition</ModName>
+    <!-- The planner is released on its own: its folder, and its version, which the AIO carries along. Common is the DLL both packages ship; its
+         assembly version is what the game compares, so it changes only when Common does. -->
+    <PlannerName>ReDefinitionPlanner</PlannerName>
+    <PlannerVersion>0.1.3</PlannerVersion>
+    <CommonVersion>0.1.3</CommonVersion>
   </PropertyGroup>
 
 </Project>

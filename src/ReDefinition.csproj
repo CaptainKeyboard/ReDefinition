@@ -205,6 +205,23 @@
     <WriteLinesToFile File="$(_AvcDir)\$(ModName).version" Lines="@(_AvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
     <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(ModName).version" Lines="@(_AvcLine)" Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
+    <!-- ReDefinition Planner's own, with its own version. -->
+    <ItemGroup>
+      <_PlannerAvcLine Include="{" />
+      <_PlannerAvcLine Include="&quot;NAME&quot;: &quot;$(PlannerName)&quot;," />
+      <_PlannerAvcLine Include="&quot;URL&quot;: &quot;$(_AvcRaw)/$(PlannerName).version&quot;," />
+      <_PlannerAvcLine Include="&quot;DOWNLOAD&quot;: &quot;$(_AvcHome)/releases/latest&quot;," />
+      <_PlannerAvcLine Include="&quot;CHANGE_LOG_URL&quot;: &quot;$(_AvcRaw)/CHANGELOG.md&quot;," />
+      <_PlannerAvcLine Include="&quot;VERSION&quot;: &quot;$(PlannerVersion)&quot;," />
+      <_PlannerAvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
+      <_PlannerAvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.0&quot;," />
+      <_PlannerAvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;" />
+      <_PlannerAvcLine Include="}" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputPath)GameData\$(PlannerName)" />
+    <WriteLinesToFile File="$(OutputPath)GameData\$(PlannerName)\$(PlannerName).version" Lines="@(_PlannerAvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(PlannerName).version" Lines="@(_PlannerAvcLine)" Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
   </Target>
 
   <!-- The iCUE widget for Corsair's touch screens: the dashboard's folder as a zip whose files are
@@ -252,10 +269,13 @@
 
   <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile;PackageIcueWidget"
           Condition="'$(DeployToGameData)' == 'true' And Exists('$(KspGameData)')">
-    <MakeDir Directories="$(KspGameData)\$(ModName)\Plugins" />
-    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll;$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
+    <MakeDir Directories="$(KspGameData)\$(ModName)\Plugins;$(KspGameData)\$(PlannerName)\Plugins" />
+    <!-- Both packages carry the common DLL; the game keeps the one with the higher assembly version (AssemblyLoader.FlagDuplicatedPlugins). -->
+    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(KspGameData)\$(ModName)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(KspGameData)\$(PlannerName)\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(KspGameData)\$(ModName)" />
-    <!-- The static GameData files of the repository (profiles and mod
+    <Copy SourceFiles="$(OutputPath)GameData\$(PlannerName)\$(PlannerName).version" DestinationFolder="$(KspGameData)\$(PlannerName)" />
+<!-- The static GameData files of the repository (profiles and mod
          registrations), copied the way KSPCommunityFixes copies its own. What
          this build ships is removed from the game first, so that a file dropped
          from the repository leaves the game: the profiles with the prefix
@@ -302,6 +322,9 @@
       <_ReleaseDir>$(OutputPath)release</_ReleaseDir>
       <_Stage>$(_ReleaseDir)\stage</_Stage>
       <_StageMod>$(_Stage)\GameData\$(ModName)</_StageMod>
+      <_StagePlanner>$(_Stage)\GameData\$(PlannerName)</_StagePlanner>
+      <_PlannerOnly>$(_ReleaseDir)\planner-stage</_PlannerOnly>
+      <_PlannerZip>$(_ReleaseDir)\$(PlannerName)_$(PlannerVersion).zip</_PlannerZip>
       <_ReleaseZip>$(_ReleaseDir)\$(ModName)_$(Version).zip</_ReleaseZip>
       <_SourceZip>$(_ReleaseDir)\$(ModName)_$(Version)_source.zip</_SourceZip>
       <_ShaderBundle>$(KspGameData)\$(ModName)\Shaders\redefinition.shaders</_ShaderBundle>
@@ -369,7 +392,11 @@
     <Error Condition="'$(_TreeStatus)' != ''"
            Text="No release zip: the working tree has changes or untracked files, and the source that goes with the package is HEAD's. Commit first." />
 
-    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll;$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(_StageMod)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(_StageMod)\Plugins" />
+    <!-- The AIO carries the planner too, in the folder the planner's own package uses, so that both packages overwrite the same files. -->
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll;$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(_StagePlanner)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(PlannerName)\$(PlannerName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StagePlanner)" />
+    <Copy SourceFiles="$(_RepoRoot)src\Planner\README.md" DestinationFolder="$(_StagePlanner)" Condition="Exists('$(_RepoRoot)src\Planner\README.md')" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />
@@ -393,6 +420,15 @@
     <!-- The source first: if it cannot be made, there is no player zip either. -->
     <Exec Command="git archive --format=zip -o &quot;$(_SourceZip)&quot; HEAD" WorkingDirectory="$(_RepoRoot)" />
     <ZipDirectory SourceDirectory="$(_Stage)" DestinationFile="$(_ReleaseZip)" Overwrite="true" />
+    <!-- ReDefinition Planner alone: what the AIO holds of it, and nothing of the rest. -->
+    <ItemGroup>
+      <_PlannerPackageFile Include="$(_StagePlanner)\**\*" />
+    </ItemGroup>
+    <Delete Files="$(_PlannerZip)" />
+    <RemoveDir Condition="Exists('$(_PlannerOnly)')" Directories="$(_PlannerOnly)" />
+    <Copy SourceFiles="@(_PlannerPackageFile)" DestinationFolder="$(_PlannerOnly)\GameData\$(PlannerName)\%(RecursiveDir)" />
+    <ZipDirectory SourceDirectory="$(_PlannerOnly)" DestinationFile="$(_PlannerZip)" Overwrite="true" />
+    <Message Importance="high" Text="Planner zip: $(_PlannerZip)." />
     <Message Importance="high" Text="Release zip: $(_ReleaseZip). Its source: $(_SourceZip)." />
   </Target>
 

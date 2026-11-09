@@ -16,11 +16,14 @@ namespace ReDefinition.Planner
         // The factor ReDefinition scales the interface by; 1 without it.
         internal static Func<float> WorldScale = () => 1f;
 
-        // Whether a route is flown by the vessel itself in the background (the player's setting); the way to go without a settings window.
-        internal static Func<bool> BackgroundRoute = () => true;
+        // Whether a route is flown by the vessel itself in the background (the player's setting); its own file without ReDefinition.
+        internal static Func<bool> BackgroundRoute = () => { PlannerSettings.Load(); return PlannerSettings.BackgroundRoute; };
 
         // Whether the buttons standing in the world show (the player's setting).
-        internal static Func<bool> WorldButtons = () => true;
+        internal static Func<bool> WorldButtons = () => { PlannerSettings.Load(); return PlannerSettings.WorldButtons; };
+
+        // Whether the planner stands alone, so that it offers its own settings; false with ReDefinition, whose settings window holds them.
+        internal static Func<bool> StandsAlone = () => true;
 
         // The space centre's own button of that name with its sprites; null without it, and the planner draws its own.
         internal static Func<string, SpaceCentreLook> SpaceCentreButton = name => null;

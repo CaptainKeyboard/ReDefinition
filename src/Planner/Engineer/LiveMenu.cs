@@ -71,6 +71,7 @@ namespace ReDefinition.Engineer
                 if (HasDockingPort(meet)) entries.Add(Entry("Dock with " + meet.vesselName, () => Meet(window, vessel, meet, true)));
             }
             entries.Add(Entry("Open Planner", window.OpenNow));
+            if (PlannerSeams.StandsAlone()) entries.Add(Entry("Planner Settings", PlannerSettingsDialog.Open));
             entries.Add(Entry("Close", () => { }));
             Show("Autopilot / MechJeb", entries);
         }
