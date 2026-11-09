@@ -196,7 +196,7 @@ namespace ReDefinition.Window
                 };
                 spawned.onDestroy.AddListener(gone);
                 spawned.OnDismiss = () => gone();
-                UnityMouseEvents.Shield(dialog);
+                WindowShield.Shield(dialog);
                 ScreenFit.Add(dialog);
                 EscapeGuard.Own(dialog);
                 UiHygiene.MouseOnly(dialog.gameObject);
@@ -879,7 +879,7 @@ namespace ReDefinition.Window
             TooltipText.WrapAll(rows);
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionModDialog." + key, "",
                 heading, HighLogic.UISkin, width, rows.ToArray());
-            PopupDialog shown = UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
+            PopupDialog shown = WindowShield.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(
                 new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
             // Once its elements stand.
             DialogTooltips.Attach(rows);

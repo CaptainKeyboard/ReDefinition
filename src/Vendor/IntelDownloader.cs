@@ -180,7 +180,7 @@ namespace ReDefinition.Vendor
 
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionIntelDownload", message, "Intel's XeSS files",
                 HighLogic.UISkin, 520f, rows.ToArray());
-            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+            WindowShield.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
 

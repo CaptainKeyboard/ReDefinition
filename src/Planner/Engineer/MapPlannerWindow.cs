@@ -450,7 +450,7 @@ namespace ReDefinition.Planner.Engineer
             else back.color = new Color(0.05f, 0.07f, 0.1f, 0.88f);
             back.raycastTarget = true;
             EscapeGuard.Own(frame.gameObject);
-            PlannerSeams.ShieldFrame(frame, () => slide > 0f);
+            WindowShield.ShieldFrame(frame, () => slide > 0f);
 
             long build = PlannerTiming.Start();
             float listWidth = PanelWidth - 6f;

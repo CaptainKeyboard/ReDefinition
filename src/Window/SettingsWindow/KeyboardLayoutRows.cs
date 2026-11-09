@@ -148,7 +148,7 @@ namespace ReDefinition.Window
                     }, 140f, 30f, true),
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton("Cancel", () => { }, 100f, 30f, true)));
-            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+            WindowShield.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), confirm, false, HighLogic.UISkin, false)));
         }
 

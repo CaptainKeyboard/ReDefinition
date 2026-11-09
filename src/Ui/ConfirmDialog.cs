@@ -3,7 +3,7 @@ using UnityEngine;
 namespace ReDefinition.Ui
 {
     // A question in the middle of the screen with a button that does it and KSP's
-    // Cancel, shielded from clicks through it (UnityMouseEvents.Shield).
+    // Cancel, shielded from clicks through it (DialogWindow.Show).
     internal static class ConfirmDialog
     {
         // In the middle of the screen: the button that does it on the left, KSP's Cancel on the right, both that wide.
@@ -15,8 +15,8 @@ namespace ReDefinition.Ui
                     new DialogGUIButton(act, onAct, buttonWidth, 30f, true),
                     new DialogGUIFlexibleSpace(),
                     new DialogGUIButton(KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, buttonWidth, 30f, true)));
-            UnityMouseEvents.Shield(ScreenFit.Add(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), question, false,
-                HighLogic.UISkin)));
+            DialogWindow.Show(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), question, false,
+                HighLogic.UISkin));
         }
 
         // Over the settings window (DialogOverWindow), as its own questions stand:
@@ -27,7 +27,7 @@ namespace ReDefinition.Ui
             MultiOptionDialog question = new MultiOptionDialog(name, message, title, HighLogic.UISkin, width,
                 new DialogGUIButton(act, onAct, true),
                 new DialogGUIButton(cancel ?? KSP.Localization.Localizer.Format("#autoLOC_174783"), () => { }, true));
-            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+            WindowShield.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), question, false, HighLogic.UISkin, false)));
         }
 

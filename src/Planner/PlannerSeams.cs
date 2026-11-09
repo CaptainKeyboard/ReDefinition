@@ -14,7 +14,7 @@ namespace ReDefinition.Planner
     internal static class PlannerSeams
     {
         // The level of these seams, which ReDefinition compares with the one it fills (PlannerLink.Expected); raised when a seam is added, removed or changes its meaning.
-        internal static int Level { get { return 1; } }
+        internal static int Level { get { return 2; } }
 
         // The factor ReDefinition scales the interface by; 1 without it.
         internal static Func<float> WorldScale = () => 1f;
@@ -30,9 +30,5 @@ namespace ReDefinition.Planner
 
         // The space centre's own button of that name with its sprites; null without it, and the planner draws its own.
         internal static Func<string, SpaceCentreLook> SpaceCentreButton = name => null;
-
-        // Keeps the clicks on a dialog and on a panel from reaching what lies behind (the map, the buildings); the dialog is returned.
-        internal static Func<PopupDialog, PopupDialog> ShieldDialog = dialog => dialog;
-        internal static Action<RectTransform, Func<bool>> ShieldFrame = (frame, shown) => { };
     }
 }

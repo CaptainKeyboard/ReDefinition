@@ -101,7 +101,7 @@ namespace ReDefinition.Planner.Engineer
             var anchor = new Vector2(0.2f, 0.72f);
             shown = PopupDialog.SpawnPopupDialog(anchor, anchor, dialog, false, HighLogic.UISkin, false);
             PlaceUnderButton();
-            PlannerSeams.ShieldDialog(ScreenFit.Add(shown));
+            DialogWindow.Show(shown);
             UiHygiene.MouseOnly(shown.gameObject);
         }
 

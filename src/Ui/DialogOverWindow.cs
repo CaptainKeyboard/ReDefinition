@@ -21,7 +21,7 @@ namespace ReDefinition.Ui
     // What a modal dialog would give is set here instead.
     // The darkened screen takes the UI's clicks, the UI_DIALOGS lock stands while it is there, and
     // Unity's mouse events are kept off what lies behind the dark
-    // (UnityMouseEvents.ShieldScreen).
+    // (WindowShield.ShieldScreen).
     // It also makes links: buttons without a background, for what opens a
     // page rather than acts.
     internal static class DialogOverWindow
@@ -86,7 +86,7 @@ namespace ReDefinition.Ui
         // for as long as one of these stands.
         private static void Hold(PopupDialog dialog)
         {
-            UnityMouseEvents.ShieldScreen(dialog);
+            WindowShield.ShieldScreen(dialog);
             EscapeGuard.Own(dialog);
             if (holding++ == 0) InputLockManager.SetControlLock(ControlTypes.UI_DIALOGS, LockName);
             dialog.onDestroy.AddListener(() =>

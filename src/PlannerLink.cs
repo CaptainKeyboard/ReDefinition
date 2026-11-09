@@ -16,7 +16,7 @@ namespace ReDefinition
     internal static class PlannerLink
     {
         // The level of PlannerSeams this build fills; raised together with PlannerSeams.Level when a seam is added, removed or changes its meaning.
-        internal const int Expected = 1;
+        internal const int Expected = 2;
 
         // From the addon's Awake.
         internal static void Connect()
@@ -61,8 +61,6 @@ namespace ReDefinition
                     Normal = held.Normal, Highlighted = held.Highlighted, Pressed = held.Pressed, Disabled = held.Disabled,
                 };
             };
-            PlannerSeams.ShieldDialog = UnityMouseEvents.Shield;
-            PlannerSeams.ShieldFrame = UnityMouseEvents.ShieldFrame;
         }
     }
 }

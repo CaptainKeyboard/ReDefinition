@@ -210,7 +210,7 @@ namespace ReDefinition.Vendor
 
             MultiOptionDialog dialog = new MultiOptionDialog("ReDefinitionAmpereFrameGeneration", message,
                 "DLSS frame generation on RTX 30 and RTX 20", HighLogic.UISkin, 520f, rows);
-            UnityMouseEvents.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
+            WindowShield.Shield(DialogOverWindow.Raise(PopupDialog.SpawnPopupDialog(new Vector2(0.5f, 0.5f),
                 new Vector2(0.5f, 0.5f), dialog, false, HighLogic.UISkin, false)));
         }
 
