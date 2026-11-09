@@ -129,7 +129,7 @@ namespace ReDefinition.Core
         // Their history read with point filtering: a postfix on OnPreCull sets one texture
         // of godraysRT's pair to Point and the other to Bilinear, chosen by useFlipBuffer as
         // OnPreCull leaves it (ScattererCompatibility.AfterPreCull; RaymarchedGodraysRenderer
-        // .OnPreCull, Scatterer 0.908, decompiled). Where OnPreCull uses them otherwise, the
+        // .OnPreCull, Scatterer 0.908). Where OnPreCull uses them otherwise, the
         // filter could land on the wrong one, unseen.
         public static readonly ForeignAssumption ScattererGodrayHistory =
             new ForeignAssumption("scatterer-godray-history", "Scatterer", "Scatterer's godray history without outlines")
@@ -161,7 +161,7 @@ namespace ReDefinition.Core
         // Scatterer's SMAA, turned off the same way: its command buffer taken off the
         // camera at its own event, and its "initialized" reset so that it attaches the
         // buffer again when switched back on (HostStack; SubpixelMorphologicalAntialiasing,
-        // Scatterer 0.908, decompiled).
+        // Scatterer 0.908).
         public static readonly ForeignAssumption ScattererSmaa =
             new ForeignAssumption("scatterer-smaa", "Scatterer", "Scatterer's SMAA off while the upscaler runs")
                 .Type("Scatterer.SubpixelMorphologicalAntialiasing")
@@ -171,8 +171,7 @@ namespace ReDefinition.Core
                 .OnChange(WhenChanged.Keep, "Scatterer's SMAA is only disabled, its command buffer may stay");
 
         // Deferred's SMAA, which it adds to the editors' Main Camera, turned off as
-        // Scatterer's: the same fields (SubpixelMorphologicalAntialiasing, Deferred 1.3.5,
-        // decompiled).
+        // Scatterer's: the same fields (SubpixelMorphologicalAntialiasing, Deferred 1.3.5).
         public static readonly ForeignAssumption DeferredSmaa =
             new ForeignAssumption("deferred-smaa", "Deferred", "Deferred's SMAA off in the editors while the upscaler runs")
                 .Type("Deferred.SubpixelMorphologicalAntialiasing")
@@ -244,8 +243,7 @@ namespace ReDefinition.Core
         // useSSROnCurrentCamera to 1 and adding its command buffers, and its OnPostRender
         // taking those off and setting it back to 0. So a component off leaves 0 and no
         // pass. Its result, ssrOutput, is the global Scatterer's ocean reads, and the raytraced
-        // reflections are handed to it under (RtCamera.OceanReflections). Deferred 1.3.5,
-        // decompiled.
+        // reflections are handed to it under (RtCamera.OceanReflections). Deferred 1.3.5.
         public static readonly ForeignAssumption DeferredSsrHold =
             new ForeignAssumption("deferred-ssr-hold", "Deferred", "Deferred's reflections held for the raytraced ones")
                 .Type("Deferred.ScreenSpaceReflections")
@@ -256,7 +254,7 @@ namespace ReDefinition.Core
                 .OnChange(WhenChanged.Fallback, "Deferred's screen-space reflections stay on beside the raytraced ones");
 
         // TUFX's post-processing split around the upscaler: PostProcessing v2 as TUFX
-        // carries it (TufxPostProcessing, PostProcessing v2 in TUFX 1.1.1, decompiled).
+        // carries it (TufxPostProcessing, PostProcessing v2 in TUFX 1.1.1).
         // What the split rests on beyond names is three things. PostProcessManager.UpdateSettings
         // blends a layer's settings anew from the defaults every frame (ReplaceData), after which
         // the postfix switches effects off for that frame. PostProcessLayer's
@@ -285,7 +283,7 @@ namespace ReDefinition.Core
         // TUFX's antialiasing off while the upscaler runs (HostStack.Tufx): the loader's
         // current profile, its Antialiasing and SecondaryCameraAntialiasing (structs with
         // a Mode), the cameras' PostProcessLayer.antialiasingMode, and RefreshCameras to
-        // hand them theirs back (TUFX 1.1.1, decompiled).
+        // hand them theirs back (TUFX 1.1.1).
         private const string TufxLoader = "TUFX.TexturesUnlimitedFXLoader";
         private const string PostProcessAntialiasing = "UnityEngine.Rendering.PostProcessing.PostProcessLayer+Antialiasing";
         public static readonly ForeignAssumption TufxAntialiasing =
@@ -309,7 +307,7 @@ namespace ReDefinition.Core
         // window comes through ChangeProfileForScene, hooked. A choice here is applied through
         // ApplyProfile. It is saved where TUFX saves its own: the configuration (defaultConfiguration's
         // MainMenuProfile, written to defaultConfigUrl's file) or the save's TUFXGameSettings
-        // (SetProfileName). TUFX 1.1.1, decompiled.
+        // (SetProfileName). TUFX 1.1.1.
         private const string TufxConfiguration = "TUFX.TexturesUnlimitedFXLoader+Configuration";
         public static readonly ForeignAssumption TufxProfiles =
             new ForeignAssumption("tufx-profiles", "TUFX", "TUFX's scene profiles in ReDefinition's window")
@@ -333,7 +331,7 @@ namespace ReDefinition.Core
         // .cginc, Parallax Continued 1.0.0) -- shader code, which only the version
         // can tell. Its save writes the setting as it stands, and a prefix and a
         // postfix hand it the player's value for that (ParallaxSettings.SaveSettings,
-        // decompiled; ParallaxTessellation).
+        // ParallaxTessellation).
         public static readonly ForeignAssumption ParallaxTessellation =
             new ForeignAssumption("parallax-tessellation", "Parallax", "Parallax's tessellation kept at display density")
                 .Type("Parallax.ParallaxSettings")
@@ -350,7 +348,7 @@ namespace ReDefinition.Core
         // It reads the three levels' meshes, materials and output buffers as 64-byte clumps.
         // It reads the points its scatters are culled about (RuntimeOperations.vectorCraftPos,
         // vectorCameraPos) and where the farthest level starts (DistributionParams.lod2.range).
-        // It reads _InstanceData too, the buffer Parallax's materials draw from (Parallax Continued 1.0.0, decompiled).
+        // It reads _InstanceData too, the buffer Parallax's materials draw from (Parallax Continued 1.0.0).
         private const string ScatterRenderer = "Parallax.ScatterRenderer";
         public static readonly ForeignAssumption ParallaxScatters =
             new ForeignAssumption("parallax-scatters", "Parallax", "Parallax's scatters in the raytraced scene and on the lawns")
@@ -377,7 +375,7 @@ namespace ReDefinition.Core
                 .OnChange(WhenChanged.Fallback, "the scatters are left out of the rays, and the space centre's lawns stay bare");
 
         // Distant Object's sky dimming, without the sun's term where the sun is
-        // hidden: DarkenSky.Update as decompiled, and CalculatePlanetsBrightness
+        // hidden: DarkenSky.Update, and CalculatePlanetsBrightness
         // called with its arguments by position, on SolarSystemEngine.Instance with
         // the settings' SkyboxBrightness values (DistantObjectBehaviour).
         private const string DistantSkybox = "DistantObject.SettingsBuffer+SkyboxBrightnessClass";
@@ -400,7 +398,7 @@ namespace ReDefinition.Core
         // It names Settings.Instance, its Load and Commit, and its window. The window is
         // SettingsGui's buffer, held by SettingsGuiOnMainMenu and SettingsGuiOnGameScenes, and
         // ApplySettings, hooked so that a change made there reaches ReDefinition's window
-        // (Distant Object 2.2.1.7, decompiled).
+        // (Distant Object 2.2.1.7).
         public static readonly ForeignAssumption DistantObjectSettings =
             new ForeignAssumption("distantobject-settings", "Distant Object", "Distant Object's settings in ReDefinition's window")
                 .Type("DistantObject.Settings").Type("DistantObject.SettingsGui")
@@ -447,7 +445,7 @@ namespace ReDefinition.Core
         // TimeWarpBar). ReDefinition routes its OnGUI's two GUI.Toggle calls, shows its
         // buttonContent on the copy, switches its UIOpen by a press on it, and keeps its toolbar
         // button by the namespace it registers with ToolbarControl
-        // (BetterTimeWarp.MODID). Better Time Warp 2.3.14.2, decompiled.
+        // (BetterTimeWarp.MODID). Better Time Warp 2.3.14.2.
         public static readonly ForeignAssumption BetterTimeWarp =
             new ForeignAssumption("better-time-warp", "Better Time Warp", "Better Time Warp's button in the time panel")
                 .Type("BetterTimeWarp.BetterTimeWarp")
@@ -470,8 +468,7 @@ namespace ReDefinition.Core
 
         // Kopernicus's shader settings, read for KSP's terrain shader quality
         // (KspBehaviour.KopernicusShaderLevel): RuntimeUtility.KopernicusConfig, its
-        // EnforceShaders, WarnShaders and EnforcedShaderLevel (Kopernicus 1.12.249,
-        // decompiled).
+        // EnforceShaders, WarnShaders and EnforcedShaderLevel (Kopernicus 1.12.249).
         private const string KopernicusConfig = "Kopernicus.Configuration.ConfigReader";
         public static readonly ForeignAssumption KopernicusShaders =
             new ForeignAssumption("kopernicus-shaders", "Kopernicus", "Kopernicus's enforced terrain shader level")
@@ -485,7 +482,7 @@ namespace ReDefinition.Core
         // Kopernicus's star in the raytracing (RtKspMods): KopernicusStar.Current, the star
         // nearest the focus, whose light lights the scene, and its shifter's sunlightColor,
         // the colour Kopernicus gives that light (KopernicusStar, LightShifter; Kopernicus
-        // 1.12.249, decompiled).
+        // 1.12.249).
         private const string KopernicusStar = "Kopernicus.Components.KopernicusStar";
         public static readonly ForeignAssumption KopernicusStarLight =
             new ForeignAssumption("kopernicus-star", "Kopernicus", "the raytraced sun as Kopernicus's current star")
@@ -543,7 +540,7 @@ namespace ReDefinition.Core
         // Scatterer's main settings in ReDefinition's window (ScattererBehaviour):
         // Scatterer.Instance, its mainSettings and isActive, the Scatterer_config node they
         // load from, and pluginData with its savePluginData for the window's keys
-        // (Scatterer 0.908, decompiled).
+        // (Scatterer 0.908).
         public static readonly ForeignAssumption ScattererSettings =
             new ForeignAssumption("scatterer-settings", "Scatterer", "Scatterer's settings in ReDefinition's window")
                 .Type("Scatterer.Scatterer").Type("Scatterer.MainSettingsReadWrite").Type("Scatterer.PluginDataReadWrite")
@@ -568,7 +565,7 @@ namespace ReDefinition.Core
         // The Toolbar's buttons and MechJeb's menu kept off KSP's loading screen
         // (Window.LoadingScreenWindows). Their OnGUI is skipped while its camera is on, by a
         // prefix whose effect does not depend on what OnGUI draws (Toolbar 1.8.1.2,
-        // MechJeb 2.15.3, decompiled).
+        // MechJeb 2.15.3).
         public static readonly ForeignAssumption ToolbarLoadingScreen =
             new ForeignAssumption("toolbar-loading-screen", "Toolbar", "the Toolbar's buttons off KSP's loading screen")
                 .Type("Toolbar.ToolbarManager")
@@ -584,7 +581,7 @@ namespace ReDefinition.Core
 
         // Other mods' buttons in KSP's toolbar hidden or kept by the namespace they register
         // with ToolbarControl (Window.ToolbarTakeover): its static tcList, each one's
-        // nameSpace and stockButton (ToolbarControl 0.1.9.14, decompiled).
+        // nameSpace and stockButton (ToolbarControl 0.1.9.14).
         public static readonly ForeignAssumption ToolbarControlButtons =
             new ForeignAssumption("toolbarcontrol-buttons", "ToolbarControl", "other mods' toolbar buttons hidden by their mod")
                 .Type("ToolbarControl_NS.ToolbarControl")
@@ -596,7 +593,7 @@ namespace ReDefinition.Core
         // Persistent Rotation's toolbar button hidden for good (Window.ToolbarHides). It
         // registers with ToolbarControl as "PersistentRotation" (Interface.MODID). Its
         // OnClick only shows and hides its window, which a row of ReDefinition's window
-        // does (Persistent Rotation 1.9.2.1, decompiled).
+        // does (Persistent Rotation 1.9.2.1).
         public static readonly ForeignAssumption PersistentRotationButton =
             new ForeignAssumption("persistentrotation-button", "Persistent Rotation", "its toolbar button left to the window's row")
                 .Type("PersistentRotation.Interface")

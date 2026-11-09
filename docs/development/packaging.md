@@ -100,6 +100,8 @@ GameData/ReDefinition/Main/
     LICENSE-QR-Code-generator.txt  Project Nayuki's QR code generator, MIT, which the
                               dashboard's QR code adapts (a C# translation of the Java version)
     LICENSE-Bruneton.txt      Bruneton's atmosphere model, BSD-3-Clause
+    LICENSE-Unity-shaders.txt Unity's built-in shader source, MIT
+    LICENSE-Unity-Companion.txt  the Unity Companion License of the SRP macros in the FSR shader wrapper
     SOURCE.md                 where the source is
     CREDITS.md                docs/credits-and-licences.md
     README.md                 the part's own note, GameData/ReDefinition/Main/README.md

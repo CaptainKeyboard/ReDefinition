@@ -11,7 +11,7 @@ namespace ReDefinition.Dashboard
     // nothing is marked, and the tapes show as without marks. Empty means an engine lit (ModuleEngines.EngineIgnited, which a
     // solid booster stays) that reaches none of a propellant it burns, air aside
     // (Propellant.totalResourceAvailable, which the engine updates every physics frame while lit, or
-    // isDeprived as it flames out; decompiled). It marks every propellant the engine burns.
+    // isDeprived as it flames out). It marks every propellant the engine burns.
     internal sealed class FuelTelemetry
     {
         // The simulation is run again after this many seconds.

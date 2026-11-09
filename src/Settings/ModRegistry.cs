@@ -15,7 +15,7 @@ namespace ReDefinition.Settings
         // ModuleManager puts its PostPatchLoader right after the GameDatabase among the loading
         // screen's loaders and patches once the database has loaded.
         // Its own reload waits for the GameDatabase, the PostPatchLoader and PartLoader in
-        // that order (ModuleManager 4.2.3, decompiled: ModuleManager.Awake and
+        // that order (ModuleManager 4.2.3: ModuleManager.Awake and
         // DataBaseReloadWithMM). PartLoader ready is after both, with
         // ModuleManager or without it.
         public static bool Ready()

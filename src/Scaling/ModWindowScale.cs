@@ -34,9 +34,9 @@ namespace ReDefinition.Scaling
         private const int Last = 0;
 
         // The assemblies of mods that scale their windows themselves, and ReDefinition's own.
-        // MechJeb, Kerbal Alarm Clock, RCSBuildAid, Janitor's Closet and CameraTools use a matrix that is the identity
-        // at their own scale of 1. Kopernicus, KSPCommunityFixes, RemoteTech and KSP Craft Organizer use UI_SCALE in
-        // their size or text.
+        // MechJeb (MechJebCore) and CameraTools (CamTools) set GUI.matrix to a scale of their own, the identity at 1.
+        // Kopernicus, KSPCommunityFixes and RemoteTech use UI_SCALE in their size or text. The others in the list are
+        // taken to scale themselves as well.
         private static readonly HashSet<string> ScaleThemselves = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "MechJeb2", "KerbalAlarmClock", "RCSBuildAid", "RCSBuildAidToolbar", "JanitorsCloset", "CameraTools",
@@ -57,7 +57,7 @@ namespace ReDefinition.Scaling
             // and does not drift by (scale - 1) times the way it was moved (AnchorOf).
             public Vector2 Returned;
             public bool HasReturned;
-            // Drawn without a background (Kerbal Engineer's HUD read-outs): no window to
+            // Drawn without a background (a read-out drawn as a window): no window to
             // click on, so not shielded.
             public bool SeeThrough;
         }

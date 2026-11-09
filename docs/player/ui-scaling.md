@@ -46,4 +46,4 @@ that nothing grows twice. The rest of the mod works as before:
 | Maneuver Node Evolved | the maneuver gizmo's size and its own size settings; *Force Maneuver Node Open*, snapping and input stay |
 
 Mods that size their own windows keep their size and their own setting for it: MechJeb,
-Kerbal Alarm Clock, RCSBuildAid, KSP Craft Organizer, Kopernicus and others.
+CameraTools, Kopernicus, KSPCommunityFixes, RemoteTech and others.

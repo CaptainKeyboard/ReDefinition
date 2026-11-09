@@ -1,10 +1,15 @@
 # Source and notices
 
-ReDefinition is free software: GPL-3.0-or-later with the Modding Exception and
+ReDefinition's own code is GPL-3.0 (version 3 only) with the Modding Exception and
 the GPL-3.0 Linking Exception (`LICENSE`, `EXCEPTIONS.md`; the exception text is
-DynamicShaderFrameGen's, from Community Shaders). Files adapted from MechJeb 2
-(the planner's landing code) and from Deferred (the reflections shader) are
-GPL-3.0, as the licences of those mods say.
+DynamicShaderFrameGen's, from Community Shaders). It is "only" because files adapted
+from MechJeb 2 (the planner's landing code) and from Deferred (the reflections shader)
+are GPL-3.0 without "or later", as the licences of those mods say.
+
+Files adapted from other works keep those works' licences, as the list below gives them
+per work: MIT (FSR3Unity, AMD, NVIDIA, Intel, Unity's built-in shaders, Telemachus,
+Nayuki), BSD-3-Clause (Bruneton), the Unity Companion License (the SRP macros in
+`ffx_fsr_unity_common.cginc`), and AMD's licence for AMD's two runtime DLLs.
 
 **The source.** The complete source of this build -- the commit it was built
 from -- is distributed next to this package as `ReDefinition_<version>_source.zip`,
@@ -39,6 +44,9 @@ package.
 * Unity built-in shader source (`Internal-ScreenSpaceShadows.shader`,
   `Internal-DeferredReflections.shader`), Copyright (c) 2016 Unity Technologies --
   MIT, `LICENSE-Unity-shaders.txt`. Changed and compiled into `Shaders/redefinition.shaders`.
+* Unity Graphics' Scriptable Render Pipeline core package, by Unity Technologies --
+  Unity Companion License, `LICENSE-Unity-Companion.txt`. The `TextureXR.hlsl` macros adapted in
+  `ffx_fsr_unity_common.cginc`, compiled into `Shaders/redefinition.shaders`.
 * Deferred's reflections shader, by Ghassen Lahmar -- GPL-3.0 (Deferred's licence).
   Changed for ReDefinition and compiled into `Shaders/redefinition.shaders`.
 * Telemachus, by TeleIO -- MIT, `LICENSE-Telemachus.txt`. The dashboard follows its API.

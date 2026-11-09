@@ -15,7 +15,7 @@ namespace ReDefinition.Planner
 
         // MechJeb as the map window's autopilot flies a route (Autopilot/MechJebDriver): the node executor, the landing and ascent
         // autopilots, the target and warp controllers and the staging limit, reached through the vessel's master core. MechJeb 2.15.4.0, the
-        // stable release, and 2.16 (the development builds), decompiled: the members named here are the same in both. The ascent is PVG in
+        // stable release, and 2.16 (the development builds): the members named here are the same in both. The ascent is PVG in
         // 2.15 and PSG in 2.16, and is reached through the settings' AscentAutopilot, which both have. Without it the autopilot is greyed out.
         public static readonly ForeignAssumption MechJebAutopilot =
             new ForeignAssumption("mechjeb-autopilot", "MechJeb", "MechJeb flying the planner's route")

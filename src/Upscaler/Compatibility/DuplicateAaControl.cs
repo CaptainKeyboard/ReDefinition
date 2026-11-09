@@ -12,7 +12,7 @@ namespace ReDefinition.Upscaler
     // profiles). In the space centre, in flight and in IVA the scene camera ran
     // Scatterer's TAA (JitterAndResolve), Scatterer's SMAA and TUFX's TAA at once. In
     // the map view the scaled space camera ran Scatterer's TAA and TUFX's SMAA. None of the
-    // mods looks at another's (Scatterer, TUFX and Deferred decompiled): two temporal
+    // mods looks at another's (Scatterer, TUFX and Deferred): two temporal
     // filters averaged the frames twice over one jitter, and PostProcessing's read the
     // motion vectors of Scatterer's replacement shader.
     //

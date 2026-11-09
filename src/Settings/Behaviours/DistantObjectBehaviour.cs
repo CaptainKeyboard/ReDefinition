@@ -87,7 +87,7 @@ namespace ReDefinition.Settings.Behaviours
                 ? window.GetMethod("ApplySettings", BindingFlags.NonPublic | BindingFlags.Instance, null, Type.EmptyTypes, null)
                 : null;
             // Its window is no MonoBehaviour: SettingsGuiOnMainMenu and
-            // SettingsGuiOnGameScenes each hold one (decompiled).
+            // SettingsGuiOnGameScenes each hold one.
             windowBuffer = window != null ? window.GetField("buffer", BindingFlags.NonPublic | BindingFlags.Instance) : null;
             foreach (string holderName in new[] { "DistantObject.SettingsGuiOnMainMenu", "DistantObject.SettingsGuiOnGameScenes" })
             {
@@ -187,7 +187,7 @@ namespace ReDefinition.Settings.Behaviours
         }
 
         // Its font by name, among the dynamic fonts loaded
-        // (SettingsBuffer.FlyOverClass.fonts, decompiled), which is how its window
+        // (SettingsBuffer.FlyOverClass.fonts), which is how its window
         // offers them.
         private bool FontChoice(RegisteredMod mod, BundledSetting setting, FieldInfo group)
         {
@@ -302,10 +302,10 @@ namespace ReDefinition.Settings.Behaviours
         // Where the sun is behind a body, the sky as Distant Object dims it without the
         // sun's term: by the bright planets in view alone.
         // Its sky dimming takes the sun's term by the angle between the view and the sun alone
-        // (CommonUtils.CalculateSunBrightness, decompiled), so on the night side, looking towards the sun
+        // (CommonUtils.CalculateSunBrightness), so on the night side, looking towards the sun
         // behind the planet, the stars go out. Where a body stands between the camera and the sun,
         // the sky is dimmed by the planets' term alone, as KSP's own glare fade does
-        // (GalaxyCubeControl's line of sight to the sun, decompiled).
+        // (GalaxyCubeControl's line of sight to the sun).
         // Runs inside Distant Object every frame: nothing may escape.
         private static void DarkenSkyPostfix()
         {
@@ -325,7 +325,7 @@ namespace ReDefinition.Settings.Behaviours
 
         // maxBrightness * min(1, system.CalculatePlanetsBrightness(minimumSignificantBodySize,
         // minimumTargetRelativeAngle, referenceBodySize, camera)), as DarkenSky.Update
-        // takes the planets' term (decompiled).
+        // takes the planets' term.
         private static Func<object, object, Camera, double> SkyBrightness(Type group, Type contract)
         {
             ParameterExpression system = Expression.Parameter(typeof(object), "system");
@@ -394,7 +394,7 @@ namespace ReDefinition.Settings.Behaviours
 
         // Whether a body stands between the camera and the sun.
         // The sun is the star that lights the scene: Kopernicus's current one where it is installed,
-        // as Distant Object's Kopernicus solar system takes it (KopernicusStar.Current; decompiled),
+        // as Distant Object's Kopernicus solar system takes it (KopernicusStar.Current),
         // KSP's sun otherwise (RtKspMods.StarBodyOnly).
         private static bool SunHidden(Vector3 cameraAt)
         {

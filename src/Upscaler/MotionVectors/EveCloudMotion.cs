@@ -15,7 +15,7 @@ namespace ReDefinition.Upscaler
     // DeferredRaymarchedVolumetricCloudsRenderer.OnPreRender takes
     // GL.GetGPUProjectionMatrix(VRUtils.GetNonJitteredProjectionMatrixForCamera
     // (targetCamera), false) for currentVP and keeps it for the next frame's
-    // previousVP (Atmosphere.dll 3.2.2, decompiled). The matrices' use is
+    // previousVP (Atmosphere.dll 3.2.2). The matrices' use is
     // disassembled from Scatterer-EVE/RaymarchCloud, which Scatterer puts in
     // place of EVE's. NVIDIA: "Ensure that all input to DLSS is properly
     // jittered. This includes secondary passes that might otherwise have not been

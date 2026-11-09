@@ -19,7 +19,7 @@ namespace ReDefinition.Raytracing
         // under FlightCamera (ScreenSpaceShadowsManager), and Deferred one with
         // Deferred/DummyForwardShader under the camera it works on
         // (ForwardRenderingCompatibility). Both have bounds far beyond the quad so
-        // nothing culls them (Atmosphere.dll, Deferred.dll, decompiled). The
+        // nothing culls them (Atmosphere.dll, Deferred.dll). The
         // flight camera hangs under the vessel it follows, among the renderers
         // the vessel's parts are read from. Taken in, a quad would stand at the
         // eye and cast a shadow. Found anew every frame (RtKsp): cameras come and go,

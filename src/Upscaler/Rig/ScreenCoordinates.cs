@@ -56,7 +56,7 @@ namespace ReDefinition.Upscaler
         // on its UI canvases over the map and the flight (UIMasterController, OrbitRendererBase, PatchedConics,
         // ManeuverGizmo, RectTransformUtility.WorldToScreenPoint). It is also the picking of parts under the cursor
         // (Mouse, EditorLogic: ScreenPointToRay(Input.mousePosition)), and what the mods draw over the scene or pick
-        // in it. Their DLLs call them: MechJeb, Kerbal Engineer, Trajectories, Waypoint Manager, Distant Object,
+        // in it. Their DLLs call them: MechJeb, Trajectories, Waypoint Manager, Distant Object,
         // Kopernicus, Firefly, FreeIva, EVE's cloud painter.
         private static bool Scale(Camera camera, out float x, out float y)
         {

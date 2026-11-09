@@ -36,14 +36,14 @@ namespace ReDefinition.Upscaler
         private readonly List<TaaBackup> backups = new List<TaaBackup>();
 
         // Scatterer adds its TAA to the cameras in Init at every scene change
-        // (Scatterer.cs, AddComponent<TemporalAntiAliasing>, decompiled): a postfix on its
+        // (Scatterer.cs, AddComponent<TemporalAntiAliasing>): a postfix on its
         // Awake switches each one off as it comes while the upscaler runs, rather than up
         // to ReassertInterval later. Reassert stays as the net under it.
         private bool hookTried;
 
         // The floating origin switch as the first neutralising found it, null while none is saved.
         // Undone, the switch goes back to it; a TAA switched on
-        // again sets it itself as it renders (TemporalAntiAliasing.OnPreCull, decompiled).
+        // again sets it itself as it renders (TemporalAntiAliasing.OnPreCull).
         private int? savedUseFloatingOrigin;
 
         // The motion vector shader's mode and custom shader before RestoreBuiltinMotionVectorShader set Unity's own; null
@@ -472,8 +472,8 @@ namespace ReDefinition.Upscaler
         //
         // Scatterer's TAA sets every vessel renderer to ForceNoMotion on load and
         // corrects that to Object each frame in OnPreCull once the model matrix
-        // changes (RegisterVesselRenderers, UpdateVesselRendererMotionModes,
-        // decompiled). Disable the component and they freeze on ForceNoMotion: they
+        // changes (RegisterVesselRenderers, UpdateVesselRendererMotionModes).
+        // Disable the component and they freeze on ForceNoMotion: they
         // stop writing object motion while still moving in the image, and smear.
         // Its GameEvents registration survives the disable too, so newly loaded
         // vessels keep arriving on ForceNoMotion: freed as they come

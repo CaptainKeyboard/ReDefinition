@@ -149,7 +149,7 @@ namespace ReDefinition.Scenery
                             // Firefly took the vessel's envelopes down (RemoveVesselFx with
                             // onlyEnvelopes, as its part count changes) and keeps fxVessel and
                             // its airstream camera for the next CreateVesselFx, which does not
-                            // switch the camera on again (AtmoFxModule, decompiled): it is
+                            // switch the camera on again (AtmoFxModule): it is
                             // switched on here, as Firefly left it.
                             if (idle.Remove(module) && fx != null)
                             {

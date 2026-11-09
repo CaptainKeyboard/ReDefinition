@@ -415,8 +415,8 @@ namespace FidelityFX.FSR3
             RcasConsts = RcasConstantsFor(dispatchParams.Sharpness);
         }
 
-        // ReDefinition: the RCAS constants computed. From 0 to 1 they are bit for
-        // bit those of FSR3Unity's precomputed table, which ends at FidelityFX's
+        // ReDefinition: the RCAS constants computed as 2^(-2 (1 - sharpness)) instead
+        // of read from FSR3Unity's precomputed table, which ends at FidelityFX's
         // maximum of 1, zero stops of attenuation; above 1 the same formula goes
         // on. Also for RCAS after another upscaler (ReDefinition.RcasSharpener).
         internal static Fsr3Upscaler.RcasConstants RcasConstantsFor(float sharpness)

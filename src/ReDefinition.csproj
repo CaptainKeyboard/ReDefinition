@@ -16,7 +16,7 @@
     <DebugType>portable</DebugType>
     <Version>0.1.3</Version>
     <Product>ReDefinition</Product>
-    <Copyright>Copyright (C) 2026 CaptainKeyboard. GPL-3.0-or-later</Copyright>
+    <Copyright>Copyright (C) 2026 CaptainKeyboard. GPL-3.0</Copyright>
     <!-- FSR3Unity gates its debug view behind UNITY_EDITOR or DEVELOPMENT_BUILD,
          and Unity defines neither in a plain plugin build. Development builds
          define it: FSR's debug view pass, its switch in the diagnostics window,
@@ -477,6 +477,7 @@
     <Copy SourceFiles="$(_RepoRoot)licenses\QR-Code-generator-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-QR-Code-generator.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Bruneton-INRIA-BSD3.txt" DestinationFiles="$(_StageMod)\LICENSE-Bruneton.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Unity-builtin-shaders-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-Unity-shaders.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\Unity-Companion-License.txt" DestinationFiles="$(_StageMod)\LICENSE-Unity-Companion.txt" />
     <Copy SourceFiles="@(_StaticGameDataZip)" DestinationFolder="$(_Stage)\GameData\%(RecursiveDir)" />
     <Copy SourceFiles="$(_ProxyDll);$(_FfxRuntime);$(_FfxDenoiser)" DestinationFolder="$(_Stage)" />
     <Copy SourceFiles="$(_RepoRoot)licenses\AMD-FidelityFX-SDK-license.md" DestinationFiles="$(_Stage)\amd_fidelityfx_framegeneration_dx12_LICENSE.md" />

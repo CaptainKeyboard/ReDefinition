@@ -10,8 +10,10 @@ would not show in such a comparison. Authors and licences were read from the lic
 notice or README of each work, from its repository or from its distribution page, as the
 entry says. A work that ReDefinition only mentions and does nothing with is not listed.
 
-**This project's licence:** GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking
-Exception (see `LICENSE` and `EXCEPTIONS.md`).
+**This project's licence:** GPL-3.0 (version 3 only) WITH Modding Exception AND GPL-3.0 Linking
+Exception (see `LICENSE` and `EXCEPTIONS.md`). It is "only" because the planner assembly
+contains code adapted from MechJeb 2, and the main module contains a shader adapted from
+Deferred, and both state GPL version 3 without "or later".
 
 **The Use column** says how a work is in the project:
 
@@ -67,14 +69,14 @@ Exception (see `LICENSE` and `EXCEPTIONS.md`).
 | **MechJeb 2** | the MechJeb contributors, among them sarbian and lamont-granquist | GPL-3.0 | Code taken, Run time | The descent simulation in `src/Planner/Landing`: `ReentrySimulation.cs`, `SimCurves.cs`, `SimulatedParachute.cs`, `SimulatedPart.cs` and `SimulatedVessel.cs` are MechJeb's, with heat flux and dynamic pressure added; `Compat.cs` holds reduced helpers; `DescentPolicies.cs` adapts its descent speed policies. At run time the planner's autopilot calls MechJeb |
 | **Deferred** | Ghassen Lahmar (LGhassen) | GPL-3.0 | Code taken, Run time | `ReDefinitionDeferredReflections.shader` is adapted from Deferred's reflections shader (Deferred 1.3.5); the raytraced ambient and reflection block is ReDefinition's own. At run time its settings are bundled |
 | **Unity's built-in shaders** (Unity 2019.4.18f1) | Unity Technologies | MIT | Code taken | `ReDefinitionScreenSpaceShadows.shader` is adapted from `Internal-ScreenSpaceShadows.shader` (Copyright 2016 Unity Technologies), the changes marked. Deferred's reflections shader, which ReDefinition's adapts, itself derives from Unity's. Notice: `LICENSE-Unity-shaders.txt` |
-| **Unity Graphics** (Scriptable Render Pipeline packages) | Unity Technologies | Unity Companion License | Code taken | `ffx_fsr_unity_common.cginc` adapts macros from the SRP package's `TextureXR.hlsl` (line 54) |
+| **Unity Graphics** (Scriptable Render Pipeline packages) | Unity Technologies | Unity Companion License | Code taken | `ffx_fsr_unity_common.cginc` adapts macros from the SRP package's `TextureXR.hlsl` (line 54). Notice: `LICENSE-Unity-Companion.txt` |
 | **Precomputed Atmospheric Scattering** | Eric Bruneton (INRIA); modified and ported to Unity by Justin Hawkins, as Scatterer carries it | BSD-3-Clause | Code taken | The analytic optical depth in the cloud moonlight shader `ReDefinitionCloudMoonlight.shader`. Notice: `LICENSE-Bruneton.txt` |
 | **QR Code generator library** | Project Nayuki | MIT | Code taken | `src/Dashboard/QrCode.cs` is a C# translation of the Java implementation, cut down to byte mode, level M, versions 1 to 10 and one mask. Notice: `LICENSE-QR-Code-generator.txt` |
 | **Telemachus Reborn** | TeleIO; maintained by TeaGuild | MIT | Technique | The dashboard's key names, the bracket syntax of its commands (`f.setThrottle[0.5]`) and its WebSocket message keys follow Telemachus' API: where a key exists in both, its name and bracket syntax are Telemachus'. Notice: `LICENSE-Telemachus.txt` |
 | **Massively Parallel Path Space Filtering** (Binder, Fricke, Keller) and **GI-1.0** (Boissé et al.) | the authors | papers | Technique | `RadianceCache.hlsli` follows the hash table of jittered, quantised keys and the world-space hash-grid cache they describe (arXiv 1902.05942, arXiv 2310.19855) |
 | **Vulkan specification** (opacity micromaps) | The Khronos Group | CC-BY-4.0 for the specification text (Vulkan-Docs); its code is Apache-2.0 | Reference | The order of the micro-triangles in the section *Ray Opacity Micromap* (`chapters/raytraversal.adoc`), which `RaytracingOmmBake.cpp` quotes and builds |
 | **OptiScaler** | the OptiScaler team | GPL-3.0 | Reference | Comments in `Config.h`, `XessFg.cpp`, `SwapChainProxyXess.cpp`, `Dlss.cpp`, `DlssRayReconstruction.cpp` and `FrameGenerationXess.cpp` cite how its XeSS frame generation integration behaves |
-| **Skyrim Community Shaders** and **DynamicShaderFrameGen** | doodlum, Pentalimb and contributors (Community Shaders); jatelop8 (DynamicShaderFrameGen) | GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking Exception | Text taken | `EXCEPTIONS.md` is the text of the Modding Exception and the GPL-3.0 Linking Exception that both projects carry, unchanged. ReDefinition's licence line is the one in their READMEs |
+| **Skyrim Community Shaders** and **DynamicShaderFrameGen** | doodlum, Pentalimb and contributors (Community Shaders); jatelop8 (DynamicShaderFrameGen) | GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking Exception | Text taken | `EXCEPTIONS.md` is the text of the Modding Exception and the GPL-3.0 Linking Exception that both projects carry, unchanged. ReDefinition's licence line follows theirs, with GPL version 3 only |
 | **dlssg_for_sm86** | sdli1995; SM75 kernels by Coldwood1026; a method by dashdogy, as its README names them | its README says GPL-3.0 for the source, its notices say its own C++ is MIT | Player's download | DLSS frame generation on RTX 30 and RTX 20. ReDefinition neither ships nor downloads it: the player downloads the release from its page, and ReDefinition installs the files from that zip next to `KSP_x64.exe` |
 
 MechJeb 2 and Deferred state GPL version 3 without "or later" in their licence files
@@ -147,6 +149,7 @@ The full release zip carries the notices below. The planner's zip and the Common
 | `LICENSE-FSR3Unity.txt` | `GameData/ReDefinition/Main` | FSR3Unity |
 | `LICENSE-FidelityFX.txt` | `GameData/ReDefinition/Main` | AMD's FSR 3 shader headers and passes |
 | `LICENSE-Bruneton.txt`, `LICENSE-Telemachus.txt`, `LICENSE-QR-Code-generator.txt`, `LICENSE-Unity-shaders.txt` | `GameData/ReDefinition/Main` | Bruneton, Telemachus, Nayuki, Unity's built-in shaders |
+| `LICENSE-Unity-Companion.txt` | `GameData/ReDefinition/Main` | The Unity Companion License of the SRP macros in `ffx_fsr_unity_common.cginc` |
 | `SOURCE.md` | `GameData/ReDefinition/Main` | The source of this build and the notices |
 | `dxgi_LICENSE-NVIDIA.txt`, `dxgi_LICENSE-FidelityFX.txt`, `dxgi_LICENSE-AntiLag2.txt`, `dxgi_LICENSE-Capsaicin.txt`, `dxgi_LICENSE-XeSS.txt` | next to `KSP_x64.exe` | The headers and adapted code compiled into `dxgi.dll` |
 | `amd_fidelityfx_framegeneration_dx12_LICENSE.md`, `amd_fidelityfx_denoiser_dx12_LICENSE.md` | next to `KSP_x64.exe` | AMD's two runtime DLLs |

@@ -1,7 +1,7 @@
 """The sun's and the moons' reflections on the sea, as the light probe captured them,
 against a physical model.
 
-The sea's slopes are as Cox and Munk measured them, Gaussian (Beckmann's distribution).
+The sea's slopes are modelled by Beckmann's distribution.
 Their mean square slope m^2 is the raytracing's (Scatterer's variance per pixel,
 m = 2 alpha, or STOCK_M2 for KSP's own sea). The specular microfacet BRDF is
 D G / (4 N.L N.V) with Smith's shadowing (Walter et al. 2007). A disc of solid angle

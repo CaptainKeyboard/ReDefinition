@@ -833,8 +833,7 @@ float DiscSpecular(float3 normal, float3 view, float3 towards, float radius, flo
     float a = max(m, 1e-3f);
     float a2 = a * a;
     float nh2 = nh * nh;
-    // Beckmann's distribution, not GGX's: a sea's slopes are near Gaussian (Cox and Munk), as
-    // Bruneton's ocean and Scatterer take them, and GGX's long tails let the glints of slopes
+    // Beckmann's distribution, not GGX's: GGX's long tails let the glints of slopes
     // four and five times the usual mirror a disc as bright as the moon's far to its sides.
     // Measured at sea, 2026-10-04, that made a moon's path 2.5 times as wide as its waves
     // allow.
@@ -1033,8 +1032,8 @@ float4 StockWaves(float3 position, float acrossFootprint)
         // A wave is drawn as far as a pixel resolves it: its length against the water the pixel
         // covers along the wave's own direction (a ripple octave: along the view, the most),
         // across the view and, stretched by the grazing angle, along it. What it loses goes
-        // into the roughness, as Bruneton's ocean and LEAN mapping move the slopes a pixel
-        // cannot show into the BRDF: the glints of the ripples near by, a smooth glow far off,
+        // into the roughness, as Scatterer's ocean moves the slopes a pixel
+        // cannot show into a slope variance (_Ocean_Variance): the glints of the ripples near by, a smooth glow far off,
         // no flicker.
         float shown = saturate(wavelength / (2.0f * max(footprint, 1e-4f)) - 1.0f);
         lost += 0.5f * kStockWaveSlope * kStockWaveSlope * (1.0f - shown * shown);

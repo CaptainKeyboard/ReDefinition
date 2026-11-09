@@ -69,7 +69,7 @@ namespace ReDefinition.Ui
                 WindowShield.OtherWindows.Add(() => ModWindowClose.PointerOverModWindow() || Scaling.ModWindowScale.PointerOverScaledWindow());
                 WindowShield.OtherWindows.Add(OverDiagnostics);
                 // This mod's diagnostics window over one of its dialogs too: the click is the window's, not the control's under it. Other
-                // mods' unscaled windows are not counted: some draw see-through read-outs as windows (Kerbal Engineer's HUD), and the dialog
+                // mods' unscaled windows are not counted: some draw see-through read-outs as windows, and the dialog
                 // under one would take no click.
                 WindowShield.PassThroughWhile.Add(() => ModWindowClose.PointerOverModWindow() || Scaling.ModWindowScale.PointerOverScaledWindow()
                                                         || OverDiagnostics());

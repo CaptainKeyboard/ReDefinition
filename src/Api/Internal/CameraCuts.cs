@@ -31,7 +31,7 @@ namespace ReDefinition.Api.Internal
         // KSP sets that parent itself in FlightCamera.Start and OnVesselChange (its pivot), on every scene change
         // (PSystemSetup.OnSceneChange, ResetTransforms) and in the space centre (SpaceCenterCamera2). That is
         // before the rig exists, with a change of target, or at a scene change, where a reset belongs anyway
-        // (all decompiled; the mods' sources).
+        // (as named here).
         private static Transform lastParent;
 
         // The kerbal whose IVA view the camera showed at the last look, or null outside the IVA mode.

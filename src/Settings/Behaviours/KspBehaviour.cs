@@ -618,7 +618,7 @@ namespace ReDefinition.Settings.Behaviours
         // One is Scatterer's shadow distance, where it holds one. Its static originalShadowDistance is the
         // level's own while it does, 0 otherwise, and what it puts back when its terrain shadows go off.
         // The other is its shadow projection, where it sets one: with the unified camera and d3d11ShadowFix
-        // or terrainShadows, or with shadowsOnOcean or oceanLightRays (Scatterer.SetShadows, 0.908, decompiled).
+        // or terrainShadows, or with shadowsOnOcean or oceanLightRays (Scatterer.SetShadows, 0.908).
         // Deferred's light count follows PixelLightCount.
         internal struct HeldQuality
         {

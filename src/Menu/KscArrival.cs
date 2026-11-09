@@ -253,7 +253,7 @@ namespace ReDefinition.Menu
 
         // Calls ResetHistory on every camera's Scatterer TAA and TUFX PostProcessLayer, the methods looked up once per type.
         // The TAA keeps its history when switched off and on, and makes it anew only on a reset
-        // (TemporalAntiAliasing.ResetHistory, CheckHistory; Scatterer 0.908, decompiled).
+        // (TemporalAntiAliasing.ResetHistory, CheckHistory; Scatterer 0.908).
         // TUFX's PostProcessing takes the same reset as Scatterer's TAA (PostProcessLayer.ResetHistory).
         internal static void ResetTemporalHistories()
         {

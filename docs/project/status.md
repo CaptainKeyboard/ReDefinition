@@ -68,5 +68,5 @@ Released: 0.1.3.
 | The package holds none of Intel's XeSS DLLs, AMD's upscaler DLL and dlssg_for_sm86. The player downloads Intel's from Intel's release after accepting Intel's licence, and brings the other two | [development/packaging.md](../development/packaging.md) |
 | The latency brake is on at 4 ms. The radiance cache, opacity micromaps and RTX Mega Geometry are off | [reference/proxy-settings.md](../reference/proxy-settings.md) |
 | Harmony is required | `src/KspAssemblyInfo.cs` |
-| Licence GPL-3.0-or-later with the Modding and Linking Exceptions | `LICENSE`, `EXCEPTIONS.md` |
+| Licence GPL-3.0 with the Modding and Linking Exceptions | `LICENSE`, `EXCEPTIONS.md` |
 | ReDefinition keeps no migration for its own stored formats: a format changes in place | |

@@ -14,8 +14,7 @@ namespace ReDefinition.Settings.Behaviours
     // _TessellationEdgeLength (Parallax-Continued Assets/Shaders/Terrain/ParallaxUtils.cginc:83-91).
     // The terrain materials get the setting as it stands (ToolbarMenu.UpdateTerrainMaterials,
     // ParallaxTerrainBody: ConfigLoader.parallaxGlobalSettings
-    // .terrainGlobalSettings.tessellationEdgeLength, ParallaxContinued.dll,
-    // decompiled).
+    // .terrainGlobalSettings.tessellationEdgeLength, ParallaxContinued.dll).
     // At the upscaler's lower render height the same edge covers
     // fewer pixels and the ground turns coarser than at display size.
     // The registered setting (parallax.tessellationEdgeLength) is divided by display

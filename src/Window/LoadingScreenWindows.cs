@@ -7,10 +7,10 @@ namespace ReDefinition.Window
 {
     // Keeps the Toolbar's buttons and MechJeb's menu off KSP's black screen between
     // scenes. KSP shows it with a camera of its own and hides only its uGUI
-    // (LoadingBufferMask.Show: camera.enabled, UIMasterController.HideUI;
-    // decompiled); the two draw with OnGUI and stayed on the black. Their OnGUI is
-    // skipped while that camera is on (ToolbarManager.OnGUI, MechJebCore.OnGUI,
-    // decompiled from the installed DLLs), and nothing else: other mods, and what
+    // (LoadingBufferMask.Show: camera.enabled, UIMasterController.HideUI);
+    // the two draw with OnGUI and stayed on the black. Their OnGUI is
+    // skipped while that camera is on (ToolbarManager.OnGUI, MechJebCore.OnGUI),
+    // and nothing else: other mods, and what
     // a mod wants to show on the loading screen, draw as they do.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     public class LoadingScreenWindows : MonoBehaviour

@@ -11,7 +11,7 @@ namespace ReDefinition.Raytracing
     // CloudOverSky). The moons' light, the sun's and the moons' discs on the water and the
     // sun's light at the rays' hits are darkened under it as EVE darkens the sun's light on
     // the frame. Rays that escape the scene see it. Read from EVE (Blackrack's, with the
-    // raymarched volumetric layer; its assembly decompiled, 1.12 builds of 2026-10):
+    // raymarched volumetric layer; 1.12 builds of 2026-10):
     // GenericEVEManager<CloudsObject>.ObjectList (static, not public) holds the loaded
     // bodies' layers. A CloudsObject has Body, Layer2D (Clouds2D) and LayerRaymarchedVolume
     // (CloudsRaymarchedVolume). The volume's material carries the maps (CloudCoverage,

@@ -134,7 +134,7 @@ namespace ReDefinition.Raytracing
         private static readonly List<Vector4> typeProperties = new List<Vector4>();
         private static readonly List<float> typeBrightnessList = new List<float>();
 
-        // Compiled getters of EVE's members (InstallHook), read from Atmosphere.dll 3.2.2, decompiled
+        // Compiled getters of EVE's members (InstallHook), of Atmosphere.dll 3.2.2
         // (its renderer's source on GitHub, LGhassen/EnvironmentalVisualEnhancements): the renderer's targetCamera.
         private static Func<object, Camera> readCamera;
         // The renderer's renderingEnabled, reflectionProbeCamera and useFlipUpscalingBuffer (the

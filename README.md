@@ -187,7 +187,7 @@ All documentation: [docs/README.md](docs/README.md).
 
 ## Credits and licence
 
-**GPL-3.0-or-later WITH Modding Exception AND GPL-3.0 Linking Exception.** See
+**GPL-3.0 WITH Modding Exception AND GPL-3.0 Linking Exception.** See
 [LICENSE](LICENSE) and [EXCEPTIONS.md](EXCEPTIONS.md). The text of the exceptions is the
 one Skyrim Community Shaders and DynamicShaderFrameGen carry.
 

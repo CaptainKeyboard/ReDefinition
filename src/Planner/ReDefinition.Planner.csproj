@@ -16,7 +16,7 @@
     <DebugType>portable</DebugType>
     <Version>$(PlannerVersion)</Version>
     <Product>ReDefinition Planner</Product>
-    <Copyright>Copyright (C) 2026 CaptainKeyboard. GPL-3.0-or-later</Copyright>
+    <Copyright>Copyright (C) 2026 CaptainKeyboard. GPL-3.0</Copyright>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 

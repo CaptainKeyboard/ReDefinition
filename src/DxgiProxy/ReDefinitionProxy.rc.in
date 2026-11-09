@@ -20,7 +20,7 @@ BEGIN
             VALUE "FileDescription",  "ReDefinition frame generation and upscaling proxy for Kerbal Space Program"
             VALUE "FileVersion",      "@REDEFINITION_VERSION@"
             VALUE "InternalName",     "ReDefinitionProxy"
-            VALUE "LegalCopyright",   "Copyright (C) 2026 CaptainKeyboard. GPL-3.0-or-later"
+            VALUE "LegalCopyright",   "Copyright (C) 2026 CaptainKeyboard. GPL-3.0"
             VALUE "OriginalFilename", "dxgi.dll"
             VALUE "ProductName",      "ReDefinition"
             VALUE "ProductVersion",   "@REDEFINITION_VERSION@"

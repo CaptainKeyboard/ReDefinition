@@ -73,9 +73,9 @@ namespace ReDefinition.Vendor
                     uncertainAskedAt = now;
                     uint architecture = 0, implementation = 0;
                     bool known = FrameGenerationBridge.NvidiaGpu(out architecture, out implementation);
-                    // The package for an RTX 30 or 20 (dlssg_for_sm86) makes NVAPI answer as a Blackwell card
-                    // (0x1B0 for an RTX A4500, 0x170 without it, in the proxy's log), so that DLSS frame
-                    // generation runs; the adapter's name is the card then.
+                    // The package for an RTX 30 or 20 (dlssg_for_sm86) can make NVAPI report a newer architecture
+                    // to the game (SpoofArchToGame and SpoofArchValue in its INSTALL.en.md), so the architecture
+                    // read here may not be the card's; the adapter's name is the card then.
                     if (known && Spoofed()) known = false;
                     GpuClass found = Of(SystemInfo.graphicsDeviceVendorID, SystemInfo.graphicsDeviceName,
                                         known ? architecture : 0, known ? implementation : 0);

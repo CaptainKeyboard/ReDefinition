@@ -2,7 +2,7 @@
   "name": "redefinition-icuewidget",
   "private": true,
   "description": "Validates the dashboard in GameData/ReDefinition/Main/Dashboard as an iCUE widget for Corsair's touch screens. The build packages it (ReDefinition.csproj, PackageIcueWidget).",
-  "license": "GPL-3.0-or-later",
+  "license": "GPL-3.0",
   "scripts": {
     "validate": "icuewidget validate ../../GameData/ReDefinition/Main/Dashboard"
   },

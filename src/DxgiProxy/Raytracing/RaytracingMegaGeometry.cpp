@@ -2,8 +2,7 @@
 // cluster acceleration structures through NVAPI (RaytracingMegaGeometry.h): each run of 256
 // triangles of a new mesh a CLAS, built from the triangles in the upload, all of a frame's in
 // one call; then each mesh a cluster BLAS of its CLAS, in a call of its own (see
-// QueueClustersLocked for why). "Mega Geometry is supported on all RTX GPUs, starting with
-// Turing" (NVIDIA RTX Blackwell GPU Architecture); the driver says whether it offers the
+// QueueClustersLocked for why). The driver says whether it offers the
 // operations (NvAPI_D3D12_GetRaytracingCaps,
 // NVAPI_D3D12_RAYTRACING_CAPS_TYPE_CLUSTER_OPERATIONS), and without them every mesh is
 // built the usual way (RaytracingScene.cpp).
