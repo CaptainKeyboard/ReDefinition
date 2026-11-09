@@ -140,6 +140,7 @@ namespace ReDefinition.Dashboard
                 started.Start();
                 server = started;
                 LogLine(network ? "listening on the network, port " + Port : "listening on 127.0.0.1:" + Port);
+                LogLine("settings: " + (HostSeams.StandsAlone() ? "own file" : "ReDefinition"));
             }
             catch (Exception e)
             {

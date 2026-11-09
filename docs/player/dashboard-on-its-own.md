@@ -26,9 +26,10 @@ not need this one.
 
 ## Open it
 
-The dashboard listens on port 8765 of this computer from the start. Open
-`http://localhost:8765` in a browser on this computer, or install `ksp-dashboard.icuewidget`
-from `GameData/ReDefinition/Dashboard` in iCUE.
+The dashboard listens on port 8765 of this computer from the start. A browser needs the
+address with the key (`http://localhost:8765/?key=<key>`), which the connect dialog shows
+and the QR code carries. The iCUE widget, `ksp-dashboard.icuewidget` in
+`GameData/ReDefinition/Dashboard`, connects from this computer without the key.
 
 ## Its two settings
 

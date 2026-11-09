@@ -35,11 +35,17 @@ namespace ReDefinition.Dashboard
 
         private void OnLauncherReady()
         {
-            if (!HostSeams.StandsAlone() || button != null || ApplicationLauncher.Instance == null) return;
+            if (!HostSeams.StandsAlone())
+            {
+                Debug.Log(Log.Tag + " Dashboard: launcher button not added, ReDefinition is the host");
+                return;
+            }
+            if (button != null || ApplicationLauncher.Instance == null) return;
             const ApplicationLauncher.AppScenes scenes = ApplicationLauncher.AppScenes.SPACECENTER | ApplicationLauncher.AppScenes.FLIGHT
                 | ApplicationLauncher.AppScenes.VAB | ApplicationLauncher.AppScenes.SPH | ApplicationLauncher.AppScenes.TRACKSTATION
                 | ApplicationLauncher.AppScenes.MAPVIEW;
             button = ApplicationLauncher.Instance.AddModApplication(OpenDialog, CloseDialog, null, null, null, null, scenes, Icon());
+            Debug.Log(Log.Tag + " Dashboard: launcher button added");
         }
 
         private void OnLauncherDestroyed()
