@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // The orbit a launch ends in, without the launch being flown: a circle at the altitude asked for.
     // Its plane holds the launch site and the way east from it; MechJeb's ascent asks for an inclination of zero, which a site off the equator

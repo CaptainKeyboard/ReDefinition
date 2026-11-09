@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's part "Guidance": the navigation and the autopilot as two choices that turn each other off, shown as the planner shows its
     // other choices (flat, set off by a line, lit where on). They can be turned on once the route is planned, which the planner does by itself.

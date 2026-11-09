@@ -1,8 +1,8 @@
 using System;
-using ReDefinition.Landing;
+using ReDefinition.Planner.Landing;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // How deep a pass through the air must dip, found by simulating it with the descent's simulation (MechJeb's ReentrySimulation, which ends a
     // run where the vessel leaves the air again). The height is found by halving between the ground and the top of the air. It is found to a

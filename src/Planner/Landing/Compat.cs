@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     // The small helpers MechJeb's simulation calls, from MechJeb 2 (OrbitExtensions, MuUtils, MathExtensions, CelestialBodyExtensions and
     // MechJebLib's Statics, GPL-3.0), reduced to what the simulation uses.

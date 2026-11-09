@@ -1,8 +1,8 @@
 using System;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // What a place on the ground asks of the orbit's plane.
     internal enum PlaneTurn

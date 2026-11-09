@@ -1,14 +1,14 @@
 using ReDefinition.Planner;
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Background;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Where a route goes when the player leaves the flight with the autopilot on: to the background route, where the vessel flies it on its own, or to Parsek,
     // which plays it as a recording. The planning and the hand-over are the same wherever the player leaves from.

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A body as the planner needs it, read from the game (PlannerBodies), so that
     // the planner works for any system Kopernicus loads. Free of Unity.

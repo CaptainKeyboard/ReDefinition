@@ -5,7 +5,7 @@ using System.Linq;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // The routes in the save file. What is written carries a version; a route of another version, or one with a figure that cannot be an orbit, is left out
     // with a line in the log, and not applied to a vessel.

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // How a resource flows to what burns it (PartResourceDefinition.resourceFlowMode,
     // or a propellant's own): from its own part, from the parts reachable through

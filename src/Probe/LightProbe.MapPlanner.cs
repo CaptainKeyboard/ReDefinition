@@ -2,14 +2,14 @@ using System.Collections;
 using System.IO;
 using KSP.UI;
 using KSP.UI.Screens;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Background;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Engineer;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
 namespace ReDefinition.Probe

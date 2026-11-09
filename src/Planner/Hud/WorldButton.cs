@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-namespace ReDefinition.Hud
+namespace ReDefinition.Planner.Hud
 {
     // A button standing in the world, on a canvas of its own in world space that
     // the scene's camera draws with the rest (Canvas.renderMode WorldSpace, on the

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's thrust section: its rows. The checks and their texts are the model's (PlanThrust); the view knows which steps are open.
     internal sealed partial class PlannerView

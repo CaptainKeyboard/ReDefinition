@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Globalization;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's fuel plan: every step of the route in its order, with who flies it, what it needs with the margin, and what what flies it has
     // left once it is over. A step has the stages it has with fuel as it starts, each with what it gives there, what it keeps after, and its thrust

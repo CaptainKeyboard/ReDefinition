@@ -1,8 +1,8 @@
 using System.Collections;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Flight;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // At the start of a scene where Parsek puts vessels back, the recordings made for routes are told to Parsek's replay scope again, since the
     // scope is kept in memory only (ParsekRecording.KeepInScope).

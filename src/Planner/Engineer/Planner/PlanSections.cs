@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
-using static ReDefinition.Engineer.PlanText;
+using ReDefinition.Planner.Autopilot.Planning;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A section as the plan works with it now.
     internal sealed class LiveSection

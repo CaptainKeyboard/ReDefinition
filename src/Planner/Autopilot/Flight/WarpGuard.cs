@@ -1,9 +1,9 @@
 using System;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // Holds back the time warp the player turns up while the autopilot or the navigation has the vessel: it is slowed as the next thing the vessel has
     // to do comes near, and is off when that is a burn. The player's warp is only cut back, never raised. MechJeb's own warp to a burn goes on as it is.

@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     // The constants of the game's heating, as Physics.cfg gives them: the ones the bound of the convective flux is worked from.
     internal struct HeatConstants

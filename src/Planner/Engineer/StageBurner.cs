@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Background;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The burns of a plan shared over the vessel's stages as KSP numbers them, the highest first. A stage burns the propellant of its own tanks
     // by the rocket equation, and when it is spent the next is fired, which lets go of the parts that stage decouples.

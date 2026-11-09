@@ -4,7 +4,7 @@ using System.Text;
 using ReDefinition.Core;
 using Debug = UnityEngine.Debug;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // With -redefinitionPlannerTiming: what the planner's work costs the main thread, by part. Every 10 s the log gets each timed part's calls,
     // its total and its longest call in milliseconds. Without the switch a call costs one comparison.

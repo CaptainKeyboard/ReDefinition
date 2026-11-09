@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's route and what the player sets on it: the stops, their bodies and altitudes, the stages kept or dropped on a step, the
     // refills, the split burns and the margin. Each command changes the plan and calls Changed.

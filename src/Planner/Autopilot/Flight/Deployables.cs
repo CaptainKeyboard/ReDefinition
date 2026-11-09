@@ -1,7 +1,7 @@
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // The solar panels, antennas and radiators the vessel folded for the flight, put out where the route ended. A part that is broken or
     // already out stays as it is.

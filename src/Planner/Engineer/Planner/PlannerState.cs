@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A section of the vessel as the player adds it: what it is for, which of the
     // vessel's parts it is, and for a satellite where it stays.

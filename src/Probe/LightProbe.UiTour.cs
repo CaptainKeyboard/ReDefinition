@@ -6,10 +6,10 @@ using KSP.UI;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Mapview;
 using KSP.UI.Screens.Mapview.MapContextMenuOptions;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Engineer;
 using UnityEngine;
 using UnityEngine.UI;
 

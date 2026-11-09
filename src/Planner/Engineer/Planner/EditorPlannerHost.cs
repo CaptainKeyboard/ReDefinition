@@ -1,7 +1,7 @@
 using System;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The editor as the planner's window: the vessel is the ship on the editor's table, and KSP's editor events say when another is on it.
     internal sealed class EditorPlannerHost : IPlannerHost

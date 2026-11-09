@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Flight;
 
 namespace ReDefinition.Tests
 {

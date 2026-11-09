@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // How fast what flies a step can turn (docs/player/planner.md) is the time to
     // turn it by 90 degrees about its pitch or yaw axis, whichever is slower. It

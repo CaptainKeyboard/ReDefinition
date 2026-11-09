@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // Where a route goes: a body, and on its surface or in a circular orbit at an altitude. The planner's stops, without the planner.
     internal sealed class Destination

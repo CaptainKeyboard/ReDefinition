@@ -1,6 +1,6 @@
 using KSP.UI.Screens;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Planner.Autopilot
 {
     // The vessel's engines as a burn needs them: whether one is running, and the next stage fired when none is.
     internal static class Engines

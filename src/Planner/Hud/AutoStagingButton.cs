@@ -1,14 +1,14 @@
 using System.Collections;
 using KSP.UI.Screens;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace ReDefinition.Hud
+namespace ReDefinition.Planner.Hud
 {
     // MechJeb's Auto Staging as a button in the staging stack's bottom group, right before the total delta-v: lit while MechJeb stages by itself.
     // It is MechJeb's own switch (MechJebDriver.SetSwitch), the same the planner's window shows; the button is not there without MechJeb.

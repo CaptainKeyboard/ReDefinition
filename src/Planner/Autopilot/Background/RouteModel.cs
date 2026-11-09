@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Landing;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Landing;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // What a step is: the vessel is on an orbit from then, parts are let go and the orbit stays the vessel's own, or the vessel is set down on the ground.
     internal enum StepKind

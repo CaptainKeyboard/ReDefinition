@@ -1,4 +1,4 @@
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // What the next step of a route is, as far as it follows from the facts of the vessel and the stop it goes to, before any node is worked out.
     internal enum StepIntent

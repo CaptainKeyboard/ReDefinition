@@ -1,11 +1,11 @@
 using ReDefinition.Planner;
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's route as the autopilot takes it: the destinations, from the stops of a plan.
     internal static class RouteSource

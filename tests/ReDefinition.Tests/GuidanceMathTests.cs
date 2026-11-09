@@ -1,9 +1,9 @@
 using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Orbits;
 
 namespace ReDefinition.Tests
 {

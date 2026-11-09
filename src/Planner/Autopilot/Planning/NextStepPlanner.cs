@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Flight;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The next leg of a route from where the vessel is, planned as nodes. The stop the vessel has reached is found, and the leg to the one
     // after it is handed to the planner that knows how to fly it.

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Where the route that the driver follows comes from.
     internal enum RouteOrigin

@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // A vector of three doubles in a right-handed frame, with what the orbit maths needs. Free of Unity and KSP, so that the maths is
     // tested outside the game; the KSP side converts (Orbits/KspOrbits).

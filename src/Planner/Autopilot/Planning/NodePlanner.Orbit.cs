@@ -1,9 +1,9 @@
 using System;
-using ReDefinition.Landing;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Landing;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The burns that change the orbit round one body, as nodes: a new circular orbit, the capture, and the deorbit, the lift of the periapsis
     // and the rounding of an orbit.

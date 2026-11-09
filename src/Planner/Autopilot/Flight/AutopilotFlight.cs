@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // A route flown by MechJeb: the next step is planned as a node, handed to MechJeb, waited for, and the route planned again from where
     // the burn left the vessel, until the last stop. Between burns the time is warped to the next change of orbit.

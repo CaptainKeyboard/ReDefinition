@@ -1,6 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Planning;
 
 namespace ReDefinition.Tests
 {

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // One stage as KSP's delta-v simulation gives it (DeltaVStageInfo): the mass
     // when it starts and ends burning, and its delta-v in vacuum. A solid stage burns

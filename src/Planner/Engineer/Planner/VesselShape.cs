@@ -3,7 +3,7 @@ using System.Linq;
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // How a part separates the vessel: a decoupler stays with the side it is
     // attached to; a radial decoupler and a docking port go with the side under

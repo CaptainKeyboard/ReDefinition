@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Planner;
 using UnityEngine;
 using Vectrosity;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Draws the legs of a planned route in the map view as lines, the way Parsek draws its trajectories. Each leg is one Vectrosity line on the
     // orbit-line layer. Its points are sampled once from the leg's Kepler orbit between its start and end. Every frame they are put in

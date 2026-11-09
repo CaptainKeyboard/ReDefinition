@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A step as the thrust check shows it, worked out with the budget.
     internal sealed class ThrustStep

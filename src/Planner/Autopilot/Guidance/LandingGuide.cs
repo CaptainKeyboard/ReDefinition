@@ -1,10 +1,10 @@
 using ReDefinition.Planner;
 using System;
-using ReDefinition.Autopilot;
-using ReDefinition.Landing;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Landing;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // The descent to the ground as MechJeb's landing flies it, told to the player instead. From the prediction of the whole descent
     // (LandingPrediction) come the height of the landing site and when the brake is lit; from the vessel's state the throttle that follows the

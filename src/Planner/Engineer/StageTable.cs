@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // One stage of the vessel in the editor, as the planner takes it: what KSP's
     // own delta-v simulation gives for it (VesselDeltaV) and what is worked out

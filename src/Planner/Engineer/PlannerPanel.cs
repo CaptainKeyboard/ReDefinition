@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner (docs/player/planner.md) as a fifth panel of the editor, made
     // as KSP's crew panel is. It is a copy of the crew panel's frame (its transition, its

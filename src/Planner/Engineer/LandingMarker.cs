@@ -1,11 +1,11 @@
 using FinePrint;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The place on a body that the vessel in orbit is to land on. The player picks the menu entry in the map, then clicks on the body, and a marker stands
     // there. The marker is KSP's own custom waypoint, with its icon, its menu to delete it and its place in the save. The planner's route is then set to a

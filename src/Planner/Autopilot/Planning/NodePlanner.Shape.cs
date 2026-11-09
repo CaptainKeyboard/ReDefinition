@@ -1,8 +1,8 @@
 using System;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The burns that give an orbit a shape the player asked for: another apoapsis, another periapsis, another inclination, or the plane of another
     // vessel. One burn is planned each time; the flight plans again from the orbit it left, so that the steps follow each other.

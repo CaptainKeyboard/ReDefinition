@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Orbits;
 
 namespace ReDefinition.Tests
 {

@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // An orbit round one body, read off a state: its shape, its plane, where the body is on it, and the times to places on it.
     internal sealed class Conic

@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // Leaving a body: the velocity at a place that carries a vessel out of the body's gravity with a given velocity at infinity, and the cheapest
     // place on the orbit it leaves from to burn it.

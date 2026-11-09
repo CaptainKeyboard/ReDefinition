@@ -1,8 +1,8 @@
 using System;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The burns of a way from one body to another, as nodes: the transfer to a moon or a planet, the ejection from a body, and the
     // correction of the course, each checked against KSP's own patched conics.

@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Landing;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Landing;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // The prediction of the whole descent. It runs on a thread and is asked for again as soon as the last one is in. The class holds what the
     // rules of the descent take from the vessel and the body to ask for it. That is where the brake ends, whether the air does the braking, the

@@ -4,7 +4,7 @@ using System.Reflection;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // MechJeb as the hand that flies the nodes: its node executor aligns, warps to the burn, burns and stops. Reached through the vessel's master
     // core and reflection, behind the MechJebAutopilot assumption; without MechJeb, or with a build that does not match, nothing here is available.

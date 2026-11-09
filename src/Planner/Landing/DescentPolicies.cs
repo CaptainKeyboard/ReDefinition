@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     // The limit of a descent that is straight down: the speed from which the engines still stop the vessel in the height that is left (MechJeb's
     // SafeDescentSpeedPolicy).

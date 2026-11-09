@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's rows, built from KSP's dialog elements, so a UI theme reaches
     // them as it reaches KSP's dialogs. From the top come the vessel's sections. Next is the

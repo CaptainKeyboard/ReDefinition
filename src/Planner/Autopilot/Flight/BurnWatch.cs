@@ -1,10 +1,10 @@
 using System;
 using System.Globalization;
 using System.Text;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // One burn of a node, watched from the order to MechJeb to the end. It records when the thrust began against when it was due, how the nose pointed
     // then, how fast the vessel turned, and the orbit the burn left against the one the node showed. It sees what the burn did, and changes nothing.

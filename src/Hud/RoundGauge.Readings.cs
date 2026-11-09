@@ -1,7 +1,8 @@
+using ReDefinition.Planner.Hud;
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using ReDefinition.Hud.Panel;
 using ReDefinition.Hud.Readouts;
@@ -104,7 +105,7 @@ namespace ReDefinition.Hud
         // The first manoeuvre node planned; null for none.
         private static ManeuverNode Node(Vessel vessel)
         {
-            return ReDefinition.Autopilot.Guidance.GuideNode.First(vessel);
+            return ReDefinition.Planner.Autopilot.Guidance.GuideNode.First(vessel);
         }
 
         // The next node. Before its burn, the time until the burn starts, half its

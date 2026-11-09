@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The colours the planner's texts are written in (KSP's rich text) and the small text helpers its model and its rows share.
     internal static class PlanText

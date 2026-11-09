@@ -4,7 +4,7 @@ using System.Reflection;
 using KSP.UI;
 using KSP.UI.Screens;
 using KSP.UI.Screens.Flight;
-using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
 using UnityEngine;
 

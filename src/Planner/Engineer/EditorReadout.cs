@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // What the planner takes of the vessel in the editor, read from KSP's own
     // delta-v simulation (ShipConstruct.vesselDeltaV, VesselDeltaV,

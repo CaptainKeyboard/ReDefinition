@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Landing;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Landing;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // Where and when a vessel is set down: the ground under the descent, the place that is flattest, and the time the step is made so that no time warp can
     // carry the vessel into the ground first.

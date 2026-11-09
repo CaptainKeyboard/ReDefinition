@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot;
+using ReDefinition.Planner.Autopilot;
 using UnityEngine;
 
 namespace ReDefinition.Hud.Readouts
@@ -398,13 +398,13 @@ namespace ReDefinition.Hud.Readouts
                     thrust += power;
                     overIsp += power / isp;
                     if (rcs.propellants == null) continue;
-                    ReDefinition.Engineer.EditorReadout.AddMix(mixes, rcs.propellants, power / isp);
+                    ReDefinition.Planner.Engineer.EditorReadout.AddMix(mixes, rcs.propellants, power / isp);
                     foreach (Propellant propellant in rcs.propellants)
                     {
                         if (propellant == null) continue;
                         HashSet<Part> from;
                         if (!sources.TryGetValue(propellant.name, out from)) sources[propellant.name] = from = new HashSet<Part>();
-                        ReDefinition.Engineer.EditorReadout.AddRcsSources(part, propellant.GetFlowMode(), part.crossfeedPartSet, Vessel.parts, from);
+                        ReDefinition.Planner.Engineer.EditorReadout.AddRcsSources(part, propellant.GetFlowMode(), part.crossfeedPartSet, Vessel.parts, from);
                     }
                 }
             if (thrust <= 0.0 || overIsp <= 0.0) return double.NaN;
@@ -419,7 +419,7 @@ namespace ReDefinition.Hud.Readouts
                 }
                 held[resource.Key] = mass;
             }
-            double propellantMass = ReDefinition.Engineer.StageTable.UsablePropellant(mixes, held);
+            double propellantMass = ReDefinition.Planner.Engineer.StageTable.UsablePropellant(mixes, held);
             double total = Vessel.totalMass;
             if (total <= propellantMass || propellantMass <= 0.0) return 0.0;
             return thrust / overIsp * PhysicsGlobals.GravitationalAcceleration * Math.Log(total / (total - propellantMass));

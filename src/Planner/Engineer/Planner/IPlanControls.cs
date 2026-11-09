@@ -1,4 +1,4 @@
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The switches of MechJeb that the planner's window offers.
     public enum MechJebSwitch

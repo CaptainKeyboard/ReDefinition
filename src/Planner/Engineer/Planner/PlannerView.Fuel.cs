@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's fuel plan: its rows. The figures and their texts are the model's (PlanFuel); the view knows which steps are open.
     internal sealed partial class PlannerView

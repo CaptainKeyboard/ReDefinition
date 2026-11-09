@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // One step of the plan ahead: what it is, when, and what it asks of the engines.
     internal sealed class PlannedStep

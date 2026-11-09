@@ -1,6 +1,6 @@
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Where the planner in flight gets the autopilot's whole plan for the route from: the window that simulates it. The host asks this and
     // not the window itself, so that the planner does not have to know the window.

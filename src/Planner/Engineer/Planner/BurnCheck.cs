@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A stage's part of a step as the burns take it: its delta-v, the mass it pushes
     // as it starts and ends that part, in tonnes, and its thrust in vacuum, in kN.

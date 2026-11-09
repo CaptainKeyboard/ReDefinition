@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // What a step of the guidance writes on the board in a frame. Fields left empty are not asked for.
     internal struct GuidanceFrame

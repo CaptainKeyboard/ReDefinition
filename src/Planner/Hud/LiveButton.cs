@@ -2,16 +2,16 @@ using ReDefinition.Planner;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Engineer;
 using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace ReDefinition.Hud
+namespace ReDefinition.Planner.Hud
 {
     // The button of the autopilot, at the top of the screen right of the time panel, small, in the panel's row, with a red lamp in a grey ring. The lamp is lit
     // while the autopilot flies, dark while it does not.

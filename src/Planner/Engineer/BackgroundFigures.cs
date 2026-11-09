@@ -1,7 +1,7 @@
-using ReDefinition.Autopilot.Background;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The engineer's figures for the background route: KSP's stages of the vessel as the planner reads them, and the planner's estimate of a launch.
     internal sealed class BackgroundFigures : IVesselFigures

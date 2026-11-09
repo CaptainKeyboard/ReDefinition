@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // What KSP's dialog does with a row it hides: DialogGUIBase.Update calls Update on every child, whether the row is shown or not, and only
     // afterwards switches the row off by its OptionEnabledCondition. The planner keeps its rows in pools of fixed size, most of them hidden, so

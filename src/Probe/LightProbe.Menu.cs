@@ -1,9 +1,9 @@
 using System.Collections;
 using System.IO;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Engineer;
 using UnityEngine;
 using UnityEngine.UI;
 

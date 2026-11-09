@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Engineer;
 
 namespace ReDefinition.Tests
 {

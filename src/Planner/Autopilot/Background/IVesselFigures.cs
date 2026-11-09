@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // The burns of a plan shared over the vessel's stages: what each part keeps of its propellant, and which parts are let go when a stage is spent.
     internal interface IBurnShare

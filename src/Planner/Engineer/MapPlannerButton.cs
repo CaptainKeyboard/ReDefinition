@@ -3,7 +3,7 @@ using KSP.UI.Screens;
 using ReDefinition.Ui;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's button among the game's own toolbar buttons (the top group, not the mods' below it), which shows in the flight and in the map view and slides the planner's panel in and out. A click tells the
     // window; the window tells the button where the panel was opened or shut another way.

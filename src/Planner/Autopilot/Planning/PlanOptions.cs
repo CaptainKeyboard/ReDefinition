@@ -1,4 +1,4 @@
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // How a route is planned: for whom, from where, and with what simulated. The defaults are the plan the map shows the player.
     internal sealed class PlanOptions

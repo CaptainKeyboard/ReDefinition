@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using System.Text;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // What a flight has burned and how the vessel behaved between the burns: the count of the burns by what they are for, one line for each
     // burn, and the fastest turn of the vessel while it coasted. The probes check these against what a route may take.

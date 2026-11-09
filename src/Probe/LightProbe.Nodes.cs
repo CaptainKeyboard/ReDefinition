@@ -1,11 +1,11 @@
 using System.Collections;
 using System.Globalization;
 using System.IO;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
 namespace ReDefinition.Probe

@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // Runs a coroutine with the coroutines it waits for as one, and reports an exception thrown anywhere in them instead of letting the game drop the whole
     // chain without a word. The coroutine that was running ends there; what it left (a flight, the executor of another mod) is for the caller to put right.

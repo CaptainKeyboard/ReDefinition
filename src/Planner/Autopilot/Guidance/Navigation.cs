@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // Keeps the nodes of the route's next step on the vessel while the player flies the burns. The plan is made again when the orbit has
     // changed (a burn done, or flown a little off), when a node was missed, and when the route was edited. It does not plan during a burn

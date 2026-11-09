@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Planner.Autopilot
 {
     // The limits MechJeb's thrust controller puts on the throttle in the air (MechJebModuleThrustController: MaximumDynamicPressureThrottle and
     // TemperatureSafetyThrottle, GPL-3.0). Here they are told to the player in the navigation instead of applied. A climb over the air's

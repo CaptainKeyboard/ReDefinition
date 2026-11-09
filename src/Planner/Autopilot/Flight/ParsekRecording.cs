@@ -4,11 +4,11 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using KSP.Localization;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Flight
+namespace ReDefinition.Planner.Autopilot.Flight
 {
     // A recording of the route made ahead of the flight, committed to Parsek behind the parsek-recording assumption. Parsek plays a committed
     // recording as a ghost and puts the vessel back where the recording ends, also when the player is not in the flight: this is how a route goes

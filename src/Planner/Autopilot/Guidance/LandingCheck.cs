@@ -1,8 +1,8 @@
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Landing;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Landing;
+using ReDefinition.Planner.Orbits;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // Whether the vessel can land on the body it orbits, told before the landing is started. The engines must give more than the gravity. The delta-v on
     // board, as the game works it out stage by stage, must cover the deorbit and the descent as the simulation expends it, with the air's help.

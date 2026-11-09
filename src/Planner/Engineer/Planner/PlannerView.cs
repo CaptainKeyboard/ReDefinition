@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System;
 using UnityEngine;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Ui;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner (docs/player/planner.md) as KSP's dialog elements show it. The plan itself, with the steps, the sections, the stage budget and
     // every text, is the PlannerModel's. The view holds the model and builds the rows from it: what is open and what is folded, the bars, the

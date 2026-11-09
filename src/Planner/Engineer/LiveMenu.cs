@@ -1,12 +1,12 @@
 using ReDefinition.Planner;
 using System.Collections.Generic;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // What the Live button offers while the planner's route is empty: the goals the vessel can be sent to from where it is. A choice only sets the
     // planner's route and opens the planner; the next press of the button flies it. Shift adds the goal to the route instead of replacing it.

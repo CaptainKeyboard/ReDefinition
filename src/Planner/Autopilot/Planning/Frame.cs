@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The state a step of the plan starts from: the vessel as it is, or, once steps were planned ahead, the vessel as it will be at the end of
     // them. The orbit and the body are read from the vessel's flight plan at that time, where the nodes of the earlier steps stand, so that the

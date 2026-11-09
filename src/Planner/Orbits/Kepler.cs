@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // Motion on a conic round one body, by universal variables: one set of formulas for ellipses, parabolas and hyperbolas
     // (Bate, Mueller and White; Curtis, algorithm 3.4). The step is bracketed and bisected, so that it holds for any time and any orbit.

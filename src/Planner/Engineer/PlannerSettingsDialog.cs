@@ -1,7 +1,7 @@
 using ReDefinition.Planner;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's own two switches, offered from the Live menu where ReDefinition, whose settings window holds them, is not installed.
     internal static class PlannerSettingsDialog

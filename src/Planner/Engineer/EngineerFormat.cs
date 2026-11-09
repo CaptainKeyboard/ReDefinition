@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // How the planner writes its numbers: in the invariant culture, with
     // thousands separators, and in the units KSP's own delta-v app uses -- m/s, kN,

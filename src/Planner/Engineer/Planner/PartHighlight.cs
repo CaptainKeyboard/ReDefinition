@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Marks parts on the vessel in the editor, each in its own colour, with
     // KSP's own part highlighter: always on in that colour while marked, back to

@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The bodies of the loaded system as the planner needs them (PlannerBody),
     // from FlightGlobals.Bodies: the stock system or whatever Kopernicus

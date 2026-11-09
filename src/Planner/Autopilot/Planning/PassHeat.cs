@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using ReDefinition.Core;
-using ReDefinition.Landing;
+using ReDefinition.Planner.Landing;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // What a pass through the air does to the vessel's parts, as far as it can be told before it is flown, and what it showed once it was. The
     // flux of a pass comes from the descent's simulation (HeatBound); here it becomes the temperature a part settles at, and the share of its

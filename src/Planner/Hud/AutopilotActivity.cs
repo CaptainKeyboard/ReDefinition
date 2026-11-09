@@ -1,11 +1,11 @@
 using ReDefinition.Planner;
 using System;
 using System.Reflection;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Engineer;
 
-namespace ReDefinition.Hud
+namespace ReDefinition.Planner.Hud
 {
     // One line for the autopilot button's tooltip: what the autopilot does now, where the rocket turns to and where time warp goes to.
     internal static class AutopilotActivity

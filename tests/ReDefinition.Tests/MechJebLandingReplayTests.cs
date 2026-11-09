@@ -4,7 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Landing;
+using ReDefinition.Planner.Landing;
 
 namespace ReDefinition.Tests
 {

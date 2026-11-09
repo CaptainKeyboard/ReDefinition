@@ -3,7 +3,7 @@ using System.Reflection;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // The SAS's maneuver mode steers to where the navigation asks the nose to point in a climb or a descent, as it steers to a maneuver node. The game
     // offers the mode only with a node and reads its direction from the node. With the navigation's direction on the board and no node on the

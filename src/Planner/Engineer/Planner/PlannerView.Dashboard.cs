@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner as the dashboard's VAB page shows and works it (src/Dashboard/EditorTelemetry.cs). The page gets the rows' texts, the lists
     // the buttons fold out and the changes the buttons make from PlannerDashboard; this part hands the view's calls on to it.

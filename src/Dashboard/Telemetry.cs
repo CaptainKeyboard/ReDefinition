@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using KSP.UI.Screens;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Engineer;
 using UnityEngine;
 
 namespace ReDefinition.Dashboard
@@ -485,7 +485,7 @@ namespace ReDefinition.Dashboard
         // The vessel's first maneuver node, null without one or before the solver exists.
         private static ManeuverNode FirstNode(Vessel v)
         {
-            return ReDefinition.Autopilot.Guidance.GuideNode.First(v);
+            return ReDefinition.Planner.Autopilot.Guidance.GuideNode.First(v);
         }
 
         /// <summary>

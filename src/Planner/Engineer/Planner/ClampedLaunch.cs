@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Stages fired while the vessel still stands on the pad, and the stage that lifts
     // it off, as they burn in flight: together (src/Planner/Engineer/README.md). The pad

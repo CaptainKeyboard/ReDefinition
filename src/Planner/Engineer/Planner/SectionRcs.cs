@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The RCS of a group of parts as a stage starts or after it burnt (-1 for none).
     // It gives the thrusters' thrust in kN and their thrust over Isp, the propellant for

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // Where a vessel is on its route: the stop it is at, the last stop it has reached, and the stop it is on its way to. The question is answered from
     // what is known of each stop (whether the vessel is at it, whether it comes again) and of the count of stops reached so far, with no game object in it.

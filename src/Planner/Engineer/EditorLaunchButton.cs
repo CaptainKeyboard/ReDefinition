@@ -1,9 +1,9 @@
 using System.Collections;
 using ReDefinition.Core;
-using ReDefinition.Hud;
+using ReDefinition.Planner.Hud;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A launch button over the launch pad seen through the VAB's door, and over
     // the runway seen from the SPH (docs/player/planner.md). The editors' scenery

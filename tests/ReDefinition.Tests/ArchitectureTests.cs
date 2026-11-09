@@ -26,7 +26,7 @@ namespace ReDefinition.Tests
             ["(root)"] = "Api Core Hud Planner Scaling Diagnostics Modules Probe Proxy Raytracing Settings Ui Upscaler Window",
             ["Api"] = "Core Proxy Settings Ui Upscaler Window",
             ["Common"] = "Core",
-            ["Core"] = "Planner",
+            ["Core"] = "",
             ["Dashboard"] = "Autopilot Core Engineer Modules",
             ["Diagnostics"] = "Api Core Modules Proxy Raytracing Settings Ui Upscaler Window",
             ["Engineer"] = "Autopilot Core Hud Planner Ui",
@@ -77,6 +77,37 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, gone.Count, "Remove from the table of ArchitectureTests:\n" + string.Join("\n", gone));
         }
 
+        // The planner and the DLL it shares with ReDefinition build without ReDefinition, Harmony and ZTheme: the project files name none of them.
+        [TestMethod]
+        public void ThePlannerAndCommonProjectsNameNeitherTheMainModNorHarmonyNorZTheme()
+        {
+            string root = RepoRoot.Root("src", "ReDefinition.csproj");
+            var found = new List<string>();
+            foreach (string project in new[] { "Planner/ReDefinition.Planner.csproj", "Common/ReDefinition.Common.csproj" })
+            {
+                string text = File.ReadAllText(Path.Combine(root, "src", project));
+                bool common = project.StartsWith("Common");
+                if (Regex.IsMatch(text, @"ProjectReference[^>]*ReDefinition\.csproj")) found.Add(project + " references ReDefinition.csproj");
+                if (!common && Regex.IsMatch(text, @"<Reference Include=""0Harmony""")) found.Add(project + " references Harmony");
+                if (Regex.IsMatch(text, @"<(Reference|ProjectReference|PackageReference) Include=""[^""]*ZTheme")) found.Add(project + " references ZTheme");
+            }
+            Assert.AreEqual(0, found.Count, string.Join("\n", found));
+        }
+
+        // Harmony is named in the shared DLL only inside HarmonyHooks, whose Install checks that it is loaded.
+        [TestMethod]
+        public void HarmonyIsNamedOnlyInHarmonyHooks()
+        {
+            string root = RepoRoot.Root("src", "ReDefinition.csproj");
+            var found = new List<string>();
+            foreach (string area in new[] { "Planner", "Common" })
+                foreach (string file in Directory.GetFiles(Path.Combine(root, "src", area), "*.cs", SearchOption.AllDirectories))
+                {
+                    if (Path.GetFileName(file) == "HarmonyHooks.cs" || file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)) continue;
+                    if (Regex.IsMatch(File.ReadAllText(file), @"using HarmonyLib|HarmonyLib\.")) found.Add(file.Substring(root.Length));
+                }
+            Assert.AreEqual(0, found.Count, string.Join("\n", found));
+        }
         // The route's code does not know the game's probes: what a probe changes is a switch in RouteTuning, and the command line is read there alone.
         [TestMethod]
         public void TheRouteCodeKnowsNeitherProbesNorTheCommandLine()
@@ -105,8 +136,8 @@ namespace ReDefinition.Tests
         {
             string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
             var result = new Dictionary<System.Tuple<string, string>, string>();
-            var usingOfOurs = new Regex(@"^using ReDefinition\.(\w+)", RegexOptions.Multiline);
-            var qualifiedUse = new Regex(@"(?<![\w.])ReDefinition\.(\w+)\.[A-Z]");
+            var usingOfOurs = new Regex(@"^using ReDefinition\.(?:Planner\.(?=Engineer|Autopilot|Orbits|Landing|Hud\b))?(\w+)", RegexOptions.Multiline);
+            var qualifiedUse = new Regex(@"(?<![\w.])ReDefinition\.(?:Planner\.(?=Engineer|Autopilot|Orbits|Landing|Hud\b))?(?!Planner\.[A-Z])(\w+)\.[A-Z]");
             // Only areas whose name is not also a common member name, so that a property called Settings is no use.
             var partlyQualified = new Regex(@"(?<![\w.])(Probe|Raytracing|Scenery|Hud|Engineer|Upscaler|Proxy|Vendor|Diagnostics|Modules|Dashboard|Menu|Scaling|Ui)\.[A-Z]");
             foreach (string file in Directory.GetFiles(src, "*.cs", SearchOption.AllDirectories))

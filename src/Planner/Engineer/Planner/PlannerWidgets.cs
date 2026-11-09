@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's symbols (GameData/ReDefinition/Icons/Planner_*.png, drawn by
     // tools/make_icon.py) are white on clear. They are laid over a button of KSP's skin, so

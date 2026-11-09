@@ -1,7 +1,7 @@
 using System;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // What the planner's view needs of the window it sits in: what the vessel holds now, the name its plan is kept under, and the
     // moments another vessel takes its place. The editor's window is one host (EditorPlannerHost); the map view's is the other.

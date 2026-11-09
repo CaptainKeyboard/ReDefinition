@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The steps on the way from one destination to the next, each to a place of its
     // own. They go up from the surface into an orbit, across to the next body's orbit or

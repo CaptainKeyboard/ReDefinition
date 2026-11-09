@@ -1,11 +1,11 @@
 using System;
-using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
-using ReDefinition.Landing;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Landing;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The deorbit burn that brings the vessel down on a chosen point of the ground. The burn is the one of the untargeted landing, retrograde, to a
     // periapsis under the ground. The time of it is what is chosen. The descent is simulated from the orbit a burn leaves, the way MechJeb predicts it,

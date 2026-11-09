@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading;
-using ReDefinition.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Guidance;
 using ReDefinition.Core;
-using ReDefinition.Landing;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Landing;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
-namespace ReDefinition.Autopilot.Planning
+namespace ReDefinition.Planner.Autopilot.Planning
 {
     // The search for the time of the deorbit burn, made so that the game goes on while it runs. The descents of the times tried are independent of one
     // another. Each is a simulation that touches nothing of the game once it is set up, so they run on the thread pool, the way MechJeb's landing

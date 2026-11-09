@@ -2,7 +2,7 @@ using System;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner button's tiles, made in the game from the cargo button's
     // tiles as they are: KSP's own, or a UI theme's such as ZTheme's, which

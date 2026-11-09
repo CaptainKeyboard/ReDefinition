@@ -1,11 +1,11 @@
 using System;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Background;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // What is done with the route when the flight is left with the autopilot on. The rest of it is planned and handed to the background (BackgroundRoutes) or
     // to Parsek, which plays it as a recording and puts the vessel back at its end. It listens for the pause menu, the confirmed exit and the request for another scene.

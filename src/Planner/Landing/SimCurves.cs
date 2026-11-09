@@ -1,7 +1,7 @@
 // Adapted from MechJeb 2 (MechJeb2/ReentrySimulation/SimCurves.cs), GPL-3.0: the simulation of a descent to the ground, with its drag, parachutes and the ground's height.
 // The names and the numbers are MechJeb's; what differs is the namespace and the reading of the vessel's state, which comes from KSP here.
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     public partial class ReentrySimulation
     {

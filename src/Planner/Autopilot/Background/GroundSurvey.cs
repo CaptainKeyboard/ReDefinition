@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // The ground under a vessel that is about to be unpacked, measured with rays against the game's own ground, which is what the vessel will stand on.
     // The terrain's height function is not that ground: boulders and the coarser mesh lie metres off it. The vessel is loaded but still packed, held

@@ -1,10 +1,10 @@
 using System;
 using UnityEngine;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Orbits;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // What the navigation tells the player where there is no node to put in: how to fly the climb to an orbit. The values come from the
     // vessel's state in every second, from a gravity turn that is flat when the air is passed. The descent is told by LandingGuide. It does not

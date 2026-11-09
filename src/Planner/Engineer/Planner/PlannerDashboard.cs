@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner as the dashboard's VAB page shows and works it (src/Dashboard/EditorTelemetry.cs). It gives the page what the rows show, in
     // the texts they show it in, KSP's rich text and all, for the page to draw as the game does. It gives the lists the buttons fold out, and

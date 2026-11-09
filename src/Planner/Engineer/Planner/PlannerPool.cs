@@ -1,4 +1,4 @@
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // How many rows the planner's window is made with. Every row a route could ever need is a set of dialog elements, about fifteen thousand
     // for the full size, and making them takes seconds. So the window is made for the route it has, and again, larger, when the route

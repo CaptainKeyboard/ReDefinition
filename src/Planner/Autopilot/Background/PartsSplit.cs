@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // A saved vessel split in two without the vessel being loaded: the parts that go, and the parts that stay. It works on the vessel's saved node,
     // which is what KSP loads a vessel from. Each part refers to the others by their place in the node: its parent, its symmetric parts, the parts on

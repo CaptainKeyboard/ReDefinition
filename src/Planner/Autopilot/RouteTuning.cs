@@ -1,6 +1,6 @@
 using ReDefinition.Core;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Planner.Autopilot
 {
     // The switches that change how a route is planned and flown, in one place. The game's probes set them to try other values and to compare; a player's
     // game runs on the defaults. Nothing else in the autopilot reads the command line.

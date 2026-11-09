@@ -10,7 +10,7 @@ using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner in the VAB and the SPH: a mode of the editor beside KSP's own
     // -- parts, actions, crew, cargo -- with a button of its own in their bar

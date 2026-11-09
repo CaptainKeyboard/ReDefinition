@@ -1,9 +1,9 @@
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's flight plan: the route as the Plan button works it out in flight, step after step, with the orbits it flies. The rows
     // are single-line labels; a long text is broken into several of them, since a label of changing text has no height of its own.

@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // A transfer between two bodies on orbits round one body: when to leave, how long it takes, the burn that leaves and the change of
     // velocity at the arrival that would match the target's.

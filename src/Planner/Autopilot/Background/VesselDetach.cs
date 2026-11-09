@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Background
+namespace ReDefinition.Planner.Autopilot.Background
 {
     // Parts let go of a vessel that is not loaded: a spent stage, or a satellite that is let go at a stop. The vessel's saved node is split
     // (PartsSplit); the vessel keeps its identity with the parts that stay, and each group of parts that goes is a vessel of its own on the same orbit.

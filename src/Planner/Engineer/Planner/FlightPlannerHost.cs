@@ -1,8 +1,8 @@
 using System;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The flight scene as the planner's window: the vessel is the active one, read as it is now with its fuel, and KSP's events say when
     // it is another or has changed (a stage fired, a part went). The readout is made again every few seconds, which the view notices.

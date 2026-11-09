@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 using UnityEngine;
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     // The object pools MechJeb's simulation borrows its objects from. It takes them from the pool, and gives them back when it is done, so that
     // a simulation run every few frames makes no garbage. Here the same, written for this code: a stack of the objects given back.

@@ -1,14 +1,14 @@
 using System.Collections;
 using System.Collections.Generic;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Background;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Guidance;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Guidance;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Runs what the planner does for the vessel in flight: MechJeb flying its route, or the nodes kept up for the player. The state is the
     // vessel's own (RouteState), so a vessel that was flown by the autopilot when it was left goes on when it is loaded again. A ghost of

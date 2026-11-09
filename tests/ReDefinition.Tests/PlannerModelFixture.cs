@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Autopilot.Planning;
+using ReDefinition.Planner.Engineer;
 
 namespace ReDefinition.Tests
 {

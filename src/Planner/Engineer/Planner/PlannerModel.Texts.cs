@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
-using static ReDefinition.Engineer.PlanText;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // What the plan says of its steps and stages, in the texts the rows show it in (KSP's rich text), and the questions the rows ask of a step.
     internal sealed partial class PlannerModel

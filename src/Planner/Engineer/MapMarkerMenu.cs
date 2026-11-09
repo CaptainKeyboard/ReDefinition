@@ -4,11 +4,11 @@ using System.Reflection;
 using KSP.UI;
 using KSP.UI.Screens.Mapview;
 using KSP.UI.Screens.Mapview.MapContextMenuOptions;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using UnityEngine;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // A click on an icon of the flown vessel's orbit (apoapsis, periapsis, ascending or descending node) opens a menu of what the planner can do there.
     // The orbit can be rounded at an apsis, or its plane turned to the equator or to the target's. The choice only sets the planner's route.

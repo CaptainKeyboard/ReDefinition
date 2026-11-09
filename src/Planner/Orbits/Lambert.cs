@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // Lambert's problem: the orbit that takes a body from one position to another in a given time, for a transfer of less than one turn.
     // After Izzo, "Revisiting Lambert's problem" (2015): one variable x, the time of flight falls with it everywhere, so it is bisected.

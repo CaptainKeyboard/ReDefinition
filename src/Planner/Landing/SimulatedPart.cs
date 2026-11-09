@@ -3,7 +3,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     public class SimulatedPart
     {

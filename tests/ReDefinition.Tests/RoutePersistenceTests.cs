@@ -1,6 +1,6 @@
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Autopilot.Background;
+using ReDefinition.Planner.Autopilot.Background;
 
 namespace ReDefinition.Tests
 {

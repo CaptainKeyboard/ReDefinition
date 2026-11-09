@@ -3,7 +3,7 @@
 using System;
 using UnityEngine;
 
-namespace ReDefinition.Landing
+namespace ReDefinition.Planner.Landing
 {
     public class SimulatedParachute : SimulatedPart
     {

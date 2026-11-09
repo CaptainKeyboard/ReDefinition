@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 using UnityEngine;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // The climb to an orbit and the descent to the ground are a maneuver of the vessel's own, as a burn is: a real maneuver node that follows the navigation's
     // direction. A climb has a second node behind the first, the burn that makes the orbit circular at the apoapsis, so that the map shows the way into the orbit. The game's whole maneuver display then works with it: the SAS's maneuver mode, the navball's burn marker, the burn gauge, and the X

@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot.Planning;
 
-namespace ReDefinition.Autopilot
+namespace ReDefinition.Planner.Autopilot
 {
     // What the planner does for a vessel on its route: the navigation plans the route and keeps the plan up to date while the player flies,
     // and the autopilot flies it with MechJeb. It is set in the map window and kept in the save with the vessel, so that it holds when the

@@ -3,9 +3,9 @@ using System.IO;
 using KSP.UI;
 using KSP.UI.Screens.Mapview;
 using KSP.UI.Screens.Mapview.MapContextMenuOptions;
-using ReDefinition.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Flight;
 using ReDefinition.Core;
-using ReDefinition.Engineer;
+using ReDefinition.Planner.Engineer;
 using UnityEngine;
 
 namespace ReDefinition.Probe

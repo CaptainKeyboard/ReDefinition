@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // Looks at a part's modules without allocating, for the loops that run every frame or on every edit.
     // Part.FindModulesImplementing builds a new list on each call.

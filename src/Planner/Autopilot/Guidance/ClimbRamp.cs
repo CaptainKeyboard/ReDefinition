@@ -1,7 +1,7 @@
 using System;
-using ReDefinition.Orbits;
+using ReDefinition.Planner.Orbits;
 
-namespace ReDefinition.Autopilot.Guidance
+namespace ReDefinition.Planner.Autopilot.Guidance
 {
     // The end of a climb to an orbit: the throttle falls evenly in time to none, and the apoapsis reaches the height aimed for at the moment it is none.
     // How long the throttle still has to fall is worked out by flying the rest of the climb ahead on paper. The engines push along the heading of the

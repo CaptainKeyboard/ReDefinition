@@ -2,15 +2,15 @@ using ReDefinition.Planner;
 using System.Collections;
 using System.Collections.Generic;
 using KSP.UI;
-using ReDefinition.Autopilot;
-using ReDefinition.Autopilot.Flight;
-using ReDefinition.Autopilot.Planning;
+using ReDefinition.Planner.Autopilot;
+using ReDefinition.Planner.Autopilot.Flight;
+using ReDefinition.Planner.Autopilot.Planning;
 using ReDefinition.Core;
 using ReDefinition.Ui;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner in flight: a panel at the right edge of the screen that slides out over the view, the map or the vessel's own, opened and closed by a
     // button in KSP's toolbar (MapPlannerButton). It holds the planner's rows as the editor's panel does (PlannerView), over the vessel in flight
@@ -669,7 +669,7 @@ namespace ReDefinition.Engineer
             }
             RouteState own = RouteState.Of(FlightGlobals.ActiveVessel);
             // The nodes are made on the orbit the vessel has, which the guide's burn would change.
-            ReDefinition.Autopilot.Guidance.GuideNode.Release();
+            ReDefinition.Planner.Autopilot.Guidance.GuideNode.Release();
             NodePlanner.Result result = NextStepPlanner.PlanNext(new Frame(FlightGlobals.ActiveVessel), route, new PlanOptions { Responsive = true }, own != null ? own.ProgressFor(route) : null);
             // A search that runs in the background is asked for again in the next frames, until it has an answer.
             nodesPending = result.Pending;

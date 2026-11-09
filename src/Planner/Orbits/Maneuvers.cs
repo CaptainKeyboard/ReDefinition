@@ -1,6 +1,6 @@
 using System;
 
-namespace ReDefinition.Orbits
+namespace ReDefinition.Planner.Orbits
 {
     // A burn: the seconds after the state it was worked out from, and the change of velocity at that place, in the inertial frame.
     internal struct Burn

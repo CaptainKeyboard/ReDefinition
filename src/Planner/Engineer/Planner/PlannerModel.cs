@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using ReDefinition.Autopilot.Planning;
-using static ReDefinition.Engineer.PlanText;
+using ReDefinition.Planner.Autopilot.Planning;
+using static ReDefinition.Planner.Engineer.PlanText;
 
-namespace ReDefinition.Engineer
+namespace ReDefinition.Planner.Engineer
 {
     // The planner's plan (docs/player/planner.md): a route from destination to destination, A -> B -> C. It holds the steps between
     // them with who flies each (RouteSteps), what each costs, and which of the vessel's stages pays for it, as KSP fires them or as the
