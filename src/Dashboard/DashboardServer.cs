@@ -3,16 +3,14 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Text;
 using ReDefinition.Core;
-using ReDefinition.Modules;
 using UnityEngine;
 
 namespace ReDefinition.Dashboard
 {
     // The dashboard's server: telemetry out and commands in over a WebSocket, and the dashboard's
-    // own files (GameData/ReDefinition/Main/Dashboard) for a phone's browser. It listens on this computer
-    // always, and on the network where the settings say so (OwnSettings.DashboardNetwork); a change
+    // own files (GameData/ReDefinition/Dashboard) for a phone's browser. It listens on this computer
+    // always, and on the network where the settings say so (DashboardSettings); a change
     // there starts it again. The network threads only queue messages; everything that touches the
     // game runs here in Update.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
@@ -20,9 +18,6 @@ namespace ReDefinition.Dashboard
     {
         // Fixed on purpose: a dashboard's manifest, the iCUE widget's, names the port it may talk to.
         public const int Port = 8765;
-
-        // The letters a new key is drawn from: lower case and digits without l, o, 0 and 1, which read alike.
-        private const string KeyLetters = "abcdefghijkmnpqrstuvwxyz23456789";
 
         // One client's state (WebSocketServer.Client.State): what it reads, how often, and what it was sent.
         private sealed class Subscriptions
@@ -69,7 +64,7 @@ namespace ReDefinition.Dashboard
         // The folder the dashboard's pages, scripts and pictures are served from.
         private static string WebRoot
         {
-            get { return KSPUtil.ApplicationRootPath + "GameData/ReDefinition/Main/Dashboard"; }
+            get { return KSPUtil.ApplicationRootPath + "GameData/ReDefinition/Dashboard"; }
         }
 
         // The dashboard's address for a phone on the same network, with its key; null where it may
@@ -78,21 +73,12 @@ namespace ReDefinition.Dashboard
         {
             get
             {
-                OwnSettings settings = Settings;
+                if (!DashboardSettings.Ready) return null;
                 string ip = LanAddress();
-                return settings != null && settings.DashboardNetwork && ip != null && settings.DashboardKey != ""
-                    ? "http://" + ip + ":" + Port + "/?key=" + settings.DashboardKey
+                string key = DashboardSettings.CurrentKey;
+                return DashboardSettings.NetworkOn && ip != null && key != ""
+                    ? "http://" + ip + ":" + Port + "/?key=" + key
                     : null;
-            }
-        }
-
-        // ReDefinition's settings once the add-on has loaded them.
-        internal static OwnSettings Settings
-        {
-            get
-            {
-                ReDefinitionAddon addon = ReDefinitionAddon.Instance;
-                return addon == null ? null : addon.Live;
             }
         }
 
@@ -113,11 +99,10 @@ namespace ReDefinition.Dashboard
         // handles the queued messages, and sends each client whose interval is up the keys that changed.
         private void Update()
         {
-            OwnSettings settings = Settings;
-            if (settings == null) return;
-            if (settings.DashboardKey == "") settings.DashboardKey = NewKey();
-            if (listensWithKey == null || listensOnNetwork != settings.DashboardNetwork || listensWithKey != settings.DashboardKey)
-                Listen(settings.DashboardNetwork, settings.DashboardKey);
+            if (!DashboardSettings.Ready) return;
+            string key = DashboardSettings.EnsureKey();
+            bool network = DashboardSettings.NetworkOn;
+            if (listensWithKey == null || listensOnNetwork != network || listensWithKey != key) Listen(network, key);
             if (server == null) return;
 
             FlyByWire.Follow(HighLogic.LoadedSceneIsFlight ? FlightGlobals.ActiveVessel : null);
@@ -160,15 +145,6 @@ namespace ReDefinition.Dashboard
             {
                 LogLine("could not listen on port " + Port + ": " + e.Message);
             }
-        }
-
-        // A random key of eight letters for the settings, made where the file has none.
-        private static string NewKey()
-        {
-            var random = new System.Random();
-            StringBuilder key = new StringBuilder();
-            for (int i = 0; i < 8; i++) key.Append(KeyLetters[random.Next(KeyLetters.Length)]);
-            return key.ToString();
         }
 
         // One update for a client: its subscribed keys whose value changed since the last send, its one-shot

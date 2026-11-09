@@ -20,8 +20,12 @@ change.
    and subscribes to five `GameEvents`: `onGameSceneLoadRequested`, `onLevelWasLoaded`,
    `onLevelWasLoadedGUIReady`, `OnCameraChange` and `OnGameSettingsApplied`.
 5. The other `Instantly` add-ons split in two. `ModWindowsAddon`, `LoadingScreenWindows`,
-   `ScalingAddon`, `StageDetailsSetup`, `DashboardServer`, `PerfMonitor` and `GpuProfiler` stay
-   with `DontDestroyOnLoad`. `KspSettingsSection`, `PauseMenuEntry`, `ReflectionProbeFix` and
+   `ScalingAddon`, `StageDetailsSetup`, `PerfMonitor` and `GpuProfiler` stay
+   with `DontDestroyOnLoad`. So do `DashboardServer` and `DashboardStartup` of the dashboard mod
+   (`ReDefinition.Dashboard.dll`, a mod of its own that runs with or without ReDefinition).
+   `DashboardStartup` assigns `DashboardHooks.ConnectContent`, which ReDefinition's *Devices* tab
+   reads, and where `HostSeams.StandsAlone` is still true when the launcher is ready it adds the
+   dashboard's own launcher button. `KspSettingsSection`, `PauseMenuEntry`, `ReflectionProbeFix` and
    `ScreenCoordinates` install their Harmony patches in `Awake` and destroy themselves.
    `ToolbarHides`, `TimeWarpButton` and `FlightPanelHooks` do their work in `Awake` too.
 6. While KSP loads, `ModRegistry.Ready` is false. It needs the `GameDatabase` and the
@@ -84,6 +88,7 @@ whole run.
 | `ScreenCoordinates` | `src/Upscaler/Rig/ScreenCoordinates.cs` | Instantly, once |
 | `ReflectionProbeFix` | `src/Scenery/ReflectionProbeFix.cs` | Instantly, once |
 | `DashboardServer` | `src/Dashboard/DashboardServer.cs` | Instantly, once |
+| `DashboardStartup` | `src/Dashboard/DashboardStartup.cs` | Instantly, once |
 | `FlightPanelHooks` | `src/Hud/Panel/FlightPanel.cs` | Instantly, once |
 | `TimeWarpButton` | `src/Hud/TimeWarpButton.cs` | Instantly, once |
 | `StageDetailsSetup` | `src/Hud/StageInfoColumns.cs` | Instantly, once |

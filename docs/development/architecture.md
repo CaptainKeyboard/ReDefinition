@@ -10,10 +10,10 @@ them.
 
 | Part | Where | Written in | Runs |
 |---|---|---|---|
-| The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as three DLLs: `ReDefinition.dll`, `ReDefinition.Planner.dll` and `ReDefinition.Common.dll` |
+| The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as four DLLs: `ReDefinition.dll`, `ReDefinition.Planner.dll`, `ReDefinition.Dashboard.dll` and `ReDefinition.Common.dll` |
 | The proxy | `src/DxgiProxy/` | C++ | In KSP's process, as `dxgi.dll` in place of the system's |
 | The shaders | `unity/Assets/ReDefinition/` | HLSL and ShaderLab | In Unity, from the bundle `redefinition.shaders` |
-| The dashboard | `GameData/ReDefinition/Main/Dashboard/`, served by `src/Dashboard/` | JavaScript | In a browser on a phone or a PC |
+| The dashboard | `GameData/ReDefinition/Dashboard/`, served by `src/Dashboard/` | JavaScript | In a browser on a phone or a PC |
 | The data | `GameData/ReDefinition/Main/` | KSP config nodes | Read by the plugin and by ModuleManager |
 | Tools and tests | `tools/`, `tests/` | Python, PowerShell, C#, C++ | On the developer's machine |
 
@@ -49,7 +49,7 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 | `Api` | The interface other mods call | `src/Api/ApiInfo.cs` |
 | `Common` | What both packages stand on: the log, reflection into other mods, optional Harmony hooks, the dialog helpers | `src/Common/HarmonyHooks.cs` |
 | `Core` | The paths and the catalogue of what ReDefinition takes for granted about other mods | `src/Core/ForeignAssumptions.cs` |
-| `Dashboard` | The web dashboard's server and its telemetry | `src/Dashboard/DashboardServer.cs` |
+| `Dashboard` | The web dashboard as a mod of its own: its server, its telemetry and its settings | `src/Dashboard/DashboardServer.cs` |
 | `Diagnostics` | The diagnostics window and the report on other mods | `src/Diagnostics/DiagnosticsWindow.cs` |
 | `Planner` | The route stack as a mod of its own: the planner, the navigation, the autopilot, the orbit maths and the landing prediction | `src/Planner/PlannerStartup.cs` |
 | `Fsr3` | AMD's FSR 3 upscaler, adapted from FSR3Unity | `src/Fsr3/Fsr3Upscaler.cs` |
@@ -70,31 +70,34 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 The rest is in the [flow pages](start-here.md#the-flows). The wiki lists every type,
 every entry point and every dependency, generated from the code.
 
-## The three assemblies
+## The four assemblies
 
-The plugin is three projects. The dependencies run one way:
+The plugin is four projects. The dependencies run one way:
 
 ```mermaid
 flowchart LR
     main["ReDefinition.dll<br/>src/ (the rest)"] --> common["ReDefinition.Common.dll<br/>src/Common/"]
     planner["ReDefinition.Planner.dll<br/>src/Planner/"] --> common
+    dashboard["ReDefinition.Dashboard.dll<br/>src/Dashboard/"] --> common
 ```
 
 | Assembly | Package | Needs |
 |---|---|---|
-| `ReDefinition.Common.dll` | `GameData/ReDefinition/Common`, the one copy both mods use | KSP and Unity |
+| `ReDefinition.Common.dll` | `GameData/ReDefinition/Common`, the one copy the mods use | KSP and Unity |
 | `ReDefinition.Planner.dll` | `GameData/ReDefinition/Planner` | Common. Not ReDefinition, not Harmony, not ZTheme |
-| `ReDefinition.dll` | `GameData/ReDefinition/Main` | Common and Harmony. Not the planner |
+| `ReDefinition.Dashboard.dll` | `GameData/ReDefinition/Dashboard` | Common. Not ReDefinition, not Harmony, not ZTheme |
+| `ReDefinition.dll` | `GameData/ReDefinition/Main` | Common and Harmony. Not the planner, not the dashboard |
 
-Neither of the two mods names the other. They meet in Common, and each works without the other:
+None of the three mods names another. They meet in Common, and each works without the others:
 
-* **Seams, from ReDefinition to the planner.** `HostSeams` holds what the planner would ask of
-  ReDefinition, each with a default that works alone: the interface scale, the two switches for the
-  background route and the buttons in the world, whether the planner stands alone, and the space
-  centre's button sprites. `HostLink` in `src/` assigns them when ReDefinition starts. Where
-  ReDefinition is not there, the planner's `PlannerStartup` answers the two switches from its own
-  settings file. Both add-ons start at `Startup.Instantly`, and the result is the same in either
-  order.
+* **Seams, from ReDefinition to the planner and the dashboard.** `HostSeams` holds what they would
+  ask of ReDefinition, each with a default that works alone: the interface scale, the two switches for
+  the background route and the buttons in the world, the dashboard's network switch and key (with a
+  setter for a key the dashboard made), whether they stand alone, and the space centre's button
+  sprites. `HostLink` in `src/` assigns them when ReDefinition starts. Where ReDefinition is not
+  there, the planner's `PlannerStartup` answers its two switches from its own settings file, and the
+  dashboard's `DashboardSettings` reads its own. The add-ons start at `Startup.Instantly`, and the
+  result is the same in any order.
 * **Hooks, from the planner to ReDefinition.** `PlannerHooks` holds what ReDefinition reads of the
   planner: the guidance, the route state, the editor's plan rows, the dry marks of the fuel tapes
   and the planner's assumptions about other mods. Each is an abstract class with virtual defaults in
@@ -103,12 +106,16 @@ Neither of the two mods names the other. They meet in Common, and each works wit
   the live state on every call. Without the planner the hooks stay null, and ReDefinition shows
   nothing of them: no guidance gauge, no burn overlay, no guidance or route keys on the dashboard,
   no dry marks on the tapes.
-* **The helpers both use** are in Common: `HeldVessel`, `WarpLabel`, `WorldButton`, `TimeText`,
+* **Hook, from the dashboard to ReDefinition.** `DashboardHooks.ConnectContent` returns the rows of
+  the dialog that shows the dashboard's address and QR code. `DashboardStartup` assigns it. Where it
+  is null, ReDefinition's *Devices* tab has no *Dashboard* rows (`OurModules`, `present`). The
+  dashboard reads the planner only through `PlannerHooks`.
+* **The helpers they use** are in Common: `HeldVessel`, `WarpLabel`, `WorldButton`, `TimeText`,
   `VesselFacts`, `PropellantMix`, `StockNodes`, `ModSettingsFile` (a mod's settings file in its
   `PluginData` folder) and the rest.
 
-Common is one DLL for both, so seams and hooks are shared state. The planner of one release next to
-a ReDefinition of another works with the members the Common that the game keeps has. A member added
+Common is one DLL for all, so seams and hooks are shared state. The planner or the dashboard of one
+release next to a ReDefinition of another works with the members the Common that the game keeps has. A member added
 to a hook later has a virtual default, so an adapter built against an older Common does not break.
 
 `src/ReDefinition.csproj` keeps the planner out of the player build. The developer probes in
@@ -175,7 +182,7 @@ flowchart TB
 
 The middle layer uses itself in places: `Upscaler` and `Raytracing` name each other, and
 `Window` uses `Modules`. The table lists the edges that run against the layers. The most
-visible ones are `Modules` naming `Hud`, `Dashboard`, `Scenery` and `Probe` for their settings,
+visible ones are `Modules` naming `Hud`, `Scenery` and `Probe` for their settings,
 and `Raytracing`, `Upscaler` and `Menu` naming `Probe` for its markers and switches. Remove
 these first when you can.
 

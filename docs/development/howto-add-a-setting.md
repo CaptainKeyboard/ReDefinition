@@ -16,7 +16,13 @@ The example is `DashboardNetwork`, a switch that the dashboard reads every frame
    the table decides what is saved, compared and copied.
 3. Decide who reads the value. If a feature reads it each time it needs it, pass `true` as
    `live`, and read it through `ReDefinitionAddon.Live`. Then `OwnSettings.CopyLive` and
-   `OwnSettings.ChangeLive` carry it, and you write no setter.
+   `OwnSettings.ChangeLive` carry it, and you write no setter. The dashboard is a mod of its own
+   and reads `DashboardNetwork` and `DashboardKey` through `HostSeams` (`HostLink.Fill` assigns
+   the getters and the key's setter from `ReDefinitionAddon.Live`). A value that a mod of its own
+   reads needs a seam in `src/Common/HostSeams.cs` with a default that works alone, a line in
+   `HostLink`, and, where the mod must work without ReDefinition, a settings file of its own
+   (`DashboardSettings` is the model, over `ModSettingsFile`). A change in Common raises
+   `CommonVersion`.
 4. If something has to happen when the value changes, leave `live` off and add three things in
    `src/Modules`. Add a private field and its load line in `ReDefinitionAddon.LoadSettings`
    (`src/Modules/ReDefinitionAddon.Settings.cs`). Add a line to `ReDefinitionAddon.Collect`.

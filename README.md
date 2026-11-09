@@ -72,6 +72,8 @@ graphics mods; any mod can join with a config file.
   the space centre and the editors, served on port 8765. A QR code in the settings window
   opens it on a phone; access from the network is a switch.
 * Key names and the bracket syntax of its commands follow Telemachus' API.
+* **A mod of its own.** The dashboard is released as ReDefinition Dashboard and works with or
+  without ReDefinition: [docs/player/dashboard-on-its-own.md](docs/player/dashboard-on-its-own.md).
 
 ## Staging, editor and interface
 
@@ -113,7 +115,8 @@ each technique needs, by GPU:
 ### With CKAN
 
 Once ReDefinition's CKAN entry is merged, search for it there and install it. CKAN
-installs HarmonyKSP and ReDefinition Common with it, and recommends ReDefinition Planner.
+installs HarmonyKSP and ReDefinition Common with it, and recommends ReDefinition Planner
+and ReDefinition Dashboard.
 CKAN does not replace a `dxgi.dll` it did not install, such as ReShade's: move that one
 away from `KSP_x64.exe` first.
 
@@ -124,9 +127,10 @@ away from `KSP_x64.exe` first.
    `GameData/ReDefinition` goes into `GameData`; `dxgi.dll`, AMD's frame generation
    runtime and AMD's denoiser go next to `KSP_x64.exe`.
 
-The zip holds `GameData/ReDefinition/Main`, `Common` and `Planner`. The planner, the route
-planner and the autopilot, needs neither Harmony nor ReDefinition and is released as its
-own zip too: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
+The zip holds `GameData/ReDefinition/Main`, `Common`, `Planner` and `Dashboard`. The
+planner, the route planner and the autopilot, needs neither Harmony nor ReDefinition and is
+released as its own zip too: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
+So is the dashboard: [docs/player/dashboard-on-its-own.md](docs/player/dashboard-on-its-own.md).
 
 Then, in the game, open ReDefinition from the toolbar and choose a profile. Details, and
 how to remove ReDefinition again: [docs/player/installing.md](docs/player/installing.md).

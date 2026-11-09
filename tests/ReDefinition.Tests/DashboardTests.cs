@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using ReDefinition.Core;
 using ReDefinition.Dashboard;
 using ReDefinition.Modules;
 using ReDefinition.Settings;
@@ -56,17 +58,43 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheSwitchAndTheConnectButtonStandInDevicesUnderDashboard()
         {
-            ModuleSetting network = OurModules.Rows(SettingCategory.Devices).Single();
-            Assert.AreEqual("dashboardNetwork", network.Key);
-            Assert.AreEqual("Dashboard", network.Section);
-            Assert.IsFalse(network.NeedsProfile);
-            Assert.AreEqual("False", network.Read(new OwnSettings { DashboardNetwork = false }));
+            Func<DialogGUIBase[]> hook = DashboardHooks.ConnectContent;
+            try
+            {
+                DashboardHooks.ConnectContent = ConnectDialog.Content;
+                ModuleSetting network = OurModules.Rows(SettingCategory.Devices).Single();
+                Assert.AreEqual("dashboardNetwork", network.Key);
+                Assert.AreEqual("Dashboard", network.Section);
+                Assert.IsFalse(network.NeedsProfile);
+                Assert.AreEqual("False", network.Read(new OwnSettings { DashboardNetwork = false }));
 
-            ModuleDialog connect = OurModules.DialogRows(SettingCategory.Devices).Single();
-            Assert.AreEqual("Dashboard", connect.Section);
-            Assert.AreEqual("Connect", connect.Button);
-            Assert.IsNotNull(connect.Content);
-            Assert.AreEqual(0, OurModules.DialogRows(SettingCategory.General).Count);
+                ModuleDialog connect = OurModules.DialogRows(SettingCategory.Devices).Single();
+                Assert.AreEqual("Dashboard", connect.Section);
+                Assert.AreEqual("Connect", connect.Button);
+                Assert.IsNotNull(connect.Content);
+                Assert.AreEqual(0, OurModules.DialogRows(SettingCategory.General).Count);
+            }
+            finally
+            {
+                DashboardHooks.ConnectContent = hook;
+            }
+        }
+
+        // Without the dashboard installed the hook is empty, and ReDefinition shows neither the switch nor the Connect button.
+        [TestMethod]
+        public void WithoutTheDashboardTheDevicesTabHasNoDashboardRows()
+        {
+            Func<DialogGUIBase[]> hook = DashboardHooks.ConnectContent;
+            try
+            {
+                DashboardHooks.ConnectContent = null;
+                Assert.AreEqual(0, OurModules.Rows(SettingCategory.Devices).Count);
+                Assert.AreEqual(0, OurModules.DialogRows(SettingCategory.Devices).Count);
+            }
+            finally
+            {
+                DashboardHooks.ConnectContent = hook;
+            }
         }
 
         // The JSON reader takes a dashboard's message: arrays of strings, numbers as doubles, and empty arrays.

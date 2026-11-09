@@ -70,7 +70,7 @@
 		$("mquit").disabled = scene !== "MAINMENU" || !!pending;
 		putText("mscene", SCENE_TEXT[scene] || scene);
 		const v = d["g.versions"] || {};
-		putText("mversions", (v.ksp ? "KSP " + v.ksp : "") + (v.mod ? "  ·  ReDefinition " + v.mod : ""));
+		putText("mversions", (v.ksp ? "KSP " + v.ksp : "") + (v.mod ? "  ·  ReDefinition Dashboard " + v.mod : ""));
 		putText("mlink", connected ? "● LINK" : "DEMO");
 		putClass("mlink", "ok", connected);
 

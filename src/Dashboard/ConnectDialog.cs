@@ -1,10 +1,9 @@
 using UnityEngine;
-using ReDefinition.Modules;
 
 namespace ReDefinition.Dashboard
 {
-    // What the settings window's Connect button shows (OurModules.Dialogs): the QR code of the
-    // dashboard's address, so that a phone on the same network opens it by scanning.
+    // What the settings window's Connect button shows (DashboardHooks.ConnectContent), and what the dashboard's own dialog holds.
+    // It is the QR code of the dashboard's address, so that a phone on the same network opens it by scanning.
     internal static class ConnectDialog
     {
         // The last picture made; one dialog stands at a time, so the one before goes.
@@ -13,8 +12,7 @@ namespace ReDefinition.Dashboard
         // The dialog's rows: the QR code with the address under it, or a line saying why there is none.
         internal static DialogGUIBase[] Content()
         {
-            OwnSettings settings = DashboardServer.Settings;
-            if (settings == null || !settings.DashboardNetwork)
+            if (!DashboardSettings.Ready || !DashboardSettings.NetworkOn)
                 return new DialogGUIBase[] { new DialogGUILabel("Opening the dashboard from other devices is switched off.", true) };
             // The address is looked up afresh each time: the computer may have joined another network.
             string url = DashboardServer.PhoneUrl;

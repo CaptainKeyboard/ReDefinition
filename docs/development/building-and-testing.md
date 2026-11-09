@@ -28,9 +28,10 @@ Every build deploys into the game:
 * `ReDefinition.dll` and `ReDefinition.xml` into `GameData/ReDefinition/Main/Plugins`. The
   XML file is the interface's documentation for a mod's IDE;
 * `ReDefinition.Common.dll` into `GameData/ReDefinition/Common/Plugins` and
-  `ReDefinition.Planner.dll` into `GameData/ReDefinition/Planner/Plugins`;
-* the three version files, generated from the versions in the build, each in its part's
-  folder, and the iCUE widget `ksp-dashboard.icuewidget` into `Main`;
+  `ReDefinition.Planner.dll` into `GameData/ReDefinition/Planner/Plugins` and
+  `ReDefinition.Dashboard.dll` into `GameData/ReDefinition/Dashboard/Plugins`;
+* the four version files, generated from the versions in the build, each in its part's
+  folder, and the iCUE widget `ksp-dashboard.icuewidget` into `Dashboard`;
 * the repository's static `GameData` files: the registrations, the profiles, the
   patches, the icons and the dashboard's pages.
 

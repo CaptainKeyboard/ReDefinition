@@ -33,9 +33,10 @@ that applies a change.
 
 ## What it uses and what uses it
 
-It uses Core, Dashboard, Diagnostics, Hud, Probe, Proxy, Raytracing, Scenery, Settings,
-Upscaler, Vendor and Window. Dashboard, Diagnostics, Hud, Menu, Probe, Raytracing, Vendor and
-Window use it.
+It uses Core, Diagnostics, Hud, Probe, Proxy, Raytracing, Scenery, Settings,
+Upscaler, Vendor and Window. Diagnostics, Hud, Menu, Probe, Raytracing, Vendor and
+Window use it. The dashboard's rows stand only where the dashboard mod is installed
+(`DashboardHooks.ConnectContent`).
 
 ## Rules of the area
 

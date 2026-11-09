@@ -4,6 +4,16 @@
 
 ### Added
 
+- **ReDefinition Dashboard as a mod of its own.** The web dashboard, its server, telemetry
+  and pages, are `GameData/ReDefinition/Dashboard` (the pages moved from
+  `GameData/ReDefinition/Main/Dashboard`), released as `ReDefinitionDashboard_<version>.zip`
+  and carried by the full zip too. It needs neither Harmony nor ZTheme nor ReDefinition;
+  ReDefinition and the planner are recommended. With ReDefinition installed, the network
+  switch and the key are its settings and *Connect* is in its settings window. Without it,
+  the dashboard keeps them in `Dashboard/PluginData/settings.cfg` and has a button in the
+  application launcher with the same QR code. Without the dashboard, ReDefinition's *Devices*
+  tab has no *Dashboard* rows. The iCUE widget `ksp-dashboard.icuewidget` is in the
+  dashboard's folder. How it works: [docs/player/dashboard-on-its-own.md](docs/player/dashboard-on-its-own.md).
 - **ReDefinition Planner as a mod of its own.** The route planner, the navigation and the
   autopilot are `GameData/ReDefinition/Planner`, released as `ReDefinitionPlanner_<version>.zip`
   and carried by the full zip too. It needs neither Harmony nor ZTheme nor ReDefinition;
@@ -14,8 +24,8 @@
   Neither mod needs the other: without the planner, ReDefinition shows no guidance gauge, no
   burn overlay on the navball and no planner rows on the dashboard, and all else stays.
   How it works: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
-- **One shared folder, `GameData/ReDefinition`.** It holds `Main` (ReDefinition), `Planner`
-  and `Common`, the one copy of `ReDefinition.Common.dll`. The full zip carries all three.
+- **One shared folder, `GameData/ReDefinition`.** It holds `Main` (ReDefinition), `Planner`,
+  `Dashboard` and `Common`, the one copy of `ReDefinition.Common.dll`. The full zip carries all four.
   `ReDefinitionPlanner_<version>.zip` holds `Planner` and `Common`, and
   `ReDefinitionCommon_<version>.zip` holds `Common` alone, so CKAN can install it as a module
   of its own. Extracting any of them merges into the same folder, and an older planner zip

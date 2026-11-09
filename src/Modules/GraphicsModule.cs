@@ -54,6 +54,8 @@ namespace ReDefinition.Modules
         public float Width = 360f;
         // The dialog's elements, made afresh each time it opens.
         public Func<DialogGUIBase[]> Content;
+        // Whether the row stands at all; null means always.
+        public Func<bool> Present;
     }
 
     // One setting of a module: what a profile's MODULE node sets, and a row in the

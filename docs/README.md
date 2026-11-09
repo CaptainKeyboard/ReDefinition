@@ -18,6 +18,7 @@ editors, the main menu and the space centre.
 | switch on raytraced shadows and light, and know what they need | [player/raytracing.md](player/raytracing.md) |
 | plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | use the planner and the autopilot without the rest of ReDefinition | [player/planner-on-its-own.md](player/planner-on-its-own.md) |
+| use the dashboard on a phone or a touch screen without the rest of ReDefinition | [player/dashboard-on-its-own.md](player/dashboard-on-its-own.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
 | see the figures for what you are doing in flight | [player/flight-panel.md](player/flight-panel.md) |
 | launch from the VAB or the SPH, and go back there from the pad | [player/launch-and-return.md](player/launch-and-return.md) |

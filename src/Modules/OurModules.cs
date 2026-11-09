@@ -726,14 +726,20 @@ namespace ReDefinition.Modules
                 section: "Re-entry",
                 present: () => ReDefinition.Scenery.FireflyIdle.FireflyInstalled));
 
-        // The dashboard for phones, tablets and touch screens (Dashboard/DashboardServer): its server
-        // listens on this computer always, on the network with this switch.
+        // The dashboard for phones, tablets and touch screens (ReDefinition Dashboard, a mod of its own): its server
+        // listens on this computer always, on the network with this switch. The rows stand only where the dashboard is installed.
         public static readonly IGraphicsModule Dashboard = new GraphicsModule("dashboard", "Dashboard",
             Toggle("dashboardNetwork", "Dashboard on other devices", 250,
                 "Phones and tablets in the same Wi-Fi may open the dashboard (Connect shows the QR code).\n"
                   + "On this computer, the iCUE widget for instance, it opens either way.",
                 row: SettingCategory.Devices,
-                section: DashboardSection));
+                section: DashboardSection,
+                present: DashboardInstalled));
+
+        private static bool DashboardInstalled()
+        {
+            return DashboardHooks.ConnectContent != null;
+        }
 
         // The heading the dashboard's rows stand under in the Devices tab.
         private const string DashboardSection = "Dashboard";
@@ -760,7 +766,8 @@ namespace ReDefinition.Modules
                         Button = "Connect",
                         Heading = "Connect a phone",
                         Tooltip = "Shows the QR code that opens the dashboard on a phone or tablet.",
-                        Content = ReDefinition.Dashboard.ConnectDialog.Content,
+                        Content = () => DashboardHooks.ConnectContent == null ? new DialogGUIBase[0] : DashboardHooks.ConnectContent(),
+                        Present = DashboardInstalled,
                     },
                 }
                 .AsReadOnly();
@@ -770,7 +777,7 @@ namespace ReDefinition.Modules
         {
             List<ModuleDialog> rows = new List<ModuleDialog>();
             foreach (ModuleDialog dialog in Dialogs)
-                if (dialog.Row == tab) rows.Add(dialog);
+                if (dialog.Row == tab && (dialog.Present == null || dialog.Present())) rows.Add(dialog);
             return rows;
         }
 

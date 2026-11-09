@@ -15,7 +15,7 @@ does not load ReDefinition without it.
 **2. Extract ReDefinition's zip** into the KSP folder, the one with `KSP_x64.exe`:
 
 ```
-GameData/ReDefinition/                          merges into your GameData: Main, Common and Planner
+GameData/ReDefinition/                          merges into your GameData: Main, Common, Planner and Dashboard
 dxgi.dll                                        the proxy: DLSS, AMD's upscaler DLL, XeSS, frame generation
 dxgi_LICENSE-NVIDIA.txt                         licences of the NVIDIA headers the proxy is built with
 dxgi_LICENSE-FidelityFX.txt                     licence of the AMD headers the proxy is built with
@@ -56,7 +56,8 @@ the *Graphics* tab has all five
 
 Search for *ReDefinition* in CKAN and install it. If CKAN does not list it, its entry
 there is not accepted yet, and the release zip above is the way in. CKAN
-installs Harmony and ReDefinition Common with it, offers ReDefinition Planner, and
+installs Harmony and ReDefinition Common with it, offers ReDefinition Planner and
+ReDefinition Dashboard, and
 puts `dxgi.dll` and AMD's runtime next to `KSP_x64.exe`.
 CKAN does not replace a `dxgi.dll` it did not install, so move another one away first.
 
@@ -146,6 +147,7 @@ then passes everything through to Windows' own `dxgi.dll`. It writes
 | `GameData/ReDefinition/Main/PluginData/flightpanel.cfg` | the flight panel's profiles, for every save |
 | `GameData/ReDefinition/Main/PluginData/gauge.cfg` | the round gauge's chosen figure |
 | `GameData/ReDefinition/Planner/PluginData/planner.cfg` | the planner's plans, by the vessel's name |
+| `GameData/ReDefinition/Dashboard/PluginData/settings.cfg` | the dashboard's two settings, read only where ReDefinition is not installed |
 
 An update does not touch them.
 

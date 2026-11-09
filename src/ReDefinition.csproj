@@ -50,8 +50,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Common\**;Planner\**" />
+    <Compile Remove="Common\**;Planner\**;Dashboard\**" />
     <ProjectReference Include="Common\ReDefinition.Common.csproj" />
+    <!-- The dashboard is built before this project, so that its DLL lands in the output beside this one (it ships in the package
+         and goes to the game), but nothing of it is referenced (tools/checks/check_no_dashboard_reference.ps1). -->
+    <ProjectReference Include="Dashboard\ReDefinition.Dashboard.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' == 'true'" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' != 'true'"
                       ReferenceOutputAssembly="false" />
@@ -236,7 +239,24 @@
     <WriteLinesToFile File="$(OutputPath)GameData\$(ModName)\Planner\$(PlannerName).version" Lines="@(_PlannerAvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
     <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(PlannerName).version" Lines="@(_PlannerAvcLine)" Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
-    <!-- The common DLL's own, with the version of the code in src/Common: both packages carry the one copy in Common/. -->
+    <!-- ReDefinition Dashboard's own, with its own version. -->
+    <ItemGroup>
+      <_DashboardAvcLine Include="{" />
+      <_DashboardAvcLine Include="&quot;NAME&quot;: &quot;$(DashboardName)&quot;," />
+      <_DashboardAvcLine Include="&quot;URL&quot;: &quot;$(_AvcRaw)/$(DashboardName).version&quot;," />
+      <_DashboardAvcLine Include="&quot;DOWNLOAD&quot;: &quot;$(_AvcHome)/releases/latest&quot;," />
+      <_DashboardAvcLine Include="&quot;CHANGE_LOG_URL&quot;: &quot;$(_AvcRaw)/CHANGELOG.md&quot;," />
+      <_DashboardAvcLine Include="&quot;VERSION&quot;: &quot;$(DashboardVersion)&quot;," />
+      <_DashboardAvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
+      <_DashboardAvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.0&quot;," />
+      <_DashboardAvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;" />
+      <_DashboardAvcLine Include="}" />
+    </ItemGroup>
+    <MakeDir Directories="$(OutputPath)GameData\$(ModName)\Dashboard" />
+    <WriteLinesToFile File="$(OutputPath)GameData\$(ModName)\Dashboard\$(DashboardName).version" Lines="@(_DashboardAvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(DashboardName).version" Lines="@(_DashboardAvcLine)" Overwrite="true"
+                      WriteOnlyWhenDifferent="true" />
+    <!-- The common DLL's own, with the version of the code in src/Common: all packages carry the one copy in Common/. -->
     <ItemGroup>
       <_CommonAvcLine Include="{" />
       <_CommonAvcLine Include="&quot;NAME&quot;: &quot;$(CommonName)&quot;," />
@@ -291,11 +311,11 @@
   </UsingTask>
 
   <ItemGroup>
-    <_IcueWidgetSource Include="$(MSBuildThisFileDirectory)..\GameData\$(ModName)\Main\Dashboard\**\*" />
+    <_IcueWidgetSource Include="$(MSBuildThisFileDirectory)..\GameData\$(ModName)\Dashboard\**\*" />
   </ItemGroup>
 
   <Target Name="PackageIcueWidget" AfterTargets="Build" Inputs="@(_IcueWidgetSource)" Outputs="$(OutputPath)ksp-dashboard.icuewidget">
-    <ZipStored SourceDirectory="$(MSBuildThisFileDirectory)..\GameData\$(ModName)\Main\Dashboard" DestinationFile="$(OutputPath)ksp-dashboard.icuewidget" />
+    <ZipStored SourceDirectory="$(MSBuildThisFileDirectory)..\GameData\$(ModName)\Dashboard" DestinationFile="$(OutputPath)ksp-dashboard.icuewidget" />
   </Target>
 
   <Target Name="DeployToGameData" AfterTargets="Build" DependsOnTargets="GenerateVersionFile;PackageIcueWidget"
@@ -303,11 +323,12 @@
     <PropertyGroup>
       <_Game>$(KspGameData)\$(ModName)</_Game>
     </PropertyGroup>
-    <!-- The game's folder holds one shared folder, GameData/ReDefinition, with Main, Common and Planner in it.
+    <!-- The game's folder holds one shared folder, GameData/ReDefinition, with Main, Common, Planner and Dashboard in it.
          What an earlier layout left is moved or removed first: the shader bundle (costly to rebuild) and the
          settings (PluginData) of the old places move into the new ones, unless those exist; the old planner
          folder, and the files of the old top level that KSP would read a second time (textures, configs, DLLs),
-         are deleted. Main, Common and Planner themselves are never deleted. -->
+         are deleted, and so is the dashboard's web folder under Main, now a folder of its own. Main, Common, Planner and Dashboard
+         themselves are never deleted. -->
     <ItemGroup>
       <_OldShaders Include="$(_Game)\Shaders\**\*" />
       <_OldPluginData Include="$(_Game)\PluginData\**\*" />
@@ -320,21 +341,25 @@
     <Move Condition="!Exists('$(_Game)\Main\ReDefinitionProxy.ini')" SourceFiles="@(_OldIni)" DestinationFiles="$(_Game)\Main\ReDefinitionProxy.ini" />
     <ItemGroup>
       <_OldTopFiles Include="$(_Game)\README.md;$(_Game)\CHANGELOG.md;$(_Game)\CREDITS.md;$(_Game)\ReDefinition.version;$(_Game)\ksp-dashboard.icuewidget;$(_Game)\ReDefinitionProxy.ini" />
+      <_OldTopFiles Include="$(_Game)\Main\ksp-dashboard.icuewidget" />
       <_OldTopFiles Include="$(_Game)\LICENSE*;$(_Game)\EXCEPTIONS.md;$(_Game)\SOURCE.md" />
     </ItemGroup>
     <Delete Files="@(_OldTopFiles)" />
     <!-- Shaders and PluginData are removed only where the new place exists: what is left of an old one is then stale. -->
-    <RemoveDir Directories="$(_Game)\Plugins;$(_Game)\Profiles;$(_Game)\Mods;$(_Game)\Patches;$(_Game)\Icons;$(_Game)\Dashboard;$(KspGameData)\$(PlannerName)" />
+    <RemoveDir Directories="$(_Game)\Plugins;$(_Game)\Profiles;$(_Game)\Mods;$(_Game)\Patches;$(_Game)\Icons;$(_Game)\Main\Dashboard;$(KspGameData)\$(PlannerName)" />
     <RemoveDir Condition="Exists('$(_Game)\Main\Shaders')" Directories="$(_Game)\Shaders" />
     <RemoveDir Condition="Exists('$(_Game)\Main\PluginData')" Directories="$(_Game)\PluginData" />
-    <MakeDir Directories="$(_Game)\Main\Plugins;$(_Game)\Common\Plugins;$(_Game)\Planner\Plugins" />
+    <MakeDir Directories="$(_Game)\Main\Plugins;$(_Game)\Common\Plugins;$(_Game)\Planner\Plugins;$(_Game)\Dashboard\Plugins" />
     <!-- One copy of the common DLL, in its own folder: a second copy of the same assembly version would be kept as often as the new one. -->
     <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Common.dll;$(_Game)\Main\Plugins\ReDefinition.Planner.dll;$(_Game)\Planner\Plugins\ReDefinition.Common.dll" />
+    <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Dashboard.dll;$(_Game)\Dashboard\Plugins\ReDefinition.Common.dll" />
     <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(_Game)\Main\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(_Game)\Common\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(_Game)\Planner\Plugins" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(_Game)\Main" />
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Dashboard.dll" DestinationFolder="$(_Game)\Dashboard\Plugins" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version" DestinationFolder="$(_Game)\Main" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Planner\$(PlannerName).version" DestinationFolder="$(_Game)\Planner" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Dashboard\$(DashboardName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(_Game)\Dashboard" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Common\$(CommonName).version" DestinationFolder="$(_Game)\Common" />
 <!-- The static GameData files of the repository (profiles and mod
          registrations), copied the way KSPCommunityFixes copies its own. What
@@ -352,7 +377,7 @@
     </ItemGroup>
     <Delete Files="@(_ShippedInGame)" />
     <Copy SourceFiles="@(_StaticGameData)" DestinationFolder="$(KspGameData)\%(RecursiveDir)" />
-    <Message Importance="high" Text="$(ModName).dll, $(ModName).version, the iCUE widget and the static GameData files copied to $(KspGameData)\$(ModName)\Main, the planner to ...\Planner, the common DLL to ...\Common." />
+    <Message Importance="high" Text="$(ModName).dll, $(ModName).version, and the static GameData files copied to $(KspGameData)\$(ModName)\Main, the planner to ...\Planner, the dashboard with the iCUE widget to ...\Dashboard, the common DLL to ...\Common." />
   </Target>
 
   <!-- The player package, built only on request:
@@ -385,9 +410,12 @@
       <_Stage>$(_ReleaseDir)\stage</_Stage>
       <_StageMod>$(_Stage)\GameData\$(ModName)\Main</_StageMod>
       <_StagePlanner>$(_Stage)\GameData\$(ModName)\Planner</_StagePlanner>
+      <_StageDashboard>$(_Stage)\GameData\$(ModName)\Dashboard</_StageDashboard>
       <_StageCommon>$(_Stage)\GameData\$(ModName)\Common</_StageCommon>
       <_PlannerOnly>$(_ReleaseDir)\planner-stage</_PlannerOnly>
       <_PlannerZip>$(_ReleaseDir)\$(PlannerName)_$(PlannerVersion).zip</_PlannerZip>
+      <_DashboardOnly>$(_ReleaseDir)\dashboard-stage</_DashboardOnly>
+      <_DashboardZip>$(_ReleaseDir)\$(DashboardName)_$(DashboardVersion).zip</_DashboardZip>
       <_CommonOnly>$(_ReleaseDir)\common-stage</_CommonOnly>
       <_CommonZip>$(_ReleaseDir)\$(CommonName)_$(CommonVersion).zip</_CommonZip>
       <_ReleaseZip>$(_ReleaseDir)\$(ModName)_$(Version).zip</_ReleaseZip>
@@ -453,6 +481,8 @@
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_release_version.ps1&quot;" />
     <!-- The player's ReDefinition.dll names nothing of the planner (tools/checks/check_no_planner_reference.ps1). -->
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_planner_reference.ps1&quot; &quot;$(OutputPath)$(ModName).dll&quot;" />
+    <!-- Nor of the dashboard (tools/checks/check_no_dashboard_reference.ps1). -->
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_dashboard_reference.ps1&quot; &quot;$(OutputPath)$(ModName).dll&quot;" />
     <Exec Command="git status --porcelain 2&gt;$(_NullDevice)" WorkingDirectory="$(_RepoRoot)" ConsoleToMSBuild="true" StandardOutputImportance="low">
       <Output TaskParameter="ConsoleOutput" PropertyName="_TreeStatus" />
     </Exec>
@@ -467,14 +497,19 @@
     <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(_StagePlanner)\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Planner\$(PlannerName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StagePlanner)" />
     <Copy SourceFiles="$(_RepoRoot)src\Planner\README.md" DestinationFolder="$(_StagePlanner)" Condition="Exists('$(_RepoRoot)src\Planner\README.md')" />
+    <!-- And the dashboard, in its own folder. Its web files come with the repository's GameData below; the project's
+         notices that its pages and its QR code need go with it. -->
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Dashboard.dll" DestinationFolder="$(_StageDashboard)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Dashboard\$(DashboardName).version;$(OutputPath)ksp-dashboard.icuewidget;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StageDashboard)" />
+    <Copy SourceFiles="$(_RepoRoot)src\Dashboard\README.md" DestinationFolder="$(_StageDashboard)" Condition="Exists('$(_RepoRoot)src\Dashboard\README.md')" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\Telemachus-MIT.txt" DestinationFiles="$(_StageDashboard)\LICENSE-Telemachus.txt" />
+    <Copy SourceFiles="$(_RepoRoot)licenses\QR-Code-generator-MIT.txt" DestinationFiles="$(_StageDashboard)\LICENSE-QR-Code-generator.txt" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version;$(OutputPath)ksp-dashboard.icuewidget;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />
     <Copy SourceFiles="$(_RepoRoot)docs\credits-and-licences.md" DestinationFiles="$(_StageMod)\CREDITS.md" />
     <Copy SourceFiles="$(_RepoRoot)src\Fsr3\LICENSE.txt" DestinationFiles="$(_StageMod)\LICENSE-FSR3Unity.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\FidelityFX-FSR3-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-FidelityFX.txt" />
-    <Copy SourceFiles="$(_RepoRoot)licenses\Telemachus-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-Telemachus.txt" />
-    <Copy SourceFiles="$(_RepoRoot)licenses\QR-Code-generator-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-QR-Code-generator.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Bruneton-INRIA-BSD3.txt" DestinationFiles="$(_StageMod)\LICENSE-Bruneton.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Unity-builtin-shaders-MIT.txt" DestinationFiles="$(_StageMod)\LICENSE-Unity-shaders.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Unity-Companion-License.txt" DestinationFiles="$(_StageMod)\LICENSE-Unity-Companion.txt" />
@@ -495,18 +530,25 @@
     <!-- ReDefinition Planner alone: what the AIO holds of it and of Common, and nothing of the rest. -->
     <ItemGroup>
       <_PlannerPackageFile Include="$(_StagePlanner)\**\*" />
+      <_DashboardPackageFile Include="$(_StageDashboard)\**\*" />
       <_CommonPackageFile Include="$(_StageCommon)\**\*" />
     </ItemGroup>
-    <Delete Files="$(_PlannerZip);$(_CommonZip)" />
+    <Delete Files="$(_PlannerZip);$(_DashboardZip);$(_CommonZip)" />
     <RemoveDir Condition="Exists('$(_PlannerOnly)')" Directories="$(_PlannerOnly)" />
+    <RemoveDir Condition="Exists('$(_DashboardOnly)')" Directories="$(_DashboardOnly)" />
     <RemoveDir Condition="Exists('$(_CommonOnly)')" Directories="$(_CommonOnly)" />
     <Copy SourceFiles="@(_PlannerPackageFile)" DestinationFolder="$(_PlannerOnly)\GameData\$(ModName)\Planner\%(RecursiveDir)" />
     <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_PlannerOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
     <ZipDirectory SourceDirectory="$(_PlannerOnly)" DestinationFile="$(_PlannerZip)" Overwrite="true" />
+    <!-- ReDefinition Dashboard alone, the same way. -->
+    <Copy SourceFiles="@(_DashboardPackageFile)" DestinationFolder="$(_DashboardOnly)\GameData\$(ModName)\Dashboard\%(RecursiveDir)" />
+    <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_DashboardOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
+    <ZipDirectory SourceDirectory="$(_DashboardOnly)" DestinationFile="$(_DashboardZip)" Overwrite="true" />
     <!-- The common DLL alone, for a mod that needs only it. -->
     <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_CommonOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
     <ZipDirectory SourceDirectory="$(_CommonOnly)" DestinationFile="$(_CommonZip)" Overwrite="true" />
     <Message Importance="high" Text="Planner zip: $(_PlannerZip)." />
+    <Message Importance="high" Text="Dashboard zip: $(_DashboardZip)." />
     <Message Importance="high" Text="Common zip: $(_CommonZip)." />
     <Message Importance="high" Text="Release zip: $(_ReleaseZip). Its source: $(_SourceZip)." />
   </Target>

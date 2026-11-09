@@ -1,7 +1,7 @@
 # GameData/ReDefinition/Main
 
 The static files of the mod that ship as they are. They are the registrations of the bundled mods,
-the graphics profiles, the ModuleManager patches, the dashboard's pages and the icons.
+the graphics profiles, the ModuleManager patches and the icons.
 
 ## Start here
 
@@ -10,7 +10,6 @@ the graphics profiles, the ModuleManager patches, the dashboard's pages and the 
 | `GameData/ReDefinition/Main/Mods/KSP.cfg` | A registration at full size: KSP's own settings, with defaults and notes |
 | `GameData/ReDefinition/Main/Profiles/ReDefinition-Profiles.cfg` | The five graphics profiles and ReDefinition's own modules at each |
 | `GameData/ReDefinition/Main/Mods/Scatterer.cfg` | A registration of a graphics mod, with `PROFILE` blocks |
-| `GameData/ReDefinition/Main/Dashboard/index.html` | The page the dashboard's server hands out |
 | `GameData/ReDefinition/Main/Patches/LegGrip.cfg` | A ModuleManager patch that adds a module to every landing leg |
 
 ## What it does
@@ -23,8 +22,6 @@ the graphics profiles, the ModuleManager patches, the dashboard's pages and the 
   ship it.
 - `Patches` holds two ModuleManager patches. `LegGrip.cfg` adds `ReDefinitionLegGrip` to landing
   legs, and `ParallaxGrassCapacity.cfg` gives Parallax room for all of Kerbin's grass clumps.
-- `Dashboard` is the web pages for a phone, a browser or a Corsair iCUE touch screen. The mod serves
-  them, and `manifest.json` describes them to iCUE.
 - `Icons` holds the toolbar button and the pictures of the flight panel, the planner and the
   navball.
 - `PluginData` is not in the repository. The mod makes it at run time and keeps `bundled.cfg`,
@@ -52,6 +49,5 @@ See [Packaging](../../../docs/development/packaging.md) for the zip,
 - What a profile sets for a mod stands in that mod's registration, in `PROFILE` blocks. The
   profile file holds only what the chooser shows and the values of ReDefinition's own modules.
 - The patches are read by ModuleManager only.
-- The dashboard listens on port 8765 and serves this folder's `Dashboard`
-  ([The dashboard](../../../docs/development/flow-dashboard.md)). The build packs the same folder as
-  `ksp-dashboard.icuewidget`, which the player installs in iCUE.
+- The dashboard's pages are in `GameData/ReDefinition/Dashboard`, a mod of its own
+  ([The dashboard](../../../docs/development/flow-dashboard.md)).

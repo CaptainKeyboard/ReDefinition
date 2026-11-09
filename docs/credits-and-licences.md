@@ -148,7 +148,8 @@ The full release zip carries the notices below. The planner's zip and the Common
 | `LICENSE`, `EXCEPTIONS.md` | `GameData/ReDefinition/Main` | This project |
 | `LICENSE-FSR3Unity.txt` | `GameData/ReDefinition/Main` | FSR3Unity |
 | `LICENSE-FidelityFX.txt` | `GameData/ReDefinition/Main` | AMD's FSR 3 shader headers and passes |
-| `LICENSE-Bruneton.txt`, `LICENSE-Telemachus.txt`, `LICENSE-QR-Code-generator.txt`, `LICENSE-Unity-shaders.txt` | `GameData/ReDefinition/Main` | Bruneton, Telemachus, Nayuki, Unity's built-in shaders |
+| `LICENSE-Bruneton.txt`, `LICENSE-Unity-shaders.txt` | `GameData/ReDefinition/Main` | Bruneton, Unity's built-in shaders |
+| `LICENSE-Telemachus.txt`, `LICENSE-QR-Code-generator.txt` | `GameData/ReDefinition/Dashboard` | Telemachus, Nayuki |
 | `LICENSE-Unity-Companion.txt` | `GameData/ReDefinition/Main` | The Unity Companion License of the SRP macros in `ffx_fsr_unity_common.cginc` |
 | `SOURCE.md` | `GameData/ReDefinition/Main` | The source of this build and the notices |
 | `dxgi_LICENSE-NVIDIA.txt`, `dxgi_LICENSE-FidelityFX.txt`, `dxgi_LICENSE-AntiLag2.txt`, `dxgi_LICENSE-Capsaicin.txt`, `dxgi_LICENSE-XeSS.txt` | next to `KSP_x64.exe` | The headers and adapted code compiled into `dxgi.dll` |

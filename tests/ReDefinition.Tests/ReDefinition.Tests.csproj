@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\ReDefinition.csproj" />
+    <!-- The dashboard is a mod of its own that the main project does not reference; the tests do. -->
+    <ProjectReference Include="..\..\src\Dashboard\ReDefinition.Dashboard.csproj" />
   </ItemGroup>
 
   <!-- The wrapper mods copy (docs/modders/examples), compiled here so that its lookups

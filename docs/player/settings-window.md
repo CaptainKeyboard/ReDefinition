@@ -75,7 +75,7 @@ the flight, and in the main menu, the space centre and the editors.
 | *Graphics*, *Detail* | groups: *Quality* -- KSP's render quality, texture quality, pixel light count and anti-aliasing; *Shadows / Reflections*; *Planets*, with the lawns of the space centre under *Space centre*; *Effects* -- the graphics mods' features and KSP's own, with Firefly's under *Re-entry*; *Raytracing* -- the light of the moons and the sun, and the night light |
 | *Controls* | KSP's keyboard layout, then every key binding: ReDefinition's own, the bundled mods' and KSP's. KSP's keys take a controller's buttons too |
 | *Controls*, *Axes* | KSP's joystick and gamepad axes, each with a primary and a secondary binding: the axis, invert, sensitivity and deadzone |
-| *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device; under *Dashboard*, whether phones and tablets may open the dashboard, and *Connect*, which shows the QR code |
+| *Controls*, *Devices* | KSP's mouse wheel, Track IR and 6-DOF device; under *Dashboard*, whether phones and tablets may open the dashboard, and *Connect*, which shows the QR code; the *Dashboard* rows are there only where ReDefinition Dashboard is installed ([dashboard-on-its-own.md](dashboard-on-its-own.md)) |
 | *Mods / Toolbar* | *Replace original settings*, *Bundle other mods here*, the list of bundled mods, *Hide all from toolbar* with a switch per mod under *Per mod*, *Restore settings from before ReDefinition*, under *Scaling* whether other mods' windows follow the UI scale ([ui-scaling.md](ui-scaling.md)), and under *Main menu* the fireworks and the flight to the space centre ([below](#the-main-menu-and-the-space-centre)) |
 
 *Display* and *Detail* are indented under *Graphics*, and *Axes* and *Devices* under

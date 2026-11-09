@@ -14,21 +14,15 @@ namespace ReDefinition
         // From the addon's Awake.
         internal static void Connect()
         {
-            Version built = null;
-            foreach (AssemblyName referenced in typeof(HostLink).Assembly.GetReferencedAssemblies())
-                if (referenced.Name == "ReDefinition.Common") built = referenced.Version;
-            string problem = CommonProblem(built, typeof(Log).Assembly.GetName().Version);
+            string problem = CommonVersionCheck.Problem("ReDefinition", typeof(HostLink).Assembly);
             if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
             Fill();
         }
 
-        // The game keeps one ReDefinition.Common.dll. Where the one loaded is older than the one this build was made against, members are
-        // missing at the first call that needs them; the line says so at the start. Null where it is not older.
+        // The line for a loaded Common that is older than the one this build was made against; null where it is not older.
         internal static string CommonProblem(Version built, Version loaded)
         {
-            if (built == null || loaded == null || loaded >= built) return null;
-            return "ReDefinition.Common " + loaded + " is loaded but this ReDefinition was made against " + built
-                   + ": another mod ships an older copy. Calls into it can fail until it is updated or removed.";
+            return CommonVersionCheck.Problem("ReDefinition", built, loaded);
         }
 
         private static void Fill()
@@ -37,6 +31,12 @@ namespace ReDefinition
             HostSeams.WorldScale = () => UiScaling.World;
             HostSeams.BackgroundRoute = () => ReDefinitionAddon.Instance == null || ReDefinitionAddon.Instance.Live.BackgroundRoute;
             HostSeams.WorldButtons = () => ReDefinitionAddon.Instance == null || ReDefinitionAddon.Instance.Live.WorldButtons;
+            HostSeams.DashboardNetwork = () => ReDefinitionAddon.Instance == null || ReDefinitionAddon.Instance.Live.DashboardNetwork;
+            HostSeams.DashboardKey = () => ReDefinitionAddon.Instance == null ? null : ReDefinitionAddon.Instance.Live.DashboardKey;
+            HostSeams.SetDashboardKey = key =>
+            {
+                if (ReDefinitionAddon.Instance != null) ReDefinitionAddon.Instance.Live.DashboardKey = key;
+            };
             HostSeams.SpaceCentreButton = name =>
             {
                 KscButtons.Look held = KscButtons.Get(name);

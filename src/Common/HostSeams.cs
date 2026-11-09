@@ -22,7 +22,13 @@ namespace ReDefinition.Core
         // Whether the buttons standing in the world show (the player's setting).
         internal static Func<bool> WorldButtons = () => true;
 
-        // Whether no host is present, so that the planner offers its own settings; false with ReDefinition, whose settings window holds them.
+        // Whether the dashboard opens on the network, and the key a phone needs to connect (the player's settings). A host that has them
+        // answers a null key until its settings are loaded; SetDashboardKey stores the key the dashboard made where the host's has none.
+        internal static Func<bool> DashboardNetwork = () => true;
+        internal static Func<string> DashboardKey = () => "";
+        internal static Action<string> SetDashboardKey = key => { };
+
+        // Whether no host is present, so that the planner and the dashboard offer their own settings; false with ReDefinition, whose settings window holds them.
         internal static Func<bool> StandsAlone = () => true;
 
         // The space centre's own button of that name with its sprites; null alone, and the caller draws its own.
