@@ -11,6 +11,11 @@
 // against.
 [assembly: KSPAssemblyDependency("0Harmony", 0, 0)]
 
+// The planner is a requirement as well: ReDefinition names its types directly (PlannerLink, the Hud, the dashboard, the assumptions).
+// Left unloaded without it, KSP says so in KSP.log, in place of a FileNotFoundException from the add-on's Awake and a TypeLoadException
+// at every later use.
+[assembly: KSPAssemblyDependency("ReDefinition.Planner", 0, 1)]
+
 // For mods that reference ReDefinition.dll and declare
 // [KSPAssemblyDependency("ReDefinition", 0, 1)]: KSP loads them after it, and not
 // without it (ReDefinition.Api).

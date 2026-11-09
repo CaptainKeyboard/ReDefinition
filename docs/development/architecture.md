@@ -96,9 +96,12 @@ centre's button sprites. `PlannerLink` in `src/` fills them when ReDefinition st
 failing. Raise `PlannerLink.Expected` and `PlannerSeams.Level` together when a seam is added,
 removed or changes its meaning.
 
-The other direction is not optional. ReDefinition names the planner's types directly, so it does
-not start without `ReDefinition.Planner.dll`. The full zip carries it, and the CKAN entry of
-ReDefinition depends on the planner's.
+The other direction is not optional. ReDefinition names the planner's types directly, so it
+declares the planner as a dependency (`KSPAssemblyDependency` in `src/KspAssemblyInfo.cs`, met by
+`src/Planner/KspAssemblyInfo.cs`). Where `ReDefinition.Planner.dll` is not there, KSP leaves
+ReDefinition unloaded and writes `has not met dependency 'ReDefinition.Planner'` to `KSP.log`
+[meas]. The full zip carries the planner, and the CKAN entry of ReDefinition depends on the
+planner's.
 
 The click shield is no seam. `WindowShield` and `DialogWindow` are in Common, and the planner and
 ReDefinition open their dialogs through them, so a click on a window of either does not reach the
