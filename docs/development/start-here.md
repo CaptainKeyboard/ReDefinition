@@ -51,6 +51,7 @@ the plugin reads, the registrations and profiles, is in `GameData/ReDefinition/M
 | Add a shader | [How shaders reach the game](flow-shaders.md) |
 | Change a feature on screen | [The features on screen](flow-game-ui.md) |
 | Change the dashboard | [The dashboard](flow-dashboard.md) |
+| Change the seasons | [The seasons](flow-seasons.md) |
 | Change what other mods can call | [The interface for other mods](flow-mod-interface.md) |
 | Understand how the plugin and the proxy exchange data | [The four channels to native code](flow-native-channels.md) |
 | Build and check everything before a commit | [Build and check everything](howto-build-and-check.md) |

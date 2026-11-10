@@ -127,8 +127,8 @@ to a hook later has a virtual default, so an adapter built against an older Comm
 `src/Probe` test planner features through its internals, so they are compiled only where
 `PlannerProbes` is true, which it is unless `ReleasePackage` is true (or `-p:PlannerProbes=false`).
 There the planner project is referenced for the build order only, and `ReDefinition.dll` carries
-no reference to it. `tools/checks/check_no_planner_reference.ps1` checks that, and the release
-package runs it. Tests keep the rule: only guarded probe files name the planner.
+no reference to it. `tools/checks/check_no_reference.ps1` checks that for the planner, the dashboard and the seasons,
+and that their own DLLs name neither ReDefinition, Harmony nor ZTheme. The release package runs it. Tests keep the rule: only guarded probe files name the planner.
 
 The click shield is in Common too. `WindowShield` and `DialogWindow` are used by both mods, so a
 click on a window of either does not reach the buildings, the switches or the map behind it.

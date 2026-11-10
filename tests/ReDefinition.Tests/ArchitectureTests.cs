@@ -95,8 +95,25 @@ namespace ReDefinition.Tests
                 string text = File.ReadAllText(Path.Combine(root, "src", project));
                 bool common = project.StartsWith("Common");
                 if (Regex.IsMatch(text, @"ProjectReference[^>]*ReDefinition\.csproj")) found.Add(project + " references ReDefinition.csproj");
-                if (!common && Regex.IsMatch(text, @"<Reference Include=""0Harmony""")) found.Add(project + " references Harmony");
+                if (!common && Regex.IsMatch(text, @"<(Reference|PackageReference)\s[^>]*Include=""[^""]*Harmony", RegexOptions.IgnoreCase)) found.Add(project + " references Harmony");
                 if (Regex.IsMatch(text, @"<(Reference|ProjectReference|PackageReference) Include=""[^""]*ZTheme")) found.Add(project + " references ZTheme");
+            }
+            Assert.AreEqual(0, found.Count, string.Join("\n", found));
+        }
+
+        // The only project the planner, the dashboard and the seasons reference is Common. Common itself references no project.
+        [TestMethod]
+        public void TheSideProjectsReferenceNoProjectButCommon()
+        {
+            string root = RepoRoot.Root("src", "ReDefinition.csproj");
+            var found = new List<string>();
+            foreach (string name in new[] { "Planner", "Dashboard", "Seasons", "Common" })
+            {
+                string text = File.ReadAllText(Path.Combine(root, "src", name, "ReDefinition." + name + ".csproj"));
+                var references = Regex.Matches(text, @"<ProjectReference\s[^>]*Include=""([^""]*)""").Cast<Match>().Select(m => m.Groups[1].Value).ToList();
+                bool common = name == "Common";
+                if (common ? references.Count > 0 : references.Count != 1 || references[0] != @"..\Common\ReDefinition.Common.csproj")
+                    found.Add(name + " references: " + (references.Count == 0 ? "(none)" : string.Join(", ", references)));
             }
             Assert.AreEqual(0, found.Count, string.Join("\n", found));
         }
@@ -142,33 +159,33 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void NothingOfTheMainModNamesTheDashboardAssembly()
         {
+            var found = NothingOfTheMainModNames("Dashboard", "Dashboard", "Planner");
+            Assert.AreEqual(0, found.Count, string.Join("\n", found));
+        }
+
+        // The files of src (outside obj and bin) that name the assembly ReDefinition.<assembly> and do not belong to one of the own areas
+        // (folders of src) or to Common. A source file of the main mod that names a mod of its own would give the player build a reference to it.
+        private static List<string> NothingOfTheMainModNames(string assembly, params string[] ownAreas)
+        {
             string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
             string sep = Path.DirectorySeparatorChar.ToString();
+            var skipped = ownAreas.Concat(new[] { "Common" }).Select(area => area + sep).ToList();
             var found = new List<string>();
             foreach (string file in Directory.GetFiles(src, "*.cs", SearchOption.AllDirectories))
             {
                 string relative = file.Substring(src.Length + 1);
-                if (relative.StartsWith("Dashboard" + sep) || relative.StartsWith("Common" + sep) || relative.StartsWith("Planner" + sep)) continue;
+                if (skipped.Any(prefix => relative.StartsWith(prefix, StringComparison.Ordinal))) continue;
                 if (relative.Contains(sep + "obj" + sep) || relative.StartsWith("obj" + sep) || relative.Contains(sep + "bin" + sep)) continue;
-                if (File.ReadAllText(file).Contains("ReDefinition.Dashboard")) found.Add(relative + " names the dashboard");
+                if (File.ReadAllText(file).Contains("ReDefinition." + assembly)) found.Add(relative + " names ReDefinition." + assembly);
             }
-            Assert.AreEqual(0, found.Count, string.Join("\n", found));
+            return found;
         }
 
         // The player build of ReDefinition.dll names nothing of the seasons, a mod of its own.
         [TestMethod]
         public void NothingOfTheMainModNamesTheSeasonsAssembly()
         {
-            string src = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "src");
-            string sep = Path.DirectorySeparatorChar.ToString();
-            var found = new List<string>();
-            foreach (string file in Directory.GetFiles(src, "*.cs", SearchOption.AllDirectories))
-            {
-                string relative = file.Substring(src.Length + 1);
-                if (relative.StartsWith("Seasons" + sep) || relative.StartsWith("Dashboard" + sep) || relative.StartsWith("Common" + sep) || relative.StartsWith("Planner" + sep)) continue;
-                if (relative.Contains(sep + "obj" + sep) || relative.StartsWith("obj" + sep) || relative.Contains(sep + "bin" + sep)) continue;
-                if (File.ReadAllText(file).Contains("ReDefinition.Seasons")) found.Add(relative + " names the seasons");
-            }
+            var found = NothingOfTheMainModNames("Seasons", "Seasons", "Dashboard", "Planner");
             Assert.AreEqual(0, found.Count, string.Join("\n", found));
         }
 

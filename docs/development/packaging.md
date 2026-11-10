@@ -178,6 +178,7 @@ GameData/ReDefinition/Common/
 ```
 GameData/ReDefinition/Seasons/
     Plugins/ReDefinition.Seasons.dll
+    Shaders/seasons.shaders   the storm volume's shader bundle, tools/build_seasons_bundle.ps1
     ReDefinitionSeasons.version
     LICENSE, EXCEPTIONS.md, CHANGELOG.md
     README.md                 the part's own note, src/Seasons/README.md
@@ -349,10 +350,10 @@ its own KSP-AVC file:
 
 | Module | Zip | Installs | Depends on | Recommends |
 |---|---|---|---|---|
-| `ReDefinition` | `ReDefinition_<version>.zip` | `Main` and the files for the game folder | `Harmony2`, `ReDefinitionCommon` | `ReDefinitionPlanner`, `ReDefinitionDashboard` |
+| `ReDefinition` | `ReDefinition_<version>.zip` | `Main` and the files for the game folder | `Harmony2`, `ReDefinitionCommon` | `ReDefinitionPlanner`, `ReDefinitionDashboard`, `ReDefinitionSeasons` |
 | `ReDefinitionPlanner` | `ReDefinitionPlanner_<PlannerVersion>.zip` | `Planner` | `ReDefinitionCommon` | `MechJeb2`, `ReDefinition`, `ReDefinitionDashboard` |
 | `ReDefinitionDashboard` | `ReDefinitionDashboard_<DashboardVersion>.zip` | `Dashboard` | `ReDefinitionCommon` | `ReDefinition`, `ReDefinitionPlanner` |
-| `ReDefinitionSeasons` | `ReDefinitionSeasons_<SeasonsVersion>.zip` | `Seasons` | `ReDefinitionCommon` | `ParallaxContinued`, `EnvironmentalVisualEnhancements` |
+| `ReDefinitionSeasons` | `ReDefinitionSeasons_<SeasonsVersion>.zip` | `Seasons` | `ReDefinitionCommon` | `ParallaxContinued`, `EnvironmentalVisualEnhancements`, `ReDefinition` |
 | `ReDefinitionCommon` | `ReDefinitionCommon_<CommonVersion>.zip` | `Common` | nothing | nothing |
 
 CKAN installs a `file` that is a directory under its last path component. To keep each part
@@ -364,6 +365,14 @@ parts, and each module takes only its own.
 ReDefinition works without the planner, the dashboard and the seasons. The planner, the
 dashboard and the seasons work without ReDefinition. All need Common, and that is why Common is a module of
 its own.
+
+`recommends` and `supports` are used one way in all five [doc]. The spec calls `recommends`
+"recommended, but not required, for a typical user", and `supports` the reverse of
+`suggests`: when a supported mod is installed, this module may be offered. So `recommends`
+names what belongs with the module: another ReDefinition module, and the mod that gives
+its feature something to work on (MechJeb2 for the planner's flights, Parallax and EVE for
+the seasons' ground and sky). `supports` names the other mods whose settings or code the
+module adapts to, so that it is offered to a player who has one of them.
 
 ## The CKAN metadata of ReDefinition
 
@@ -379,11 +388,13 @@ and `supports` are not checked against the NetKAN repository [open].
 | `x_netkan_trust_version_file` | takes the mod's version from that file too, so it reads the project's version and not the tag's `v` in front of it |
 | `license` | `GPL-3.0` for ReDefinition, `unrestricted` for AMD's frame generation and denoiser runtimes |
 | `depends` | `Harmony2`, which ReDefinition requires to load, and `ReDefinitionCommon` |
-| `recommends` | `ReDefinitionPlanner` and `ReDefinitionDashboard`, which the full zip carries but CKAN installs from their own modules. ReDefinition works without them |
+| `recommends` | `ReDefinitionPlanner`, `ReDefinitionDashboard` and `ReDefinitionSeasons`, which the full zip carries but CKAN installs from their own modules. ReDefinition works without them |
 | `install` | `GameData/ReDefinition/Main` into `GameData/ReDefinition`; `dxgi.dll`, AMD's two runtimes and the licences into `GameRoot` |
 
-CKAN has no identifier for the Modding and Linking Exceptions. They are in `LICENSE` and
-`EXCEPTIONS.md` in the zip.
+The modules say `GPL-3.0` although the project adds the Modding and Linking Exceptions to
+it. CKAN's licence field takes identifiers from the Debian list, and the spec gives no
+way to attach an exception to one [doc]. `GPL-3.0` is the licence the exceptions are added
+to, and they are in `LICENSE` and `EXCEPTIONS.md` in every zip.
 
 A new GitHub release reaches CKAN without a change to the file.
 
@@ -410,6 +421,8 @@ depends:
   - name: ReDefinitionCommon
 recommends:
   - name: ReDefinitionPlanner
+  - name: ReDefinitionDashboard
+  - name: ReDefinitionSeasons
 supports:
   - name: Scatterer
   - name: EnvironmentalVisualEnhancements
@@ -517,6 +530,38 @@ install:
     install_to: GameData/ReDefinition
 ```
 
+## The CKAN metadata of the seasons
+
+`NetKAN/ReDefinitionSeasons.netkan` reads `ReDefinitionSeasons.version` in its zip. It
+depends on `ReDefinitionCommon`, recommends ParallaxContinued, EnvironmentalVisualEnhancements
+and ReDefinition, and installs `Seasons`. It carries `GPL-3.0` only.
+
+```yaml
+identifier: ReDefinitionSeasons
+name: ReDefinition Seasons
+abstract: >-
+  Seasons on Kerbin: a snow line that moves with the year, in the northern and the southern
+  hemisphere, and snow storms.
+author: CaptainKeyboard
+$kref: '#/ckan/github/CaptainKeyboard/ReDefinition/asset_match/^ReDefinitionSeasons_[0-9.]+\.zip$'
+$vref: '#/ckan/ksp-avc'
+x_netkan_trust_version_file: true
+license:
+  - GPL-3.0
+tags:
+  - plugin
+  - graphics
+depends:
+  - name: ReDefinitionCommon
+recommends:
+  - name: ParallaxContinued
+  - name: EnvironmentalVisualEnhancements
+  - name: ReDefinition
+install:
+  - file: GameData/ReDefinition/Seasons
+    install_to: GameData/ReDefinition
+```
+
 ## The CKAN metadata of Common
 
 `NetKAN/ReDefinitionCommon.netkan` is the module of the shared library. It reads
@@ -527,7 +572,8 @@ install:
 identifier: ReDefinitionCommon
 name: ReDefinition Common
 abstract: >-
-  A shared library of ReDefinition, ReDefinition Planner and ReDefinition Dashboard.
+  A shared library of ReDefinition, ReDefinition Planner, ReDefinition Dashboard and
+  ReDefinition Seasons.
 author: CaptainKeyboard
 $kref: '#/ckan/github/CaptainKeyboard/ReDefinition/asset_match/^ReDefinitionCommon_[0-9.]+\.zip$'
 $vref: '#/ckan/ksp-avc'

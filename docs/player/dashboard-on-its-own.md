@@ -11,7 +11,7 @@ nor ReDefinition. ReDefinition and ReDefinition Planner are recommended.
    `KSP_x64.exe`. `GameData/ReDefinition/Dashboard` and `GameData/ReDefinition/Common` go
    into `GameData`.
 2. If you use CKAN, install *ReDefinition Dashboard* there. CKAN installs *ReDefinition
-   Common* with it and suggests ReDefinition.
+   Common* with it and recommends ReDefinition and ReDefinition Planner.
 
 The full ReDefinition zip carries the same two folders. If you install ReDefinition, you do
 not need this one.
@@ -20,7 +20,7 @@ not need this one.
 
 | If this is missing | What changes |
 |---|---|
-| ReDefinition | The dashboard keeps two settings of its own and has a button of its own in the application launcher. Everything else of ReDefinition's interface is not there. |
+| ReDefinition | The pages and their values are the same. The two settings, the network switch and the key, are in a window of the dashboard's own, which a button in the application launcher opens, and are saved in the dashboard's own `settings.cfg`. ReDefinition's settings window with its *Devices* tab is not there. |
 | ReDefinition Planner | The pages show no planner rows: no guidance, no route keys and no planner in the editors. |
 | HarmonyKSP, ZTheme | Nothing changes. |
 
@@ -29,7 +29,9 @@ not need this one.
 The dashboard listens on port 8765 of this computer from the start. A browser needs the
 address with the key (`http://localhost:8765/?key=<key>`), which the connect dialog shows
 and the QR code carries. The iCUE widget, `ksp-dashboard.icuewidget` in
-`GameData/ReDefinition/Dashboard`, connects from this computer without the key.
+`GameData/ReDefinition/Dashboard`, connects without the key when it runs on this computer.
+iCUE opens it from a file, so the server accepts it as a local page with no web origin. A
+page of a website in the browser is refused without the key.
 
 ## Its two settings
 

@@ -54,17 +54,29 @@ namespace ReDefinition.Tests
             string key = DashboardSettings.Key;
             try
             {
-                DashboardSettings.Network = false;
+                // The switch starts true, so a false taken from a damaged file shows.
+                DashboardSettings.Network = true;
                 DashboardSettings.Key = "kept";
                 DashboardSettings.Read(Path.Combine(folder, "missing.cfg"));
-                Assert.IsFalse(DashboardSettings.Network);
+                Assert.IsTrue(DashboardSettings.Network);
                 Assert.AreEqual("kept", DashboardSettings.Key);
 
-                string damaged = Path.Combine(folder, "damaged.cfg");
-                File.WriteAllText(damaged, "network = maybe\n{{{");
-                DashboardSettings.Read(damaged);
+                // A file that is not a node tree at all, and one whose switch is no boolean.
+                foreach (string content in new[] { "{{{", "network = maybe\n{{{", "network = maybe" })
+                {
+                    string damaged = Path.Combine(folder, "damaged.cfg");
+                    File.WriteAllText(damaged, content);
+                    DashboardSettings.Read(damaged);
+                    Assert.IsTrue(DashboardSettings.Network, content);
+                    Assert.AreEqual("kept", DashboardSettings.Key, content);
+                }
+
+                // Control: the same reader does take a valid file, so the checks above are not vacuous.
+                string valid = Path.Combine(folder, "valid.cfg");
+                File.WriteAllText(valid, "network = false\nkey = other");
+                DashboardSettings.Read(valid);
                 Assert.IsFalse(DashboardSettings.Network);
-                Assert.AreEqual("kept", DashboardSettings.Key);
+                Assert.AreEqual("other", DashboardSettings.Key);
             }
             finally
             {

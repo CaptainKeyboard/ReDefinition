@@ -18,6 +18,7 @@ which is the old path. [Build and check everything](howto-build-and-check.md) li
 | `tools/checks/check_key_bindings.ps1` | Checks the key bindings from the mods, the registrations and KSP's `GameSettings`. | Neither, but KSP's DLLs |
 | `tools/checks/check_foreign_code.ps1` | Checks what ReDefinition assumes about other mods' code against the installed mods. | Installed mods, no running game |
 | `tools/checks/check_docs.ps1` | Checks the pages under `docs/`: links, paths and style. | Neither |
+| `tools/checks/check_no_reference.ps1` | Checks that `ReDefinition.dll` names none of the planner, the dashboard and the seasons, and that their DLLs name neither ReDefinition, Harmony nor ZTheme. | Neither, but a build |
 | `tools/checks/audit_ffx_fields.py` | Checks that every field of the FidelityFX frame generation descriptors is set or listed with a reason. | Neither |
 | `tools/tests/test_benchmark_matrix.py` | Tests the log parser and the matrix of `benchmark_matrix.py` on log excerpts. Run `python -m unittest`. | Neither |
 | `tools/DocLock` | The comment check: references, lint and the wiki generator. | Neither |
@@ -30,6 +31,7 @@ which is the old path. [Build and check everything](howto-build-and-check.md) li
 | `tools/fetch_amd_runtime.py` | Downloads AMD's FidelityFX runtimes for the player package and checks their SHA-256. | Neither, but the network |
 | `tools/make_icon.py` | Draws the toolbar icon, the flight panel's tabs, the planner's symbols and the forum picture. | Neither |
 | `tools/build_rt_player.py` | Builds the raytracing test player with Unity and runs its checks. | Neither, but Unity and the proxy |
+| `tools/build_seasons_bundle.ps1` | Builds the seasons' shader bundle `seasons.shaders` with Unity in batch mode. | Neither, but Unity 2019.4.18f1 |
 | `tools/icuewidget` | Validates the dashboard folder as an iCUE widget with `icuewidget-cli`. | Neither, but Node |
 | `tools/Refactor` | Restructures the repository from a manifest of moves and renames, with `git mv`. | Neither |
 

@@ -75,6 +75,7 @@ editors, the main menu and the space centre.
 | add or change a shader | [development/flow-shaders.md](development/flow-shaders.md) |
 | change a feature on screen | [development/flow-game-ui.md](development/flow-game-ui.md) |
 | change the dashboard | [development/flow-dashboard.md](development/flow-dashboard.md) |
+| change the seasons | [development/flow-seasons.md](development/flow-seasons.md) |
 | understand the planner's plan and the engineer window | [src/Planner/Planning/README.md](../src/Planner/Planning/README.md) and [src/Planner/Ui/README.md](../src/Planner/Ui/README.md) |
 | understand the scaling of what KSP leaves unscaled | [src/Scaling/README.md](../src/Scaling/README.md) |
 | measure what costs the frame, in ReDefinition, KSP or another mod | [src/Probe/README.md](../src/Probe/README.md) |
