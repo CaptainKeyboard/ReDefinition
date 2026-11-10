@@ -20,7 +20,7 @@ namespace ReDefinition.Seasons
         internal const double ContrastExponent = 3;
 
         // Veil: the alpha at full intensity (the setting's default and range) and how it grows with the intensity.
-        internal const float VeilDefault = 0.6f, VeilMax = 0.9f;
+        internal const float VeilDefault = 0.85f, VeilMax = 0.95f;
         internal const double VeilCurve = 1.3;
 
         // Snowfall: flakes emitted per second at full intensity, and the most the system holds.

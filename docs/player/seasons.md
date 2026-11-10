@@ -50,7 +50,7 @@ value outside its range is brought into it, and a value that is not a number is 
 | `stormFrequency` | `1` | 0 to 2 | How often storms happen, against the default. |
 | `stormSeed` | `1` | any whole number | The seed of the storm schedule. Another seed gives other storm times. |
 | `stormVisibility` | `60` | 20 to 500 | How far you see in the strongest storm, in metres. |
-| `stormVeil` | `0.6` | 0 to 0.9 | How white the screen gets in the strongest storm. |
+| `stormVeil` | `0.85` | 0 to 0.95 | How white the screen gets in the strongest storm. |
 | `stormSnowfall` | `True` | `True`, `False` | Draws falling snow in a storm. |
 | `forceStorm` | `-1` | -1, or 0 to 1 | A diagnostics setting for screenshots: a fixed storm strength at the camera, whatever the place, season and `storms` switch. Leave it at -1 to play. |
 | `winterSnowLine` | `42` | 30 to 60 | The latitude of the snow line in a hemisphere's midwinter, in degrees. |
