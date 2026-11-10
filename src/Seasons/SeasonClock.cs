@@ -39,6 +39,13 @@ namespace ReDefinition.Seasons
             return north ? Wrap(phase) : Wrap(phase + SouthernOffset);
         }
 
+        // How far apart two phases are, as a part of the year, from 0 to 0.5: the year wraps, so 0.99 and 0.01 are 0.02 apart.
+        internal static double PhaseDistance(double a, double b)
+        {
+            double d = Math.Abs(Wrap(a) - Wrap(b));
+            return d > 0.5 ? 1 - d : d;
+        }
+
         // A value brought into [0, 1).
         internal static double Wrap(double value)
         {

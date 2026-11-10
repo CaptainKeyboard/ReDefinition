@@ -14,6 +14,7 @@ namespace ReDefinition.Seasons
             string problem = CommonVersionCheck.Problem("ReDefinition Seasons", typeof(SeasonsStartup).Assembly);
             if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
             SeasonsSettings.Load();
+            gameObject.AddComponent<SnowRefresher>();
             Debug.Log(Log.Tag + " " + StartupLine());
         }
 
@@ -26,6 +27,9 @@ namespace ReDefinition.Seasons
                    + ", year length factor " + SeasonsSettings.YearLengthFactor.ToString(culture)
                    + ", snow strength " + SeasonsSettings.SnowStrength.ToString(culture)
                    + ", winter snow line " + SeasonsSettings.WinterSnowLine.ToString(culture) + " deg"
+                   + ", ground refresh " + EnumNames<SeasonsSettings.GroundRefresh>.Name(SeasonsSettings.GroundRefreshMode)
+                   + " every " + SeasonsSettings.RefreshSeconds.ToString(culture) + " s"
+                   + (SeasonsSettings.ForcePhase >= 0f ? ", FORCED PHASE " + SeasonsSettings.ForcePhase.ToString(culture) : "")
                    + ", storms " + (SeasonsSettings.StormsEnabled ? "on, frequency " + SeasonsSettings.StormFrequency.ToString(culture) : "off")
                    + ", Parallax " + (TypeLookup.Find("Parallax.ConfigLoader") != null ? "found" : "not found")
                    + ", EVE " + (TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager") != null ? "found" : "not found");

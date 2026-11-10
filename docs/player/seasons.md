@@ -3,8 +3,8 @@
 ReDefinition Seasons is a mod of its own for a snow line on Kerbin that moves with the year.
 It needs neither HarmonyKSP nor ZTheme nor ReDefinition. Parallax and EVE are optional.
 
-This release holds the clock, the snow mask and the settings. It does not draw snow on the
-ground, from orbit or in storms yet, so a game with only this release looks as before.
+This release paints the snow on Kerbin's ground. It does not tint the orbit and map view, and
+it has no snow storms yet.
 
 ## Install it
 
@@ -49,6 +49,30 @@ value outside its range is brought into it, and a value that is not a number is 
 | `storms` | `True` | `True`, `False` | Switches snow storms on or off. |
 | `stormFrequency` | `1` | 0 to 2 | How often storms happen, against the default. |
 | `winterSnowLine` | `42` | 30 to 60 | The latitude of the snow line in a hemisphere's midwinter, in degrees. |
+| `groundRefreshMode` | `Live` | `Live`, `Rebuild`, `Off` | How ground that is already built follows the season (below). |
+| `refreshSeconds` | `5` | 1 to 120 | Real seconds between two passes of the `Live` mode. |
+| `forcePhase` | `-1` | -1, or 0 to 1 | A diagnostics setting for screenshots: a fixed season phase instead of the clock. 0 is the northern midwinter, 0.5 the northern midsummer. Leave it at -1 to play. |
+
+## Snow on the ground
+
+Kerbin's terrain gets its snow when the game builds it: the mod turns the colour of each
+terrain vertex toward white by the snow cover for its latitude, height and a little noise, so
+that the line is not straight. The terrain shaders of the game and of Parallax both read this
+colour, so the snow shows with and without Parallax. The mod does not change a shader or a
+texture of another mod. Rocks and the relief that Parallax draws on top still show through, and
+the cover is flat white: there is no snow on slopes only, no sparkle and no deeper snow.
+
+Terrain that is already built does not know that the season moved. The *ground refresh mode*
+decides what happens:
+
+* `Live` paints the built terrain again every `refreshSeconds`, a few quads per frame, and
+  tells Parallax that the terrain changed, so that its terrain and its grass take the new
+  colour. This is the default. Under high time warp the snow line visibly moves.
+* `Rebuild` builds Kerbin's terrain anew when the season has moved by about a week of the
+  year. It does so only where no vessel stands on the ground: in flight with the planet out of
+  range, or in the tracking station. It never does in the space centre. A vessel on the ground
+  keeps the terrain it has until it leaves.
+* `Off` leaves built terrain alone; only terrain that is built later has the new season.
 
 At the start the mod writes one line into `KSP.log`, beginning `[ReDefinition] Seasons:`. It
 names the settings and whether Parallax and EVE were found.
@@ -57,11 +81,21 @@ names the settings and whether Parallax and EVE were found.
 
 | Other mod | What is known |
 |---|---|
-| Parallax | Planned: the seasons drive the ground colour that Parallax's terrain reads. Parallax's terrain shader has no snow or season input, and its licence is All Rights Reserved, so the seasons will not change its files. Without Parallax the stock terrain shaders are used. |
+| Parallax | The ground snow is the vertex colour that Parallax's terrain reads; its terrain shader has no snow or season input. Parallax's licence is All Rights Reserved, so the seasons change none of its files; they call it by reflection, to tell it that a terrain mesh changed and to give its grass the new colours. If a Parallax build lacks what is called, `KSP.log` says so once and that part is left out. Without Parallax the stock terrain shaders show the snow. |
 | EVE | Planned: snow storms with EVE's snow particles. The installed configuration already has polar snow clouds and snow particles, scheduled by time and not by season. Whether the upscalers' masks catch EVE's snow flakes is not tested. |
 | Kopernicus, ModuleManager | Not required. |
 | Scatterer | The ocean is Scatterer's. A frozen sea is not planned. |
 
-Nothing of this has been run in the game yet. The year length and the snow line are
-computed and tested outside the game. Whether the ground, the orbit view and storms look
-right with Parallax, with stock terrain and under the upscalers is not verified.
+## Limits
+
+Nothing of this has been run in the game yet. The year length, the snow line, the noise and the
+repaint of a quad's colours are computed and tested outside the game. Whether the terrain
+refresh reaches Parallax's terrain and grass in the game, and how the snow looks under the
+upscalers and raytracing, is not verified. Not done:
+
+* The orbit and map view of the planet keep their summer colours.
+* Parallax's rocks and grass are not removed or changed in form. The grass takes the snow
+  colour where it takes the colour of the ground.
+* The ocean is not frozen.
+* There are no snow storms.
+* Rebuilding in `Rebuild` mode is not tested.

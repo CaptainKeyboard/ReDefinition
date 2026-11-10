@@ -6,6 +6,17 @@ namespace ReDefinition.Seasons
     // leaves the defaults; a value outside its range is brought into it, and a value that is not a number is ignored.
     internal static class SeasonsSettings
     {
+        // How the snow on ground that is already built follows the season.
+        internal enum GroundRefresh
+        {
+            // The built quads are painted again every few seconds (SnowRefresher).
+            Live,
+            // Kerbin's terrain is built anew when the season has moved a lot and no vessel needs the ground.
+            Rebuild,
+            // Only quads that are built later get the season's snow.
+            Off
+        }
+
         internal const string Mod = "ReDefinition/Seasons";
         private const string FileName = "settings.cfg";
 
@@ -28,6 +39,17 @@ namespace ReDefinition.Seasons
 
         // The latitude of the snow line in the winter of a hemisphere, in degrees (SnowMask.DefaultWinterLineDegrees).
         internal static float WinterSnowLine = (float)SnowMask.DefaultWinterLineDegrees;
+
+        // How built ground follows the season.
+        internal static GroundRefresh GroundRefreshMode = GroundRefresh.Live;
+
+        // Real seconds between two passes that paint the built quads again (Live).
+        internal const float RefreshSecondsMin = 1f;
+        internal const float RefreshSecondsMax = 120f;
+        internal static float RefreshSeconds = 5f;
+
+        // A diagnostics setting: a season phase from 0 to 1 that replaces the clock, or a negative number for the clock. For screenshots.
+        internal static float ForcePhase = -1f;
 
         private static bool loaded;
 
@@ -67,6 +89,11 @@ namespace ReDefinition.Seasons
             if (TryNumber(root, "stormFrequency", out number)) StormFrequency = Limit(number, 0f, StormFrequencyMax);
             if (TryNumber(root, "winterSnowLine", out number))
                 WinterSnowLine = Limit(number, (float)SnowMask.LowestWinterLineDegrees, (float)SnowMask.HighestWinterLineDegrees);
+            string text;
+            GroundRefresh mode;
+            if (ModSettingsFile.TryString(root, "groundRefreshMode", out text) && EnumNames<GroundRefresh>.TryParse(text, out mode)) GroundRefreshMode = mode;
+            if (TryNumber(root, "refreshSeconds", out number)) RefreshSeconds = Limit(number, RefreshSecondsMin, RefreshSecondsMax);
+            if (TryNumber(root, "forcePhase", out number)) ForcePhase = number < 0 ? -1f : (float)SeasonClock.Wrap(number);
             return true;
         }
 
@@ -79,6 +106,9 @@ namespace ReDefinition.Seasons
             root.AddValue("storms", StormsEnabled.ToString());
             root.AddValue("stormFrequency", StormFrequency.ToString("R", culture));
             root.AddValue("winterSnowLine", WinterSnowLine.ToString("R", culture));
+            root.AddValue("groundRefreshMode", EnumNames<GroundRefresh>.Name(GroundRefreshMode));
+            root.AddValue("refreshSeconds", RefreshSeconds.ToString("R", culture));
+            root.AddValue("forcePhase", ForcePhase.ToString("R", culture));
         }
 
         // A finite number; NaN and infinity are not settings.

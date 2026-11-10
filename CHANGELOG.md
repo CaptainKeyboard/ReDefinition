@@ -4,12 +4,17 @@
 
 ### Added
 
-- **ReDefinition Seasons, a mod of its own (first part).** `GameData/ReDefinition/Seasons`,
+- **ReDefinition Seasons, a mod of its own (clock, mask and snow on the ground).** `GameData/ReDefinition/Seasons`,
   released as `ReDefinitionSeasons_<version>.zip` and carried by the full zip too. It needs
-  neither Harmony nor ZTheme nor ReDefinition; Parallax and EVE are optional. This part holds the
+  neither Harmony nor ZTheme nor ReDefinition; Parallax and EVE are optional. It holds the
   season clock (the real Kerbin year, scaled by a year length factor), the snow mask for a snow
-  line that moves with the year in both hemispheres, the settings file and a startup line in
-  `KSP.log`. It draws nothing yet. How it is set up: [docs/player/seasons.md](docs/player/seasons.md).
+  line that moves with the year in both hemispheres, and the settings file. A PQS mod paints the
+  snow into the vertex colours of Kerbin's ground when a quad is built, with stock terrain
+  shaders and with Parallax. Terrain that is already built follows the season by the *ground
+  refresh mode* (`Live`, `Rebuild`, `Off`); with Parallax, the terrain and the grass are told by
+  reflection. `forcePhase` fixes the season for screenshots. The orbit and map view and snow
+  storms are not done, and none of it has run in the game yet. How it is set up:
+  [docs/player/seasons.md](docs/player/seasons.md).
 - **ReDefinition Dashboard as a mod of its own.** The web dashboard, its server, telemetry
   and pages, are `GameData/ReDefinition/Dashboard` (the pages moved from
   `GameData/ReDefinition/Main/Dashboard`), released as `ReDefinitionDashboard_<version>.zip`
