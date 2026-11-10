@@ -10,7 +10,7 @@ them.
 
 | Part | Where | Written in | Runs |
 |---|---|---|---|
-| The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as four DLLs: `ReDefinition.dll`, `ReDefinition.Planner.dll`, `ReDefinition.Dashboard.dll` and `ReDefinition.Common.dll` |
+| The plugin | `src/` | C# for KSP's Mono, framework 4.8, language 7.3 | In KSP, as five DLLs: `ReDefinition.dll`, `ReDefinition.Planner.dll`, `ReDefinition.Dashboard.dll`, `ReDefinition.Seasons.dll` and `ReDefinition.Common.dll` |
 | The proxy | `src/DxgiProxy/` | C++ | In KSP's process, as `dxgi.dll` in place of the system's |
 | The shaders | `unity/Assets/ReDefinition/` | HLSL and ShaderLab | In Unity, from the bundle `redefinition.shaders` |
 | The dashboard | `GameData/ReDefinition/Dashboard/`, served by `src/Dashboard/` | JavaScript | In a browser on a phone or a PC |
@@ -60,6 +60,7 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 | `Proxy` | The managed half of the proxy: imports, packets, render events | `src/Proxy/ProxyEvents.cs` |
 | `Raytracing` | The managed side of raytracing: what the rays see, and the light back | `src/Raytracing/Ksp/RtKsp.cs` |
 | `Scaling` | What KSP leaves at a fixed size, scaled to the UI scale | `src/Scaling/ScalingAddon.cs` |
+| `Seasons` | Seasons on Kerbin as a mod of its own: the season clock, the snow mask and the settings | `src/Seasons/SnowMask.cs` |
 | `Scenery` | Fixes to what the game draws at the space centre and in flight | `src/Scenery/KscGrass.cs` |
 | `Settings` | The store, the registrations and the graphics profiles | `src/Settings/BundledSettings.cs` |
 | `Ui` | The dialog helpers that only ReDefinition needs: the mouse events, the backdrop, confirmations | `src/Ui/UnityMouseEvents.cs` |
@@ -70,15 +71,16 @@ area is `ReDefinition.<Area>`. A subfolder shares it, except `Hud/Panel`, `Hud/R
 The rest is in the [flow pages](start-here.md#the-flows). The wiki lists every type,
 every entry point and every dependency, generated from the code.
 
-## The four assemblies
+## The five assemblies
 
-The plugin is four projects. The dependencies run one way:
+The plugin is five projects. The dependencies run one way:
 
 ```mermaid
 flowchart LR
     main["ReDefinition.dll<br/>src/ (the rest)"] --> common["ReDefinition.Common.dll<br/>src/Common/"]
     planner["ReDefinition.Planner.dll<br/>src/Planner/"] --> common
     dashboard["ReDefinition.Dashboard.dll<br/>src/Dashboard/"] --> common
+    seasons["ReDefinition.Seasons.dll<br/>src/Seasons/"] --> common
 ```
 
 | Assembly | Package | Needs |
@@ -86,9 +88,10 @@ flowchart LR
 | `ReDefinition.Common.dll` | `GameData/ReDefinition/Common`, the one copy the mods use | KSP and Unity |
 | `ReDefinition.Planner.dll` | `GameData/ReDefinition/Planner` | Common. Not ReDefinition, not Harmony, not ZTheme |
 | `ReDefinition.Dashboard.dll` | `GameData/ReDefinition/Dashboard` | Common. Not ReDefinition, not Harmony, not ZTheme |
-| `ReDefinition.dll` | `GameData/ReDefinition/Main` | Common and Harmony. Not the planner, not the dashboard |
+| `ReDefinition.Seasons.dll` | `GameData/ReDefinition/Seasons` | Common. Not ReDefinition, not Harmony, not ZTheme. Parallax and EVE are optional |
+| `ReDefinition.dll` | `GameData/ReDefinition/Main` | Common and Harmony. Not the planner, not the dashboard, not the seasons |
 
-None of the three mods names another. They meet in Common, and each works without the others:
+None of the four mods names another. They meet in Common, and each works without the others:
 
 * **Seams, from ReDefinition to the planner and the dashboard.** `HostSeams` holds what they would
   ask of ReDefinition, each with a default that works alone: the interface scale, the two switches for
@@ -110,6 +113,8 @@ None of the three mods names another. They meet in Common, and each works withou
   the dialog that shows the dashboard's address and QR code. `DashboardStartup` assigns it. Where it
   is null, ReDefinition's *Devices* tab has no *Dashboard* rows (`OurModules`, `present`). The
   dashboard reads the planner only through `PlannerHooks`.
+* **The seasons have no seam and no hook yet.** `SeasonsSettings` reads and writes its own file
+  in `GameData/ReDefinition/Seasons/PluginData`, and `SeasonsStartup` logs one line at the start.
 * **The helpers they use** are in Common: `HeldVessel`, `WarpLabel`, `WorldButton`, `TimeText`,
   `VesselFacts`, `PropellantMix`, `StockNodes`, `ModSettingsFile` (a mod's settings file in its
   `PluginData` folder) and the rest.

@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Seasons on Kerbin: the season clock, the snow mask and the settings. Needs neither ReDefinition nor Harmony nor ZTheme;
+       Parallax and EVE are optional. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <AssemblyName>ReDefinition.Seasons</AssemblyName>
+    <RootNamespace>ReDefinition</RootNamespace>
+    <OutputPath>$(MSBuildThisFileDirectory)..\..\build\</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AutoGenerateBindingRedirects>false</AutoGenerateBindingRedirects>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <Deterministic>true</Deterministic>
+    <DebugType>portable</DebugType>
+    <Version>$(SeasonsVersion)</Version>
+    <Product>ReDefinition Seasons</Product>
+    <Copyright>Copyright (C) 2026 CaptainKeyboard. GPL-3.0</Copyright>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ReDefinition.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Common\ReDefinition.Common.csproj" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp"><HintPath>$(KspManaged)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(KspManaged)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(KspManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(KspManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.SharedInternalsModule"><HintPath>$(KspManaged)\UnityEngine.SharedInternalsModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+</Project>

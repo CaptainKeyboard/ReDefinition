@@ -54,7 +54,7 @@ if ($changed + $removed -gt 0) {
         $failed = $true
     }
 }
-# The planner's, the dashboard's and Common's own versions (Directory.Build.props): where their code changed since the last release tag, the version
+# The planner's, the dashboard's, the seasons' and Common's own versions (Directory.Build.props): where their code changed since the last release tag, the version
 # must differ from the one the tag carried. A package the tag did not have yet is a first release and has no earlier version.
 $props = [IO.File]::ReadAllText((Join-Path $repo 'Directory.Build.props'))
 $tag = "v$shippedVersion"
@@ -63,6 +63,7 @@ $tagProps = if ($LASTEXITCODE -eq 0) { $tagProps -join "`n" } else { $null }
 foreach ($package in @(
     @{ Name = 'The planner'; Folder = 'src/Planner'; Property = 'PlannerVersion' },
     @{ Name = 'The dashboard'; Folder = 'src/Dashboard'; Property = 'DashboardVersion' },
+    @{ Name = 'The seasons'; Folder = 'src/Seasons'; Property = 'SeasonsVersion' },
     @{ Name = 'Common'; Folder = 'src/Common'; Property = 'CommonVersion' })) {
     $now = ([regex]::Match($props, "<$($package.Property)>([^<]+)</$($package.Property)>")).Groups[1].Value
     if (-not $now) { Write-Host "ERROR: no $($package.Property) in Directory.Build.props."; $failed = $true; continue }

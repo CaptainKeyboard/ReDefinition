@@ -14,6 +14,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinitionExample", "docs
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinition.Dashboard", "src\Dashboard\ReDefinition.Dashboard.csproj", "{6169B1D9-95B1-4182-9D5F-91B3506C3655}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinition.Seasons", "src\Seasons\ReDefinition.Seasons.csproj", "{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,6 +30,10 @@ Global
 		{6169B1D9-95B1-4182-9D5F-91B3506C3655}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6169B1D9-95B1-4182-9D5F-91B3506C3655}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6169B1D9-95B1-4182-9D5F-91B3506C3655}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}.Release|Any CPU.Build.0 = Release|Any CPU
 		{C29F56FF-68D2-448C-9C63-E7A4B32AEC34}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{C29F56FF-68D2-448C-9C63-E7A4B32AEC34}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C29F56FF-68D2-448C-9C63-E7A4B32AEC34}.Release|Any CPU.ActiveCfg = Release|Any CPU

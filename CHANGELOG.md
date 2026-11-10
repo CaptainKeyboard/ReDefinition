@@ -4,6 +4,12 @@
 
 ### Added
 
+- **ReDefinition Seasons, a mod of its own (first part).** `GameData/ReDefinition/Seasons`,
+  released as `ReDefinitionSeasons_<version>.zip` and carried by the full zip too. It needs
+  neither Harmony nor ZTheme nor ReDefinition; Parallax and EVE are optional. This part holds the
+  season clock (the real Kerbin year, scaled by a year length factor), the snow mask for a snow
+  line that moves with the year in both hemispheres, the settings file and a startup line in
+  `KSP.log`. It draws nothing yet. How it is set up: [docs/player/seasons.md](docs/player/seasons.md).
 - **ReDefinition Dashboard as a mod of its own.** The web dashboard, its server, telemetry
   and pages, are `GameData/ReDefinition/Dashboard` (the pages moved from
   `GameData/ReDefinition/Main/Dashboard`), released as `ReDefinitionDashboard_<version>.zip`

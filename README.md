@@ -75,6 +75,12 @@ graphics mods; any mod can join with a config file.
 * **A mod of its own.** The dashboard is released as ReDefinition Dashboard and works with or
   without ReDefinition: [docs/player/dashboard-on-its-own.md](docs/player/dashboard-on-its-own.md).
 
+## Seasons
+
+* **Seasons on Kerbin.** ReDefinition Seasons is a mod of its own with the clock and the snow
+  mask for a snow line that moves with the year; the rendering is not in it yet:
+  [docs/player/seasons.md](docs/player/seasons.md).
+
 ## Staging, editor and interface
 
 * **Staging and editor.** Stage details in two columns, the delta-v tools inside the
@@ -127,7 +133,7 @@ away from `KSP_x64.exe` first.
    `GameData/ReDefinition` goes into `GameData`; `dxgi.dll`, AMD's frame generation
    runtime and AMD's denoiser go next to `KSP_x64.exe`.
 
-The zip holds `GameData/ReDefinition/Main`, `Common`, `Planner` and `Dashboard`. The
+The zip holds `GameData/ReDefinition/Main`, `Common`, `Planner`, `Dashboard` and `Seasons`. The
 planner, the route planner and the autopilot, needs neither Harmony nor ReDefinition and is
 released as its own zip too: [docs/player/planner-on-its-own.md](docs/player/planner-on-its-own.md).
 So is the dashboard: [docs/player/dashboard-on-its-own.md](docs/player/dashboard-on-its-own.md).

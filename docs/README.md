@@ -19,6 +19,7 @@ editors, the main menu and the space centre.
 | plan a mission and check the vessel carries enough fuel | [player/planner.md](player/planner.md) |
 | use the planner and the autopilot without the rest of ReDefinition | [player/planner-on-its-own.md](player/planner-on-its-own.md) |
 | use the dashboard on a phone or a touch screen without the rest of ReDefinition | [player/dashboard-on-its-own.md](player/dashboard-on-its-own.md) |
+| see how the seasons on Kerbin are set up, and what they need | [player/seasons.md](player/seasons.md) |
 | move the navball to the left or right | [player/navball.md](player/navball.md) |
 | see the figures for what you are doing in flight | [player/flight-panel.md](player/flight-panel.md) |
 | launch from the VAB or the SPH, and go back there from the pad | [player/launch-and-return.md](player/launch-and-return.md) |
