@@ -188,7 +188,7 @@ namespace ReDefinition.Seasons
             if (broken) return;
             try
             {
-                EveCellLayer.Update(cellBody, eveCells, cellBody != null ? eveCellCount : 0);
+                EveCellLayer.Update(cellBody, eveCells, cellBody != null ? eveCellCount : 0, cameraAltitude);
                 if (volume != null)
                 {
                     if (cellCount > 0 && cellBody != null) volume.Update(cellCamera, cellBody, cells, drawnCount, cameraAltitude);
@@ -303,7 +303,8 @@ namespace ReDefinition.Seasons
             {
                 nextEveCollect = Time.unscaledTime + 0.5f;
                 eveCellCount = SeasonsSettings.StormEveClouds
-                    ? StormCells.Collect(eveCells, Planetarium.GetUniversalTime(), cameraLatitude, cameraLongitude, EveCellLayer.RangeM, rules) : 0;
+                    ? StormCells.Collect(eveCells, Planetarium.GetUniversalTime(), cameraLatitude, cameraLongitude,
+                        EveCellLayer.RangeFor(cameraAltitude, body.Radius, MapView.MapIsEnabled), rules) : 0;
             }
             cellBody = body;
             cellCamera = cam;
@@ -380,10 +381,15 @@ namespace ReDefinition.Seasons
             float groundAlpha = (float)StormLook.VeilAlpha(current, SeasonsSettings.StormVeil);
             float skyAlpha = Mathf.Max(groundAlpha, (float)StormLook.SkyVeilAlpha(current, SeasonsSettings.StormVeil));
             veil.Show(cam, up, groundAlpha, colour, skyAlpha, skyGrey, current, darkening);
-            if (SeasonsSettings.StormSnowfall) flakes.Show(cam, up, current, Planetarium.GetUniversalTime(), SeasonsSettings.StormSeed, brightness);
+            // The own flakes are the fallback: where EVE's snow field is drawing they are off unless the setting asks for both.
+            bool eveSnowField = SeasonsSettings.StormEveSnow && (EveCellLayer.OwnSnowField || EveSnowLink.Fields > 0);
+            if (SeasonsSettings.StormSnowfall && (SeasonsSettings.StormOwnFlakes || !eveSnowField)) flakes.Show(cam, up, current, Planetarium.GetUniversalTime(), SeasonsSettings.StormSeed, brightness);
             else flakes.Hide();
             ambientFactor = (float)StormLook.AmbientFactor(current, darkening);
-            eveRaise = SeasonsSettings.StormEveSnow ? current : 0f;
+            // In a cell the cell layer's own snow field falls by the coverage of the cell; the stock fields are raised only elsewhere
+            // (a storm that is forced without a cell).
+            bool cellDrivesField = EveCellLayer.OwnSnowField && cellIntensity > 0;
+            eveRaise = SeasonsSettings.StormEveSnow && !cellDrivesField ? current : 0f;
             if (SeasonsSettings.StormEveSnow) EveSnowLink.Scan(vessel.mainBody.name);
             if (Mathf.Abs(current - target) < SettledWithin && Mathf.Abs(target - settledLogged) > SettledLogDelta)
             {

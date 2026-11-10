@@ -269,11 +269,44 @@ namespace ReDefinition.Tests
             StringAssert.Contains(cfg, "body = Kerbin");
             StringAssert.Contains(cfg, "minAltitude = " + EveCellLayer.BaseAslM.ToString(System.Globalization.CultureInfo.InvariantCulture));
             StringAssert.Contains(cfg, "speed = 0,0,0");
-            Assert.IsFalse(cfg.Contains("particleFieldConfig"), "the layer has no particle field of its own");
-            Assert.IsFalse(cfg.Contains("lightningConfig") || cfg.Contains("soundName") || cfg.Contains("dropletsConfig"), "no lightning, sound or droplets");
+            Assert.IsFalse(cfg.Contains("lightningConfig") || cfg.Contains("dropletsConfig"), "no lightning or droplets");
             Assert.IsFalse(cfg.ToLowerInvariant().Contains("thunder") || cfg.ToLowerInvariant().Contains("cumulonimbus"), "a snow cloud, not a thunderstorm");
             Assert.IsTrue(File.Exists(Path.Combine(folder, "StormCoverage.png")), "the placeholder coverage map");
             StringAssert.Contains(cfg, "ReDefinition/Seasons/Clouds/StormCoverage");
+        }
+
+        // The config's two OBJECTs and what each carries: the cloud (volume and 2D layer, no particles) and the snow (particles from the
+        // ground, no cloud). The altitudes are the ones the code and the docs say.
+        [TestMethod]
+        public void TheConfigHasTheCloudWithA2DLayerAndTheSnowFieldOnALayerThatReachesTheGround()
+        {
+            string folder = Path.Combine(Repo(), "GameData", "ReDefinition", "Seasons", "Clouds");
+            string cfg = File.ReadAllText(Path.Combine(folder, "SeasonsStormLayer.cfg"));
+            int snow = cfg.IndexOf("name = " + EveCellLayer.SnowLayerName, StringComparison.Ordinal);
+            int cloud = cfg.IndexOf("name = " + EveCellLayer.LayerName, StringComparison.Ordinal);
+            Assert.IsTrue(cloud >= 0 && snow > cloud, "both layers, the cloud first");
+            string cloudText = cfg.Substring(cloud, snow - cloud);
+            string snowText = cfg.Substring(snow, cfg.IndexOf("EVE_PARTICLE_FIELD_CONFIG", snow, StringComparison.Ordinal) - snow);
+
+            // The 2D layer sits in the volume's OBJECT: a 2D-only OBJECT of the body is dropped once a raymarched layer of it exists.
+            StringAssert.Contains(cloudText, "layer2D");
+            StringAssert.Contains(cloudText, "macroCloudMaterial");
+            StringAssert.Contains(cloudText, "ReDefinition/Seasons/Clouds/StormSwirl");
+            Assert.IsTrue(File.Exists(Path.Combine(folder, "StormSwirl.png")), "the placeholder of the 2D picture");
+            StringAssert.Contains(cloudText, "particleFieldDensity = 0");
+            Assert.IsFalse(cloudText.Contains("particleFieldConfig") || cloudText.Contains("soundName"), "the cloud layer carries no particles or sound");
+
+            // The snow layer: no cloud, the field and the sound, from below sea level (a volume gives no coverage under its lowest altitude).
+            StringAssert.Contains(snowText, "fxOnlyLayer = True");
+            StringAssert.Contains(snowText, "particleFieldConfig = ReDefinition-Seasons-snow");
+            StringAssert.Contains(snowText, "soundName = StockVolumetricClouds/Clouds/Sounds/SnowStormLoopedFreeAudio");
+            StringAssert.Contains(snowText, "minAltitude = -1");
+            StringAssert.Contains(snowText, "particleFieldDensity = 1");
+            Assert.IsFalse(snowText.Contains("layer2D"), "the snow layer has no 2D layer");
+            // The particle field is defined here, with a name that has "snow" in it (EveSnowLink looks for that).
+            StringAssert.Contains(cfg, "EVE_PARTICLE_FIELD_CONFIG");
+            StringAssert.Contains(cfg, "name = ReDefinition-Seasons-snow");
+            StringAssert.Contains(EveCellLayer.SnowLayerName.ToLowerInvariant(), "snow");
         }
 
         private static string Repo()

@@ -20,7 +20,7 @@ Seasons on Kerbin as a mod of its own, `ReDefinition.Seasons.dll` in `GameData/R
 | `src/Seasons/ParallaxLink.cs` | What the seasons ask of Parallax, by reflection, guarded. |
 | `src/Seasons/EveSnowLink.cs` | EVE's snow particle field and snow sound raised with a storm or a replaced rain. |
 | `src/Seasons/EveRainLink.cs` | EVE's rain (particles, droplets, wet ground, lightning, sound) taken away over snow. |
-| `src/Seasons/EveCellLayer.cs`, `EveCoverageMath.cs` | The storm cells' snow cloud as a layer of EVE's volumetric clouds: the reflection and the painter, and the map maths. Its config is `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg`. |
+| `src/Seasons/EveCellLayer.cs`, `EveCoverageMath.cs`, `EveSwirlMath.cs` | The storm cells as layers of EVE's volumetric clouds: the reflection and the painters, the coverage map's maths and the 2D swirl's. Two layers: the cloud (volume and 2D layer for orbit and map) and the snow (EVE's particle field and sound). Their config is `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg`. |
 | `src/Seasons/ReflectLink.cs` | The member lookups of the links, with the names that were missing. |
 | `src/Seasons/StormModel.cs` | The storm draw of a slot, the envelope and the band schedule from time, latitude, season and seed. |
 | `src/Seasons/StormCells.cs` | The storm cells: place, radius, life and drift as pure functions of seed and time; intensity at a point. |
@@ -45,6 +45,7 @@ Seasons on Kerbin as a mod of its own, `ReDefinition.Seasons.dll` in `GameData/R
 - `ParallaxLink` tells Parallax's terrain and scatters that a quad's colours changed, the way Parallax does itself.
 - Storms are cells on the planet (`StormCells`, from the `StormModel` rule). `StormEffect` reads the intensity at the flight camera and sets the fog, the veil, the flakes, the ambient light and EVE's snow field, and `StormVolume` draws the cells from afar.
 - `EveRainLink` replaces EVE's rain by its snow where the ground is snow or ice, whether or not a storm runs.
+- The Seasons are made to run with EVE's volumetric clouds. The cell's cloud, its swirl in the orbit and map view and its falling snow are EVE's layers (`EveCellLayer`). The mod's own cloud (`StormVolume` with `_CloudWeight` 1, the plain meshes) and flakes (`StormFlakes`, setting `stormOwnFlakes`) are fallbacks that get no further work.
 - `OrbitSnow` draws the same snow over the colour map of the scaled planet for the orbit and map view.
 - Every step that can fail logs once and puts back what it changed: the storm effect, the orbit snow, the live refresh and the links switch themselves off for the session.
 - The storms add no image effect and no command buffer, so the upscalers and raytracing of ReDefinition are not touched.

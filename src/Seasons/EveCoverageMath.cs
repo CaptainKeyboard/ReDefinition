@@ -139,40 +139,46 @@ namespace ReDefinition.Seasons
         // reaches a pole or half the globe.
         internal static Rect RectAround(double x, double y, double z, double angularRadius)
         {
+            return RectAround(x, y, z, angularRadius, Width, Height);
+        }
+
+        // The same for a map of another size (the 2D layer's picture, EveSwirlMath).
+        internal static Rect RectAround(double x, double y, double z, double angularRadius, int width, int height)
+        {
             double u, v;
             Uv(x, y, z, out u, out v);
-            int rowHalf = (int)Math.Ceiling(angularRadius / Math.PI * Height) + 2;
-            int centreRow = (int)Math.Floor(v * Height);
+            int rowHalf = (int)Math.Ceiling(angularRadius / Math.PI * height) + 2;
+            int centreRow = (int)Math.Floor(v * height);
             int row0 = centreRow - rowHalf, row1 = centreRow + rowHalf;
-            bool pole = row0 <= 0 || row1 >= Height - 1;
+            bool pole = row0 <= 0 || row1 >= height - 1;
             if (row0 < 0) row0 = 0;
-            if (row1 > Height - 1) row1 = Height - 1;
+            if (row1 > height - 1) row1 = height - 1;
             var rect = new Rect { Row0 = row0, Rows = row1 - row0 + 1 };
-            double poleward = Math.Max(Math.Abs(Math.PI / 2 - (row0 + 0.5) / Height * Math.PI), Math.Abs(Math.PI / 2 - (row1 + 0.5) / Height * Math.PI));
+            double poleward = Math.Max(Math.Abs(Math.PI / 2 - (row0 + 0.5) / height * Math.PI), Math.Abs(Math.PI / 2 - (row1 + 0.5) / height * Math.PI));
             double cosine = Math.Cos(poleward);
             if (pole || angularRadius >= Math.PI / 2 || cosine < 0.05)
             {
                 rect.Col0 = 0;
-                rect.Cols = Width;
+                rect.Cols = width;
                 return rect;
             }
             double halfLon = angularRadius / cosine;
             if (halfLon >= Math.PI)
             {
                 rect.Col0 = 0;
-                rect.Cols = Width;
+                rect.Cols = width;
                 return rect;
             }
-            int colHalf = (int)Math.Ceiling(halfLon / (2 * Math.PI) * Width) + 2;
-            if (colHalf * 2 + 1 >= Width)
+            int colHalf = (int)Math.Ceiling(halfLon / (2 * Math.PI) * width) + 2;
+            if (colHalf * 2 + 1 >= width)
             {
                 rect.Col0 = 0;
-                rect.Cols = Width;
+                rect.Cols = width;
                 return rect;
             }
-            int col = (int)Math.Floor(u * Width);
-            int col0 = (col - colHalf) % Width;
-            if (col0 < 0) col0 += Width;
+            int col = (int)Math.Floor(u * width);
+            int col0 = (col - colHalf) % width;
+            if (col0 < 0) col0 += width;
             rect.Col0 = col0;
             rect.Cols = colHalf * 2 + 1;
             return rect;

@@ -102,26 +102,56 @@ A storm is a cell that stands on the planet.
    missing or does not load, `StormVolume` draws shells, a dome and puffs from the game's
    particle shaders instead (`StormShaders.BlendedNames`). The setting `stormVolumeMode`
    chooses.
-6. With EVE's volumetric clouds installed, the snow cloud of the cells is a layer of EVE's.
-   `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines the layer
-   `ReDefinition-Seasons-Storm`, which EVE reads from `GameDatabase`. `StormEffect` collects
-   the cells within 150 km twice a second and passes them to `EveCellLayer.Update` every
-   frame. `EveCellLayer` finds the layer in `CloudsManager.GetObjectList()`, puts a readable
-   4096 x 2048 R8 texture into `TextureWrapper.textureValue` and into the two materials as
-   `CloudCoverage`, and paints the cells into it (`EveCoverageMath`, EVE's equirectangular
-   convention). The texture is empty and the layer is switched off through its `CloudsPQS`
-   while no cell is near. After the first paint it compares EVE's own `SampleCoverage` at the
+6. The Seasons are made to run with EVE's volumetric clouds (the StockVolumetricClouds pack).
+   The snow cloud of the cells, its swirl in the orbit and map view and its falling snow are
+   layers of EVE's. `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines two
+   OBJECTs on Kerbin, which EVE reads from `GameDatabase`, and the particle field config for
+   the snow. `StormEffect` collects the cells twice a second (within 150 km of the camera,
+   from 150 km up and in the map view the cells of the whole planet,
+   `EveCellLayer.RangeFor`) and passes them to `EveCellLayer.Update` every frame.
+   `EveCellLayer` finds the layers in `CloudsManager.GetObjectList()`.
+7. `ReDefinition-Seasons-Storm` is the cloud. Its volume gets a readable 4096 x 2048 R8
+   texture in `TextureWrapper.textureValue` and in the two materials as `CloudCoverage`, and
+   the cells are painted into it (`EveCoverageMath`, EVE's equirectangular convention) while the
+   volume is current: below 250 km and not in the map view, the only times EVE updates the
+   matrix the directions come from. The layer is switched off through its `CloudsPQS` while no
+   cell is near. After the first paint the mod compares EVE's own `SampleCoverage` at the
    centre of the strongest cell with the painted value and logs
-   `storm layer calibration: ...`; a longitude shift it finds is applied to the painting. While
-   the layer is bound (`EveCellLayer.Supplying`) `StormVolume` sets `_CloudWeight` to 0, so that
-   the shader draws the snow veil only, and starts the veil at the layer's cloud base. Without
-   EVE's volumetric layers, without the layer or with the setting `stormEveClouds` off,
-   `_CloudWeight` is 1 and the shader draws its own snow cloud.
-7. With EVE installed, `EveSnowLink` raises the coverage of EVE's snow particle field and
-   the volume of its snow sound to the storm's intensity. `EveRainLink` takes EVE's rain
-   away where the ground is snow or ice, and `EveSnowLink` gets the rain's coverage
-   instead. Both reflect into EVE's private fields and put the first values back when the
-   storm or the region ends.
+   `storm layer calibration: ...`; a longitude shift it finds is applied to the painting.
+   While the layer is bound (`EveCellLayer.Supplying`) `StormVolume` sets `_CloudWeight` to 0,
+   so that the shader draws the snow veil only, and starts the veil at the layer's cloud base.
+8. The same OBJECT holds a `layer2D` node. EVE's 2D layer is the scaled-space form of a cloud
+   layer: it fades in from 200 km up (`scaledFadeStartAltitude`) and shows fully in the map view,
+   on a sphere with the radius of the body plus the OBJECT's `altitude` (2700 m), using shader
+   `EVE/Cloud`. A 2D layer in an OBJECT of its own would be dropped by EVE once a raymarched
+   layer of the body exists. The volume takes its own sphere from the cloud types'
+   altitudes, so the OBJECT's altitude does not move the volume (the log line `cloud from 500
+   to 2300 m above sea level` stays). `EveCellLayer` puts a 2048 x 1024 RGBA picture
+   into the `_MainTex` wrapper of `CloudsObject.Layer2D.CloudsMat` and onto
+   `Layer2D.CloudRenderingMaterial`, sets that material's queue to 3000 (EVE's is 2999, in an
+   order nobody sets) and paints each cell as a swirl (`EveSwirlMath`): two arms, a closed core,
+   white-grey with the alpha of the cloud, a disc on the sphere (wider in texels toward the
+   poles), at least 2.5 texels (4.6 km) in radius. The directions are the body's own
+   (`GetRelSurfaceNVector`), because EVE does not update the volume's matrix above its fade;
+   `storm layer: frame check` logs the angle to the volume's direction when a cell is painted
+   in the atmosphere. The picture is repainted every 2 s.
+9. `ReDefinition-Seasons-Snow` is the snow: EVE's particle field `ReDefinition-Seasons-snow`
+   (defined in the same config: the stock `snow-Kerbin` with more, larger, faster flakes) and the
+   stock snow sound, from the ground to 2300 m. A volume gives no coverage below its lowest
+   altitude (`SampleCoverage` returns 0 for a height fraction below 0), and the cloud starts at
+   500 m, so the field has a layer of its own, like the stock Snow-Particles layers
+   (`fxOnlyLayer`). `EveCellLayer` binds it to the same texture. EVE draws the field where the
+   coverage at the camera is above 0.05 and scales it up to 0.5. In a cell the raised stock
+   fields and the mod's own flakes (`StormFlakes`) are off, unless the setting
+   `stormOwnFlakes` asks for the flakes too.
+10. With EVE installed, `EveSnowLink` raises the coverage of EVE's snow particle fields and
+   the volume of its snow sound to the storm's intensity where no cell drives the field.
+   `EveRainLink` takes EVE's rain away where the ground is snow or ice, and `EveSnowLink` gets
+   the rain's coverage instead. Both reflect into EVE's private fields and put the first
+   values back when the storm or the region ends.
+11. Without EVE's volumetric layers, without the layers or with the setting `stormEveClouds`
+   off, `_CloudWeight` is 1, the shader draws its own snow cloud, the orbit view shows no
+   cell and the own flakes fall. That path gets no further work.
 
 The bundle is built by `tools/build_seasons_bundle.ps1`, which runs
 `unity/Assets/ReDefinitionSeasons/Editor/SeasonsBundleBuilder.cs` in Unity 2019.4.18f1. The
@@ -141,7 +171,7 @@ release package takes `seasons.shaders` from there.
 | The fog, the veil, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
 | The cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
 | EVE's snow and rain | `EveSnowLink`, `EveRainLink`, `ReflectLink` |
-| The cells' cloud as an EVE layer | `EveCellLayer`, `EveCoverageMath`, `SeasonsStormLayer.cfg` |
+| The cells' cloud, swirl and snow as EVE layers | `EveCellLayer`, `EveCoverageMath`, `EveSwirlMath`, `SeasonsStormLayer.cfg` |
 | A new setting | `SeasonsSettings`, then [howto-add-a-setting.md](howto-add-a-setting.md) for the pattern |
 
 ## Tests
@@ -155,12 +185,20 @@ The tests are in `tests/ReDefinition.Tests`:
 | `OrbitSnowTests.cs` | The mask, the texture convention and when to compose |
 | `StormTests.cs`, `StormCellsTests.cs` | The spawn rule and the cells |
 | `StormVolumeTests.cs`, `StormSkyAndSnowfallTests.cs`, `StormBlizzardTests.cs` | The volume's numbers, the noise, the sky, the flakes and the veil at the horizon |
-| `EveCoverageTests.cs` | EVE's equirectangular map and its round trip, the painting of cells, the date line, the setting and the layer's config |
+| `EveCoverageTests.cs` | EVE's equirectangular map and its round trip, the painting of cells, the date line, the setting and the layers' config |
+| `EveSwirlTests.cs` | The 2D swirl: the arms, the widths on the picture, the smallest size, the range, `stormOwnFlakes` |
 | `SeasonsStandaloneTests.cs` | The mod's own files and settings |
 
 `ArchitectureTests.cs` holds the rule that the seasons use nothing of ReDefinition beyond
-`Core`. The tests run the pure functions. No test runs the storm or the orbit view in the
-game, and the look of the storm has not been seen in the game [open].
+`Core`. The tests run the pure functions. The checks in the game are run by hand with
+`.local/work/seasons-test/check_seasons.py` (modes `orbit`, `cell`, `storm`). Seen so far: the
+cell layers bind, the calibration agrees (and the frame check of the 2D picture is 0.00
+degrees), a red marker (`EveSwirlMath.Probe`) shows the 2D layer in the right place with the
+right size from 1000 km, a cell inside shows EVE's snow field and a cell 8 km away is EVE's
+cloud. Open: the swirl from a lower orbit and in the map view, the look of the cell at 25 km, the
+sound, and the order of the 2D layer against what is drawn after it: part of the red marker
+was covered by thick white cloud although the layer's queue is 3000, so something draws later
+(not identified) [open].
 
 ## What can go wrong
 
@@ -171,6 +209,11 @@ game, and the look of the storm has not been seen in the game [open].
   reason, and `StormVolume` falls back to the plain shapes in the `Auto` mode.
 * EVE is not installed or has changed a field. `EveSnowLink.Summary` and
   `EveRainLink.Summary` in the start line say `not found` or name what is missing, and the
-  storm keeps its own flakes.
+  storm keeps its own flakes. `EveCellLayer` logs `storm layer: ...` with the member that is
+  missing (`Layer2D`, `CloudsMat`, `_MainTex`, `particleField`); the volume still works and
+  the cell has no picture in the orbit view.
+* The 2D layer's render queue is reset by EVE when the layer goes between scaled and local
+  space (2999 in scaled space, a lower one in local space was logged). `EveCellLayer` sets 3000
+  on every paint.
 * Another mod writes the ambient light. `AmbientTracker` takes its value as the new
   baseline, and the log counts how often that happened.

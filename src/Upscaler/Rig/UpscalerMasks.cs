@@ -42,20 +42,17 @@ namespace ReDefinition.Upscaler
         // Seconds between two looks through every renderer of the scene.
         private const float FullScanInterval = 10f;
 
-        // Transparent queues that are not something blended over the scene. They are what
-        // composites the clouds, the sky and the atmosphere (the transparency
-        // mask's, or the whole sky), what draws nothing, and decals, which lie
-        // still on the ground with their geometry's motion vectors. Read from the
-        // transparent materials a flight draws.
+        // Transparent queues that are not something blended over the scene: what composites
+        // the clouds, the sky and the atmosphere, what draws nothing, and decals.
+        // Read from the transparent materials a flight draws.
         //
-        // And Waterfall's effects: their shaders move the vertices and take their
-        // opacity from fresnel and falloff terms (Waterfall's ShaderLab sources),
-        // which a copy of texture and tint cannot follow -- it would mark the whole
-        // mesh. FSR's own shading change detection is left to them.
+        // And shaders that a copy of texture and tint cannot follow. Waterfall's effects
+        // move their vertices. EVE's particle fields place each flake in the vertex shader.
+        // The Seasons storm volume is a raymarched cylinder, whose box would become a patch.
         private static readonly string[] NotReactive =
         {
             "Invisible", "invisible", "CompositeRaymarchedClouds", "SkySphere", "AtmosphereFromGround", "Decal",
-            "Waterfall/", "ReDefinition",
+            "Waterfall/", "EVE/ParticleField", "ReDefinition",
         };
 
         // The shader property ids the masks read from source materials and set on the mask shader.

@@ -4,6 +4,19 @@
 
 ### Added
 
+- **Storm cells in EVE's 2D cloud layer, and EVE's snow field in a cell.** The Seasons now need EVE's volumetric
+  clouds for the look of the storms (the ground snow and the orbit tint do not). The config
+  `SeasonsStormLayer.cfg` has a `layer2D` in the cloud's OBJECT, and the mod paints every cell of the planet into
+  its picture as a white-grey swirl (two arms, closed core, at least 4.6 km radius) for the view from 150 km up and the
+  map view; the 2D layer is drawn after EVE's other clouds (queue 3000). A second layer, `ReDefinition-Seasons-Snow`,
+  carries EVE's particle field `ReDefinition-Seasons-snow` (the stock snow field with more, larger flakes, 600 000) and
+  the snow sound from the ground to 2300 m on the same coverage map, so that the snow falls inside a cell, thicker
+  toward its middle. The mod's own flakes step aside where EVE's field falls; new setting `stormOwnFlakes` (default
+  `False`) draws them as well. In the game: the layers bind, the calibration agrees, the 2D layer shows a cell at the
+  right place and size from 1000 km (as a soft bright patch, not a resolved spiral), and EVE's flakes fall inside a cell.
+  The reactive mask of the upscalers now skips EVE's particle fields (`EVE/ParticleField`); the storm volume stays out
+  of the mask on purpose. [docs/player/seasons.md](docs/player/seasons.md).
+
 - **The snow cloud of a storm cell is an EVE volumetric cloud where EVE has them.** A config of the Seasons
   (`GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg`) adds the layer `ReDefinition-Seasons-Storm`
   (a low, flat-topped, grey-white snow cloud), and the mod paints the cells within 150 km into its coverage map twice
