@@ -181,9 +181,31 @@ namespace ReDefinition.Seasons
         // twice a second) and shows or hides the layer. cells are the cells within RangeM of the camera.
         internal static void Update(CelestialBody body, StormCells.Cell[] cells, int count)
         {
-            if (!SeasonsSettings.StormEveClouds || body == null)
+            if (body == null)
             {
                 Release();
+                return;
+            }
+            if (!SeasonsSettings.StormEveClouds)
+            {
+                // The layer of the cfg exists whatever the setting says. It is bound and hidden, so that it does not raymarch an empty map.
+                Look();
+                if (status == Status.NoEve || status == Status.NoVolumetric || status == Status.NotControllable) return;
+                float asked = Time.realtimeSinceStartup;
+                try
+                {
+                    if (asked >= nextScan)
+                    {
+                        nextScan = asked + ScanInterval;
+                        Scan(body);
+                        released = false;
+                    }
+                    Release();
+                }
+                catch (Exception)
+                {
+                    // The layer is gone with its scene; the next scan binds it again.
+                }
                 return;
             }
             released = false;

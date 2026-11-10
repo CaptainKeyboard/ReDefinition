@@ -220,7 +220,10 @@ namespace ReDefinition.Seasons
                     double dot = rowDot + sinTheta * (cx * Math.Sin(a) + cz * Math.Cos(a));
                     if (dot < cosReach) continue;
                     double angle = Math.Acos(dot > 1 ? 1 : dot);
-                    double coverage = Falloff(angle * planetRadiusM, blob.RadiusM, Ragged(col, row, blob.Seed)) * blob.Peak;
+                    double ragged = Ragged(col, row, blob.Seed);
+                    // The plateau is not flat: a slow swell in it lets the cloud's own noise open here and there.
+                    double swell = 0.86 + 0.14 * ragged;
+                    double coverage = Falloff(angle * planetRadiusM, blob.RadiusM, ragged) * blob.Peak * swell;
                     int value = (int)Math.Round(coverage * 255.0);
                     if (value > data[rowStart + col]) data[rowStart + col] = (byte)(value > 255 ? 255 : value);
                 }

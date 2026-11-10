@@ -65,7 +65,7 @@ Shader "ReDefinition/SeasonsStormVolume"
 
             // The extinction per metre of the cloud blanket and of the snow veil, at full strength and full density.
             static const float CloudSigma = 0.0065;
-            static const float SnowSigma = 0.00050;
+            static const float SnowSigma = 0.0014;
             // The tiles, m: the cloud and the snow horizontally; the snow's streaks vertically.
             static const float CloudTile = 6000.0;
             static const float SnowTile = 1500.0;
@@ -122,18 +122,21 @@ Shader "ReDefinition/SeasonsStormVolume"
                 if (_CloudWeight > 0.0)
                 {
                     // Large, gentle noise only: one octave of the 3D noise with a half-weight second at twice the scale.
-                    float3 pc = float3(sx / CloudTile, h / 4200.0, sz / CloudTile);
-                    float n = Noise(pc, lod) * 0.7 + Noise(pc * 2.0 + 0.37, lod) * 0.3;
-                    // The top is flat, with a slight undulation; the underside rises softly over 220 m.
-                    top = base_ + thick - 220.0 * n;
-                    float layer = smoothstep(base_, base_ + 220.0, h) * (1.0 - smoothstep(top - 260.0, top, h));
+                    // A nimbostratus: a wide body in layers. The horizontal scale is large; the vertical one is short, so that the
+                    // density banks in sheets, and a finer octave breaks the sheets up.
+                    float3 pc = float3(sx / CloudTile, h / 1400.0, sz / CloudTile);
+                    float large = Noise(float3(sx / (CloudTile * 2.0), 0.31, sz / (CloudTile * 2.0)), lod);
+                    float n = Noise(pc, lod) * 0.55 + Noise(pc * 2.3 + 0.37, lod) * 0.30 + Noise(pc * 5.1 + 0.71, lod) * 0.15;
+                    // The top undulates over a few hundred m; the underside rises softly and raggedly over 300 m.
+                    top = base_ + thick - 500.0 * large;
+                    float layer = smoothstep(base_ - 80.0 * n, base_ + 300.0, h) * (1.0 - smoothstep(top - 450.0, top, h));
                     if (layer > 0.0)
                     {
-                        // A weak storm is a smaller, thinner cloud; the rim is feathered over most of the radius.
+                        // A weak storm is a smaller, thinner cloud; the rim is feathered and ragged over most of the radius.
                         float reach = lerp(0.7, 1.0, strength);
-                        float rim = rho + (n - 0.5) * 0.35;
-                        float edge = 1.0 - smoothstep(0.50 * reach, reach, rim);
-                        float body = 0.78 + 0.34 * (n - 0.5);
+                        float rim = rho + (large - 0.5) * 0.5 + (n - 0.5) * 0.25;
+                        float edge = pow(1.0 - smoothstep(0.05 * reach, reach, rim), 1.8);
+                        float body = saturate(0.25 + 1.2 * n);
                         cloud = layer * edge * body * CloudSigma * strength;
                     }
                 }
@@ -152,7 +155,7 @@ Shader "ReDefinition/SeasonsStormVolume"
                     float3 ps = float3(sx / SnowTile, h / StreakTile + _Wind.w / StreakTile, sz / SnowTile);
                     float s = Noise(ps, lod) * 0.6 + Noise(ps * float3(3.0, 2.0, 3.0) + 0.21, lod) * 0.4;
                     // Mostly diffuse, with softer streaks in it.
-                    float streak = 0.55 + 0.45 * saturate((s - 0.32) * 2.4);
+                    float streak = 0.1 + 0.9 * saturate((s - 0.36) * 3.6);
                     float radial = (1.0 - smoothstep(0.30, 1.0, veilRho + (s - 0.5) * 0.45)) * (0.55 + 1.1 * (1.0 - veilRho));
                     snow = column * streak * radial * SnowSigma * strength;
                 }
@@ -259,10 +262,10 @@ Shader "ReDefinition/SeasonsStormVolume"
                         float lit = 1.0 - d;
                         float3 shade = _AmbientColour.rgb * (0.78 + 0.22 * lit)
                                      + _SunColour.rgb * phase * exp(-d * 2.6) * 0.42;
-                        float3 cloudColour = shade * lerp(0.72, 1.0, lit);
+                        float3 cloudColour = shade * lerp(0.55, 1.0, lit);
                         // The snow reads light, bluish white; the sky's light on it, a little of the sun's.
-                        float3 snowColour = (_AmbientColour.rgb * 1.15 + _SunColour.rgb * 0.22 * phase) * float3(0.95, 0.98, 1.0)
-                                          * (0.80 + 0.20 * saturate(h / max(base_, 1.0)));
+                        float3 snowColour = (_AmbientColour.rgb * 1.15 + _SunColour.rgb * 0.22 * phase) * float3(1.0, 1.0, 1.0)
+                                          * (0.62 + 0.22 * saturate(h / max(base_, 1.0)));
 
                         colour += transmittance * a_ * ((cloud * cloudColour + snow * snowColour) / sigma);
                         transmittance *= 1.0 - a_;

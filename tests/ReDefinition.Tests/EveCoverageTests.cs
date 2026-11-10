@@ -129,7 +129,7 @@ namespace ReDefinition.Tests
             double u, v;
             EveCoverageMath.Uv(blob.X, blob.Y, blob.Z, out u, out v);
             double centre = EveCoverageMath.Sample(data, u, v);
-            Assert.AreEqual(0.8, centre, 0.02, "the peak at the centre");
+            Assert.IsTrue(centre <= 0.8 + 0.01 && centre >= 0.8 * 0.72 - 0.01, "the peak at the centre, within the plateau's swell: " + centre);
             // Walk north: the value never rises and ends at zero before 1.25 radii.
             double step = 500.0 / Kerbin * 180 / Math.PI;
             double last = 1.0;
@@ -139,7 +139,7 @@ namespace ReDefinition.Tests
                 double pu, pv;
                 EveCoverageMath.Uv(p.X, p.Y, p.Z, out pu, out pv);
                 double value = EveCoverageMath.Sample(data, pu, pv);
-                if (i * 500.0 < 0.2 * 15000) Assert.IsTrue(value > 0.7, "the core at " + i * 500 + " m: " + value);
+                if (i * 500.0 < 0.2 * 15000) Assert.IsTrue(value > 0.5, "the core at " + i * 500 + " m: " + value);
                 if (i * 500.0 > 1.25 * 15000) Assert.AreEqual(0.0, value, 1e-9, "nothing at " + i * 500 + " m");
                 last = value;
             }
@@ -185,7 +185,8 @@ namespace ReDefinition.Tests
             Assert.IsTrue(left && right, "both sides of the seam hold the cloud");
             double u, v;
             EveCoverageMath.Uv(blob.X, blob.Y, blob.Z, out u, out v);
-            Assert.AreEqual(1.0, EveCoverageMath.Sample(data, u, v), 0.02, "the bilinear read across the seam");
+            double seam = EveCoverageMath.Sample(data, u, v);
+            Assert.IsTrue(seam <= 1.01 && seam >= 0.72 - 0.01, "the bilinear read across the seam: " + seam);
         }
 
         [TestMethod]
@@ -213,7 +214,8 @@ namespace ReDefinition.Tests
             double u, v;
             EveCoverageMath.Uv(blob.X, blob.Y, blob.Z, out u, out v);
             Assert.AreEqual(0.0, EveCoverageMath.Sample(data, u, v), 0.01, "the old place is empty");
-            Assert.AreEqual(1.0, EveCoverageMath.Sample(data, u + 0.05, v), 0.02, "the cloud is 0.05 of the width along");
+            double along = EveCoverageMath.Sample(data, u + 0.05, v);
+            Assert.IsTrue(along <= 1.01 && along >= 0.72 - 0.01, "the cloud is 0.05 of the width along: " + along);
         }
 
         [TestMethod]
@@ -225,7 +227,8 @@ namespace ReDefinition.Tests
             EveCoverageMath.Paint(data, weak, Kerbin, 0);
             double u, v;
             EveCoverageMath.Uv(strong.X, strong.Y, strong.Z, out u, out v);
-            Assert.AreEqual(0.9, EveCoverageMath.Sample(data, u, v), 0.02);
+            double value = EveCoverageMath.Sample(data, u, v);
+            Assert.IsTrue(value <= 0.9 + 0.01 && value >= 0.9 * 0.72 - 0.01, "the stronger cell's value, within the swell: " + value);
         }
 
         [TestMethod]
