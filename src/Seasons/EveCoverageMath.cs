@@ -106,8 +106,14 @@ namespace ReDefinition.Seasons
         // cell is ragged but the same every time it is painted.
         internal static double Ragged(int col, int row, ulong seed)
         {
-            double a = Lattice(col / 8.0, row / 8.0, seed);
-            double b = Lattice(col / 3.0, row / 3.0, seed ^ 0x9E3779B97F4A7C15UL);
+            return RaggedAt(col, row, seed);
+        }
+
+        // The same noise at any coordinates, in texels of a 4096 x 2048 map (EveStormMath scales the texels of other maps to them).
+        internal static double RaggedAt(double x, double y, ulong seed)
+        {
+            double a = Lattice(x / 8.0, y / 8.0, seed);
+            double b = Lattice(x / 3.0, y / 3.0, seed ^ 0x9E3779B97F4A7C15UL);
             return a * 0.65 + b * 0.35;
         }
 
@@ -123,7 +129,7 @@ namespace ReDefinition.Seasons
             return top + (bottom - top) * ty;
         }
 
-        private static double Hash(long x, long y, ulong seed)
+        internal static double Hash(long x, long y, ulong seed)
         {
             ulong h = seed + 0x9E3779B97F4A7C15UL;
             h ^= (ulong)x * 0xBF58476D1CE4E5B9UL;

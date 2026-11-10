@@ -188,6 +188,7 @@ namespace ReDefinition.Seasons
             if (broken) return;
             try
             {
+                EveLayerStorm.Update(cellBody, eveCells, cellBody != null ? eveCellCount : 0, cameraAltitude);
                 EveCellLayer.Update(cellBody, eveCells, cellBody != null ? eveCellCount : 0, cameraAltitude);
                 if (volume != null)
                 {
@@ -247,6 +248,7 @@ namespace ReDefinition.Seasons
             if (flakes != null) Quietly(flakes.Dispose);
             if (volume != null) Quietly(volume.Dispose);
             Quietly(EveCellLayer.Release);
+            Quietly(EveLayerStorm.Forget);
             veil = null;
             flakes = null;
             volume = null;

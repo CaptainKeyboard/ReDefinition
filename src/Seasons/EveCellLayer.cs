@@ -105,7 +105,10 @@ namespace ReDefinition.Seasons
         private static Material material, probeMaterial;
         private static Texture2D texture;
         private static byte[] data;
-        private static readonly EveCoverageMath.Rect[] painted = new EveCoverageMath.Rect[StormCells.Capacity];
+        private static readonly EveCoverageMath.Rect[] painted = new EveCoverageMath.Rect[StormCells.Capacity * EveStormMath.MaxLobes];
+        private static readonly EveCoverageMath.Blob[] lobeBlobs = new EveCoverageMath.Blob[StormCells.Capacity * EveStormMath.MaxLobes];
+        private static readonly int[] lobeCells = new int[StormCells.Capacity * EveStormMath.MaxLobes];
+        private static readonly EveStormMath.Lobe[] lobeBuffer = new EveStormMath.Lobe[EveStormMath.MaxLobes];
         private static int paintedCount;
         private static bool dirty;
         private static float nextScan, nextPaint;
@@ -134,7 +137,22 @@ namespace ReDefinition.Seasons
         // draws the falling snow only.
         internal static bool Supplying
         {
-            get { return SeasonsSettings.StormEveClouds && status == Status.Bound; }
+            get
+            {
+                if (!SeasonsSettings.StormEveClouds) return false;
+                return EveLayerStorm.Supplying || (OwnCloud && status == Status.Bound);
+            }
+        }
+
+        // Whether the cloud of the cells is this layer of the mod's config: the setting stormClouds = Own, or EVE's own layers cannot
+        // carry the cell (the lookup failed, or no layer has a snow or Stratus type).
+        internal static bool OwnCloud
+        {
+            get
+            {
+                return SeasonsSettings.StormEveClouds
+                       && (SeasonsSettings.StormClouds == SeasonsSettings.StormCloudModes.Own || EveLayerStorm.Fallback);
+            }
         }
 
         // Whether EVE's volumetric layers were found at all (a 2D-only EVE or none has no cloud for the cell).
@@ -540,9 +558,11 @@ namespace ReDefinition.Seasons
             bool live = cameraAltitudeM < VolumeLiveBelowM && !map;
             bool wide = map || cameraAltitudeM >= WideFromAltitudeM;
             int near = live ? PaintCoverage(body, cells, count) : 0;
-            int seen = PaintSwirl(body, cells, count);
+            bool own = OwnCloud;
+            int seen = own ? PaintSwirl(body, cells, count) : 0;
             // Show or hide the layer: nothing is raymarched while no cell is near, and the 2D layer shows where the camera is high.
-            SetShown(near > 0 || (wide && seen > 0), near > 0);
+            // Where the cloud is in EVE's own layers this layer carries the snow field only: its cloud is hidden, the field's layer shown.
+            SetShown(own && (near > 0 || (wide && seen > 0)), near > 0);
         }
 
         private static readonly EveCoverageMath.Blob[] swirlBlobs = new EveCoverageMath.Blob[StormCells.Capacity];
@@ -617,21 +637,32 @@ namespace ReDefinition.Seasons
         private static int PaintCoverage(CelestialBody body, StormCells.Cell[] cells, int count)
         {
             Matrix4x4 rotation = (Matrix4x4)rotationProperty.GetValue(boundVolume, null);
-            var blobs = new EveCoverageMath.Blob[Math.Min(count, painted.Length)];
+            EveCoverageMath.Blob[] blobs = lobeBlobs;
+            double ut = Planetarium.GetUniversalTime();
             int n = 0;
-            for (int i = 0; i < count && n < blobs.Length; i++)
+            // Each cell is painted as its lobes (EveStormMath): wind-stretched and ragged, growing with its storm.
+            for (int i = 0; i < count && n + EveStormMath.MaxLobes <= blobs.Length; i++)
             {
-                double peak = Mathx.SmoothStep(0.02, 0.45, cells[i].Strength);
-                if (peak <= 0.0 || cells[i].DistanceM - cells[i].RadiusM > RangeM) continue;
+                double strength = cells[i].Strength;
+                double peak = Mathx.SmoothStep(0.02, 0.45, strength);
+                if (peak <= 0.0 || cells[i].DistanceM - cells[i].RadiusM * EveStormMath.MaxReachFactor > RangeM) continue;
                 Vector3 world = (Vector3)body.GetWorldSurfacePosition(cells[i].Latitude, cells[i].Longitude, 0.0);
                 Vector3 direction = rotation.MultiplyPoint(world).normalized;
-                blobs[n++] = new EveCoverageMath.Blob
+                double radiusM = cells[i].RadiusM * 1.05 * EveStormMath.GrowthScale(strength);
+                int lobeCount = EveStormMath.Lobes(cells[i].Key, radiusM, cells[i].Heading, ut, lobeBuffer);
+                for (int l = 0; l < lobeCount; l++)
                 {
-                    X = direction.x, Y = direction.y, Z = direction.z,
-                    RadiusM = cells[i].RadiusM * 1.05,
-                    Peak = peak,
-                    Seed = cells[i].Key
-                };
+                    double x, y, z;
+                    EveStormMath.Offset(direction.x, direction.y, direction.z, lobeBuffer[l].EastM, lobeBuffer[l].NorthM, body.Radius, out x, out y, out z);
+                    lobeCells[n] = i;
+                    blobs[n++] = new EveCoverageMath.Blob
+                    {
+                        X = x, Y = y, Z = z,
+                        RadiusM = lobeBuffer[l].RadiusM,
+                        Peak = peak * lobeBuffer[l].Weight,
+                        Seed = cells[i].Key + (ulong)(l * 7919 + 1)
+                    };
+                }
             }
 
             if (n == 0 && paintedCount == 0 && !dirty) return 0;
@@ -658,7 +689,7 @@ namespace ReDefinition.Seasons
                                + " texels, " + stopwatch.Elapsed.TotalMilliseconds.ToString("0.0", CultureInfo.InvariantCulture) + " ms (average "
                                + (paintMsTotal / paints).ToString("0.0", CultureInfo.InvariantCulture) + " ms over " + paints.ToString(CultureInfo.InvariantCulture) + " paints)");
             }
-            if (n > 0 && !calibrated && calibrationTries < CalibrationTries) Calibrate(body, blobs, cells, count);
+            if (n > 0 && !calibrated && calibrationTries < CalibrationTries) Calibrate(body, blobs, n, cells, count);
             if (n > 0 && !frameChecked) CheckFrame(body, cells, count, rotation);
             return n;
         }
@@ -715,22 +746,16 @@ namespace ReDefinition.Seasons
         // holds cloud, a search over longitudes and latitudes finds where it reads the peak, and the map is shifted along u by the
         // difference from then on. The layer's matrix is current only after a frame with the layer on, so the first tries may find the
         // layer off; they are repeated on the next paints.
-        private static void Calibrate(CelestialBody body, EveCoverageMath.Blob[] blobs, StormCells.Cell[] cells, int count)
+        private static void Calibrate(CelestialBody body, EveCoverageMath.Blob[] blobs, int blobCount, StormCells.Cell[] cells, int count)
         {
             calibrationTries++;
             int best = -1;
             double bestPeak = 0;
-            for (int i = 0; i < blobs.Length; i++) if (blobs[i].Peak > bestPeak) { bestPeak = blobs[i].Peak; best = i; }
+            // The first lobe of every cell is its middle one, with the full weight: the strongest blob is the middle lobe of the strongest cell.
+            for (int i = 0; i < blobCount; i++) if (blobs[i].Peak > bestPeak) { bestPeak = blobs[i].Peak; best = i; }
             if (best < 0 || bestPeak < 0.3) return;
-            // The cell of the strongest blob: the cells were turned into blobs in order, skipping the ones without a peak.
-            int index = -1, seen = 0;
-            for (int i = 0; i < count; i++)
-            {
-                if (Mathx.SmoothStep(0.02, 0.45, cells[i].Strength) <= 0.0 || cells[i].DistanceM - cells[i].RadiusM > RangeM) continue;
-                if (seen == best) { index = i; break; }
-                seen++;
-            }
-            if (index < 0) return;
+            int index = lobeCells[best];
+            if (index < 0 || index >= count) return;
 
             float inner = (float)innerProperty.GetValue(boundVolume, null), outer = (float)outerProperty.GetValue(boundVolume, null);
             double altitude = inner - body.Radius + CalibrationHeightShare * (outer - inner);

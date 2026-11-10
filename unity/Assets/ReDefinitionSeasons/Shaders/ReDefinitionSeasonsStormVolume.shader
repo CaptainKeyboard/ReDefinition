@@ -21,6 +21,8 @@ Shader "ReDefinition/SeasonsStormVolume"
     {
         _Noise ("Noise", 3D) = "white" {}
         _CloudWeight ("Cloud weight", Float) = 1
+        _SnowBoost ("Snow extinction factor", Float) = 1
+        _VeilTint ("Veil diagnostics tint", Color) = (0, 0, 0, 0)
     }
     SubShader
     {
@@ -62,10 +64,13 @@ Shader "ReDefinition/SeasonsStormVolume"
             float4 _AmbientColour;
             // 1: the shader draws the snow cloud; 0: EVE's volumetric cloud is there, only the snow is drawn.
             float _CloudWeight;
+            // Diagnostics: a factor on the veil's extinction, and a tint (rgb, share in a) that replaces the veil's colour.
+            float _SnowBoost;
+            float4 _VeilTint;
 
             // The extinction per metre of the cloud blanket and of the snow veil, at full strength and full density.
             static const float CloudSigma = 0.0065;
-            static const float SnowSigma = 0.0014;
+            static const float SnowSigma = 0.0020;
             // The tiles, m: the cloud and the snow horizontally; the snow's streaks vertically.
             static const float CloudTile = 6000.0;
             static const float SnowTile = 1500.0;
@@ -155,9 +160,9 @@ Shader "ReDefinition/SeasonsStormVolume"
                     float3 ps = float3(sx / SnowTile, h / StreakTile + _Wind.w / StreakTile, sz / SnowTile);
                     float s = Noise(ps, lod) * 0.6 + Noise(ps * float3(3.0, 2.0, 3.0) + 0.21, lod) * 0.4;
                     // Mostly diffuse, with softer streaks in it.
-                    float streak = 0.1 + 0.9 * saturate((s - 0.36) * 3.6);
+                    float streak = 0.03 + 0.97 * saturate((s - 0.40) * 4.5);
                     float radial = (1.0 - smoothstep(0.30, 1.0, veilRho + (s - 0.5) * 0.45)) * (0.55 + 1.1 * (1.0 - veilRho));
-                    snow = column * streak * radial * SnowSigma * strength;
+                    snow = column * streak * radial * SnowSigma * _SnowBoost * strength;
                 }
             }
 
@@ -264,8 +269,9 @@ Shader "ReDefinition/SeasonsStormVolume"
                                      + _SunColour.rgb * phase * exp(-d * 2.6) * 0.42;
                         float3 cloudColour = shade * lerp(0.55, 1.0, lit);
                         // The snow reads light, bluish white; the sky's light on it, a little of the sun's.
-                        float3 snowColour = (_AmbientColour.rgb * 1.15 + _SunColour.rgb * 0.22 * phase) * float3(1.0, 1.0, 1.0)
-                                          * (0.62 + 0.22 * saturate(h / max(base_, 1.0)));
+                        float3 snowColour = (_AmbientColour.rgb * 1.5 + _SunColour.rgb * 0.3 * phase) * float3(1.0, 1.0, 1.0)
+                                          * (0.72 + 0.26 * saturate(h / max(base_, 1.0)));
+                        snowColour = lerp(snowColour, _VeilTint.rgb, _VeilTint.a);
 
                         colour += transmittance * a_ * ((cloud * cloudColour + snow * snowColour) / sigma);
                         transmittance *= 1.0 - a_;

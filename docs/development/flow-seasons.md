@@ -103,8 +103,35 @@ A storm is a cell that stands on the planet.
    particle shaders instead (`StormShaders.BlendedNames`). The setting `stormVolumeMode`
    chooses.
 6. The Seasons are made to run with EVE's volumetric clouds (the StockVolumetricClouds pack).
-   The snow cloud of the cells, its swirl in the orbit and map view and its falling snow are
-   layers of EVE's. `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines two
+   With `stormClouds = Existing` (the default) the cell is painted into the layers EVE already
+   has on Kerbin, `EveLayerStorm`, and steps 7 and 8 describe the mod's own layer that `Own`
+   uses. Which layers: the installed `clouds.cfg` has `Kerbin-base-layer` (1750 to 3450 m, types
+   Stratus, Cumulus, Congestus 0 to 3, a 2D layer, always on), `Kerbin-cumulonimbus-layer`
+   (convective, 1750 to 11450 m) and `Kerbin-Weather-1` and `Kerbin-weather-2` (-20 to 2150 m,
+   types Fog, Rain, Thunder, Polar-fog, Polar-snow, faded in and out by `timeSettings`, tinted
+   blue, with the rain particle field). A layer with a snow type is a snow layer: the cell's
+   cloud-type value there is that type, which is the last one (1.0: EVE reads the type of a
+   texel as the red value, index = value x (count - 1), and `SampleCoverage` interpolates the
+   two types around a fractional index). A layer with a Stratus type that starts below 3000 m
+   is the body layer: its type is Stratus (0.0). The cumulonimbus layer and the stock snow
+   particle layers are left alone. The layers' maps are BC4 textures (8192 x 4096 base layer,
+   2048 x 1024 weather layers); `EveLayerStorm` reads them with `GetPixels32`, makes R8 copies
+   and composites the cell into them with a screen blend (coverage) and a smoothstep from the
+   layer's own type to the target type (the type map). The cell is the lobes of
+   `EveStormMath.Lobes`: 5 to 7 overlapping discs, spread along the wind over 1.3 to 2 times the
+   radius, breathing with the time, growing from 40 % of their size with the storm's strength.
+   The direction of a cell in a layer's frame is the body-frame direction (`GetRelSurfaceNVector`)
+   times the matrix of `CloudsPQS.GetMainRotationAtUT`, which is current at any altitude; while
+   the volume is current its own matrix is used and the log gives the angle between the two
+   (`frame check`). The maps are written once a second (the base layer's upload is 2 x 33 MB),
+   restored from the originals in the rectangles the cells touched, and put back after 30 s
+   without a cell near, when the setting goes off, when the scene unloads or when a step fails.
+   In the 2D layer `_MainTex` of the material becomes a render texture (4096 x 2048 at most) that
+   holds the original picture with the swirl drawn over it (`EveStormMath.Swirl`, fans of
+   triangles with `Sprites/Default`, premultiplied, so that the alpha adds up as clouds do).
+   The veil of the mod's volume starts at the base of the body layer (`EveLayerStorm.BaseAslM`,
+   1750 m above sea level), and a cell over ground higher than the layer's top is logged once.
+   `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines two
    OBJECTs on Kerbin, which EVE reads from `GameDatabase`, and the particle field config for
    the snow. `StormEffect` collects the cells twice a second (within 150 km of the camera,
    from 150 km up and in the map view the cells of the whole planet,
@@ -171,7 +198,8 @@ release package takes `seasons.shaders` from there.
 | The fog, the veil, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
 | The cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
 | EVE's snow and rain | `EveSnowLink`, `EveRainLink`, `ReflectLink` |
-| The cells' cloud, swirl and snow as EVE layers | `EveCellLayer`, `EveCoverageMath`, `EveSwirlMath`, `SeasonsStormLayer.cfg` |
+| The cell inside EVE's existing layers | `EveLayerStorm`, `EveStormMath` |
+| The cells' own cloud layer, swirl and the snow layer | `EveCellLayer`, `EveCoverageMath`, `EveSwirlMath`, `SeasonsStormLayer.cfg` |
 | A new setting | `SeasonsSettings`, then [howto-add-a-setting.md](howto-add-a-setting.md) for the pattern |
 
 ## Tests
@@ -186,6 +214,7 @@ The tests are in `tests/ReDefinition.Tests`:
 | `StormTests.cs`, `StormCellsTests.cs` | The spawn rule and the cells |
 | `StormVolumeTests.cs`, `StormSkyAndSnowfallTests.cs`, `StormBlizzardTests.cs` | The volume's numbers, the noise, the sky, the flakes and the veil at the horizon |
 | `EveCoverageTests.cs` | EVE's equirectangular map and its round trip, the painting of cells, the date line, the setting and the layers' config |
+| `EveStormMathTests.cs` | The lobed cell (determinism, wind stretch, bounds), the composite and the restore, the date line, the cloud-type channel, the spiral swirl and its minimum size, the fan vertices, `stormClouds` |
 | `EveSwirlTests.cs` | The 2D swirl: the arms, the widths on the picture, the smallest size, the range, `stormOwnFlakes` |
 | `SeasonsStandaloneTests.cs` | The mod's own files and settings |
 

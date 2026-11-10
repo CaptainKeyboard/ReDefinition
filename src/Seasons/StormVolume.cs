@@ -76,7 +76,12 @@ namespace ReDefinition.Seasons
         private static readonly int IdCell = Shader.PropertyToID("_Cell"), IdUp = Shader.PropertyToID("_Up"), IdRight = Shader.PropertyToID("_Right"),
             IdHeights = Shader.PropertyToID("_Heights"), IdWind = Shader.PropertyToID("_Wind"), IdLook = Shader.PropertyToID("_Look"),
             IdSun = Shader.PropertyToID("_Sun"), IdSunColour = Shader.PropertyToID("_SunColour"), IdAmbient = Shader.PropertyToID("_AmbientColour"),
-            IdNoise = Shader.PropertyToID("_Noise"), IdCloudWeight = Shader.PropertyToID("_CloudWeight");
+            IdNoise = Shader.PropertyToID("_Noise"), IdCloudWeight = Shader.PropertyToID("_CloudWeight"),
+            IdSnowBoost = Shader.PropertyToID("_SnowBoost"), IdVeilTint = Shader.PropertyToID("_VeilTint");
+
+        // A diagnostics switch for screenshots: the veil is magenta and VeilProbeBoost times as dense, so that it can be told from the sky.
+        internal static bool VeilProbe;
+        private const float VeilProbeBoost = 12f;
 
         // A change of strength or brightness that is written to the materials again.
         private const float WriteStep = 0.004f;
@@ -276,7 +281,8 @@ namespace ReDefinition.Seasons
             }
             // Where EVE's layer supplies the cloud, the curtain starts at its base, which is a height above sea level.
             e.EveCloud = raymarch && EveCellLayer.Supplying;
-            e.BaseAglM = e.EveCloud ? EveCellLayer.BaseAboveGroundM(e.Ground) : cell.BaseAglM;
+            e.BaseAglM = !e.EveCloud ? cell.BaseAglM
+                : EveLayerStorm.Supplying ? EveLayerStorm.BaseAboveGroundM(e.Ground) : EveCellLayer.BaseAboveGroundM(e.Ground);
             // The planet curves away from the tangent plane of the centre by r^2 / 2R at the rim; the shells reach that far below.
             double sagitta = cell.RadiusM * cell.RadiusM / (2 * body.Radius);
             e.BelowM = (float)(sagitta + 150);
@@ -387,6 +393,8 @@ namespace ReDefinition.Seasons
                     m.SetVector(IdRight, new Vector4(right.x, right.y, right.z, 0f));
                     m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.CloudThicknessM(e.BaseAglM), StormVolumeMath.TopM(e.BaseAglM, !e.EveCloud), e.BelowM));
                     m.SetFloat(IdCloudWeight, e.EveCloud ? 0f : 1f);
+                    m.SetFloat(IdSnowBoost, VeilProbe ? VeilProbeBoost : 1f);
+                    m.SetColor(IdVeilTint, VeilProbe ? new Color(1f, 0f, 1f, 1f) : new Color(0f, 0f, 0f, 0f));
                     m.SetVector(IdWind, new Vector4(offsetX, offsetZ, shearX, fall));
                     m.SetVector(IdLook, new Vector4(e.Fade, steps, shearZ, (float)(RangeM + e.RadiusM * 2.0)));
                     m.SetVector(IdSun, new Vector4(toSun.x, toSun.y, toSun.z, 0f));

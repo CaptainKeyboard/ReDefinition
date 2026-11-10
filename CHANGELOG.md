@@ -4,6 +4,17 @@
 
 ### Added
 
+- **The storm cell is part of EVE's own weather.** New setting `stormClouds` (`Existing`, the default, or `Own`). With
+  `Existing` the mod reads the installed StockVolumetricClouds layers of Kerbin, takes the base layer (Stratus, 1750 to
+  3450 m) as the cloud and the weather layers (Polar-snow type) as the snow layers, and paints each cell into copies of
+  their coverage and cloud-type maps (a screen blend and a type turned to Stratus or Polar-snow), so the cell has EVE's
+  noise, lighting and colours. A cell is 5 to 7 overlapping, wind-stretched lobes that grow with the storm. In orbit the
+  swirl is drawn into a copy of the base layer's 2D picture. The originals are put back when no cell is near, the setting
+  goes off or the scene unloads; a cell over ground higher than the layer is logged. `Own` keeps the layer of the mod's
+  config. In the game: the layers are found, EVE's `SampleCoverage` reads the painted cell (0.943 in the base layer), a cell
+  8 km away is a dense, convoluted EVE cloud, and a marker shows the swirl at the right place at 1000 km. A cell 25 km away
+  is not told from the overcast sky; the grey swirl at 1000 km was not visible on white cloud before the lanes were darkened
+  (that change is untested). The veil is drawn (a probe showed it) but blends with the sky; its tuning is untested.
 - **Storm cells in EVE's 2D cloud layer, and EVE's snow field in a cell.** The Seasons now need EVE's volumetric
   clouds for the look of the storms (the ground snow and the orbit tint do not). The config
   `SeasonsStormLayer.cfg` has a `layer2D` in the cloud's OBJECT, and the mod paints every cell of the planet into

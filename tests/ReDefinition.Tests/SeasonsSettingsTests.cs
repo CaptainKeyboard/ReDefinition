@@ -120,6 +120,8 @@ namespace ReDefinition.Tests
         [DataRow("groundRefreshMode", "nonsense", "Live")]
         [DataRow("groundRefreshMode", "Off", "Off")]
         [DataRow("stormVolumeMode", "nonsense", "Auto")]
+        [DataRow("stormClouds", "nonsense", "Existing")]
+        [DataRow("stormClouds", "Own", "Own")]
         [DataRow("forceStormCell", "nonsense", "off")]
         [DataRow("forceStormCell", "99,200,90", "90,-160,25")]
         public void EveryValueIsBroughtIntoItsRangeOrIgnored(string key, string input, string expected)
