@@ -232,25 +232,25 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheSettingIsOnByDefaultAndComesBackFromTheFile()
+        public void TheCloudModeIsExistingByDefaultAndComesBackFromTheFile()
         {
             string folder = Path.Combine(Path.GetTempPath(), "eve-clouds-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
             var saved = SeasonsSettings.Snapshot();
             try
             {
-                Assert.IsTrue(SeasonsSettings.StormEveClouds, "on by default");
-                SeasonsSettings.StormEveClouds = false;
+                Assert.AreEqual(SeasonsSettings.StormCloudModes.Existing, SeasonsSettings.StormClouds, "existing layers by default");
+                SeasonsSettings.StormClouds = SeasonsSettings.StormCloudModes.Own;
                 SeasonsSettings.Write(file);
-                SeasonsSettings.StormEveClouds = true;
+                SeasonsSettings.StormClouds = SeasonsSettings.StormCloudModes.Existing;
                 SeasonsSettings.Read(file);
-                Assert.IsFalse(SeasonsSettings.StormEveClouds);
-                File.WriteAllText(file, "stormEveClouds = maybe\n");
+                Assert.AreEqual(SeasonsSettings.StormCloudModes.Own, SeasonsSettings.StormClouds);
+                File.WriteAllText(file, "stormClouds = maybe\n");
                 SeasonsSettings.Read(file);
-                Assert.IsFalse(SeasonsSettings.StormEveClouds, "a value that is not a switch is ignored");
-                File.WriteAllText(file, "stormEveClouds = True\n");
+                Assert.AreEqual(SeasonsSettings.StormCloudModes.Own, SeasonsSettings.StormClouds, "a name that is none is ignored");
+                File.WriteAllText(file, "stormClouds = Existing\n");
                 SeasonsSettings.Read(file);
-                Assert.IsTrue(SeasonsSettings.StormEveClouds);
+                Assert.AreEqual(SeasonsSettings.StormCloudModes.Existing, SeasonsSettings.StormClouds);
             }
             finally
             {

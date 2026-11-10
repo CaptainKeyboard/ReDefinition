@@ -119,7 +119,6 @@ namespace ReDefinition.Tests
         [DataRow("storms", "0", "True")]
         [DataRow("groundRefreshMode", "nonsense", "Live")]
         [DataRow("groundRefreshMode", "Off", "Off")]
-        [DataRow("stormVolumeMode", "nonsense", "Auto")]
         [DataRow("stormClouds", "nonsense", "Existing")]
         [DataRow("stormClouds", "Own", "Own")]
         [DataRow("forceStormCell", "nonsense", "off")]

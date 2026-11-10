@@ -155,14 +155,13 @@ namespace ReDefinition.Seasons
             get { return status; }
         }
 
-        // Whether the storm cloud is in EVE's own layers now: the setting asks for it, the lookup was complete and a layer was found.
+        // Whether the storm cloud is in EVE's own layers now: the setting stormClouds is Existing, the lookup was complete and a layer was found.
         // EveCellLayer then does not show its layer of the mod's config, and the volume draws the veil only.
         internal static bool Supplying
         {
             get
             {
-                return SeasonsSettings.StormEveClouds && SeasonsSettings.StormClouds == SeasonsSettings.StormCloudModes.Existing
-                       && status == Status.Ready && BodyLayerFound;
+                return SeasonsSettings.StormClouds == SeasonsSettings.StormCloudModes.Existing && status == Status.Ready && BodyLayerFound;
             }
         }
 
@@ -299,7 +298,7 @@ namespace ReDefinition.Seasons
         // picture from WideFromAltitudeM and in the map view.
         internal static void Update(CelestialBody body, StormCells.Cell[] cells, int count, double cameraAltitudeM)
         {
-            if (body == null || !SeasonsSettings.StormEveClouds || SeasonsSettings.StormClouds != SeasonsSettings.StormCloudModes.Existing)
+            if (body == null || SeasonsSettings.StormClouds != SeasonsSettings.StormCloudModes.Existing)
             {
                 Release();
                 return;
@@ -310,7 +309,7 @@ namespace ReDefinition.Seasons
                 if (!loggedStatus)
                 {
                     loggedStatus = true;
-                    SeasonsLog.Say("storm clouds in EVE's layers: " + summary + "; the cells use the mod's own EVE layer (stormClouds = Own)");
+                    SeasonsLog.Say("storm clouds in EVE's layers: " + summary + "; the mod's own EVE layer carries the cells where it can (cells need EVE with Volumetric Clouds)");
                 }
                 return;
             }

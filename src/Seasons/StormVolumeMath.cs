@@ -9,24 +9,12 @@ namespace ReDefinition.Seasons
         // The noise texture's side in voxels, and the lattice period and octaves of its noise (StormNoise.Volume).
         internal const int NoiseSize = 64, NoisePeriod = 4, NoiseOctaves = 4, NoiseSeed = 5;
 
-        // The horizontal tile of the cloud noise and of the snow noise, and the vertical tile of the snow's streaks, in m (the shader's).
-        internal const double CloudTileM = 6000, SnowTileM = 1500, StreakTileM = 14000;
+        // The period the horizontal offsets wrap at, and the vertical tile of the snow's streaks, in m (the shader's). The period is a
+        // whole number of the shader's horizontal tiles (1500 and 500 m).
+        internal const double CloudTileM = 6000, StreakTileM = 14000;
 
-        // The top of the snow cloud above the ground, in m, at the lowest and the highest base (StormCells.BaseAglMinM and MaxM): a
-        // nimbostratus is 1300 m thick, kept between these tops. The room the volume has above the cloud, in m.
-        internal const double TopMinM = 1500, TopMaxM = 2500, NominalThicknessM = 1300;
-        internal const float HeadroomM = 150f;
-
-        // How far above the cloud base the volume reaches where only the snow is drawn (EVE supplies the cloud), in m.
+        // How far above the cloud base the volume reaches, in m.
         internal const float SnowOnlyHeadroomM = 80f;
-
-        // The thickness of the snow cloud above its base, in m.
-        internal static float CloudThicknessM(double baseAglM)
-        {
-            double top = baseAglM + NominalThicknessM;
-            top = top < TopMinM ? TopMinM : top > TopMaxM ? TopMaxM : top;
-            return (float)Math.Max(600.0, top - baseAglM);
-        }
 
         // How far the pattern moves a second sideways and down, in m.
         internal const double WindSpeed = 9, FallSpeed = 30;
@@ -37,6 +25,23 @@ namespace ReDefinition.Seasons
         // The segments of the bounding cylinder, and how much wider than the cell it is made so that the polygon holds the circle.
         internal const int Segments = 48;
         internal const float Widening = 1.02f;
+
+        // How far the terrain is drawn in a storm, m: 5 times the visibility, where the fog leaves nothing of the contrast, at least 300 m.
+        internal const double CullVisibilityFactor = 5, CullMinM = 300;
+
+        internal static double CullDistanceM(double visibilityM)
+        {
+            return Math.Max(CullVisibilityFactor * visibilityM, CullMinM);
+        }
+
+        // The longest a ray is marched while the camera is inside a storm, in m: 4 times the visibility, at least 1.5 times the cloud
+        // base (the veil reaches that high), and at most the cell's range.
+        internal const double InsideVisibilityFactor = 4, InsideBaseFactor = 1.5;
+
+        internal static double InsideRayM(double visibilityM, double baseAglM, double rangeM)
+        {
+            return Math.Min(rangeM, Math.Max(InsideVisibilityFactor * visibilityM, InsideBaseFactor * baseAglM));
+        }
 
         // The steps of a ray, within the range the setting allows.
         internal static int Steps(int wanted)
@@ -64,10 +69,10 @@ namespace ReDefinition.Seasons
             return (float)(radiusM * radiusM / (2.0 * Math.Max(1.0, planetRadius)) + 150.0);
         }
 
-        // How far above the cell's centre the volume reaches, m: over the cloud, or just over its base where only the snow is drawn.
-        internal static float TopM(double baseAglM, bool withCloud = true)
+        // How far above the cell's centre the volume reaches, m: just over the cloud base.
+        internal static float TopM(double baseAglM)
         {
-            return withCloud ? (float)baseAglM + CloudThicknessM(baseAglM) + HeadroomM : (float)baseAglM + SnowOnlyHeadroomM;
+            return (float)baseAglM + SnowOnlyHeadroomM;
         }
 
         // The wind of a cell at a time. The offsets are wrapped by the noise tiles so that they stay small and the pattern does not jump;

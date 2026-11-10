@@ -21,15 +21,6 @@ namespace ReDefinition.Seasons
             Off
         }
 
-        // How a storm cell is drawn: with the raymarched volume where the shader bundle loads and compiles (Auto), always with it
-        // (Raymarch; the cells are not drawn where it is missing), or with plain meshes only (Simple).
-        internal enum StormVolumeModes
-        {
-            Auto,
-            Raymarch,
-            Simple
-        }
-
         // Where the cloud of a storm cell lives when it is an EVE cloud.
         // Existing: the cell is painted into the maps of the layers EVE has (EveLayerStorm).
         // Own: it is a layer of its own that the mod's config adds (EveCellLayer).
@@ -59,11 +50,10 @@ namespace ReDefinition.Seasons
             internal const string StormEveRainToSnow = "stormEveRainToSnow";
             internal const string StormCellRadiusKm = "stormCellRadiusKm";
             internal const string StormVolume = "stormVolume";
-            internal const string StormVolumeMode = "stormVolumeMode";
             internal const string StormVolumeSteps = "stormVolumeSteps";
-            internal const string StormEveClouds = "stormEveClouds";
             internal const string StormClouds = "stormClouds";
             internal const string StormOwnFlakes = "stormOwnFlakes";
+            internal const string StormCullDistance = "stormCullDistance";
             internal const string StormMaxCells = "stormMaxCells";
             internal const string OrbitSnow = "orbitSnow";
             internal const string OrbitSnowWidth = "orbitSnowWidth";
@@ -139,23 +129,22 @@ namespace ReDefinition.Seasons
         // always between the limits.
         internal static float StormCellRadiusKm;
 
-        // Whether a storm cell is drawn as a snow curtain under a dark cloud base that can be seen from afar (StormVolume), and how.
+        // Whether a storm cell is drawn as a snow curtain under its cloud base that can be seen from afar (StormVolume).
         internal static bool StormVolume;
-        internal static StormVolumeModes StormVolumeMode;
 
         // The steps a ray takes through a raymarched cell, 16 to 48: more is smoother and costs more.
         internal static int StormVolumeSteps;
 
-        // Whether the snow cloud of a cell is an EVE volumetric cloud (EveCellLayer) where EVE has volumetric layers; our own volume then
-        // draws the falling snow only. Off, or without EVE's volumetric clouds, the volume draws the cloud as well.
-        internal static bool StormEveClouds;
-
-        // With stormEveClouds: the cloud is painted into the layers EVE has (Existing) or is a layer of the mod's own (Own).
+        // The snow cloud of a cell is always an EVE volumetric cloud; without EVE's volumetric clouds there are no cells. The cloud is
+        // painted into the layers EVE has (Existing) or is a layer of the mod's own (Own).
         internal static StormCloudModes StormClouds;
 
         // Whether the storm draws its own falling snow (StormFlakes) also where EVE's snow particle field is drawing (the cell's layer or
         // the raised stock fields). Off, the own flakes are the fallback for when EVE has no snow field.
         internal static bool StormOwnFlakes;
+
+        // Whether the terrain layer beyond what the fog shows is not drawn while a storm runs (StormCull).
+        internal static bool StormCullDistance;
 
         // The most cells drawn at once: the nearest ones.
         internal static int StormMaxCells;
@@ -207,11 +196,10 @@ namespace ReDefinition.Seasons
             StormEveRainToSnow = true;
             StormCellRadiusKm = StormCellRadiusDefaultKm;
             StormVolume = true;
-            StormVolumeMode = StormVolumeModes.Auto;
             StormVolumeSteps = StormVolumeStepsDefault;
-            StormEveClouds = true;
             StormClouds = StormCloudModes.Existing;
             StormOwnFlakes = false;
+            StormCullDistance = false;
             StormMaxCells = StormMaxCellsDefault;
             OrbitSnow = true;
             OrbitSnowWidth = OrbitSnowWidthDefault;
@@ -302,13 +290,11 @@ namespace ReDefinition.Seasons
 
             if (TryNumber(root, Keys.StormCellRadiusKm, out number)) StormCellRadiusKm = Limit(number, StormCellRadiusMinKm, StormCellRadiusMaxKm);
             if (ModSettingsFile.TryBool(root, Keys.StormVolume, out flag)) StormVolume = flag;
-            StormVolumeModes volumeMode;
-            if (ModSettingsFile.TryString(root, Keys.StormVolumeMode, out text) && EnumNames<StormVolumeModes>.TryParse(text, out volumeMode)) StormVolumeMode = volumeMode;
             if (ModSettingsFile.TryInt(root, Keys.StormVolumeSteps, out integer)) StormVolumeSteps = Limit(integer, StormVolumeStepsMin, StormVolumeStepsMax);
-            if (ModSettingsFile.TryBool(root, Keys.StormEveClouds, out flag)) StormEveClouds = flag;
             StormCloudModes cloudMode;
             if (ModSettingsFile.TryString(root, Keys.StormClouds, out text) && EnumNames<StormCloudModes>.TryParse(text, out cloudMode)) StormClouds = cloudMode;
             if (ModSettingsFile.TryBool(root, Keys.StormOwnFlakes, out flag)) StormOwnFlakes = flag;
+            if (ModSettingsFile.TryBool(root, Keys.StormCullDistance, out flag)) StormCullDistance = flag;
             if (ModSettingsFile.TryInt(root, Keys.StormMaxCells, out integer)) StormMaxCells = Limit(integer, StormMaxCellsMin, StormMaxCellsMax);
 
             if (ModSettingsFile.TryBool(root, Keys.OrbitSnow, out flag)) OrbitSnow = flag;
@@ -340,11 +326,10 @@ namespace ReDefinition.Seasons
             root.AddValue(Keys.StormEveRainToSnow, StormEveRainToSnow.ToString());
             root.AddValue(Keys.StormCellRadiusKm, StormCellRadiusKm.ToString("R", culture));
             root.AddValue(Keys.StormVolume, StormVolume.ToString());
-            root.AddValue(Keys.StormVolumeMode, EnumNames<StormVolumeModes>.Name(StormVolumeMode));
             root.AddValue(Keys.StormVolumeSteps, StormVolumeSteps.ToString(culture));
-            root.AddValue(Keys.StormEveClouds, StormEveClouds.ToString());
             root.AddValue(Keys.StormClouds, EnumNames<StormCloudModes>.Name(StormClouds));
             root.AddValue(Keys.StormOwnFlakes, StormOwnFlakes.ToString());
+            root.AddValue(Keys.StormCullDistance, StormCullDistance.ToString());
             root.AddValue(Keys.StormMaxCells,StormMaxCells.ToString(culture));
             root.AddValue(Keys.OrbitSnow, OrbitSnow.ToString());
             root.AddValue(Keys.OrbitSnowWidth, OrbitSnowWidth.ToString(culture));

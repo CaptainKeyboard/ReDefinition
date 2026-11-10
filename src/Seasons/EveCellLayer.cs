@@ -133,13 +133,12 @@ namespace ReDefinition.Seasons
             get { return status; }
         }
 
-        // Whether the layer carries the cloud of the cells now: bound, and the calibration did not find a mismatch. Our own volume then
-        // draws the falling snow only.
+        // Whether the layer carries the cloud of the cells now: bound, and the calibration did not find a mismatch. Our own volume
+        // draws the falling snow only, whoever carries the cloud.
         internal static bool Supplying
         {
             get
             {
-                if (!SeasonsSettings.StormEveClouds) return false;
                 return EveLayerStorm.Supplying || (OwnCloud && status == Status.Bound);
             }
         }
@@ -150,8 +149,7 @@ namespace ReDefinition.Seasons
         {
             get
             {
-                return SeasonsSettings.StormEveClouds
-                       && (SeasonsSettings.StormClouds == SeasonsSettings.StormCloudModes.Own || EveLayerStorm.Fallback);
+                return SeasonsSettings.StormClouds == SeasonsSettings.StormCloudModes.Own || EveLayerStorm.Fallback;
             }
         }
 
@@ -179,7 +177,7 @@ namespace ReDefinition.Seasons
         // Whether the layer carries a snow particle field of EVE (the config's particleField), which falls where the coverage is.
         internal static bool OwnSnowField
         {
-            get { return ownField && SeasonsSettings.StormEveClouds && status == Status.Bound; }
+            get { return ownField && status == Status.Bound; }
         }
 
         // The distance from the camera within which cells are collected: RangeM near the ground, the whole planet (the farthest a
@@ -282,28 +280,6 @@ namespace ReDefinition.Seasons
                 Release();
                 return;
             }
-            if (!SeasonsSettings.StormEveClouds)
-            {
-                // The layer of the cfg exists whatever the setting says. It is bound and hidden, so that it does not raymarch an empty map.
-                Look();
-                if (status == Status.NoEve || status == Status.NoVolumetric || status == Status.NotControllable) return;
-                float asked = Time.realtimeSinceStartup;
-                try
-                {
-                    if (asked >= nextScan)
-                    {
-                        nextScan = asked + ScanInterval;
-                        Scan(body);
-                        released = false;
-                    }
-                    Release();
-                }
-                catch (Exception)
-                {
-                    // The layer is gone with its scene; the next scan binds it again.
-                }
-                return;
-            }
             released = false;
             Look();
             if (status == Status.NoEve || status == Status.NoVolumetric || status == Status.NotControllable)
@@ -311,7 +287,7 @@ namespace ReDefinition.Seasons
                 if (!loggedStatus)
                 {
                     loggedStatus = true;
-                    SeasonsLog.Say("storm layer: " + summary + "; the cells draw their own cloud");
+                    SeasonsLog.Say("storm layer: " + summary + "; the cells need EVE with Volumetric Clouds");
                 }
                 return;
             }
@@ -371,7 +347,7 @@ namespace ReDefinition.Seasons
                 {
                     loggedMissing = true;
                     SeasonsLog.Say("storm layer: '" + LayerName + "' is not among EVE's layers on " + body.name
-                                   + (found != null ? " (it has no volumetric layer)" : " (config missing or not applied yet)") + "; the cells draw their own cloud");
+                                   + (found != null ? " (it has no volumetric layer)" : " (config missing or not applied yet)") + "; the cells have no cloud from it");
                 }
                 return;
             }
@@ -435,7 +411,7 @@ namespace ReDefinition.Seasons
             if (wrapper == null || main == null)
             {
                 status = Status.NoLayer;
-                SeasonsLog.Say("storm layer: the layer of '" + LayerName + "' has no coverage map or no material; the cells draw their own cloud");
+                SeasonsLog.Say("storm layer: the layer of '" + LayerName + "' has no coverage map or no material; the cells have no cloud from it");
                 return;
             }
             if (data == null) data = new byte[EveCoverageMath.Width * EveCoverageMath.Height];
@@ -807,7 +783,7 @@ namespace ReDefinition.Seasons
             {
                 status = Status.Mismatch;
                 SeasonsLog.Say("storm layer calibration FAILED: centre coverage " + Format(centre) + " (painted " + Format(mapValue) + "), opposite side " + Format(opposite)
-                               + ", best reading offset (dlat " + Format(dLat) + ", dlon " + Format(dLon) + "); the cells draw their own cloud");
+                               + ", best reading offset (dlat " + Format(dLat) + ", dlon " + Format(dLon) + "); the cells have no cloud from it");
             }
         }
 

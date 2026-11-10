@@ -51,6 +51,7 @@ namespace ReDefinition.Seasons
         private StormVeil veil;
         private StormFlakes flakes;
         private readonly StormAmbient ambient = new StormAmbient();
+        private readonly StormCull cull = new StormCull();
         private float ambientFactor = 1f;
         private float eveRaise;
         private bool hooked;
@@ -63,6 +64,7 @@ namespace ReDefinition.Seasons
         private int preCullFrame = -1;
         private bool rainLogged;
         private bool notControllableLogged;
+        private bool noVolumetricLogged;
 
         // The storm cells around the camera of this frame, their number, the planet and the camera's place; the intensity at the camera.
         private readonly StormCells.Cell[] cells = new StormCells.Cell[StormCells.Capacity];
@@ -102,6 +104,7 @@ namespace ReDefinition.Seasons
             try
             {
                 if (active) ambient.Apply(ambientFactor);
+                if (camera == cellCamera) cull.Apply(camera, active ? StormLook.VisibilityMetres(current, SeasonsSettings.StormVisibilityM) : 0);
                 if (preCullFrame == Time.frameCount) return;
                 preCullFrame = Time.frameCount;
                 // The snow level of the frame: the storm's, and where EVE's rain is replaced the rain's coverage (what EVE would have shown).
@@ -244,6 +247,8 @@ namespace ReDefinition.Seasons
                 hooked = false;
                 Camera.onPreCull -= OnPreCull;
             }
+            Quietly(cull.Restore);
+            StormVolume.CameraVisibilityM = 0;
             if (veil != null) Quietly(veil.Dispose);
             if (flakes != null) Quietly(flakes.Dispose);
             if (volume != null) Quietly(volume.Dispose);
@@ -279,6 +284,16 @@ namespace ReDefinition.Seasons
             if (!SeasonsSettings.Enabled || vessel == null || vessel.mainBody == null || cam == null) return;
             CelestialBody body = vessel.mainBody;
             if (!SeasonClock.Applies(body.name) || !body.atmosphere || body.orbit == null) return;
+            // The cell's cloud is EVE's: without EVE's volumetric clouds there are no cells and no storm.
+            if (!EveCellLayer.HasVolumetric)
+            {
+                if (!noVolumetricLogged)
+                {
+                    noVolumetricLogged = true;
+                    SeasonsLog.Say("storms: needs EVE with Volumetric Clouds (" + EveCellLayer.Summary + "); no storm cells, ground and orbit snow only");
+                }
+                return;
+            }
             Vector3d position = cam.transform.position;
             cameraLatitude = body.GetLatitude(position);
             cameraLongitude = body.GetLongitude(position);
@@ -304,9 +319,8 @@ namespace ReDefinition.Seasons
             if (Time.unscaledTime >= nextEveCollect)
             {
                 nextEveCollect = Time.unscaledTime + 0.5f;
-                eveCellCount = SeasonsSettings.StormEveClouds
-                    ? StormCells.Collect(eveCells, Planetarium.GetUniversalTime(), cameraLatitude, cameraLongitude,
-                        EveCellLayer.RangeFor(cameraAltitude, body.Radius, MapView.MapIsEnabled), rules) : 0;
+                eveCellCount = StormCells.Collect(eveCells, Planetarium.GetUniversalTime(), cameraLatitude, cameraLongitude,
+                    EveCellLayer.RangeFor(cameraAltitude, body.Radius, MapView.MapIsEnabled), rules);
             }
             cellBody = body;
             cellCamera = cam;
@@ -358,6 +372,7 @@ namespace ReDefinition.Seasons
             if (!active) Begin(cam);
 
             double visibility = StormLook.VisibilityMetres(current, SeasonsSettings.StormVisibilityM);
+            StormVolume.CameraVisibilityM = visibility;
             Vector3 up = vessel.upAxis;
             double sinSun = 0;
             if (FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null)
@@ -451,6 +466,8 @@ namespace ReDefinition.Seasons
             }
             settledLogged = -1f;
             eveRaise = 0f;
+            cull.Restore();
+            StormVolume.CameraVisibilityM = 0;
             ambient.Restore();
             if (!rainToSnow) EveSnowLink.Release();
             if (veil != null) veil.Hide();

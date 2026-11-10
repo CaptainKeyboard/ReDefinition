@@ -100,10 +100,9 @@ A storm is a cell that stands on the planet.
    `ReDefinition/SeasonsSwirlPaint` (`StormShaders.LoadSwirlShader`) draws the swirl in
    step 6.
    It marches the view ray through a bounding cylinder of the cell, with the 3D noise from
-   `StormNoise`. The cylinder and the numbers are in `StormVolumeMath`. If the bundle is
-   missing or does not load, `StormVolume` draws shells, a dome and puffs from the game's
-   particle shaders instead (`StormShaders.BlendedNames`). The setting `stormVolumeMode`
-   chooses.
+   `StormNoise`. The cylinder and the numbers are in `StormVolumeMath`. The shader draws the
+   snow veil only: the cloud is EVE's (step 6). If the bundle is missing or does not load, no
+   veil is drawn and `KSP.log` says why.
 6. The Seasons are made to run with EVE's volumetric clouds (the StockVolumetricClouds pack).
    With `stormClouds = Existing` (the default) the cell is painted into the layers EVE already
    has on Kerbin, `EveLayerStorm`, and steps 7 and 8 describe the mod's own layer that `Own`
@@ -171,8 +170,7 @@ A storm is a cell that stands on the planet.
    cell is near. After the first paint the mod compares EVE's own `SampleCoverage` at the
    centre of the strongest cell with the painted value and logs
    `storm layer calibration: ...`; a longitude shift it finds is applied to the painting.
-   While the layer is bound (`EveCellLayer.Supplying`) `StormVolume` sets `_CloudWeight` to 0,
-   so that the shader draws the snow veil only, and starts the veil at the layer's cloud base.
+   `StormVolume` starts the veil at the layer's cloud base.
 8. The same OBJECT holds a `layer2D` node. EVE's 2D layer is the scaled-space form of a cloud
    layer: it fades in from 200 km up (`scaledFadeStartAltitude`) and shows fully in the map view,
    on a sphere with the radius of the body plus the OBJECT's `altitude` (2700 m), using shader
@@ -202,9 +200,11 @@ A storm is a cell that stands on the planet.
    `EveRainLink` takes EVE's rain away where the ground is snow or ice, and `EveSnowLink` gets
    the rain's coverage instead. Both reflect into EVE's private fields and put the first
    values back when the storm or the region ends.
-11. Without EVE's volumetric layers, without the layers or with the setting `stormEveClouds`
-   off, `_CloudWeight` is 1, the shader draws its own snow cloud, the orbit view shows no
-   cell and the own flakes fall. That path gets no further work.
+11. Without EVE's volumetric layers (`EveCellLayer.HasVolumetric` is false: EVE missing, no
+   raymarched layers, or a lookup that is not complete) `StormEffect.CollectCells` collects
+   no cell and logs once `storms: needs EVE with Volumetric Clouds`. There is no cloud, no
+   veil, no storm and no forced storm then; the snow on the ground and in the orbit view are
+   not touched.
 
 The bundle is built by `tools/build_seasons_bundle.ps1`, which runs
 `unity/Assets/ReDefinitionSeasons/Editor/SeasonsBundleBuilder.cs` in Unity 2019.4.18f1. The
@@ -222,7 +222,8 @@ release package takes `seasons.shaders` from there.
 | How often a storm starts, how long it lasts | `StormModel`, `StormCells` |
 | How a storm looks in numbers | `StormLook` |
 | The fog, the veil, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
-| The cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
+| The veil of the cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
+| The terrain left out in a storm | `StormCull` (setting `stormCullDistance`) |
 | EVE's snow and rain | `EveSnowLink`, `EveRainLink`, `ReflectLink` |
 | The cell inside EVE's existing layers | `EveLayerStorm`, `EveStormMath` |
 | The cells' own cloud layer, swirl and the snow layer | `EveCellLayer`, `EveCoverageMath`, `EveSwirlMath`, `SeasonsStormLayer.cfg` |

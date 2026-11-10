@@ -382,33 +382,5 @@ namespace ReDefinition.Tests
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }
-
-        [TestMethod]
-        public void TheCloudNoiseTilesAndStaysInRange()
-        {
-            for (int seed = 0; seed < 3; seed++)
-            {
-                for (float y = 0.1f; y < 4; y += 0.37f)
-                {
-                    for (float x = 0.2f; x < 4; x += 0.41f)
-                    {
-                        float v = StormNoise.Fbm(x, y, 4, 4, seed);
-                        Assert.IsTrue(v >= 0f && v <= 1f);
-                        Assert.AreEqual(v, StormNoise.Fbm(x + 4, y, 4, 4, seed), 1e-4f, "tiles in x");
-                        Assert.AreEqual(v, StormNoise.Fbm(x, y + 4, 4, 4, seed), 1e-4f, "tiles in y");
-                        Assert.AreEqual(v, StormNoise.Fbm(x, y, 4, 4, seed));
-                    }
-                }
-            }
-            byte[] alpha = StormNoise.CloudAlpha(64, 4, 4, 7);
-            Assert.AreEqual(64 * 64, alpha.Length);
-            int min = 255, max = 0;
-            foreach (byte b in alpha) { min = Math.Min(min, b); max = Math.Max(max, b); }
-            Assert.IsTrue(max - min > 100, "the texture has gaps and thick parts: " + min + ".." + max);
-            byte[] puff = StormNoise.PuffAlpha(32, 11);
-            Assert.AreEqual(0, puff[0], "the corner of a puff is clear");
-            Assert.IsTrue(puff[16 * 32 + 16] > 60, "the middle is solid: " + puff[16 * 32 + 16]);
-            CollectionAssert.AreEqual(alpha, StormNoise.CloudAlpha(64, 4, 4, 7));
-        }
     }
 }

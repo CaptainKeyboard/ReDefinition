@@ -4,6 +4,14 @@
 
 ### Changed
 
+- **The snow veil of a storm cell is a translucent curtain, and the Seasons need EVE's volumetric clouds for storms.**
+  The veil is soft vertical streaks slanted by the wind, thinner towards the ground and the rim, grey-white (colour capped
+  at 0.85 so that it does not glow in HDR), with an opacity of at most 0.62, so that the horizon and the trees behind it
+  stay partly visible; before, it was a blown-out white wall. The mod's own cloud, the plain-mesh mode and the settings
+  `stormVolumeMode` and `stormEveClouds` are removed: without EVE's volumetric clouds there are no storm cells, `KSP.log`
+  says `storms: needs EVE with Volumetric Clouds` once, and the ground and orbit snow go on. Inside a cell the veil's rays
+  stop where the fog hides everything. New setting `stormCullDistance` (off by default): while a storm runs, the terrain
+  layer is not drawn beyond 5 times the visibility (at least 300 m); it saved 1.4 ms of 21.9 in the harness.
 - **Storm cell in EVE's layers: a denser cloud, a visible swirl, a fraction of the memory.** The base layer's cell is
   now EVE's Cumulus type (eight times the density of the Stratus deck, taller), the plateau of the cell is nearly full
   coverage and its rim narrow, so that a cell 25 km away is a dark, flat-topped mass at the horizon and not part of the

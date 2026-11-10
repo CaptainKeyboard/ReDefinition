@@ -93,15 +93,12 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1f / 1200000f, StormVolumeMath.Curvature(600000), 1e-12f);
             float below = StormVolumeMath.BelowM(12000, 600000);
             Assert.AreEqual(120f + 150f, below, 0.01f, "the ground falls 120 m at the rim of a 12 km cell, plus a margin");
-            Assert.AreEqual(300f + 1300f + StormVolumeMath.HeadroomM, StormVolumeMath.TopM(300), 0.01f, "a low base: 1300 m of cloud, top 1600 m");
-            Assert.AreEqual(2500f + StormVolumeMath.HeadroomM, StormVolumeMath.TopM(1500), 0.01f, "the top is kept at 2500 m");
-            Assert.AreEqual(600f, StormVolumeMath.CloudThicknessM(2300), 0.01f, "never thinner than 600 m");
-            for (double b = StormCells.BaseAglMinM; b <= StormCells.BaseAglMaxM; b += 50)
-            {
-                float top = (float)b + StormVolumeMath.CloudThicknessM(b);
-                Assert.IsTrue(top >= StormVolumeMath.TopMinM - 0.01 && top <= StormVolumeMath.TopMaxM + 0.01, "top " + top + " for base " + b);
-            }
-            Assert.AreEqual(700f + StormVolumeMath.SnowOnlyHeadroomM, StormVolumeMath.TopM(700, false), 0.01f, "where EVE supplies the cloud the volume reaches just over the base");
+            Assert.AreEqual(700f + StormVolumeMath.SnowOnlyHeadroomM, StormVolumeMath.TopM(700), 0.01f, "the volume reaches just over the cloud base");
+            Assert.AreEqual(300.0, StormVolumeMath.CullDistanceM(60), 1e-9, "at least 300 m");
+            Assert.AreEqual(1000.0, StormVolumeMath.CullDistanceM(200), 1e-9, "5 times the visibility");
+            Assert.AreEqual(1050.0, StormVolumeMath.InsideRayM(60, 700, 72000), 1e-9, "the veil's height decides where the fog is short");
+            Assert.AreEqual(800.0, StormVolumeMath.InsideRayM(200, 300, 72000), 1e-9, "4 times the visibility");
+            Assert.AreEqual(5000.0, StormVolumeMath.InsideRayM(60000, 700, 5000), 1e-9, "never more than the range");
             Assert.AreEqual(16, StormVolumeMath.Steps(1));
             Assert.AreEqual(28, StormVolumeMath.Steps(28));
             Assert.AreEqual(48, StormVolumeMath.Steps(500));
@@ -144,34 +141,28 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheVolumeModeAndStepsComeBackAndAreBroughtIntoTheirRanges()
+        public void TheVolumeStepsComeBackAndAreBroughtIntoTheirRanges()
         {
             string folder = Path.Combine(Path.GetTempPath(), "volume-settings-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
             ConfigNode saved = SeasonsSettings.Snapshot();
             try
             {
-                Assert.AreEqual(SeasonsSettings.StormVolumeModes.Auto, SeasonsSettings.StormVolumeMode);
                 Assert.AreEqual(28, SeasonsSettings.StormVolumeStepsDefault);
-                SeasonsSettings.StormVolumeMode = SeasonsSettings.StormVolumeModes.Simple;
                 SeasonsSettings.StormVolumeSteps = 40;
                 SeasonsSettings.Write(file);
-                SeasonsSettings.StormVolumeMode = SeasonsSettings.StormVolumeModes.Auto;
                 SeasonsSettings.StormVolumeSteps = 28;
                 SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormVolumeModes.Simple, SeasonsSettings.StormVolumeMode);
                 Assert.AreEqual(40, SeasonsSettings.StormVolumeSteps);
 
-                File.WriteAllText(file, "stormVolumeMode = Raymarch\nstormVolumeSteps = 3\n");
+                File.WriteAllText(file, "stormVolumeSteps = 3\n");
                 SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormVolumeModes.Raymarch, SeasonsSettings.StormVolumeMode);
                 Assert.AreEqual(16, SeasonsSettings.StormVolumeSteps);
                 File.WriteAllText(file, "stormVolumeSteps = 500\n");
                 SeasonsSettings.Read(file);
                 Assert.AreEqual(48, SeasonsSettings.StormVolumeSteps);
-                File.WriteAllText(file, "stormVolumeMode = nonsense\nstormVolumeSteps = x\n");
+                File.WriteAllText(file, "stormVolumeSteps = x\n");
                 SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormVolumeModes.Raymarch, SeasonsSettings.StormVolumeMode, "a name that is none is ignored");
                 Assert.AreEqual(48, SeasonsSettings.StormVolumeSteps, "a value that is not a number is ignored");
             }
             finally

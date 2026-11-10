@@ -80,7 +80,7 @@ build and prints the log lines that matter (`build\seasons-bundle.log` is the fu
 `StormShaders.LoadVolumeShader` in `src/Seasons` loads the file with
 `AssetBundle.LoadFromFile` and takes `ReDefinition/SeasonsStormVolume`. It returns the reason
 when the file is missing, is rejected (another Unity version) or the shader is not supported;
-`StormVolume` then draws plain meshes. The release build stops where the bundle is missing or
+`StormVolume` then draws no veil. The release build stops where the bundle is missing or
 older than a file in `ReDefinitionSeasons/Shaders` or `Editor`, and puts it into the Seasons
 zip.
 
