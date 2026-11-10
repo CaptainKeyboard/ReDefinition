@@ -13,11 +13,16 @@
   shaders and with Parallax. Terrain that is already built follows the season by the *ground
   refresh mode* (`Live`, `Rebuild`, `Off`); with Parallax, the terrain and the grass are told by
   reflection. `forcePhase` fixes the season for screenshots. Snow storms follow a seeded
-  schedule for cold, wintry latitudes and show as short sight (Unity fog plus a white veil in
-  front of the camera, down to about 60 m at full strength) and falling snow; they add no image
-  effect and need no EVE. `forceStorm` fixes the strength for screenshots. The orbit and map
-  view and EVE's snow particles are not done, and none of it has run in the game yet. How it is set up:
-  [docs/player/seasons.md](docs/player/seasons.md).
+  schedule for cold, wintry latitudes and show as short sight (Unity fog plus a veil in front
+  of the camera, down to about 60 m at full strength), a grey, heavy sky (the veil turns dark
+  toward the zenith and the ambient light is lowered), falling snow in a near and a far layer
+  with streaks along the wind, and, where EVE has its snow particle field, that field raised by
+  reflection; they add no image effect and need no EVE. `forceStorm` fixes the strength for
+  screenshots. Kerbin's scaled planet in orbit and in the map view carries the same season: the
+  mod draws the snow mask (the ground's function and noise) over a copy of the planet's colour
+  map and gives the material that copy (`orbitSnow`, `orbitSnowWidth`). New settings
+  `stormSkyDarkening`, `stormEveSnow`, `orbitSnow`, `orbitSnowWidth`. None of it has run in the
+  game yet. How it is set up: [docs/player/seasons.md](docs/player/seasons.md).
 - **ReDefinition Dashboard as a mod of its own.** The web dashboard, its server, telemetry
   and pages, are `GameData/ReDefinition/Dashboard` (the pages moved from
   `GameData/ReDefinition/Main/Dashboard`), released as `ReDefinitionDashboard_<version>.zip`

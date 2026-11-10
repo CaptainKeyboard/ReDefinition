@@ -15,6 +15,7 @@ namespace ReDefinition.Seasons
             if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
             SeasonsSettings.Load();
             gameObject.AddComponent<SnowRefresher>();
+            gameObject.AddComponent<OrbitSnow>();
             Debug.Log(Log.Tag + " " + StartupLine());
         }
 
@@ -31,8 +32,11 @@ namespace ReDefinition.Seasons
                    + " every " + SeasonsSettings.RefreshSeconds.ToString(culture) + " s"
                    + (SeasonsSettings.ForcePhase >= 0f ? ", FORCED PHASE " + SeasonsSettings.ForcePhase.ToString(culture) : "")
                    + ", storms " + (SeasonsSettings.StormsEnabled ? "on, frequency " + SeasonsSettings.StormFrequency.ToString(culture) : "off")
+                   + ", orbit snow " + (SeasonsSettings.OrbitSnow ? "on, map width up to " + SeasonsSettings.OrbitSnowWidth : "off")
+                   + ", storm sky darkening " + SeasonsSettings.StormSkyDarkening.ToString(culture)
                    + ", Parallax " + (TypeLookup.Find("Parallax.ConfigLoader") != null ? "found" : "not found")
-                   + ", EVE " + (TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager") != null ? "found" : "not found");
+                   + ", EVE " + (TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager") != null ? "found" : "not found")
+                   + ", EVE snow field: " + (SeasonsSettings.StormEveSnow ? EveSnowLink.Summary : "off by setting");
         }
     }
 }

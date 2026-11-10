@@ -2,18 +2,26 @@ using UnityEngine;
 
 namespace ReDefinition.Seasons
 {
-    // A translucent quad just in front of the flight camera: the whiteout. It lowers the contrast of everything the camera shows, near
-    // and far, by its alpha. It is a normal alpha-blended object, not an image effect, and it is made once.
+    // A translucent grid just in front of the flight camera: the whiteout. It lowers the contrast of everything the camera shows, near
+    // and far, by its alpha. Its vertices carry colour and alpha, set from the direction each one looks along. Toward the horizon and
+    // the ground it is the light fog colour. Toward the zenith it turns into a dark storm grey with a heavier alpha, so that the sky goes
+    // grey instead of lighter (StormLook.SkyGreyShare, SkyVeilAlpha). It is a normal alpha-blended object, made once.
     internal sealed class StormVeil
     {
+        // Vertices per side of the grid: the sky gradient is evaluated at each.
+        private const int Side = 9;
+
         private GameObject go;
         private MeshRenderer renderer;
         private Material material;
         private Texture2D white;
         private Mesh mesh;
+        private readonly Color32[] colours = new Color32[Side * Side];
+        private readonly float[] gridX = new float[Side * Side];
+        private readonly float[] gridY = new float[Side * Side];
         private bool failed;
 
-        // Makes the quad for that camera and returns the shader it uses, or says why it cannot.
+        // Makes the grid for that camera and returns the shader it uses, or says why it cannot.
         internal string Prepare(Camera cam)
         {
             if (go != null) return material.shader.name;
@@ -28,10 +36,40 @@ namespace ReDefinition.Seasons
                 white = null;
                 return "none found (veil off)";
             }
+            // The vertex colours carry colour and alpha, so the material itself is white and opaque.
+            StormShaders.Tint(material, Color.white, 1f);
+            var vertices = new Vector3[Side * Side];
+            var uv = new Vector2[Side * Side];
+            var triangles = new int[(Side - 1) * (Side - 1) * 6];
+            for (int y = 0; y < Side; y++)
+            {
+                for (int x = 0; x < Side; x++)
+                {
+                    int i = y * Side + x;
+                    gridX[i] = x / (float)(Side - 1) - 0.5f;
+                    gridY[i] = y / (float)(Side - 1) - 0.5f;
+                    vertices[i] = new Vector3(gridX[i], gridY[i], 0f);
+                    uv[i] = new Vector2(0.5f, 0.5f);
+                }
+            }
+            int t = 0;
+            for (int y = 0; y < Side - 1; y++)
+            {
+                for (int x = 0; x < Side - 1; x++)
+                {
+                    int a = y * Side + x, b = a + 1, c = a + Side, d = c + 1;
+                    triangles[t++] = a;
+                    triangles[t++] = d;
+                    triangles[t++] = b;
+                    triangles[t++] = a;
+                    triangles[t++] = c;
+                    triangles[t++] = d;
+                }
+            }
             mesh = new Mesh { name = "ReDefinition Seasons veil" };
-            mesh.vertices = new[] { new Vector3(-0.5f, -0.5f, 0f), new Vector3(0.5f, -0.5f, 0f), new Vector3(0.5f, 0.5f, 0f), new Vector3(-0.5f, 0.5f, 0f) };
-            mesh.uv = new[] { new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f) };
-            mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+            mesh.vertices = vertices;
+            mesh.uv = uv;
+            mesh.triangles = triangles;
             mesh.bounds = new Bounds(Vector3.zero, new Vector3(1e5f, 1e5f, 1e5f));
             go = new GameObject("ReDefinition Seasons storm veil");
             go.layer = StormShaders.LayerOf(cam);
@@ -44,11 +82,13 @@ namespace ReDefinition.Seasons
             return material.shader.name;
         }
 
-        internal void Show(Camera cam, float alpha, Color colour)
+        // Shows the veil. Toward the horizon and the ground it has the fog colour and the ground alpha. Toward the zenith it moves to
+        // the sky grey and the sky alpha, by StormLook.SkyGreyShare.
+        internal void Show(Camera cam, Vector3 up, float groundAlpha, Color fog, float skyAlpha, Color skyGrey, float intensity, float darkening)
         {
             if (go == null) Prepare(cam);
             if (go == null) return;
-            if (alpha <= 0.001f)
+            if (groundAlpha <= 0.001f && skyAlpha <= 0.001f)
             {
                 Hide();
                 return;
@@ -59,9 +99,23 @@ namespace ReDefinition.Seasons
             Transform t = go.transform;
             t.position = cam.transform.position + cam.transform.forward * distance;
             t.rotation = cam.transform.rotation;
-            float height = 2f * distance * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * 1.1f;
+            float halfTan = Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+            float height = 2f * distance * halfTan * 1.1f;
             t.localScale = new Vector3(height * cam.aspect, height, 1f);
-            StormShaders.Tint(material, colour, alpha);
+
+            // The direction each vertex looks along, in the world, against the vessel's up.
+            Quaternion rotation = cam.transform.rotation;
+            float aspect = cam.aspect;
+            for (int i = 0; i < colours.Length; i++)
+            {
+                Vector3 local = new Vector3(gridX[i] * 1.1f * 2f * halfTan * aspect, gridY[i] * 1.1f * 2f * halfTan, 1f).normalized;
+                float sinElevation = Vector3.Dot(rotation * local, up);
+                float share = (float)StormLook.SkyGreyShare(sinElevation, intensity, darkening);
+                float alpha = Mathf.Lerp(groundAlpha, skyAlpha, (float)StormLook.SkyGreyShare(sinElevation, 1.0, darkening));
+                Color c = Color.Lerp(fog, skyGrey, share);
+                colours[i] = new Color32((byte)(c.r * 255f + 0.5f), (byte)(c.g * 255f + 0.5f), (byte)(c.b * 255f + 0.5f), (byte)(alpha * 255f + 0.5f));
+            }
+            mesh.colors32 = colours;
         }
 
         internal void Hide()

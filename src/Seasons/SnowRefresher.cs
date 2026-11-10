@@ -74,7 +74,7 @@ namespace ReDefinition.Seasons
         // Adds the snow mod as a child of Kerbin's PQS; the sphere takes the child mods it finds when it sets up.
         private bool TryInstall()
         {
-            if (FlightGlobals.Bodies == null) return false;
+            if (FlightGlobals.fetch == null || FlightGlobals.Bodies == null) return false;
             CelestialBody kerbin = FlightGlobals.GetBodyByName(SeasonClock.BodyName);
             PQS pqs = kerbin != null ? kerbin.pqsController : null;
             if (pqs == null) return false;

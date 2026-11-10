@@ -5,10 +5,11 @@ using UnityEngine;
 
 namespace ReDefinition.Seasons
 {
-    // The look of a snow storm in flight: Unity's global fog, a translucent whiteout veil in front of the camera and falling snow.
-    // It reads the storm intensity (StormModel) at the active vessel, moves a smoothed copy of it toward that value and applies it.
-    // It sets no image effect and no command buffer, so that it does not meet the upscalers or raytracing of ReDefinition on the flight
-    // camera. Every global it changes (RenderSettings fog) is put back when the storm ends and when the scene is left.
+    // The look of a snow storm in flight. Unity's global fog, a veil in front of the camera (light toward the ground, dark storm grey
+    // toward the zenith), falling snow, a lower ambient light and EVE's snow particle field where EVE has one. It reads the storm
+    // intensity (StormModel) at the active vessel, moves a smoothed copy toward it and applies it. It sets no image effect and no
+    // command buffer, so it does not meet the upscalers or raytracing of ReDefinition. Every global it changes is put back when the
+    // storm ends and when the scene is left.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class StormEffect : MonoBehaviour
     {
@@ -37,6 +38,10 @@ namespace ReDefinition.Seasons
         private double yearSeconds;
         private StormVeil veil;
         private StormFlakes flakes;
+        private readonly StormAmbient ambient = new StormAmbient();
+        private float ambientFactor = 1f;
+        private float eveRaise;
+        private bool hooked;
 
         private void Start()
         {
@@ -46,7 +51,18 @@ namespace ReDefinition.Seasons
                       + (SeasonsSettings.ForceStorm >= 0f ? ", FORCED STORM " + SeasonsSettings.ForceStorm.ToString("0.00", CultureInfo.InvariantCulture) : "")
                       + ", seed " + SeasonsSettings.StormSeed + ", visibility at full " + SeasonsSettings.StormVisibilityM.ToString("0", CultureInfo.InvariantCulture)
                       + " m, veil " + SeasonsSettings.StormVeil.ToString("0.00", CultureInfo.InvariantCulture)
-                      + ", snowfall " + (SeasonsSettings.StormSnowfall ? "on" : "off"));
+                      + ", snowfall " + (SeasonsSettings.StormSnowfall ? "on" : "off")
+                      + ", sky darkening " + SeasonsSettings.StormSkyDarkening.ToString("0.00", CultureInfo.InvariantCulture)
+                      + ", EVE snow " + (SeasonsSettings.StormEveSnow ? "on" : "off") + " (" + EveSnowLink.Summary + ")");
+        }
+
+        // Runs for every camera before it culls, after every Update and LateUpdate: the ambient light and EVE's snow coverage are
+        // written here, once per frame, so that nobody else's write of the frame comes after ours.
+        private void OnPreCull(Camera camera)
+        {
+            if (!active) return;
+            ambient.Apply(ambientFactor);
+            if (eveRaise > 0f) EveSnowLink.Raise(eveRaise);
         }
 
         private void Update()
@@ -121,10 +137,17 @@ namespace ReDefinition.Seasons
             RenderSettings.fogColor = colour;
             writtenDensity = density;
 
-            veil.Show(cam, (float)StormLook.VeilAlpha(current, SeasonsSettings.StormVeil), colour);
-            if (SeasonsSettings.StormSnowfall) flakes.Show(cam, up, current, Planetarium.GetUniversalTime(), SeasonsSettings.StormSeed);
+            // The veil: toward the ground the light fog colour, toward the zenith the storm grey, heavier (StormLook.SkyGreyShare).
+            float darkening = SeasonsSettings.StormSkyDarkening;
+            Color skyGrey = new Color(StormLook.SkyGreyDay[0] * brightness, StormLook.SkyGreyDay[1] * brightness, StormLook.SkyGreyDay[2] * brightness, 1f);
+            float groundAlpha = (float)StormLook.VeilAlpha(current, SeasonsSettings.StormVeil);
+            float skyAlpha = Mathf.Max(groundAlpha, (float)StormLook.SkyVeilAlpha(current, SeasonsSettings.StormVeil));
+            veil.Show(cam, up, groundAlpha, colour, skyAlpha, skyGrey, current, darkening);
+            if (SeasonsSettings.StormSnowfall) flakes.Show(cam, up, current, Planetarium.GetUniversalTime(), SeasonsSettings.StormSeed, brightness);
             else flakes.Hide();
-
+            ambientFactor = (float)StormLook.AmbientFactor(current, darkening);
+            eveRaise = SeasonsSettings.StormEveSnow ? current : 0f;
+            if (SeasonsSettings.StormEveSnow) EveSnowLink.Scan(vessel.mainBody.name);
             if (Mathf.Abs(current - target) < 0.005f && Mathf.Abs(target - settledLogged) > 0.01f)
             {
                 settledLogged = target;
@@ -134,8 +157,12 @@ namespace ReDefinition.Seasons
                           + RenderSettings.fogDensity.ToString("0.00000", CultureInfo.InvariantCulture) + " read back from RenderSettings (fog "
                           + RenderSettings.fog + ", " + RenderSettings.fogMode + "), veil alpha "
                           + StormLook.VeilAlpha(current, SeasonsSettings.StormVeil).ToString("0.00", CultureInfo.InvariantCulture)
+                          + ", sky veil alpha " + skyAlpha.ToString("0.00", CultureInfo.InvariantCulture)
                           + ", flakes " + (SeasonsSettings.StormSnowfall ? flakes.Count.ToString(CultureInfo.InvariantCulture) : "off")
-                          + ", fog brightness " + brightness.ToString("0.00", CultureInfo.InvariantCulture));
+                          + ", fog brightness " + brightness.ToString("0.00", CultureInfo.InvariantCulture)
+                          + ", ambient factor " + ambientFactor.ToString("0.00", CultureInfo.InvariantCulture) + ": " + ambient.DescribeScaling()
+                          + " (baseline rewritten by others " + ambient.ExternalWrites + " times)"
+                          + ", EVE snow fields raised " + (SeasonsSettings.StormEveSnow ? EveSnowLink.Fields.ToString(CultureInfo.InvariantCulture) : "off"));
             }
         }
 
@@ -156,10 +183,21 @@ namespace ReDefinition.Seasons
             }
             string flakeShader = SeasonsSettings.StormSnowfall ? flakes.Prepare(cam) : "off";
             string veilShader = veil.Prepare(cam);
-            Debug.Log(Log.Tag + " Seasons: storm " + stormsSeen + " begins: path RenderSettings fog (ExponentialSquared) + veil + flakes, no image effect and no command buffer; camera "
+            if (!hooked)
+            {
+                Camera.onPreCull += OnPreCull;
+                hooked = true;
+            }
+            Vessel active0 = FlightGlobals.ActiveVessel;
+            int eveFields = SeasonsSettings.StormEveSnow && active0 != null && active0.mainBody != null ? EveSnowLink.Scan(active0.mainBody.name) : 0;
+            Debug.Log(Log.Tag + " Seasons: storm " + stormsSeen + " begins: path RenderSettings fog (ExponentialSquared) + sky veil + flakes, ambient light and EVE snow coverage in Camera.onPreCull, no image effect and no command buffer; camera "
                       + cam.name + " renders " + cam.actualRenderingPath + ", HDR " + cam.allowHDR + ", MSAA " + cam.allowMSAA
                       + "; veil shader " + veilShader + "; flake shader " + flakeShader
-                      + "; fog before: " + (savedFog ? "on" : "off") + " " + savedMode + " " + savedDensity.ToString("0.#####", CultureInfo.InvariantCulture));
+                      + "; fog before: " + (savedFog ? "on" : "off") + " " + savedMode + " " + savedDensity.ToString("0.#####", CultureInfo.InvariantCulture)
+                      + "; ambient before: " + RenderSettings.ambientMode + " " + StormAmbient.Describe()
+                      + "; EVE snow field: " + (!SeasonsSettings.StormEveSnow ? "off by setting" : EveSnowLink.Controllable
+                          ? (eveFields > 0 ? "found " + eveFields + " (" + EveSnowLink.Names() + "), raised with the storm" : "found in EVE's code but no snow field is loaded for this body")
+                          : EveSnowLink.Summary));
         }
 
         // The storm is over: the fog is as it was, the veil and the flakes are hidden.
@@ -176,10 +214,19 @@ namespace ReDefinition.Seasons
             }
             writtenDensity = -1f;
             settledLogged = -1f;
+            eveRaise = 0f;
+            if (hooked)
+            {
+                Camera.onPreCull -= OnPreCull;
+                hooked = false;
+            }
+            ambient.Restore();
+            EveSnowLink.Release();
             if (veil != null) veil.Hide();
             if (flakes != null) flakes.Hide();
             Debug.Log(Log.Tag + " Seasons: storm ends: fog restored to " + (RenderSettings.fog ? "on" : "off") + " " + RenderSettings.fogMode + " "
-                      + RenderSettings.fogDensity.ToString("0.#####", CultureInfo.InvariantCulture) + ", veil and flakes hidden");
+                      + RenderSettings.fogDensity.ToString("0.#####", CultureInfo.InvariantCulture) + ", ambient restored to " + StormAmbient.Describe()
+                      + ", EVE snow coverage put back, veil and flakes hidden");
         }
     }
 }

@@ -49,6 +49,19 @@ namespace ReDefinition.Seasons
         // Whether falling snow is drawn in a storm.
         internal static bool StormSnowfall = true;
 
+        // How dark the sky and the ambient light get in the strongest storm, 0 to 1: 0 keeps both as they are.
+        internal static float StormSkyDarkening = StormLook.SkyDarkeningDefault;
+
+        // Whether a storm raises EVE's own snow particles where EVE has them.
+        internal static bool StormEveSnow = true;
+
+        // Whether Kerbin's scaled-space planet (orbit and map view) is tinted with the season, and the width in pixels of the colour
+        // map it draws with, 1024 to 4096 (the original's width if that is smaller).
+        internal const int OrbitSnowWidthMin = 1024;
+        internal const int OrbitSnowWidthMax = 4096;
+        internal static bool OrbitSnow = true;
+        internal static int OrbitSnowWidth = OrbitSnowWidthMax;
+
         // A diagnostics setting: a storm intensity from 0 to 1 at the camera, whatever the place and season, or a negative number for the
         // schedule. For screenshots.
         internal static float ForceStorm = -1f;
@@ -108,6 +121,11 @@ namespace ReDefinition.Seasons
             if (TryNumber(root, "stormVisibility", out number)) StormVisibilityM = Limit(number, StormLook.MinVisibilityLow, StormLook.MinVisibilityHigh);
             if (TryNumber(root, "stormVeil", out number)) StormVeil = Limit(number, 0f, StormLook.VeilMax);
             if (ModSettingsFile.TryBool(root, "stormSnowfall", out flag)) StormSnowfall = flag;
+            if (TryNumber(root, "stormSkyDarkening", out number)) StormSkyDarkening = Limit(number, 0f, 1f);
+            if (ModSettingsFile.TryBool(root, "stormEveSnow", out flag)) StormEveSnow = flag;
+            if (ModSettingsFile.TryBool(root, "orbitSnow", out flag)) OrbitSnow = flag;
+            int width;
+            if (ModSettingsFile.TryInt(root, "orbitSnowWidth", out width)) OrbitSnowWidth = width < OrbitSnowWidthMin ? OrbitSnowWidthMin : width > OrbitSnowWidthMax ? OrbitSnowWidthMax : width;
             if (TryNumber(root, "forceStorm", out number)) ForceStorm = number < 0 ? -1f : Limit(number, 0f, 1f);
             if (TryNumber(root, "winterSnowLine", out number))
                 WinterSnowLine = Limit(number, (float)SnowMask.LowestWinterLineDegrees, (float)SnowMask.HighestWinterLineDegrees);
@@ -131,6 +149,10 @@ namespace ReDefinition.Seasons
             root.AddValue("stormVisibility", StormVisibilityM.ToString("R", culture));
             root.AddValue("stormVeil", StormVeil.ToString("R", culture));
             root.AddValue("stormSnowfall", StormSnowfall.ToString());
+            root.AddValue("stormSkyDarkening", StormSkyDarkening.ToString("R", culture));
+            root.AddValue("stormEveSnow", StormEveSnow.ToString());
+            root.AddValue("orbitSnow", OrbitSnow.ToString());
+            root.AddValue("orbitSnowWidth", OrbitSnowWidth.ToString(culture));
             root.AddValue("forceStorm", ForceStorm.ToString("R", culture));
             root.AddValue("winterSnowLine",WinterSnowLine.ToString("R", culture));
             root.AddValue("groundRefreshMode", EnumNames<GroundRefresh>.Name(GroundRefreshMode));

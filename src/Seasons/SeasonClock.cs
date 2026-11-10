@@ -56,7 +56,7 @@ namespace ReDefinition.Seasons
         // The phase now, from the game's time and Kerbin's orbit; null where the game has no Kerbin yet.
         internal static double? Current(double yearLengthFactor)
         {
-            CelestialBody kerbin = FlightGlobals.Bodies == null ? null : FlightGlobals.GetBodyByName(BodyName);
+            CelestialBody kerbin = FlightGlobals.fetch == null || FlightGlobals.Bodies == null ? null : FlightGlobals.GetBodyByName(BodyName);
             if (kerbin == null || kerbin.orbit == null) return null;
             return Phase(Planetarium.GetUniversalTime(), YearSeconds(kerbin.orbit.period, yearLengthFactor));
         }
