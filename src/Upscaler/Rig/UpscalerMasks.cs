@@ -55,6 +55,14 @@ namespace ReDefinition.Upscaler
             "Waterfall/", "EVE/ParticleField", "ReDefinition",
         };
 
+        // Renderers left out by the name of their GameObject, where the shader is a stock one that is reactive elsewhere. The Seasons'
+        // whiteout veil is a screen-sized grid in front of the camera: marked, it would put the whole picture into the mask and
+        // weaken the history of everything behind it.
+        private static readonly string[] NotReactiveObjects =
+        {
+            "ReDefinition Seasons storm veil",
+        };
+
         // The shader property ids the masks read from source materials and set on the mask shader.
         private static class Ids
         {
@@ -394,6 +402,9 @@ namespace ReDefinition.Upscaler
         private void Consider(Renderer renderer, List<Candidate> into)
         {
             if (renderer == null) return;
+            string objectName = renderer.gameObject.name;
+            foreach (string left in NotReactiveObjects)
+                if (objectName == left) return;
             renderer.GetSharedMaterials(materials);
             bool any = false;
             foreach (Material material in materials)

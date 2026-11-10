@@ -27,6 +27,16 @@ namespace ReDefinition.Seasons
         private static readonly Color RayAmbient = new Color(0.72f, 0.76f, 0.82f, 1f);
         private static readonly Color RaySun = new Color(1.00f, 0.96f, 0.88f, 1f);
 
+        // The sun's colour when it is at the horizon, and the sky's light at night (blue-grey).
+        private static readonly Color RaySunLow = new Color(1.00f, 0.74f, 0.52f, 1f);
+        private static readonly Color RayAmbientNight = new Color(0.55f, 0.66f, 0.90f, 1f);
+
+        // A diagnostics cap on the strength of the cells' veil, to look at a weak storm: 1 leaves it alone.
+        internal static float StrengthCap = 1f;
+
+        // The strength of the dark cloud base in the shader, 0 to 1. Diagnostics set it to compare pictures.
+        internal static float BaseDark = 0.6f;
+
         // The render queue of the volume: before the veil (3000) and the flakes (3100).
         private const int QueueRay = 2995;
 
@@ -59,6 +69,7 @@ namespace ReDefinition.Seasons
             internal double Latitude, Longitude, RadiusM, BaseAglM;
             internal double Ground = double.NaN, GroundLatitude, GroundLongitude;
             internal float Strength, Brightness, WrittenStrength = -1f, WrittenBrightness = -1f;
+            internal double SinSun = 1.0;
             internal float Yaw;
             internal float BelowM;
             internal Transform RayTransform;
@@ -198,7 +209,7 @@ namespace ReDefinition.Seasons
             e.Latitude = cell.Latitude;
             e.Longitude = cell.Longitude;
             e.RadiusM = cell.RadiusM;
-            e.Strength = (float)cell.Strength;
+            e.Strength = Mathf.Min((float)cell.Strength, StrengthCap);
             if (double.IsNaN(e.Ground) || StormCells.Distance(cell.Latitude, cell.Longitude, e.GroundLatitude, e.GroundLongitude, body.Radius) > 300)
             {
                 e.Ground = GroundHeight(cell.Latitude, cell.Longitude);
@@ -237,8 +248,12 @@ namespace ReDefinition.Seasons
             e.WrittenStrength = e.Strength;
             e.WrittenBrightness = brightness;
             e.Fade = (float)Mathx.SmoothStep(0, 0.35, e.Strength);
-            e.RayMaterial.SetVector(IdSunColour, Scale(RaySun, brightness));
-            e.RayMaterial.SetVector(IdAmbient, Scale(RayAmbient, brightness));
+            // The sun's light is the sun's visibility (none at night) and warm while the sun is low; the ambient light is the sky's, which
+            // goes blue-grey at night.
+            double sin = e.SinSun;
+            Color sun = Color.Lerp(RaySun, RaySunLow, (float)StormLook.WarmShare(sin));
+            e.RayMaterial.SetVector(IdSunColour, Scale(sun, brightness * (float)StormLook.SunVisibility(sin)));
+            e.RayMaterial.SetVector(IdAmbient, Scale(Color.Lerp(RayAmbient, RayAmbientNight, (float)StormLook.NightShare(sin)), brightness));
         }
 
         // The brightness of the sun at the cell's place: the sine of its elevation through StormLook.FogBrightness.
@@ -248,6 +263,7 @@ namespace ReDefinition.Seasons
             Vector3d ground = body.GetWorldSurfacePosition(e.Latitude, e.Longitude, e.Ground);
             Vector3d toSun = (FlightGlobals.Bodies[0].position - ground).normalized;
             double sin = Vector3d.Dot(toSun, body.GetSurfaceNVector(e.Latitude, e.Longitude));
+            e.SinSun = sin;
             return (float)StormLook.FogBrightness(sin);
         }
 
@@ -286,7 +302,7 @@ namespace ReDefinition.Seasons
                 m.SetVector(IdCell, new Vector4(position.x, position.y, position.z, (float)e.RadiusM));
                 m.SetVector(IdUp, new Vector4(radial.x, radial.y, radial.z, curvature));
                 m.SetVector(IdRight, new Vector4(right.x, right.y, right.z, 0f));
-                m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.TopM(e.BaseAglM), e.BelowM, 0f));
+                m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.TopM(e.BaseAglM), e.BelowM, BaseDark * (float)Mathx.SmoothStep(0.35, 0.8, e.Strength)));
                 m.SetFloat(IdSnowBoost, VeilProbe ? VeilProbeBoost : VeilScale);
                 m.SetColor(IdVeilTint, VeilProbe ? new Color(1f, 0f, 1f, 1f) : new Color(0f, 0f, 0f, 0f));
                 m.SetVector(IdWind, new Vector4(offsetX, offsetZ, shearX, fall));
@@ -321,7 +337,7 @@ namespace ReDefinition.Seasons
         }
 
         // The pool of cells with one bounding cylinder each, drawn by the volume shader, and the noise texture they share. The cylinder
-        // has 48 segments and is 2 % wider than the cell, from BelowM under the centre to the cloud base plus 80 m. It is drawn at queue
+        // has 48 segments and is 2 % wider than the cell, from BelowM under the centre to the cloud base plus 450 m (the dark band of the cloud's underside). It is drawn at queue
         // 2995 with Cull Front and ZWrite Off. The ray stops at the far plane and at _CameraDepthTexture. The noise is 64^3 with 4
         // octaves, and the streaks are stretched 9 times along the vertical.
         private bool BuildRaymarched(Camera cam, UnityEngine.Shader shader)

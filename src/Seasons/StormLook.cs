@@ -265,6 +265,27 @@ namespace ReDefinition.Seasons
             return t * t * (3 - 2 * t);
         }
 
+        // The share of the sun that lights the snow veil from the sun's elevation: 0 from 3 degrees below the horizon, 1 from 6 degrees above.
+        internal static double SunVisibility(double sinElevation)
+        {
+            double t = ClampOrMin((sinElevation + 0.05) / 0.16, 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+
+        // How much the ambient light of the veil is the blue-grey of the night: 0 from the sun's sine 0.1 up, 1 from -0.1 down.
+        internal static double NightShare(double sinElevation)
+        {
+            double t = ClampOrMin((0.1 - sinElevation) / 0.2, 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+
+        // The share of a low sun's warm tint: 1 at the horizon, 0 from the sine 0.35 (about 20 degrees) up.
+        internal static double WarmShare(double sinElevation)
+        {
+            double t = ClampOrMin(1 - sinElevation / 0.35, 0, 1);
+            return t * t * (3 - 2 * t);
+        }
+
         // The brightness of the fog from the sun's elevation: sinElevation is the sine of the sun above the local horizon.
         // Grey-white by day, dark grey by night.
         internal static double FogBrightness(double sinElevation)

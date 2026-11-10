@@ -210,6 +210,33 @@ namespace ReDefinition.Seasons
             }
         }
 
+        // Takes the layer's own coverage away inside a disc of radiusM round the point (cx, cy, cz) of the layer's frame. All of it goes
+        // inside 0.7 of the radius, none at the radius. coverage holds the rectangle row by row, as a mask does. A diagnostics aid.
+        internal static void EraseDisc(byte[] coverage, EveCoverageMath.Rect rect, int width, int height, double cx, double cy, double cz,
+            double radiusM, double planetRadiusM)
+        {
+            if (coverage == null || rect.IsEmpty || !(radiusM > 0) || !(planetRadiusM > 0)) return;
+            double reach = Math.Min(radiusM / planetRadiusM, Math.PI);
+            double cosReach = Math.Cos(reach);
+            for (int r = 0; r < rect.Rows; r++)
+            {
+                double theta = (rect.Row0 + r + 0.5) / height * Math.PI;
+                double sinTheta = Math.Sin(theta), cosTheta = Math.Cos(theta);
+                double rowDot = cy * cosTheta;
+                for (int k = 0; k < rect.Cols; k++)
+                {
+                    int col = (rect.Col0 + k) % width;
+                    double a = ((col + 0.5) / width - 0.5) * 2 * Math.PI;
+                    double dot = rowDot + sinTheta * (cx * Math.Sin(a) + cz * Math.Cos(a));
+                    if (dot < cosReach) continue;
+                    double distance = Math.Acos(dot > 1 ? 1 : dot) * planetRadiusM;
+                    double keep = Mathx.SmoothStep(0.7 * radiusM, radiusM, distance);
+                    int i = r * rect.Cols + k;
+                    coverage[i] = (byte)Math.Round(coverage[i] * keep);
+                }
+            }
+        }
+
         // The screen blend of a layer's own coverage and a cell's mask: the plateau where the mask is strong, the layer's own texture
         // where it is thin, never less than either.
         internal static byte Screen(byte layer, byte mask)

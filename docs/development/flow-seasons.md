@@ -101,8 +101,15 @@ A storm is a cell that stands on the planet.
    step 6.
    It marches the view ray through a bounding cylinder of the cell, with the 3D noise from
    `StormNoise`. The cylinder and the numbers are in `StormVolumeMath`. The shader draws the
-   snow veil only: the cloud is EVE's (step 6). If the bundle is missing or does not load, no
-   veil is drawn and `KSP.log` says why.
+   snow veil (streaks, a thin mist between them, and a dark band at the cloud base that grows
+   with the cell's strength and stays out of the view from inside): the cloud is EVE's (step 6).
+   `StormVolume.Colour` gives the shader the sun's light times `StormLook.SunVisibility` (none at
+   night, warm at a low sun, `WarmShare`) and the ambient light, blue-grey at night (`NightShare`).
+   If the bundle is missing or does not load, no veil is drawn and `KSP.log` says why. The
+   whiteout veil (`StormVeil`) is left out of the upscaler's reactive mask by its object name
+   (`UpscalerMasks.NotReactiveObjects`). For test pictures, `EveLayerStorm.ClearSkyM` erases the
+   stock coverage in a disc round the first cell (`EveStormMath.EraseDisc`), and
+   `StormVolume.StrengthCap` and `BaseDark` set the veil's strength and the dark band.
 6. The Seasons are made to run with EVE's volumetric clouds (the StockVolumetricClouds pack).
    With `stormClouds = Existing` (the default) the cell is painted into the layers EVE already
    has on Kerbin, `EveLayerStorm`, and steps 7 and 8 describe the mod's own layer that `Own`

@@ -240,10 +240,18 @@ of the EVE layer is a height above sea level (500 m), so over high ground the cl
 the ground than over low ground. The cells seen from outside, the
 raymarched shader, its depth test and the EVE layer have run in the game in the harness (forced
 cells, one place, Medium profile) but not in play. The veil is a translucent grey-white curtain
-with soft vertical streaks under the dark cloud base, at most 0.62 opaque, so that trees
-behind it show. At 8 km it is a faint curtain in the harness picture; at 25 km it is not told
-from the overcast sky. Its density was chosen from pictures at 0.004, 0.008 and 0.016; the
-value it has now (0.012) was seen at 8 km only.
+with soft vertical streaks under the cloud base, at most 0.65 opaque, so that trees
+behind it show, with a thin mist between the streaks that veils the horizon. A dark band
+at the cloud base darkens the cloud's underside; it grows with the storm's strength and is
+absent in a weak one (harness picture at strength 0.3: a grey cell, a light curtain, sparse flakes
+inside). The density (extinction 0.02 per metre) was chosen from pictures at 0.6, 1 and 1.5 times.
+Seen in the harness: at 8 km the curtain is a pale, streaked veil under a dark cloud; at 25 km,
+against a cleared sky, a pale band under the cloud that veils the trees behind it, with a thin dark
+line at the cloud base that looks harder than it should. Against the overcast sky of the test
+place the 25 km cell is still mostly told by the cloud, not by the curtain. By night the veil is
+dark blue-grey and does not glow; at a low sun it is warm. The 35 degree sun that was asked for
+cannot be reached at 62 N (Kerbin has no axial tilt, the noon sun is at 28 degrees), so the high
+sun was 28 degrees.
 
 Limits: the fog is Unity's. The Parallax terrain shader applies it; whether the stock
 terrain, the parts and Scatterer's sky do is not tested, which is why the veil is there: it
@@ -295,23 +303,28 @@ The storm draws three kinds of things. Where each goes in ReDefinition's upscale
   the whole cylinder as one hard patch. It is soft and moves slowly, so the upscaler's own
   history handles it. The name of its shader contains `ReDefinition`, which the mask skips on
   purpose.
-* The veil and the mod's own flakes use the game's particle shader (`KSP/Particles/Alpha
-  Blended`, queue 3000), so the mask does see them.
+* The screen-sized whiteout veil uses the game's particle shader (`KSP/Particles/Alpha
+  Blended`, queue 3000), but the mask skips it by the name of its object (`ReDefinition Seasons
+  storm veil`, the list `NotReactiveObjects` in `UpscalerMasks.cs`): marked, it would put the whole
+  picture into the mask. The mod's own flakes use the same shader and the mask does see them.
 * EVE's snow particle field (`EVE/ParticleField`, queue 3200) is skipped by the reactive mask:
   its vertex shader places every flake and all four vertices of a quad share one position, so a
   flat copy would draw nothing and cost the vertices of 400 000 or more quads. This was read from
   EVE's code. A harness run with FSR 3 and the mask on (Medium profile, one place) logged, in
   front of a cell 8 and 25 km away, a mask that marks 0.02 % of the picture (51 draws from 154
   transparent renderers), so neither the cell, EVE's cloud nor EVE's snow is in it. Inside the
-  cell the screen-sized whiteout veil marks the whole picture at a mean weight of 0.88, which
-  weakens the upscaler's history everywhere in a storm. Whether the mask's scan picks up EVE's
+  cell the whiteout veil marked the whole picture at a mean weight of 0.88 before it was skipped;
+  with the skip, a run with FSR 3, *Renderers* and frame generation off marked 0.02 % inside the
+  cell too (48 draws from 151 renderers). Whether the mask's scan picks up EVE's
   2D cloud meshes (`EVE/Cloud`) is not checked.
 
 The reactive mask source *Renderers* is Off by default in ReDefinition and is only drawn when the
 upscaler is FSR (or the card is AMD's; `UpscalerRig.cs`). DLSS and XeSS take no reactive mask.
 So, honestly: with DLSS or XeSS there is nothing to switch on, and the falling snow has no motion
-vectors, so it can smear or ghost a little. With FSR and a storm, switch *Reactive mask* to
-*Renderers* in the ReDefinition diagnostics window (page *Masks*) to give the veil and the
+vectors, so it can smear or ghost a little. The same goes for the veil and the cell's volume
+under DLSS and XeSS: they have no mask there and are left to the upscaler's own history. How
+that looks in motion has not been judged. With FSR and a storm, switch *Reactive mask* to
+*Renderers* in the ReDefinition diagnostics window (page *Masks*) to give the
 mod's own flakes a reactive weight; EVE's snow field gets none either way. How the storm looks in
 motion under FSR with the mask has not been judged; the setting is the one to try first if the
 storm ghosts under FSR.

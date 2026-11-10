@@ -13,8 +13,8 @@ namespace ReDefinition.Seasons
         // whole number of the shader's horizontal tiles (1500 and 500 m).
         internal const double CloudTileM = 6000, StreakTileM = 14000;
 
-        // How far above the cloud base the volume reaches, in m.
-        internal const float SnowOnlyHeadroomM = 80f;
+        // How far above the cloud base the volume reaches, in m: the dark band of the cloud's underside (the shader's DarkBandM, 380 m) and a margin.
+        internal const float SnowOnlyHeadroomM = 450f;
 
         // How far the pattern moves a second sideways and down, in m.
         internal const double WindSpeed = 9, FallSpeed = 30;

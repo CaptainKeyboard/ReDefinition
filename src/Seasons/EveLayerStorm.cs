@@ -139,6 +139,11 @@ namespace ReDefinition.Seasons
         // to see how EVE's shader treats the picture's colour and opacity.
         internal static bool ProbePattern;
 
+        // A diagnostics switch for test pictures: the radius in m of a disc round the first cell in which the layers' own coverage is
+        // taken away, so that the cell is seen against a clear sky. 0 is off. The harness sets it.
+        internal static double ClearSkyM;
+        private static Vector3 clearCentre;
+
         // Whether the swirl's material can erase (our shader from the bundle); the fallback shaders only paint.
         private static bool swirlErases;
 
@@ -900,6 +905,7 @@ namespace ReDefinition.Seasons
                 maskRadii[masks] = radiusM;
                 masks++;
             }
+            if (ClearSkyM > 0) signature ^= (ulong)ClearSkyM * 1315423911UL;
             if (signature == 0) signature = 1;
             // Nothing changed since the last paint (the cells are where they were to a texel): the maps are as they should be.
             if (signature == layer.Signature && (masks > 0 || layer.PaintedCount == 0)) return;
@@ -913,6 +919,16 @@ namespace ReDefinition.Seasons
                 EveStormMath.PaintMask(mask, maskRects[m], layer.Width, layer.Height, c.x, c.y, c.z, body.Radius, lobes, lobeCount, Peak(cell.Strength), cell.Key);
                 maskData[m] = mask;
                 CheckGround(body, cell);
+                if (m == 0 && ClearSkyM > 0)
+                {
+                    // The first cell's rectangle grows to hold the cleared disc, so that the group it ends in erases the coverage there.
+                    EveCoverageMath.Rect wide = EveStormMath.CellRect(c.x, c.y, c.z, ClearSkyM / EveStormMath.MaxReachFactor, body.Radius, layer.Width, layer.Height);
+                    var combined = new byte[EveStormMath.MaskSize(wide)];
+                    EveStormMath.MergeMax(combined, wide, mask, maskRects[0], layer.Width);
+                    maskRects[0] = wide;
+                    maskData[0] = combined;
+                    clearCentre = c;
+                }
             }
 
             // Cells whose rectangles touch are one group: their masks are merged (the larger value wins) and composited once.
@@ -959,6 +975,8 @@ namespace ReDefinition.Seasons
                 var type = new byte[size];
                 ReadRect(layer, true, rect, coverage);
                 ReadRect(layer, false, rect, type);
+                if (ClearSkyM > 0)
+                    EveStormMath.EraseDisc(coverage, rect, layer.Width, layer.Height, clearCentre.x, clearCentre.y, clearCentre.z, ClearSkyM, body.Radius);
                 EveStormMath.CompositeRect(coverage, type, layer.TargetType, groupData[g], rect);
                 WriteRect(layer, layer.CoverageWork, rect, coverage);
                 WriteRect(layer, layer.TypeWork, rect, type);

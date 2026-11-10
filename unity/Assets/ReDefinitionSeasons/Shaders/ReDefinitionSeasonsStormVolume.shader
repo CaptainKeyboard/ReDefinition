@@ -1,14 +1,12 @@
-// The snow veil of a storm cell for ReDefinition Seasons (src/Seasons/StormVolume.cs). It is a broad, translucent curtain of falling
-// snow from the base of the cell's cloud to the ground, raymarched inside a cylinder around the cell's centre. The cloud itself is
-// EVE's (EveLayerStorm, EveCellLayer); this shader draws the snow under it only. Only the back faces of the cylinder are drawn
-// (Cull Front), so that the same pixels are shaded from outside and from inside the cell. The shader intersects the view ray with
-// the cylinder itself.
+// The snow veil of a storm cell for ReDefinition Seasons (src/Seasons/StormVolume.cs): a translucent curtain of falling snow from the
+// base of the cell's cloud to the ground, raymarched inside a cylinder around the cell's centre. The cloud is EVE's (EveLayerStorm,
+// EveCellLayer). Only the back faces of the cylinder are drawn (Cull Front), so the same pixels are shaded from outside and inside.
 //
-// The curtain is soft vertical streaks: two scales of the 3D noise stretched along the vertical and slanted downwind with height. It is
-// denser in the upper two thirds and in the middle, fades over the last 250 m to the ground and thins out at the rim. The extinction
-// is low (Beer-Lambert) and the opacity of a ray is capped at MaxOpacity, so that the horizon and the trees behind stay partly
-// visible. The colour is the sky's light on snow: light grey, a little brighter where the sun scatters forward, darker where the
-// curtain is thick and under the cloud base. It never goes above SnowCeiling: the scene is HDR, and a value over 1 glows white.
+// The curtain is soft vertical streaks: two scales of the 3D noise stretched along the vertical and slanted downwind with height,
+// thinner at the rim and over the last metres to the ground. A thin mist fills the gaps and veils the horizon behind it. The
+// opacity of a ray is capped at MaxOpacity. The colour is the sky's light on snow plus the sun's where it scatters forward, never
+// above SnowCeiling: the scene is HDR and a value over 1 glows. A dark band at the cloud base darkens the cloud's underside; it
+// comes in between 1.5 and 4 km from the camera, so from inside the cell the sky is the veil's.
 //
 // Everything is in the cell's frame: up (the planet's radial at the centre), right, and forward = up x right. The ground is curved:
 // the height above it is y + curvature * r^2, with r the distance from the axis. The horizontal and the fall offsets the C# side
@@ -52,7 +50,7 @@ Shader "ReDefinition/SeasonsStormVolume"
             // xyz: right (a horizontal direction fixed for the cell).
             float4 _Right;
             // x: the cloud base above the ground, m; y: the top of the volume above the centre, m;
-            // z: how far the volume reaches below the centre, m.
+            // z: how far the volume reaches below the centre, m; w: the strength of the dark cloud base, 0 to 1.
             float4 _Heights;
             // xy: the pattern's offset in x and z, m (wrapped by 6000); z: the shear in x per m of height; w: the fall offset, m (wrapped by 14000).
             float4 _Wind;
@@ -67,8 +65,18 @@ Shader "ReDefinition/SeasonsStormVolume"
             float4 _VeilTint;
 
             // The extinction per metre at full strength and full density, and the most opaque a ray can get.
-            static const float SnowSigma = 0.0120;
-            static const float MaxOpacity = 0.62;
+            static const float SnowSigma = 0.0200;
+            static const float MaxOpacity = 0.65;
+            // The dark underside of the cloud base: the extinction per metre of the band, and its colour as a share of the ambient light.
+            // It comes in over DarkNearM to DarkFarM from the camera, so it stays out of the view from inside the cell.
+            static const float DarkSigma = 0.0010;
+            static const float DarkShade = 0.22;
+            static const float DarkNearM = 1500.0;
+            static const float DarkFarM = 4000.0;
+            // The band reaches from just under the cloud base up this far above it, m.
+            static const float DarkBandM = 380.0;
+            // The thin mist of the whole column, as a share of the streaks' density: it veils the ground and the horizon behind the curtain.
+            static const float MistShare = 0.22;
             // No colour channel goes above this: the scene is HDR and anything over 1 glows.
             static const float SnowCeiling = 0.85;
             // The tiles, m: the broad and the fine streaks horizontally; the streaks vertically (the same for both, so they are long).
@@ -78,7 +86,7 @@ Shader "ReDefinition/SeasonsStormVolume"
             // How far the veil's axis leans downwind per m of height, as a share of the pattern's shear.
             static const float VeilLean = 0.8;
             // The fade over the last metres to the ground, and the fade into the cloud base.
-            static const float GroundFadeM = 250.0;
+            static const float GroundFadeM = 70.0;
 
             struct appdata
             {
@@ -114,11 +122,23 @@ Shader "ReDefinition/SeasonsStormVolume"
 
             // The extinction of the snow at a place in the cell's frame, and how thick it is there as a share of the densest (0 to 1).
             // The inputs are the horizontal position and the height above the ground.
-            float Density(float lx, float lz, float h, float lod, float R, out float thick)
+            // dark gets the extinction of the dark cloud base band at that place (0 outside it).
+            float Density(float lx, float lz, float h, float lod, float R, out float thick, out float dark)
             {
                 float base_ = _Heights.x;
                 float strength = _Look.x;
                 thick = 0.0;
+                dark = 0.0;
+
+                // The dark underside of the cloud base: a band from just under the base up, widest in the middle of the cell, thin at its rim.
+                if (_Heights.w > 0.0 && h > base_ - 450.0)
+                {
+                    float bandIn = smoothstep(base_ - 450.0, base_ + 60.0, h);
+                    float bandOut = 1.0 - smoothstep(base_ + DarkBandM * 0.35, base_ + DarkBandM, h);
+                    float rho = sqrt(lx * lx + lz * lz) / R;
+                    float rim = 1.0 - smoothstep(0.35, 1.0, rho);
+                    dark = bandIn * bandOut * rim * DarkSigma * _Heights.w * strength;
+                }
 
                 // From the cloud base (a soft edge a little into the cloud) down to the ground (thin over the last GroundFadeM).
                 float top = 1.0 - smoothstep(base_ - 60.0, base_ + 60.0, h);
@@ -140,14 +160,15 @@ Shader "ReDefinition/SeasonsStormVolume"
                 float3 pb = float3(sx / StreakTileBroad, v, sz / StreakTileBroad);
                 float3 pf = float3(sx / StreakTileFine, v * 2.0 + 0.21, sz / StreakTileFine);
                 float s = Noise(pb, lod) * 0.6 + Noise(pf, lod) * 0.4;
-                float streak = 0.05 + 0.95 * smoothstep(0.38, 0.70, s);
+                float streak = 0.03 + 0.97 * smoothstep(0.43, 0.63, s);
 
                 // Denser in the upper two thirds, thinner to the ground; dense in the middle and thin at the rim, with a ragged edge.
                 float hn = saturate(h / max(base_, 1.0));
                 float vertical = lerp(0.45, 1.0, smoothstep(0.0, 0.34, hn));
-                float radial = (1.0 - smoothstep(0.30, 1.0, veilRho + (s - 0.5) * 0.4)) * (0.55 + 0.45 * (1.0 - veilRho));
+                float radial = (1.0 - smoothstep(0.45, 1.0, veilRho + (s - 0.5) * 0.3)) * (0.55 + 0.45 * (1.0 - veilRho));
 
-                float d = column * streak * radial * vertical;
+                // The streaks, and under them the mist that fills the gaps.
+                float d = column * max(streak * vertical, MistShare) * radial;
                 thick = saturate(d);
                 return d * SnowSigma * _SnowBoost * strength;
             }
@@ -237,19 +258,25 @@ Shader "ReDefinition/SeasonsStormVolume"
                     float lz = dot(r, forwardAxis);
                     float h = y + _Up.w * (lx * lx + lz * lz);
 
-                    float thick;
-                    float sigma = Density(lx, lz, h, lod, R, thick);
+                    float thick, dark;
+                    float sigmaSnow = Density(lx, lz, h, lod, R, thick, dark);
+                    // The dark band stays out of the near view: from inside the cell the sky is the veil's.
+                    dark *= smoothstep(DarkNearM, DarkFarM, t);
+                    float sigma = sigmaSnow + dark;
                     if (sigma > 1e-7)
                     {
                         float a_ = 1.0 - exp(-sigma * dt);
 
                         // Light grey in an overcast storm: the sky's light, dimmer under the cloud base and where the curtain is thick
-                        // (it shades itself), with a little of the sun where it scatters forward.
+                        // (it shades itself), with a little of the sun where it scatters forward. The sun's share goes with the sun's
+                        // visibility (_SunColour is zero at night). The dark band is a share of the ambient light.
                         float hn = saturate(h / max(base_, 1.0));
-                        float shade = lerp(0.70, 1.0, hn) * lerp(1.0, 0.62, thick);
-                        float3 snowColour = (_AmbientColour.rgb * 1.0 + _SunColour.rgb * (0.04 + 0.30 * forwardLight)) * shade;
+                        float shade = lerp(0.85, 1.0, hn) * lerp(1.0, 0.85, thick);
+                        float3 snowColour = (_AmbientColour.rgb * 1.2 + _SunColour.rgb * (0.10 + 0.30 * forwardLight)) * shade;
                         snowColour = lerp(snowColour, _VeilTint.rgb, _VeilTint.a);
                         snowColour = min(snowColour, SnowCeiling);
+                        float3 darkColour = _AmbientColour.rgb * DarkShade;
+                        snowColour = (snowColour * sigmaSnow + darkColour * dark) / sigma;
 
                         colour += transmittance * a_ * snowColour;
                         transmittance *= 1.0 - a_;
