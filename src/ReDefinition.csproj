@@ -538,6 +538,11 @@
     <Copy SourceFiles="$(OutputPath)ReDefinition.Seasons.dll" DestinationFolder="$(_StageSeasons)\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Seasons\$(SeasonsName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StageSeasons)" />
     <Copy SourceFiles="$(_RepoRoot)src\Seasons\README.md" DestinationFolder="$(_StageSeasons)" Condition="Exists('$(_RepoRoot)src\Seasons\README.md')" />
+    <!-- The static files of the seasons (the EVE cloud layer's config and its placeholder map) go into the standalone package too. -->
+    <ItemGroup>
+      <_SeasonsStatic Include="$(_RepoRoot)GameData\$(ModName)\Seasons\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_SeasonsStatic)" DestinationFolder="$(_StageSeasons)\%(RecursiveDir)" />
     <Copy SourceFiles="$(_SeasonsBundle)" DestinationFolder="$(_StageSeasons)\Shaders" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"

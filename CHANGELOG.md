@@ -4,6 +4,15 @@
 
 ### Added
 
+- **The snow cloud of a storm cell is an EVE volumetric cloud where EVE has them.** A config of the Seasons
+  (`GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg`) adds the layer `ReDefinition-Seasons-Storm`
+  (a low, flat-topped, grey-white snow cloud), and the mod paints the cells within 150 km into its coverage map twice
+  a second, checks that EVE reads it where it was painted and hides the layer while no cell is near. The mod's own
+  volume then draws the snow veil only. The veil is now broad and soft, leaned by the wind and thicker toward the
+  middle; the mod's own cloud (without EVE, or `stormEveClouds` off) is a low nimbostratus blanket with a grey underside
+  instead of a dark disc. The cloud base is 300 to 900 m above the ground. A strong storm has thousands of small bright
+  flakes with a few large near ones, and the veil is heavier toward the horizon. New setting `stormEveClouds`.
+  Not run in the game yet.
 - **Storm cells are raymarched volumes.** ReDefinition Seasons has a shader bundle of its own,
   `Seasons/Shaders/seasons.shaders`, built from `unity/Assets/ReDefinitionSeasons` with
   `tools/build_seasons_bundle.ps1` (Unity 2019.4.18f1) and carried in the Seasons zip. Its shader marches the view

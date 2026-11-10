@@ -57,7 +57,8 @@ value that is not a number is ignored.
 | `stormEveSnow` | `True` | `True`, `False` | Raises EVE's own snow particles with the storm where EVE has them. |
 | `stormEveRainToSnow` | `True` | `True`, `False` | Where the ground is snow or ice, replaces EVE's rain (rain particles, droplets on the glass, wet ground, lightning, rain sound) by its snow. |
 | `stormCellRadiusKm` | `12` | 5 to 25 | The typical radius of a storm cell in kilometres. Each cell is 0.6 to 1.4 times this, always between 5 and 25 km. |
-| `stormVolume` | `True` | `True`, `False` | Draws a storm cell as a snow curtain under a dark cloud base that you can see from afar. |
+| `stormVolume` | `True` | `True`, `False` | Draws a storm cell as a snow cloud with a veil of falling snow under it that you can see from afar. |
+| `stormEveClouds` | `True` | `True`, `False` | With EVE's volumetric clouds installed, the snow cloud of a cell is a layer of EVE's clouds, so that it looks and is lit like EVE's other clouds. The mod's own volume then draws only the falling snow. Off, or without EVE's volumetric clouds, the mod draws the cloud itself. |
 | `stormVolumeMode` | `Auto` | `Auto`, `Raymarch`, `Simple` | `Auto` draws a cell as a raymarched volume where the shader bundle `Seasons/Shaders/seasons.shaders` loads, and as plain meshes where it does not. `Raymarch` draws no cell without the shader; `Simple` always draws the meshes. |
 | `stormVolumeSteps` | `28` | 16 to 48 | How many steps a ray takes through a raymarched cell. More is smoother and costs more. |
 | `stormMaxCells` | `6` | 1 to 12 | How many cells are drawn at once, the nearest ones. |
@@ -113,11 +114,13 @@ the radius, and is gone outside it. Higher up the storm fades: it is at full str
 
 What you see of a cell from outside, within 60 km of the camera and while `stormVolume` is on:
 
-* A dark layer of storm cloud 700 m thick on a base 1.5 to 2.5 km above the ground, darker at
-  the bottom and lit on top.
-* A curtain of falling snow from the cloud base down to the ground, in vertical streaks that
-  move, denser toward the middle with a ragged edge.
-* Where the shader bundle is missing, the cell is drawn as plain meshes instead: a flat cloud
+* A snow cloud: a low, wide, flat-topped grey-white blanket with a soft mid-grey underside and
+  feathered edges, its base 300 to 900 m above the ground and its top at 1.5 to 2.5 km. With EVE's
+  volumetric clouds installed the cloud is a layer of EVE's (`GameData/ReDefinition/Seasons/Clouds`),
+  so it has EVE's look and lighting; otherwise the mod's own volume draws it.
+* A broad, soft veil of falling snow from the cloud base down to the ground. It is leaned by
+  the wind, thicker toward the middle, fades in from the cloud base and is lit grey-white.
+* Where the shader bundle is missing, the cell is drawn as plain meshes instead: a light cloud
   base with a few grey puffs and three layers of streaks.
 * The cell fades in and out with the storm and is darker at night. It stands on the ground,
   turns with the planet and moves with its drift. Fly toward it and into it.
@@ -132,9 +135,10 @@ When you are inside a cell, the storm works on the whole picture. What a storm d
   full strength. `stormSkyDarkening` sets how much (0 leaves the sky and the light alone).
 * Snow falls around the camera as soft round flakes of different size and brightness. They
   fall slowly, about a metre a second, and sway on their own. The wind drifts them sideways,
-  turns slowly and gusts. A light fall has few small flakes; in a strong storm there are more
-  and larger ones. Near flakes are large and translucent, far ones small, so the snow has
-  depth. The flakes are never stretched into streaks.
+  turns slowly and gusts. A light fall has few small flakes; a strong storm is a dense curtain
+  of thousands of small bright flakes, with a few large translucent ones close to the camera,
+  so the snow has depth. The flakes are never stretched into streaks. The veil is a little
+  heavier toward the horizon, so that the distant ground is whited out.
 * With EVE installed, its own snow particle field (`snow-Kerbin`) is raised with the storm too,
   so that the snow is also thick in the distance. `stormEveSnow` switches that off.
 * With EVE installed, rain does not fall over snow and ice. Where the season's snow cover at
@@ -155,13 +159,26 @@ drawn and what EVE offered (`EVE snow field: found ... / not found / not control
 and `storm settled` lines with the visibility, the veil, the ambient light and the number
 of flakes.
 
+The cloud as a layer of EVE's volumetric clouds: the layer `ReDefinition-Seasons-Storm` is
+defined by a config of this mod that EVE reads itself (no ModuleManager). Its coverage map is
+painted by the mod twice a second from the cells within 150 km of the camera, into a map of
+4096 x 2048 texels (0.92 km each), and the mod checks that EVE reads the coverage where it was
+painted (`KSP.log`: `storm layer calibration: ...`). The layer does not move with the wind: the
+cell is a place on the ground. It is hidden while no cell is near. If EVE has only 2D cloud
+layers, if the layer is not found or if the calibration fails, the line `storm layer: ...` in
+`KSP.log` says so and the mod draws the cloud itself. How far away the cloud can be seen is
+decided by EVE's own raymarching settings (the layer uses the step sizes of the installed
+Weather layers); it has not been measured for a 25 km cell.
+
 Limits of the cells: a raymarched cell is one transparent object with single scattering from
-the sun and the sky, not a simulation, and it does not light anything else. EVE's clouds are
-not hooked into it: a cell has its own cloud layer, and EVE's clouds above it are as EVE draws
-them. A cell makes no sound. Two cells that overlap on the screen sort by object, so they can
-show a seam. The shader reads the scene's depth to stop at the ground and at objects; if the
-game does not provide it, the curtain shows through hills. The cells seen from outside, the
-raymarched shader and its depth test have not run in the game yet.
+the sun and the sky, not a simulation, and it does not light anything else. EVE's cloud layer
+takes the cells' places from the mod, but EVE does not know the cells: its rain and its other
+layers are as EVE draws them. A cell makes no sound. Two cells that overlap on the screen sort
+by object, so they can show a seam. The shader reads the scene's depth to stop at the ground
+and at objects; if the game does not provide it, the veil shows through hills. The cloud base
+of the EVE layer is a height above sea level (500 m), so over high ground the cloud is closer to
+the ground than the 300 to 900 m of the mod's own cloud. The cells seen from outside, the
+raymarched shader, its depth test and the EVE layer have not run in the game yet.
 
 Limits: the fog is Unity's. The Parallax terrain shader applies it; whether the stock
 terrain, the parts and Scatterer's sky do is not tested, which is why the veil is there: it
@@ -198,7 +215,7 @@ planet's `_MainTex`. `KSP.log` names the shader and the property it found
 | Other mod | What is known |
 |---|---|
 | Parallax | The ground snow is the vertex colour that Parallax's terrain reads; its terrain shader has no snow or season input. Parallax's licence is All Rights Reserved, so the seasons change none of its files; they call it by reflection, to tell it that a terrain mesh changed and to give its grass the new colours. If a Parallax build lacks what is called, `KSP.log` says so once and that part is left out. Without Parallax the stock terrain shaders show the snow. |
-| EVE | Not needed for the storms. The installed configuration has polar snow clouds and snow particles scheduled by time and not by season; the seasons do not change those schedules. During a storm the seasons raise the coverage value of EVE's snow particle field (`snow-Kerbin`) to the storm's strength, by reflection; `KSP.log` says what was found. EVE's own files are not changed. |
+| EVE | Not needed for the storms. With its volumetric clouds the snow cloud of a cell is a layer of EVE's (setting `stormEveClouds`); the layer comes from a config of this mod. The installed configuration has polar snow clouds and snow particles scheduled by time and not by season; the seasons do not change those schedules. During a storm the seasons raise the coverage value of EVE's snow particle field (`snow-Kerbin`) to the storm's strength, by reflection; `KSP.log` says what was found. EVE's own files are not changed. |
 | Scatterer | The ocean is Scatterer's. A frozen sea is not planned. Scatterer switches the ambient light off for its own camera while it renders; the storm's lowered ambient light is written before that and is not touched by it. |
 | ReDefinition | The storms add no image effect and no command buffer, so the upscalers, frame generation and raytracing run as before. The upscalers' masks may not catch the falling snow (not tested). |
 | Kopernicus, ModuleManager | Not required. Kopernicus bodies keep the shader they have; if the scaled planet's material has no colour map the mod can read, the orbit snow stays off and the log says so. |
@@ -208,8 +225,8 @@ planet's `_MainTex`. `KSP.log` names the shader and the property it found
 What has been seen in the game: the snow on the ground in winter and in summer, the tint of the
 planet in the orbit and map view, and a storm's fog, veil, falling snow, dark sky, lowered
 ambient light and EVE's snow field. What has not been seen in the game yet: the storm cells
-from outside (the cloud base and the snow curtain), the raymarched shader, the replacement of
-EVE's rain by snow, and the `Rebuild` mode. The year length, the snow line, the noise, the
+from outside (the snow cloud and the snow veil), the raymarched shader, EVE's cloud layer for the
+cells, the replacement of EVE's rain by snow, and the `Rebuild` mode. The year length, the snow line, the noise, the
 schedule and the numbers of the storms are computed and tested outside the game. How the snow
 looks under the upscalers and raytracing, and whether the terrain refresh reaches Parallax's
 grass, is not verified. Not done:

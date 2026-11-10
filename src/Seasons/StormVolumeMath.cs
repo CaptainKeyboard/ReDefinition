@@ -10,10 +10,23 @@ namespace ReDefinition.Seasons
         internal const int NoiseSize = 64, NoisePeriod = 4, NoiseOctaves = 4, NoiseSeed = 5;
 
         // The horizontal tile of the cloud noise and of the snow noise, and the vertical tile of the snow's streaks, in m (the shader's).
-        internal const double CloudTileM = 2400, SnowTileM = 1200, StreakTileM = 14000;
+        internal const double CloudTileM = 6000, SnowTileM = 1500, StreakTileM = 14000;
 
-        // The thickness of the dark cloud layer above its base, in m, and the room the volume has above that layer.
-        internal const float CloudThicknessM = 700f, HeadroomM = 120f;
+        // The top of the snow cloud above the ground, in m, at the lowest and the highest base (StormCells.BaseAglMinM and MaxM): a
+        // nimbostratus is 1300 m thick, kept between these tops. The room the volume has above the cloud, in m.
+        internal const double TopMinM = 1500, TopMaxM = 2500, NominalThicknessM = 1300;
+        internal const float HeadroomM = 150f;
+
+        // How far above the cloud base the volume reaches where only the snow is drawn (EVE supplies the cloud), in m.
+        internal const float SnowOnlyHeadroomM = 80f;
+
+        // The thickness of the snow cloud above its base, in m.
+        internal static float CloudThicknessM(double baseAglM)
+        {
+            double top = baseAglM + NominalThicknessM;
+            top = top < TopMinM ? TopMinM : top > TopMaxM ? TopMaxM : top;
+            return (float)Math.Max(600.0, top - baseAglM);
+        }
 
         // How far the pattern moves a second sideways and down, in m.
         internal const double WindSpeed = 9, FallSpeed = 30;
@@ -51,10 +64,10 @@ namespace ReDefinition.Seasons
             return (float)(radiusM * radiusM / (2.0 * Math.Max(1.0, planetRadius)) + 150.0);
         }
 
-        // How far above the cell's centre the volume reaches, m.
-        internal static float TopM(double baseAglM)
+        // How far above the cell's centre the volume reaches, m: over the cloud, or just over its base where only the snow is drawn.
+        internal static float TopM(double baseAglM, bool withCloud = true)
         {
-            return (float)baseAglM + CloudThicknessM + HeadroomM;
+            return withCloud ? (float)baseAglM + CloudThicknessM(baseAglM) + HeadroomM : (float)baseAglM + SnowOnlyHeadroomM;
         }
 
         // The wind of a cell at a time. The offsets are wrapped by the noise tiles so that they stay small and the pattern does not jump;

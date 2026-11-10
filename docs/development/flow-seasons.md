@@ -102,7 +102,22 @@ A storm is a cell that stands on the planet.
    missing or does not load, `StormVolume` draws shells, a dome and puffs from the game's
    particle shaders instead (`StormShaders.BlendedNames`). The setting `stormVolumeMode`
    chooses.
-6. With EVE installed, `EveSnowLink` raises the coverage of EVE's snow particle field and
+6. With EVE's volumetric clouds installed, the snow cloud of the cells is a layer of EVE's.
+   `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines the layer
+   `ReDefinition-Seasons-Storm`, which EVE reads from `GameDatabase`. `StormEffect` collects
+   the cells within 150 km twice a second and passes them to `EveCellLayer.Update` every
+   frame. `EveCellLayer` finds the layer in `CloudsManager.GetObjectList()`, puts a readable
+   4096 x 2048 R8 texture into `TextureWrapper.textureValue` and into the two materials as
+   `CloudCoverage`, and paints the cells into it (`EveCoverageMath`, EVE's equirectangular
+   convention). The texture is empty and the layer is switched off through its `CloudsPQS`
+   while no cell is near. After the first paint it compares EVE's own `SampleCoverage` at the
+   centre of the strongest cell with the painted value and logs
+   `storm layer calibration: ...`; a longitude shift it finds is applied to the painting. While
+   the layer is bound (`EveCellLayer.Supplying`) `StormVolume` sets `_CloudWeight` to 0, so that
+   the shader draws the snow veil only, and starts the veil at the layer's cloud base. Without
+   EVE's volumetric layers, without the layer or with the setting `stormEveClouds` off,
+   `_CloudWeight` is 1 and the shader draws its own snow cloud.
+7. With EVE installed, `EveSnowLink` raises the coverage of EVE's snow particle field and
    the volume of its snow sound to the storm's intensity. `EveRainLink` takes EVE's rain
    away where the ground is snow or ice, and `EveSnowLink` gets the rain's coverage
    instead. Both reflect into EVE's private fields and put the first values back when the
@@ -126,6 +141,7 @@ release package takes `seasons.shaders` from there.
 | The fog, the veil, the flakes, the ambient light | `StormEffect`, `StormVeil`, `StormFlakes`, `StormAmbient` |
 | The cell in the world | `StormVolume`, `StormVolumeMath`, the shader file above |
 | EVE's snow and rain | `EveSnowLink`, `EveRainLink`, `ReflectLink` |
+| The cells' cloud as an EVE layer | `EveCellLayer`, `EveCoverageMath`, `SeasonsStormLayer.cfg` |
 | A new setting | `SeasonsSettings`, then [howto-add-a-setting.md](howto-add-a-setting.md) for the pattern |
 
 ## Tests
@@ -138,7 +154,8 @@ The tests are in `tests/ReDefinition.Tests`:
 | `SnowGroundTests.cs`, `ParallaxScatterReaderTests.cs` | The repaint and the scatter data it reads |
 | `OrbitSnowTests.cs` | The mask, the texture convention and when to compose |
 | `StormTests.cs`, `StormCellsTests.cs` | The spawn rule and the cells |
-| `StormVolumeTests.cs`, `StormSkyAndSnowfallTests.cs` | The volume's numbers, the noise, the sky and the flakes |
+| `StormVolumeTests.cs`, `StormSkyAndSnowfallTests.cs`, `StormBlizzardTests.cs` | The volume's numbers, the noise, the sky, the flakes and the veil at the horizon |
+| `EveCoverageTests.cs` | EVE's equirectangular map and its round trip, the painting of cells, the date line, the setting and the layer's config |
 | `SeasonsStandaloneTests.cs` | The mod's own files and settings |
 
 `ArchitectureTests.cs` holds the rule that the seasons use nothing of ReDefinition beyond

@@ -93,7 +93,15 @@ namespace ReDefinition.Tests
             Assert.AreEqual(1f / 1200000f, StormVolumeMath.Curvature(600000), 1e-12f);
             float below = StormVolumeMath.BelowM(12000, 600000);
             Assert.AreEqual(120f + 150f, below, 0.01f, "the ground falls 120 m at the rim of a 12 km cell, plus a margin");
-            Assert.AreEqual(1500f + StormVolumeMath.CloudThicknessM + StormVolumeMath.HeadroomM, StormVolumeMath.TopM(1500), 0.01f);
+            Assert.AreEqual(300f + 1300f + StormVolumeMath.HeadroomM, StormVolumeMath.TopM(300), 0.01f, "a low base: 1300 m of cloud, top 1600 m");
+            Assert.AreEqual(2500f + StormVolumeMath.HeadroomM, StormVolumeMath.TopM(1500), 0.01f, "the top is kept at 2500 m");
+            Assert.AreEqual(600f, StormVolumeMath.CloudThicknessM(2300), 0.01f, "never thinner than 600 m");
+            for (double b = StormCells.BaseAglMinM; b <= StormCells.BaseAglMaxM; b += 50)
+            {
+                float top = (float)b + StormVolumeMath.CloudThicknessM(b);
+                Assert.IsTrue(top >= StormVolumeMath.TopMinM - 0.01 && top <= StormVolumeMath.TopMaxM + 0.01, "top " + top + " for base " + b);
+            }
+            Assert.AreEqual(700f + StormVolumeMath.SnowOnlyHeadroomM, StormVolumeMath.TopM(700, false), 0.01f, "where EVE supplies the cloud the volume reaches just over the base");
             Assert.AreEqual(16, StormVolumeMath.Steps(1));
             Assert.AreEqual(28, StormVolumeMath.Steps(28));
             Assert.AreEqual(48, StormVolumeMath.Steps(500));

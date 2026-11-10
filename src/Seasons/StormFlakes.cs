@@ -30,8 +30,8 @@ namespace ReDefinition.Seasons
             internal float Fall = -1f;
         }
 
-        // The near layer is a box 7 m wide with 20 % of the flakes (0.10 to 0.26 m, opacity 0.5). The mid layer is 18 m wide with 35 %
-        // (0.07 to 0.16 m, opacity 0.8). The far layer is 36 m wide with 45 % (0.07 to 0.14 m, opacity 0.9). They fall at 1.2 to 2.0,
+        // The near layer is a box 7 m wide with 6 % of the flakes (0.10 to 0.26 m, opacity 0.5). The mid layer is 18 m wide with 34 %
+        // (0.03 to 0.08 m, opacity 0.95). The far layer is 36 m wide with 60 % (0.02 to 0.05 m, opacity 1). They fall at 1.2 to 2.0,
         // 0.9 to 1.6 and 0.8 to 1.3 m/s, and 85 % of that in a light fall.
         private readonly Layer[] layers =
         {
@@ -74,7 +74,7 @@ namespace ReDefinition.Seasons
                 return "none found (snowfall off)";
             }
             material.renderQueue = Queue;
-            StormShaders.Tint(material, new Color(0.95f, 0.97f, 1f, 1f), 0.9f);
+            StormShaders.Tint(material, new Color(0.95f, 0.97f, 1f, 1f), 1f);
             string[] names = { "near", "mid", "far" };
             for (int i = 0; i < layers.Length; i++)
             {
@@ -112,7 +112,7 @@ namespace ReDefinition.Seasons
             main.startSpeed = 0f;
             main.startSize = new ParticleSystem.MinMaxCurve(layer.Look.SizeMin, layer.Look.SizeMax);
             // Every flake has its own brightness: between a dim and a bright white, at the layer's opacity.
-            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.78f, 0.8f, 0.85f, layer.Look.Alpha * 0.6f), new Color(1f, 1f, 1f, layer.Look.Alpha));
+            main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.78f, 0.8f, 0.85f, layer.Look.Alpha * 0.75f), new Color(1f, 1f, 1f, layer.Look.Alpha));
             main.startRotation = new ParticleSystem.MinMaxCurve(0f, 6.2831853f);
             main.gravityModifier = 0f;
 
@@ -182,7 +182,7 @@ namespace ReDefinition.Seasons
             float wind = meanWind * (float)StormLook.GustFactor(Time.time, seed * 0.61);
 
             float tint = Mathf.Lerp(0.55f, 1f, brightness);
-            StormShaders.Tint(material, new Color(0.95f * tint, 0.97f * tint, 1f * tint, 1f), 0.9f);
+            StormShaders.Tint(material, new Color(0.95f * tint, 0.97f * tint, 1f * tint, 1f), 1f);
 
             for (int i = 0; i < layers.Length; i++) Place(layers[i], cam, rotation, intensity, cos, sin, meanWind, wind);
             if (!playing)

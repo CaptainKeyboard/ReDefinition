@@ -116,6 +116,7 @@ namespace ReDefinition.Seasons
                 float sinElevation = Vector3.Dot(rotation * local, up);
                 float share = (float)StormLook.SkyGreyShare(sinElevation, intensity, darkening);
                 float alpha = Mathf.Lerp(groundAlpha, skyAlpha, (float)StormLook.SkyGreyShare(sinElevation, 1.0, darkening));
+                alpha = Mathf.Max(alpha, (float)StormLook.HorizonAlpha(groundAlpha, sinElevation));
                 Color c = Color.Lerp(fog, skyGrey, share);
                 colours[i] = new Color32((byte)(c.r * 255f + 0.5f), (byte)(c.g * 255f + 0.5f), (byte)(c.b * 255f + 0.5f), (byte)(alpha * 255f + 0.5f));
             }

@@ -1,7 +1,12 @@
-// A snowstorm cell for ReDefinition Seasons (src/Seasons/StormVolume.cs): a dark cloud layer on top of a streaky snow curtain that
-// reaches down to the ground, raymarched inside a cylinder around the cell's centre. The mesh it is drawn on is that cylinder; only
-// its back faces are drawn (Cull Front), so that the same pixels are shaded from outside and from inside the cell. The shader
-// does not take the mesh's surface as the volume: it intersects the view ray with the cylinder itself.
+// A snowstorm cell for ReDefinition Seasons (src/Seasons/StormVolume.cs): a veil of falling snow under a low, wide snow cloud,
+// raymarched inside a cylinder around the cell's centre. The mesh it is drawn on is that cylinder; only its back faces are drawn
+// (Cull Front), so that the same pixels are shaded from outside and from inside the cell. The shader does not take the mesh's surface
+// as the volume: it intersects the view ray with the cylinder itself.
+//
+// The cloud is a nimbostratus: a thick, flat-topped blanket with a soft grey underside and feathered edges. Its noise is large-scale.
+// _CloudWeight is 1 where this shader draws the cloud. It is 0 where EVE's volumetric clouds supply it (EveCellLayer), and then only
+// the snow veil is drawn. The veil is broad and diffuse, slanted by the wind and thicker towards the axis. It fades in from the cloud
+// base and is lit grey-white.
 //
 // Everything is in the cell's frame: up (the planet's radial at the centre), right, and forward = up x right. The ground is curved:
 // the height above it is y + curvature * r^2, with r the distance from the axis. The density comes from one 3D noise texture
@@ -15,6 +20,7 @@ Shader "ReDefinition/SeasonsStormVolume"
     Properties
     {
         _Noise ("Noise", 3D) = "white" {}
+        _CloudWeight ("Cloud weight", Float) = 1
     }
     SubShader
     {
@@ -46,7 +52,7 @@ Shader "ReDefinition/SeasonsStormVolume"
             // x: the cloud base above the ground, m; y: the cloud layer's thickness, m; z: the top of the volume above the centre, m;
             // w: how far the volume reaches below the centre, m.
             float4 _Heights;
-            // xy: the pattern's offset in x and z, m (wrapped by 2400); z: the shear in x per m of height; w: the fall offset, m (wrapped by 14000).
+            // xy: the pattern's offset in x and z, m (wrapped by 6000); z: the shear in x per m of height; w: the fall offset, m (wrapped by 14000).
             float4 _Wind;
             // x: the strength, 0 to 1; y: the number of steps; z: the shear in z per m of height; w: the longest distance a ray is marched, m.
             float4 _Look;
@@ -54,16 +60,18 @@ Shader "ReDefinition/SeasonsStormVolume"
             float4 _Sun;
             float4 _SunColour;
             float4 _AmbientColour;
+            // 1: the shader draws the snow cloud; 0: EVE's volumetric cloud is there, only the snow is drawn.
+            float _CloudWeight;
 
-            // The extinction per metre of the cloud layer and of the snow, at full strength and full density.
-            static const float CloudSigma = 0.010;
-            static const float SnowSigma = 0.00042;
-            // The noise texture's size, texels.
-            static const float NoiseSize = 64.0;
+            // The extinction per metre of the cloud blanket and of the snow veil, at full strength and full density.
+            static const float CloudSigma = 0.0065;
+            static const float SnowSigma = 0.00050;
             // The tiles, m: the cloud and the snow horizontally; the snow's streaks vertically.
-            static const float CloudTile = 2400.0;
-            static const float SnowTile = 1200.0;
+            static const float CloudTile = 6000.0;
+            static const float SnowTile = 1500.0;
             static const float StreakTile = 14000.0;
+            // How far the veil's axis leans downwind per m of height, as a share of the pattern's shear.
+            static const float VeilLean = 0.8;
 
             struct appdata
             {
@@ -97,9 +105,9 @@ Shader "ReDefinition/SeasonsStormVolume"
                 return tex3Dlod(_Noise, float4(p, lod)).r;
             }
 
-            // The cloud layer's and the snow's extinction at a place: lx, lz the horizontal coordinates in the cell's frame, h the height
-            // above the ground, rho the distance from the axis as a share of the radius.
-            void Density(float lx, float lz, float h, float rho, float lod, out float cloud, out float snow)
+            // The extinction of the cloud blanket and of the snow veil at a place in the cell's frame. The inputs are the horizontal
+            // position, the height above the ground and the distance from the axis as a share of the radius. Also out: where the blanket ends.
+            void Density(float lx, float lz, float h, float rho, float lod, float R, out float cloud, out float snow, out float top)
             {
                 float base_ = _Heights.x;
                 float thick = _Heights.y;
@@ -110,24 +118,42 @@ Shader "ReDefinition/SeasonsStormVolume"
                 float sz = lz - _Wind.y + _Look.z * h;
 
                 cloud = 0.0;
-                float layer = smoothstep(base_, base_ + 140.0, h) * (1.0 - smoothstep(base_ + thick - 320.0, base_ + thick, h));
-                if (layer > 0.0)
+                top = base_ + thick;
+                if (_CloudWeight > 0.0)
                 {
-                    float3 pc = float3(sx / CloudTile, h / 1400.0, sz / CloudTile);
-                    float n = Noise(pc, lod) * 0.65 + Noise(pc * 2.0 + 0.37, lod) * 0.35;
-                    float edge = 1.0 - smoothstep(0.62, 1.0, rho + (n - 0.5) * 0.5);
-                    float cover = saturate((n - 0.30 + (1.0 - strength) * 0.2) * 3.0);
-                    cloud = layer * edge * cover * CloudSigma * strength;
+                    // Large, gentle noise only: one octave of the 3D noise with a half-weight second at twice the scale.
+                    float3 pc = float3(sx / CloudTile, h / 4200.0, sz / CloudTile);
+                    float n = Noise(pc, lod) * 0.7 + Noise(pc * 2.0 + 0.37, lod) * 0.3;
+                    // The top is flat, with a slight undulation; the underside rises softly over 220 m.
+                    top = base_ + thick - 220.0 * n;
+                    float layer = smoothstep(base_, base_ + 220.0, h) * (1.0 - smoothstep(top - 260.0, top, h));
+                    if (layer > 0.0)
+                    {
+                        // A weak storm is a smaller, thinner cloud; the rim is feathered over most of the radius.
+                        float reach = lerp(0.7, 1.0, strength);
+                        float rim = rho + (n - 0.5) * 0.35;
+                        float edge = 1.0 - smoothstep(0.50 * reach, reach, rim);
+                        float body = 0.78 + 0.34 * (n - 0.5);
+                        cloud = layer * edge * body * CloudSigma * strength;
+                    }
                 }
 
                 snow = 0.0;
-                float column = smoothstep(-60.0, 20.0, h) * (1.0 - smoothstep(base_, base_ + thick * 0.6, h));
+                // Fades in below the cloud base over a quarter of the base's height (at least 120 m, at most 300 m) and out at the ground.
+                float fadeIn = clamp(base_ * 0.25, 120.0, 300.0);
+                float column = smoothstep(-60.0, 20.0, h) * (1.0 - smoothstep(base_ - fadeIn, base_ + 20.0, h));
                 if (column > 0.0)
                 {
+                    // The veil leans downwind: the axis it is centred on moves with the height.
+                    float lean = VeilLean * h;
+                    float vx = lx - _Wind.z * lean;
+                    float vz = lz - _Look.z * lean;
+                    float veilRho = sqrt(vx * vx + vz * vz) / R;
                     float3 ps = float3(sx / SnowTile, h / StreakTile + _Wind.w / StreakTile, sz / SnowTile);
                     float s = Noise(ps, lod) * 0.6 + Noise(ps * float3(3.0, 2.0, 3.0) + 0.21, lod) * 0.4;
-                    float streak = saturate((s - 0.36) * 3.2);
-                    float radial = (1.0 - smoothstep(0.55, 1.0, rho + (s - 0.5) * 0.55)) * (1.0 - 0.5 * rho);
+                    // Mostly diffuse, with softer streaks in it.
+                    float streak = 0.55 + 0.45 * saturate((s - 0.32) * 2.4);
+                    float radial = (1.0 - smoothstep(0.30, 1.0, veilRho + (s - 0.5) * 0.45)) * (0.55 + 1.1 * (1.0 - veilRho));
                     snow = column * streak * radial * SnowSigma * strength;
                 }
             }
@@ -200,9 +226,9 @@ Shader "ReDefinition/SeasonsStormVolume"
                 float3 right = _Right.xyz;
                 float3 forwardAxis = cross(up, right);
                 float base_ = _Heights.x;
-                float thick = _Heights.y;
                 float cosSun = saturate(dot(rd, _Sun.xyz));
-                float phase = 0.6 + 0.9 * pow(cosSun, 6.0);
+                // A mild forward lobe: the cloud is milky, not hard-lit.
+                float phase = 0.7 + 0.5 * pow(cosSun, 5.0);
 
                 float3 colour = float3(0, 0, 0);
                 float transmittance = 1.0;
@@ -221,18 +247,22 @@ Shader "ReDefinition/SeasonsStormVolume"
 
                     float cloud;
                     float snow;
-                    Density(lx, lz, h, rho, lod, cloud, snow);
+                    float top;
+                    Density(lx, lz, h, rho, lod, R, cloud, snow, top);
                     float sigma = cloud + snow;
                     if (sigma > 1e-6)
                     {
                         float a_ = 1.0 - exp(-sigma * dt);
 
-                        // Inside the cloud layer d is 0 at its top and 1 at its base: the base is dark, the top is lit.
-                        float d = saturate((base_ + thick - h) / thick);
-                        float3 shade = _AmbientColour.rgb * (0.35 + 0.35 * (1.0 - d))
-                                     + _SunColour.rgb * phase * exp(-d * 3.5) * 0.9;
-                        float3 cloudColour = shade * lerp(0.35, 1.0, 1.0 - d);
-                        float3 snowColour = _AmbientColour.rgb * (0.55 + 0.35 * saturate(h / base_)) * 0.85;
+                        // Inside the blanket d is 0 at its top and 1 at its base: the underside is a mid grey, the top is lit.
+                        float d = saturate((top - h) / max(_Heights.y, 1.0));
+                        float lit = 1.0 - d;
+                        float3 shade = _AmbientColour.rgb * (0.78 + 0.22 * lit)
+                                     + _SunColour.rgb * phase * exp(-d * 2.6) * 0.42;
+                        float3 cloudColour = shade * lerp(0.72, 1.0, lit);
+                        // The snow reads light, bluish white; the sky's light on it, a little of the sun's.
+                        float3 snowColour = (_AmbientColour.rgb * 1.15 + _SunColour.rgb * 0.22 * phase) * float3(0.95, 0.98, 1.0)
+                                          * (0.80 + 0.20 * saturate(h / max(base_, 1.0)));
 
                         colour += transmittance * a_ * ((cloud * cloudColour + snow * snowColour) / sigma);
                         transmittance *= 1.0 - a_;

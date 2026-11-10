@@ -28,8 +28,10 @@ namespace ReDefinition.Seasons
         internal const double VeilCurve = 1.3;
 
         // Snowfall: flakes emitted per second at full intensity over all layers, and the most each layer holds.
-        internal const float FlakesPerSecond = 1000f;
-        internal const int MaxFlakesPerLayer = 8000;
+        // A blizzard is a dense curtain of many small flakes with a few large near ones: 2400 a second, of which 6 % are near, 34 % mid
+        // and 60 % far, at most 24000 alive in a layer.
+        internal const float FlakesPerSecond = 2400f;
+        internal const int MaxFlakesPerLayer = 24000;
 
         // The rate grows with the intensity to this power: 0.35 gives 0.43 of the full rate.
         internal const double FlakeRateCurve = 0.8;
@@ -48,7 +50,7 @@ namespace ReDefinition.Seasons
 
         // The stretch of a flake along its velocity: length = size + speed * scale. Tiny, so that a flake stays a round disc and is
         // at most StreakRatioMax times its size long, in a storm too.
-        internal const float StreakScaleLight = 0.0008f, StreakScaleFull = 0.002f;
+        internal const float StreakScaleLight = 0.0008f, StreakScaleFull = 0.0012f;
         internal const double StreakRatioMax = 1.5;
 
         // The size limits a flake keeps on the screen, as a part of the viewport height: far flakes stay visible, near ones do not
@@ -84,9 +86,13 @@ namespace ReDefinition.Seasons
         }
 
         // Three depths. Near: few, large and translucent. Mid: the bulk. Far: many small ones that make the grain of the storm.
-        internal static readonly FlakeLayer NearLayer = new FlakeLayer(7f, 6f, 0.10f, 0.26f, 0.2f, 1.2f, 2.0f, 0.5f);
-        internal static readonly FlakeLayer MidLayer = new FlakeLayer(18f, 10f, 0.07f, 0.16f, 0.35f, 0.9f, 1.6f, 0.8f);
-        internal static readonly FlakeLayer FarLayer = new FlakeLayer(36f, 14f, 0.07f, 0.14f, 0.45f, 0.8f, 1.3f, 0.9f);
+        internal static readonly FlakeLayer NearLayer = new FlakeLayer(7f, 6f, 0.10f, 0.26f, 0.06f, 1.2f, 2.0f, 0.5f);
+        internal static readonly FlakeLayer MidLayer = new FlakeLayer(18f, 10f, 0.03f, 0.08f, 0.34f, 0.9f, 1.6f, 0.95f);
+        internal static readonly FlakeLayer FarLayer = new FlakeLayer(36f, 12f, 0.02f, 0.05f, 0.60f, 0.8f, 1.3f, 1.0f);
+
+        // The veil is heavier toward the horizon, where the distant ground is. The boost is the most alpha added there, and it is
+        // gone from the elevation whose sine is the band.
+        internal const double HorizonBoost = 0.08, HorizonBandSin = 0.25;
 
         // The storm fades with height: full below FadeStartM, gone from FadeEndM above sea level.
         internal const double FadeStartM = 4000, FadeEndM = 10000;
@@ -120,6 +126,16 @@ namespace ReDefinition.Seasons
         internal static double VeilAlpha(double intensity, double veilAtFull)
         {
             return ClampOrMin(veilAtFull, 0, VeilMax) * Math.Pow(ClampOrMin(intensity, 0, 1), VeilCurve);
+        }
+
+        // The alpha of the veil toward the horizon: the ground alpha plus up to HorizonBoost, at most 0.97. The boost fades out with the
+        // sine of the elevation, and a faint veil gets less of it.
+        internal static double HorizonAlpha(double groundAlpha, double sinElevation)
+        {
+            if (double.IsNaN(sinElevation) || double.IsNaN(groundAlpha) || groundAlpha <= 0) return Math.Max(groundAlpha, 0);
+            double t = 1 - ClampOrMin(Math.Abs(sinElevation) / HorizonBandSin, 0, 1);
+            double smooth = t * t * (3 - 2 * t);
+            return Math.Min(0.97, groundAlpha + HorizonBoost * smooth * ClampOrMin(groundAlpha / 0.5, 0, 1));
         }
 
         // Flakes per second over both layers at an intensity; none below 0.02.

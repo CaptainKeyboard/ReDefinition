@@ -52,6 +52,7 @@ namespace ReDefinition.Seasons
             internal const string StormVolume = "stormVolume";
             internal const string StormVolumeMode = "stormVolumeMode";
             internal const string StormVolumeSteps = "stormVolumeSteps";
+            internal const string StormEveClouds = "stormEveClouds";
             internal const string StormMaxCells = "stormMaxCells";
             internal const string OrbitSnow = "orbitSnow";
             internal const string OrbitSnowWidth = "orbitSnowWidth";
@@ -134,6 +135,10 @@ namespace ReDefinition.Seasons
         // The steps a ray takes through a raymarched cell, 16 to 48: more is smoother and costs more.
         internal static int StormVolumeSteps;
 
+        // Whether the snow cloud of a cell is an EVE volumetric cloud (EveCellLayer) where EVE has volumetric layers; our own volume then
+        // draws the falling snow only. Off, or without EVE's volumetric clouds, the volume draws the cloud as well.
+        internal static bool StormEveClouds;
+
         // The most cells drawn at once: the nearest ones.
         internal static int StormMaxCells;
 
@@ -186,6 +191,7 @@ namespace ReDefinition.Seasons
             StormVolume = true;
             StormVolumeMode = StormVolumeModes.Auto;
             StormVolumeSteps = StormVolumeStepsDefault;
+            StormEveClouds = true;
             StormMaxCells = StormMaxCellsDefault;
             OrbitSnow = true;
             OrbitSnowWidth = OrbitSnowWidthDefault;
@@ -279,6 +285,7 @@ namespace ReDefinition.Seasons
             StormVolumeModes volumeMode;
             if (ModSettingsFile.TryString(root, Keys.StormVolumeMode, out text) && EnumNames<StormVolumeModes>.TryParse(text, out volumeMode)) StormVolumeMode = volumeMode;
             if (ModSettingsFile.TryInt(root, Keys.StormVolumeSteps, out integer)) StormVolumeSteps = Limit(integer, StormVolumeStepsMin, StormVolumeStepsMax);
+            if (ModSettingsFile.TryBool(root, Keys.StormEveClouds, out flag)) StormEveClouds = flag;
             if (ModSettingsFile.TryInt(root, Keys.StormMaxCells, out integer)) StormMaxCells = Limit(integer, StormMaxCellsMin, StormMaxCellsMax);
 
             if (ModSettingsFile.TryBool(root, Keys.OrbitSnow, out flag)) OrbitSnow = flag;
@@ -312,7 +319,8 @@ namespace ReDefinition.Seasons
             root.AddValue(Keys.StormVolume, StormVolume.ToString());
             root.AddValue(Keys.StormVolumeMode, EnumNames<StormVolumeModes>.Name(StormVolumeMode));
             root.AddValue(Keys.StormVolumeSteps, StormVolumeSteps.ToString(culture));
-            root.AddValue(Keys.StormMaxCells, StormMaxCells.ToString(culture));
+            root.AddValue(Keys.StormEveClouds, StormEveClouds.ToString());
+            root.AddValue(Keys.StormMaxCells,StormMaxCells.ToString(culture));
             root.AddValue(Keys.OrbitSnow, OrbitSnow.ToString());
             root.AddValue(Keys.OrbitSnowWidth, OrbitSnowWidth.ToString(culture));
             root.AddValue(Keys.ForceStorm, ForceStorm.ToString("R", culture));

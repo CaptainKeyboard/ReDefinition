@@ -20,7 +20,8 @@ Seasons on Kerbin as a mod of its own, `ReDefinition.Seasons.dll` in `GameData/R
 | `src/Seasons/ParallaxLink.cs` | What the seasons ask of Parallax, by reflection, guarded. |
 | `src/Seasons/EveSnowLink.cs` | EVE's snow particle field and snow sound raised with a storm or a replaced rain. |
 | `src/Seasons/EveRainLink.cs` | EVE's rain (particles, droplets, wet ground, lightning, sound) taken away over snow. |
-| `src/Seasons/ReflectLink.cs` | The member lookups of the three links, with the names that were missing. |
+| `src/Seasons/EveCellLayer.cs`, `EveCoverageMath.cs` | The storm cells' snow cloud as a layer of EVE's volumetric clouds: the reflection and the painter, and the map maths. Its config is `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg`. |
+| `src/Seasons/ReflectLink.cs` | The member lookups of the links, with the names that were missing. |
 | `src/Seasons/StormModel.cs` | The storm draw of a slot, the envelope and the band schedule from time, latitude, season and seed. |
 | `src/Seasons/StormCells.cs` | The storm cells: place, radius, life and drift as pure functions of seed and time; intensity at a point. |
 | `src/Seasons/StormLook.cs` | What an intensity looks like: visibility, fog, veil, flakes, ambient light. |
@@ -57,6 +58,6 @@ It uses `Core` in `ReDefinition.Common.dll` and nothing else of ReDefinition. Re
 - The seasons apply to Kerbin only (`SeasonClock.Applies`).
 - The design numbers of the snow line are constants in `SnowMask` and nowhere else; the snow colour is in `SnowPaint`.
 - No type of `ReDefinition.dll` or of Harmony is named here.
-- Parallax is reached through `ParallaxLink` only; EVE only through `EveSnowLink` and `EveRainLink`. Their lookups use `ReflectLink`.
+- Parallax is reached through `ParallaxLink` only; EVE only through `EveSnowLink`, `EveRainLink` and `EveCellLayer`. Their lookups use `ReflectLink`.
 - A setting has one key constant in `SeasonsSettings.Keys` and one default in `ResetToDefaults`; the player guide lists the same keys, defaults and ranges (a test compares them).
 - A log line goes through `SeasonsLog`.

@@ -5,8 +5,9 @@ using UnityEngine;
 
 namespace ReDefinition.Seasons
 {
-    // The storm cells (StormCells) in the world: a snow curtain under a dark cloud layer for each cell near the camera, so that a
-    // storm can be seen from afar and entered. It is a transparent object of the forward queue, with no image effect.
+    // The storm cells (StormCells) in the world: a veil of falling snow under a low snow cloud for each cell near the camera, so that a
+    // storm can be seen from afar and entered. It is a transparent object of the forward queue, with no image effect. Where EVE's
+    // volumetric clouds carry the cell's cloud (EveCellLayer.Supplying), the raymarched volume draws the snow only.
     //
     // Raymarched, where the Seasons' shader bundle loads: one bounding cylinder per cell, drawn with the shader
     // ReDefinition/SeasonsStormVolume. The shader marches the view ray through a 3D noise texture made here once. Camera.onPreCull
@@ -57,16 +58,16 @@ namespace ReDefinition.Seasons
         private const int QueueDome = 2994, QueueShell = 2996, QueuePuff = 2998;
 
         // The colours before the sun's brightness (StormLook.FogBrightness).
-        private static readonly Color CurtainColour = new Color(0.72f, 0.75f, 0.80f, 1f);
-        private static readonly Color DomeColour = new Color(0.22f, 0.24f, 0.28f, 1f);
-        private static readonly Color PuffLowColour = new Color(0.40f, 0.42f, 0.47f, 1f);
-        private static readonly Color PuffHighColour = new Color(0.62f, 0.64f, 0.69f, 1f);
+        private static readonly Color CurtainColour = new Color(0.80f, 0.83f, 0.88f, 1f);
+        private static readonly Color DomeColour = new Color(0.50f, 0.52f, 0.57f, 1f);
+        private static readonly Color PuffLowColour = new Color(0.58f, 0.60f, 0.65f, 1f);
+        private static readonly Color PuffHighColour = new Color(0.78f, 0.80f, 0.85f, 1f);
 
         // How opaque the dome and the puffs are at full strength (0 to 1): the puffs are few, big and faint, so that they do not show as dark rings.
         private const float DomeAlphaFull = 0.90f, PuffAlphaFull = 0.42f;
 
         // The colours of the raymarched volume before the sun's brightness: the sky's light on the snow and the cloud, and the sun's.
-        private static readonly Color RayAmbient = new Color(0.62f, 0.66f, 0.72f, 1f);
+        private static readonly Color RayAmbient = new Color(0.72f, 0.76f, 0.82f, 1f);
         private static readonly Color RaySun = new Color(1.00f, 0.96f, 0.88f, 1f);
 
         // The render queue of the raymarched volume: before the veil (3000) and the flakes (3100).
@@ -75,7 +76,7 @@ namespace ReDefinition.Seasons
         private static readonly int IdCell = Shader.PropertyToID("_Cell"), IdUp = Shader.PropertyToID("_Up"), IdRight = Shader.PropertyToID("_Right"),
             IdHeights = Shader.PropertyToID("_Heights"), IdWind = Shader.PropertyToID("_Wind"), IdLook = Shader.PropertyToID("_Look"),
             IdSun = Shader.PropertyToID("_Sun"), IdSunColour = Shader.PropertyToID("_SunColour"), IdAmbient = Shader.PropertyToID("_AmbientColour"),
-            IdNoise = Shader.PropertyToID("_Noise");
+            IdNoise = Shader.PropertyToID("_Noise"), IdCloudWeight = Shader.PropertyToID("_CloudWeight");
 
         // A change of strength or brightness that is written to the materials again.
         private const float WriteStep = 0.004f;
@@ -106,6 +107,8 @@ namespace ReDefinition.Seasons
             internal Transform RayTransform;
             internal Material RayMaterial;
             internal float Fade;
+            // Whether EVE's layer supplies the cloud of this cell, so that the volume draws the snow only.
+            internal bool EveCloud;
         }
 
         private Entry[] pool;
@@ -264,7 +267,6 @@ namespace ReDefinition.Seasons
             e.Latitude = cell.Latitude;
             e.Longitude = cell.Longitude;
             e.RadiusM = cell.RadiusM;
-            e.BaseAglM = cell.BaseAglM;
             e.Strength = (float)cell.Strength;
             if (double.IsNaN(e.Ground) || StormCells.Distance(cell.Latitude, cell.Longitude, e.GroundLatitude, e.GroundLongitude, body.Radius) > 300)
             {
@@ -272,6 +274,9 @@ namespace ReDefinition.Seasons
                 e.GroundLatitude = cell.Latitude;
                 e.GroundLongitude = cell.Longitude;
             }
+            // Where EVE's layer supplies the cloud, the curtain starts at its base, which is a height above sea level.
+            e.EveCloud = raymarch && EveCellLayer.Supplying;
+            e.BaseAglM = e.EveCloud ? EveCellLayer.BaseAboveGroundM(e.Ground) : cell.BaseAglM;
             // The planet curves away from the tangent plane of the centre by r^2 / 2R at the rim; the shells reach that far below.
             double sagitta = cell.RadiusM * cell.RadiusM / (2 * body.Radius);
             e.BelowM = (float)(sagitta + 150);
@@ -283,7 +288,7 @@ namespace ReDefinition.Seasons
                 // The bounding cylinder from the lowest point of the volume to its top.
                 e.BelowM = StormVolumeMath.BelowM(cell.RadiusM, body.Radius);
                 e.RayTransform.localPosition = new Vector3(0f, -e.BelowM, 0f);
-                e.RayTransform.localScale = new Vector3(rx * StormVolumeMath.Widening, e.BelowM + StormVolumeMath.TopM(cell.BaseAglM), rx * StormVolumeMath.Widening);
+                e.RayTransform.localScale = new Vector3(rx * StormVolumeMath.Widening, e.BelowM + StormVolumeMath.TopM(e.BaseAglM, !e.EveCloud), rx * StormVolumeMath.Widening);
                 return;
             }
             for (int i = 0; i < ShellsPerCell; i++)
@@ -380,7 +385,8 @@ namespace ReDefinition.Seasons
                     m.SetVector(IdCell, new Vector4(position.x, position.y, position.z, (float)e.RadiusM));
                     m.SetVector(IdUp, new Vector4(radial.x, radial.y, radial.z, curvature));
                     m.SetVector(IdRight, new Vector4(right.x, right.y, right.z, 0f));
-                    m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.CloudThicknessM, StormVolumeMath.TopM(e.BaseAglM), e.BelowM));
+                    m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.CloudThicknessM(e.BaseAglM), StormVolumeMath.TopM(e.BaseAglM, !e.EveCloud), e.BelowM));
+                    m.SetFloat(IdCloudWeight, e.EveCloud ? 0f : 1f);
                     m.SetVector(IdWind, new Vector4(offsetX, offsetZ, shearX, fall));
                     m.SetVector(IdLook, new Vector4(e.Fade, steps, shearZ, (float)(RangeM + e.RadiusM * 2.0)));
                     m.SetVector(IdSun, new Vector4(toSun.x, toSun.y, toSun.z, 0f));
@@ -440,7 +446,7 @@ namespace ReDefinition.Seasons
         // The pool of cells with one bounding cylinder each, drawn by the volume shader, and the noise texture they share. The cylinder
         // has 48 segments and is 2 % wider than the cell, from BelowM under the centre to the cloud top plus 120 m. It is drawn at queue
         // 2995 with Cull Front and ZWrite Off. The ray stops at the far plane and at _CameraDepthTexture. The noise is 64^3 with 4
-        // octaves, the cloud layer 700 m thick, and the curtain is stretched 12 times along the vertical.
+        // octaves, the snow cloud 1300 m thick (StormVolumeMath.CloudThicknessM), and the veil is stretched 9 times along the vertical.
         private bool BuildRaymarched(Camera cam, UnityEngine.Shader shader)
         {
             var test = new Material(shader);

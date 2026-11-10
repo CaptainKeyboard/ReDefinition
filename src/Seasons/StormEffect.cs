@@ -73,6 +73,9 @@ namespace ReDefinition.Seasons
         private double cameraLatitude, cameraLongitude, cameraAltitude;
         private double cellIntensity;
         private StormVolume volume;
+        private readonly StormCells.Cell[] eveCells = new StormCells.Cell[StormCells.Capacity];
+        private int eveCellCount;
+        private float nextEveCollect;
         private readonly List<ulong> knownCells = new List<ulong>();
         private int cellsBorn;
 
@@ -185,6 +188,7 @@ namespace ReDefinition.Seasons
             if (broken) return;
             try
             {
+                EveCellLayer.Update(cellBody, eveCells, cellBody != null ? eveCellCount : 0);
                 if (volume != null)
                 {
                     if (cellCount > 0 && cellBody != null) volume.Update(cellCamera, cellBody, cells, drawnCount, cameraAltitude);
@@ -242,6 +246,7 @@ namespace ReDefinition.Seasons
             if (veil != null) Quietly(veil.Dispose);
             if (flakes != null) Quietly(flakes.Dispose);
             if (volume != null) Quietly(volume.Dispose);
+            Quietly(EveCellLayer.Release);
             veil = null;
             flakes = null;
             volume = null;
@@ -293,6 +298,13 @@ namespace ReDefinition.Seasons
                 ForcedRadiusKm = SeasonsSettings.ForceCellRadiusKm
             };
             cellCount = StormCells.Collect(cells, Planetarium.GetUniversalTime(), cameraLatitude, cameraLongitude, StormVolume.RangeM, rules);
+            // The cells of the EVE layer's coverage map reach farther than the ones that are drawn raymarched; twice a second is enough.
+            if (Time.unscaledTime >= nextEveCollect)
+            {
+                nextEveCollect = Time.unscaledTime + 0.5f;
+                eveCellCount = SeasonsSettings.StormEveClouds
+                    ? StormCells.Collect(eveCells, Planetarium.GetUniversalTime(), cameraLatitude, cameraLongitude, EveCellLayer.RangeM, rules) : 0;
+            }
             cellBody = body;
             cellCamera = cam;
             cellIntensity = StormCells.IntensityAt(cells, cellCount, cameraLatitude, cameraLongitude, body.Radius);

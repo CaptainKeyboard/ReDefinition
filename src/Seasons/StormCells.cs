@@ -25,8 +25,8 @@ namespace ReDefinition.Seasons
         // The cell drifts east, as the prevailing wind of the middle latitudes does, turned by up to this much to either side (radians).
         internal const double HeadingSpread = 0.9;
 
-        // The cloud base above the ground at the cell's centre, in m.
-        internal const double BaseAglMinM = 1500, BaseAglMaxM = 2500;
+        // The cloud base above the ground at the cell's centre, in m: a snow cloud is low.
+        internal const double BaseAglMinM = 300, BaseAglMaxM = 900;
 
         // The soft edge as a share of the radius: full intensity inside 80 %, nothing at the radius.
         internal const double EdgeShare = 0.2;
@@ -194,7 +194,7 @@ namespace ReDefinition.Seasons
                 RadiusM = Mathx.ClampOrMin(rules.ForcedRadiusKm, SeasonsSettings.StormCellRadiusMinKm, SeasonsSettings.StormCellRadiusMaxKm) * 1000,
                 Height = 1,
                 Envelope = 1,
-                BaseAglM = 2000,
+                BaseAglM = 600,
                 AgeSeconds = 0
             };
         }
