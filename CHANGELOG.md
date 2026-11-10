@@ -4,6 +4,15 @@
 
 ### Changed
 
+- **The storm cell can be told from afar, and the veil follows the light.** The curtain under a cell is brighter and
+  denser (extinction 0.02 per metre, opacity at most 0.65), has a thin mist between its streaks that veils the horizon,
+  and a dark band at the cloud base darkens the cloud's underside; the band grows with the storm's strength and is
+  absent in a weak storm. The sun's part of the veil's light goes with the sun's visibility (none at night), is warm at
+  a low sun, and the sky's part turns blue-grey at night. In a harness run with a scheduled cell (no forced storm) the
+  cell came in as a dark shelf cloud with a pale curtain under it. The whiteout veil is left out of the upscaler's
+  reactive mask by its object name: with FSR 3 the mask inside a cell marks 0.02 % of the picture instead of 100 %.
+  `stormCullDistance` stays off: it saves 0.6 to 1.2 ms of about 24 in a cell, 0.9 on average.
+
 - **The snow veil of a storm cell is a translucent curtain, and the Seasons need EVE's volumetric clouds for storms.**
   The veil is soft vertical streaks slanted by the wind, thinner towards the ground and the rim, grey-white (colour capped
   at 0.85 so that it does not glow in HDR), with an opacity of at most 0.62, so that the horizon and the trees behind it
