@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+### Changed
+
+- **Storm cell in EVE's layers: a denser cloud, a visible swirl, a fraction of the memory.** The base layer's cell is
+  now EVE's Cumulus type (eight times the density of the Stratus deck, taller), the plateau of the cell is nearly full
+  coverage and its rim narrow, so that a cell 25 km away is a dark, flat-topped mass at the horizon and not part of the
+  overcast. The swirl in EVE's 2D layer is drawn with a shader of the bundle that paints and erases (`SeasonsSwirlPaint`):
+  EVE's cloud shader multiplies the picture's colour by 2 (`_Color`) and by its lighting, so the old grey swirl was white
+  on white. The swirl now clears its footprint, so that ocean shows between two white arms, with a dark blue-grey
+  core, at least 80 km across. The working maps no longer hold whole-map byte copies: a cell is composited into the
+  rectangle it covers and only that rectangle is written (data and GPU), a paint with unchanged cells is skipped. The
+  base layer takes 128 MB instead of 256 MB, and a paint uploads some hundred KB instead of 2 x 32 MB; the transient
+  `GetPixels32` copy of 128 MB is gone. The veil of falling snow is brighter and streakier (`SnowSigma` 0.0006, picked
+  between pictures at 0.4, 1 and 2.5 times 0.0010; the final value was not seen). Kerbin-Weather-1 reading 0 at the cell
+  is EVE having that layer switched off at that time (its `timeSettings`; the two weather layers take turns): the check
+  line in `KSP.log` now says whether EVE has the volume enabled.
+
 ### Added
 
 - **The storm cell is part of EVE's own weather.** New setting `stormClouds` (`Existing`, the default, or `Own`). With

@@ -359,9 +359,15 @@ namespace ReDefinition.Tests
         {
             var puffs = new EveStormMath.Puff[EveStormMath.MaxPuffs];
             int n = EveStormMath.Swirl(7, 3000, 0.9, true, 0.5, puffs);
-            Assert.AreEqual(2 + 2 * EveStormMath.Arms * EveStormMath.PuffsPerArm, n, "a core, dark lanes, white arms, a dark centre");
+            Assert.AreEqual(EveStormMath.FootprintDiscs + 2 + EveStormMath.Arms * EveStormMath.PuffsPerArm, n, "an erasing footprint, a body, white arms, a dark centre");
+            for (int i = 0; i < EveStormMath.FootprintDiscs; i++)
+            {
+                Assert.IsTrue(puffs[i].Erase, "the footprint is drawn first and erases");
+                Assert.IsTrue(puffs[i].RadiusM > 0.7 * EveStormMath.SwirlRadiusM(3000), "it covers the arms");
+            }
+            for (int i = EveStormMath.FootprintDiscs; i < n; i++) Assert.IsFalse(puffs[i].Erase, "everything after it paints");
             Assert.AreEqual(EveStormMath.MinSwirlRadiusM, EveStormMath.SwirlRadiusM(3000), "a small cell is drawn at the minimum size");
-            Assert.AreEqual(25000 * 1.1, EveStormMath.SwirlRadiusM(25000), 1e-9, "a large one at its own");
+            Assert.AreEqual(40000 * 1.1, EveStormMath.SwirlRadiusM(40000), 1e-9, "a large one at its own");
             double s = EveStormMath.SwirlRadiusM(3000);
             double reach = 0;
             for (int i = 0; i < n; i++)
@@ -371,7 +377,10 @@ namespace ReDefinition.Tests
             }
             Assert.IsTrue(reach <= EveStormMath.SwirlReachFactor * s, "reach " + reach + " against " + EveStormMath.SwirlReachFactor * s);
             Assert.IsTrue(reach > 1.0 * s, "the arms reach beyond the display radius");
-            Assert.IsTrue(puffs[n - 1].Grey < puffs[0].Grey, "the last puff is the darker core");
+            Assert.IsTrue(puffs[n - 1].Grey < puffs[EveStormMath.FootprintDiscs].Grey, "the last puff is the darker core");
+            Assert.IsTrue(puffs[n - 1].Cool > 0, "and it is blue-grey");
+            Assert.IsTrue(EveStormMath.MinSwirlRadiusM * 2 >= 40000, "the swirl is at least 40 km across: 10 pixels from 1000 km");
+            Assert.IsTrue(reach <= EveStormMath.SwirlReachFactor * s);
         }
 
         [TestMethod]
@@ -384,7 +393,7 @@ namespace ReDefinition.Tests
             for (int i = 0; i < na; i++) Assert.AreEqual(a[i], b[i]);
             EveStormMath.Swirl(11, 12000, 0.8, false, 0.3, b);
             // The turn of the first arm: the cross product of the first and last puff of the arm about the centre.
-            int first = 1 + EveStormMath.Arms * EveStormMath.PuffsPerArm, last = first + EveStormMath.PuffsPerArm - 1;
+            int first = EveStormMath.FootprintDiscs + 1, last = first + 4;
             double crossNorth = a[first].EastM * a[last].NorthM - a[first].NorthM * a[last].EastM;
             double crossSouth = b[first].EastM * b[last].NorthM - b[first].NorthM * b[last].EastM;
             Assert.IsTrue(crossNorth * crossSouth < 0, "the arms turn the other way: " + crossNorth + " and " + crossSouth);
@@ -399,8 +408,126 @@ namespace ReDefinition.Tests
             var strong = new EveStormMath.Puff[EveStormMath.MaxPuffs];
             EveStormMath.Swirl(3, 12000, 0.03, true, 0, weak);
             EveStormMath.Swirl(3, 12000, 1.0, true, 0, strong);
-            Assert.IsTrue(weak[1].Alpha < strong[1].Alpha);
+            Assert.IsTrue(weak[EveStormMath.FootprintDiscs].Alpha < strong[EveStormMath.FootprintDiscs].Alpha);
             Assert.IsTrue(weak[0].Alpha < strong[0].Alpha);
+        }
+
+        [TestMethod]
+        public void ThePatternHasSixDiscsOfEveryKindAndTheColourFollowsGreyAndCool()
+        {
+            var puffs = new EveStormMath.Puff[EveStormMath.MaxPuffs];
+            Assert.AreEqual(6, EveStormMath.Pattern(25000, puffs));
+            Assert.AreEqual(0, EveStormMath.Pattern(0, puffs));
+            int erasing = 0;
+            for (int i = 0; i < 6; i++) if (puffs[i].Erase) erasing++;
+            Assert.AreEqual(1, erasing);
+            double r, g, b;
+            EveStormMath.Colour(new EveStormMath.Puff { Grey = 0.5 }, out r, out g, out b);
+            Assert.AreEqual(0.5, r, 1e-9);
+            Assert.AreEqual(0.5, b, 1e-9);
+            EveStormMath.Colour(new EveStormMath.Puff { Grey = 0.5, Cool = 1 }, out r, out g, out b);
+            Assert.IsTrue(b > r && b > g, "cool is blue: " + r + "," + g + "," + b);
+            EveStormMath.Colour(new EveStormMath.Puff { Grey = 0.5, Cool = -1 }, out r, out g, out b);
+            Assert.IsTrue(r > g && r > b && g < 0.1, "warm is red: " + r + "," + g + "," + b);
+        }
+
+        [TestMethod]
+        public void TouchingRectanglesAreUnitedAcrossTheDateLineAndApartOnesAreNot()
+        {
+            const int width = 1000;
+            var a = new EveCoverageMath.Rect { Col0 = 100, Cols = 50, Row0 = 10, Rows = 20 };
+            var b = new EveCoverageMath.Rect { Col0 = 140, Cols = 50, Row0 = 20, Rows = 30 };
+            EveCoverageMath.Rect u;
+            Assert.IsTrue(EveStormMath.TryUnion(a, b, width, out u));
+            Assert.AreEqual(100, u.Col0);
+            Assert.AreEqual(90, u.Cols);
+            Assert.AreEqual(10, u.Row0);
+            Assert.AreEqual(40, u.Rows);
+            Assert.IsTrue(EveStormMath.TryUnion(b, a, width, out u), "the order does not matter");
+            Assert.AreEqual(100, u.Col0);
+            Assert.AreEqual(90, u.Cols);
+            Assert.IsFalse(EveStormMath.TryUnion(a, new EveCoverageMath.Rect { Col0 = 400, Cols = 50, Row0 = 10, Rows = 20 }, width, out u), "apart in columns");
+            Assert.IsFalse(EveStormMath.TryUnion(a, new EveCoverageMath.Rect { Col0 = 120, Cols = 10, Row0 = 200, Rows = 20 }, width, out u), "apart in rows");
+            var west = new EveCoverageMath.Rect { Col0 = 970, Cols = 40, Row0 = 0, Rows = 10 };
+            var east = new EveCoverageMath.Rect { Col0 = 5, Cols = 30, Row0 = 0, Rows = 10 };
+            Assert.IsTrue(EveStormMath.TryUnion(west, east, width, out u), "across the date line");
+            Assert.AreEqual(970, u.Col0);
+            Assert.AreEqual(65, u.Cols);
+        }
+
+        [TestMethod]
+        public void MergedMasksKeepTheLargerValueAndTheRectangleCompositeEqualsTheMapComposite()
+        {
+            const int width = 64, height = 32;
+            var first = new EveCoverageMath.Rect { Col0 = 10, Cols = 6, Row0 = 4, Rows = 4 };
+            var second = new EveCoverageMath.Rect { Col0 = 13, Cols = 6, Row0 = 6, Rows = 4 };
+            EveCoverageMath.Rect union;
+            Assert.IsTrue(EveStormMath.TryUnion(first, second, width, out union));
+            var maskA = new byte[24];
+            var maskB = new byte[24];
+            for (int i = 0; i < 24; i++) { maskA[i] = 100; maskB[i] = (byte)(i % 2 == 0 ? 50 : 200); }
+            var merged = new byte[EveStormMath.MaskSize(union)];
+            EveStormMath.MergeMax(merged, union, maskA, first, width);
+            EveStormMath.MergeMax(merged, union, maskB, second, width);
+            Assert.AreEqual(100, merged[0], "only the first covers its corner");
+            Assert.AreEqual(200, merged[(7 - union.Row0) * union.Cols + (14 - union.Col0)], "the larger wins in the overlap");
+            // The rectangle form gives what the whole-map form gives inside the rectangle.
+            var map = new byte[width * height];
+            var type = new byte[width * height];
+            for (int i = 0; i < map.Length; i++) { map[i] = (byte)(i * 7); type[i] = (byte)(i * 3); }
+            var rectMap = new byte[merged.Length];
+            var rectType = new byte[merged.Length];
+            for (int r = 0; r < union.Rows; r++)
+            {
+                for (int k = 0; k < union.Cols; k++)
+                {
+                    rectMap[r * union.Cols + k] = map[(union.Row0 + r) * width + union.Col0 + k];
+                    rectType[r * union.Cols + k] = type[(union.Row0 + r) * width + union.Col0 + k];
+                }
+            }
+            EveStormMath.Composite(map, type, 77, merged, union, width);
+            EveStormMath.CompositeRect(rectMap, rectType, 77, merged, union);
+            for (int r = 0; r < union.Rows; r++)
+            {
+                for (int k = 0; k < union.Cols; k++)
+                {
+                    Assert.AreEqual(map[(union.Row0 + r) * width + union.Col0 + k], rectMap[r * union.Cols + k]);
+                    Assert.AreEqual(type[(union.Row0 + r) * width + union.Col0 + k], rectType[r * union.Cols + k]);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void ColumnsCutAStripOutOfARectangleAndTheSignatureNoticesATexelMove()
+        {
+            var data = new byte[3 * 4];
+            for (int i = 0; i < data.Length; i++) data[i] = (byte)i;
+            var strip = new byte[2 * 3];
+            EveStormMath.Columns(data, 4, 3, 1, 2, strip);
+            CollectionAssert.AreEqual(new byte[] { 1, 2, 5, 6, 9, 10 }, strip);
+            ulong s = EveStormMath.Signature(0, 5, 0.25, 0.5, 6000, 0.8, 4096, 2048);
+            Assert.AreEqual(s, EveStormMath.Signature(0, 5, 0.25, 0.5, 6000, 0.8, 4096, 2048));
+            Assert.AreEqual(s, EveStormMath.Signature(0, 5, 0.25 + 0.2 / 4096, 0.5, 6000, 0.8, 4096, 2048), "a move inside the texel");
+            Assert.AreNotEqual(s, EveStormMath.Signature(0, 5, 0.25 + 1.5 / 4096, 0.5, 6000, 0.8, 4096, 2048), "a texel on");
+            Assert.AreNotEqual(s, EveStormMath.Signature(0, 5, 0.25, 0.5, 6000, 0.6, 4096, 2048), "the strength changed");
+            Assert.AreNotEqual(s, EveStormMath.Signature(0, 6, 0.25, 0.5, 6000, 0.8, 4096, 2048), "another cell");
+        }
+
+        [TestMethod]
+        public void TheMaskPlateauIsNearlyFullAndItsRimIsNarrow()
+        {
+            EveCoverageMath.Rect rect;
+            byte[] mask = PaintCell(4096, 4096, 55, 20, 12000, 1.0, 5, out rect);
+            int full = 0, partial = 0;
+            foreach (byte value in mask)
+            {
+                if (value >= 230) full++;
+                else if (value > 0) partial++;
+            }
+            Assert.IsTrue(full > 2.5 * partial, "full " + full + " against rim " + partial);
+            Assert.AreEqual(1.0, EveCoverageMath.Falloff(0, 1000, 0, EveStormMath.CoreShare), 1e-12);
+            Assert.AreEqual(0.0, EveCoverageMath.Falloff(1000, 1000, 0, EveStormMath.CoreShare), 1e-12);
+            Assert.AreEqual(EveCoverageMath.Falloff(300, 1000, 0.3), EveCoverageMath.Falloff(300, 1000, 0.3, EveCoverageMath.CoreShare));
         }
 
         [TestMethod]

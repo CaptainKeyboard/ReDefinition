@@ -19,9 +19,12 @@ namespace ReDefinition.Seasons
         internal const string VolumeShaderName = "ReDefinition/SeasonsStormVolume";
         internal const string BundleName = "seasons.shaders";
         private static AssetBundle bundle;
-        private static Shader volumeShader;
-        private static string volumeError;
-        private static bool volumeTried;
+        private static Shader volumeShader, swirlShader;
+        private static string volumeError, swirlError, bundleError;
+        private static bool volumeTried, swirlTried, bundleTried;
+
+        // The shader that draws the swirl into EVE's 2D cloud picture, from the same bundle.
+        internal const string SwirlShaderName = "ReDefinition/SeasonsSwirlPaint";
 
         internal static string BundlePath
         {
@@ -36,34 +39,52 @@ namespace ReDefinition.Seasons
         // until the game restarts. The player rejects a bundle from another Unity version without a word.
         internal static Shader LoadVolumeShader(out string error)
         {
-            if (volumeTried)
+            if (!volumeTried)
             {
-                error = volumeError;
-                return volumeShader;
-            }
-            volumeTried = true;
-            string path = BundlePath;
-            if (!System.IO.File.Exists(path))
-                volumeError = "the shader bundle is missing: " + path + " (tools/build_seasons_bundle.ps1 builds it)";
-            else
-            {
-                bundle = AssetBundle.LoadFromFile(path);
-                if (bundle == null)
-                    volumeError = "AssetBundle could not be loaded: " + path + " (it has to come from Unity 2019.4.18f1)";
-                else
-                {
-                    foreach (Shader loaded in bundle.LoadAllAssets<Shader>())
-                    {
-                        if (loaded == null || loaded.name != VolumeShaderName) continue;
-                        if (loaded.isSupported) volumeShader = loaded;
-                        else volumeError = VolumeShaderName + " is in the bundle but does not compile or run on this graphics device";
-                        break;
-                    }
-                    if (volumeShader == null && volumeError == null) volumeError = "the bundle has no " + VolumeShaderName;
-                }
+                volumeTried = true;
+                volumeShader = FromBundle(VolumeShaderName, out volumeError);
             }
             error = volumeError;
             return volumeShader;
+        }
+
+        // The swirl shader from the bundle, or null and the reason (an older bundle has none).
+        internal static Shader LoadSwirlShader(out string error)
+        {
+            if (!swirlTried)
+            {
+                swirlTried = true;
+                swirlShader = FromBundle(SwirlShaderName, out swirlError);
+            }
+            error = swirlError;
+            return swirlShader;
+        }
+
+        private static Shader FromBundle(string name, out string error)
+        {
+            if (!bundleTried)
+            {
+                bundleTried = true;
+                string path = BundlePath;
+                if (!System.IO.File.Exists(path))
+                    bundleError = "the shader bundle is missing: " + path + " (tools/build_seasons_bundle.ps1 builds it)";
+                else
+                {
+                    bundle = AssetBundle.LoadFromFile(path);
+                    if (bundle == null) bundleError = "AssetBundle could not be loaded: " + path + " (it has to come from Unity 2019.4.18f1)";
+                }
+            }
+            error = bundleError;
+            if (bundle == null) return null;
+            foreach (Shader loaded in bundle.LoadAllAssets<Shader>())
+            {
+                if (loaded == null || loaded.name != name) continue;
+                if (loaded.isSupported) return loaded;
+                error = name + " is in the bundle but does not compile or run on this graphics device";
+                return null;
+            }
+            error = "the bundle has no " + name;
+            return null;
         }
 
         // The first of the names that Shader.Find returns, or null.

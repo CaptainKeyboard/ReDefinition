@@ -121,8 +121,8 @@ What you see of a cell from outside, within 60 km of the camera and while `storm
 
 * A snow cloud: a thick, lobed, wind-stretched mass in EVE's own weather layers (`stormClouds =
   Existing`). It grows out of the clouds that are there while the storm builds, up to a dense
-  Stratus deck (1.75 to 3.45 km above sea level, Kerbin-base-layer) and, where EVE's weather layers
-  are active, a Polar-snow cloud below it. Because it is EVE's cloud, it has the noise, the
+  Cumulus mass in Kerbin-base-layer (from 1.75 km above sea level, taller than its Stratus deck)
+  and, where EVE's weather layers are active, a Polar-snow cloud below it. Because it is EVE's cloud, it has the noise, the
   lighting and the colours of the clouds around it. Without EVE's volumetric clouds the mod's own
   volume draws a cloud instead (a fallback that is not developed further).
 * From 150 km up and in the map view the cell is a swirl on EVE's 2D cloud layer (below).
@@ -174,18 +174,23 @@ The cloud in EVE's existing layers (`stormClouds = Existing`, the default): the 
 installed StockVolumetricClouds layers of Kerbin. A layer with a Polar-snow type (Kerbin-Weather-1
 and 2, low, faded in and out by EVE's schedule) and a layer with a low Stratus type
 (Kerbin-base-layer, always there) carry the cell; the convective layer and the stock snow
-particle layers are left alone. While a cell is within 150 km the mod keeps a copy of each of
-those layers' coverage and cloud-type maps with the cell painted into it (a screen blend of the
-coverage, the type turned to Polar-snow or Stratus), puts the copies in the layers, writes them
-once a second, and puts EVE's own maps back 30 seconds after the last cell has gone, when the
-setting goes off, or when the scene unloads. This costs memory while a cell is near: about 256 MB
-of copies for the 8192 x 4096 base layer (`KSP.log` says how much) and an upload of about 70 MB
-a second. The log lines `storm clouds in EVE's layers: ...` say which layers were found, what
-EVE reads back from the painted cell (`SampleCoverage`, seen 0.943 in the base layer, 0.852 in
-Kerbin-weather-2 and 0 in Kerbin-Weather-1 at the cell's centre; why that one reads 0 is not
-known), and the ground height under a cell; a cell over ground higher than the top of the layer
-(3450 m) is logged once, as its cloud is under the ground there. If the lookup fails, the log says
-so and the own layer below is used.
+particle layers are left alone. While a cell is within 150 km the mod keeps a working copy of
+each of those layers' coverage and cloud-type maps with the cell painted into it (a screen blend
+of the coverage, the type turned to Polar-snow, or to Cumulus in the base layer), puts the copies
+in the layers, and puts EVE's own maps back 30 seconds after the last cell has gone, when the
+setting goes off, or when the scene unloads. The cell is Cumulus in the base layer, EVE's dense
+type (eight times the density of the Stratus deck, taller), so that it is a darker, heavier mass
+than the overcast around it. Only the rectangle a cell covers is written, and only when a cell
+has moved by a texel or changed its strength. This costs memory while a cell is near: 128 MB
+for the 8192 x 4096 base layer (an earlier version took 256 MB and a brief extra 128 MB; `KSP.log`
+says how much) and an upload of some hundred KB a paint instead of 64 MB a second. The log
+lines `storm clouds in EVE's layers: ...` say which layers were found, what
+EVE reads back from the painted cell (`SampleCoverage`, seen 0.952 in the base layer, 1 in
+Kerbin-weather-2 and 0 in Kerbin-Weather-1 at the cell's centre; the log says EVE had Weather-1
+switched off at that moment and does not update it then, which its own schedule (`timeSettings`) does
+for the two weather layers in turn), and the ground height under a cell; a cell over ground
+higher than the top of the layer (3450 m) is logged once, as its cloud is under the ground
+there. If the lookup fails, the log says so and the own layer below is used.
 
 The own layer (`stormClouds = Own`, and the fallback): the layers `ReDefinition-Seasons-Storm` (the
 cloud) and `ReDefinition-Seasons-Snow` (the snow) are defined by a config of this mod that
@@ -202,14 +207,19 @@ Weather layers); it has not been measured for a 25 km cell.
 In orbit and in the map view EVE shows its 2D cloud layer, which fades in from 200 km up. With
 `stormClouds = Existing` the mod swaps the picture of the base layer's 2D layer (16384 x 8192,
 which EVE keeps) for a render texture of 4096 x 2048 (44 MB of video memory) that holds the
-original picture with the swirl of every cell of the planet drawn over it: two white arms, dark
-lanes between them and a dark centre, at least 20 km in radius, drawn with the layer's own
-rotation. Seen at 1000 km over 55 N: a solid red marker drawn the same way lies where the cell
-is and has about the size of the cell (the marker is the diagnostics switch of the harness, not
-a setting). Not seen: the grey swirl itself. On the white cloud of that place it was not visible
-in three runs (white arms and, in the last, very dark lanes and centre); the cause is not found.
-The picture is blended over the layer's own, so a part of it that the layer's shader ignores
-would explain it.
+original picture with the swirl of every cell of the planet drawn over it, at least 40 km in
+radius, with the layer's own rotation. The cause of the swirl being invisible before was found:
+EVE's cloud shader multiplies the picture's colour by 2 and by its lighting, so every grey above
+a quarter was full white. The swirl is now drawn by a shader of the mod's bundle that replaces the
+picture's colour and opacity instead of mixing with them: it first clears the clouds of the
+picture under the swirl, so that the ocean shows between the arms, then paints white arms
+and a dark blue-grey centre. Seen at 1000 km over 55 N (a forced 25 km cell, picture
+in the harness): a recognisable spiral, a white band curling round a blue centre with a dark
+lane, about 50 pixels across. In the map view the same ring is visible, as large. Not seen: the
+second arm clearly (the red marker of the harness shows one broad arm and a ring), and the
+spiral over open ocean. Where the picture's own cloud is thick and white,
+as west of the cell in that picture, the spiral blends into it. The swirl is the display size of
+the storm system, not the 25 km cell's own size.
 
 The own layer's version of this: the cloud's OBJECT has a 2D layer, and the mod paints every
 cell of the planet into its picture (2048 x 1024, 1.8 km a texel) as a swirl: a closed core and two arms, white-grey, as
@@ -229,7 +239,12 @@ by object, so they can show a seam. The shader reads the scene's depth to stop a
 and at objects; if the game does not provide it, the veil shows through hills. The cloud base
 of the EVE layer is a height above sea level (500 m), so over high ground the cloud is closer to
 the ground than the 300 to 900 m of the mod's own cloud. The cells seen from outside, the
-raymarched shader, its depth test and the EVE layer have not run in the game yet.
+raymarched shader, its depth test and the EVE layer have run in the game in the harness (forced
+cells, one place, Medium profile) but not in play: seen are a dark flat-topped cloud with a bright
+wall of snow under it at 8 km and a dark cloud mass with a white strip at the horizon at 25 km. The
+veil's density was chosen from three values at 8 km (0.4, 1 and 2.5 times 0.0010); the value
+it has now (0.0006) was not seen, and the veil at 8 km is a blown-out white wall with streaks at
+its upper edge, not a translucent curtain.
 
 Limits: the fog is Unity's. The Parallax terrain shader applies it; whether the stock
 terrain, the parts and Scatterer's sky do is not tested, which is why the veil is there: it

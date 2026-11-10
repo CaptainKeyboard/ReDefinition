@@ -70,7 +70,7 @@ Shader "ReDefinition/SeasonsStormVolume"
 
             // The extinction per metre of the cloud blanket and of the snow veil, at full strength and full density.
             static const float CloudSigma = 0.0065;
-            static const float SnowSigma = 0.0020;
+            static const float SnowSigma = 0.0006;
             // The tiles, m: the cloud and the snow horizontally; the snow's streaks vertically.
             static const float CloudTile = 6000.0;
             static const float SnowTile = 1500.0;
@@ -160,8 +160,8 @@ Shader "ReDefinition/SeasonsStormVolume"
                     float3 ps = float3(sx / SnowTile, h / StreakTile + _Wind.w / StreakTile, sz / SnowTile);
                     float s = Noise(ps, lod) * 0.6 + Noise(ps * float3(3.0, 2.0, 3.0) + 0.21, lod) * 0.4;
                     // Mostly diffuse, with softer streaks in it.
-                    float streak = 0.03 + 0.97 * saturate((s - 0.40) * 4.5);
-                    float radial = (1.0 - smoothstep(0.30, 1.0, veilRho + (s - 0.5) * 0.45)) * (0.55 + 1.1 * (1.0 - veilRho));
+                    float streak = 0.04 + 0.96 * saturate((s - 0.40) * 5.0);
+                    float radial = (1.0 - smoothstep(0.30, 1.0, veilRho + (s - 0.5) * 0.45)) * (0.40 + 1.7 * (1.0 - veilRho));
                     snow = column * streak * radial * SnowSigma * _SnowBoost * strength;
                 }
             }
@@ -269,8 +269,9 @@ Shader "ReDefinition/SeasonsStormVolume"
                                      + _SunColour.rgb * phase * exp(-d * 2.6) * 0.42;
                         float3 cloudColour = shade * lerp(0.55, 1.0, lit);
                         // The snow reads light, bluish white; the sky's light on it, a little of the sun's.
-                        float3 snowColour = (_AmbientColour.rgb * 1.5 + _SunColour.rgb * 0.3 * phase) * float3(1.0, 1.0, 1.0)
-                                          * (0.72 + 0.26 * saturate(h / max(base_, 1.0)));
+                        // Bright white shafts: they have to read against the grey underside of the cloud above them.
+                        float3 snowColour = (_AmbientColour.rgb * 1.7 + _SunColour.rgb * 0.4 * phase)
+                                          * (0.80 + 0.25 * saturate(h / max(base_, 1.0)));
                         snowColour = lerp(snowColour, _VeilTint.rgb, _VeilTint.a);
 
                         colour += transmittance * a_ * ((cloud * cloudColour + snow * snowColour) / sigma);

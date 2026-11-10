@@ -94,9 +94,11 @@ A storm is a cell that stands on the planet.
    changed.
 5. `StormVolume` draws each cell in the world. It reads the shader bundle
    `GameData/ReDefinition/Seasons/Shaders/seasons.shaders` through
-   `StormShaders.LoadVolumeShader`. The bundle holds one shader,
-   `ReDefinition/SeasonsStormVolume`, whose source is
-   `unity/Assets/ReDefinitionSeasons/Shaders/ReDefinitionSeasonsStormVolume.shader`.
+   `StormShaders.LoadVolumeShader`. The bundle holds two shaders. `ReDefinition/SeasonsStormVolume`
+   has its source in
+   `unity/Assets/ReDefinitionSeasons/Shaders/ReDefinitionSeasonsStormVolume.shader`;
+   `ReDefinition/SeasonsSwirlPaint` (`StormShaders.LoadSwirlShader`) draws the swirl in
+   step 6.
    It marches the view ray through a bounding cylinder of the cell, with the 3D noise from
    `StormNoise`. The cylinder and the numbers are in `StormVolumeMath`. If the bundle is
    missing or does not load, `StormVolume` draws shells, a dome and puffs from the game's
@@ -113,22 +115,46 @@ A storm is a cell that stands on the planet.
    cloud-type value there is that type, which is the last one (1.0: EVE reads the type of a
    texel as the red value, index = value x (count - 1), and `SampleCoverage` interpolates the
    two types around a fractional index). A layer with a Stratus type that starts below 3000 m
-   is the body layer: its type is Stratus (0.0). The cumulonimbus layer and the stock snow
-   particle layers are left alone. The layers' maps are BC4 textures (8192 x 4096 base layer,
-   2048 x 1024 weather layers); `EveLayerStorm` reads them with `GetPixels32`, makes R8 copies
-   and composites the cell into them with a screen blend (coverage) and a smoothstep from the
-   layer's own type to the target type (the type map). The cell is the lobes of
+   is the body layer: its cell type is Cumulus (`BodyCellTypeNames`; eight times the density of
+   Stratus, 0.012 against 0.0015, and 1000 m taller), because with Stratus the cell was not told
+   from the overcast deck at 25 km. The layer's base and top stay the deck's (1750 and 3450 m).
+   The cumulonimbus layer and the stock snow particle layers are left alone. The layers' maps are
+   BC4 textures (8192 x 4096 base layer, 2048 x 1024 weather layers). EVE reads them on the CPU
+   too (`TextureWrapper.Sample` calls `GetPixelBilinear`, for `SampleCoverage` and the particle
+   fields), so the working maps must be readable.
+   `EveLayerStorm` makes one readable R8 working map per original, filled in bands of 128 rows
+   with `GetPixels` (no 16-byte-a-pixel copy of the whole map). It holds no other copy: for a cell
+   it reads the rectangle of the original (`GetPixels` on the rectangle), composites the cell
+   into it (`CompositeRect`: a screen blend for the coverage, a smoothstep from the layer's own
+   type to the target type for the type map) and writes the rectangle into the working map's data
+   and, through a small texture and `Graphics.CopyTexture`, into its video memory. Cells whose
+   rectangles touch are one group (`TryUnion`, `MergeMax`). A paint whose cells are where they
+   were to a texel and as strong to a 64th (`Signature`) is skipped. The cell is the lobes of
    `EveStormMath.Lobes`: 5 to 7 overlapping discs, spread along the wind over 1.3 to 2 times the
    radius, breathing with the time, growing from 40 % of their size with the storm's strength.
+   The plateau is lifted to nearly full coverage (`PlateauGain`) and the rim is narrow
+   (`CoreShare` 0.72).
    The direction of a cell in a layer's frame is the body-frame direction (`GetRelSurfaceNVector`)
    times the matrix of `CloudsPQS.GetMainRotationAtUT`, which is current at any altitude; while
    the volume is current its own matrix is used and the log gives the angle between the two
-   (`frame check`). The maps are written once a second (the base layer's upload is 2 x 33 MB),
-   restored from the originals in the rectangles the cells touched, and put back after 30 s
-   without a cell near, when the setting goes off, when the scene unloads or when a step fails.
+   (`frame check`). The maps are painted at most once a second where something changed, the
+   rectangles the cells touched go back to the original's values first, and EVE's own maps are put
+   back after 30 s without a cell near, when the setting goes off, when the scene unloads or when
+   a step fails. The base layer's working maps are 2 x 32 MB in main memory and 2 x 32 MB in video
+   memory; the first version kept whole-map byte copies besides and took 256 MB, with an upload of
+   2 x 32 MB a second. A paint now uploads the cell's rectangles only (some hundred KB).
    In the 2D layer `_MainTex` of the material becomes a render texture (4096 x 2048 at most) that
    holds the original picture with the swirl drawn over it (`EveStormMath.Swirl`, fans of
-   triangles with `Sprites/Default`, premultiplied, so that the alpha adds up as clouds do).
+   triangles). They are drawn with the shader `ReDefinition/SeasonsSwirlPaint` of the bundle in
+   two passes: paint (the colour replaces the picture's colour, the opacity grows) and erase (the
+   colour stays, the opacity is lowered). Without that shader `Sprites/Default` paints only.
+   Why the swirl replaces instead of mixing: `EVE/Cloud` multiplies the picture's colour by the
+   layer's `_Color` (2.0 in `Kerbin-base-layer`) and by its lighting (`SpecularColorLight`, up to
+   2 under a high sun), so every colour above 0.25 is full white and a grey swirl on the white
+   cloud of the picture was invisible. The swirl's white is 0.35, its core 0.06 (a dark
+   blue-grey), and the lanes are the picture's own ocean, where three erasing discs cleared the
+   footprint. `EveLayerStorm.ProbePattern` draws a test pattern (black, white, erasing and red
+   discs at full and half opacity) for the harness.
    The veil of the mod's volume starts at the base of the body layer (`EveLayerStorm.BaseAslM`,
    1750 m above sea level), and a cell over ground higher than the layer's top is logged once.
    `GameData/ReDefinition/Seasons/Clouds/SeasonsStormLayer.cfg` defines two
@@ -220,14 +246,22 @@ The tests are in `tests/ReDefinition.Tests`:
 
 `ArchitectureTests.cs` holds the rule that the seasons use nothing of ReDefinition beyond
 `Core`. The tests run the pure functions. The checks in the game are run by hand with
-`.local/work/seasons-test/check_seasons.py` (modes `orbit`, `cell`, `storm`). Seen so far: the
-cell layers bind, the calibration agrees (and the frame check of the 2D picture is 0.00
-degrees), a red marker (`EveSwirlMath.Probe`) shows the 2D layer in the right place with the
-right size from 1000 km, a cell inside shows EVE's snow field and a cell 8 km away is EVE's
-cloud. Open: the swirl from a lower orbit and in the map view, the look of the cell at 25 km, the
-sound, and the order of the 2D layer against what is drawn after it: part of the red marker
-was covered by thick white cloud although the layer's queue is 3000, so something draws later
-(not identified) [open].
+`.local/work/seasons-test/check_seasons.py` (modes `orbit`, `cell`, `storm`; `--mode cell --places
+ground62,orbit1000` runs both in one start). Seen so far: the cell layers bind, the calibration agrees
+(and the frame check of the 2D picture is 0.00 degrees), a cell inside shows EVE's snow field, a cell
+8 km away is a dark, flat-topped Cumulus mass with a bright snow wall under it, and one 25 km away is a
+dark mass with a white strip at the horizon, not told from nothing as before. EVE's `SampleCoverage`
+reads 0.952 in the base layer and 1 in Kerbin-weather-2. In Kerbin-Weather-1 it reads 0 where the mod
+has painted: the log's `volume switched off by EVE` says that layer is switched off at that time
+(`CloudsPQS` skips its whole update when `timeSettings.IsEnabled` is false, so its matrix is stale),
+which its schedule does for the two weather layers in turn; EVE draws nothing from it then.
+The 2D swirl (`EveLayerStorm.Probe` is the red marker, `ProbePattern` the test pattern) is a recognisable
+spiral from 1000 km and a ring in the map view. In the pattern only the red and the erasing disc could
+be found in the picture; the black and white ones were not, which is not explained (the swirl's
+dark core is visible, so dark paint works). Open: the veil's density as set now, the second arm,
+the spiral over open ocean, the sound, and the order of the 2D layer against what is drawn after it
+for the own layer (part of the red marker was covered by thick white cloud although the layer's
+queue is 3000) [open].
 
 ## What can go wrong
 

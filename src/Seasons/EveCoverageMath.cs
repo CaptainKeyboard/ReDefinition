@@ -94,9 +94,15 @@ namespace ReDefinition.Seasons
         // ragged, -1 to 1, moves the rim by up to Raggedness of the radius.
         internal static double Falloff(double distanceM, double radiusM, double ragged)
         {
+            return Falloff(distanceM, radiusM, ragged, CoreShare);
+        }
+
+        // The same with the share of the radius that is full coverage given: the larger it is, the narrower the feathered rim.
+        internal static double Falloff(double distanceM, double radiusM, double ragged, double coreShare)
+        {
             if (radiusM <= 0) return 0;
             double x = distanceM / radiusM + ragged * Raggedness;
-            double t = (x - CoreShare) / (1.0 - CoreShare);
+            double t = (x - coreShare) / (1.0 - coreShare);
             if (t <= 0) return 1;
             if (t >= 1) return 0;
             return 1 - t * t * (3 - 2 * t);

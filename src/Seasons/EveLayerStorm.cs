@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using ReDefinition.Core;
+using Unity.Collections;
 using UnityEngine;
 
 namespace ReDefinition.Seasons
@@ -43,6 +44,9 @@ namespace ReDefinition.Seasons
         // The types that mark a snow layer, a body layer, and the highest start of the body layer's cloud in m above sea level.
         private static readonly string[] SnowTypeNames = { "Polar-snow", "Snow" };
         private static readonly string[] BodyTypeNames = { "Stratus" };
+
+        // The types a cell turns the body layer to, the first that the layer has; the layer's own deck type where it has none.
+        private static readonly string[] BodyCellTypeNames = { "Cumulus" };
         private const double BodyLayerBaseMaxAslM = 3000;
 
         // The cloud base and top of the body layer, for the veil's start and the warning about ground that is higher.
@@ -80,11 +84,15 @@ namespace ReDefinition.Seasons
 
             internal bool Swapped;
             internal int Width, Height;
+            // EVE's maps, and our working maps: readable R8 copies (EVE samples them on the CPU). A cell is composited into a
+            // rectangle read from the original; the rectangle is written into the working map's data and copied on the GPU.
             internal Texture2D CoverageOriginal, TypeOriginal, CoverageWork, TypeWork;
-            internal byte[] CoverageBytes, CoverageOriginalBytes, TypeBytes, TypeOriginalBytes;
-            internal byte[] Scratch = new byte[0];
+            // The originals as bytes, only where a rectangle of the original cannot be read (not readable, or its format refuses).
+            internal byte[] CoverageOriginalBytes, TypeOriginalBytes;
             internal readonly EveCoverageMath.Rect[] Painted = new EveCoverageMath.Rect[StormCells.Capacity];
             internal int PaintedCount;
+            internal ulong Signature;
+            internal int Ticks;
             internal float NextPaint;
             internal bool Checked;
             internal double PaintMsTotal;
@@ -100,7 +108,7 @@ namespace ReDefinition.Seasons
         private static string summary = "not looked for";
         private static MethodInfo getList, getRotation, sampleCoverage;
         private static PropertyInfo nameProperty, bodyProperty, volumeProperty, layer2DProperty, coverageMapProperty, typeMapProperty, typesProperty;
-        private static PropertyInfo materialProperty, probeMaterialProperty, rotationProperty, innerProperty, outerProperty, fadeProperty;
+        private static PropertyInfo materialProperty, probeMaterialProperty, rotationProperty, innerProperty, outerProperty, fadeProperty, fadeDensityProperty, enabledProperty;
         private static PropertyInfo typeNameProperty, typeMinProperty, typeMaxProperty, cloudsMatProperty, renderingMaterialProperty;
         private static FieldInfo pqsField, textureField, initializedField, mainTexField;
 
@@ -126,6 +134,13 @@ namespace ReDefinition.Seasons
 
         // A diagnostics switch for screenshots: the swirl is drawn as solid red, so that it can be told from the clouds.
         internal static bool Probe;
+
+        // Another one: the swirl is replaced by EveStormMath.Pattern, black, white, red and erasing discs at full and half opacity,
+        // to see how EVE's shader treats the picture's colour and opacity.
+        internal static bool ProbePattern;
+
+        // Whether the swirl's material can erase (our shader from the bundle); the fallback shaders only paint.
+        private static bool swirlErases;
 
         // The base and the top of the body layer's cloud above sea level, in m (the config's, once a layer is found).
         private static double baseAslM = DefaultBaseAslM, topAslM = DefaultTopAslM;
@@ -251,6 +266,9 @@ namespace ReDefinition.Seasons
                 typeMaxProperty = link.Property(cloudType, "CloudType", "MaxAltitude", pub);
                 textureField = link.Field(wrapper, "TextureWrapper", "textureValue", TypeLookup.Any, typeof(Texture2D));
                 initializedField = link.Field(wrapper, "TextureWrapper", "textureInitialized", TypeLookup.Any, typeof(bool));
+                // The density fade is only read for the log: EVE multiplies it into SampleCoverage.
+                fadeDensityProperty = volume.GetProperty("CurrentTimeFadeDensity", pub);
+                enabledProperty = volume.GetProperty("enabled", pub);
                 // The 2D layer is optional: without it the cell has no swirl in the orbit view and everything else works.
                 var optional = new ReflectLink();
                 cloudsMatProperty = optional.Property(clouds2D, "Clouds2D", "CloudsMat", pub);
@@ -440,6 +458,10 @@ namespace ReDefinition.Seasons
                 index = EveStormMath.FindType(nameArray, BodyTypeNames);
                 if (index < 0 || minimums[index] >= BodyLayerBaseMaxAslM) return null;
             }
+            // The body layer's cell is its dense type (Cumulus: eight times the density of Stratus, and taller), not the thin deck's own,
+            // so that the cell is a darker, heavier mass than the overcast around it. The base and top are the deck's.
+            int target = snow ? index : EveStormMath.FindType(nameArray, BodyCellTypeNames);
+            if (target < 0) target = index;
             var layer = new Layer
             {
                 Name = name,
@@ -449,9 +471,9 @@ namespace ReDefinition.Seasons
                 CoverageWrapper = coverage,
                 TypeWrapper = type,
                 SnowRole = snow,
-                TypeIndex = index,
+                TypeIndex = target,
                 TypeCount = nameArray.Length,
-                TargetType = EveStormMath.CloudTypeByte(index, nameArray.Length),
+                TargetType = EveStormMath.CloudTypeByte(target, nameArray.Length),
                 BaseAslM = minimums[index],
                 TopAslM = maximums[index]
             };
@@ -518,45 +540,110 @@ namespace ReDefinition.Seasons
                 layer.Checked = true;
                 return false;
             }
-            string howCoverage, howType;
-            byte[] coverageBytes = ReadRed(coverage, out howCoverage);
-            byte[] typeBytes = ReadRed(type, out howType);
-            if (coverageBytes == null || typeBytes == null || coverage.width != type.width || coverage.height != type.height)
+            if (coverage.width != type.width || coverage.height != type.height)
             {
                 if (!layer.Checked)
-                    SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "' left alone: coverage " + coverage.width + "x" + coverage.height + " (" + howCoverage
-                                   + "), type " + type.width + "x" + type.height + " (" + howType + ")");
+                    SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "' left alone: coverage " + coverage.width + "x" + coverage.height + ", type "
+                                   + type.width + "x" + type.height);
+                layer.Checked = true;
+                return false;
+            }
+            if (!SystemInfo.copyTextureSupport.HasFlag(UnityEngine.Rendering.CopyTextureSupport.Basic))
+            {
+                if (!layer.Checked) SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "' left alone: the graphics device cannot copy a region of a texture (" + SystemInfo.copyTextureSupport + ")");
                 layer.Checked = true;
                 return false;
             }
             layer.Width = coverage.width;
             layer.Height = coverage.height;
+            string howCoverage = "unreadable", howType = "unreadable";
+            try
+            {
+                layer.CoverageWork = MakeWorkMap(coverage, "ReDefinition Seasons storm in " + layer.Name + " coverage", out howCoverage);
+                layer.TypeWork = MakeWorkMap(type, "ReDefinition Seasons storm in " + layer.Name + " type", out howType);
+            }
+            catch (Exception e)
+            {
+                FreeWork(layer);
+                layer.Width = 0;
+                layer.Height = 0;
+                if (!layer.Checked) SeasonsLog.Failed("seasons-eve-copy-" + layer.Name, "storm clouds in EVE's layers: '" + layer.Name + "' left alone: its working maps could not be made", e);
+                layer.Checked = true;
+                return false;
+            }
             layer.CoverageOriginal = coverage;
             layer.TypeOriginal = type;
-            layer.CoverageOriginalBytes = coverageBytes;
-            layer.TypeOriginalBytes = typeBytes;
-            layer.CoverageBytes = (byte[])coverageBytes.Clone();
-            layer.TypeBytes = (byte[])typeBytes.Clone();
-            layer.CoverageWork = MakeMap(coverage, layer.CoverageBytes, "ReDefinition Seasons storm in " + layer.Name + " coverage");
-            layer.TypeWork = MakeMap(type, layer.TypeBytes, "ReDefinition Seasons storm in " + layer.Name + " type");
+            layer.CoverageOriginalBytes = null;
+            layer.TypeOriginalBytes = null;
+            if (!coverage.isReadable || !type.isReadable)
+            {
+                // A texture that is not readable can only be read whole, by drawing it into a target.
+                string unused;
+                layer.CoverageOriginalBytes = ReadRed(coverage, out unused);
+                layer.TypeOriginalBytes = ReadRed(type, out unused);
+            }
             layer.Main = materialProperty.GetValue(layer.Volume, null) as Material;
             layer.Probe = probeMaterialProperty.GetValue(layer.Volume, null) as Material;
             SetMaps(layer, layer.CoverageWork, layer.TypeWork);
             layer.PaintedCount = 0;
+            layer.Signature = 0;
+            layer.Ticks = 0;
             layer.Swapped = true;
             layer.Checked = false;
-            double mb = 4.0 * layer.CoverageBytes.Length / (1024.0 * 1024.0) + 2.0 * layer.CoverageBytes.Length / (1024.0 * 1024.0) * 2;
-            SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "' takes the cell: coverage " + layer.Width + "x" + layer.Height + " " + coverage.format + " (read by "
-                           + howCoverage + ", " + (coverage.isReadable ? "readable" : "not readable") + "), type map " + type.format + " (" + howType + "), "
-                           + mb.ToString("0.0", CultureInfo.InvariantCulture) + " MB of copies, target type " + layer.TargetType.ToString(CultureInfo.InvariantCulture)
-                           + "/255, time fade " + Fade(layer).ToString("0.00", CultureInfo.InvariantCulture));
+            double mapMb = (double)layer.Width * layer.Height / (1024.0 * 1024.0);
+            SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "' takes the cell: coverage " + layer.Width + "x" + layer.Height + " " + coverage.format + " ("
+                           + (coverage.isReadable ? "readable" : "not readable") + "), type map " + type.format + ", working maps R8, readable, no other copy: "
+                           + (4 * mapMb).ToString("0.0", CultureInfo.InvariantCulture) + " MB in main and video memory (whole-map copies took "
+                           + (8 * mapMb).ToString("0.0", CultureInfo.InvariantCulture) + " MB), " + howCoverage + ", " + howType + ", target type "
+                           + layer.TargetType.ToString(CultureInfo.InvariantCulture) + "/255, time fade " + Fade(layer).ToString("0.00", CultureInfo.InvariantCulture));
             return true;
         }
 
+        // The R8 working map of an original, readable (EVE samples a layer's coverage on the CPU too, SampleCoverage). It is read in
+        // bands of rows, so that the 16 bytes a pixel of GetPixels are never held for the whole map at once.
+        private static Texture2D MakeWorkMap(Texture2D original, string name, out string how)
+        {
+            int w = original.width, h = original.height;
+            var work = new Texture2D(w, h, TextureFormat.R8, false, true)
+            {
+                name = name,
+                wrapMode = original.wrapMode,
+                filterMode = original.filterMode
+            };
+            NativeArray<byte> raw = work.GetRawTextureData<byte>();
+            how = "read in bands of " + BandRows + " rows";
+            try
+            {
+                if (!original.isReadable) throw new InvalidOperationException("the original is not readable");
+                var band = new byte[w * BandRows];
+                for (int y = 0; y < h; y += BandRows)
+                {
+                    int rows = Math.Min(BandRows, h - y);
+                    ReadPixelsInto(original, 0, y, w, rows, band, w, 0);
+                    NativeArray<byte>.Copy(band, 0, raw, y * w, w * rows);
+                }
+            }
+            catch (Exception)
+            {
+                byte[] bytes = ReadRed(original, out how);
+                how = "read whole by " + how;
+                NativeArray<byte>.Copy(bytes, 0, raw, 0, bytes.Length);
+            }
+            work.Apply(false, false);
+            return work;
+        }
+
+        // The rows of a band of the original read at once.
+        private const int BandRows = 128;
+
+        // The layer's time fade as SampleCoverage applies it: the coverage fade times the density fade. 0 where the layer's schedule
+        // (timeSettings) has it off at this time; Kerbin-Weather-1 and -weather-2 take turns.
         private static float Fade(Layer layer)
         {
             object value = fadeProperty != null ? fadeProperty.GetValue(layer.Volume, null) : null;
-            return value is float ? (float)value : -1f;
+            if (!(value is float)) return -1f;
+            object density = fadeDensityProperty != null ? fadeDensityProperty.GetValue(layer.Volume, null) : null;
+            return (float)value * (density is float ? (float)density : 1f);
         }
 
         // The first byte of every texel of a texture (its red value). Readable R8 textures give their raw data; other readable
@@ -604,17 +691,75 @@ namespace ReDefinition.Seasons
             }
         }
 
-        private static Texture2D MakeMap(Texture2D original, byte[] bytes, string name)
+        // The values of a rectangle of an original map, row by row (rect.Cols per row; the columns wrap round the map's width), into
+        // destination. A map that was read whole is read from its bytes. Otherwise the original's pixels are read for the rectangle only,
+        // and where that fails the whole map is read once into bytes (the log says so).
+        private static void ReadRect(Layer layer, bool coverage, EveCoverageMath.Rect rect, byte[] destination)
         {
-            var texture = new Texture2D(original.width, original.height, TextureFormat.R8, false, true)
+            Texture2D original = coverage ? layer.CoverageOriginal : layer.TypeOriginal;
+            byte[] bytes = coverage ? layer.CoverageOriginalBytes : layer.TypeOriginalBytes;
+            if (bytes == null)
             {
-                name = name,
-                wrapMode = original.wrapMode,
-                filterMode = original.filterMode
-            };
-            texture.LoadRawTextureData(bytes);
-            texture.Apply(false, false);
-            return texture;
+                try
+                {
+                    int first = Math.Min(rect.Cols, layer.Width - rect.Col0);
+                    ReadPixelsInto(original, rect.Col0, rect.Row0, first, rect.Rows, destination, rect.Cols, 0);
+                    if (rect.Cols > first) ReadPixelsInto(original, 0, rect.Row0, rect.Cols - first, rect.Rows, destination, rect.Cols, first);
+                    return;
+                }
+                catch (Exception e)
+                {
+                    string how;
+                    bytes = ReadRed(original, out how);
+                    if (coverage) layer.CoverageOriginalBytes = bytes; else layer.TypeOriginalBytes = bytes;
+                    SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "': a rectangle of the original could not be read (" + CompatibilityLog.Reason(e)
+                                   + "), the whole map is read by " + how + " instead (" + ((double)bytes.Length / (1024.0 * 1024.0)).ToString("0.0", CultureInfo.InvariantCulture) + " MB)");
+                }
+            }
+            for (int r = 0; r < rect.Rows; r++)
+            {
+                int rowStart = (rect.Row0 + r) * layer.Width;
+                for (int k = 0; k < rect.Cols; k++) destination[r * rect.Cols + k] = bytes[rowStart + (rect.Col0 + k) % layer.Width];
+            }
+        }
+
+        private static void ReadPixelsInto(Texture2D original, int x, int y, int cols, int rows, byte[] destination, int destinationCols, int destinationCol)
+        {
+            Color[] pixels = original.GetPixels(x, y, cols, rows, 0);
+            for (int r = 0; r < rows; r++)
+            {
+                for (int k = 0; k < cols; k++) destination[r * destinationCols + destinationCol + k] = (byte)Mathf.RoundToInt(pixels[r * cols + k].r * 255f);
+            }
+        }
+
+        private static Texture2D uploadTexture;
+
+        // Copies a rectangle's bytes (row by row, rect.Cols per row) into a working map on the GPU. They go through a small readable
+        // texture. Two copies are made where the rectangle crosses the map's edge.
+        private static void WriteRect(Layer layer, Texture2D work, EveCoverageMath.Rect rect, byte[] data)
+        {
+            int first = Math.Min(rect.Cols, layer.Width - rect.Col0);
+            WriteSegment(work, rect.Col0, rect.Row0, first, rect.Rows, rect.Cols == first ? data : Segment(data, rect.Cols, rect.Rows, 0, first));
+            if (rect.Cols > first) WriteSegment(work, 0, rect.Row0, rect.Cols - first, rect.Rows, Segment(data, rect.Cols, rect.Rows, first, rect.Cols - first));
+        }
+
+        private static byte[] Segment(byte[] data, int cols, int rows, int colStart, int colCount)
+        {
+            var segment = new byte[colCount * rows];
+            EveStormMath.Columns(data, cols, rows, colStart, colCount, segment);
+            return segment;
+        }
+
+        private static void WriteSegment(Texture2D work, int x, int y, int cols, int rows, byte[] data)
+        {
+            // The copy in main memory, which EVE's SampleCoverage reads, then the same rectangle on the GPU.
+            NativeArray<byte> raw = work.GetRawTextureData<byte>();
+            for (int r = 0; r < rows; r++) NativeArray<byte>.Copy(data, r * cols, raw, (y + r) * work.width + x, cols);
+            if (uploadTexture == null) uploadTexture = new Texture2D(Math.Max(cols, 16), Math.Max(rows, 16), TextureFormat.R8, false, true) { name = "ReDefinition Seasons storm upload" };
+            if (uploadTexture.width != cols || uploadTexture.height != rows) uploadTexture.Resize(cols, rows);
+            uploadTexture.LoadRawTextureData(data);
+            uploadTexture.Apply(false, false);
+            Graphics.CopyTexture(uploadTexture, 0, 0, 0, 0, cols, rows, work, 0, 0, x, y);
         }
 
         private static void SetMaps(Layer layer, Texture coverage, Texture type)
@@ -661,14 +806,12 @@ namespace ReDefinition.Seasons
             layer.TypeWork = null;
             layer.CoverageOriginal = null;
             layer.TypeOriginal = null;
-            layer.CoverageBytes = null;
             layer.CoverageOriginalBytes = null;
-            layer.TypeBytes = null;
             layer.TypeOriginalBytes = null;
             layer.Main = null;
             layer.Probe = null;
-            layer.Scratch = new byte[0];
             layer.PaintedCount = 0;
+            layer.Signature = 0;
             layer.Swapped = false;
         }
 
@@ -734,15 +877,12 @@ namespace ReDefinition.Seasons
             var stopwatch = Stopwatch.StartNew();
             Matrix4x4 rotation;
             if (!Rotation(layer, body, ut, out rotation)) return;
-            for (int i = 0; i < layer.PaintedCount; i++)
-            {
-                EveStormMath.Restore(layer.CoverageBytes, layer.CoverageOriginalBytes, layer.Painted[i], layer.Width);
-                EveStormMath.Restore(layer.TypeBytes, layer.TypeOriginalBytes, layer.Painted[i], layer.Width);
-            }
-            layer.PaintedCount = 0;
-            long texels = 0;
-            int painted = 0;
-            for (int i = 0; i < count && layer.PaintedCount < layer.Painted.Length; i++)
+            layer.Ticks++;
+
+            // The cells' masks, each in the rectangle of its own, and the number that says whether they are the same as at the last paint.
+            int masks = 0;
+            ulong signature = (ulong)(long)Math.Floor(ut / SignatureSeconds);
+            for (int i = 0; i < count && masks < maskRects.Length; i++)
             {
                 double strength = cells[i].Strength;
                 double peak = Peak(strength);
@@ -750,27 +890,114 @@ namespace ReDefinition.Seasons
                 double radiusM = cells[i].RadiusM * 1.05 * EveStormMath.GrowthScale(strength);
                 double cx, cy, cz;
                 CellDirection(layer, body, rotation, cells[i], live, out cx, out cy, out cz);
-                int lobeCount = EveStormMath.Lobes(cells[i].Key, radiusM, cells[i].Heading, ut, lobes);
                 EveCoverageMath.Rect rect = EveStormMath.CellRect(cx, cy, cz, radiusM, body.Radius, layer.Width, layer.Height);
+                if (EveStormMath.MaskSize(rect) == 0) continue;
+                double u, v;
+                EveCoverageMath.Uv(cx, cy, cz, out u, out v);
+                signature = EveStormMath.Signature(signature, cells[i].Key, u, v, radiusM, strength, layer.Width, layer.Height);
+                maskRects[masks] = rect;
+                maskCells[masks] = i;
+                maskCentres[masks] = new Vector3((float)cx, (float)cy, (float)cz);
+                maskRadii[masks] = radiusM;
+                masks++;
+            }
+            if (signature == 0) signature = 1;
+            // Nothing changed since the last paint (the cells are where they were to a texel): the maps are as they should be.
+            if (signature == layer.Signature && (masks > 0 || layer.PaintedCount == 0)) return;
+            if (masks == 0 && layer.PaintedCount == 0) return;
+            for (int m = 0; m < masks; m++)
+            {
+                StormCells.Cell cell = cells[maskCells[m]];
+                Vector3 c = maskCentres[m];
+                int lobeCount = EveStormMath.Lobes(cell.Key, maskRadii[m], cell.Heading, ut, lobes);
+                var mask = new byte[EveStormMath.MaskSize(maskRects[m])];
+                EveStormMath.PaintMask(mask, maskRects[m], layer.Width, layer.Height, c.x, c.y, c.z, body.Radius, lobes, lobeCount, Peak(cell.Strength), cell.Key);
+                maskData[m] = mask;
+                CheckGround(body, cell);
+            }
+
+            // Cells whose rectangles touch are one group: their masks are merged (the larger value wins) and composited once.
+            int groups = 0;
+            for (int i = 0; i < masks; i++)
+            {
+                EveCoverageMath.Rect rect = maskRects[i];
+                byte[] mask = maskData[i];
+                bool merged = true;
+                while (merged)
+                {
+                    merged = false;
+                    for (int g = 0; g < groups; g++)
+                    {
+                        EveCoverageMath.Rect union;
+                        if (!EveStormMath.TryUnion(groupRects[g], rect, layer.Width, out union)) continue;
+                        var combined = new byte[EveStormMath.MaskSize(union)];
+                        EveStormMath.MergeMax(combined, union, groupData[g], groupRects[g], layer.Width);
+                        EveStormMath.MergeMax(combined, union, mask, rect, layer.Width);
+                        groups--;
+                        groupRects[g] = groupRects[groups];
+                        groupData[g] = groupData[groups];
+                        groupData[groups] = null;
+                        rect = union;
+                        mask = combined;
+                        merged = true;
+                        break;
+                    }
+                }
+                groupRects[groups] = rect;
+                groupData[groups] = mask;
+                groups++;
+            }
+
+            // The old rectangles go back to the layer's own values, then the groups are composited from the originals.
+            long texels = 0;
+            for (int i = 0; i < layer.PaintedCount; i++) RestoreRect(layer, layer.Painted[i]);
+            layer.PaintedCount = 0;
+            for (int g = 0; g < groups; g++)
+            {
+                EveCoverageMath.Rect rect = groupRects[g];
                 int size = EveStormMath.MaskSize(rect);
-                if (size == 0) continue;
-                if (layer.Scratch.Length < size) layer.Scratch = new byte[size];
-                EveStormMath.PaintMask(layer.Scratch, rect, layer.Width, layer.Height, cx, cy, cz, body.Radius, lobes, lobeCount, peak, cells[i].Key);
-                EveStormMath.Composite(layer.CoverageBytes, layer.TypeBytes, layer.TargetType, layer.Scratch, rect, layer.Width);
+                var coverage = new byte[size];
+                var type = new byte[size];
+                ReadRect(layer, true, rect, coverage);
+                ReadRect(layer, false, rect, type);
+                EveStormMath.CompositeRect(coverage, type, layer.TargetType, groupData[g], rect);
+                WriteRect(layer, layer.CoverageWork, rect, coverage);
+                WriteRect(layer, layer.TypeWork, rect, type);
                 layer.Painted[layer.PaintedCount++] = rect;
                 texels += size;
-                painted++;
-                CheckGround(body, cells[i]);
+                groupData[g] = null;
             }
-            layer.CoverageWork.LoadRawTextureData(layer.CoverageBytes);
-            layer.CoverageWork.Apply(false, false);
-            layer.TypeWork.LoadRawTextureData(layer.TypeBytes);
-            layer.TypeWork.Apply(false, false);
+            for (int i = 0; i < masks; i++) maskData[i] = null;
+            layer.Signature = signature;
             stopwatch.Stop();
             layer.PaintMsTotal += stopwatch.Elapsed.TotalMilliseconds;
             layer.Paints++;
-            if (!layer.Checked && painted > 0 && live && layer.Paints >= 3) Verify(body, layer, cells, count, ut, texels, stopwatch.Elapsed.TotalMilliseconds);
+            if (!layer.Checked && groups > 0 && live && layer.Ticks >= 3) Verify(body, layer, cells, count, ut, texels, stopwatch.Elapsed.TotalMilliseconds);
         }
+
+        // Puts a rectangle of a layer's working maps back to the originals' values.
+        private static void RestoreRect(Layer layer, EveCoverageMath.Rect rect)
+        {
+            int size = EveStormMath.MaskSize(rect);
+            if (size == 0) return;
+            var coverage = new byte[size];
+            var type = new byte[size];
+            ReadRect(layer, true, rect, coverage);
+            ReadRect(layer, false, rect, type);
+            WriteRect(layer, layer.CoverageWork, rect, coverage);
+            WriteRect(layer, layer.TypeWork, rect, type);
+        }
+
+        // The seconds of universal time that count as one for the paint's signature: the lobes breathe over hours, the layers turn slowly.
+        private const double SignatureSeconds = 60.0;
+
+        private static readonly EveCoverageMath.Rect[] maskRects = new EveCoverageMath.Rect[StormCells.Capacity];
+        private static readonly byte[][] maskData = new byte[StormCells.Capacity][];
+        private static readonly int[] maskCells = new int[StormCells.Capacity];
+        private static readonly Vector3[] maskCentres = new Vector3[StormCells.Capacity];
+        private static readonly double[] maskRadii = new double[StormCells.Capacity];
+        private static readonly EveCoverageMath.Rect[] groupRects = new EveCoverageMath.Rect[StormCells.Capacity];
+        private static readonly byte[][] groupData = new byte[StormCells.Capacity][];
 
         // Once per swap, when the volume has been current for a frame: EVE's own SampleCoverage at the strongest cell's centre against
         // the composited map there, and the layer's time fade.
@@ -792,10 +1019,14 @@ namespace ReDefinition.Seasons
             sampleArgs[2] = false;
             object result = sampleCoverage.Invoke(layer.Volume, sampleArgs);
             double read = result is float ? (double)(float)result : -1;
+            // A layer that EVE has switched off (its schedule, timeSettings, or the camera outside its range) is not updated: its matrix
+            // is stale and it reads 0 though the map holds the cell.
+            object enabled = enabledProperty != null ? enabledProperty.GetValue(layer.Volume, null) : null;
+            string state = enabled is bool ? ((bool)enabled ? "enabled" : "switched off by EVE (its schedule or range), its matrix is not updated") : "state unknown";
             SeasonsLog.Say("storm clouds in EVE's layers: '" + layer.Name + "' check: EVE's SampleCoverage at the centre of the strongest cell reads "
                            + read.ToString("0.###", CultureInfo.InvariantCulture) + " at " + altitude.ToString("0", CultureInfo.InvariantCulture) + " m (time fade "
-                           + Fade(layer).ToString("0.00", CultureInfo.InvariantCulture) + "), painted " + texels.ToString(CultureInfo.InvariantCulture) + " texels in "
-                           + ms.ToString("0.0", CultureInfo.InvariantCulture) + " ms");
+                           + Fade(layer).ToString("0.00", CultureInfo.InvariantCulture) + ", volume " + state + "), painted " + texels.ToString(CultureInfo.InvariantCulture)
+                           + " texels in " + ms.ToString("0.0", CultureInfo.InvariantCulture) + " ms");
         }
 
         // Warns once per cell when the ground at its centre is higher than the top of the cloud: EVE's altitudes are above sea level, so the
@@ -851,6 +1082,7 @@ namespace ReDefinition.Seasons
                     RenderTexture.active = swirlTarget;
                     GL.PushMatrix();
                     GL.LoadOrtho();
+                    int pass = 0;
                     swirlMaterial.SetPass(0);
                     for (int i = 0; i < count; i++)
                     {
@@ -861,8 +1093,20 @@ namespace ReDefinition.Seasons
                         BodyDirection(body, cells[i].Latitude, cells[i].Longitude, out bx, out by, out bz);
                         Vector3 d = rotation.MultiplyPoint3x4(new Vector3((float)bx, (float)by, (float)bz)).normalized;
                         cx = d.x; cy = d.y; cz = d.z;
-                        int n = EveStormMath.Swirl(cells[i].Key, cells[i].RadiusM, strength, cells[i].Latitude >= 0, cells[i].Heading, puffs);
-                        for (int p = 0; p < n; p++) DrawPuff(body, cx, cy, cz, puffs[p], cells[i].Key + (ulong)p);
+                        int n = ProbePattern ? EveStormMath.Pattern(cells[i].RadiusM, puffs)
+                            : EveStormMath.Swirl(cells[i].Key, cells[i].RadiusM, strength, cells[i].Latitude >= 0, cells[i].Heading, puffs);
+                        for (int p = 0; p < n; p++)
+                        {
+                            // A puff that erases needs the erasing pass of our shader; the fallback shaders only paint.
+                            if (puffs[p].Erase && !swirlErases) continue;
+                            int wanted = puffs[p].Erase ? 1 : 0;
+                            if (wanted != pass)
+                            {
+                                swirlMaterial.SetPass(wanted);
+                                pass = wanted;
+                            }
+                            DrawPuff(body, cx, cy, cz, puffs[p], cells[i].Key + (ulong)p);
+                        }
                     }
                     GL.PopMatrix();
                 }
@@ -904,7 +1148,14 @@ namespace ReDefinition.Seasons
             }
             if (swirlMaterial == null)
             {
-                Shader shader = StormShaders.Find(SwirlShaderNames);
+                string bundleReason;
+                Shader shader = StormShaders.LoadSwirlShader(out bundleReason);
+                swirlErases = shader != null;
+                if (shader == null)
+                {
+                    SeasonsLog.Say("storm clouds in EVE's layers: the swirl shader of the bundle is not available (" + bundleReason + "); the swirl only paints");
+                    shader = StormShaders.Find(SwirlShaderNames);
+                }
                 if (shader == null)
                 {
                     swirlFailed = true;
@@ -963,12 +1214,14 @@ namespace ReDefinition.Seasons
 
         private static void DrawFan(int vertices, int indices, EveStormMath.Puff puff, double shift)
         {
-            float grey = (float)puff.Grey;
+            double red, green, blue;
+            EveStormMath.Colour(puff, out red, out green, out blue);
             GL.Begin(GL.TRIANGLES);
             for (int k = 0; k < indices; k++)
             {
                 int i = fanIndices[k];
-                GL.Color(Probe ? new Color(1f, 0.1f, 0.1f, (float)fanAlpha[i]) : new Color(grey, grey, grey, (float)(puff.Alpha * fanAlpha[i])));
+                GL.Color(Probe && !puff.Erase ? new Color(1f, 0.1f, 0.1f, (float)fanAlpha[i])
+                    : new Color((float)red, (float)green, (float)blue, (float)(puff.Alpha * fanAlpha[i])));
                 GL.Vertex3((float)(fanU[i] + shift), (float)fanV[i], 0f);
             }
             GL.End();
@@ -1030,6 +1283,8 @@ namespace ReDefinition.Seasons
             Release();
             for (int i = 0; i < layers.Count; i++) FreeWork(layers[i]);
             layers.Clear();
+            if (uploadTexture != null) UnityEngine.Object.Destroy(uploadTexture);
+            uploadTexture = null;
             groundChecked.Clear();
             layersLogged = "";
             nextScan = 0f;

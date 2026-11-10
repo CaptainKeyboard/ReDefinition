@@ -27,14 +27,25 @@ namespace ReDefinition.Seasons
         internal const double TypeFrom = 0.15, TypeTo = 0.55;
 
         // The smallest radius the swirl of the 2D layer is drawn with, in m: from 1000 km a cell is seen as a few pixels otherwise.
-        internal const double MinSwirlRadiusM = 20000;
+        internal const double MinSwirlRadiusM = 40000;
+
+        // The erasing discs under the swirl.
+        internal const int FootprintDiscs = 3;
+
+        // The share of a lobe's radius that is full coverage (the rim is feathered over the rest). The factor lifts the plateau of the
+        // mask towards full coverage: a storm cell is a dense mass, not a thickening of the layer's own pattern.
+        internal const double CoreShare = 0.72, PlateauGain = 1.12;
 
         // The most puffs of the swirl, and how many the arms have.
-        internal const int MaxPuffs = 28;
-        internal const int Arms = 2, PuffsPerArm = 6;
+        internal const int MaxPuffs = 36;
+        internal const int Arms = 2, PuffsPerArm = 14;
+
+        // The colour value of the swirl's cloud in the 2D picture. EVE's shader multiplies the picture's colour by the layer's _Color (2).
+        // It multiplies by its own lighting too (up to 2 under a high sun). So 0.25 is already full white on the lit side.
+        internal const double WhiteGrey = 0.35, CoreGrey = 0.06;
 
         // The turns of an arm from the centre to its end.
-        internal const double SwirlTurns = 0.75;
+        internal const double SwirlTurns = 0.65;
 
         // The farthest a puff of the swirl reaches from the centre, as a multiple of the swirl's display radius.
         internal const double SwirlReachFactor = 2.1;
@@ -48,10 +59,13 @@ namespace ReDefinition.Seasons
             internal double EastM, NorthM, RadiusM, Weight;
         }
 
-        // One puff of the 2D swirl: like a lobe, with the opacity and the grey (0 black, 1 white) it is drawn with.
+        // One puff of the 2D swirl: like a lobe, with the opacity and the grey (0 black, 1 white) it is drawn with. A puff that paints
+        // replaces the picture's colour by its own (more of it where Alpha is high) and makes the picture's opacity larger. A puff that
+        // erases (Erase) leaves the colour alone and lowers the picture's opacity by Alpha. Cool turns the grey blue, 0 to 1.
         internal struct Puff
         {
-            internal double EastM, NorthM, RadiusM, Alpha, Grey;
+            internal double EastM, NorthM, RadiusM, Alpha, Grey, Cool;
+            internal bool Erase;
         }
 
         // A deterministic number from 0 to 1 of a seed and a salt.
@@ -85,6 +99,7 @@ namespace ReDefinition.Seasons
             for (int k = 0; k < n; k++)
             {
                 double along = 0, across = 0, radius = 0.8 * radiusM, weight = 1.0;
+                // The lobes of a cell are all dense: the weight only keeps them from being identical.
                 if (k > 0)
                 {
                     double s = -1.0 + 2.0 * (k - 0.5) / (n - 1);
@@ -92,7 +107,7 @@ namespace ReDefinition.Seasons
                     along = stretch * 0.55 * radiusM * s + 0.05 * radiusM * Math.Sin(breath);
                     across = 0.35 * radiusM * (2 * Unit(seed, 60 + k) - 1) + 0.04 * radiusM * Math.Sin(breath * 1.3 + 1.0);
                     radius = radiusM * (0.42 + 0.2 * Unit(seed, 80 + k));
-                    weight = 0.82 + 0.18 * Unit(seed, 100 + k);
+                    weight = 0.94 + 0.06 * Unit(seed, 100 + k);
                 }
                 output[k] = new Lobe
                 {
@@ -185,8 +200,8 @@ namespace ReDefinition.Seasons
                         if (dot < cosReach) continue;
                         double angle = Math.Acos(dot > 1 ? 1 : dot);
                         double ragged = EveCoverageMath.RaggedAt(col / nx, row / ny, lobeSeed);
-                        double swell = 0.86 + 0.14 * ragged;
-                        double value = EveCoverageMath.Falloff(angle * planetRadiusM, radiusM, ragged) * level * swell;
+                        double swell = 0.93 + 0.07 * ragged;
+                        double value = Math.Min(1.0, EveCoverageMath.Falloff(angle * planetRadiusM, radiusM, ragged, CoreShare) * level * swell * PlateauGain);
                         int v = (int)Math.Round(value * 255.0);
                         if (v > 255) v = 255;
                         if (v > mask[rowStart + k]) mask[rowStart + k] = (byte)v;
@@ -281,49 +296,179 @@ namespace ReDefinition.Seasons
             return Math.Max(radiusM * 1.1, MinSwirlRadiusM);
         }
 
-        // The puffs of a cell's swirl: a core, and two arms of puffs that wind outward from it, elongated along the wind.
+        // The puffs of a cell's swirl, in the order they are drawn. First an erasing disc over the footprint, so that the ocean shows
+        // between the arms. Then a dense white body and two wind-stretched arms of white puffs. Last a small dark grey-blue core.
         // The arms wind the other way in the southern hemisphere. strength, 0 to 1, is the cell's intensity now.
-        // The layer's _Color is 512, so the picture's rgb is doubled: the lanes must be very dark to show, the arms mid grey.
-        // The puffs are a function of the seed, the radius, the hemisphere and the heading. Returns their number.
+        // The puffs replace the picture's colour and opacity, so the spiral does not depend on the clouds under it.
+        // A function of the seed, the radius, the hemisphere and the heading. Returns the number of puffs.
         internal static int Swirl(ulong seed, double radiusM, double strength, bool northern, double headingRad, Puff[] output)
         {
-            if (output == null || output.Length < 2 + 2 * Arms * PuffsPerArm || !(radiusM > 0)) return 0;
+            if (output == null || output.Length < FootprintDiscs + 2 + Arms * PuffsPerArm || !(radiusM > 0)) return 0;
             double s = SwirlRadiusM(radiusM);
             double body = Mathx.SmoothStep(0.02, 0.45, strength);
             double elongation = 1.0 + (Stretch(seed) - 1.0) * 0.35;
             double sinH = Math.Sin(headingRad), cosH = Math.Cos(headingRad);
             double sign = northern ? 1.0 : -1.0;
             double phase = 2 * Math.PI * Unit(seed, 5);
+            double dense = 0.6 + 0.4 * body;
             int n = 0;
-            output[n++] = new Puff { EastM = 0, NorthM = 0, RadiusM = 0.55 * s, Alpha = 0.55 + 0.4 * body, Grey = 0.6 };
-            // First the dark lanes between the arms, then the white arms over them, so that the spiral reads on white clouds as well.
-            for (int pass = 0; pass < 2; pass++)
+            // The footprint is cleared by discs on top of each other: the soft rim of the widest, the near-full middle of all three.
+            for (int d = 0; d < FootprintDiscs; d++)
             {
-                bool lane = pass == 0;
-                for (int arm = 0; arm < Arms; arm++)
+                output[n++] = new Puff { EastM = 0, NorthM = 0, RadiusM = (1.35 - 0.3 * d) * s, Alpha = 0.85 * dense, Grey = 0, Erase = true };
+            }
+            output[n++] = new Puff { EastM = 0, NorthM = 0, RadiusM = 0.5 * s, Alpha = 0.97 * dense, Grey = WhiteGrey };
+            for (int arm = 0; arm < Arms; arm++)
+            {
+                for (int j = 0; j < PuffsPerArm; j++)
                 {
-                    for (int j = 0; j < PuffsPerArm; j++)
+                    double t = (j + 1.0) / PuffsPerArm;
+                    double r = s * (0.28 + 0.92 * t);
+                    double theta = phase + arm * 2 * Math.PI / Arms + sign * 2 * Math.PI * SwirlTurns * t;
+                    double east = r * Math.Sin(theta), north = r * Math.Cos(theta);
+                    // Along the wind and across it: the along part is stretched.
+                    double along = east * sinH + north * cosH, across = east * cosH - north * sinH;
+                    along *= elongation;
+                    output[n++] = new Puff
                     {
-                        double t = (j + 1.0) / PuffsPerArm;
-                        double r = s * (0.25 + 0.95 * t);
-                        double theta = phase + (arm + (lane ? 0.5 : 0.0)) * 2 * Math.PI / Arms + sign * 2 * Math.PI * SwirlTurns * t;
-                        double east = r * Math.Sin(theta), north = r * Math.Cos(theta);
-                        // Along the wind and across it: the along part is stretched.
-                        double along = east * sinH + north * cosH, across = east * cosH - north * sinH;
-                        along *= elongation;
-                        output[n++] = new Puff
-                        {
-                            EastM = along * sinH + across * cosH,
-                            NorthM = along * cosH - across * sinH,
-                            RadiusM = s * ((lane ? 0.30 : 0.32) - 0.14 * t),
-                            Alpha = lane ? (0.55 - 0.2 * t) * (0.4 + 0.6 * body) : (0.85 - 0.35 * t) * (0.55 + 0.45 * body),
-                            Grey = lane ? 0.1 : 0.6
-                        };
-                    }
+                        EastM = along * sinH + across * cosH,
+                        NorthM = along * cosH - across * sinH,
+                        RadiusM = s * (0.28 - 0.08 * t),
+                        Alpha = (0.97 - 0.2 * t) * dense,
+                        Grey = WhiteGrey
+                    };
                 }
             }
-            output[n++] = new Puff { EastM = 0, NorthM = 0, RadiusM = 0.28 * s, Alpha = 0.7 * body, Grey = 0.03 };
+            output[n++] = new Puff { EastM = 0, NorthM = 0, RadiusM = 0.22 * s, Alpha = 0.9 * body, Grey = CoreGrey, Cool = 1.0 };
             return n;
+        }
+
+        // A test pattern for the 2D layer, to learn how its shader treats colour and opacity. Six discs in two rows: black, white and
+        // erasing at full opacity above; black and white at half opacity and a red one below. Returns the number of puffs.
+        internal static int Pattern(double radiusM, Puff[] output)
+        {
+            if (output == null || output.Length < 6 || !(radiusM > 0)) return 0;
+            double r = 0.3 * SwirlRadiusM(radiusM);
+            double step = 0.75 * SwirlRadiusM(radiusM);
+            output[0] = new Puff { EastM = -step, NorthM = step, RadiusM = r, Alpha = 1.0, Grey = 0 };
+            output[1] = new Puff { EastM = 0, NorthM = step, RadiusM = r, Alpha = 1.0, Grey = WhiteGrey };
+            output[2] = new Puff { EastM = step, NorthM = step, RadiusM = r, Alpha = 1.0, Erase = true };
+            output[3] = new Puff { EastM = -step, NorthM = -step, RadiusM = r, Alpha = 0.5, Grey = 0 };
+            output[4] = new Puff { EastM = 0, NorthM = -step, RadiusM = r, Alpha = 0.5, Grey = WhiteGrey };
+            output[5] = new Puff { EastM = step, NorthM = -step, RadiusM = r, Alpha = 1.0, Grey = WhiteGrey, Cool = -1.0 };
+            return 6;
+        }
+
+        // The colour a puff is drawn with, red, green and blue from 0 to 1. Cool above 0 shifts the grey toward blue, below 0 toward red.
+        internal static void Colour(Puff puff, out double red, out double green, out double blue)
+        {
+            double g = puff.Grey < 0 ? 0 : puff.Grey > 1 ? 1 : puff.Grey;
+            double c = puff.Cool < -1 ? -1 : puff.Cool > 1 ? 1 : puff.Cool;
+            if (c >= 0)
+            {
+                red = g * (1 - 0.35 * c);
+                green = g * (1 - 0.12 * c);
+                blue = g;
+            }
+            else
+            {
+                red = g;
+                green = g * (1 + 0.9 * c);
+                blue = green;
+            }
+        }
+
+        // The rectangle that holds both, where two rectangles of a map of that width touch or overlap (columns wrap round the width).
+        // False where they are apart; then union is the first.
+        internal static bool TryUnion(EveCoverageMath.Rect a, EveCoverageMath.Rect b, int width, out EveCoverageMath.Rect union)
+        {
+            union = a;
+            if (a.IsEmpty || b.IsEmpty) return false;
+            if (a.Row0 >= b.Row0 + b.Rows || b.Row0 >= a.Row0 + a.Rows) return false;
+            int row0 = Math.Min(a.Row0, b.Row0);
+            int rows = Math.Max(a.Row0 + a.Rows, b.Row0 + b.Rows) - row0;
+            int col0, cols;
+            if (a.Cols >= width || b.Cols >= width)
+            {
+                col0 = 0;
+                cols = width;
+            }
+            else
+            {
+                int db = ((b.Col0 - a.Col0) % width + width) % width;
+                int da = ((a.Col0 - b.Col0) % width + width) % width;
+                if (db < a.Cols)
+                {
+                    col0 = a.Col0;
+                    cols = Math.Max(a.Cols, db + b.Cols);
+                }
+                else if (da < b.Cols)
+                {
+                    col0 = b.Col0;
+                    cols = Math.Max(b.Cols, da + a.Cols);
+                }
+                else return false;
+                if (cols > width) cols = width;
+            }
+            union = new EveCoverageMath.Rect { Col0 = col0, Cols = cols, Row0 = row0, Rows = rows };
+            return true;
+        }
+
+        // Takes the larger value of a cell's mask into the mask of a union rectangle (both hold their rectangle row by row,
+        // Cols per row; the columns wrap round the map's width).
+        internal static void MergeMax(byte[] union, EveCoverageMath.Rect unionRect, byte[] mask, EveCoverageMath.Rect rect, int width)
+        {
+            for (int r = 0; r < rect.Rows; r++)
+            {
+                int ur = rect.Row0 + r - unionRect.Row0;
+                if (ur < 0 || ur >= unionRect.Rows) continue;
+                for (int k = 0; k < rect.Cols; k++)
+                {
+                    int uk = ((rect.Col0 + k - unionRect.Col0) % width + width) % width;
+                    if (uk >= unionRect.Cols) continue;
+                    byte m = mask[r * rect.Cols + k];
+                    int i = ur * unionRect.Cols + uk;
+                    if (m > union[i]) union[i] = m;
+                }
+            }
+        }
+
+        // The same as Composite, for arrays that hold the rectangle only (Cols per row) instead of the whole map. coverage and type
+        // hold the layer's own values of the rectangle and take the result.
+        internal static void CompositeRect(byte[] coverage, byte[] type, byte targetType, byte[] mask, EveCoverageMath.Rect rect)
+        {
+            int size = MaskSize(rect);
+            for (int i = 0; i < size; i++)
+            {
+                byte m = mask[i];
+                if (m == 0) continue;
+                coverage[i] = Screen(coverage[i], m);
+                if (type != null) type[i] = BlendType(type[i], m, targetType);
+            }
+        }
+
+        // The columns colStart to colStart + colCount of a rectangle's rows (Cols per row), as an array of their own.
+        internal static void Columns(byte[] source, int cols, int rows, int colStart, int colCount, byte[] destination)
+        {
+            for (int r = 0; r < rows; r++)
+            {
+                Buffer.BlockCopy(source, r * cols + colStart, destination, r * colCount, colCount);
+            }
+        }
+
+        // A number that says whether a set of cells would be painted as before. It hashes each cell's key, its centre in texels of a map,
+        // its radius to 100 m and its strength to a 64th. A cell that stays in its texel does not change it.
+        internal static ulong Signature(ulong signature, ulong key, double u, double v, double radiusM, double strength, int width, int height)
+        {
+            unchecked
+            {
+                ulong h = signature * 1099511628211UL + key;
+                h = h * 1099511628211UL + (ulong)(long)Math.Floor(u * width);
+                h = h * 1099511628211UL + (ulong)(long)Math.Floor(v * height);
+                h = h * 1099511628211UL + (ulong)(long)Math.Round(radiusM / 100.0);
+                h = h * 1099511628211UL + (ulong)(long)Math.Round(strength * 64.0);
+                return h;
+            }
         }
 
         // The vertices of a soft disc on the sphere, for drawing: a centre and rings of segments points, in texture coordinates.

@@ -83,6 +83,9 @@ namespace ReDefinition.Seasons
         internal static bool VeilProbe;
         private const float VeilProbeBoost = 12f;
 
+        // Another diagnostics value: a factor on the veil's extinction, to compare densities in screenshots. 1 is the shader's own.
+        internal static float VeilScale = 1f;
+
         // A change of strength or brightness that is written to the materials again.
         private const float WriteStep = 0.004f;
 
@@ -393,7 +396,7 @@ namespace ReDefinition.Seasons
                     m.SetVector(IdRight, new Vector4(right.x, right.y, right.z, 0f));
                     m.SetVector(IdHeights, new Vector4((float)e.BaseAglM, StormVolumeMath.CloudThicknessM(e.BaseAglM), StormVolumeMath.TopM(e.BaseAglM, !e.EveCloud), e.BelowM));
                     m.SetFloat(IdCloudWeight, e.EveCloud ? 0f : 1f);
-                    m.SetFloat(IdSnowBoost, VeilProbe ? VeilProbeBoost : 1f);
+                    m.SetFloat(IdSnowBoost, VeilProbe ? VeilProbeBoost : VeilScale);
                     m.SetColor(IdVeilTint, VeilProbe ? new Color(1f, 0f, 1f, 1f) : new Color(0f, 0f, 0f, 0f));
                     m.SetVector(IdWind, new Vector4(offsetX, offsetZ, shearX, fall));
                     m.SetVector(IdLook, new Vector4(e.Fade, steps, shearZ, (float)(RangeM + e.RadiusM * 2.0)));
