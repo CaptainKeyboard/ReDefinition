@@ -29,6 +29,19 @@ tests/RaytracingPlayer/Assets/Linked.meta
 tests/RaytracingPlayer/Assets/Scenes/
 tests/RaytracingPlayer/Assets/Scenes.meta
 
+# The weather test player (tools/build_weather_player.py), same rules.
+tests/WeatherPlayer/Library/
+tests/WeatherPlayer/Temp/
+tests/WeatherPlayer/Logs/
+tests/WeatherPlayer/UserSettings/
+tests/WeatherPlayer/obj/
+tests/WeatherPlayer/*.csproj
+tests/WeatherPlayer/*.sln
+tests/WeatherPlayer/Assets/Linked/
+tests/WeatherPlayer/Assets/Linked.meta
+tests/WeatherPlayer/Assets/Scenes/
+tests/WeatherPlayer/Assets/Scenes.meta
+
 # AMD's runtime for the player package, fetched by tools/fetch_amd_runtime.py
 # (third_party/amd/README.md).
 third_party/amd/*.dll
