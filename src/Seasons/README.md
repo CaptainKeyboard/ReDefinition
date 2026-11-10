@@ -15,6 +15,10 @@ Seasons on Kerbin as a mod of its own, `ReDefinition.Seasons.dll` in `GameData/R
 | `src/Seasons/QuadSnow.cs`, `SnowQuads.cs` | What is kept per quad (original colours, latitude, height, noise) so that a quad can be painted again. |
 | `src/Seasons/SnowPaint.cs`, `SnowNoise.cs` | The snow colour and the blend, and the deterministic noise. |
 | `src/Seasons/ParallaxLink.cs` | What the seasons ask of Parallax, by reflection, guarded. |
+| `src/Seasons/StormModel.cs` | The storm schedule: intensity 0 to 1 from time, latitude, season and seed; the diagnostics override. |
+| `src/Seasons/StormLook.cs` | What an intensity looks like in numbers: visibility, fog density, veil alpha, flake rate, height fade. |
+| `src/Seasons/StormEffect.cs` | The flight add-on that applies a storm: fog, veil, flakes; restores what it changed. |
+| `src/Seasons/StormVeil.cs`, `StormFlakes.cs`, `StormShaders.cs` | The whiteout quad, the particle system, and the shaders and textures they use. |
 
 ## What it does
 
@@ -27,6 +31,17 @@ Seasons on Kerbin as a mod of its own, `ReDefinition.Seasons.dll` in `GameData/R
   - `Rebuild`: when the phase has moved by 0.02 of a year and 120 s have passed, it calls `PQS.RebuildSphere`, only where no vessel stands on the ground (the sphere is not started, or in flight or the tracking station with the sphere inactive; never in the space centre).
   - `Off`: only quads built later get the phase.
 - With Parallax (`ParallaxLink`), a repainted quad is announced the way Parallax announces a changed quad mesh itself: `PQSMod_Parallax.terrainQuadData[quad].OnQuadNormalUpdate()` (the subdivided terrain mesh reads the quad's colours again). The scatters of the quad (`ScatterComponent.scatterQuadData`) get the new colours in `colors` and `sourceColorsBuffer`, and when the mean snow of the quad moved by 0.1, each `ScatterData` is cleaned up and started again, as Parallax's `ReinitializeScatters` does. A symbol that is missing is logged once and that part is left out.
+
+## Snow storms
+
+- `StormModel.Intensity(universalTime, latitude, yearSeconds, forcedPhase, winterLine, seed, frequency)` is a pure function. Time is cut into slots of 24 Kerbin hours (86 400 s) per hemisphere and per 10-degree band of latitude. A slot holds at most one storm, with a chance of `BaseChance` (0.3) times the frequency setting times the gate. The gate (`Gate`) is the snow cover of `SnowMask` at the middle of the band times how wintry the hemisphere is (`Winterness`), so there are no storms near the equator or in the summer, also not on the polar caps. A hash of seed, hemisphere, band and slot gives the start inside the slot, the ramp up (1.5 to 3 h), the peak (2 to 8 h), the decay (2.5 to 6 h) and the peak height (0.45 to 1). At the real year length that is about six storms a year at 60 degrees.
+- `StormModel.Resolve` applies the `forceStorm` setting: from 0 to 1 it is the intensity everywhere, whatever the place, season and `storms` switch; negative means the schedule.
+- `StormEffect` runs in flight. The target is the intensity at the active vessel, on Kerbin, in the atmosphere, times `StormLook.HeightFactor` (full below 4 km, none from 10 km). The applied intensity follows the target in about two seconds. It sets:
+  - `RenderSettings` fog: `ExponentialSquared`, density `sqrt(3) / visibility`, so that 5 % of the contrast is left at the visibility. The visibility goes from 20 km down to `stormVisibility` (60 m) at intensity 1, about 245 m at 0.5. The fog colour is grey-white scaled by the sun's elevation. The fog settings from before are saved at the start and put back at the end and in `OnDestroy`.
+  - `StormVeil`: a quad of the alpha-blended shader just in front of the flight camera (`FlightCamera.fetch.mainCamera`), alpha `stormVeil * intensity^1.3`. It lowers the contrast of everything, also where a shader ignores fog.
+  - `StormFlakes`: one particle system, made once, in the camera's local space and turned to the vessel's up; the wind is a velocity. At most 3200 flakes.
+- No image effect and no command buffer is added. The main mod uses `OnRenderImage` and command buffers on the flight camera for the upscalers, raytracing and the late trace; the seasons stay out of that chain (`grep` of `src/` for `OnRenderImage` and `AddCommandBuffer`: `Raytracing/RtCamera.cs`, `Raytracing/RtCamera.LateTrace.cs`, `Proxy/NativeUpscalerLink.cs`, `Raytracing/Ksp/EveCloudRelight.cs`, `Raytracing/Ksp/MoonGlow.cs`, `Api/Hooks.cs`).
+- Whether the shaders of the game, of Parallax and of Scatterer apply `RenderSettings` fog was read from the sources in the reference clones: Scatterer sets none and its shaders switch fog off or use it only in old EVE shaders; Parallax applies fog (`UNITY_APPLY_FOG`, `multi_compile_fog`) in the forward pass of `Terrain/Parallax.shader` and `Terrain/KSCTerrain.shader` and in its scaled-space shaders, but not in the scatter (grass, rock) shaders; the Unity post-processing stack of TUFX has a deferred fog pass that its profile switches on. Whether the stock terrain and part shaders, the deferred path and Scatterer's sky show the fog in the game is not established; the veil is what is certain to reduce the contrast. `KSP.log` tells which path ran (`storm N begins: path ...`) and the harness measures the result.
 
 ## What it uses and what uses it
 
@@ -41,5 +56,6 @@ It uses `Core` in `ReDefinition.Common.dll` and nothing else of ReDefinition. Re
 
 ## Open
 
+- Storms: no EVE snow particles (EVE's `ParticleField` is internal and driven by its own configuration; a reflection route is not built). The ambient light is not darkened: KSP and Scatterer write it every frame. Not run in the game; the test is `.local/work/seasons-test/check_seasons.py --mode storm` (outside the repository). The flakes carry no motion vectors, so an upscaler may smear them.
 - The orbit and map view (the scaled planet's colour map) is not tinted.
 - The ground refresh is not tested in the game yet. The test plan is `.local/work/seasons-test/PLAN.md` (outside the repository).

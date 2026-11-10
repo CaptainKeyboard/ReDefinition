@@ -34,6 +34,7 @@
     <Reference Include="Assembly-CSharp-firstpass"><HintPath>$(KspManaged)\Assembly-CSharp-firstpass.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine"><HintPath>$(KspManaged)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.CoreModule"><HintPath>$(KspManaged)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule"><HintPath>$(KspManaged)\UnityEngine.ParticleSystemModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.SharedInternalsModule"><HintPath>$(KspManaged)\UnityEngine.SharedInternalsModule.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 

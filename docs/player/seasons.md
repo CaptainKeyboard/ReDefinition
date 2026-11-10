@@ -3,8 +3,8 @@
 ReDefinition Seasons is a mod of its own for a snow line on Kerbin that moves with the year.
 It needs neither HarmonyKSP nor ZTheme nor ReDefinition. Parallax and EVE are optional.
 
-This release paints the snow on Kerbin's ground. It does not tint the orbit and map view, and
-it has no snow storms yet.
+This release paints the snow on Kerbin's ground and has snow storms in flight. It does not
+tint the orbit and map view.
 
 ## Install it
 
@@ -48,6 +48,11 @@ value outside its range is brought into it, and a value that is not a number is 
 | `snowStrength` | `1` | 0 to 1 | How much of the snow cover the mask gives is shown. |
 | `storms` | `True` | `True`, `False` | Switches snow storms on or off. |
 | `stormFrequency` | `1` | 0 to 2 | How often storms happen, against the default. |
+| `stormSeed` | `1` | any whole number | The seed of the storm schedule. Another seed gives other storm times. |
+| `stormVisibility` | `60` | 20 to 500 | How far you see in the strongest storm, in metres. |
+| `stormVeil` | `0.6` | 0 to 0.9 | How white the screen gets in the strongest storm. |
+| `stormSnowfall` | `True` | `True`, `False` | Draws falling snow in a storm. |
+| `forceStorm` | `-1` | -1, or 0 to 1 | A diagnostics setting for screenshots: a fixed storm strength at the camera, whatever the place, season and `storms` switch. Leave it at -1 to play. |
 | `winterSnowLine` | `42` | 30 to 60 | The latitude of the snow line in a hemisphere's midwinter, in degrees. |
 | `groundRefreshMode` | `Live` | `Live`, `Rebuild`, `Off` | How ground that is already built follows the season (below). |
 | `refreshSeconds` | `5` | 1 to 120 | Real seconds between two passes of the `Live` mode. |
@@ -77,12 +82,43 @@ decides what happens:
 At the start the mod writes one line into `KSP.log`, beginning `[ReDefinition] Seasons:`. It
 names the settings and whether Parallax and EVE were found.
 
+## Snow storms
+
+Storms follow a fixed schedule that depends on the game's time, your latitude, the season and
+the `stormSeed`. They happen only where there is snow cover and the hemisphere is in its
+winter: not near the equator and not in the summer, also not on the polar caps. In a real-length
+year there are about six at 60 degrees latitude. A storm builds up over one to three Kerbin
+hours, stays at its peak for two to eight, and fades over two and a half to six. Storms are
+counted in Kerbin hours, so a shortened year has fewer of them. Higher up the storm fades, and it
+is gone above 10 km.
+
+What a storm does on screen:
+
+* The view gets short. The strongest storm leaves about 60 m of sight (`stormVisibility`); a
+  half-strength storm about 250 m. This comes from Unity's fog and a white veil in front of the
+  camera.
+* Snow falls around the camera, blown by a wind that turns slowly.
+
+This works without EVE. It adds no screen effect of its own, so it does not interfere with the
+upscalers or raytracing of ReDefinition. Fog changes the global fog setting of the game for the
+length of the storm and puts it back when the storm ends or you leave the flight scene. `KSP.log`
+has a line `Seasons: storm N begins` with the way it is drawn, and `storm settled` lines with the
+visibility.
+
+Limits: the fog is Unity's. The Parallax terrain shader applies it; whether the stock terrain,
+the parts and Scatterer's sky do is not tested, which is why the veil is there: it lowers the
+contrast of the whole picture, near and far. The sky and the light are not darkened. EVE's snow
+particles are not used; EVE's own polar snow clouds keep their schedule. The falling snow has no
+motion vectors, so an upscaler or frame generation may smear it. None of this has run in the game
+yet.
+
 ## What works with what
 
 | Other mod | What is known |
 |---|---|
 | Parallax | The ground snow is the vertex colour that Parallax's terrain reads; its terrain shader has no snow or season input. Parallax's licence is All Rights Reserved, so the seasons change none of its files; they call it by reflection, to tell it that a terrain mesh changed and to give its grass the new colours. If a Parallax build lacks what is called, `KSP.log` says so once and that part is left out. Without Parallax the stock terrain shaders show the snow. |
-| EVE | Planned: snow storms with EVE's snow particles. The installed configuration already has polar snow clouds and snow particles, scheduled by time and not by season. Whether the upscalers' masks catch EVE's snow flakes is not tested. |
+| EVE | Not needed for the storms. The installed configuration has polar snow clouds and snow particles scheduled by time and not by season; the seasons do not change them. Using EVE's snow particles for the storms is open. |
+| ReDefinition | The storms add no image effect and no command buffer, so the upscalers, frame generation and raytracing run as before. The upscalers' masks may not catch the falling snow (not tested). |
 | Kopernicus, ModuleManager | Not required. |
 | Scatterer | The ocean is Scatterer's. A frozen sea is not planned. |
 
@@ -97,5 +133,5 @@ upscalers and raytracing, is not verified. Not done:
 * Parallax's rocks and grass are not removed or changed in form. The grass takes the snow
   colour where it takes the colour of the ground.
 * The ocean is not frozen.
-* There are no snow storms.
+* The snow storms are tested outside the game (schedule and numbers) but not yet in it.
 * Rebuilding in `Rebuild` mode is not tested.

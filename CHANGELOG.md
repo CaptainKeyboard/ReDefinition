@@ -12,8 +12,11 @@
   snow into the vertex colours of Kerbin's ground when a quad is built, with stock terrain
   shaders and with Parallax. Terrain that is already built follows the season by the *ground
   refresh mode* (`Live`, `Rebuild`, `Off`); with Parallax, the terrain and the grass are told by
-  reflection. `forcePhase` fixes the season for screenshots. The orbit and map view and snow
-  storms are not done, and none of it has run in the game yet. How it is set up:
+  reflection. `forcePhase` fixes the season for screenshots. Snow storms follow a seeded
+  schedule for cold, wintry latitudes and show as short sight (Unity fog plus a white veil in
+  front of the camera, down to about 60 m at full strength) and falling snow; they add no image
+  effect and need no EVE. `forceStorm` fixes the strength for screenshots. The orbit and map
+  view and EVE's snow particles are not done, and none of it has run in the game yet. How it is set up:
   [docs/player/seasons.md](docs/player/seasons.md).
 - **ReDefinition Dashboard as a mod of its own.** The web dashboard, its server, telemetry
   and pages, are `GameData/ReDefinition/Dashboard` (the pages moved from

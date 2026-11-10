@@ -37,6 +37,22 @@ namespace ReDefinition.Seasons
         internal static bool StormsEnabled = true;
         internal static float StormFrequency = 1f;
 
+        // The seed of the storm schedule (StormModel).
+        internal static int StormSeed = 1;
+
+        // The visibility at full storm intensity in metres, 20 to 500.
+        internal static float StormVisibilityM = StormLook.MinVisibilityDefault;
+
+        // The alpha of the whiteout veil at full intensity, 0 to 0.9.
+        internal static float StormVeil = StormLook.VeilDefault;
+
+        // Whether falling snow is drawn in a storm.
+        internal static bool StormSnowfall = true;
+
+        // A diagnostics setting: a storm intensity from 0 to 1 at the camera, whatever the place and season, or a negative number for the
+        // schedule. For screenshots.
+        internal static float ForceStorm = -1f;
+
         // The latitude of the snow line in the winter of a hemisphere, in degrees (SnowMask.DefaultWinterLineDegrees).
         internal static float WinterSnowLine = (float)SnowMask.DefaultWinterLineDegrees;
 
@@ -87,6 +103,12 @@ namespace ReDefinition.Seasons
             if (TryNumber(root, "snowStrength", out number)) SnowStrength = Limit(number, 0f, 1f);
             if (ModSettingsFile.TryBool(root, "storms", out flag)) StormsEnabled = flag;
             if (TryNumber(root, "stormFrequency", out number)) StormFrequency = Limit(number, 0f, StormFrequencyMax);
+            int seed;
+            if (ModSettingsFile.TryInt(root, "stormSeed", out seed)) StormSeed = seed;
+            if (TryNumber(root, "stormVisibility", out number)) StormVisibilityM = Limit(number, StormLook.MinVisibilityLow, StormLook.MinVisibilityHigh);
+            if (TryNumber(root, "stormVeil", out number)) StormVeil = Limit(number, 0f, StormLook.VeilMax);
+            if (ModSettingsFile.TryBool(root, "stormSnowfall", out flag)) StormSnowfall = flag;
+            if (TryNumber(root, "forceStorm", out number)) ForceStorm = number < 0 ? -1f : Limit(number, 0f, 1f);
             if (TryNumber(root, "winterSnowLine", out number))
                 WinterSnowLine = Limit(number, (float)SnowMask.LowestWinterLineDegrees, (float)SnowMask.HighestWinterLineDegrees);
             string text;
@@ -105,7 +127,12 @@ namespace ReDefinition.Seasons
             root.AddValue("snowStrength", SnowStrength.ToString("R", culture));
             root.AddValue("storms", StormsEnabled.ToString());
             root.AddValue("stormFrequency", StormFrequency.ToString("R", culture));
-            root.AddValue("winterSnowLine", WinterSnowLine.ToString("R", culture));
+            root.AddValue("stormSeed", StormSeed.ToString(culture));
+            root.AddValue("stormVisibility", StormVisibilityM.ToString("R", culture));
+            root.AddValue("stormVeil", StormVeil.ToString("R", culture));
+            root.AddValue("stormSnowfall", StormSnowfall.ToString());
+            root.AddValue("forceStorm", ForceStorm.ToString("R", culture));
+            root.AddValue("winterSnowLine",WinterSnowLine.ToString("R", culture));
             root.AddValue("groundRefreshMode", EnumNames<GroundRefresh>.Name(GroundRefreshMode));
             root.AddValue("refreshSeconds", RefreshSeconds.ToString("R", culture));
             root.AddValue("forcePhase", ForcePhase.ToString("R", culture));
