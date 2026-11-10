@@ -126,6 +126,25 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheLatitudeLineBetweenTheHemispheresAndBeyondThePoles()
+        {
+            foreach (double phase in new[] { 0.0, 0.25, 0.5, 0.8 })
+            {
+                // Latitude 0 and -0 are both the northern side and both bare.
+                Assert.AreEqual(Cover(0, 0, phase), Cover(-0.0, 0, phase));
+                Assert.AreEqual(0, Cover(-0.0, 0, phase), 1e-12);
+                // Beyond the pole counts as the pole.
+                Assert.AreEqual(Cover(90, 0, phase), Cover(95, 0, phase));
+                Assert.AreEqual(Cover(-90, 0, phase), Cover(-400, 0, phase));
+                Assert.AreEqual(1.0, Cover(90, 0, phase), 1e-12);
+                Assert.AreEqual(0, Cover(double.NaN, 0, phase));
+            }
+            Assert.AreEqual(0, SnowMask.Coverage(50, 0, double.NaN, 0, Winter), "a phase that is not a number gives no snow");
+            Assert.AreEqual(0, SnowMask.Coverage(50, 0, 0, double.NaN, Winter), "a noise that is not a number gives no snow");
+            Assert.AreEqual(1.0, Cover(double.PositiveInfinity, 0, 0.3), 1e-12, "infinity is the pole");
+        }
+
+        [TestMethod]
         public void ANotANumberGivesNoSnowAndAWinterLineOutsideItsRangeIsBroughtIn()
         {
             Assert.AreEqual(0, SnowMask.Coverage(double.NaN, 0, 0, 0, Winter));

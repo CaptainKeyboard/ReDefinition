@@ -1,4 +1,5 @@
 using System;
+using static ReDefinition.Seasons.Mathx;
 
 namespace ReDefinition.Seasons
 {
@@ -54,11 +55,6 @@ namespace ReDefinition.Seasons
         private static double Smooth(double t)
         {
             return t * t * (3 - 2 * t);
-        }
-
-        private static double Lerp(double a, double b, double t)
-        {
-            return a + (b - a) * t;
         }
     }
 }

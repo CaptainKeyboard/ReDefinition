@@ -159,6 +159,20 @@ file. The process exits 1 only where the build itself fails.
 Unity writes a bundle the player refuses, with a message that points at a version mismatch
 that is not there.
 
+## Build the Seasons shader bundle
+
+The storm volume of ReDefinition Seasons has a bundle of its own, from the same Unity
+version. With the editor closed:
+
+```
+powershell -File tools\build_seasons_bundle.ps1
+```
+
+It runs `SeasonsBundleBuilder.BuildFromCommandLine` in batch mode, writes
+`GameData/ReDefinition/Seasons/Shaders/seasons.shaders` into the KSP folder (`-Ksp` and
+`-Output` change that), and writes `build\seasons-bundle.log`. The exit code is 1 where the
+build fails. A file that starts with `UnityFS` and `2019.4.18f1` has the right version.
+
 ## Port the FSR shaders
 
 `tools/port_fsr3_shaders.py` makes the FSR shaders from FSR3Unity's. It bakes in the

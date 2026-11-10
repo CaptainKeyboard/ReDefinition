@@ -26,10 +26,10 @@ namespace ReDefinition.Seasons
             return orbitPeriod * factor;
         }
 
-        // The phase in [0, 1) at that time. A year length that is not positive gives 0.
+        // The phase in [0, 1) at that time. A year length that is not positive, and a time that is not a finite number, give 0.
         internal static double Phase(double universalTime, double yearSeconds)
         {
-            if (!(yearSeconds > 0) || double.IsInfinity(yearSeconds) || double.IsNaN(universalTime)) return 0;
+            if (!(yearSeconds > 0) || double.IsInfinity(yearSeconds) || double.IsNaN(universalTime) || double.IsInfinity(universalTime)) return 0;
             return Wrap(universalTime / yearSeconds);
         }
 
@@ -46,9 +46,10 @@ namespace ReDefinition.Seasons
             return d > 0.5 ? 1 - d : d;
         }
 
-        // A value brought into [0, 1).
+        // A value brought into [0, 1). A value that is not a finite number gives 0.
         internal static double Wrap(double value)
         {
+            if (double.IsNaN(value) || double.IsInfinity(value)) return 0;
             double wrapped = value - Math.Floor(value);
             return wrapped >= 1 ? 0 : wrapped;
         }

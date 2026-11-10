@@ -76,6 +76,24 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheEdgesOfTheWrapStayInsideTheYear()
+        {
+            Assert.AreEqual(0.0, SeasonClock.Wrap(-1e-17), "a hair below 0 rounds to 1 and counts as 0");
+            Assert.AreEqual(0.0, SeasonClock.Wrap(1.0));
+            Assert.AreEqual(0.0, SeasonClock.Wrap(-3.0));
+            Assert.AreEqual(0.75, SeasonClock.Wrap(-0.25), 1e-12);
+            Assert.AreEqual(0.0, SeasonClock.Wrap(double.NaN), "not a number is 0, not NaN");
+            Assert.AreEqual(0.0, SeasonClock.Wrap(double.PositiveInfinity));
+            Assert.AreEqual(0.0, SeasonClock.Wrap(double.NegativeInfinity));
+            Assert.AreEqual(0.0, SeasonClock.Phase(double.PositiveInfinity, Year));
+            Assert.AreEqual(0.0, SeasonClock.Phase(double.NegativeInfinity, Year));
+            Assert.AreEqual(0.0, SeasonClock.Phase(1000, double.PositiveInfinity));
+            Assert.AreEqual(0.0, SeasonClock.HemispherePhase(double.NaN, true));
+            Assert.AreEqual(0.0, SeasonClock.HemispherePhase(double.NaN, false), "not a number is 0 on both sides");
+            Assert.AreEqual(0.0, SeasonClock.PhaseDistance(double.NaN, 0.0));
+        }
+
+        [TestMethod]
         public void OnlyKerbinHasSeasons()
         {
             Assert.IsTrue(SeasonClock.Applies("Kerbin"));

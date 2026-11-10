@@ -1,4 +1,5 @@
 using System;
+using static ReDefinition.Seasons.Mathx;
 
 namespace ReDefinition.Seasons
 {
@@ -53,17 +54,6 @@ namespace ReDefinition.Seasons
             double seasonal = SmoothStep(line - BlendHalfWidthDegrees, line + BlendHalfWidthDegrees, effective);
             double cap = SmoothStep(CapStartDegrees, CapFullDegrees, distance);
             return Clamp(Math.Max(seasonal, cap), 0, 1);
-        }
-
-        private static double SmoothStep(double from, double to, double value)
-        {
-            double t = Clamp((value - from) / (to - from), 0, 1);
-            return t * t * (3 - 2 * t);
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            return value < min ? min : value > max ? max : value;
         }
     }
 }

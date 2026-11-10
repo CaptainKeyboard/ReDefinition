@@ -9,6 +9,8 @@ namespace ReDefinition.Seasons
     // The convention is PQS's own (PQS.BuildVertexMapCoords): u = longitude / 2 pi, with the longitude measured from the +z axis
     // toward +x, and v = latitude / pi + 0.5. The direction of a texel is (cos lat sin lon, sin lat, cos lat cos lon). The ground's noise
     // reads the PQS direction. So the same direction gives the same noise here, and the line is one line on the ground and in orbit.
+    // The mask is 1024 x 512 texels. The heights are a 256 x 128 grid read from the PQS once (OrbitHeights); until it is read the mask
+    // has no height bonus. The noise table of 0.5 MB keeps 1/127 steps. So the ground and the map can differ by a texel at the line.
     internal static class OrbitMask
     {
         // The mask texture and the table of heights it is built from.
@@ -27,12 +29,7 @@ namespace ReDefinition.Seasons
         // The unit direction of the texel at texture coordinates u, v (0 to 1), as the PQS has it.
         internal static void Direction(double u, double v, out double x, out double y, out double z)
         {
-            double longitude = 2 * Math.PI * u;
-            double latitude = (v - 0.5) * Math.PI;
-            double c = Math.Cos(latitude);
-            x = c * Math.Sin(longitude);
-            y = Math.Sin(latitude);
-            z = c * Math.Cos(longitude);
+            Geo.DirectionOf((v - 0.5) * Math.PI, 2 * Math.PI * u, out x, out y, out z);
         }
 
         // The latitude in degrees of the row at texture coordinate v.

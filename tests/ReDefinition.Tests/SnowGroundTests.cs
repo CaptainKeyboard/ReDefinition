@@ -166,11 +166,18 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void AForcedPhaseReplacesTheClockOnlyInsideTheYear()
         {
-            Assert.AreEqual(0.3, SeasonState.Choose(0.3f, 0.9), 1e-6);
-            Assert.AreEqual(0.9, SeasonState.Choose(-1f, 0.9), 1e-12);
-            Assert.AreEqual(0.9, SeasonState.Choose(1f, 0.9), 1e-12);
-            Assert.AreEqual(0.0, SeasonState.Choose(-1f, null));
-            Assert.AreEqual(0.0, SeasonState.Choose(0f, 0.9));
+            Assert.AreEqual(0.3, SeasonState.Choose(0.3f, 0.9).Value, 1e-6);
+            Assert.AreEqual(0.9, SeasonState.Choose(-1f, 0.9).Value, 1e-12);
+            Assert.AreEqual(0.9, SeasonState.Choose(1f, 0.9).Value, 1e-12);
+            Assert.AreEqual(0.0, SeasonState.Choose(0f, 0.9).Value);
+        }
+
+        [TestMethod]
+        public void WithoutAClockAndWithoutAForcedPhaseThereIsNoPhaseAndNothingIsPainted()
+        {
+            Assert.IsNull(SeasonState.Choose(-1f, null), "no Kerbin yet: no phase, not a winter");
+            Assert.IsNull(SeasonState.Choose(1.5f, null), "a forced phase outside the year does not count");
+            Assert.AreEqual(0.25, SeasonState.Choose(0.25f, null).Value, 1e-6, "a forced phase needs no clock");
         }
 
         [TestMethod]
@@ -178,8 +185,7 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "seasons-ground-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
-            var mode = SeasonsSettings.GroundRefreshMode;
-            float seconds = SeasonsSettings.RefreshSeconds, force = SeasonsSettings.ForcePhase;
+            ConfigNode saved = SeasonsSettings.Snapshot();
             try
             {
                 string file = Path.Combine(folder, "settings.cfg");
@@ -209,9 +215,7 @@ namespace ReDefinition.Tests
             }
             finally
             {
-                SeasonsSettings.GroundRefreshMode = mode;
-                SeasonsSettings.RefreshSeconds = seconds;
-                SeasonsSettings.ForcePhase = force;
+                SeasonsSettings.Restore(saved);
                 Directory.Delete(folder, true);
             }
         }

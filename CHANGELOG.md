@@ -4,6 +4,28 @@
 
 ### Added
 
+- **Storm cells are raymarched volumes.** ReDefinition Seasons has a shader bundle of its own,
+  `Seasons/Shaders/seasons.shaders`, built from `unity/Assets/ReDefinitionSeasons` with
+  `tools/build_seasons_bundle.ps1` (Unity 2019.4.18f1) and carried in the Seasons zip. Its shader marches the view
+  ray through a 3D noise texture inside a cylinder around each cell: a dark, lit cloud layer and a streaky snow curtain
+  that stops at the ground and at objects. Where the bundle is missing or does not load, the cells fall back to plain
+  meshes (fewer, bigger, fainter puffs than before). New settings `stormVolumeMode` and `stormVolumeSteps`. Not run
+  in the game yet.
+- **Snow storms of ReDefinition Seasons are cells you can see.** A storm is now a place on Kerbin with a radius of 5 to
+  25 km, a life (ramp, peak, decay) and a slow drift with the wind, all computed from the seed and the game's time; several
+  stand on the planet at once, and the effect on the screen follows the distance to the nearest cell's centre (full
+  inside, soft over the outer fifth). Within 60 km of the camera a cell is drawn as a dark cloud base with a ring of
+  puffs and a curtain of falling snow down to the ground, anchored to the terrain, so you can see it from afar and fly into
+  it. Ordinary meshes and the game's particle shader, no raymarching; EVE's clouds are not hooked in, no sound. New settings
+  `stormCellRadiusKm`, `stormVolume`, `stormMaxCells` and the diagnostics setting `forceStormCell`. Not run in the game yet.
+  [docs/player/seasons.md](docs/player/seasons.md).
+- **Storm snow reads as snow, and EVE's rain gives way to snow over ice.** The flakes are three depth layers of soft round
+  discs of different size and brightness that fall at about a metre a second, sway on their own and drift sideways with
+  gusting wind; they are stretched by at most 1.5 times their width (before, streaks about a metre long looked like rain).
+  New setting `stormEveRainToSnow` (default on): where the season's snow cover at the camera is above 0.5, EVE's rain
+  particles, droplets, wet ground, lightning and rain sound are switched off by reflection and EVE's snow field and snow
+  sound take over at the strength the rain had; restored when the region is left. Read from the decompile of the installed
+  EVE; not run in the game yet. [docs/player/seasons.md](docs/player/seasons.md).
 - **ReDefinition Seasons, a mod of its own (clock, mask and snow on the ground).** `GameData/ReDefinition/Seasons`,
   released as `ReDefinitionSeasons_<version>.zip` and carried by the full zip too. It needs
   neither Harmony nor ZTheme nor ReDefinition; Parallax and EVE are optional. It holds the
@@ -281,6 +303,17 @@
 
 ### Changed
 
+- **Seasons: a failure switches off its part, not the game's frame.** The storm effect logs once, puts the fog, the ambient
+  light and EVE's snow back and stops for the scene; the fog goes back only while it is still the one the storm wrote. The
+  orbit snow copies the original map again when its base copy is lost, drops a worker result that arrives after the original
+  was put back, and switches itself off when a worker fails. The Parallax link follows a replaced dictionary, retries its
+  lookup for a few tries, and switches a path off only after five failures in a row. Where there is no clock yet, nothing is
+  painted instead of a winter. `settings.cfg` is written with the defaults at the first start; `orbitSnowWidth` now defaults
+  to 2048 (29 MB of video memory instead of 117 MB). `Wrap`, `Phase` and `HemispherePhase` give 0 for a time that is not a
+  finite number (before: NaN). The class split and helpers are described in `src/Seasons/README.md`.
+- **One check for the mods of their own.** `tools/checks/check_no_reference.ps1` replaces the three scripts for the planner,
+  the dashboard and the seasons. It checks that `ReDefinition.dll` names none of them and that their DLLs name neither
+  ReDefinition, Harmony nor ZTheme. The release package runs it.
 - **The planner's pictures moved** from `GameData/ReDefinition/Icons` to `GameData/ReDefinitionPlanner/Icons`.
 - **The DLSS model is chosen by NVIDIA per mode by default.** *Default* in the *DLSS
   model* row. Low, Medium and High take it, Ultra and Max take *Preset L*.

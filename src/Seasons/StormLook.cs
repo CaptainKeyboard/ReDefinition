@@ -1,9 +1,13 @@
 using System;
+using static ReDefinition.Seasons.Mathx;
 
 namespace ReDefinition.Seasons
 {
     // What a storm intensity (0 to 1) looks like: visibility, fog density, veil, flakes. Pure functions, so that the numbers are tested;
     // StormEffect applies them.
+    // Numbers: the fog is ExponentialSquared with density sqrt(3) / visibility, so that 5 % of the contrast is left at the
+    // visibility. The visibility goes from 20 km at intensity 0 down to stormVisibility (60 m) at 1, and is about 245 m at 0.5. The
+    // fog colour is grey-white scaled by the sun's elevation. The storm is full below 4 km above sea level and gone from 10 km.
     internal static class StormLook
     {
         // The visibility in clear air, in metres: where the fog fades out entirely.
@@ -23,23 +27,33 @@ namespace ReDefinition.Seasons
         internal const float VeilDefault = 0.85f, VeilMax = 0.95f;
         internal const double VeilCurve = 1.3;
 
-        // Snowfall: flakes emitted per second at full intensity over both layers, and the most each layer holds.
-        internal const float FlakesPerSecond = 3000f;
-        internal const int MaxFlakesPerLayer = 5000;
+        // Snowfall: flakes emitted per second at full intensity over all layers, and the most each layer holds.
+        internal const float FlakesPerSecond = 1000f;
+        internal const int MaxFlakesPerLayer = 8000;
 
         // The rate grows with the intensity to this power: 0.35 gives 0.43 of the full rate.
         internal const double FlakeRateCurve = 0.8;
 
-        // Fall speed in m/s at intensity 0 and 1, and the horizontal wind at 1.
-        internal const float FallSlow = 3.5f, FallFast = 6f;
-        internal const float WindAtFull = 9f;
+        // Snow falls slowly: the layers' fall speeds (FlakeLayer.FallMin, FallMax) are scaled by a factor that goes from FallFactorLight
+        // at intensity 0 to 1 at intensity 1. The horizontal wind at 1 is strong against it, so that a storm drifts sideways.
+        internal const float FallFactorLight = 0.85f;
+        internal const float WindAtFull = 4.5f;
 
-        // The streak of a flake: its length is the speed times this scale. Small at a light fall, long in a storm.
-        internal const float StreakScaleLight = 0.015f, StreakScaleFull = 0.09f;
+        // Gusts: the wind speed is multiplied by a factor that swings between 1 - GustDepth and 1 + GustDepth.
+        internal const float GustDepth = 0.4f;
+
+        // The turbulence of every flake (the noise of its particle system): a displacement in metres per axis, vertical weaker than
+        // horizontal, and how fast the noise changes. It makes the flakes sway and tumble instead of falling in straight lines.
+        internal const float SwayHorizontal = 1.3f, SwayVertical = 0.45f, SwayFrequency = 0.45f, SwayScroll = 0.35f;
+
+        // The stretch of a flake along its velocity: length = size + speed * scale. Tiny, so that a flake stays a round disc and is
+        // at most StreakRatioMax times its size long, in a storm too.
+        internal const float StreakScaleLight = 0.0008f, StreakScaleFull = 0.002f;
+        internal const double StreakRatioMax = 1.5;
 
         // The size limits a flake keeps on the screen, as a part of the viewport height: far flakes stay visible, near ones do not
         // fill it.
-        internal const float MinScreenSize = 0.0018f, MaxScreenSize = 0.02f;
+        internal const float MinScreenSize = 0.0022f, MaxScreenSize = 0.03f;
 
         // Storm sky: the default of the darkening setting, the storm grey by day, and the sine of the elevation from which the sky is
         // fully that grey.
@@ -50,24 +64,29 @@ namespace ReDefinition.Seasons
         // The most the ambient light is lowered at full intensity and full darkening.
         internal const double AmbientDropAtFull = 0.6;
 
-        // A storm layer of flakes: a box around the camera, the share of the rate and the size range at full intensity, in metres.
+        // A storm layer of flakes: a box around the camera, the size range at full intensity in metres, the share of the rate and
+        // the fall speed range in m/s (larger flakes fall faster). Near flakes are translucent, so that they read as out-of-focus discs.
         internal struct FlakeLayer
         {
-            internal readonly float BoxWidth, BoxHeight, SizeMin, SizeMax, RateShare;
+            internal readonly float BoxWidth, BoxHeight, SizeMin, SizeMax, RateShare, FallMin, FallMax, Alpha;
 
-            internal FlakeLayer(float boxWidth, float boxHeight, float sizeMin, float sizeMax, float rateShare)
+            internal FlakeLayer(float boxWidth, float boxHeight, float sizeMin, float sizeMax, float rateShare, float fallMin, float fallMax, float alpha)
             {
                 BoxWidth = boxWidth;
                 BoxHeight = boxHeight;
                 SizeMin = sizeMin;
                 SizeMax = sizeMax;
                 RateShare = rateShare;
+                FallMin = fallMin;
+                FallMax = fallMax;
+                Alpha = alpha;
             }
         }
 
-        // The near layer is dense and close to the camera, the far one wide with larger flakes so that they stay visible at distance.
-        internal static readonly FlakeLayer NearLayer = new FlakeLayer(9f, 8f, 0.05f, 0.11f, 0.45f);
-        internal static readonly FlakeLayer FarLayer = new FlakeLayer(32f, 14f, 0.07f, 0.16f, 0.55f);
+        // Three depths. Near: few, large and translucent. Mid: the bulk. Far: many small ones that make the grain of the storm.
+        internal static readonly FlakeLayer NearLayer = new FlakeLayer(7f, 6f, 0.10f, 0.26f, 0.2f, 1.2f, 2.0f, 0.5f);
+        internal static readonly FlakeLayer MidLayer = new FlakeLayer(18f, 10f, 0.07f, 0.16f, 0.35f, 0.9f, 1.6f, 0.8f);
+        internal static readonly FlakeLayer FarLayer = new FlakeLayer(36f, 14f, 0.07f, 0.14f, 0.45f, 0.8f, 1.3f, 0.9f);
 
         // The storm fades with height: full below FadeStartM, gone from FadeEndM above sea level.
         internal const double FadeStartM = 4000, FadeEndM = 10000;
@@ -76,8 +95,8 @@ namespace ReDefinition.Seasons
         // near 0 in the exponent.
         internal static double VisibilityMetres(double intensity, double minVisibility)
         {
-            double i = Clamp(intensity, 0, 1);
-            double min = Clamp(minVisibility, MinVisibilityLow, MinVisibilityHigh);
+            double i = ClampOrMin(intensity, 0, 1);
+            double min = ClampOrMin(minVisibility, MinVisibilityLow, MinVisibilityHigh);
             if (i <= 0) return ClearVisibilityM;
             double blend = Math.Pow(i, VisibilityCurve);
             return ClearVisibilityM * Math.Pow(min / ClearVisibilityM, blend);
@@ -100,13 +119,13 @@ namespace ReDefinition.Seasons
         // The alpha of the veil in front of the camera at an intensity.
         internal static double VeilAlpha(double intensity, double veilAtFull)
         {
-            return Clamp(veilAtFull, 0, VeilMax) * Math.Pow(Clamp(intensity, 0, 1), VeilCurve);
+            return ClampOrMin(veilAtFull, 0, VeilMax) * Math.Pow(ClampOrMin(intensity, 0, 1), VeilCurve);
         }
 
         // Flakes per second over both layers at an intensity; none below 0.02.
         internal static double FlakeRate(double intensity)
         {
-            double i = Clamp(intensity, 0, 1);
+            double i = ClampOrMin(intensity, 0, 1);
             return i < 0.02 ? 0 : FlakesPerSecond * Math.Pow(i, FlakeRateCurve);
         }
 
@@ -119,31 +138,71 @@ namespace ReDefinition.Seasons
         // The factor on a layer's flake sizes: flakes are smaller in a light fall (0.7) and full size at intensity 1.
         internal static double SizeFactor(double intensity)
         {
-            return 0.7 + 0.3 * Clamp(intensity, 0, 1);
+            return 0.7 + 0.3 * ClampOrMin(intensity, 0, 1);
         }
 
-        // Fall speed in m/s at an intensity.
-        internal static double FallSpeed(double intensity)
+        // The factor on the layers' fall speeds at an intensity.
+        internal static double FallFactor(double intensity)
         {
-            return FallSlow + (FallFast - FallSlow) * Clamp(intensity, 0, 1);
+            return FallFactorLight + (1 - FallFactorLight) * ClampOrMin(intensity, 0, 1);
         }
 
-        // Horizontal wind speed in m/s at an intensity.
+        // The slowest and the fastest fall of a layer's flakes in m/s at an intensity.
+        internal static double FallMin(FlakeLayer layer, double intensity)
+        {
+            return layer.FallMin * FallFactor(intensity);
+        }
+
+        internal static double FallMax(FlakeLayer layer, double intensity)
+        {
+            return layer.FallMax * FallFactor(intensity);
+        }
+
+        // Horizontal wind speed in m/s at an intensity, before the gusts.
         internal static double WindSpeed(double intensity)
         {
-            return WindAtFull * Clamp(intensity, 0, 1);
+            return WindAtFull * ClampOrMin(intensity, 0, 1);
         }
 
-        // The scale of a flake's streak (its length is this times its speed) at an intensity.
+        // The factor of the gusts at a time in seconds: a slow and a quicker swing added, between 1 - GustDepth and 1 + GustDepth.
+        // The phase shifts the swings so that two seeds do not gust together.
+        internal static double GustFactor(double seconds, double phase)
+        {
+            if (double.IsNaN(seconds) || double.IsInfinity(seconds) || double.IsNaN(phase)) return 1;
+            double slow = Math.Sin(2 * Math.PI * seconds / 13.0 + phase);
+            double quick = Math.Sin(2 * Math.PI * seconds / 4.1 + 2.3 * phase + 1.1);
+            return 1 + GustDepth * (0.65 * slow + 0.35 * quick);
+        }
+
+        // The fastest a flake of a layer moves at an intensity, in m/s: its fall and the gusting wind, with the spread of the wind
+        // among flakes (WindSpread).
+        internal static double TopSpeed(FlakeLayer layer, double intensity)
+        {
+            double wind = WindSpeed(intensity) * (1 + GustDepth) * (1 + WindSpread);
+            double fall = FallMax(layer, intensity);
+            return Math.Sqrt(wind * wind + fall * fall);
+        }
+
+        // Each flake's wind is the wind times a random factor between 1 - WindSpread and 1 + WindSpread.
+        internal const float WindSpread = 0.2f;
+
+        // The scale of a flake's stretch (length = size + speed * scale) at an intensity.
         internal static double StreakScale(double intensity)
         {
-            return StreakScaleLight + (StreakScaleFull - StreakScaleLight) * Clamp(intensity, 0, 1);
+            return StreakScaleLight + (StreakScaleFull - StreakScaleLight) * ClampOrMin(intensity, 0, 1);
         }
 
-        // Seconds a flake lives so that it falls through the box of a layer: the box height over the fall speed.
-        internal static double Lifetime(FlakeLayer layer, double fallSpeed)
+        // How long the flake of a layer is relative to its size at an intensity, for its smallest size and its top speed.
+        internal static double StreakRatio(FlakeLayer layer, double intensity)
         {
-            return layer.BoxHeight / Math.Max(fallSpeed, 0.5);
+            double size = layer.SizeMin * SizeFactor(intensity);
+            return (size + StreakScale(intensity) * TopSpeed(layer, intensity)) / size;
+        }
+
+        // Seconds a flake lives so that it falls through the box of a layer: the box height over the mean fall speed.
+        internal static double Lifetime(FlakeLayer layer, double intensity)
+        {
+            return layer.BoxHeight / Math.Max(0.5 * (FallMin(layer, intensity) + FallMax(layer, intensity)), 0.2);
         }
 
         // How far upwind of the camera the box is moved so that the flakes, which drift by wind * lifetime while they live, are spread
@@ -156,14 +215,13 @@ namespace ReDefinition.Seasons
         // The least flakes that are alive at once in a layer, to size the system: rate times lifetime.
         internal static int FlakesAlive(double intensity, FlakeLayer layer)
         {
-            double fall = FallSpeed(intensity);
-            return (int)Math.Ceiling(FlakeRate(intensity, layer) * Lifetime(layer, fall));
+            return (int)Math.Ceiling(FlakeRate(intensity, layer) * Lifetime(layer, intensity));
         }
 
         // The alpha of the veil toward the sky at an intensity: a little heavier than toward the ground, and it grows more evenly.
         internal static double SkyVeilAlpha(double intensity, double veilAtFull)
         {
-            return Clamp(veilAtFull * 1.1, 0, 0.97) * Math.Pow(Clamp(intensity, 0, 1), 1.1);
+            return ClampOrMin(veilAtFull * 1.1, 0, 0.97) * Math.Pow(ClampOrMin(intensity, 0, 1), 1.1);
         }
 
         // How much of the storm grey a direction gets: 0 at and below the horizon, 1 from SkyFullSinElevation up, smooth in between.
@@ -172,22 +230,22 @@ namespace ReDefinition.Seasons
         internal static double SkyGreyShare(double sinElevation, double intensity, double darkening)
         {
             if (double.IsNaN(sinElevation)) return 0;
-            double t = Clamp(sinElevation / SkyFullSinElevation, 0, 1);
+            double t = ClampOrMin(sinElevation / SkyFullSinElevation, 0, 1);
             double smooth = t * t * (3 - 2 * t);
-            return smooth * Clamp(intensity * 8, 0, 1) * Clamp(darkening * 1.5, 0, 1);
+            return smooth * ClampOrMin(intensity * 8, 0, 1) * ClampOrMin(darkening * 1.5, 0, 1);
         }
 
         // The factor on the ambient light at an intensity and darkening setting: 1 in clear air, 1 - AmbientDropAtFull at both 1.
         internal static double AmbientFactor(double intensity, double darkening)
         {
-            return 1 - AmbientDropAtFull * Clamp(darkening, 0, 1) * Math.Pow(Clamp(intensity, 0, 1), 0.8);
+            return 1 - AmbientDropAtFull * ClampOrMin(darkening, 0, 1) * Math.Pow(ClampOrMin(intensity, 0, 1), 0.8);
         }
 
         // The factor by which the storm reaches a height above sea level: 1 up to FadeStartM, 0 from FadeEndM.
         internal static double HeightFactor(double altitudeMetres)
         {
             if (double.IsNaN(altitudeMetres)) return 0;
-            double t = Clamp((FadeEndM - altitudeMetres) / (FadeEndM - FadeStartM), 0, 1);
+            double t = ClampOrMin((FadeEndM - altitudeMetres) / (FadeEndM - FadeStartM), 0, 1);
             return t * t * (3 - 2 * t);
         }
 
@@ -195,15 +253,9 @@ namespace ReDefinition.Seasons
         // Grey-white by day, dark grey by night.
         internal static double FogBrightness(double sinElevation)
         {
-            double t = Clamp((sinElevation + 0.1) / 0.4, 0, 1);
+            double t = ClampOrMin((sinElevation + 0.1) / 0.4, 0, 1);
             double smooth = t * t * (3 - 2 * t);
             return 0.12 + 0.88 * smooth;
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            if (double.IsNaN(value)) return min;
-            return value < min ? min : value > max ? max : value;
         }
     }
 }

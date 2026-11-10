@@ -1,3 +1,4 @@
+using System;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -11,19 +12,46 @@ namespace ReDefinition.Seasons
         private void Awake()
         {
             DontDestroyOnLoad(gameObject);
-            string problem = CommonVersionCheck.Problem("ReDefinition Seasons", typeof(SeasonsStartup).Assembly);
-            if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
-            SeasonsSettings.Load();
-            gameObject.AddComponent<SnowRefresher>();
-            gameObject.AddComponent<OrbitSnow>();
-            Debug.Log(Log.Tag + " " + StartupLine());
+            try
+            {
+                string problem = CommonVersionCheck.Problem("ReDefinition Seasons", typeof(SeasonsStartup).Assembly);
+                if (problem != null) Debug.LogWarning(Log.Tag + " " + problem);
+                SeasonsSettings.Load();
+            }
+            catch (Exception e)
+            {
+                SeasonsLog.WarnOnce("the start-up checks failed and the defaults are used (" + CompatibilityLog.Reason(e) + ")");
+            }
+            // Each part is added on its own: one that cannot start does not keep the others from it.
+            AddPart<SnowRefresher>();
+            AddPart<OrbitSnow>();
+            try
+            {
+                SeasonsLog.Say(StartupLine());
+            }
+            catch (Exception e)
+            {
+                SeasonsLog.WarnOnce("the start-up line could not be written (" + CompatibilityLog.Reason(e) + ")");
+            }
+        }
+
+        private void AddPart<T>() where T : Component
+        {
+            try
+            {
+                gameObject.AddComponent<T>();
+            }
+            catch (Exception e)
+            {
+                SeasonsLog.WarnOnce(typeof(T).Name + " could not be added (" + CompatibilityLog.Reason(e) + ")");
+            }
         }
 
         // What the log says at the start: the settings, and which of the optional mods are there.
         internal static string StartupLine()
         {
             var culture = System.Globalization.CultureInfo.InvariantCulture;
-            return "Seasons: " + (SeasonsSettings.Enabled ? "on" : "off")
+            return (SeasonsSettings.Enabled ? "on" : "off")
                    + ", body " + SeasonClock.BodyName
                    + ", year length factor " + SeasonsSettings.YearLengthFactor.ToString(culture)
                    + ", snow strength " + SeasonsSettings.SnowStrength.ToString(culture)
@@ -36,7 +64,8 @@ namespace ReDefinition.Seasons
                    + ", storm sky darkening " + SeasonsSettings.StormSkyDarkening.ToString(culture)
                    + ", Parallax " + (TypeLookup.Find("Parallax.ConfigLoader") != null ? "found" : "not found")
                    + ", EVE " + (TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager") != null ? "found" : "not found")
-                   + ", EVE snow field: " + (SeasonsSettings.StormEveSnow ? EveSnowLink.Summary : "off by setting");
+                   + ", EVE snow field: " + (SeasonsSettings.StormEveSnow ? EveSnowLink.Summary : "off by setting")
+                   + ", EVE rain to snow: " + (SeasonsSettings.StormEveRainToSnow ? EveRainLink.Summary : "off by setting");
         }
     }
 }

@@ -9,6 +9,8 @@ namespace ReDefinition.Seasons
     // the scaled-space camera and back in OnPostRender. Deferred's RefreshLegacyAmbient copies it to a shader global in OnPreRender.
     // So the values are written in Camera.onPreCull, once per frame, after every Update and LateUpdate and before the cameras render.
     // A value that someone else wrote is the new baseline (AmbientTracker). Everything is put back when the storm ends.
+    // The factor is 1 - 0.6 * stormSkyDarkening * intensity^0.8. Who writes the ambient light in KSP itself was not found in the
+    // reference sources, so the log counts how often the baseline changed under us.
     internal sealed class StormAmbient
     {
         private readonly AmbientTracker flat = new AmbientTracker();

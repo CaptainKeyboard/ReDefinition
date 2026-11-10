@@ -40,7 +40,7 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(At(t, 61.5), At(t, 61.5));
                 Assert.AreEqual(At(t, -55), At(t, -55));
             }
-            Assert.AreNotEqual(StormSlots(0, Year, 60, seed: 1), -1);
+            Assert.IsTrue(StormSlots(0, Year, 60, seed: 1) > 0, "a year at 60 degrees north has storms");
             // Another seed gives another schedule (the storm slots differ somewhere in two years).
             bool differs = false;
             for (double t = 0; t < 2 * Year && !differs; t += 3600) differs = At(t, 60, 1) != At(t, 60, 2);
@@ -220,9 +220,7 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "storm-settings-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            int seed = SeasonsSettings.StormSeed;
-            float vis = SeasonsSettings.StormVisibilityM, veil = SeasonsSettings.StormVeil, force = SeasonsSettings.ForceStorm;
-            bool fall = SeasonsSettings.StormSnowfall;
+            ConfigNode saved = SeasonsSettings.Snapshot();
             try
             {
                 SeasonsSettings.StormSeed = 77;
@@ -255,11 +253,7 @@ namespace ReDefinition.Tests
             }
             finally
             {
-                SeasonsSettings.StormSeed = seed;
-                SeasonsSettings.StormVisibilityM = vis;
-                SeasonsSettings.StormVeil = veil;
-                SeasonsSettings.StormSnowfall = fall;
-                SeasonsSettings.ForceStorm = force;
+                SeasonsSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }

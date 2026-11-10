@@ -6,24 +6,37 @@ using UnityEngine;
 
 namespace ReDefinition.Seasons
 {
-    // What the seasons ask of Parallax Continued when the snow on a built quad changes, by reflection and guarded: a symbol that is
-    // missing is logged once and that part is left out. Parallax reads the vertex colours of a quad when it makes its own data for
-    // it. A repaint of the mesh has to be announced:
+    // What the seasons ask of Parallax Continued when the snow on a built quad changes, by reflection and guarded. A symbol that is
+    // missing is logged once and that part is left out. Parallax reads the vertex colours of a quad when it makes its own data.
+    // A repaint of the mesh has to be announced:
     //
     //   Terrain: PQSMod_Parallax.terrainQuadData[quad].OnQuadNormalUpdate() is the call Parallax makes itself after the mesh of a
-    //   quad changed. In the build checked, it reads the vertices, normals and colours of the quad's mesh again for the
-    //   subdivided mesh. In the source of 1.0.6, it drops the extra mesh of the quad; that is made again from the quad's mesh.
+    //   quad changed. In the build checked, it reads the vertices, normals and colours of the mesh again for the subdivided mesh.
     //
     //   Scatters: ScatterComponent.scatterQuadData[quad] keeps a copy of the colours (colors) and a compute buffer of them
     //   (sourceColorsBuffer). The scatters take their colour from the buffer when they are made. After the buffer is set, each
     //   ScatterData is cleaned up and started again: the sequence Parallax's own ReinitializeScatters runs.
+    //
+    // Only the FieldInfos are kept. The dictionaries are read from them at each use, so one that Parallax replaces is followed.
+    // The lookup is tried again every few seconds while Parallax is not loaded. A path is switched off after several failures in a
+    // row, not at the first bad quad.
     internal static class ParallaxLink
     {
-        private static bool looked;
+        // The lookup of the types is tried this often (real seconds) and this many times.
+        internal const float LookIntervalSeconds = 5f;
+        internal const int LookTries = 6;
+
+        // The failures in a row after which the terrain path or the scatter path is switched off.
+        internal const int FailuresToSwitchOff = 5;
+
+        private static readonly RetryGate Gate = new RetryGate(LookIntervalSeconds, LookTries);
+        private static readonly FailureStreak TerrainFailures = new FailureStreak(FailuresToSwitchOff);
+        private static readonly FailureStreak ScatterFailures = new FailureStreak(FailuresToSwitchOff);
+        private static bool resolved;
         private static string summary = "Parallax not installed";
-        private static IDictionary terrainQuads;
+        private static FieldInfo terrainField;
         private static MethodInfo terrainChanged;
-        private static IDictionary scatterQuads;
+        private static FieldInfo scatterField;
         private static FieldInfo scatterColors;
         private static FieldInfo scatterBuffer;
         private static FieldInfo scatterList;
@@ -45,7 +58,7 @@ namespace ReDefinition.Seasons
             get
             {
                 Look();
-                return terrainQuads != null && terrainChanged != null;
+                return terrainChanged != null && !TerrainFailures.Disabled && Quads(terrainField) != null;
             }
         }
 
@@ -54,80 +67,75 @@ namespace ReDefinition.Seasons
             get
             {
                 Look();
-                return scatterQuads != null && scatterColors != null && scatterBuffer != null && scatterList != null
-                       && scatterStart != null && scatterCleanup != null;
+                return scatterColors != null && scatterBuffer != null && scatterList != null && scatterStart != null && scatterCleanup != null
+                       && !ScatterFailures.Disabled && Quads(scatterField) != null;
             }
+        }
+
+        // The dictionary a static field holds now; null where the field or the dictionary is not there.
+        private static IDictionary Quads(FieldInfo field)
+        {
+            return field != null ? field.GetValue(null) as IDictionary : null;
         }
 
         private static void Look()
         {
-            if (looked) return;
-            looked = true;
+            if (resolved || !Gate.Due(Time.realtimeSinceStartup)) return;
             try
             {
                 Type terrainMod = TypeLookup.Find("Parallax.PQSMod_Parallax");
                 if (terrainMod == null) return;
-                string terrain = "terrain refresh missing";
-                string scatter = "scatter recolour missing";
-                FieldInfo terrainField = terrainMod.GetField("terrainQuadData", BindingFlags.Public | BindingFlags.Static);
+                resolved = true;
+                var link = new ReflectLink();
                 Type terrainData = TypeLookup.Find("Parallax.TerrainShaderQuadData");
-                MethodInfo changed = terrainData != null ? terrainData.GetMethod("OnQuadNormalUpdate", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null) : null;
-                IDictionary quads = terrainField != null ? terrainField.GetValue(null) as IDictionary : null;
-                if (quads != null && changed != null)
-                {
-                    terrainQuads = quads;
-                    terrainChanged = changed;
-                    terrain = "terrain refresh ok";
-                }
+                terrainField = link.Field(terrainMod, "PQSMod_Parallax", "terrainQuadData", BindingFlags.Public | BindingFlags.Static);
+                terrainChanged = link.Method(terrainData, "TerrainShaderQuadData", "OnQuadNormalUpdate", BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
+                if (terrainField != null && !typeof(IDictionary).IsAssignableFrom(terrainField.FieldType)) terrainField = null;
 
                 Type scatterComponent = TypeLookup.Find("Parallax.ScatterComponent");
                 Type quadData = TypeLookup.Find("Parallax.ScatterSystemQuadData");
                 Type scatterData = TypeLookup.Find("Parallax.ScatterData");
-                FieldInfo scatterField = scatterComponent != null ? scatterComponent.GetField("scatterQuadData", BindingFlags.Public | BindingFlags.Static) : null;
-                IDictionary scatterDict = scatterField != null ? scatterField.GetValue(null) as IDictionary : null;
-                FieldInfo colors = quadData != null ? quadData.GetField("colors", BindingFlags.Public | BindingFlags.Instance) : null;
-                FieldInfo buffer = quadData != null ? quadData.GetField("sourceColorsBuffer", BindingFlags.Public | BindingFlags.Instance) : null;
-                FieldInfo list = quadData != null ? quadData.GetField("quadScatters", BindingFlags.Public | BindingFlags.Instance) : null;
-                MethodInfo start = scatterData != null ? scatterData.GetMethod("Start", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null) : null;
-                MethodInfo cleanup = scatterData != null ? scatterData.GetMethod("Cleanup", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null) : null;
-                if (scatterDict != null && colors != null && buffer != null && list != null && start != null && cleanup != null
-                    && colors.FieldType == typeof(Color[]) && buffer.FieldType == typeof(ComputeBuffer))
-                {
-                    scatterQuads = scatterDict;
-                    scatterColors = colors;
-                    scatterBuffer = buffer;
-                    scatterList = list;
-                    scatterStart = start;
-                    scatterCleanup = cleanup;
-                    scatter = "scatter recolour ok";
-                }
-                summary = "Parallax found, " + terrain + ", " + scatter;
-                if (terrainQuads == null || scatterQuads == null)
-                    CompatibilityLog.Warn("seasons-parallax", "The seasons cannot reach all of Parallax (" + summary + "); what is missing is left out.");
+                scatterField = link.Field(scatterComponent, "ScatterComponent", "scatterQuadData", BindingFlags.Public | BindingFlags.Static);
+                scatterColors = link.Field(quadData, "ScatterSystemQuadData", "colors", BindingFlags.Public | BindingFlags.Instance, typeof(Color[]));
+                scatterBuffer = link.Field(quadData, "ScatterSystemQuadData", "sourceColorsBuffer", BindingFlags.Public | BindingFlags.Instance, typeof(ComputeBuffer));
+                scatterList = link.Field(quadData, "ScatterSystemQuadData", "quadScatters", BindingFlags.Public | BindingFlags.Instance);
+                scatterStart = link.Method(scatterData, "ScatterData", "Start", BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
+                scatterCleanup = link.Method(scatterData, "ScatterData", "Cleanup", BindingFlags.Public | BindingFlags.Instance, Type.EmptyTypes);
+                if (scatterField != null && !typeof(IDictionary).IsAssignableFrom(scatterField.FieldType)) scatterField = null;
+
+                bool terrain = terrainField != null && terrainChanged != null;
+                bool scatter = scatterField != null && scatterColors != null && scatterBuffer != null && scatterList != null
+                               && scatterStart != null && scatterCleanup != null;
+                summary = "Parallax found, terrain refresh " + (terrain ? "ok" : "missing") + ", scatter recolour " + (scatter ? "ok" : "missing");
+                if (!terrain || !scatter)
+                    SeasonsLog.Warn("seasons-parallax", "The seasons cannot reach all of Parallax (" + summary + ", missing " + link.MissingText() + "); what is missing is left out.");
             }
             catch (Exception e)
             {
-                terrainQuads = null;
-                scatterQuads = null;
+                terrainField = null;
+                scatterField = null;
                 summary = "Parallax found, lookup failed (" + CompatibilityLog.Reason(e) + ")";
-                CompatibilityLog.Warn("seasons-parallax", "The seasons cannot reach Parallax (" + CompatibilityLog.Reason(e) + ").");
+                SeasonsLog.Failed("seasons-parallax", "The seasons cannot reach Parallax", e);
             }
         }
 
-        // Tells Parallax's terrain that the quad's mesh changed. False where the quad has no terrain data or the call fails.
+        // Tells Parallax's terrain that the quad's mesh changed. False where the quad has no terrain data or the call fails. In the
+        // source of 1.0.6 the call drops the extra mesh of the quad, which is made again from the quad's mesh.
         internal static bool TerrainChanged(PQ quad)
         {
             if (!Terrain) return false;
             try
             {
-                if (!terrainQuads.Contains(quad)) return false;
-                terrainChanged.Invoke(terrainQuads[quad], null);
+                IDictionary quads = Quads(terrainField);
+                if (quads == null || !quads.Contains(quad)) return false;
+                terrainChanged.Invoke(quads[quad], null);
+                TerrainFailures.Succeeded();
                 return true;
             }
             catch (Exception e)
             {
-                terrainQuads = null;
-                CompatibilityLog.Warn("seasons-parallax-terrain", "Parallax's terrain refresh failed and is left out (" + CompatibilityLog.Reason(e) + ").");
+                if (TerrainFailures.Failed())
+                    SeasonsLog.Failed("seasons-parallax-terrain", "Parallax's terrain refresh failed " + FailuresToSwitchOff + " times in a row and is left out", e);
                 return false;
             }
         }
@@ -135,7 +143,9 @@ namespace ReDefinition.Seasons
         // Whether Parallax has scatter data for the quad.
         internal static bool HasScatters(PQ quad)
         {
-            return Scatters && scatterQuads.Contains(quad);
+            if (!Scatters) return false;
+            IDictionary quads = Quads(scatterField);
+            return quads != null && quads.Contains(quad);
         }
 
         // Gives the scatters of the quad the painted colours: the copy and the buffer of the colours; with regenerate, each scatter on
@@ -145,28 +155,33 @@ namespace ReDefinition.Seasons
             if (!HasScatters(quad)) return false;
             try
             {
-                object data = scatterQuads[quad];
+                object data = Quads(scatterField)[quad];
                 Color[] colors = scatterColors.GetValue(data) as Color[];
                 ComputeBuffer buffer = scatterBuffer.GetValue(data) as ComputeBuffer;
                 if (colors == null || buffer == null || colors.Length != painted.Length) return false;
                 for (int i = 0; i < colors.Length; i++) colors[i] = painted[i];
                 buffer.SetData(colors);
-                if (!regenerate) return true;
-                IList scatters = scatterList.GetValue(data) as IList;
-                if (scatters == null) return true;
-                var copy = new object[scatters.Count];
-                scatters.CopyTo(copy, 0);
-                foreach (object scatter in copy)
+                if (regenerate)
                 {
-                    scatterCleanup.Invoke(scatter, null);
-                    scatterStart.Invoke(scatter, null);
+                    IList scatters = scatterList.GetValue(data) as IList;
+                    if (scatters != null)
+                    {
+                        var copy = new object[scatters.Count];
+                        scatters.CopyTo(copy, 0);
+                        foreach (object scatter in copy)
+                        {
+                            scatterCleanup.Invoke(scatter, null);
+                            scatterStart.Invoke(scatter, null);
+                        }
+                    }
                 }
+                ScatterFailures.Succeeded();
                 return true;
             }
             catch (Exception e)
             {
-                scatterQuads = null;
-                CompatibilityLog.Warn("seasons-parallax-scatters", "Parallax's scatter recolour failed and is left out (" + CompatibilityLog.Reason(e) + ").");
+                if (ScatterFailures.Failed())
+                    SeasonsLog.Failed("seasons-parallax-scatters", "Parallax's scatter recolour failed " + FailuresToSwitchOff + " times in a row and is left out", e);
                 return false;
             }
         }

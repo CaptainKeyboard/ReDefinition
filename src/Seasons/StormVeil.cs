@@ -6,6 +6,10 @@ namespace ReDefinition.Seasons
     // and far, by its alpha. Its vertices carry colour and alpha, set from the direction each one looks along. Toward the horizon and
     // the ground it is the light fog colour. Toward the zenith it turns into a dark storm grey with a heavier alpha, so that the sky goes
     // grey instead of lighter (StormLook.SkyGreyShare, SkyVeilAlpha). It is a normal alpha-blended object, made once.
+    // Numbers: a grid of 9 x 9 vertices at queue 3000. The ground alpha is stormVeil times intensity^1.3. The sky colour is
+    // (0.34, 0.36, 0.40) scaled by the sun, with alpha 1.1 times stormVeil times intensity^1.1, at most 0.97. The grey share rises
+    // from the horizon to 24 degrees of elevation and is full at intensity 0.125, before the veil is opaque. stormSkyDarkening
+    // scales it: full grey from 0.67, none at 0.
     internal sealed class StormVeil
     {
         // Vertices per side of the grid: the sky gradient is evaluated at each.

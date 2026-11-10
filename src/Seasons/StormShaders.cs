@@ -6,13 +6,65 @@ namespace ReDefinition.Seasons
     internal static class StormShaders
     {
         // Alpha-blended shaders, the first that exists is used: KSP's own particle shader, then Unity's legacy ones, then sprites.
-        private static readonly string[] BlendedNames =
+        internal static readonly string[] BlendedNames =
         {
             "KSP/Particles/Alpha Blended",
             "Legacy Shaders/Particles/Alpha Blended",
             "Particles/Alpha Blended",
             "Sprites/Default"
         };
+
+        // The raymarched storm volume's shader, from the Seasons' own bundle (unity/Assets/ReDefinitionSeasons, built by
+        // tools/build_seasons_bundle.ps1), and the bundle's file in GameData/ReDefinition/Seasons/Shaders.
+        internal const string VolumeShaderName = "ReDefinition/SeasonsStormVolume";
+        internal const string BundleName = "seasons.shaders";
+        private static AssetBundle bundle;
+        private static Shader volumeShader;
+        private static string volumeError;
+        private static bool volumeTried;
+
+        internal static string BundlePath
+        {
+            get
+            {
+                return System.IO.Path.Combine(KSPUtil.ApplicationRootPath, System.IO.Path.Combine("GameData", System.IO.Path.Combine("ReDefinition",
+                    System.IO.Path.Combine("Seasons", System.IO.Path.Combine("Shaders", BundleName)))));
+            }
+        }
+
+        // The volume shader from the bundle, or null and the reason. Looked up once; a bundle that is missing or rejected stays so
+        // until the game restarts. The player rejects a bundle from another Unity version without a word.
+        internal static Shader LoadVolumeShader(out string error)
+        {
+            if (volumeTried)
+            {
+                error = volumeError;
+                return volumeShader;
+            }
+            volumeTried = true;
+            string path = BundlePath;
+            if (!System.IO.File.Exists(path))
+                volumeError = "the shader bundle is missing: " + path + " (tools/build_seasons_bundle.ps1 builds it)";
+            else
+            {
+                bundle = AssetBundle.LoadFromFile(path);
+                if (bundle == null)
+                    volumeError = "AssetBundle could not be loaded: " + path + " (it has to come from Unity 2019.4.18f1)";
+                else
+                {
+                    foreach (Shader loaded in bundle.LoadAllAssets<Shader>())
+                    {
+                        if (loaded == null || loaded.name != VolumeShaderName) continue;
+                        if (loaded.isSupported) volumeShader = loaded;
+                        else volumeError = VolumeShaderName + " is in the bundle but does not compile or run on this graphics device";
+                        break;
+                    }
+                    if (volumeShader == null && volumeError == null) volumeError = "the bundle has no " + VolumeShaderName;
+                }
+            }
+            error = volumeError;
+            return volumeShader;
+        }
 
         // The first of the names that Shader.Find returns, or null.
         internal static Shader Find(string[] names)

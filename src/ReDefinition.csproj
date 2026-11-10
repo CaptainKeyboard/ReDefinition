@@ -40,7 +40,7 @@
   <!-- PlannerProbes: whether this build references the planner. The developer probes (src/Probe) test planner features through
        its internals; they are compiled in only with the define REDEFINITION_PLANNER_PROBES, which this property sets. It is
        true by default and false in the player package (-p:ReleasePackage=true), whose ReDefinition.dll must not name
-       ReDefinition.Planner at all (tools/checks/check_no_planner_reference.ps1). Pass -p:PlannerProbes=false to build that way
+       ReDefinition.Planner at all (tools/checks/check_no_reference.ps1). Pass -p:PlannerProbes=false to build that way
        in Debug. In both cases the planner is built before and its DLL lands in the output beside this one (it ships in the
        package and goes to the game), but with false nothing is referenced. -->
   <PropertyGroup>
@@ -53,9 +53,9 @@
     <Compile Remove="Common\**;Planner\**;Dashboard\**;Seasons\**" />
     <ProjectReference Include="Common\ReDefinition.Common.csproj" />
     <!-- The dashboard is built before this project, so that its DLL lands in the output beside this one (it ships in the package
-         and goes to the game), but nothing of it is referenced (tools/checks/check_no_dashboard_reference.ps1). -->
+         and goes to the game), but nothing of it is referenced (tools/checks/check_no_reference.ps1). -->
     <ProjectReference Include="Dashboard\ReDefinition.Dashboard.csproj" ReferenceOutputAssembly="false" />
-    <!-- The seasons, the same way (tools/checks/check_no_seasons_reference.ps1). -->
+    <!-- The seasons, the same way (tools/checks/check_no_reference.ps1). -->
     <ProjectReference Include="Seasons\ReDefinition.Seasons.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' == 'true'" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' != 'true'"
@@ -446,6 +446,7 @@
       <_ReleaseZip>$(_ReleaseDir)\$(ModName)_$(Version).zip</_ReleaseZip>
       <_SourceZip>$(_ReleaseDir)\$(ModName)_$(Version)_source.zip</_SourceZip>
       <_ShaderBundle>$(KspGameData)\$(ModName)\Main\Shaders\redefinition.shaders</_ShaderBundle>
+      <_SeasonsBundle>$(KspGameData)\$(ModName)\Seasons\Shaders\seasons.shaders</_SeasonsBundle>
       <_RepoRoot>$(MSBuildThisFileDirectory)..\</_RepoRoot>
       <_Native>$(_RepoRoot)src\DxgiProxy</_Native>
       <_ProxyDll>$(_RepoRoot)build\DxgiProxy\Release\dxgi.dll</_ProxyDll>
@@ -456,6 +457,7 @@
     </PropertyGroup>
     <ItemGroup>
       <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinition\Include\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
+      <_SeasonsShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinitionSeasons\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinitionSeasons\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinitionSeasons\Editor\**\*.cs" />
       <_StaticGameDataZip Include="$(_RepoRoot)GameData\**\*.*" />
       <_NativeSource Include="$(_Native)\**\*.cpp;$(_Native)\**\*.h;$(_Native)\**\*.hlsl;$(_Native)\**\*.hlsli;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\*.ini;$(_Native)\CMakeLists.txt" />
     </ItemGroup>
@@ -491,6 +493,10 @@
            Text="No release zip: the shader bundle '$(_ShaderBundle)' is missing. Build it with the Unity project first (docs/development/building-and-testing.md)." />
     <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_ShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_ShaderBundle)').Ticks)"
            Text="No release zip: '%(_ShaderSource.Identity)' is newer than the shader bundle. Rebuild the bundle with the Unity project first." />
+    <Error Condition="!Exists('$(_SeasonsBundle)')"
+           Text="No release zip: the seasons' shader bundle '$(_SeasonsBundle)' is missing. Build it with tools\build_seasons_bundle.ps1 first." />
+    <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_SeasonsShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_SeasonsBundle)').Ticks)"
+           Text="No release zip: '%(_SeasonsShaderSource.Identity)' is newer than the seasons' shader bundle. Rebuild it with tools\build_seasons_bundle.ps1 first." />
     <Exec Command="git --version" WorkingDirectory="$(_RepoRoot)" IgnoreExitCode="true" StandardOutputImportance="low">
       <Output TaskParameter="ExitCode" PropertyName="_GitMissing" />
     </Exec>
@@ -504,12 +510,9 @@
     </PropertyGroup>
     <!-- The version against what changed since the last release (tools/checks/check_release_version.ps1). -->
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_release_version.ps1&quot;" />
-    <!-- The player's ReDefinition.dll names nothing of the planner (tools/checks/check_no_planner_reference.ps1). -->
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_planner_reference.ps1&quot; &quot;$(OutputPath)$(ModName).dll&quot;" />
-    <!-- Nor of the dashboard (tools/checks/check_no_dashboard_reference.ps1). -->
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_dashboard_reference.ps1&quot; &quot;$(OutputPath)$(ModName).dll&quot;" />
-    <!-- Nor of the seasons (tools/checks/check_no_seasons_reference.ps1). -->
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_seasons_reference.ps1&quot; &quot;$(OutputPath)$(ModName).dll&quot;" />
+    <!-- The player's ReDefinition.dll names nothing of the planner, the dashboard and the seasons, and their own DLLs name neither
+         ReDefinition, Harmony nor ZTheme (tools/checks/check_no_reference.ps1). -->
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_reference.ps1&quot; -Name Planner,Dashboard,Seasons -Dll &quot;$(OutputPath)$(ModName).dll&quot;" />
     <Exec Command="git status --porcelain 2&gt;$(_NullDevice)" WorkingDirectory="$(_RepoRoot)" ConsoleToMSBuild="true" StandardOutputImportance="low">
       <Output TaskParameter="ConsoleOutput" PropertyName="_TreeStatus" />
     </Exec>
@@ -535,6 +538,7 @@
     <Copy SourceFiles="$(OutputPath)ReDefinition.Seasons.dll" DestinationFolder="$(_StageSeasons)\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Seasons\$(SeasonsName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StageSeasons)" />
     <Copy SourceFiles="$(_RepoRoot)src\Seasons\README.md" DestinationFolder="$(_StageSeasons)" Condition="Exists('$(_RepoRoot)src\Seasons\README.md')" />
+    <Copy SourceFiles="$(_SeasonsBundle)" DestinationFolder="$(_StageSeasons)\Shaders" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />

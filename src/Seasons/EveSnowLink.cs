@@ -24,6 +24,7 @@ namespace ReDefinition.Seasons
         private sealed class Entry
         {
             internal object Field;
+            internal object Volume;
             internal string Config;
             internal float Original;
             internal float Written;
@@ -39,6 +40,12 @@ namespace ReDefinition.Seasons
         private static FieldInfo configField;
         private static FieldInfo coverageField;
         private static MethodInfo setRenderer;
+        // The snow sound (optional): CloudsRaymarchedVolume.ambientSound -> AmbientSound.audioSource, and the volume EVE scales by.
+        private static FieldInfo ambientSoundField;
+        private static FieldInfo audioSourceField;
+        private static PropertyInfo sourceVolume;
+        private static MethodInfo sourceUnPause;
+        private static PropertyInfo effectiveVolume;
         private static readonly List<Entry> entries = new List<Entry>();
         private static float nextScan;
         private static int lastRaiseFrame = -1;
@@ -94,26 +101,29 @@ namespace ReDefinition.Seasons
                 Type volume = TypeLookup.Find("Atmosphere.CloudsRaymarchedVolume");
                 Type field = TypeLookup.Find("Atmosphere.ParticleField");
                 if (manager == null || layer == null || volume == null || field == null) return;
-                getList = manager.GetMethod("GetObjectList", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy);
-                bodyProperty = layer.GetProperty("Body", BindingFlags.Public | BindingFlags.Instance);
-                volumeProperty = layer.GetProperty("LayerRaymarchedVolume", BindingFlags.Public | BindingFlags.Instance);
-                particleFieldField = volume.GetField("particleField", TypeLookup.Any);
-                configField = field.GetField("particleFieldConfig", TypeLookup.Any);
-                coverageField = field.GetField("currentCoverage", TypeLookup.Any);
-                setRenderer = field.GetMethod("SetRendererEnabled", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(bool) }, null);
-                if (coverageField != null && coverageField.FieldType != typeof(float)) coverageField = null;
-                if (configField != null && configField.FieldType != typeof(string)) configField = null;
-                var missing = new List<string>();
-                if (getList == null) missing.Add("CloudsManager.GetObjectList");
-                if (bodyProperty == null) missing.Add("CloudsObject.Body");
-                if (volumeProperty == null) missing.Add("CloudsObject.LayerRaymarchedVolume");
-                if (particleFieldField == null) missing.Add("CloudsRaymarchedVolume.particleField");
-                if (configField == null) missing.Add("ParticleField.particleFieldConfig");
-                if (coverageField == null) missing.Add("ParticleField.currentCoverage");
-                if (setRenderer == null) missing.Add("ParticleField.SetRendererEnabled");
-                summary = missing.Count == 0
+                var link = new ReflectLink();
+                getList = link.Method(manager, "CloudsManager", "GetObjectList", BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy, null);
+                bodyProperty = link.Property(layer, "CloudsObject", "Body", BindingFlags.Public | BindingFlags.Instance);
+                volumeProperty = link.Property(layer, "CloudsObject", "LayerRaymarchedVolume", BindingFlags.Public | BindingFlags.Instance);
+                particleFieldField = link.Field(volume, "CloudsRaymarchedVolume", "particleField", TypeLookup.Any);
+                configField = link.Field(field, "ParticleField", "particleFieldConfig", TypeLookup.Any, typeof(string));
+                coverageField = link.Field(field, "ParticleField", "currentCoverage", TypeLookup.Any, typeof(float));
+                setRenderer = link.Method(field, "ParticleField", "SetRendererEnabled", BindingFlags.Public | BindingFlags.Instance, new[] { typeof(bool) });
+                ambientSoundField = volume.GetField("ambientSound", TypeLookup.Any);
+                Type sound = TypeLookup.Find("Atmosphere.AmbientSound");
+                audioSourceField = sound != null ? sound.GetField("audioSource", TypeLookup.Any) : null;
+                Type quality = TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager");
+                effectiveVolume = quality != null ? quality.GetProperty("EffectiveAmbientVolume", TypeLookup.Any) : null;
+                // UnityEngine.AudioSource is reached by reflection too: this assembly does not reference the audio module.
+                if (audioSourceField != null)
+                {
+                    sourceVolume = audioSourceField.FieldType.GetProperty("volume", BindingFlags.Public | BindingFlags.Instance);
+                    sourceUnPause = audioSourceField.FieldType.GetMethod("UnPause", BindingFlags.Public | BindingFlags.Instance, null, Type.EmptyTypes, null);
+                    if (sourceVolume == null || sourceVolume.PropertyType != typeof(float) || sourceUnPause == null) audioSourceField = null;
+                }
+                summary = link.Complete
                     ? "found (CloudsManager -> CloudsObject -> CloudsRaymarchedVolume.particleField -> ParticleField.currentCoverage)"
-                    : "not controllable (missing " + string.Join(", ", missing.ToArray()) + ")";
+                    : "not controllable (missing " + link.MissingText() + ")";
             }
             catch (Exception e)
             {
@@ -145,7 +155,7 @@ namespace ReDefinition.Seasons
                         if (field == null) continue;
                         string config = configField.GetValue(field) as string;
                         if (config == null || config.IndexOf("snow", StringComparison.OrdinalIgnoreCase) < 0) continue;
-                        found.Add(new Entry { Field = field, Config = config });
+                        found.Add(new Entry { Field = field, Volume = volume, Config = config });
                     }
                 }
                 // Keep the records of fields that stay, so that the original value of a raised one is not lost.
@@ -168,7 +178,7 @@ namespace ReDefinition.Seasons
                 entries.Clear();
                 getList = null;
                 summary = "not controllable (" + CompatibilityLog.Reason(e) + ")";
-                Debug.LogWarning(Log.Tag + " Seasons: EVE snow field: " + summary);
+                SeasonsLog.Warn("seasons-eve-snow", "EVE snow field: " + summary);
             }
             return entries.Count;
         }
@@ -203,8 +213,42 @@ namespace ReDefinition.Seasons
             {
                 getList = null;
                 summary = "not controllable (" + CompatibilityLog.Reason(e) + ")";
-                Debug.LogWarning(Log.Tag + " Seasons: EVE snow field: " + summary);
+                SeasonsLog.Warn("seasons-eve-snow", "EVE snow field: " + summary);
             }
+        }
+
+        // Raises the snow sound of the layers with a snow field to the level (a rain that was replaced) times EVE's master volume,
+        // smoothly, and unpauses it. EVE pauses it again from its next update once the level is gone. Returns the sounds raised.
+        internal static int RaiseSound(float level)
+        {
+            if (entries.Count == 0 || ambientSoundField == null || audioSourceField == null || level < 0.05f) return 0;
+            int raised = 0;
+            try
+            {
+                float master = 1f;
+                if (effectiveVolume != null)
+                {
+                    object value = effectiveVolume.GetValue(null, null);
+                    if (value is float) master = (float)value;
+                }
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    object sound = entries[i].Volume != null ? ambientSoundField.GetValue(entries[i].Volume) : null;
+                    object source = sound != null ? audioSourceField.GetValue(sound) : null;
+                    if (source == null) continue;
+                    float target = level * master;
+                    float now = (float)sourceVolume.GetValue(source, null);
+                    if (now < target) sourceVolume.SetValue(source, Mathf.Lerp(now, target, 0.05f), null);
+                    sourceUnPause.Invoke(source, null);
+                    raised++;
+                }
+            }
+            catch (Exception e)
+            {
+                ambientSoundField = null;
+                SeasonsLog.Failed("seasons-eve-snow-sound", "EVE snow sound: not controllable", e);
+            }
+            return raised;
         }
 
         // Puts the coverage of every raised field back where EVE has not written it since; EVE sets its renderer by the value on its next

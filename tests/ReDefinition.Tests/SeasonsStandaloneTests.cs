@@ -10,39 +10,19 @@ namespace ReDefinition.Tests
     [TestClass]
     public class SeasonsStandaloneTests
     {
-        private struct Saved
+        private static ConfigNode Save()
         {
-            internal bool Enabled, Storms;
-            internal float Year, Strength, Frequency, Line;
+            return SeasonsSettings.Snapshot();
         }
 
-        private static Saved Save()
+        private static void Restore(ConfigNode saved)
         {
-            return new Saved
-            {
-                Enabled = SeasonsSettings.Enabled, Storms = SeasonsSettings.StormsEnabled, Year = SeasonsSettings.YearLengthFactor,
-                Strength = SeasonsSettings.SnowStrength, Frequency = SeasonsSettings.StormFrequency, Line = SeasonsSettings.WinterSnowLine
-            };
-        }
-
-        private static void Restore(Saved s)
-        {
-            SeasonsSettings.Enabled = s.Enabled;
-            SeasonsSettings.StormsEnabled = s.Storms;
-            SeasonsSettings.YearLengthFactor = s.Year;
-            SeasonsSettings.SnowStrength = s.Strength;
-            SeasonsSettings.StormFrequency = s.Frequency;
-            SeasonsSettings.WinterSnowLine = s.Line;
+            SeasonsSettings.Restore(saved);
         }
 
         private static void Defaults()
         {
-            SeasonsSettings.Enabled = true;
-            SeasonsSettings.StormsEnabled = true;
-            SeasonsSettings.YearLengthFactor = 1f;
-            SeasonsSettings.SnowStrength = 1f;
-            SeasonsSettings.StormFrequency = 1f;
-            SeasonsSettings.WinterSnowLine = (float)SnowMask.DefaultWinterLineDegrees;
+            SeasonsSettings.ResetToDefaults();
         }
 
         [TestMethod]
@@ -58,7 +38,7 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "seasons-settings-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            Saved saved = Save();
+            ConfigNode saved = Save();
             try
             {
                 SeasonsSettings.Enabled = false;
@@ -89,7 +69,7 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "seasons-settings-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
-            Saved saved = Save();
+            ConfigNode saved = Save();
             try
             {
                 Defaults();
@@ -115,7 +95,7 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "seasons-settings-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
-            Saved saved = Save();
+            ConfigNode saved = Save();
             try
             {
                 Defaults();

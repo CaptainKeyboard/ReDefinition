@@ -1,4 +1,5 @@
 using System;
+using static ReDefinition.Seasons.Mathx;
 
 namespace ReDefinition.Seasons
 {
@@ -8,7 +9,8 @@ namespace ReDefinition.Seasons
     // Time is cut into slots of SlotHours Kerbin hours, per hemisphere and per band of latitude. A slot holds at most one storm. The
     // storm's chance comes from the winter gate (Gate) and the frequency setting; its start inside the slot, its three phases and its peak
     // come from a hash of the seed, the hemisphere, the band and the slot. A storm lies wholly inside its slot, so storms of one band
-    // never overlap.
+    // never overlap. Draw is the rule of one storm of a slot; Intensity applies it per band, and StormCells applies it per sector of a
+    // band to make storm cells that stand on the planet.
     internal static class StormModel
     {
         // A Kerbin hour is 3600 s; the numbers below are in these hours.
@@ -75,18 +77,47 @@ namespace ReDefinition.Seasons
             int band = (int)Math.Floor(Math.Abs(lat) / BandDegrees);
             // The gate is read at the middle of the band, so that all of a band shares one schedule.
             double gate = Gate((band + 0.5) * BandDegrees * (north ? 1 : -1), phase, winterLineDegrees);
-            if (gate <= 0) return 0;
-            ulong key = Mix(Mix(Mix((ulong)(uint)seed ^ 0x9E3779B97F4A7C15UL, north ? 1UL : 2UL), (ulong)band + 17UL), (ulong)(long)slot);
-            if (Unit(key, 0) >= BaseChance * frequency * gate) return 0;
+            Storm storm = Draw(SlotKey(seed, north, band, slot), slot, gate, frequency);
+            if (!storm.Present) return 0;
+            return storm.Height * Envelope(universalTime - storm.Start, storm.Up, storm.Peak, storm.Down);
+        }
 
-            double up = Lerp(RampUpMinHours, RampUpMaxHours, Unit(key, 1)) * HourSeconds;
-            double peak = Lerp(PeakMinHours, PeakMaxHours, Unit(key, 2)) * HourSeconds;
-            double down = Lerp(DecayMinHours, DecayMaxHours, Unit(key, 3)) * HourSeconds;
-            double height = Lerp(PeakIntensityMin, 1, Unit(key, 4));
-            double room = slotSeconds - (up + peak + down);
-            double start = slot * slotSeconds + Math.Max(0, room) * Unit(key, 5);
-            double t = universalTime - start;
-            return height * Envelope(t, up, peak, down);
+        // One storm of a slot: when it starts, its three phases and its peak height, all in seconds of universal time except Height.
+        internal struct Storm
+        {
+            internal bool Present;
+            internal ulong Key;
+            internal double Start, Up, Peak, Down, Height;
+
+            internal double End
+            {
+                get { return Start + Up + Peak + Down; }
+            }
+        }
+
+        // The key of the storm of a slot of a band of a hemisphere (the slot as a whole number from the floor of time / slot length).
+        internal static ulong SlotKey(int seed, bool north, int band, double slot)
+        {
+            return Mix(Mix(Mix((ulong)(uint)seed ^ 0x9E3779B97F4A7C15UL, north ? 1UL : 2UL), (ulong)band + 17UL), (ulong)(long)slot);
+        }
+
+        // The storm that a key brings in a slot, if its chance (BaseChance times the frequency times the gate) is met. A storm lies
+        // wholly inside its slot. This is the spawn rule of the storm cells (StormCells) and the band schedule of Intensity.
+        internal static Storm Draw(ulong key, double slot, double gate, double frequency)
+        {
+            var storm = new Storm { Key = key };
+            frequency = Clamp(double.IsNaN(frequency) ? 0 : frequency, 0, FrequencyMax);
+            if (!(gate > 0) || frequency <= 0) return storm;
+            if (Unit(key, 0) >= BaseChance * frequency * gate) return storm;
+            double slotSeconds = SlotHours * HourSeconds;
+            storm.Up = Lerp(RampUpMinHours, RampUpMaxHours, Unit(key, 1)) * HourSeconds;
+            storm.Peak = Lerp(PeakMinHours, PeakMaxHours, Unit(key, 2)) * HourSeconds;
+            storm.Down = Lerp(DecayMinHours, DecayMaxHours, Unit(key, 3)) * HourSeconds;
+            storm.Height = Lerp(PeakIntensityMin, 1, Unit(key, 4));
+            double room = slotSeconds - (storm.Up + storm.Peak + storm.Down);
+            storm.Start = slot * slotSeconds + Math.Max(0, room) * Unit(key, 5);
+            storm.Present = true;
+            return storm;
         }
 
         // 0 before the storm, a smooth rise over the ramp, 1 through the peak, a smooth fall over the decay, 0 after.
@@ -107,24 +138,8 @@ namespace ReDefinition.Seasons
             return Clamp(scheduled, 0, 1);
         }
 
-        private static double Lerp(double a, double b, double t)
-        {
-            return a + (b - a) * t;
-        }
-
-        private static double SmoothStep(double from, double to, double value)
-        {
-            double t = Clamp((value - from) / (to - from), 0, 1);
-            return t * t * (3 - 2 * t);
-        }
-
-        private static double Clamp(double value, double min, double max)
-        {
-            return value < min ? min : value > max ? max : value;
-        }
-
         // A 64-bit mixing step (splitmix64).
-        private static ulong Mix(ulong x, ulong y)
+        internal static ulong Mix(ulong x, ulong y)
         {
             unchecked
             {
@@ -136,7 +151,7 @@ namespace ReDefinition.Seasons
         }
 
         // The n-th independent value of a key, in [0, 1).
-        private static double Unit(ulong key, int n)
+        internal static double Unit(ulong key, int n)
         {
             ulong h = Mix(key, (ulong)n + 101UL);
             return (h >> 11) / (double)(1UL << 53);

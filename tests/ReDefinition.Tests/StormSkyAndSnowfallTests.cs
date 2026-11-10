@@ -11,14 +11,18 @@ namespace ReDefinition.Tests
     [TestClass]
     public class StormSkyAndSnowfallTests
     {
-        private static readonly StormLook.FlakeLayer[] Layers = { StormLook.NearLayer, StormLook.FarLayer };
+        private static readonly StormLook.FlakeLayer[] Layers = { StormLook.NearLayer, StormLook.MidLayer, StormLook.FarLayer };
 
         [TestMethod]
         public void TheLayersShareTheRateAndFitTheSystem()
         {
-            Assert.AreEqual(1.0, StormLook.NearLayer.RateShare + StormLook.FarLayer.RateShare, 1e-6);
-            Assert.IsTrue(StormLook.NearLayer.BoxWidth < StormLook.FarLayer.BoxWidth, "the near layer is the smaller box");
-            Assert.IsTrue(StormLook.NearLayer.SizeMax < StormLook.FarLayer.SizeMax, "far flakes are larger so that they stay visible");
+            Assert.AreEqual(1.0, StormLook.NearLayer.RateShare + StormLook.MidLayer.RateShare + StormLook.FarLayer.RateShare, 1e-6);
+            Assert.IsTrue(StormLook.NearLayer.BoxWidth < StormLook.MidLayer.BoxWidth && StormLook.MidLayer.BoxWidth < StormLook.FarLayer.BoxWidth,
+                "the layers get wider with the distance");
+            Assert.IsTrue(StormLook.NearLayer.SizeMax > StormLook.MidLayer.SizeMax && StormLook.MidLayer.SizeMax >= StormLook.FarLayer.SizeMax,
+                "near flakes are the largest, far ones the smallest");
+            Assert.IsTrue(StormLook.NearLayer.Alpha < StormLook.MidLayer.Alpha && StormLook.MidLayer.Alpha <= StormLook.FarLayer.Alpha,
+                "near flakes are translucent, like out-of-focus discs");
             foreach (StormLook.FlakeLayer layer in Layers)
             {
                 for (double i = 0; i <= 1.0001; i += 0.05)
@@ -44,22 +48,46 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheStreakIsLongInAStormAndShortInALightFall()
+        public void AFlakeIsNeverMuchLongerThanWideAndSnowFallsSlowly()
         {
-            double Length(double i)
+            // The picture of the storm must not read as rain: even the smallest flake at the top speed is at most 1.5 times as long
+            // as it is wide, at every intensity.
+            foreach (StormLook.FlakeLayer layer in Layers)
             {
-                double fall = StormLook.FallSpeed(i), wind = StormLook.WindSpeed(i);
-                return StormLook.StreakScale(i) * Math.Sqrt(fall * fall + wind * wind);
+                for (double i = 0; i <= 1.0001; i += 0.05)
+                {
+                    Assert.IsTrue(StormLook.StreakRatio(layer, i) <= StormLook.StreakRatioMax,
+                        "streak ratio " + StormLook.StreakRatio(layer, i) + " at " + i + " for a layer of size " + layer.SizeMin);
+                    Assert.IsTrue(StormLook.StreakRatio(layer, i) >= 1.0);
+                    Assert.IsTrue(StormLook.FallMax(layer, i) <= 2.0 + 1e-9 && StormLook.FallMin(layer, i) >= 0.6, "fall " + StormLook.FallMin(layer, i) + " to " + StormLook.FallMax(layer, i));
+                    Assert.IsTrue(StormLook.FallMin(layer, i) < StormLook.FallMax(layer, i), "the flakes differ in speed");
+                }
             }
+            Assert.IsTrue(StormLook.StreakScale(1.0) > StormLook.StreakScale(0.0));
+            Assert.IsTrue(StormLook.NearLayer.FallMax > StormLook.FarLayer.FallMax, "larger flakes fall faster");
+            Assert.IsTrue(StormLook.WindSpeed(1.0) > 2 * StormLook.FallMax(StormLook.NearLayer, 1.0), "the wind is strong against the fall: a storm drifts sideways");
+        }
 
-            Assert.IsTrue(Length(1.0) > 0.6, "a streak of a full storm is " + Length(1.0) + " m");
-            Assert.IsTrue(Length(0.1) < 0.15, "a light fall has dots, " + Length(0.1) + " m");
-            double last = 0;
-            for (double i = 0; i <= 1.0001; i += 0.1)
+        [TestMethod]
+        public void TheWindGustsAroundItsMeanAndAnythingElseIsOne()
+        {
+            double min = 9, max = -9, sum = 0;
+            int n = 0;
+            for (double t = 0; t < 600; t += 0.25)
             {
-                Assert.IsTrue(Length(i) >= last);
-                last = Length(i);
+                double g = StormLook.GustFactor(t, 1.7);
+                min = Math.Min(min, g);
+                max = Math.Max(max, g);
+                sum += g;
+                n++;
+                Assert.IsTrue(g >= 1 - StormLook.GustDepth - 1e-9 && g <= 1 + StormLook.GustDepth + 1e-9, "gust " + g + " at " + t);
             }
+            Assert.IsTrue(max - min > StormLook.GustDepth, "the gusts swing, " + min + " to " + max);
+            Assert.AreEqual(1.0, sum / n, 0.05, "the mean wind is the wind");
+            Assert.AreNotEqual(StormLook.GustFactor(5, 0.0), StormLook.GustFactor(5, 3.0), "two seeds do not gust together");
+            Assert.AreEqual(1.0, StormLook.GustFactor(double.NaN, 0));
+            Assert.AreEqual(1.0, StormLook.GustFactor(double.PositiveInfinity, 0));
+            Assert.AreEqual(1.0, StormLook.GustFactor(1, double.NaN));
         }
 
         [TestMethod]
@@ -67,9 +95,10 @@ namespace ReDefinition.Tests
         {
             foreach (StormLook.FlakeLayer layer in Layers)
             {
-                double fall = StormLook.FallSpeed(0.5);
-                Assert.AreEqual(layer.BoxHeight, StormLook.Lifetime(layer, fall) * fall, 1e-6);
-                Assert.IsTrue(StormLook.Lifetime(layer, 0) > 0 && !double.IsInfinity(StormLook.Lifetime(layer, 0)));
+                double mean = 0.5 * (StormLook.FallMin(layer, 0.5) + StormLook.FallMax(layer, 0.5));
+                Assert.AreEqual(layer.BoxHeight, StormLook.Lifetime(layer, 0.5) * mean, 1e-6);
+                Assert.IsTrue(StormLook.Lifetime(layer, double.NaN) > 0 && !double.IsInfinity(StormLook.Lifetime(layer, double.NaN)));
+                Assert.IsTrue(StormLook.Lifetime(layer, 0) >= StormLook.Lifetime(layer, 1), "a light fall is a little slower");
             }
             double life = 2.0;
             Assert.AreEqual(-9.0, StormLook.UpwindOffset(9.0, life), 1e-9, "half the drift, against the wind");
@@ -161,28 +190,56 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
+        public void TheRainIsReplacedFromHalfSnowCoverWithAMarginAtTheEdge()
+        {
+            Assert.IsFalse(EveRainLink.Cold(false, 0.49));
+            Assert.IsTrue(EveRainLink.Cold(false, 0.5));
+            Assert.IsTrue(EveRainLink.Cold(true, 0.46), "inside the margin it stays on");
+            Assert.IsFalse(EveRainLink.Cold(true, 0.44));
+            Assert.IsFalse(EveRainLink.Cold(false, double.NaN));
+            Assert.IsFalse(EveRainLink.Cold(true, double.NaN));
+            Assert.IsTrue(EveRainLink.ColdOff < EveRainLink.ColdOn);
+            // The mask in a northern midwinter: the polar region is cold, the tropics are not.
+            double winter = 0.06;
+            Assert.IsTrue(EveRainLink.Cold(false, SnowMask.Coverage(70, 0, winter, 0, SnowMask.DefaultWinterLineDegrees)));
+            Assert.IsFalse(EveRainLink.Cold(false, SnowMask.Coverage(5, 0, winter, 0, SnowMask.DefaultWinterLineDegrees)));
+        }
+
+        [TestMethod]
+        public void WithoutEveTheRainLinkIsNotControllableAndDoesNothing()
+        {
+            Assert.IsFalse(EveRainLink.Controllable);
+            StringAssert.Contains(EveRainLink.Summary, "not");
+            EveRainLink.Release();
+            Assert.IsFalse(EveRainLink.Suppressed);
+            Assert.AreEqual(0f, EveRainLink.Coverage);
+            StringAssert.Contains(EveRainLink.Describe(), "fields 0");
+        }
+
+        [TestMethod]
         public void TheNewSettingsComeBackAndAreBroughtIntoTheirRanges()
         {
             string folder = Path.Combine(Path.GetTempPath(), "storm-sky-settings-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
-            float darkening = SeasonsSettings.StormSkyDarkening;
-            bool eve = SeasonsSettings.StormEveSnow, orbit = SeasonsSettings.OrbitSnow;
-            int width = SeasonsSettings.OrbitSnowWidth;
+            ConfigNode saved = SeasonsSettings.Snapshot();
             try
             {
                 string file = Path.Combine(folder, "settings.cfg");
                 SeasonsSettings.StormSkyDarkening = 0.25f;
                 SeasonsSettings.StormEveSnow = false;
+                SeasonsSettings.StormEveRainToSnow = false;
                 SeasonsSettings.OrbitSnow = false;
                 SeasonsSettings.OrbitSnowWidth = 2048;
                 SeasonsSettings.Write(file);
                 SeasonsSettings.StormSkyDarkening = 0.6f;
                 SeasonsSettings.StormEveSnow = true;
+                SeasonsSettings.StormEveRainToSnow = true;
                 SeasonsSettings.OrbitSnow = true;
                 SeasonsSettings.OrbitSnowWidth = 4096;
                 SeasonsSettings.Read(file);
                 Assert.AreEqual(0.25f, SeasonsSettings.StormSkyDarkening);
                 Assert.IsFalse(SeasonsSettings.StormEveSnow);
+                Assert.IsFalse(SeasonsSettings.StormEveRainToSnow);
                 Assert.IsFalse(SeasonsSettings.OrbitSnow);
                 Assert.AreEqual(2048, SeasonsSettings.OrbitSnowWidth);
 
@@ -195,17 +252,15 @@ namespace ReDefinition.Tests
                 SeasonsSettings.Read(range);
                 Assert.AreEqual(0f, SeasonsSettings.StormSkyDarkening);
                 Assert.AreEqual(SeasonsSettings.OrbitSnowWidthMax, SeasonsSettings.OrbitSnowWidth);
-                File.WriteAllText(range, "stormSkyDarkening = NaN\norbitSnow = maybe\n");
+                File.WriteAllText(range, "stormSkyDarkening = NaN\norbitSnow = maybe\nstormEveRainToSnow = perhaps\n");
                 SeasonsSettings.Read(range);
+                Assert.IsFalse(SeasonsSettings.StormEveRainToSnow, "not a flag is ignored for the rain replacement too");
                 Assert.AreEqual(0f, SeasonsSettings.StormSkyDarkening, "not a number is ignored");
                 Assert.IsFalse(SeasonsSettings.OrbitSnow, "not a flag is ignored");
             }
             finally
             {
-                SeasonsSettings.StormSkyDarkening = darkening;
-                SeasonsSettings.StormEveSnow = eve;
-                SeasonsSettings.OrbitSnow = orbit;
-                SeasonsSettings.OrbitSnowWidth = width;
+                SeasonsSettings.Restore(saved);
                 Directory.Delete(folder, true);
             }
         }

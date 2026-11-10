@@ -68,6 +68,22 @@ a buffer (`Fsr3Constants.cs`). Change the FSR files through the script, never by
 5. `ReDefinition.cginc` in `unity/Assets/ReDefinition/Include` is for other mods' shaders.
    It is not in the bundle, and `IncludeCheck.RunFromCommandLine` compiles it on its own.
 
+### The Seasons' bundle
+
+ReDefinition Seasons works without the rest of ReDefinition, so it has a bundle of its own,
+`seasons.shaders`, and its own loader. The source is `unity/Assets/ReDefinitionSeasons/Shaders`
+(every `.shader` at the top of the folder goes in), and `SeasonsBundleBuilder` in
+`unity/Assets/ReDefinitionSeasons/Editor` builds it. It needs no compute shader. It sets
+Direct3D 11 and 12 as `BundleBuilder` does and writes the file to
+`GameData/ReDefinition/Seasons/Shaders`. `tools/build_seasons_bundle.ps1` runs the headless
+build and prints the log lines that matter (`build\seasons-bundle.log` is the full log).
+`StormShaders.LoadVolumeShader` in `src/Seasons` loads the file with
+`AssetBundle.LoadFromFile` and takes `ReDefinition/SeasonsStormVolume`. It returns the reason
+when the file is missing, is rejected (another Unity version) or the shader is not supported;
+`StormVolume` then draws plain meshes. The release build stops where the bundle is missing or
+older than a file in `ReDefinitionSeasons/Shaders` or `Editor`, and puts it into the Seasons
+zip.
+
 ## The proxy route
 
 1. The passes are `.hlsl` files in `src/DxgiProxy/Raytracing/Shaders`. Each has one or more

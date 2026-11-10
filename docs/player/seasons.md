@@ -37,9 +37,10 @@ change without it.
 
 ## The settings
 
-The file is `GameData/ReDefinition/Seasons/PluginData/settings.cfg`. The mod makes it when
-it saves. There is no settings window for it yet, so edit the file with the game closed. A
-value outside its range is brought into it, and a value that is not a number is ignored.
+The file is `GameData/ReDefinition/Seasons/PluginData/settings.cfg`. The mod writes it with
+the defaults the first time it starts and finds none. There is no settings window for it yet,
+so edit the file with the game closed. A value outside its range is brought into it, and a
+value that is not a number is ignored.
 
 | Key | Default | Range | What it does |
 |---|---|---|---|
@@ -54,8 +55,15 @@ value outside its range is brought into it, and a value that is not a number is 
 | `stormSnowfall` | `True` | `True`, `False` | Draws falling snow in a storm. |
 | `stormSkyDarkening` | `0.6` | 0 to 1 | How dark the sky and the ambient light get in the strongest storm. 0 leaves both alone; the sky has its full grey from 0.67. |
 | `stormEveSnow` | `True` | `True`, `False` | Raises EVE's own snow particles with the storm where EVE has them. |
+| `stormEveRainToSnow` | `True` | `True`, `False` | Where the ground is snow or ice, replaces EVE's rain (rain particles, droplets on the glass, wet ground, lightning, rain sound) by its snow. |
+| `stormCellRadiusKm` | `12` | 5 to 25 | The typical radius of a storm cell in kilometres. Each cell is 0.6 to 1.4 times this, always between 5 and 25 km. |
+| `stormVolume` | `True` | `True`, `False` | Draws a storm cell as a snow curtain under a dark cloud base that you can see from afar. |
+| `stormVolumeMode` | `Auto` | `Auto`, `Raymarch`, `Simple` | `Auto` draws a cell as a raymarched volume where the shader bundle `Seasons/Shaders/seasons.shaders` loads, and as plain meshes where it does not. `Raymarch` draws no cell without the shader; `Simple` always draws the meshes. |
+| `stormVolumeSteps` | `28` | 16 to 48 | How many steps a ray takes through a raymarched cell. More is smoother and costs more. |
+| `stormMaxCells` | `6` | 1 to 12 | How many cells are drawn at once, the nearest ones. |
+| `forceStormCell` | `off` | `off`, or `latitude,longitude,radiusKm` | A diagnostics setting for screenshots: one storm cell at that place at full strength, whatever the schedule, the season and the `storms` switch. Leave it at `off` to play. |
 | `orbitSnow` | `True` | `True`, `False` | Tints the planet in the orbit and map view with the season. |
-| `orbitSnowWidth` | `4096` | 1024 to 4096 | Width in pixels of the map the orbit snow draws with, never larger than the game's own map. 2048 needs a quarter of the video memory. |
+| `orbitSnowWidth` | `2048` | 1024 to 4096 | Width in pixels of the map the orbit snow draws with, never larger than the game's own map. 2048 needs 29 MB of video memory, 4096 needs 117 MB. |
 | `forceStorm` | `-1` | -1, or 0 to 1 | A diagnostics setting for screenshots: a fixed storm strength at the camera, whatever the place, season and `storms` switch. Leave it at -1 to play. |
 | `winterSnowLine` | `42` | 30 to 60 | The latitude of the snow line in a hemisphere's midwinter, in degrees. |
 | `groundRefreshMode` | `Live` | `Live`, `Rebuild`, `Off` | How ground that is already built follows the season (below). |
@@ -88,15 +96,33 @@ names the settings and whether Parallax and EVE were found.
 
 ## Snow storms
 
-Storms follow a fixed schedule that depends on the game's time, your latitude, the season and
-the `stormSeed`. They happen only where there is snow cover and the hemisphere is in its
-winter: not near the equator and not in the summer, also not on the polar caps. In a real-length
-year there are about six at 60 degrees latitude. A storm builds up over one to three Kerbin
-hours, stays at its peak for two to eight, and fades over two and a half to six. Storms are
-counted in Kerbin hours, so a shortened year has fewer of them. Higher up the storm fades, and it
-is gone above 10 km.
+A storm is a cell: a place on Kerbin with a radius of 5 to 25 km that lives for a few Kerbin
+hours and drifts slowly with the wind. Cells follow a fixed schedule that depends on the game's
+time, the season and the `stormSeed`, so the same cell stands at the same place for everyone
+with the same seed, and you can see it come, from a distance and from the air. Cells happen
+only where there is snow cover and the hemisphere is in its winter: not near the equator and
+not in the summer, also not on the polar caps. Several cells stand on the planet at once. In a
+winter you will find one within 60 km of you now and then, not all the time.
 
-What a storm does on screen:
+A cell builds up over one and a half to three Kerbin hours, stays at its peak for two to eight,
+and fades over two and a half to six. It drifts east at 1.5 to 4 m/s, turned a little to either
+side, so it travels 5 to 15 km an hour. Time is counted in Kerbin hours, so a shortened year
+has fewer cells. The storm is full strength inside the cell, falls off over the outer fifth of
+the radius, and is gone outside it. Higher up the storm fades: it is at full strength up to
+4 km above sea level and gone from 10 km.
+
+What you see of a cell from outside, within 60 km of the camera and while `stormVolume` is on:
+
+* A dark layer of storm cloud 700 m thick on a base 1.5 to 2.5 km above the ground, darker at
+  the bottom and lit on top.
+* A curtain of falling snow from the cloud base down to the ground, in vertical streaks that
+  move, denser toward the middle with a ragged edge.
+* Where the shader bundle is missing, the cell is drawn as plain meshes instead: a flat cloud
+  base with a few grey puffs and three layers of streaks.
+* The cell fades in and out with the storm and is darker at night. It stands on the ground,
+  turns with the planet and moves with its drift. Fly toward it and into it.
+
+When you are inside a cell, the storm works on the whole picture. What a storm does on screen:
 
 * The view gets short. The strongest storm leaves about 60 m of sight (`stormVisibility`); a
   half-strength storm about 250 m. This comes from Unity's fog and a veil in front of the
@@ -104,12 +130,22 @@ What a storm does on screen:
 * The sky turns grey and heavy. Toward the horizon and the ground the veil is light fog; toward
   the zenith it is a dark storm grey. The ambient light is lowered with it, by up to 60 % at
   full strength. `stormSkyDarkening` sets how much (0 leaves the sky and the light alone).
-* Snow falls around the camera, blown by a wind that turns slowly. A light fall has small
-  flakes; in a strong storm they are more, larger and drawn as streaks along the wind, about a
-  metre long at the strongest. A near and a far layer keep flakes both close to the camera and
-  in the distance.
+* Snow falls around the camera as soft round flakes of different size and brightness. They
+  fall slowly, about a metre a second, and sway on their own. The wind drifts them sideways,
+  turns slowly and gusts. A light fall has few small flakes; in a strong storm there are more
+  and larger ones. Near flakes are large and translucent, far ones small, so the snow has
+  depth. The flakes are never stretched into streaks.
 * With EVE installed, its own snow particle field (`snow-Kerbin`) is raised with the storm too,
   so that the snow is also thick in the distance. `stormEveSnow` switches that off.
+* With EVE installed, rain does not fall over snow and ice. Where the season's snow cover at
+  your place is above one half (the polar region in winter, high mountains), EVE's rain
+  particles, the droplets on the glass, the wet ground, the lightning and the rain sound are
+  switched off. EVE's snow field and snow sound take their place with the strength the rain
+  would have had. Below a cover of 0.45 the rain comes back. `stormEveRainToSnow` switches
+  that off. This does not need a storm. It was read from the code of the installed EVE (the
+  names and what each effect reads), but it has not been seen in the game yet. Water already
+  on the glass dries within about twelve seconds, ground EVE has made wet stays wet until EVE
+  dries it, and the rain sound in the IVA view is not replaced by snow sound.
 
 This works without EVE. It adds no screen effect of its own, so it does not interfere
 with the upscalers or raytracing of ReDefinition. The storm changes the global fog setting
@@ -119,6 +155,14 @@ drawn and what EVE offered (`EVE snow field: found ... / not found / not control
 and `storm settled` lines with the visibility, the veil, the ambient light and the number
 of flakes.
 
+Limits of the cells: a raymarched cell is one transparent object with single scattering from
+the sun and the sky, not a simulation, and it does not light anything else. EVE's clouds are
+not hooked into it: a cell has its own cloud layer, and EVE's clouds above it are as EVE draws
+them. A cell makes no sound. Two cells that overlap on the screen sort by object, so they can
+show a seam. The shader reads the scene's depth to stop at the ground and at objects; if the
+game does not provide it, the curtain shows through hills. The cells seen from outside, the
+raymarched shader and its depth test have not run in the game yet.
+
 Limits: the fog is Unity's. The Parallax terrain shader applies it; whether the stock
 terrain, the parts and Scatterer's sky do is not tested, which is why the veil is there: it
 lowers the contrast of the whole picture, near and far. The sun's own light is not dimmed,
@@ -127,8 +171,7 @@ writes its value just before the cameras render and takes a changed value as the
 starting point. EVE has no setting for its snow particles, so the storm writes the value
 EVE keeps for its coverage; if a future EVE changes that, `KSP.log` says
 `not controllable` and only the storm's own snow falls. The falling snow has no motion
-vectors, so an upscaler or frame generation may smear it. None of this has run in the game
-yet.
+vectors, so an upscaler or frame generation may smear it.
 
 ## Snow in orbit and in the map
 
@@ -162,16 +205,18 @@ planet's `_MainTex`. `KSP.log` names the shader and the property it found
 
 ## Limits
 
-Nothing of this has been run in the game yet. The year length, the snow line, the noise and the
-repaint of a quad's colours are computed and tested outside the game. Whether the terrain
-refresh reaches Parallax's terrain and grass in the game, and how the snow looks under the
-upscalers and raytracing, is not verified. Not done:
+What has been seen in the game: the snow on the ground in winter and in summer, the tint of the
+planet in the orbit and map view, and a storm's fog, veil, falling snow, dark sky, lowered
+ambient light and EVE's snow field. What has not been seen in the game yet: the storm cells
+from outside (the cloud base and the snow curtain), the raymarched shader, the replacement of
+EVE's rain by snow, and the `Rebuild` mode. The year length, the snow line, the noise, the
+schedule and the numbers of the storms are computed and tested outside the game. How the snow
+looks under the upscalers and raytracing, and whether the terrain refresh reaches Parallax's
+grass, is not verified. Not done:
 
-* The orbit snow is not tested in the game. Its main assumption is the layout of the colour
-  map (south at the bottom, longitude as in the terrain); the test compares winter with summer
-  in orbit and fails if the hemispheres are swapped.
+* The orbit snow assumes the layout of the colour map (south at the bottom, longitude as in the
+  terrain); the test compares winter with summer in orbit and fails if the hemispheres are
+  swapped.
 * Parallax's rocks and grass are not removed or changed in form. The grass takes the snow
   colour where it takes the colour of the ground.
 * The ocean is not frozen.
-* The snow storms are tested outside the game (schedule and numbers) but not yet in it.
-* Rebuilding in `Rebuild` mode is not tested.

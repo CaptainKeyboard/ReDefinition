@@ -134,13 +134,15 @@ namespace ReDefinition.Tests
             byte[] half = Mask(Winter, 0.5f, null, 0, 0, w, h, out noise);
             Assert.AreEqual(MeanAlpha(full, w, h, 40, 80) * 0.5, MeanAlpha(half, w, h, 40, 80), 0.01);
 
-            // A uniform grid of 4 km lowers the line by 6 degrees: the band between 33 and 39 degrees gets snow only with the heights.
+            // A uniform grid of 4 km lowers the line by 6 degrees: in the northern midsummer the line is near 78 degrees, and with the
+            // heights the band between 55 and 78 degrees gets snow that it does not get flat. The equator has none either way.
             var heights = new float[16 * 8];
             for (int i = 0; i < heights.Length; i++) heights[i] = 4000f;
             byte[] flat = Mask(Summer, 1f, null, 0, 0, w, h, out noise);
             byte[] mountains = Mask(Summer, 1f, heights, 16, 8, w, h, out noise);
             Assert.IsTrue(MeanAlpha(mountains, w, h, 55, 78) > MeanAlpha(flat, w, h, 55, 78) + 0.2);
-            Assert.AreEqual(MeanAlpha(flat, w, h, -20, 20), MeanAlpha(mountains, w, h, -20, 20), 0.2 + 1e-9);
+            Assert.AreEqual(0.0, MeanAlpha(flat, w, h, -20, 20), 1e-9);
+            Assert.AreEqual(0.0, MeanAlpha(mountains, w, h, -20, 20), 1e-9);
         }
 
         [TestMethod]

@@ -14,9 +14,15 @@ namespace ReDefinition.Seasons
         // After every colour mod.
         internal const int SortOrder = int.MaxValue - 10;
 
-        // The quad being built, and the phase it is built for: the clock is read once per quad.
+        // The vertex count of a quad whose vertex array is not there yet when its first vertex is built (a quad of 15 x 15 vertices
+        // in the build checked).
+        internal const int DefaultQuadVertexCount = 225;
+
+        // The quad being built, its record, and the phase it is built for: the clock is read once per quad.
         private PQ currentQuad;
-        private double phase;
+        private QuadSnow currentSnow;
+        private double? phase;
+        private bool failedLogged;
         private static bool orderLogged;
 
         public override void OnSetup()
@@ -28,37 +34,64 @@ namespace ReDefinition.Seasons
 
         public override void OnVertexBuild(PQS.VertexBuildData data)
         {
+            try
+            {
+                Build(data);
+            }
+            catch (Exception e)
+            {
+                if (failedLogged) return;
+                failedLogged = true;
+                SeasonsLog.WarnOnce("the snow of a ground vertex failed; the vertex keeps its colour (" + CompatibilityLog.Reason(e) + ")");
+            }
+        }
+
+        private void Build(PQS.VertexBuildData data)
+        {
             PQ quad = data.buildQuad;
             if (quad == null || !SeasonsSettings.Enabled) return;
+            bool track = SeasonsSettings.GroundRefreshMode != SeasonsSettings.GroundRefresh.Off;
             if (data.vertIndex == 0 || !ReferenceEquals(quad, currentQuad))
             {
                 currentQuad = quad;
+                currentSnow = null;
                 phase = SeasonState.Phase();
             }
             double x = data.directionFromCenter.x, y = data.directionFromCenter.y, z = data.directionFromCenter.z;
-            double latitude = Math.Asin(y < -1 ? -1 : y > 1 ? 1 : y) * (180.0 / Math.PI);
+            double latitude = Geo.LatitudeOf(y);
             double height = data.vertHeight - sphere.radius;
             double noise = SnowNoise.Value(x, y, z);
-            float amount = QuadSnow.Amount(latitude, height, phase, noise, SeasonsSettings.SnowStrength, SeasonsSettings.WinterSnowLine);
-            if (SeasonsSettings.GroundRefreshMode != SeasonsSettings.GroundRefresh.Off)
+            double? seasonPhase = phase;
+            if (track)
             {
-                QuadSnow snow = SnowQuads.For(quad, quad.verts != null && quad.verts.Length > 0 ? quad.verts.Length : 225);
-                snow.Set(data.vertIndex, (Color32)data.vertColor, latitude, height, noise);
-                snow.PaintPhase = phase;
+                // The record of the quad is looked up once per quad; a vertex past its end (the vertex array was not there for the first
+                // vertex) asks for a record of the real size.
+                if (currentSnow == null || data.vertIndex >= currentSnow.Length)
+                    currentSnow = SnowQuads.For(quad, quad.verts != null && quad.verts.Length > 0 ? quad.verts.Length : DefaultQuadVertexCount);
+                currentSnow.Set(data.vertIndex, (Color32)data.vertColor, latitude, height, noise);
+                // Without a phase nothing is painted and the quad stays due for its first paint (NaN).
+                currentSnow.PaintPhase = seasonPhase.HasValue ? seasonPhase.Value : double.NaN;
             }
+            if (!seasonPhase.HasValue) return;
+            float amount = QuadSnow.Amount(latitude, height, seasonPhase.Value, noise, SeasonsSettings.SnowStrength, SeasonsSettings.WinterSnowLine);
             data.vertColor = SnowPaint.Blend(data.vertColor, amount);
         }
 
         public override void OnQuadDestroy(PQ quad)
         {
             SnowQuads.Remove(quad);
-            if (ReferenceEquals(quad, currentQuad)) currentQuad = null;
+            if (ReferenceEquals(quad, currentQuad))
+            {
+                currentQuad = null;
+                currentSnow = null;
+            }
         }
 
         public override void OnSphereReset()
         {
             SnowQuads.Clear();
             currentQuad = null;
+            currentSnow = null;
         }
 
         // Writes the mods of the sphere in their order once, so that the log shows ours between the colour mods and Parallax.
@@ -78,11 +111,11 @@ namespace ReDefinition.Seasons
                     if (text.Length > 0) text.Append(", ");
                     text.Append(mods[i].GetType().Name).Append('(').Append(mods[i].order).Append(')');
                 }
-                Debug.Log(Log.Tag + " Seasons: PQS mods of " + sphere.name + " in build order (" + mods.Length + "): " + text);
+                SeasonsLog.Say("PQS mods of " + sphere.name + " in build order (" + mods.Length + "): " + text);
             }
             catch (Exception e)
             {
-                Debug.Log(Log.Tag + " Seasons: the PQS mod order could not be listed (" + CompatibilityLog.Reason(e) + ")");
+                SeasonsLog.Say("the PQS mod order could not be listed (" + CompatibilityLog.Reason(e) + ")");
             }
         }
     }
