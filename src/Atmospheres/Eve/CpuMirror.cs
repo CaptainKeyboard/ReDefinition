@@ -8,7 +8,7 @@ namespace ReDefinition.Atmospheres
     // The small CPU copy of the painted maps (brief C23, item 3). EVE's ground effects, the particle field, droplets, wet surfaces,
     // lightning and the ambient sound, and our own readers (RtEveClouds, the solar dimming, the lamp scatter) read the cloud coverage
     // through CloudsRaymarchedVolume.SampleCoverage, which does a bilinear read of the wrapper's private Texture2D textureValue on the
-    // CPU (TextureWrapper.cs:565-594) and sees nothing of a render texture. So the mirror is a readable 512 x 256 R8 Texture2D in the
+    // CPU (TextureWrapper.cs:565-594) and sees nothing of a render texture. So the mirror is a readable 512 x 256 RGBA32 Texture2D (the value in every channel) in the
     // layout of the layer's map, built from the CPU map the field gives (no readback from the GPU), by the same rule as the painter
     // pass (MapPaintModel) and injected into the wrapper's textureValue (guarded by AssumptionsC23). The same texture is what EVE puts
     // on the material when it applies the layer again, so the sky shows the right map at lower resolution for the instant between
@@ -29,6 +29,7 @@ namespace ReDefinition.Atmospheres
             internal Texture2D CoverageTexture, TypeTexture;
             internal int Row = Height;
             internal float CycleDt;
+            internal byte[] Rgba;
         }
 
         private readonly List<Entry> entries = new List<Entry>();
@@ -60,9 +61,12 @@ namespace ReDefinition.Atmospheres
             entries.Add(entry);
         }
 
+        // The value goes into all four channels: EVE's TextureWrapper.Sample returns the raw colour, the red channel or the alpha
+        // channel by the wrapper's alphaMask (ALPHAMAP_R or the default ALPHAMAP_A), and SampleCoverage reads .a of that. An R8 texture
+        // has alpha 1, so a layer whose wrapper reads alpha would see coverage 1 everywhere.
         private static Texture2D NewTexture(string name)
         {
-            return new Texture2D(Width, Height, TextureFormat.R8, false, true)
+            return new Texture2D(Width, Height, TextureFormat.RGBA32, false, true)
             {
                 name = name,
                 wrapModeU = TextureWrapMode.Repeat,
@@ -158,10 +162,27 @@ namespace ReDefinition.Atmospheres
 
         private static void Upload(Entry e)
         {
-            e.CoverageTexture.LoadRawTextureData(e.Coverage.Current);
+            if (e.Rgba == null) e.Rgba = new byte[Width * Height * 4];
+            ExpandToRgba(e.Coverage.Current, e.Rgba);
+            e.CoverageTexture.LoadRawTextureData(e.Rgba);
             e.CoverageTexture.Apply(false, false);
-            e.TypeTexture.LoadRawTextureData(e.Type.Current);
+            ExpandToRgba(e.Type.Current, e.Rgba);
+            e.TypeTexture.LoadRawTextureData(e.Rgba);
             e.TypeTexture.Apply(false, false);
+        }
+
+        // One byte per texel to four equal bytes per texel (red, green, blue and alpha all carry the value).
+        internal static void ExpandToRgba(byte[] value, byte[] rgba)
+        {
+            for (int i = 0; i < value.Length; i++)
+            {
+                byte v = value[i];
+                int o = i * 4;
+                rgba[o] = v;
+                rgba[o + 1] = v;
+                rgba[o + 2] = v;
+                rgba[o + 3] = v;
+            }
         }
 
         // The mirror's current maps for the tests (and the consistency check against the GPU's read-back).

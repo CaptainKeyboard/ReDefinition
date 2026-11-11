@@ -124,6 +124,12 @@ namespace ReDefinition.Atmospheres
                 summary = link.Complete
                     ? "found (CloudsManager -> CloudsObject -> CloudsRaymarchedVolume.particleField -> ParticleField.currentCoverage)"
                     : "not controllable (missing " + link.MissingText() + ")";
+                if (link.Complete && !AtmospheresAssumptions.Holds(AssumptionsC23.GroundId))
+                {
+                    getList = null;
+                    ForeignAssumption assumption = AtmospheresAssumptions.Find(AssumptionsC23.GroundId);
+                    summary = "not used (" + (assumption != null ? assumption.State + ": " + assumption.Problem : "assumption unknown") + ")";
+                }
             }
             catch (Exception e)
             {

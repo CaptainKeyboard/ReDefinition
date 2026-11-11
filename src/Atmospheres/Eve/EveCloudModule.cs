@@ -42,6 +42,7 @@ namespace ReDefinition.Atmospheres
         private readonly List<EveCoverageMath.Blob> cells = new List<EveCoverageMath.Blob>();
         private readonly List<EveCoverageMath.Rect> painted = new List<EveCoverageMath.Rect>();
         private byte[] overlay;
+        private readonly List<object> paintedObjects = new List<object>();
 
         private CelestialBody body;
         private BodyClimate climate;
@@ -53,6 +54,13 @@ namespace ReDefinition.Atmospheres
 
         // The running module, for the series probe (Probe/C23Probe.cs); null while the module is not running.
         internal static EveCloudModule Current { get; private set; }
+
+        // True while this module drives EVE's rain and snow entries (it holds layers of the body): the old storm effect writes the same
+        // static entries (EveRainLink, EveSnowLink) and must leave them alone then. The old path goes with C25.
+        internal static bool DrivesEveGroundEffects
+        {
+            get { return Current != null && Current.layers.Count > 0 && Current.preCullSubscribed; }
+        }
 
         public void Init()
         {
@@ -155,8 +163,8 @@ namespace ReDefinition.Atmospheres
             body = b;
             climate = c;
             CloudSourceKind source = c.Clouds.Source ?? AtmospheresSettings.CloudSource;
-            bool eveMode = (source == CloudSourceKind.Eve || source == CloudSourceKind.Both) && EveLayerAccess.Available;
-            bool ownMode = source == CloudSourceKind.Ours;
+            bool eveMode, ownMode;
+            CloudModeModel.Decide(source, EveLayerAccess.Available, out eveMode, out ownMode);
             if (!eveMode)
             {
                 if (layers.Count > 0) ReleaseEve("cloudSource is " + source);
@@ -242,6 +250,12 @@ namespace ReDefinition.Atmospheres
             binding.WatchdogIntervalS = Tuning.Get("eve.watchdogS", (float)BindingTracker.WatchdogIntervalS);
             int bound = binding.Tick(now, Choose, text => AtmospheresLog.Say("cloud painter: " + text));
             applyFlag = false;
+            paintedObjects.Clear();
+            foreach (EveLayer h in layers)
+            {
+                if (h.Tracker.State == BindState.Bound) paintedObjects.Add(h.Object);
+            }
+            EveRainLink.SetPainted(paintedObjects);
             foreach (EveLayer h in layers)
             {
                 if (h.Tracker.State != BindState.Bound) continue;
@@ -360,8 +374,8 @@ namespace ReDefinition.Atmospheres
                 float centre, width;
                 PrecipTypeModel.Parameters(climate.Precip, out centre, out width);
                 bool both = (climate.Clouds.Source ?? AtmospheresSettings.CloudSource) == CloudSourceKind.Both && AtmospheresSettings.UseEveWeather;
-                GroundEffectMath.Factors f = EveGroundEffects.FactorsFor(sample, EveRainLink.Coverage, both, centre, width);
-                float level = Math.Max(sample.Level01, GroundEffectMath.EveLevel(EveRainLink.Coverage, false, false) * (both ? 1f : 0f));
+                GroundEffectMath.Factors f = EveGroundEffects.FactorsFor(sample, EveRainLink.UnpaintedCoverage, EveRainLink.UnpaintedThunder, both, centre, width);
+                float level = Math.Max(sample.Level01, GroundEffectMath.EveLevel(EveRainLink.UnpaintedCoverage, EveRainLink.UnpaintedThunder, true) * (both ? 1f : 0f));
                 ground.Apply(body.name, f, level);
             }
             catch (Exception e)
@@ -381,14 +395,13 @@ namespace ReDefinition.Atmospheres
         {
             if (climate == null || !ReferenceEquals(b, body)) return false;
             CloudSourceKind source = climate.Clouds.Source ?? AtmospheresSettings.CloudSource;
-            if (source == CloudSourceKind.Ours) return true;
-            if (source == CloudSourceKind.None) return false;
-            // EVE carries the picture where one of its layers has a 2D layer; the shell stands in where none has.
+            // EVE carries the picture where one of its layers has a 2D layer it does not leave alone; the shell stands in where none has.
+            bool eveCarries = false;
             foreach (EveLayer h in layers)
             {
-                if (h.Layer2D != null && h.Tracker.State == BindState.Bound) return false;
+                if (h.Layer2D != null && h.LeftReason.Length == 0) eveCarries = true;
             }
-            return layers.Count > 0;
+            return CloudModeModel.ShellWanted(source, eveCarries);
         }
 
         private void RunPictures(float now, BodyClimate c, CelestialBody b, bool eveMode, bool ownMode)
@@ -490,6 +503,7 @@ namespace ReDefinition.Atmospheres
             }
             AtmospheresLog.Say("cloud painter: EVE layers released (" + reason + "), losses " + binding.TotalLosses + ", rebinds " + binding.TotalRebinds);
             binding.Clear();
+            EveRainLink.SetPainted(null);
             layers = new List<EveLayer>();
             ground.Release();
             mirror.Clear();
