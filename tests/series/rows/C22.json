@@ -1,0 +1,10 @@
+{
+  "$schema": "../schema.json",
+  "package": "C22",
+  "rows": [
+    { "series": "K-W1", "section": "C22", "package": "C22", "start": "run1", "metric": "C22.shader_loaded", "equals": 1, "note": "C22 sanity: the precipitation shader is in the Atmospheres bundle and compiles on the device (PrecipitationRenderer.Init logs it)" },
+    { "series": "K-W1", "section": "C22", "package": "C22", "start": "run1", "metric": "C22.mode_auto_is_scene", "equals": 1, "note": "C22 sanity: weatherCompose Auto resolves to Scene while no player metrics are recorded for the vendor (PrecipitationRenderer.ActiveMode)" },
+    { "series": "K-W1", "section": "C22", "package": "C22", "start": "run1", "metric": "C22.draws_at_level_below_0_04", "equals": 0, "note": "C22 sanity: no billboards (PrecipitationRenderer.LastTotalCount) and no command buffer below level 0.04" },
+    { "series": "K-W1", "section": "C22", "package": "C22", "start": "run1", "metric": "C22.fog_external_writes", "max": 3, "required": false, "note": "C22 informative: how often another writer changed the fog (FogWriter.ExternalWrites)" }
+  ]
+}
