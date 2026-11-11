@@ -16,6 +16,10 @@ namespace ReDefinition.Atmospheres
         // The render queue of the flakes: after the veil at 3000.
         private const int Queue = 3100;
 
+        // True while the legacy storm effect shows these flakes; the precipitation renderer (Render/Precip) does not draw meanwhile.
+        // The last caller package (C25) removes the legacy storm effect and with it this class.
+        internal static bool LegacyDrawing { get; private set; }
+
         // The change of a value that makes the system be set again.
         private const float SizeStep = 0.01f, LifetimeStep = 0.05f;
 
@@ -168,6 +172,7 @@ namespace ReDefinition.Atmospheres
         {
             if (layers[0].Go == null) Prepare(cam);
             if (layers[0].Go == null) return;
+            LegacyDrawing = true;
 
             // A horizontal frame from up: the system's local z points along a fixed horizontal direction, y along up.
             Vector3 forward = Vector3.ProjectOnPlane(Vector3.forward, up);
@@ -235,6 +240,7 @@ namespace ReDefinition.Atmospheres
 
         internal void Hide()
         {
+            LegacyDrawing = false;
             if (layers[0].Go == null) return;
             if (playing)
             {

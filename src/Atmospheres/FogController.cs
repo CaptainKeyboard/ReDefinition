@@ -22,6 +22,27 @@ namespace ReDefinition.Atmospheres
         private Color writtenColour;
 
         private bool outsideChange;
+        private readonly bool legacy;
+
+        // The tracker of the legacy storm effect (the default) or of the fog writer of the precipitation renderer (legacy = false).
+        internal FogController(bool legacy = true)
+        {
+            this.legacy = legacy;
+        }
+
+        // True while a legacy tracker holds the fog (between its Save and its Restore). The fog writer of Render/Fog does not write
+        // meanwhile, so that two writers never fight over RenderSettings; the last caller package (C25) removes the legacy storm effect.
+        internal static bool LegacyHolds { get; private set; }
+
+        // How many times another writer was found to have changed the fog since the last write (counted by the caller with
+        // CountExternal), for the log of the fog writer.
+        internal int ExternalWrites { get; private set; }
+
+        // Counts one change by another writer.
+        internal void CountExternal()
+        {
+            ExternalWrites++;
+        }
 
         // The density the storm wrote last.
         internal float WrittenDensity
@@ -58,6 +79,7 @@ namespace ReDefinition.Atmospheres
         internal void Save(bool fog, FogMode mode, float density, Color colour)
         {
             if (saved) return;
+            if (legacy) LegacyHolds = true;
             saved = true;
             savedFog = fog;
             savedMode = mode;
@@ -91,6 +113,7 @@ namespace ReDefinition.Atmospheres
                         && Mathf.Abs(density - writtenDensity) <= Same
                         && Mathf.Abs(colour.r - writtenColour.r) <= Same && Mathf.Abs(colour.g - writtenColour.g) <= Same
                         && Mathf.Abs(colour.b - writtenColour.b) <= Same;
+            if (legacy) LegacyHolds = false;
             saved = false;
             written = false;
             return ours;

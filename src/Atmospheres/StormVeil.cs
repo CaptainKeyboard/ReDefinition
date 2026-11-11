@@ -15,6 +15,10 @@ namespace ReDefinition.Atmospheres
         // Vertices per side of the grid: the sky gradient is evaluated at each.
         private const int Side = 9;
 
+        // True while the legacy storm effect shows this veil. The precipitation renderer (Render/Precip) does not draw while it is true,
+        // so that no veil is drawn twice; the last caller package (C25) removes the legacy storm effect and with it this class.
+        internal static bool LegacyDrawing { get; private set; }
+
         private GameObject go;
         private MeshRenderer renderer;
         private Material material;
@@ -97,6 +101,7 @@ namespace ReDefinition.Atmospheres
                 Hide();
                 return;
             }
+            LegacyDrawing = true;
             if (!go.activeSelf) go.SetActive(true);
             go.layer = StormShaders.LayerOf(cam);
             float distance = cam.nearClipPlane * 2f + 0.02f;
@@ -125,6 +130,7 @@ namespace ReDefinition.Atmospheres
 
         internal void Hide()
         {
+            LegacyDrawing = false;
             if (go != null && go.activeSelf) go.SetActive(false);
         }
 

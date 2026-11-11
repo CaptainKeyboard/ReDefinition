@@ -1,0 +1,15 @@
+# Linked into the weather player for the precipitation renderer (C22): the pure maths, the type table, the sheet painter, the frame
+# computation and the draw pass (engine only), the shader, and the Common types they use. The renderer module and the compose state
+# need the game's settings and are not linked.
+src/Atmospheres/Render/Precip/PrecipMath.cs
+src/Atmospheres/Render/Precip/PrecipTypeLook.cs
+src/Atmospheres/Render/Precip/PrecipSheets.cs
+src/Atmospheres/Render/Precip/PrecipFrame.cs
+src/Atmospheres/Render/Precip/PrecipPass.cs
+src/Common/Weather/PrecipScale.cs
+src/Common/Weather/WeatherView.cs
+src/Common/Weather/WeatherSample.cs
+src/Common/Weather/IWeatherField.cs
+src/Common/Weather/Forecast.cs
+src/Common/Weather/WeatherMap.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresPrecip.shader

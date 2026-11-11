@@ -2,7 +2,10 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The shaders and the texture the storm pieces draw with. They are Unity's and KSP's own shaders found by name; none is shipped.
+    // The shaders and the texture the legacy storm pieces draw with. The Atmospheres' own bundle is read by AtmosphereShaders.Get (A02);
+    // the members here that load from it are shims for the files of other packages that still call them (StormVolume, EveLayerStorm),
+    // which switch to AtmosphereShaders.Get and then delete these. The rest are Unity's and KSP's own shaders found by name; none is
+    // shipped.
     internal static class StormShaders
     {
         // Alpha-blended shaders, the first that exists is used: KSP's own particle shader, then Unity's legacy ones, then sprites.
@@ -14,77 +17,31 @@ namespace ReDefinition.Atmospheres
             "Sprites/Default"
         };
 
-        // The raymarched storm volume's shader, from the Atmospheres' own bundle (unity/Assets/ReDefinitionAtmospheres, built by
-        // tools/build_atmospheres_bundle.ps1), and the bundle's file in GameData/ReDefinition/Atmospheres/Shaders.
+        // The raymarched storm volume's shader and the swirl shader, from the Atmospheres' own bundle.
         internal const string VolumeShaderName = "ReDefinition/AtmospheresStormVolume";
-        internal const string BundleName = "atmospheres.shaders";
-        private static AssetBundle bundle;
-        private static Shader volumeShader, swirlShader;
-        private static string volumeError, swirlError, bundleError;
-        private static bool volumeTried, swirlTried, bundleTried;
-
-        // The shader that draws the swirl into EVE's 2D cloud picture, from the same bundle.
         internal const string SwirlShaderName = "ReDefinition/AtmospheresSwirlPaint";
 
+        [System.Obsolete("Use AtmosphereShaders.BundleName.")]
+        internal const string BundleName = AtmosphereShaders.BundleName;
+
+        [System.Obsolete("Use AtmosphereShaders.BundlePath.")]
         internal static string BundlePath
         {
-            get
-            {
-                return System.IO.Path.Combine(KSPUtil.ApplicationRootPath, System.IO.Path.Combine("GameData", System.IO.Path.Combine("ReDefinition",
-                    System.IO.Path.Combine("Atmospheres", System.IO.Path.Combine("Shaders", BundleName)))));
-            }
+            get { return AtmosphereShaders.BundlePath; }
         }
 
-        // The volume shader from the bundle, or null and the reason. Looked up once; a bundle that is missing or rejected stays so
-        // until the game restarts. The player rejects a bundle from another Unity version without a word.
+        // The volume shader from the bundle, or null and the reason.
+        [System.Obsolete("Use AtmosphereShaders.Get(StormShaders.VolumeShaderName, out error).")]
         internal static Shader LoadVolumeShader(out string error)
         {
-            if (!volumeTried)
-            {
-                volumeTried = true;
-                volumeShader = FromBundle(VolumeShaderName, out volumeError);
-            }
-            error = volumeError;
-            return volumeShader;
+            return AtmosphereShaders.Get(VolumeShaderName, out error);
         }
 
         // The swirl shader from the bundle, or null and the reason (an older bundle has none).
+        [System.Obsolete("Use AtmosphereShaders.Get(StormShaders.SwirlShaderName, out error).")]
         internal static Shader LoadSwirlShader(out string error)
         {
-            if (!swirlTried)
-            {
-                swirlTried = true;
-                swirlShader = FromBundle(SwirlShaderName, out swirlError);
-            }
-            error = swirlError;
-            return swirlShader;
-        }
-
-        private static Shader FromBundle(string name, out string error)
-        {
-            if (!bundleTried)
-            {
-                bundleTried = true;
-                string path = BundlePath;
-                if (!System.IO.File.Exists(path))
-                    bundleError = "the shader bundle is missing: " + path + " (tools/build_atmospheres_bundle.ps1 builds it)";
-                else
-                {
-                    bundle = AssetBundle.LoadFromFile(path);
-                    if (bundle == null) bundleError = "AssetBundle could not be loaded: " + path + " (it has to come from Unity 2019.4.18f1)";
-                }
-            }
-            error = bundleError;
-            if (bundle == null) return null;
-            foreach (Shader loaded in bundle.LoadAllAssets<Shader>())
-            {
-                if (loaded == null || loaded.name != name) continue;
-                if (loaded.isSupported) return loaded;
-                error = name + " is in the bundle but does not compile or run on this graphics device";
-                return null;
-            }
-            error = "the bundle has no " + name;
-            return null;
+            return AtmosphereShaders.Get(SwirlShaderName, out error);
         }
 
         // The first of the names that Shader.Find returns, or null.
