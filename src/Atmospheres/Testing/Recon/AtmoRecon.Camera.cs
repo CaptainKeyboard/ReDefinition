@@ -147,7 +147,10 @@ namespace ReDefinition.Atmospheres
                     }
                 }
                 bool referenceValid = reference != null && reference[2] > 0.02 && reference[2] < 0.98;
-                bool alphaSame = alpha != null && alpha[0] > 0 && reference != null
+                // Readable counts only against a valid reference (sky and surface both present) and when the global texture at the
+                // transparent queue shows that mix too, so that two constant or unbound textures cannot agree on nothing.
+                bool alphaSame = alpha != null && alpha[0] > 0 && reference != null && referenceValid
+                                 && alpha[2] > 0.02 && alpha[2] < 0.98
                                  && Math.Abs(alpha[1] - reference[1]) <= 0.1 * Math.Abs(reference[1]) + 1e-6
                                  && Math.Abs(alpha[2] - reference[2]) <= 0.2 * Math.Abs(reference[2]) + 1e-6;
                 bool afterSame = after != null && after[0] > 0 && reference != null

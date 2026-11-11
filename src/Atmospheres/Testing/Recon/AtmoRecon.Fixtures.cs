@@ -340,11 +340,12 @@ namespace ReDefinition.Atmospheres
             {
                 EmitText("P8.error", "no opaque lit shader of a mod bundle was found: the blocking case is missing");
             }
-            if (builtin != null)
+            // The two informative cases leave room for P1: they are skipped when the scenario is old.
+            if (builtin != null && Elapsed <= 750.0)
             {
                 foreach (ProbeWait w in ShaderCase(stock, builtin, "builtin_", 0.3f)) yield return w;
             }
-            if (forwardOnly != null)
+            if (forwardOnly != null && Elapsed <= 750.0)
             {
                 foreach (ProbeWait w in ShaderCase(stock, forwardOnly, "forward_", 0.3f)) yield return w;
             }
