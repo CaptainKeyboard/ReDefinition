@@ -59,6 +59,33 @@ namespace ReDefinition.Api
         }
 
         /// <summary>
+        /// An effect on the upscaled image that must be hidden behind geometry. Called in the same place as
+        /// <see cref="RegisterAfterUpscaling"/>, from the same buffer, with the scene's depth as well. The
+        /// depth is the rig's own copy, written into the capture at <c>BeforeImageEffects</c> of the scene
+        /// camera, where Unity's global depth texture is valid (the global texture holds nothing before
+        /// <c>BeforeForwardAlpha</c>), with the active vessel's depth added.
+        /// </summary>
+        /// <param name="handler">Given the buffer; the upscaled image at display size, HDR, to draw onto;
+        /// the scene's raw hardware depth at render size, <c>RFloat</c>, point-filtered (reversed Z on
+        /// Direct3D 11: 1 is the near plane, 0 the far one; read it with
+        /// <c>ReDefinitionSampleSceneDepth</c> in ReDefinition.cginc); and the scene camera.</param>
+        public static void RegisterAfterUpscalingWithDepth(
+            Action<CommandBuffer, RenderTexture, RenderTexture, Camera> handler)
+        {
+            SharedFrame.AfterUpscalingDepthHooks.Add(handler);
+        }
+
+        /// <summary>
+        /// Removes a handler registered with <see cref="RegisterAfterUpscalingWithDepth"/>.
+        /// </summary>
+        /// <param name="handler">The handler registered.</param>
+        public static void UnregisterAfterUpscalingWithDepth(
+            Action<CommandBuffer, RenderTexture, RenderTexture, Camera> handler)
+        {
+            SharedFrame.AfterUpscalingDepthHooks.Remove(handler);
+        }
+
+        /// <summary>
         /// Lines and markers in the world, drawn after the scene. Called every frame as a camera of
         /// ReDefinition's culls, behind every camera that draws the scene and before the UI cameras; its
         /// buffer draws onto the backbuffer at display size at that camera's <c>AfterEverything</c>. Not

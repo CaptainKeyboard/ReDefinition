@@ -25,7 +25,7 @@ namespace YourMod
     internal static class ReDefinitionApi
     {
         // The interface version this file was written for (ReDefinition.Api.ApiInfo.Version).
-        internal const int WrittenFor = 2;
+        internal const int WrittenFor = 3;
 
         internal delegate int PassStateFn(int pass, out string status);
 
@@ -60,6 +60,7 @@ namespace YourMod
         internal static bool UpscalerActive { get { Resolve(); return upscalerActive != null && upscalerActive(); } }
         internal static bool FrameGenerationActive { get { Resolve(); return frameGenerationActive != null && frameGenerationActive(); } }
         internal static string Technique { get { Resolve(); return technique != null ? technique() : null; } }
+        internal static string ActiveWeatherBody { get { Resolve(); return activeWeatherBody != null ? activeWeatherBody() : null; } }
         internal static Vector2Int RenderSize { get { Resolve(); return renderSize != null ? renderSize() : ScreenSize(); } }
         internal static Vector2Int DisplaySize { get { Resolve(); return displaySize != null ? displaySize() : ScreenSize(); } }
         internal static Vector2 Jitter { get { Resolve(); return jitter != null ? jitter() : Vector2.zero; } }
@@ -98,6 +99,18 @@ namespace YourMod
         {
             Resolve();
             if (unregisterAfterUpscaling != null) unregisterAfterUpscaling(handler);
+        }
+
+        internal static void RegisterAfterUpscalingWithDepth(Action<CommandBuffer, RenderTexture, RenderTexture, Camera> handler)
+        {
+            Resolve();
+            if (registerAfterUpscalingWithDepth != null) registerAfterUpscalingWithDepth(handler);
+        }
+
+        internal static void UnregisterAfterUpscalingWithDepth(Action<CommandBuffer, RenderTexture, RenderTexture, Camera> handler)
+        {
+            Resolve();
+            if (unregisterAfterUpscalingWithDepth != null) unregisterAfterUpscalingWithDepth(handler);
         }
 
         internal static void RegisterOverlay(Action<CommandBuffer, Camera> handler) { Resolve(); if (registerOverlay != null) registerOverlay(handler); }
@@ -173,7 +186,7 @@ namespace YourMod
         internal static void ReleaseTexture(RenderTexture texture) { Resolve(); if (releaseTexture != null) releaseTexture(texture); }
 
         private static Func<bool> upscalerActive, frameGenerationActive, historyReset, originShifted, d3d12Available;
-        private static Func<string> technique, historyResetReason, profile, d3d12Problem, lastRefusal, lastCompilerMessages;
+        private static Func<string> activeWeatherBody, technique, historyResetReason, profile, d3d12Problem, lastRefusal, lastCompilerMessages;
         private static Func<Vector2Int> renderSize, displaySize;
         private static Func<Vector2> jitter, jitterNdc;
         private static Func<Vector3d> originShift, bodyShift;
@@ -184,6 +197,8 @@ namespace YourMod
         private static Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> registerMotionVectors,
                                                                                          unregisterMotionVectors;
         private static Action<Action<CommandBuffer, RenderTexture, Camera>> registerAfterUpscaling, unregisterAfterUpscaling;
+        private static Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>> registerAfterUpscalingWithDepth,
+                                                                                         unregisterAfterUpscalingWithDepth;
         private static Action<Action<CommandBuffer, Camera>> registerOverlay, unregisterOverlay;
         private static Func<string, byte[], int> createComputePass;
         private static Func<string, string, string, int> createFromSource, createFromFile;
@@ -234,6 +249,7 @@ namespace YourMod
             upscalerActive = Bind<Func<bool>>(assembly, "Frame", "get_UpscalerActive");
             frameGenerationActive = Bind<Func<bool>>(assembly, "Frame", "get_FrameGenerationActive");
             technique = Bind<Func<string>>(assembly, "Frame", "get_Technique");
+            activeWeatherBody = Bind<Func<string>>(assembly, "Frame", "get_ActiveWeatherBody");
             renderSize = Bind<Func<Vector2Int>>(assembly, "Frame", "get_RenderSize");
             displaySize = Bind<Func<Vector2Int>>(assembly, "Frame", "get_DisplaySize");
             jitter = Bind<Func<Vector2>>(assembly, "Frame", "get_Jitter");
@@ -255,6 +271,10 @@ namespace YourMod
                 assembly, "Hooks", "RegisterAfterUpscaling");
             unregisterAfterUpscaling = Bind<Action<Action<CommandBuffer, RenderTexture, Camera>>>(
                 assembly, "Hooks", "UnregisterAfterUpscaling");
+            registerAfterUpscalingWithDepth = Bind<Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>>>(
+                assembly, "Hooks", "RegisterAfterUpscalingWithDepth");
+            unregisterAfterUpscalingWithDepth = Bind<Action<Action<CommandBuffer, RenderTexture, RenderTexture, Camera>>>(
+                assembly, "Hooks", "UnregisterAfterUpscalingWithDepth");
             registerOverlay = Bind<Action<Action<CommandBuffer, Camera>>>(assembly, "Hooks", "RegisterOverlay");
             unregisterOverlay = Bind<Action<Action<CommandBuffer, Camera>>>(assembly, "Hooks", "UnregisterOverlay");
 

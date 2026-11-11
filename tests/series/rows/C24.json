@@ -1,0 +1,15 @@
+{
+  "$schema": "../schema.json",
+  "package": "C24",
+  "rows": [
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.depth_hook_depth_ok", "equals": 1, "required": false, "note": "NOT MEASURED yet (no in-game probe exists): a handler of Hooks.RegisterAfterUpscalingWithDepth gets a depth texture of the render size, RFloat, and its read-back has near and far pixels (reversed Z: near large)" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.wall_hidden_pixels_error", "max": 0.02, "required": false, "note": "NOT MEASURED yet (the wall test scene is not built): hidden-pixel count of the magenta band behind the wall against the geometric expectation, relative (tools/weather_metrics/hooks.py)" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.history_reset_clear_frames", "max": 3, "required": false, "note": "NOT MEASURED yet: frames until the temporal error is back to its floor after a forced weather cut (DLSS and FSR 3)" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.tau_estimate_error_max", "max": 0.15, "required": false, "note": "NOT MEASURED yet: transmission from CloudDensityEstimate against the light probe at five or more coverage values, worst relative error; the estimate's TauAtFullCoverage is a provisional constant until this has run" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.tau_estimate_monotone", "equals": 1, "required": false, "note": "NOT MEASURED yet: the estimate rises with the probe's coverage steps" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.rt_off_storm_delta_ms", "max": 0.1, "required": false, "note": "NOT MEASURED yet (timing, exclusive): RT segment with the weather inputs on against off, clear weather" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.rt_blizzard_segment_share", "max": 1.0, "required": false, "note": "NOT MEASURED yet: RT segment in a blizzard with the reach cap and one bounce fewer, as a share of the uncapped segment (report the figure)" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.rt_sun_follow_s", "max": 1.0, "required": false, "note": "NOT MEASURED yet: RT sun shadow follow time under a forced cell" },
+    { "series": "K-W1", "section": "C24", "package": "C24", "start": "run1", "metric": "C24.rr_onset_lag_s", "max": 0.5, "required": false, "note": "NOT MEASURED yet: Ray Reconstruction onset lag after a light change" }
+  ]
+}

@@ -73,6 +73,14 @@ namespace ReDefinition.Api
         }
 
         /// <summary>
+        /// The name of the body the atmospheres' weather is for this frame; null where there is none.
+        /// </summary>
+        public static string ActiveWeatherBody
+        {
+            get { return SharedFrame.ActiveWeatherBody; }
+        }
+
+        /// <summary>
         /// Whether temporal history is to be dropped this frame: a cut of KSP's flight camera, or a mod's
         /// <see cref="RequestHistoryReset"/>.
         /// </summary>

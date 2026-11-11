@@ -140,6 +140,19 @@ namespace ReDefinition.Tests
             Assert.IsNotNull(status);
         }
 
+        // The weather body and the depth hook go through the wrapper as well.
+        [TestMethod]
+        public void TheWrapperReachesTheWeatherBodyAndTheDepthHook()
+        {
+            Assert.AreEqual(Api.Frame.ActiveWeatherBody, YourMod.ReDefinitionApi.ActiveWeatherBody);
+            Action<UnityEngine.Rendering.CommandBuffer, UnityEngine.RenderTexture, UnityEngine.RenderTexture, UnityEngine.Camera> handler =
+                (buffer, image, depth, camera) => { };
+            YourMod.ReDefinitionApi.RegisterAfterUpscalingWithDepth(handler);
+            Assert.IsTrue(SharedFrame.AfterUpscalingDepthHooks.Any);
+            YourMod.ReDefinitionApi.UnregisterAfterUpscalingWithDepth(handler);
+            Assert.IsFalse(SharedFrame.AfterUpscalingDepthHooks.Any);
+        }
+
         // Reading the frame's values through the wrapper 100 000 times allocates next to nothing: the wrapper
         // does not box the values, so mods can read them every frame without making garbage.
         [TestMethod]

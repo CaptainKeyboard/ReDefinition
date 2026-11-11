@@ -1,7 +1,10 @@
 using System;
 using System.Reflection;
+using ReDefinition.Api.Internal;
 using ReDefinition.Core;
 using ReDefinition.Hud;
+using ReDefinition.Proxy;
+using ReDefinition.Upscaler;
 using ReDefinition.Scaling;
 using UnityEngine;
 
@@ -23,6 +26,17 @@ namespace ReDefinition
         internal static string CommonProblem(Version built, Version loaded)
         {
             return CommonVersionCheck.Problem("ReDefinition", built, loaded);
+        }
+
+        // Every frame, from SharedFrame.PollProfile: the caps the atmospheres read (WeatherHooks.Caps). The profile is the one the
+        // last poll saw.
+        internal static void FillCaps(string profile)
+        {
+            UpscalerRig rig = UpscalerRig.Current;
+            if (rig != null && rig.TornDown) rig = null;
+            WeatherCapsWriter.Fill(WeatherHooks.Caps, SharedFrame.UpscalerActive, rig != null ? rig.Backend : UpscalerBackend.Fsr3,
+                                   SharedFrame.FrameGenerationActive, profile);
+            EveOpticalDepthLink.Refresh();
         }
 
         private static void Fill()
