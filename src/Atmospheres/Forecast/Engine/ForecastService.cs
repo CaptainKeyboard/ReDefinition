@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres.Forecast
     {
         // The field every forecast is made from.
         IWeatherField Field { get; }
-        // The universal time now.
+        // The universal time now; NaN while the game has no clock.
         double NowUt { get; }
         // Whether the forecast is switched on (forecastEnabled and weatherEffects).
         bool Enabled { get; }
@@ -216,7 +216,7 @@ namespace ReDefinition.Atmospheres.Forecast
         // Asking watches the site for a while; a report that is a step old or from before a generation bump is refreshed in the background.
         internal ForecastReport ForecastOf(ForecastSite site)
         {
-            if (!available) return Unavailable(site, 0.0);
+            if (!available || double.IsNaN(env.NowUt)) return Unavailable(site, 0.0);
             ForecastContext ctx = env.ContextFor(site.BodyIndex);
             if (ctx == null) return Unavailable(site, 0.0);
             NoteRules(site.BodyIndex, ctx);
@@ -258,7 +258,7 @@ namespace ReDefinition.Atmospheres.Forecast
         // WeatherHooks.BodyTracks: the cached tracks of the body (the last ones where the current bucket is not there yet); null while none.
         internal ForecastTrack[] BodyTracks(int bodyIndex)
         {
-            if (!available) return null;
+            if (!available || double.IsNaN(env.NowUt)) return null;
             ForecastContext ctx = env.ContextFor(bodyIndex);
             if (ctx == null || !ctx.HasGeometry) return null;
             IWeatherField field = env.Field;
@@ -346,7 +346,7 @@ namespace ReDefinition.Atmospheres.Forecast
         internal void Tick(double realDt)
         {
             IWeatherField field = env.Field;
-            bool ready = env.Enabled && field != null && !(field is NullField) && field.Readiness == FieldReadiness.Ready;
+            bool ready = env.Enabled && field != null && !(field is NullField) && field.Readiness == FieldReadiness.Ready && !double.IsNaN(env.NowUt);
             if (!ready)
             {
                 available = false;

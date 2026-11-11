@@ -131,6 +131,13 @@ namespace ReDefinition.Tests.Atmospheres.B12
             Assert.IsFalse(service.Available);
             Assert.IsFalse(service.ForecastOf(Site()).Available);
             Assert.IsNull(service.BodyTracks(Body));
+            // No clock (the main menu, a scene that loads): nothing is served and nothing throws.
+            var noClock = Env(new ScriptedField(), double.NaN);
+            service = new ForecastService(noClock);
+            service.Tick(0.5);
+            Assert.IsFalse(service.Available);
+            Assert.IsFalse(service.ForecastOf(Site()).Available);
+            Assert.IsNull(service.BodyTracks(Body));
         }
 
         [TestMethod]

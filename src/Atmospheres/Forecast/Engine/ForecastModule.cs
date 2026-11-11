@@ -77,7 +77,8 @@ namespace ReDefinition.Atmospheres.Forecast
 
         public double NowUt
         {
-            get { return Planetarium.GetUniversalTime(); }
+            // NaN while the game has no clock (the main menu, a scene that is loading): the service then serves nothing.
+            get { return Planetarium.fetch != null ? Planetarium.GetUniversalTime() : double.NaN; }
         }
 
         public bool Enabled
@@ -87,8 +88,9 @@ namespace ReDefinition.Atmospheres.Forecast
 
         public ForecastContext ContextFor(int bodyIndex)
         {
-            if (bodyIndex < 0 || bodyIndex >= FlightGlobals.Bodies.Count) return null;
-            BodyClimate climate = Bodies.Get(FlightGlobals.Bodies[bodyIndex]);
+            List<CelestialBody> all = GameGlobals.Bodies;
+            if (all == null || bodyIndex < 0 || bodyIndex >= all.Count) return null;
+            BodyClimate climate = Bodies.Get(all[bodyIndex]);
             if (climate == null || !climate.Status.WeatherRuns) return null;
             double horizon = Math.Min(climate.Forecast.HorizonHours, AtmospheresSettings.ForecastHorizonHours);
             float uncertainty = AtmospheresSettings.ForecastUncertainty;
@@ -219,7 +221,7 @@ namespace ReDefinition.Atmospheres.Forecast
                     launch.Add(true);
                 }
             }
-            Vessel vessel = spec.Vessel && HighLogic.LoadedSceneIsFlight ? FlightGlobals.ActiveVessel : null;
+            Vessel vessel = spec.Vessel && HighLogic.LoadedSceneIsFlight ? GameGlobals.ActiveVessel : null;
             if (vessel != null && vessel.mainBody != null && vessel.mainBody.atmosphere && vessel.altitude < vessel.mainBody.atmosphereDepth
                 && (vessel.situation == Vessel.Situations.LANDED || vessel.situation == Vessel.Situations.SPLASHED
                     || vessel.situation == Vessel.Situations.PRELAUNCH || vessel.situation == Vessel.Situations.FLYING))
