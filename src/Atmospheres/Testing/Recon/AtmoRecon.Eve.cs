@@ -147,7 +147,8 @@ namespace ReDefinition.Atmospheres
                 if (bodyName == "Kerbin")
                 {
                     onKerbin++;
-                    if (volume != null && firstKerbinVolume == null)
+                    // The forced Apply goes to a layer of EVE's own configs: the two layers named ReDefinition- are the product's.
+                    if (volume != null && firstKerbinVolume == null && !name.StartsWith("ReDefinition-", StringComparison.Ordinal))
                     {
                         firstKerbinVolume = volume;
                         firstKerbinObject = layer;
@@ -220,7 +221,7 @@ namespace ReDefinition.Atmospheres
                                  + report.GetErrors + "/" + report.SetErrors + "/" + report.GetBackErrors + "/" + report.GetByIdErrors
                                  + ", read back by name " + report.TookByName + " by id " + report.TookById + " (" + report.ReadBack + "), before " + report.Before
                                  + ", map keywords [" + MapKeywords(candidate) + "], EVE's own coverage " + Describe(own));
-                        if (k == 0 && (report.TookByName || report.TookById) && material == null)
+                        if (k == 0 && (report.TookByName || report.TookById) && material == null && !layerName.StartsWith("ReDefinition-", StringComparison.Ordinal))
                         {
                             material = candidate;
                             firstKerbinVolume = volume;

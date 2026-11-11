@@ -380,6 +380,15 @@ namespace ReDefinition.Atmospheres
                 return viewports[index];
             }
 
+            // The eye depth of the surface the centre pixel of a ball sees: the near side of the sphere, radius 0.06 times the eye depth of its
+            // centre, along the ray through the ball's viewport point (the expected value is for that surface, not for the ball's centre).
+            internal double SurfaceDepth(int index)
+            {
+                Ray ray = camera.ViewportPointToRay(viewports[index]);
+                double along = Vector3.Dot(ray.direction, camera.transform.forward);
+                return EyeDepths[index] - 0.06 * EyeDepths[index] * along;
+            }
+
             // The world position at that eye depth (the distance along the camera's forward axis) on the ray through the ball's viewport point.
             internal Vector3 WorldPosition(int index)
             {
@@ -405,13 +414,15 @@ namespace ReDefinition.Atmospheres
                 double empty = Texel(tap, BallLayout.Empty, flip == 1);
                 int best;
                 double bestError;
-                bool ok = ReconMath.DepthAgrees(measured, BallLayout.EyeDepths, near, far, reversed, 0.10, 5e-4, 5e-4, out best, out bestError);
+                var surfaces = new double[measured.Length];
+                for (int i = 0; i < surfaces.Length; i++) surfaces[i] = layout.SurfaceDepth(i);
+                bool ok = ReconMath.DepthAgrees(measured, surfaces, near, far, reversed, 0.10, 5e-4, 5e-4, out best, out bestError);
                 if (flip == 0 || ok)
                 {
                     string flipText = flip == 1 ? "_flipped" : "";
                     for (int i = 0; i < measured.Length; i++)
                     {
-                        double[] expected = ReconMath.DepthExpected(BallLayout.EyeDepths[i], near, far, reversed);
+                        double[] expected = ReconMath.DepthExpected(surfaces[i], near, far, reversed);
                         string depthKey = Num(BallLayout.EyeDepths[i]).Replace('.', '_');
                         Emit("P6.balls_" + label + flipText + "_d" + depthKey + "_measured", measured[i]);
                         if (flip == 0) Emit("P6.balls_" + label + "_d" + depthKey + "_expected_raw", expected[0]);
