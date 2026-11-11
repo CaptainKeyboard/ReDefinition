@@ -117,7 +117,7 @@ namespace ReDefinition.Tests.Atmospheres.D33
         }
 
         [TestMethod]
-        public void OneBlockCostsUnderOnePercentOfItsDurationOnAverage()
+        public void OneBlockCostsWithinTheCpuLimitOfThisBuildOnAverage()
         {
             SharedAudioState s;
             WeatherAudioStream st = Make(out s);
@@ -143,7 +143,11 @@ namespace ReDefinition.Tests.Atmospheres.D33
             for (int i = 0; i < 2000; i++) st.Fill(buf, 2);
             Console.WriteLine("block " + WeatherAudioStream.MeanBlockMs(s).ToString("F4") + " ms: " + (100 * WeatherAudioStream.MeanBlockMs(s) / durationMs).ToString("F2") + " % (output stage idle)");
             Assert.AreEqual(0, s.Underruns);
-            Assert.IsTrue(blockMs / durationMs < 0.05, "the worst layer set takes " + (100 * blockMs / durationMs) + " % of one core");
+            // The limit of the build that runs (CpuGate): 1 % of one core for Release, the plan's fail line of 5 % for Debug. This is
+            // the .NET Framework CLR; the game runs Mono, where the series row D33.cpu_budget_used measures the same thing.
+            double pct = 100 * blockMs / durationMs;
+            Assert.IsTrue(CpuGate.BudgetUsed(pct, CpuGate.IsReleaseBuild) <= 1.0,
+                "the worst layer set takes " + pct + " % of one core, the limit is " + CpuGate.LimitPct(CpuGate.IsReleaseBuild) + " %");
         }
 
         [TestMethod]

@@ -18,9 +18,13 @@ namespace ReDefinition.Atmospheres.Audio
         private GameObject root;
         private AudioSource bed;
         private AudioClip streamClip;
-        private AudioSource steps;
+        // One source per foot: a step is played with source.clip set (RSE's routing is keyed by the clip a source carries, which
+        // PlayOneShot would leave empty) and the two feet let the tail of one step ring under the next.
+        private AudioSource stepLeft;
+        private AudioSource stepRight;
         private AudioSource thump;
-        private AudioLowPassFilter stepFilter;
+        private AudioLowPassFilter stepFilterLeft;
+        private AudioLowPassFilter stepFilterRight;
         private readonly AudioClip[] thumpClips = new AudioClip[3];
 
         // A mixer for this output rate; the seed fixes the noise so that a scenario repeats.
@@ -54,12 +58,19 @@ namespace ReDefinition.Atmospheres.Audio
             bed.dopplerLevel = 0f;
             bed.Play();
 
-            var stepObject = new GameObject("steps");
-            stepObject.transform.SetParent(root.transform, false);
-            steps = AddOneShotSource(stepObject);
-            stepFilter = stepObject.AddComponent<AudioLowPassFilter>();
-            stepFilter.cutoffFrequency = 22000f;
-            thump = AddOneShotSource(stepObject);
+            var leftObject = new GameObject("step left");
+            leftObject.transform.SetParent(root.transform, false);
+            stepLeft = AddOneShotSource(leftObject);
+            stepFilterLeft = leftObject.AddComponent<AudioLowPassFilter>();
+            stepFilterLeft.cutoffFrequency = 22000f;
+            var rightObject = new GameObject("step right");
+            rightObject.transform.SetParent(root.transform, false);
+            stepRight = AddOneShotSource(rightObject);
+            stepFilterRight = rightObject.AddComponent<AudioLowPassFilter>();
+            stepFilterRight.cutoffFrequency = 22000f;
+            var thumpObject = new GameObject("thump");
+            thumpObject.transform.SetParent(root.transform, false);
+            thump = AddOneShotSource(thumpObject);
             thumpClips[0] = MakeThump(sampleRate, 80f, 0.20f);
             thumpClips[1] = MakeThump(sampleRate, 62f, 0.24f);
             thumpClips[2] = MakeThump(sampleRate, 48f, 0.30f);
@@ -102,30 +113,56 @@ namespace ReDefinition.Atmospheres.Audio
         }
 
         // Plays one step: the sampled crunch under the procedural thump, at the foot position.
-        internal void PlayStep(AudioClip crunch, StepVoice voice, float volume, Vector3 position)
+        internal void PlayStep(AudioClip crunch, StepVoice voice, float volume, Vector3 position, bool leftFoot)
         {
             if (!Alive) return;
-            steps.transform.position = position;
+            thump.transform.position = position;
             if (crunch != null)
             {
-                steps.pitch = voice.Pitch;
-                steps.PlayOneShot(crunch, voice.Gain * volume);
+                AudioSource foot = leftFoot ? stepLeft : stepRight;
+                foot.transform.position = position;
+                foot.Stop();
+                foot.clip = crunch;
+                foot.pitch = voice.Pitch;
+                foot.volume = Mathf.Clamp01(voice.Gain * volume);
+                foot.Play();
             }
             int t = voice.ThumpPitch > 0.85f ? 0 : voice.ThumpPitch > 0.7f ? 1 : 2;
             thump.pitch = 1f;
             thump.PlayOneShot(thumpClips[t], voice.ThumpGain * volume);
         }
 
-        // The mixer group the step source is routed to ("" when none): RSE's routing shows here once it has taken the clip.
+        // The mixer group a step source is routed to ("" when none): RSE's routing shows here once it has taken the clip.
         internal string StepMixerGroup
         {
-            get { return steps != null && steps.outputAudioMixerGroup != null ? steps.outputAudioMixerGroup.name : ""; }
+            get
+            {
+                if (stepLeft != null && stepLeft.outputAudioMixerGroup != null) return stepLeft.outputAudioMixerGroup.name;
+                if (stepRight != null && stepRight.outputAudioMixerGroup != null) return stepRight.outputAudioMixerGroup.name;
+                return "";
+            }
+        }
+
+        // Takes the step sources out of any mixer group another mod gave them (audioMuffling Own: the own low-pass is the one muffler).
+        internal void DetachStepMixerGroup()
+        {
+            if (stepLeft != null && stepLeft.outputAudioMixerGroup != null) stepLeft.outputAudioMixerGroup = null;
+            if (stepRight != null && stepRight.outputAudioMixerGroup != null) stepRight.outputAudioMixerGroup = null;
+        }
+
+        // Stops the steps and the thump that are still sounding (a pause does not end a one-shot by itself).
+        internal void StopSteps()
+        {
+            if (stepLeft != null) stepLeft.Stop();
+            if (stepRight != null) stepRight.Stop();
+            if (thump != null) thump.Stop();
         }
 
         // Muffles the sampled clips (the own low-pass on exactly the sources RSE does not carry).
         internal void SetStepLowPass(float hz)
         {
-            if (stepFilter != null) stepFilter.cutoffFrequency = hz;
+            if (stepFilterLeft != null) stepFilterLeft.cutoffFrequency = hz;
+            if (stepFilterRight != null) stepFilterRight.cutoffFrequency = hz;
         }
 
         // Stops and destroys everything. The stream callback may still run once; it holds no Unity object.
@@ -134,8 +171,7 @@ namespace ReDefinition.Atmospheres.Audio
             try
             {
                 if (bed != null) bed.Stop();
-                if (steps != null) steps.Stop();
-                if (thump != null) thump.Stop();
+                StopSteps();
             }
             catch (Exception)
             {
@@ -149,7 +185,10 @@ namespace ReDefinition.Atmospheres.Audio
             }
             root = null;
             bed = null;
-            steps = null;
+            stepLeft = null;
+            stepRight = null;
+            stepFilterLeft = null;
+            stepFilterRight = null;
             thump = null;
             streamClip = null;
             shared.Running = false;

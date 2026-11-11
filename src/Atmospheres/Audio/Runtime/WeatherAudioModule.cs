@@ -28,6 +28,7 @@ namespace ReDefinition.Atmospheres.Audio
 
         private readonly SharedAudioState shared = new SharedAudioState();
         private readonly AudioGate gate = new AudioGate();
+        private readonly AudioGate stepGate = new AudioGate();
         private readonly StrideIntegrator stride = new StrideIntegrator();
         private readonly ClipLibrary<AudioClip> library = new ClipLibrary<AudioClip>(AtmospheresLog.WarnOnce);
         private readonly ClipLibrary<AudioClip> customLibrary = new ClipLibrary<AudioClip>(AtmospheresLog.WarnOnce);
@@ -40,10 +41,14 @@ namespace ReDefinition.Atmospheres.Audio
         private ListenerState listener;
         private GameVolumes volumes = GameVolumes.Full();
         private EveSoundDecision eve = EveSoundPolicyTable.Decide(EveSoundPolicy.Auto, false);
-        private MufflingPlan muffling = MufflingTable.Decide(AudioMuffling.Auto, false, false);
+        private MufflingPlan muffling = MufflingTable.Decide(AudioMuffling.Auto, false, false, false);
         private bool rsePresent;
         private bool rseRoutes;
         private bool rseChecked;
+        private bool rseGroupObserved;
+        private bool rseGroupEverSeen;
+        private bool stepsStoppedForPause;
+        private WeatherAudioInputs lastInputs;
         private bool textureLoaded;
         private bool subscribed;
         private float nextVolumeRead;
@@ -76,6 +81,13 @@ namespace ReDefinition.Atmospheres.Audio
         internal CellPlace Cell { get { return cell; } }
         internal bool RsePresent { get { return rsePresent; } }
         internal bool RseRoutesOurClips { get { return rseRoutes; } }
+        // A step source of ours has been seen with an output mixer group (RSE took the clip), at least once since the objects were made.
+        internal bool RseGroupEverSeen { get { return rseGroupEverSeen; } }
+        // The inputs of the last frame (the game's own read, or the probe's forced ones).
+        internal WeatherAudioInputs LastInputs { get { return lastInputs; } }
+        internal GameVolumes Volumes { get { return volumes; } }
+        internal float CellPanNow { get { return cellPan; } }
+        internal float CellClosenessNow { get { return cellCloseness; } }
         internal bool TextureLoaded { get { return textureLoaded; } }
         internal int StepsFound { get { return stepsFound; } }
         internal int StepsPlayed { get { return stepsPlayed; } }
@@ -166,19 +178,36 @@ namespace ReDefinition.Atmospheres.Audio
             bool eveAudible = EveSoundAccess.AudibleVolume() > EveSoundPolicyTable.AudibleVolume;
             eve = EveSoundPolicyTable.Decide(switches.Eve, eveAudible);
 
-            // The distant storm.
-            if (switches.DistantStorm && !AudioOverrides.Inputs.HasValue) ReadCell(now, vessel);
+            // The distant storm. A probe that forces the inputs may still ask for the real cell chain (tracks, listener transform).
+            bool realCell = !AudioOverrides.Inputs.HasValue || AudioOverrides.RealCell;
+            if (switches.DistantStorm && realCell) ReadCell(now, vessel);
             else if (!switches.DistantStorm) { cellCloseness = 0f; cellPan = 0f; }
-            if (!AudioOverrides.Inputs.HasValue)
+            if (realCell)
             {
                 inputs.CellCloseness = cellCloseness;
                 inputs.CellPan = cellPan;
             }
+            lastInputs = inputs;
 
-            // The gate: switch, air, pause, warp.
+            // The gate: switch, air, pause, warp. The steps have their own gate: a step is felt through the ground, so a body without
+            // air does not silence it (pause and warp still do).
             bool paused = AudioOverrides.Paused ?? ReadPaused();
             bool rails = AudioOverrides.OnRailsWarp ?? ReadOnRailsWarp();
             float gain = gate.Step(real, inputs.Air, paused, rails);
+            float stepGain = stepGate.Step(real, true, paused, rails);
+            if (paused)
+            {
+                // A pause does not end a one-shot that is sounding: the steps and the thump stop once.
+                if (!stepsStoppedForPause)
+                {
+                    objects.StopSteps();
+                    stepsStoppedForPause = true;
+                }
+            }
+            else
+            {
+                stepsStoppedForPause = false;
+            }
 
             AudioParamsMapper.Apply(inputs, listener, switches, volumes, eve, gain, ref shared.Params);
             shared.Params.bedSource = BedSourceRule.Effective(switches.Bed, textureLoaded);
@@ -186,12 +215,15 @@ namespace ReDefinition.Atmospheres.Audio
             shared.HelmetBlend = listener.Eva && !listener.MapView ? 1f : 0f;
 
             // Muffling of the sample clips.
-            muffling = MufflingTable.Decide(switches.Muffling, rsePresent, rseRoutes);
+            rseGroupObserved = objects.StepMixerGroup.Length > 0;
+            muffling = MufflingTable.Decide(switches.Muffling, rsePresent, rseRoutes, rseGroupObserved);
+            if (rseGroupObserved) rseGroupEverSeen = true;
+            if (muffling.DetachFromRse) objects.DetachStepMixerGroup();
             float lowPass = 22000f;
             if (muffling.OwnOnSamples) lowPass = listener.MapView ? (float)WeatherAudioStream.MapCutoffHz : listener.Cabin ? 900f : 22000f;
             objects.SetStepLowPass(lowPass);
 
-            UpdateFootsteps(vessel, eva, gain);
+            UpdateFootsteps(vessel, eva, stepGain);
             if (switches.Solo) MuteOthers(now); else if (muted.Count > 0) RestoreOthers();
         }
 
@@ -231,6 +263,10 @@ namespace ReDefinition.Atmospheres.Audio
                 if (!library.Any) AtmospheresLog.WarnOnce("weather sound: no footstep clip exists under " + ClipLibrary<AudioClip>.Folder + "; footsteps are off");
                 DetectRse();
                 gate.Arrive();
+                stepGate.Arrive();
+                // [VERIFY] The kerbal's walk and run speeds are not read from the game and not measured: 3 m/s as the boundary of a run
+                // and the 6 m/s of StepShaper are estimates, and so are vessel.srfSpeed, Landed and OnALadder as the inputs of the
+                // stride integrator for a KerbalEVA vessel.
                 stride.RunSpeedMs = 3.0f;
                 AtmospheresLog.Say("weather sound: started (" + rate + " Hz, footstep clips " + library.Count + ", bed " + (textureLoaded ? "texture" : "synth")
                     + ", RSE " + (rsePresent ? (rseRoutes ? "routes our clips" : "present") : "absent") + ", EVE sound " + EveSoundAccess.Summary + ")");
@@ -267,6 +303,10 @@ namespace ReDefinition.Atmospheres.Audio
             footIce.Reset();
             nextSnowMap = -1f;
             gate.Arrive();
+            stepGate.Arrive();
+            rseGroupEverSeen = false;
+            rseGroupObserved = false;
+            stepsStoppedForPause = false;
             AtmospheresLog.Say("weather sound: stopped (" + why + ")");
         }
 
@@ -311,12 +351,12 @@ namespace ReDefinition.Atmospheres.Audio
             volumes.Ship = Mathf.Clamp01(GameSettings.SHIP_VOLUME);
         }
 
-        private static bool ReadPaused()
+        internal static bool ReadPaused()
         {
             return FlightDriver.Pause || (PauseMenu.exists && PauseMenu.isOpen) || Time.timeScale <= 0f;
         }
 
-        private static bool ReadOnRailsWarp()
+        internal static bool ReadOnRailsWarp()
         {
             return TimeWarp.fetch != null && TimeWarp.WarpMode == TimeWarp.Modes.HIGH && TimeWarp.CurrentRate > 1.01f;
         }
@@ -417,6 +457,13 @@ namespace ReDefinition.Atmospheres.Audio
             return FindListener(Time.realtimeSinceStartup);
         }
 
+        // The same after a camera change: the cached listener is dropped and the scene is searched again.
+        internal AudioListener RescanListener()
+        {
+            nextListenerScan = 0f;
+            return FindListener(Time.realtimeSinceStartup);
+        }
+
         // --- RSE ---
 
         private void DetectRse()
@@ -430,12 +477,22 @@ namespace ReDefinition.Atmospheres.Audio
             if (!rsePresent) return;
             try
             {
-                string probe = ClipLibrary<AudioClip>.Folder + ClipLibrary<AudioClip>.SnowSoft[0];
+                // Every one of our twelve clips must be in a routing node, not the first alone.
+                var all = new List<string>();
+                AddRouted(all, ClipLibrary<AudioClip>.SnowSoft);
+                AddRouted(all, ClipLibrary<AudioClip>.SnowMedium);
+                AddRouted(all, ClipLibrary<AudioClip>.SnowHard);
                 foreach (ConfigNode node in GameDatabase.Instance.GetConfigNodes("RSE_SETTINGS"))
                 {
                     ConfigNode routing = node.GetNode("CustomMixerRouting");
                     ConfigNode clips = routing != null ? routing.GetNode("AudioClips") : null;
-                    if (clips != null && clips.HasValue(probe)) { rseRoutes = true; break; }
+                    if (clips == null) continue;
+                    bool every = true;
+                    for (int i = 0; i < all.Count; i++)
+                    {
+                        if (!clips.HasValue(all[i])) { every = false; break; }
+                    }
+                    if (every) { rseRoutes = true; break; }
                 }
             }
             catch (Exception e)
@@ -444,8 +501,15 @@ namespace ReDefinition.Atmospheres.Audio
             }
         }
 
+        private static void AddRouted(List<string> into, string[] names)
+        {
+            for (int i = 0; i < names.Length; i++) into.Add(ClipLibrary<AudioClip>.Folder + names[i]);
+        }
+
         // --- Footsteps ---
 
+        // gain: the gate of the steps (open without air; pause and warp close it). Steps are not pre-started: the first block of the
+        // stream path has its start-up gap, the steps are one-shot sources and have none.
         private void UpdateFootsteps(Vessel vessel, bool eva, float gain)
         {
             if (!switches.Footsteps) return;
@@ -506,7 +570,7 @@ namespace ReDefinition.Atmospheres.Audio
                 AudioListener at = FindListener(now);
                 if (at != null) position = at.transform.position + at.transform.forward * 2f;
             }
-            objects.PlayStep(crunch, voice, volume, position);
+            objects.PlayStep(crunch, voice, volume, position, ev.LeftFoot);
             stepsPlayed++;
         }
 

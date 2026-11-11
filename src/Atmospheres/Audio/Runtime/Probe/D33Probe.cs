@@ -24,8 +24,17 @@ namespace ReDefinition.Atmospheres.Audio
     // Views: the natural view is the sound itself (WAV renders of the offline test, listened to by the owner, T5); the aid view is this table
     // with the band energies and the spectral centroid per section.
     //
-    // The inputs are forced (AudioOverrides) so that every row is exact; the module's read of the view, the field and the cell tracks is
-    // covered by the offline tests and by the informative rows at the end. The kerbal's own walk (KerbalEVA) is not driven by this probe.
+    // Which rows read the game and which read a forced value:
+    //   FORCED (AudioOverrides: inputs, listener, pause, warp, volumes, switches, walker, cover): rms_*, centroid_light_hz, param_*,
+    //     iva_*, map_*, warp_*, pause_*, cell_*, sim_step_*, steps_*, eve_*. These rows test the gate, the mixer, the mapping and the
+    //     stream with exact inputs; they pass whatever the game reports, so they are consistency rows, not proof of the game's state.
+    //     peak_blizzard, clipped_samples and nan_samples measure the mixer's limiter, not the game.
+    //   REAL (the module's own reads, section "real game state"): real_pause_* (FlightDriver.SetPause), real_warp_* and real_physwarp_*
+    //     (TimeWarp on rails and physical, needs a landed vessel), real_iva_* (CameraManager.SetCameraIVA, needs crew), real_map_*
+    //     (MapView), real_weather_* (the view of the frame driver), real_volume_* (GameSettings), real_cell_* (one forced ForecastTrack in
+    //     WeatherHooks.BodyTracks, the pan from the listener transform), real_eva_* (a kerbal that walks; the probe does not drive one).
+    // The preconditions of the real section are part of the scenario: a landed vessel with crew in the flight scene; a missing one is a
+    // named FAIL, not a silent pass.
     [AtmospheresModule(986)]
     internal sealed class D33Probe : SeriesProbe
     {
@@ -36,6 +45,13 @@ namespace ReDefinition.Atmospheres.Audio
         private AudioProbeTap tap;
         private MeterSummary last;
         private readonly List<float> windowDb = new List<float>();
+        // What the real section has changed in the game and must put back, however the scenario ends.
+        private bool pausedByProbe;
+        private bool warpedByProbe;
+        private bool ivaByProbe;
+        private bool mapByProbe;
+        private bool tracksForced;
+        private Func<int, ForecastTrack[]> savedTracks;
 
         protected override string SeriesName
         {
@@ -69,6 +85,43 @@ namespace ReDefinition.Atmospheres.Audio
             int from = meter.WindowCount;
             yield return ProbeWait.Seconds(measureSeconds);
             last = meter.Summarise(from, meter.WindowCount);
+        }
+
+        // The same with real seconds: a pause sets Time.timeScale to 0, and ProbeWait.Seconds counts the scaled frame time of the game.
+        private IEnumerable<ProbeWait> RealMeasure(double settleSeconds, double measureSeconds)
+        {
+            double t0 = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - t0 < settleSeconds) yield return ProbeWait.Frames(1);
+            int from = meter.WindowCount;
+            t0 = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - t0 < measureSeconds) yield return ProbeWait.Frames(1);
+            last = meter.Summarise(from, meter.WindowCount);
+        }
+
+        // After a camera change the active listener may be another object: the tap goes there.
+        private void Retap(WeatherAudioModule module)
+        {
+            AudioListener now = module.RescanListener();
+            if (now == null || meter == null) return;
+            if (tap != null && tap.gameObject == now.gameObject) return;
+            if (tap != null) UnityEngine.Object.Destroy(tap);
+            tap = now.gameObject.AddComponent<AudioProbeTap>();
+            tap.Meter = meter;
+        }
+
+        // Puts back whatever the real section changed in the game.
+        private void RestoreGame()
+        {
+            try { if (pausedByProbe) FlightDriver.SetPause(false, false); } catch (Exception) { }
+            pausedByProbe = false;
+            try { if (warpedByProbe && TimeWarp.fetch != null) TimeWarp.SetRate(0, true, false); } catch (Exception) { }
+            warpedByProbe = false;
+            try { if (ivaByProbe && CameraManager.Instance != null) CameraManager.Instance.SetCameraFlight(); } catch (Exception) { }
+            ivaByProbe = false;
+            try { if (mapByProbe && MapView.MapIsEnabled) MapView.ExitMapView(); } catch (Exception) { }
+            mapByProbe = false;
+            if (tracksForced) WeatherHooks.BodyTracks = savedTracks;
+            tracksForced = false;
         }
 
         // The same with a gust wave that is moved every frame; the 100 ms windows of the measure time go to windowDb.
@@ -109,6 +162,245 @@ namespace ReDefinition.Atmospheres.Audio
             return Percentile(values, p);
         }
 
+        // The real game state: the pause, the warp, the camera modes, the weather read, the volume sliders. Only the inputs of the weather
+        // (and, for the camera rows, the listener) stay forced where a row needs an exact scene; the gate, the camera rules and the
+        // reads are the module's own. Needs a landed vessel with crew in the flight scene.
+        private IEnumerable<ProbeWait> RealState(WeatherAudioModule module)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            AudioOverrides.Switches = Switches();
+            AudioOverrides.Inputs = Weather(0.95f, 22f, 0.5f);
+            AudioOverrides.Listener = null;
+            AudioOverrides.Paused = null;
+            AudioOverrides.OnRailsWarp = null;
+            AudioOverrides.Volumes = GameVolumes.Full();
+            foreach (ProbeWait w in RealMeasure(3.0, 2.0)) yield return w;
+            double rmsOpen = last.RmsDb;
+            Emit("D33.real_idle_reads_open", module.Gate.Reason == GateReason.Open && !WeatherAudioModule.ReadPaused() && !WeatherAudioModule.ReadOnRailsWarp());
+
+            // The game's own pause (FlightDriver.SetPause), read by the module.
+            try
+            {
+                FlightDriver.SetPause(true, false);
+                pausedByProbe = true;
+            }
+            catch (Exception e)
+            {
+                Check("the real pause could be set", false, e.GetType().Name + " " + e.Message);
+            }
+            foreach (ProbeWait w in RealMeasure(1.5, 2.0)) yield return w;
+            Emit("D33.real_pause_read", WeatherAudioModule.ReadPaused());
+            Emit("D33.real_pause_gate_paused", module.Gate.Reason == GateReason.Paused);
+            Emit("D33.real_pause_silent_db", last.RmsDb);
+            Emit("D33.real_pause_listener_flag", AudioListener.pause);
+            Emit("D33.real_pause_time_scale", Time.timeScale);
+            try
+            {
+                FlightDriver.SetPause(false, false);
+            }
+            catch (Exception e)
+            {
+                Check("the real pause could be lifted", false, e.GetType().Name + " " + e.Message);
+            }
+            pausedByProbe = false;
+            foreach (ProbeWait w in RealMeasure(3.5, 2.0)) yield return w;
+            Emit("D33.real_pause_return_delta_db", last.RmsDb - rmsOpen);
+
+            // The game's own time warp: on rails (high mode) and physical (low mode), landed.
+            bool landed = vessel != null && (vessel.Landed || vessel.Splashed) && TimeWarp.fetch != null;
+            Emit("D33.real_warp_landed", landed);
+            if (landed)
+            {
+                TimeWarp.Modes savedMode = TimeWarp.fetch.Mode;
+                TimeWarp.fetch.Mode = TimeWarp.Modes.HIGH;
+                TimeWarp.SetRate(3, true, false);
+                warpedByProbe = true;
+                yield return ProbeWait.Frames(10);
+                Emit("D33.real_warp_rate", TimeWarp.CurrentRate);
+                foreach (ProbeWait w in RealMeasure(1.5, 2.0)) yield return w;
+                Emit("D33.real_warp_read", WeatherAudioModule.ReadOnRailsWarp());
+                Emit("D33.real_warp_gate_warp", module.Gate.Reason == GateReason.Warp);
+                Emit("D33.real_warp_silent_db", last.RmsDb);
+                TimeWarp.SetRate(0, true, false);
+                TimeWarp.fetch.Mode = savedMode;
+                warpedByProbe = false;
+                foreach (ProbeWait w in RealMeasure(3.5, 2.0)) yield return w;
+                Emit("D33.real_warp_return_delta_db", last.RmsDb - rmsOpen);
+
+                // Physical warp is unchanged: the sound stays open.
+                TimeWarp.fetch.Mode = TimeWarp.Modes.LOW;
+                TimeWarp.SetRate(2, true, false);
+                warpedByProbe = true;
+                yield return ProbeWait.Frames(10);
+                Emit("D33.real_physwarp_rate", TimeWarp.CurrentRate);
+                foreach (ProbeWait w in RealMeasure(1.5, 2.0)) yield return w;
+                Emit("D33.real_physwarp_gate_open", module.Gate.Reason == GateReason.Open);
+                Emit("D33.real_physwarp_delta_db", last.RmsDb - rmsOpen);
+                TimeWarp.SetRate(0, true, false);
+                TimeWarp.fetch.Mode = savedMode;
+                warpedByProbe = false;
+                yield return ProbeWait.Frames(30);
+            }
+
+            // The map view with the game's own camera rule.
+            bool mapEntered = false;
+            try
+            {
+                if (!MapView.MapIsEnabled) MapView.EnterMapView();
+                mapEntered = MapView.MapIsEnabled;
+                mapByProbe = mapEntered;
+            }
+            catch (Exception e)
+            {
+                Check("the map view could be entered", false, e.GetType().Name + " " + e.Message);
+            }
+            Emit("D33.real_map_entered", mapEntered);
+            if (mapEntered)
+            {
+                yield return ProbeWait.Frames(30);
+                Retap(module);
+                foreach (ProbeWait w in RealMeasure(3.0, 3.0)) yield return w;
+                Emit("D33.real_map_flag", module.Listener.MapView);
+                Emit("D33.real_map_delta_db", rmsOpen - last.RmsDb);
+                try { MapView.ExitMapView(); } catch (Exception e) { Check("the map view could be left", false, e.GetType().Name + " " + e.Message); }
+                mapByProbe = false;
+                yield return ProbeWait.Frames(30);
+                Retap(module);
+            }
+
+            // The IVA with the game's own camera rule (needs crew).
+            AudioOverrides.Inputs = Weather(0.25f, 4f, 0.5f);
+            foreach (ProbeWait w in RealMeasure(3.0, 3.0)) yield return w;
+            double rmsOutside = last.RmsDb;
+            double centroidOutside = last.CentroidHz;
+            Emit("D33.real_outside_not_cabin", !module.Listener.Cabin && !module.Listener.MapView);
+            bool iva = false;
+            try
+            {
+                iva = CameraManager.Instance != null && CameraManager.Instance.SetCameraIVA();
+                ivaByProbe = iva;
+            }
+            catch (Exception e)
+            {
+                LogLine("D33: the IVA could not be entered (" + e.GetType().Name + " " + e.Message + ")");
+            }
+            Emit("D33.real_iva_available", iva);
+            if (iva)
+            {
+                yield return ProbeWait.Frames(30);
+                Retap(module);
+                foreach (ProbeWait w in RealMeasure(3.0, 3.0)) yield return w;
+                Emit("D33.real_iva_cabin_flag", module.Listener.Cabin);
+                Emit("D33.real_iva_delta_db", rmsOutside - last.RmsDb);
+                Emit("D33.real_iva_centroid_drop_hz", centroidOutside - last.CentroidHz);
+                CameraManager.Instance.SetCameraFlight();
+                ivaByProbe = false;
+                yield return ProbeWait.Frames(30);
+                Retap(module);
+            }
+
+            // The weather read of the frame driver, with the inputs not forced.
+            AudioOverrides.Inputs = null;
+            foreach (ProbeWait w in RealMeasure(3.0, 1.0)) yield return w;
+            WeatherAudioInputs read = module.LastInputs;
+            WeatherView view = WeatherHooks.View;
+            Emit("D33.real_weather_air", read.Air);
+            Emit("D33.real_view_fresh", !view.IsStale(Time.frameCount));
+            Emit("D33.real_level_delta", Math.Abs(read.Level01 - view.Level));
+
+            // The volume sliders of the game.
+            AudioOverrides.Volumes = null;
+            foreach (ProbeWait w in RealMeasure(1.5, 0.5)) yield return w;
+            Emit("D33.real_volume_ambience_error", Math.Abs(module.Volumes.Ambience - Mathf.Clamp01(GameSettings.AMBIENCE_VOLUME)));
+            Emit("D33.real_volume_ship_error", Math.Abs(module.Volumes.Ship - Mathf.Clamp01(GameSettings.SHIP_VOLUME)));
+
+            // Back to the forced scene for the rows that follow.
+            AudioOverrides.Volumes = GameVolumes.Full();
+            AudioOverrides.Inputs = Weather(0.95f, 22f, 0.5f);
+            AudioOverrides.Listener = new ListenerState();
+            AudioOverrides.Paused = false;
+            AudioOverrides.OnRailsWarp = false;
+        }
+
+        // One forced forecast track 10 km to the right of the listener and one to the left: the module reads the track, the body and the
+        // listener transform and finds the pan; the expectation is the construction (a point along the listener's right-hand axis).
+        private IEnumerable<ProbeWait> RealCellState(WeatherAudioModule module)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            CelestialBody body = vessel != null ? vessel.mainBody : null;
+            AudioListener listener = module.RescanListener();
+            Emit("D33.real_cell_listener", listener != null && body != null);
+            if (listener == null || body == null) yield break;
+            savedTracks = WeatherHooks.BodyTracks;
+            tracksForced = true;
+            AudioOverrides.Switches = Switches(distant: true);
+            AudioOverrides.Inputs = Weather(0f, 0f, 0f);
+            AudioOverrides.RealCell = true;
+            int index = body.flightGlobalsIndex;
+            for (int side = 1; side >= -1; side -= 2)
+            {
+                Transform t = listener.transform;
+                Vector3d position = (Vector3d)t.position;
+                Vector3d up = (position - body.position).normalized;
+                Vector3d right = (Vector3d)t.right;
+                right = (right - up * Vector3d.Dot(right, up)).normalized * side;
+                Vector3d target = position + right * 10000.0;
+                var track = new ForecastTrack
+                {
+                    CellKey = 33,
+                    Ut = new[] { Planetarium.GetUniversalTime() },
+                    Lat = new[] { body.GetLatitude(target) },
+                    Lon = new[] { body.GetLongitude(target) },
+                    RadiusM = new[] { 2000f },
+                    Strength01 = new[] { 1f }
+                };
+                ForecastTrack[] only = { track };
+                WeatherHooks.BodyTracks = i => i == index ? only : null;
+                foreach (ProbeWait w in RealMeasure(5.0, 3.0)) yield return w;
+                string tag = side > 0 ? "right" : "left";
+                Emit("D33.real_cell_found_" + tag, module.Cell.Found);
+                Emit("D33.real_cell_edge_m_" + tag, module.Cell.EdgeDistanceM);
+                Emit("D33.real_cell_pan_error_" + tag, Math.Abs(module.CellPanNow - side));
+                Emit("D33.real_cell_left_share_" + tag, last.LeftShare);
+            }
+            WeatherHooks.BodyTracks = savedTracks;
+            tracksForced = false;
+            AudioOverrides.RealCell = false;
+            AudioOverrides.Switches = Switches();
+            AudioOverrides.Inputs = Weather(0f, 0f, 0f);
+        }
+
+        // A kerbal that walks during the window (the probe does not drive one): the metres come from the change of latitude and longitude,
+        // not from the integrator's own input, and the steps from the steps the module played.
+        private IEnumerable<ProbeWait> RealEvaWalk(WeatherAudioModule module)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            bool eva = vessel != null && vessel.isEVA;
+            Emit("D33.real_eva_active", eva);
+            if (!eva) yield break;
+            AudioOverrides.ForcedCover = 0.8f;
+            module.ResetStepCounters();
+            double metres = 0.0;
+            double lat = vessel.latitude, lon = vessel.longitude;
+            double until = Time.realtimeSinceStartup + 15.0, nextSample = Time.realtimeSinceStartup + 0.25;
+            while (Time.realtimeSinceStartup < until)
+            {
+                if (Time.realtimeSinceStartup >= nextSample)
+                {
+                    nextSample += 0.25;
+                    double d = DistantCellModel.DistanceM(lat, lon, vessel.latitude, vessel.longitude, vessel.mainBody.Radius);
+                    if (d > 0.02) metres += d;
+                    lat = vessel.latitude;
+                    lon = vessel.longitude;
+                }
+                yield return ProbeWait.Frames(1);
+            }
+            Emit("D33.real_eva_metres", metres);
+            Emit("D33.real_eva_steps_played", module.StepsPlayed);
+            Emit("D33.real_eva_step_ratio", metres >= 10.0 ? module.StepsPlayed / (metres / StrideIntegrator.WalkStrideM) : -1.0);
+            AudioOverrides.ForcedCover = null;
+        }
+
         protected override IEnumerator<ProbeWait> Scenario()
         {
             try
@@ -118,6 +410,7 @@ namespace ReDefinition.Atmospheres.Audio
             finally
             {
                 // However the scenario ends, the game's own values are back.
+                RestoreGame();
                 AudioOverrides.Clear();
                 if (tap != null) UnityEngine.Object.Destroy(tap);
                 tap = null;
@@ -231,6 +524,9 @@ namespace ReDefinition.Atmospheres.Audio
             foreach (ProbeWait w in Measure(3.5, 2.0)) yield return w;
             Emit("D33.pause_return_delta_db", last.RmsDb - rmsBlizzardOutside);
 
+            // 7b The real game state: pause, warp, map view, IVA, the weather read and the volume sliders.
+            foreach (ProbeWait w in RealState(module)) yield return w;
+
             // 8 The distant storm: edge distance 30 km down to 3 km, to the right; then to the left.
             AudioOverrides.Switches = Switches(distant: true);
             double[] distances = { 30000, 20000, 12000, 6000, 3000 };
@@ -260,6 +556,9 @@ namespace ReDefinition.Atmospheres.Audio
             Emit("D33.cell_left_share_left_source", last.LeftShare);
             AudioOverrides.Switches = Switches();
 
+            // 8b The real cell chain: a forced track, the module's own pan from the listener transform.
+            foreach (ProbeWait w in RealCellState(module)) yield return w;
+
             // 9 EVA walk: a simulated walker at 2 m/s over snow, standing, and over bare ground.
             AudioOverrides.Inputs = Weather(0f, 0f, 0f);
             AudioOverrides.ForcedCover = 0.8f;
@@ -281,9 +580,14 @@ namespace ReDefinition.Atmospheres.Audio
             Emit("D33.walk_metres", module.DistanceWalkedM);
             Emit("D33.steps_found", module.StepsFound);
             Emit("D33.steps_played", module.StepsPlayed);
-            Emit("D33.step_count_ratio", expected > 0 ? module.StepsPlayed / expected : 0.0);
+            // The metres are the integrator's own input (speed x frame time), so this ratio checks the integrator against it: a
+            // consistency row. The real kerbal's metres come from the position (section 9b).
+            Emit("D33.sim_step_count_ratio", expected > 0 ? module.StepsPlayed / expected : 0.0);
             Emit("D33.step_hi_ratio_db", ProbeMeter.Db(hiWalking) - ProbeMeter.Db(hiStanding));
             EmitText("D33.step_mixer_group", module.Objects.StepMixerGroup);
+            // RSE: 0 absent, 1 present, routing node complete and a step source seen with an output mixer group, -1 present without the
+            // complete routing node, -2 routed but no step source was ever given a group.
+            Emit("D33.rse_state", !module.RsePresent ? 0 : !module.RseRoutesOurClips ? -1 : module.RseGroupEverSeen ? 1 : -2);
             module.ResetStepCounters();
             AudioOverrides.ForcedCover = 0.0f;
             yield return ProbeWait.Seconds(1.0);
@@ -294,6 +598,10 @@ namespace ReDefinition.Atmospheres.Audio
             Emit("D33.steps_found_bare", module.StepsFound);
             Emit("D33.steps_played_bare", module.StepsPlayed);
             AudioOverrides.ForcedCover = null;
+
+            // 9b A real kerbal on foot, if the active vessel is one.
+            foreach (ProbeWait w in RealEvaWalk(module)) yield return w;
+            AudioOverrides.Inputs = Weather(0f, 0f, 0f);
 
             // 10 EVE's own loop (informative: it needs a snow storm at the camera).
             EveSoundAccess.Scan(FlightGlobals.ActiveVessel.mainBody != null ? FlightGlobals.ActiveVessel.mainBody.name : "");
@@ -332,7 +640,14 @@ namespace ReDefinition.Atmospheres.Audio
             AtmospheresLog.Say("weather-audio: cpu=" + blockMs.ToString("F4") + " blocks=" + s.Blocks + " underruns=" + s.Underruns);
             Emit("D33.cpu_ms_per_block", blockMs);
             Emit("D33.block_ms", blockDurationMs);
-            Emit("D33.cpu_pct_core", blockDurationMs > 0 ? 100.0 * blockMs / blockDurationMs : 0.0);
+            // The game runs Mono; this is measured there. The 1 % budget is the Release build's; a Debug build costs several times as
+            // much and is held to the plan's fail line (5 %). The gated row is the used share of the limit of the build that runs.
+            double cpuPct = blockDurationMs > 0 ? 100.0 * blockMs / blockDurationMs : 0.0;
+            bool release = CpuGate.IsReleaseBuild;
+            Emit("D33.build_release", release);
+            Emit("D33.cpu_limit_pct", CpuGate.LimitPct(release));
+            Emit("D33.cpu_pct_core", cpuPct);
+            Emit("D33.cpu_budget_used", blockDurationMs > 0 ? CpuGate.BudgetUsed(cpuPct, release) : 99.0);
             Emit("D33.blocks", s.Blocks);
             Emit("D33.underruns", s.Underruns);
             Emit("D33.nan_samples", meter.NonFiniteSamples);

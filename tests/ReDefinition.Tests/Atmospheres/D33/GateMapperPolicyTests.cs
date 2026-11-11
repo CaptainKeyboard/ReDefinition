@@ -218,26 +218,34 @@ namespace ReDefinition.Tests.Atmospheres.D33
         [TestMethod]
         public void TheMufflingDecisionTable()
         {
-            // mode, RSE installed, RSE routes our clips -> own on procedural, own on samples, RSE carries samples
+            // mode, RSE installed, RSE routes our clips, a step source seen with RSE's group
+            //   -> own on procedural, own on samples, RSE carries samples, steps leave RSE's group
             object[][] rows =
             {
-                new object[] { AudioMuffling.Auto, false, false, true, true, false },
-                new object[] { AudioMuffling.Auto, true, false, true, true, false },
-                new object[] { AudioMuffling.Auto, true, true, true, false, true },
-                new object[] { AudioMuffling.Own, false, false, true, true, false },
-                new object[] { AudioMuffling.Own, true, true, true, true, false },
-                new object[] { AudioMuffling.Rse, false, false, true, true, false },
-                new object[] { AudioMuffling.Rse, true, false, true, false, true },
-                new object[] { AudioMuffling.Rse, true, true, true, false, true }
+                new object[] { AudioMuffling.Auto, false, false, false, true, true, false, false },
+                new object[] { AudioMuffling.Auto, true, false, false, true, true, false, false },
+                new object[] { AudioMuffling.Auto, true, true, false, true, true, false, false },
+                new object[] { AudioMuffling.Auto, true, true, true, true, false, true, false },
+                new object[] { AudioMuffling.Auto, true, false, true, true, true, false, false },
+                new object[] { AudioMuffling.Own, false, false, false, true, true, false, false },
+                new object[] { AudioMuffling.Own, true, true, false, true, true, false, true },
+                new object[] { AudioMuffling.Own, true, true, true, true, true, false, true },
+                new object[] { AudioMuffling.Rse, false, false, false, true, true, false, false },
+                new object[] { AudioMuffling.Rse, true, false, false, true, false, true, false },
+                new object[] { AudioMuffling.Rse, true, true, true, true, false, true, false }
             };
             foreach (object[] r in rows)
             {
-                MufflingPlan plan = MufflingTable.Decide((AudioMuffling)r[0], (bool)r[1], (bool)r[2]);
-                string label = r[0] + " rse=" + r[1] + " routes=" + r[2];
-                Assert.AreEqual((bool)r[3], plan.OwnOnProcedural, label);
-                Assert.AreEqual((bool)r[4], plan.OwnOnSamples, label);
-                Assert.AreEqual((bool)r[5], plan.RseCarriesSamples, label);
-                Assert.IsFalse(plan.OwnOnSamples && plan.RseCarriesSamples, "never muffled twice: " + label);
+                MufflingPlan plan = MufflingTable.Decide((AudioMuffling)r[0], (bool)r[1], (bool)r[2], (bool)r[3]);
+                string label = r[0] + " rse=" + r[1] + " routes=" + r[2] + " seen=" + r[3];
+                Assert.AreEqual((bool)r[4], plan.OwnOnProcedural, label);
+                Assert.AreEqual((bool)r[5], plan.OwnOnSamples, label);
+                Assert.AreEqual((bool)r[6], plan.RseCarriesSamples, label);
+                Assert.AreEqual((bool)r[7], plan.DetachFromRse, label);
+                // Never muffled twice: the own low-pass and RSE's muffler do not both carry the samples, and with RSE present the own
+                // setting takes the sources out of RSE's group.
+                Assert.IsFalse(plan.OwnOnSamples && plan.RseCarriesSamples, label);
+                if ((AudioMuffling)r[0] == AudioMuffling.Own && (bool)r[1]) Assert.IsTrue(plan.DetachFromRse, label);
             }
         }
 

@@ -76,22 +76,29 @@ namespace ReDefinition.Atmospheres.Audio
         internal bool OwnOnSamples;
         // Whether RSE carries the sample clips.
         internal bool RseCarriesSamples;
+        // Whether the step sources leave RSE's mixer group (their output group is set to none each frame), so that the own low-pass
+        // is the only muffler.
+        internal bool DetachFromRse;
     }
 
     internal static class MufflingTable
     {
-        internal static MufflingPlan Decide(AudioMuffling mode, bool rsePresent, bool rseRoutesOurClips)
+        // rseRoutesOurClips: the routing node of RSE's settings holds every one of our clips. rseGroupObserved: a step source of ours has
+        // really been given an output mixer group (RSE took the clip); until then the own low-pass stays on.
+        internal static MufflingPlan Decide(AudioMuffling mode, bool rsePresent, bool rseRoutesOurClips, bool rseGroupObserved)
         {
-            var plan = new MufflingPlan { OwnOnProcedural = true, OwnOnSamples = true, RseCarriesSamples = false };
+            var plan = new MufflingPlan { OwnOnProcedural = true, OwnOnSamples = true, RseCarriesSamples = false, DetachFromRse = false };
             switch (mode)
             {
                 case AudioMuffling.Own:
-                    // [VERIFY] The patch routes the clips whenever RSE is installed; the own low-pass stays on, so a clip RSE also
-                    // muffles is muffled by both.
+                    // The patch routes the clips whenever RSE is installed, whatever this setting says: in this mode the step sources
+                    // leave RSE's group at runtime, so a clip is muffled by the own low-pass alone.
+                    plan.DetachFromRse = rsePresent;
                     break;
                 case AudioMuffling.Auto:
-                    // RSE carries the samples only where the routing node of our clips is really in its settings.
-                    if (rsePresent && rseRoutesOurClips)
+                    // RSE carries the samples only where the routing node of our clips is in its settings and RSE has been seen to
+                    // route a step source of ours.
+                    if (rsePresent && rseRoutesOurClips && rseGroupObserved)
                     {
                         plan.OwnOnSamples = false;
                         plan.RseCarriesSamples = true;

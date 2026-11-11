@@ -11,6 +11,9 @@ namespace ReDefinition.Atmospheres.Audio
         internal static bool? Paused;
         internal static bool? OnRailsWarp;
         internal static AudioSwitches? Switches;
+        // With Inputs forced, the distant storm still reads the forecast tracks and the listener transform (WeatherHooks.BodyTracks) and
+        // overwrites the forced closeness and pan: the real chain of the cell rows.
+        internal static bool RealCell;
         // Footsteps: the probe feeds a walk of a given length at a speed over a cover instead of a kerbal.
         internal static float? ForcedCover;
         // A simulated walker: the speed over the ground in m/s while Walking is true (grounded, no ladder). The module integrates the distance
@@ -30,6 +33,7 @@ namespace ReDefinition.Atmospheres.Audio
             Paused = null;
             OnRailsWarp = null;
             Switches = null;
+            RealCell = false;
             ForcedCover = null;
         }
     }

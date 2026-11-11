@@ -92,7 +92,8 @@ namespace ReDefinition.Atmospheres.Audio
             }
         }
 
-        // The loudest volume among the loops that exist and play (0 where there is none).
+        // The loudest volume among the loops that exist and play (0 where there is none). It covers every ambient loop of every raymarched
+        // layer on the body (rain and fog layers too, not the snow storm alone): EVE does not name the weather of a layer's loop [VERIFY].
         internal static float AudibleVolume()
         {
             float best = 0f;
