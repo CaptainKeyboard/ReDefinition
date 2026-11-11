@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace ReDefinition.Atmospheres.Audio
 {
@@ -60,6 +61,8 @@ namespace ReDefinition.Atmospheres.Audio
             a2 = (1.0 - alpha) / a0;
         }
 
+        // Inlined explicitly: the game's Mono JIT does not inline it by itself and the call dominated the cost there.
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public double Process(double x)
         {
             double y = b0 * x + z1;

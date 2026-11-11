@@ -186,6 +186,10 @@ def run(source_id, out_dir, count, classes, sources_path, originals_root):
     manifest = {
         "schema": 1,
         "note": "One line per shipped file. tools/audio/check_manifest.py fails a file without a complete line.",
+        # The text of the source's own page, as read on the archived copy: the licence line, the FAQ sentence and the page text.
+        "sources": {
+            source_id: {k: src[k] for k in ("title", "author", "sourceUrl", "archivedUrl", "licence", "licenceLine", "licenceFaq", "pageText", "dateRead")}
+        },
         "files": files,
     }
     with open(os.path.join(out_dir, "SOUNDS.json"), "w", encoding="utf8") as fh:

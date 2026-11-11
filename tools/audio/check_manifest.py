@@ -37,7 +37,9 @@ def check(folder, max_download=4000000, max_decoded=12000000):
         return problems
     try:
         with open(manifest_path, encoding="utf8") as fh:
-            lines = json.load(fh).get("files", [])
+            document = json.load(fh)
+            lines = document.get("files", [])
+            sources = document.get("sources", {})
     except (ValueError, OSError) as e:
         return problems + ["SOUNDS.json cannot be read: %s" % e]
     on_disk = sorted(f for f in os.listdir(folder) if f.lower().endswith(SOUND_EXT))
@@ -48,6 +50,11 @@ def check(folder, max_download=4000000, max_decoded=12000000):
             value = entry.get(key)
             if not isinstance(value, str) or not value.strip():
                 problems.append("%s: field '%s' is missing or empty" % (name or "<no file>", key))
+        source = sources.get(entry.get("source", "")) if isinstance(sources, dict) else None
+        if not isinstance(source, dict) or not str(source.get("pageText", "")).strip():
+            problems.append("%s: the source '%s' has no copied page text in 'sources'" % (name, entry.get("source", "")))
+        elif source.get("licenceLine", "") not in source.get("pageText", ""):
+            problems.append("%s: the licence line is not part of the copied page text" % name)
         if "CC0" not in str(entry.get("licence", "")):
             problems.append("%s: the licence is not CC0" % name)
         if "web.archive.org" not in str(entry.get("archivedUrl", "")):
@@ -83,7 +90,8 @@ def selftest():
             open(os.path.join(tmp, "LICENSE-CC0.txt"), "w").write("x")
             if with_file:
                 open(os.path.join(tmp, "a.ogg"), "wb").write(b"1234")
-            json.dump({"files": [entry] if entry else []}, open(os.path.join(tmp, "SOUNDS.json"), "w"))
+            json.dump({"sources": {"x": {"licenceLine": "L", "pageText": "page with L"}}, "files": [entry] if entry else []},
+                      open(os.path.join(tmp, "SOUNDS.json"), "w"))
             return check(tmp)
         assert make(good) == [], make(good)
         no_line = dict(good, licenceLine="")
@@ -91,6 +99,7 @@ def selftest():
         assert any("shipped without a line" in p for p in make(None))
         assert any("not in the folder" in p for p in make(good, with_file=False))
         assert any("not CC0" in p for p in make(dict(good, licence="CC-BY 3.0")))
+        assert any("no copied page text" in p for p in make(dict(good, source="other")))
         assert any("web.archive.org" in p for p in make(dict(good, archivedUrl="https://x")))
     finally:
         shutil.rmtree(tmp)

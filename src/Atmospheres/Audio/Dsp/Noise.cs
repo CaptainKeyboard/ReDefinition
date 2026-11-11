@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 
 namespace ReDefinition.Atmospheres.Audio
 {
@@ -28,6 +29,7 @@ namespace ReDefinition.Atmospheres.Audio
             return x == 0 ? 0x6D2B79F5u : x;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public uint NextUInt()
         {
             uint x = state;
@@ -39,6 +41,7 @@ namespace ReDefinition.Atmospheres.Audio
         }
 
         // Uniform in [-1, 1).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public float NextSigned()
         {
             return (int)NextUInt() * (1.0f / 2147483648.0f);
@@ -47,7 +50,19 @@ namespace ReDefinition.Atmospheres.Audio
         // Uniform in [0, 1).
         public float NextUnit()
         {
-            return (NextUInt() >> 8) * (1.0f / 16777216.0f);
+            return UnitOf(NextUInt());
+        }
+
+        // A word of the stream as a number in [0, 1), and as one in [-1, 1).
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static float UnitOf(uint word)
+        {
+            return (word >> 8) * (1.0f / 16777216.0f);
+        }
+
+        public static float SignedOf(uint word)
+        {
+            return (int)word * (1.0f / 2147483648.0f);
         }
     }
 

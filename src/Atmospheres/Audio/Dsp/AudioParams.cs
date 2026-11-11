@@ -5,6 +5,9 @@ namespace ReDefinition.Atmospheres.Audio
     // FROZEN INTERFACE (for the runtime package D33): the values the main thread hands to the audio thread. Every field is a
     // volatile float (or int), so one thread writes single fields and the other reads them without a lock; the mixer smooths them
     // per sample. Nothing here is a Unity type. Ranges are listed per field; the mixer replaces NaN by the lower end and clamps.
+    // Sharing across threads works through ONE instance held in a field of a class: the main thread writes its fields and the audio
+    // thread passes `in thatField` to Mixer.Process. A copy (a property getter, a local) is a snapshot and no longer follows the
+    // writer. Mixer.SetRecordedBed is not safe against a running Process; call it between blocks.
     public struct AudioParams
     {
         // The mean wind speed in m/s, 0 to 60 (the bed reaches its top at 30).

@@ -9,8 +9,10 @@ namespace RenderWeatherAudio
     // Renders the six listening scenarios of the weather sound to 16-bit stereo WAV files:
     //   RenderWeatherAudio.exe <output folder> [--rate 48000] [--seed 1] [--seconds 30]
     //   RenderWeatherAudio.exe --levels          prints the level of each layer alone, in dBFS
-    // The parameter tracks are written here; they use the same two-wave gust form as WindNoise.Wave (periods 9.0 s and 5.3 s,
-    // weights 0.6 and 0.4) so that the previews gust the way the game will.
+    // The parameter tracks are written here. This tool compiles only the Dsp folder, which cannot reach WindNoise (it needs
+    // UnityEngine), so the tracks carry their own copy of the gust form: the periods 9.0 s and 5.3 s and the weights 0.6 and 0.4 of
+    // WindNoise.Wave, with a fixed phase of 1.1 for the second wave instead of the seed's phases and no travel along the wind. The
+    // tests use WindNoise.Wave itself.
     internal static class Program
     {
         private delegate void Track(double t, double duration, ref AudioParams p);
@@ -281,6 +283,53 @@ namespace RenderWeatherAudio
             }
             Console.WriteLine("busiest scene: {0:F2} ms per second of audio = {1:F2} % of one core at {2} Hz; reference {3:F2} ms, ratio {4:F2} ({5})",
                 best, best / 10.0, rate, refBest, best / refBest, sink > -1e300 ? "ok" : "?");
+            // The layers one at a time (the others at volume 0), then the same scene with the wind speed moving every sample.
+            string[] names = { "wind+howl", "snow hiss", "grit", "ticks", "rumble", "quiet", "interior on wind" };
+            for (int i = 0; i < names.Length; i++)
+            {
+                AudioParams q = AudioParams.Create();
+                q.volWind = q.volPrecip = q.volTicks = q.volRumble = q.volQuiet = 0f;
+                q.gustDepth = 0.4f; q.gust = 0.5f;
+                switch (i)
+                {
+                    case 0: q.volWind = 1f; q.windSpeed = 20; break;
+                    case 1: q.volPrecip = 1f; q.intensity = 1; break;
+                    case 2: q.volPrecip = 1f; q.intensity = 1; q.grit = 1; break;
+                    case 3: q.volTicks = 1f; q.intensity = 1; break;
+                    case 4: q.volRumble = 1f; q.cellCloseness = 1; break;
+                    case 5: q.volQuiet = 1f; q.snowCover = 1; break;
+                    default: q.volWind = 1f; q.windSpeed = 20; q.interior = 1f; break;
+                }
+                Mixer lm = new Mixer(rate, 3);
+                lm.Process(buf, rate, 2, q);
+                double lb = double.MaxValue;
+                for (int rep = 0; rep < 5; rep++)
+                {
+                    System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+                    lm.Process(buf, rate, 2, q);
+                    lb = Math.Min(lb, sw.Elapsed.TotalMilliseconds);
+                }
+                Console.WriteLine("  layer {0,-18} {1:F2} ms per second of audio", names[i], lb);
+            }
+            // The wind speed moves in steps of 0.5 m/s per control interval (a hard storm change): every control step recomputes the
+            // wind coefficients.
+            AudioParams mv = p;
+            Mixer mm = new Mixer(rate, 3);
+            float[] one = new float[Mixer.ControlInterval * 2];
+            int blocks = rate / Mixer.ControlInterval;
+            double movingBest = double.MaxValue;
+            for (int rep = 0; rep < 6; rep++)
+            {
+                System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+                for (int b = 0; b < blocks; b++)
+                {
+                    mv.windSpeed = 12f + 10f * (float)Math.Sin(b * 0.37);
+                    mm.Process(one, Mixer.ControlInterval, 2, mv);
+                }
+                if (rep > 0) movingBest = Math.Min(movingBest, sw.Elapsed.TotalMilliseconds);
+            }
+            Console.WriteLine("busiest scene, wind speed moving every control step: {0:F2} ms per second of audio = {1:F2} % of one core",
+                movingBest, movingBest / 10.0);
         }
 
         private static void Measure(string label, int rate, uint seed, AudioParams p)

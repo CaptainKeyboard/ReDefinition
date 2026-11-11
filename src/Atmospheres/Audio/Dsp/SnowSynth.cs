@@ -61,21 +61,38 @@ namespace ReDefinition.Atmospheres.Audio
     // caller's. No allocation, no UnityEngine.
     public sealed class QuietSnowTone
     {
+        // Computed on every Decimation-th sample and interpolated linearly in between (the filter is designed for the lower rate; the
+        // phase counts from the first sample, so the output does not depend on the block size). The noise gain keeps the level.
+        public const int Decimation = 4;
+        private const double NoiseScale = 0.5;
+
         private Xorshift32 rngL, rngR;
         private readonly Biquad lowL = new Biquad(), lowR = new Biquad();
+        private int phase;
+        private double prevL, prevR, curL, curR;
 
         public QuietSnowTone(double sampleRate, uint seed)
         {
             rngL = new Xorshift32(Xorshift32.Derive(seed, 11));
             rngR = new Xorshift32(Xorshift32.Derive(seed, 12));
-            lowL.LowPass(sampleRate, 400.0, 0.707);
-            lowR.LowPass(sampleRate, 400.0, 0.707);
+            lowL.LowPass(sampleRate / Decimation, 400.0, 0.707);
+            lowR.LowPass(sampleRate / Decimation, 400.0, 0.707);
         }
 
         public void Next(out float left, out float right)
         {
-            left = (float)lowL.Process(rngL.NextSigned());
-            right = (float)lowR.Process(rngR.NextSigned());
+            if (phase == 0)
+            {
+                prevL = curL;
+                prevR = curR;
+                // The same noise power spread over a quarter of the band: scaled by 1/sqrt(Decimation) so the level stays.
+                curL = lowL.Process(rngL.NextSigned() * NoiseScale);
+                curR = lowR.Process(rngR.NextSigned() * NoiseScale);
+            }
+            double k = (phase + 1) * (1.0 / Decimation);
+            phase = phase + 1 == Decimation ? 0 : phase + 1;
+            left = (float)(prevL + (curL - prevL) * k);
+            right = (float)(prevR + (curR - prevR) * k);
         }
     }
 }

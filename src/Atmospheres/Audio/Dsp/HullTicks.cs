@@ -3,9 +3,9 @@ using System;
 namespace ReDefinition.Atmospheres.Audio
 {
     // Ticks on the hull: a Poisson process (rate = intensity x 40 per second) of short noise bursts, each a band-pass (3 kHz, +-30 %)
-    // of noise under an exponential decay of 5 to 20 ms. At most 64 bursts sound at once, from a fixed pool. The random numbers that
-    // decide a tick's gain, pitch, decay and pan are drawn on every sample whether or not a tick starts, so a higher rate starts a
-    // superset of the ticks of a lower rate with the same properties. Technique: granular synthesis of impacts (A. Farnell,
+    // of noise under an exponential decay of 5 to 20 ms. At most 64 bursts sound at once, from a fixed pool. The stream advances on
+    // every sample whether or not a tick starts and a tick's gain, pitch, decay and pan are a hash of the word of its sample, so a
+    // higher rate starts a superset of the ticks of a lower rate with the same properties. Technique: granular synthesis of impacts (A. Farnell,
     // "Designing Sound"). No allocation, no UnityEngine.
     public sealed class HullTicks
     {
@@ -27,7 +27,7 @@ namespace ReDefinition.Atmospheres.Audio
         // The indices of the sounding voices (the first `active` entries) and of the free ones (the first `free` entries).
         private readonly int[] activeList = new int[MaxVoices];
         private readonly int[] freeList = new int[MaxVoices];
-        private Xorshift32 rngEvent, rngGain, rngPitch, rngDecay, rngPan, rngSeed;
+        private Xorshift32 rngEvent;
         private int active;
         private int free;
 
@@ -35,11 +35,6 @@ namespace ReDefinition.Atmospheres.Audio
         {
             this.sampleRate = sampleRate;
             rngEvent = new Xorshift32(Xorshift32.Derive(seed, 15));
-            rngGain = new Xorshift32(Xorshift32.Derive(seed, 16));
-            rngPitch = new Xorshift32(Xorshift32.Derive(seed, 17));
-            rngDecay = new Xorshift32(Xorshift32.Derive(seed, 18));
-            rngPan = new Xorshift32(Xorshift32.Derive(seed, 19));
-            rngSeed = new Xorshift32(Xorshift32.Derive(seed, 20));
             for (int i = 0; i < MaxVoices; i++)
             {
                 voices[i].Band = new Biquad();
@@ -56,16 +51,10 @@ namespace ReDefinition.Atmospheres.Audio
         // intensity from 0 to 1.
         public void Next(double intensity, out float left, out float right)
         {
-            // All six streams advance on every sample.
-            float u = rngEvent.NextUnit();
-            float g = rngGain.NextUnit();
-            float pitch = rngPitch.NextSigned();
-            float dec = rngDecay.NextUnit();
-            float pan = rngPan.NextUnit();
-            uint noiseSeed = rngSeed.NextUInt();
-
+            // The one stream advances on every sample; a tick that starts takes its properties from a hash of the word that started it.
+            uint word = rngEvent.NextUInt();
             double p = intensity * RatePerIntensity / sampleRate;
-            if (u < p && free > 0) Spawn(g, pitch, dec, pan, noiseSeed);
+            if (Xorshift32.UnitOf(word) < p && free > 0) Spawn(word);
 
             double l = 0.0, r = 0.0;
             for (int k = 0; k < active; k++)
@@ -87,8 +76,13 @@ namespace ReDefinition.Atmospheres.Audio
             right = (float)r;
         }
 
-        private void Spawn(float gain, float pitch, float dec, float pan, uint noiseSeed)
+        private void Spawn(uint word)
         {
+            float gain = Xorshift32.UnitOf(Xorshift32.Derive(word, 1));
+            float pitch = Xorshift32.SignedOf(Xorshift32.Derive(word, 2));
+            float dec = Xorshift32.UnitOf(Xorshift32.Derive(word, 3));
+            float pan = Xorshift32.UnitOf(Xorshift32.Derive(word, 4));
+            uint noiseSeed = Xorshift32.Derive(word, 5);
             int slot = freeList[--free];
             double decaySeconds = 0.005 + 0.015 * dec;
             // The burst falls by 50 dB in the decay time.

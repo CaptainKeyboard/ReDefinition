@@ -351,6 +351,38 @@ namespace ReDefinition.Tests.Atmospheres.B15
         }
 
         [TestMethod]
+        public void TheRecordedAndMixedBedsDoNotDependOnTheBlockSizeAndAllocateNothing()
+        {
+            float[] texture = new float[Rate * 2];
+            Xorshift32 tr = new Xorshift32(31);
+            for (int i = 0; i < texture.Length; i++) texture[i] = tr.NextSigned() * 0.3f;
+            foreach (int source in new[] { BedSource.Recorded, BedSource.Mix })
+            {
+                AudioParams p = Params(14, 0.5);
+                p.bedSource = source;
+                p.gust = 0.3f; p.gustDepth = 0.3f;
+                Mixer reference = new Mixer(Rate, 12);
+                reference.SetRecordedBed(texture, Rate);
+                ulong expected = Hash(RenderConstant(Rate, 12, 4, 256, p, reference));
+                foreach (int block in new[] { 1, 333, 2048 })
+                {
+                    Mixer m = new Mixer(Rate, 12);
+                    m.SetRecordedBed(texture, Rate);
+                    Assert.AreEqual(expected, Hash(RenderConstant(Rate, 12, 4, block, p, m)), "source " + source + ", block " + block);
+                }
+                // No allocation after warm-up, over 30 seconds of audio.
+                Mixer soak = new Mixer(Rate, 12);
+                soak.SetRecordedBed(texture, Rate);
+                float[] buf = new float[1024 * 2];
+                for (int i = 0; i < 20; i++) soak.Process(buf, 1024, 2, p);
+                long before = AllocatedBytes();
+                for (int i = 0; i < 30 * Rate / 1024; i++) soak.Process(buf, 1024, 2, p);
+                long allocated = AllocatedBytes() - before;
+                Assert.AreEqual(0L, allocated, "bytes allocated, source " + source);
+            }
+        }
+
+        [TestMethod]
         public void TheInteriorTakesAtLeastTenDecibelsFromTheHighBand()
         {
             AudioParams outside = Params(20, 0.9);
@@ -511,8 +543,12 @@ namespace ReDefinition.Tests.Atmospheres.B15
         public void TheWholeMixerCostsLittleNextToAReferenceLoop()
         {
             // The reference is the plan's own cost estimate: ten band-pass sections on two channels at 48 kHz, one second of audio.
-            // Built for release it takes 0.13 % of one core (RenderWeatherAudio --bench), so 1 % of a core is 7.5 times the reference;
-            // the worst case of the mixer (every layer on, interior half) must stay within that ratio, in whatever build the test runs.
+            // Built for release on .NET Framework it takes 1.31 ms per second of audio = 0.13 % of one core (RenderWeatherAudio
+            // --bench), so 1 % of a core is 7.5 times the reference; the worst case of the mixer (every layer on, interior half)
+            // must stay within that ratio, in whatever build the test runs. The ratio holds for the runtime the test runs in only:
+            // under the game's Mono the reference costs about ten times as much and the mixer four times, and the mixer's share of
+            // a core is the absolute figure that RenderWeatherAudio --bench prints when run with Unity's mono.exe.
+            // A second pass moves the wind speed at every control step, so that the wind coefficients are recomputed each time.
             AudioParams p = Params(20, 1);
             p.grit = 0.5f; p.cellCloseness = 1; p.snowCover = 1; p.interior = 0.5f; p.gust = 0.5f; p.gustDepth = 0.4f;
             Mixer mixer = new Mixer(Rate, 3);
@@ -540,7 +576,23 @@ namespace ReDefinition.Tests.Atmospheres.B15
                 referenceBest = Math.Min(referenceBest, sw.Elapsed.TotalMilliseconds);
             }
             Assert.IsFalse(double.IsNaN(sink));
-            double ratio = mixerBest / referenceBest;
+            AudioParams moving = p;
+            Mixer movingMixer = new Mixer(Rate, 3);
+            float[] step = new float[Mixer.ControlInterval * 2];
+            double movingBest = double.MaxValue;
+            for (int rep = 0; rep < 7; rep++)
+            {
+                Stopwatch sw = Stopwatch.StartNew();
+                for (int b = 0; b < Rate / Mixer.ControlInterval; b++)
+                {
+                    moving.windSpeed = 12f + 10f * (float)Math.Sin(b * 0.37);
+                    movingMixer.Process(step, Mixer.ControlInterval, 2, moving);
+                }
+                sw.Stop();
+                if (rep > 0) movingBest = Math.Min(movingBest, sw.Elapsed.TotalMilliseconds);
+            }
+            Console.WriteLine("moving wind speed: mixer " + movingBest.ToString("F2") + " ms per second of audio");
+            double ratio = Math.Max(mixerBest, movingBest) / referenceBest;
             Console.WriteLine("mixer " + mixerBest.ToString("F2") + " ms per second of audio (" + (mixerBest / 10).ToString("F2")
                 + " % of one core), reference " + referenceBest.ToString("F2") + " ms, ratio " + ratio.ToString("F2"));
             Assert.IsTrue(ratio <= 7.5, "ratio " + ratio);
