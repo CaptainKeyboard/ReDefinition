@@ -240,7 +240,7 @@ namespace ReDefinition.Atmospheres
             // Starts a worker for a new picture when the inputs changed, or enough game time has passed.
             private void Schedule(double ut)
             {
-                if (workerBusy || resultReady || !state.MapsValid && !state.Params.Permanent) return;
+                if (workerBusy || resultReady || !state.MapsValid && !state.Params.Permanent && IceTuning.ForcedFraction < 0f) return;
                 if (state.Shore == null) return;
                 float now = Time.realtimeSinceStartup;
                 int stamp = state.PictureStamp();

@@ -43,8 +43,15 @@ namespace ReDefinition.Atmospheres
         {
             if (type != LogType.Exception && type != LogType.Error) return;
             string where = (stackTrace ?? "") + (condition ?? "");
-            if (where.Contains("ReDefinition.Atmospheres") && where.Contains("Ice"))
+            if (where.Contains("ReDefinition.Atmospheres") && System.Text.RegularExpressions.Regex.IsMatch(where, @"\bIce[A-Z]"))
                 iceErrors.Add((condition ?? "").Length > 120 ? condition.Substring(0, 120) : condition);
+        }
+
+        // Puts back what the scenario forced and stops listening to the log.
+        private void Restore()
+        {
+            ClearForced();
+            Application.logMessageReceived -= OnLog;
         }
 
         private static bool InFlight()
@@ -132,6 +139,7 @@ namespace ReDefinition.Atmospheres
             if (state == null)
             {
                 Fail("D35: the active body has no sea to freeze (no ocean or no ICE rules)");
+                Restore();
                 yield break;
             }
             string error;
@@ -146,6 +154,7 @@ namespace ReDefinition.Atmospheres
             if (module == null || overlayShader == null)
             {
                 Fail("D35: the module or the overlay shader is missing");
+                Restore();
                 yield break;
             }
 
@@ -170,6 +179,7 @@ namespace ReDefinition.Atmospheres
             if (state.Shore == null)
             {
                 Fail("D35: no coast map (" + (state.ShoreError ?? "heights not complete") + ")");
+                Restore();
                 yield break;
             }
             Emit("D35.heights_seconds", Time.realtimeSinceStartup - heightsStart);
@@ -182,6 +192,7 @@ namespace ReDefinition.Atmospheres
             if (!state.MapsValid)
             {
                 Fail("D35: the field gave no ice maps");
+                Restore();
                 yield break;
             }
 
@@ -220,6 +231,8 @@ namespace ReDefinition.Atmospheres
                 new[] { 50.0, 85.0 }, new[] { -85.0, -50.0 }, new[] { -30.0, 30.0 }, new[] { -85.0, 85.0 }
             };
             var meanNorth = new double[4];
+            var meanSouth = new double[4];
+            var phaseReady = new bool[4];
             double worstError = 0.0;
             for (int k = 0; k < 4; k++)
             {
@@ -231,7 +244,7 @@ namespace ReDefinition.Atmospheres
                 for (int tries = 0; tries < 40 && !got; tries++)
                 {
                     got = WeatherHub.Field.GetMap(index, WeatherMapKind.IceFraction, ut, fraction) && Math.Abs(fraction.Ut - ut) < 3600.0
-                          && WeatherHub.Field.GetMap(index, WeatherMapKind.IceThickness, ut, thickness);
+                          && WeatherHub.Field.GetMap(index, WeatherMapKind.IceThickness, ut, thickness) && Math.Abs(thickness.Ut - ut) < 3600.0;
                     if (!got) yield return ProbeWait.Seconds(1);
                 }
                 Emit("D35.phase." + k + ".map_ready", got);
@@ -283,11 +296,14 @@ namespace ReDefinition.Atmospheres
                         Emit(prefix + "gpu_cpu_difference", Math.Abs(iceGpu - iceCpu));
                     }
                     if (w == 0) meanNorth[k] = fieldMean;
+                    if (w == 1) meanSouth[k] = fieldMean;
                 }
+                phaseReady[k] = true;
                 yield return ProbeWait.Frames(1);
             }
             Emit("D35.coverage_worst_error", worstError);
-            Emit("D35.seasons_differ", Math.Abs(meanNorth[0] - meanNorth[2]) + Math.Abs(meanNorth[1] - meanNorth[3]) > 0.02);
+            bool allPhases = phaseReady[0] && phaseReady[1] && phaseReady[2] && phaseReady[3];
+            Emit("D35.seasons_differ", allPhases && Math.Abs(meanNorth[0] - meanNorth[2]) + Math.Abs(meanSouth[1] - meanSouth[3]) > 0.02);
 
             // ---- the orbit picture ----------------------------------------------------------------------------------------------------------
             IceOrbitLayer orbit = module.Orbit;

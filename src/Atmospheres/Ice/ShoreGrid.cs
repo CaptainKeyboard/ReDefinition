@@ -11,7 +11,7 @@ namespace ReDefinition.Atmospheres
     //      minus its mean has zero mean over a field texel (IceMask keeps the field's fraction);
     //   B  255 on the sea, 0 on land;
     //   A  the depth term 0..255 (1 at the shore, 0 from 200 m down), for the look.
-    // Chamfer distance transforms (Borgefors) are the textbook two-pass form; no code was taken.
+    // The distance is a two-pass chamfer transform (Borgefors) with the texel's length on the sphere as the step.
     internal static class ShoreGrid
     {
         internal const int Width = 1024;

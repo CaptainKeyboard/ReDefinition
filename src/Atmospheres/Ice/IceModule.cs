@@ -38,6 +38,7 @@ namespace ReDefinition.Atmospheres
             if (Orbit == null) Orbit = new IceOrbitLayer();
             if (Ground == null) Ground = new IceGroundOverlay();
             Ground.ResetFailure();
+            Orbit.ReleaseAll();
             OrbitOverlayLayers.Register(Orbit);
         }
 
