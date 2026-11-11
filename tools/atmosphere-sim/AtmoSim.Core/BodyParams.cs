@@ -75,10 +75,10 @@ namespace AtmoSim.Core
         public double SnowWindowYearFraction = 40.0 / 365.25;
         // L4: share of the cloud and stratiform driver that does not depend on the temperature (0 = the signed H = h_T Hrel).
         public double LiftSaturationFloor = 0.20;
-        public double StratThreshold = 0.075;
+        public double StratThreshold = 0.08; // 0.075 in round 1 (Round1() restores it)
         public double CellRainThreshold = 0.02;
         // L4 (c): convergence lift of the moist belt (0 = signed) and the shift of the belt centre by a longitude wave (rad).
-        public double ItczLift = 0.45;
+        public double ItczLift = 1.6; // 0.45 in round 1 (Round1() restores it)
         public double ItczWiggleRad = 0.06;
         // L5/L7: cells in the extratropics need a trigger (a front); the front term of the presence probability (0.8 = signed).
         public bool CellTrigger = true;
@@ -97,10 +97,41 @@ namespace AtmoSim.Core
         public bool SmoothSnowAlbedo = true;
         public double SnowFreezeK { get { return SnowUsesFreshFreezingPoint ? FreezeK0 : FreezePointK; } }
 
+        // ---- levers of tuning round 2 (RESULT.md, TUNING ROUND 2). The values below are the round-2 values; Round1() restores the round-1 generator, Signed() the signed one. ----
+        // R2a: every system generation has its own tilt, curl (comma head), wavelength, widths, latitude, speed and a longitude-dependent amplitude (storm-track zones); false = the round-1 comb.
+        public bool Round2Systems = true;
+        // Front tilt of a generation in units of the wave phase gradient (the cold front trails equatorward and westward), range; the curl of the poleward head, range (in units of the half-length ly).
+        public double SystemTiltMin = -0.30, SystemTiltMax = 0.85;
+        public double SystemCurlMax = 1.0;
+        // Wavelength factor range (times 3 r) of the wave number distribution; the along-track envelope in wavelengths; the share of the generations that are isolated single lows.
+        public double SystemLambdaMin = 0.7, SystemLambdaMax = 1.7;
+        // Zonal modulation of the system amplitude (storm-track zones, share of the amplitude) and the per-generation speed factor spread.
+        public double SystemZonalAmp = 0.25, SystemSpeedSpread = 0.18;
+        // R2b: the moist belt meanders and breaks (longitude-dependent position, width and strength, land/sea shift), the subtropical dry zone meanders, trade-wind cumulus fills the dry zone; false = round 1.
+        public bool Round2Itcz = true;
+        public double ItczMeanderScale = 0.9, ItczBreakLo = 0.05, ItczBreakHi = 0.85;
+        // Cover of the trade-wind cumulus field in the dry zone (share of cloud water).
+        public double FairWeatherCloud = 0.25;
+        // R2c: soft onset of the stratiform rain (softplus width, in units of the driver) and rain-cell structure inside the rain areas (amplitude, 0 = none); false = round 1.
+        public bool Round2Rain = true;
+        public double RainSoftness = 0.04, RainCellAmp = 0.40;
+        // R2d: snow melt by positive degree-days of a temperature distribution (spread in K) with a radiation term (mm per K and day per unit of mean insolation); false = round 1.
+        public bool Round2Snow = true;
+        public double SnowTempSpreadK = 6.0, SnowMeltRadPerUnit = 8.0;
+
+        // The round-1 generator: every lever of round 2 switched off (20 000-query hash 3A3A34F462C55CAC).
+        public BodyParams Round1()
+        {
+            var p = Clone();
+            p.Round2Systems = false; p.Round2Itcz = false; p.Round2Rain = false; p.Round2Snow = false; p.ItczLift = 0.45; p.StratThreshold = 0.075;
+            return p;
+        }
+
         // The generator exactly as signed (iteration 1): every lever of round 1 at its signed value.
         public BodyParams Signed()
         {
             var p = Clone();
+            p.Round2Systems = false; p.Round2Itcz = false; p.Round2Rain = false; p.Round2Snow = false;
             p.SeasonalResponse = 1.0; p.SeaHeatFluxWm2 = 0.0; p.MixedLayerDepthM = 12.0; p.SnowWindowYearFraction = 0.0; p.LiftSaturationFloor = 0.0;
             p.StratThreshold = 0.12; p.CellRainThreshold = 0.15; p.ItczLift = 0.0; p.ItczWiggleRad = 0.0; p.CellTrigger = false; p.CellFrontTerm = 0.8;
             p.WindSatJetFactor = 2.0; p.WindSatMinMs = 15.0; p.GustNoise = 0.0; p.SnowUsesFreshFreezingPoint = false; p.PeriodicSystems = false; p.SmoothSnowAlbedo = false;

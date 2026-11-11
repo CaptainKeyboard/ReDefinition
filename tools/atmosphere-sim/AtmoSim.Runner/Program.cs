@@ -47,6 +47,14 @@ namespace AtmoSim.Runner
             if (cmd == "diag-jump") return Diagnostics2.Jump(args);
             if (cmd == "diag-slots") return Diagnostics2.Slots(args);
             if (cmd == "diag-contin") return Diagnostics2.Contin(args);
+            if (cmd == "frames") return Round2Maps.Frames(args);
+            if (cmd == "diag-alloc") return Round2Maps.Alloc(args);
+            if (cmd == "diag-ice") return Round2Maps.Ice(args);
+            if (cmd == "diag-icesite") return Round2Maps.IceSite(args);
+            if (cmd == "diag-noise") return Round2Maps.Noise(args);
+            if (cmd == "diag-edge") return Round2Maps.Edge(args);
+            if (cmd == "diag-clim") return Round2Maps.Clim(args);
+            if (cmd == "diag-itcz") return Round2Maps.Itcz(args);
             Console.Error.WriteLine("unknown command " + cmd);
             return 2;
         }

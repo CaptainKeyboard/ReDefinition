@@ -24,7 +24,7 @@ namespace AtmoSim.Runner
         }
 
         // (b) The lowest latitude (absolute degrees) at which at least half of the sea texels of a 2.5-degree row have a 10-day mean ice fraction of at least 0.15 in midwinter; NaN when none.
-        private static double IceEdge(WeatherGenerator g, int hemi)
+        public static double IceEdge(WeatherGenerator g, int hemi)
         {
             double phase = hemi == 0 ? 0.0 : 0.5;
             double year = g.Body.YearS;

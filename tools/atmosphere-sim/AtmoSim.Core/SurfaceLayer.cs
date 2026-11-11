@@ -77,10 +77,10 @@ namespace AtmoSim.Core
         private readonly int cap6;
         // The snow window in 6-hour steps: a fixed fraction of the body's year (L3), 160 steps (40 days) where the lever is off.
         private readonly int snowSteps;
-        private readonly bool smoothAlb;
+        private readonly bool smoothAlb, r2snow;
         private readonly float[] tSer, pSer, wSer, hSer;
         // Per-step values that need an Exp, computed once with the sample: snow added by the step (water equivalent, mm) and the decay factor of the wet recurrence.
-        private readonly double[] snowAdd, wetDecay;
+        private readonly double[] snowAdd, wetDecay, meltDrop;
         private readonly long[] stamp;
         private long cacheM0 = long.MinValue, cacheM1 = long.MinValue;
         private double cacheV0, cacheV1;
@@ -99,6 +99,9 @@ namespace AtmoSim.Core
             fluxK = b.SeaHeatFluxWm2 / IceModel.SeaExchangeWm2K;
             tSnow = b.SnowFreezeK;
             smoothAlb = b.SmoothSnowAlbedo;
+            // the degree-day melt with a spread acts on land; the snow on sea ice keeps the round-1 rule (a fast change of the snow depth over ice would move the albedo, and with it the
+            // whole integrated ice history, in a few hours: the continuity check of the ice at the anchor boundaries)
+            r2snow = b.Round2Snow && !sea;
             int need = (int)Math.Ceiling(2.2 * quarterS / StepS) + 8;
             snowSteps = b.SnowWindowYearFraction > 0.0
                 ? (int)Math.Max(24, Math.Min(SignedSnowWindowSteps, Math.Round(b.SnowWindowYearFraction * b.YearS / StepS)))
@@ -106,7 +109,7 @@ namespace AtmoSim.Core
             cap6 = Math.Max(need, snowSteps + 8);
             if (cap6 > 1400) cap6 = 1400;
             tSer = new float[cap6]; pSer = new float[cap6]; wSer = new float[cap6]; hSer = new float[cap6];
-            snowAdd = new double[cap6]; wetDecay = new double[cap6];
+            snowAdd = new double[cap6]; wetDecay = new double[cap6]; meltDrop = new double[cap6];
             stamp = new long[cap6];
             for (int i = 0; i < cap6; i++) stamp[i] = long.MinValue;
             if (sea) BuildAnchors();
@@ -115,6 +118,13 @@ namespace AtmoSim.Core
         public bool IsSea { get { return sea; } }
 
         private double ClimT(double ut) { return g.ClimateTemperature(lat, lon, ut) - b.LapseKPerM * Math.Min(terrain, b.TropopauseM); }
+
+        // Daily-mean insolation of the site in units of a quarter of the solar constant.
+        private double SolarUnit(double ut)
+        {
+            double decl = -b.ObliquityRad * DMath.Cos(DMath.TwoPi * DMath.Frac(ut / b.YearS));
+            return BodyDerived.Insolation(DMath.Sin(lat), DMath.Sin(decl));
+        }
 
         private double ClimSolar(double ut)
         {
@@ -170,6 +180,18 @@ namespace AtmoSim.Core
             snowAdd[i] = p > 0.0 ? p * 6.0 * (1.0 / (1.0 + DMath.Exp((t - tSnow - 1.2 - 1.0) / 0.9))) : 0.0;
             double tau = 18.0 * DMath.Exp(-(t - 288.0) / 25.0);
             wetDecay[i] = DMath.Exp(-6.0 / DMath.Max(2.0, tau));
+            if (r2snow)
+            {
+                // melt of the step (mm of water equivalent) by the degree-day rule of Round2Snow: only where the air is within reach of the freezing point (a spread of 6 K: 5 sigma = 30 K below it
+                // the expectation is below 1e-6 K), the insolation factor only then
+                double sg = b.SnowTempSpreadK, xx = (t - tSnow) / sg;
+                if (xx < -5.0) meltDrop[i] = 0.0;
+                else
+                {
+                    double pdd = sg * (0.3989422804 * DMath.Exp(-0.5 * xx * xx) + xx / (1.0 + DMath.Exp(-1.702 * xx)));
+                    meltDrop[i] = (3.0 + b.SnowMeltRadPerUnit * SolarUnit(step * StepS)) * pdd * 0.25;
+                }
+            }
             stamp[i] = step; SamplesTaken++;
         }
 
@@ -192,7 +214,11 @@ namespace AtmoSim.Core
                 if (stamp[i] != s) Fill(s, i);
                 double t = tSer[i], wnd = wSer[i];
                 swe += snowAdd[i];
-                if (t > tSnow) swe -= 3.0 * (t - tSnow) * 0.25;
+                // Round2Snow: positive degree-days of a temperature distribution: the 6 h mean t has a spread (diurnal cycle, synoptic variability), so melt starts below the mean
+                // freezing point; E[max(0, T - Tf)] = s (phi(x) + x Phi(x)), x = (t - Tf) / s, Phi by the logistic approximation (computed in Fill). The factor grows with the
+                // insolation (radiation-aided degree-day factor); the lapse rate enters through t, which is sampled at the terrain height.
+                if (r2snow) swe -= meltDrop[i];
+                else if (t > tSnow) swe -= 3.0 * (t - tSnow) * 0.25;
                 swe -= 0.15 * 0.25 * (1.0 + wnd / 8.0);
                 if (wnd > 12.0) swe -= swe * DMath.Min(0.5, 0.02 * (wnd - 12.0) * 0.25);
                 if (swe < 0.0) swe = 0.0;

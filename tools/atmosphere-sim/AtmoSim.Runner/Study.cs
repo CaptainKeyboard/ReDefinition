@@ -28,6 +28,8 @@ namespace AtmoSim.Runner
             // tuning round 1: ATMO_SIGNED=1 restores every lever to the signed generator; ATMO_SET="Name=value,Name=value" sets BodyParams fields for a trial
             // (every trial is listed in RESULT.md). The grid and profile arrays are shared with the original, so the Clone is cheap.
             if (Environment.GetEnvironmentVariable("ATMO_SIGNED") == "1") p = p.Signed();
+            // tuning round 2: ATMO_ROUND1=1 restores the round-1 generator (every round-2 lever off), for the before/after sheets
+            if (Environment.GetEnvironmentVariable("ATMO_ROUND1") == "1") p = p.Round1();
             string set = Environment.GetEnvironmentVariable("ATMO_SET");
             if (!string.IsNullOrEmpty(set))
                 foreach (string kv in set.Split(','))
@@ -45,7 +47,19 @@ namespace AtmoSim.Runner
         private static BodyParams ByNameInner(string n)
         {
             var p = BySet(n);
-            if (ReconDir == null) return p;
+            if (ReconDir == null)
+            {
+                // tuning round 2: the synthetic-map mode (S) of the Kerbin-like sets uses Kerbin's measured temperature profile (the maps differ, the climate is the body's);
+                // ATMO_EARTHCLIMATE=1 keeps the insolation-model climate of the earlier rounds (sea-ice edge at 70 degrees latitude, reported as a control)
+                string dd = ReconData.FindDumpDir();
+                if (dd != null && Environment.GetEnvironmentVariable("ATMO_EARTHCLIMATE") != "1" && (n == "kerbin" || n == "noocean" || n == "cold" || n == "slow"))
+                {
+                    ReconData.FitClimate(p, Path.Combine(dd, "run2-temperature-Kerbin.json"));
+                    if (n == "cold") { p.SurfaceMeanK -= 30.0; for (int k = 0; k < p.ProfileK.Length; k++) p.ProfileK[k] -= 30.0; }
+                    if (n == "slow") p.DiurnalLandAmpK = 20.0;
+                }
+                return p;
+            }
             string rb = n == "duna" ? "Duna" : n == "eve" ? "Eve" : n == "laythe" ? "Laythe" : n == "earth" ? null : "Kerbin";
             if (rb == null) return p;
             ReconData.Apply(p, rb, ReconDir);
