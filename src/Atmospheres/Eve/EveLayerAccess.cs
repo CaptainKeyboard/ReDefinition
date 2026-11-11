@@ -301,7 +301,7 @@ namespace ReDefinition.Atmospheres
         // Sets TypeSlots from the type names and the body's role lists.
         internal static void AssignSlots(EveLayer h, CloudRules rules)
         {
-            h.Slots = TypeSlots.FromNames(h.TypeNames, rules);
+            h.Slots = TypeRoles.FromNames(h.TypeNames, rules);
         }
 
         // Where a place lies in the layer's map, by the layer's own rotation matrix (EVE's formula on the world position).

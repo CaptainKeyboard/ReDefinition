@@ -51,9 +51,67 @@ namespace ReDefinition.Atmospheres
         private double paintMsSum;
         private int paintCount;
 
+        // The running module, for the series probe (Probe/C23Probe.cs); null while the module is not running.
+        internal static EveCloudModule Current { get; private set; }
+
         public void Init()
         {
             Services.EveFieldSuppressor = ground;
+            Current = this;
+        }
+
+        // --- For the series probe ------------------------------------------------------------------------------------
+
+        internal EveLayer FirstBoundLayer()
+        {
+            foreach (EveLayer h in layers)
+            {
+                if (h.Tracker.State == BindState.Bound) return h;
+            }
+            return null;
+        }
+
+        internal IList<EveLayer> CurrentLayers
+        {
+            get { return layers; }
+        }
+
+        internal CelestialBody CurrentBody
+        {
+            get { return body; }
+        }
+
+        // The painted coverage of the layer's set read back from the GPU, the mirror's coverage map of the same set, and the set. False
+        // where there is no painter or the layer has no set yet. A readback waits for the GPU: for a probe, never for the frame path.
+        internal bool ReadPaintedAndMirror(EveLayer layer, out byte[] painted, out byte[] mirrored)
+        {
+            painted = null;
+            mirrored = null;
+            if (painter == null || layer == null || !layer.LayoutKnown) return false;
+            PaintSet set = painter.SetFor(layer.ShiftDeg, layer.Mirrored);
+            if (!set.Primed) return false;
+            painted = MapPainter.ReadBackRed(set.Coverage);
+            return mirror.TryGetMaps(set, out mirrored, out _);
+        }
+
+        // The paint set a layer is bound to (null while its layout is unknown or there is no painter).
+        internal PaintSet SetOfLayer(EveLayer layer)
+        {
+            return painter != null && layer != null && layer.LayoutKnown ? painter.SetFor(layer.ShiftDeg, layer.Mirrored) : null;
+        }
+
+        internal int PaintWidth { get { return painter != null ? painter.Width : 0; } }
+        internal int PaintHeight { get { return painter != null ? painter.Height : 0; } }
+
+        // Has EVE build the layer again (what the GUI and EVE's managers do), for the forced-apply rows.
+        internal static bool ForceApply(EveLayer layer)
+        {
+            if (layer == null || layer.Object == null) return false;
+            System.Reflection.MethodInfo apply = layer.Object.GetType().GetMethod("Apply", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance,
+                null, Type.EmptyTypes, null);
+            if (apply == null) return false;
+            apply.Invoke(layer.Object, null);
+            return true;
         }
 
         public void OnBodyChanged(CelestialBody oldBody, CelestialBody newBody)
@@ -79,6 +137,7 @@ namespace ReDefinition.Atmospheres
                 preCullSubscribed = false;
             }
             if (ReferenceEquals(Services.EveFieldSuppressor, ground)) Services.EveFieldSuppressor = null;
+            if (ReferenceEquals(Current, this)) Current = null;
         }
 
         public void Tick(float dt)
@@ -122,6 +181,10 @@ namespace ReDefinition.Atmospheres
                     preCullSubscribed = true;
                 }
                 RunEve(now, c, b);
+            }
+            else
+            {
+                FetchForShell(now, b);
             }
             RunPictures(now, c, b, eveMode, ownMode);
             PublishStats(now);
@@ -261,6 +324,19 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // Without EVE the shell is the only reader of the maps: they are fetched and uploaded once a second.
+        private void FetchForShell(float now, CelestialBody b)
+        {
+            if (now < nextPaint) return;
+            nextPaint = now + 1f;
+            IWeatherField field = WeatherHub.Field;
+            if (field is NullField) return;
+            double ut = Planetarium.GetUniversalTime();
+            if (!field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Coverage, ut, painter.CoverageMap)) return;
+            if (!field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Precipitation, ut, painter.LevelMap)) return;
+            painter.Upload(painter.CoverageMap, painter.LevelMap);
+        }
+
         private void OnEveApply()
         {
             applyFlag = true;
@@ -324,8 +400,9 @@ namespace ReDefinition.Atmospheres
                 bool wanted = ShellWanted(b);
                 if (wanted && far)
                 {
-                    if (!shell.Calibrated || !shell.Visible) shell.Update(b, true);
-                    shellShown = shell.Visible;
+                    shell.Update(b, true);
+                    // Visible once the picture exists; until then it is painted as soon as the shell knows its layout.
+                    shellShown = shell.Visible || (shell.Calibrated && painter.Orbit(MapPainter.OrbitShell) == null);
                 }
                 else
                 {

@@ -1,0 +1,21 @@
+# Linked into the weather player for package C23 (the cloud-map painter): the painter, its maths and the field types it names. One glob
+# per line, matched against repo-relative paths (see tools/build_weather_player.py). The shader sources go into Resources.
+src/Atmospheres/Eve/MapPainter.cs
+src/Atmospheres/Eve/MapSlew.cs
+src/Atmospheres/Eve/MapPaintModel.cs
+src/Atmospheres/Eve/EveMapLayout.cs
+src/Atmospheres/Eve/EveCoverageMath.cs
+src/Atmospheres/Eve/EveSwirlMath.cs
+src/Atmospheres/Eve/OrbitPicture.cs
+src/Atmospheres/Eve/CloudTypeEncoding.cs
+# The field's types: the map the painter takes, the enums and the precipitation scale.
+src/Common/**/WeatherMap.cs
+src/Common/**/IWeatherField.cs
+src/Common/**/WeatherSample.cs
+src/Common/**/PrecipScale.cs
+src/Common/**/Forecast.cs
+# Mathx is linked by B11 as well; a file named in two manifests is one file.
+src/Atmospheres/**/Mathx.cs
+# Shaders: the three passes and the shell.
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresMapPaint.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresMapPaintShell.shader

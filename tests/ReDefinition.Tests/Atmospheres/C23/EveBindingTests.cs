@@ -211,7 +211,7 @@ namespace ReDefinition.Tests.Atmospheres.C23
         public void SlotsComeFromTheTypeNamesAndTheRoleLists()
         {
             var rules = new CloudRules(snowTypeNames: new[] { "SnowLight" }, stratusTypeNames: new[] { "SnowStratus" });
-            TypeSlots slots = TypeSlots.FromNames(new[] { "Rain", "SnowLight", "SnowStratus", "Storm-core" }, rules);
+            TypeSlots slots = TypeRoles.FromNames(new[] { "Rain", "SnowLight", "SnowStratus", "Storm-core" }, rules);
             Assert.AreEqual(4, slots.Count);
             Assert.AreEqual(1, slots.IndexOf(CloudRole.SnowLight));
             Assert.AreEqual(2, slots.IndexOf(CloudRole.SnowStratus));

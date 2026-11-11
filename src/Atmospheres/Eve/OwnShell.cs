@@ -66,13 +66,25 @@ namespace ReDefinition.Atmospheres
         {
             if (lastFrame == Time.frameCount && ReferenceEquals(b, body)) return;
             lastFrame = Time.frameCount;
-            if (b == null || !show || picture() == null || b.scaledBody == null)
+            if (b == null || !show || b.scaledBody == null)
             {
                 Hide();
                 return;
             }
             if (!ReferenceEquals(b, body) || shell == null) Build(b);
             if (shell == null) return;
+            if (!calibrated)
+            {
+                // The picture cannot be laid on this body's scaled mesh (its pole axis is not the body's): no shell.
+                Hide();
+                return;
+            }
+            if (picture() == null)
+            {
+                // Built and calibrated; the module paints the picture next (the layout is known now) and the shell shows from then on.
+                Hide();
+                return;
+            }
             material.SetTexture("_Picture", picture());
             Vector3 sun = SunDirection(b);
             material.SetVector("_SunDir", sun);
