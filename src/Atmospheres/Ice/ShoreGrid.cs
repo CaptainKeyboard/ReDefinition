@@ -7,8 +7,11 @@ namespace ReDefinition.Atmospheres
     // the south pole), because the heights are read from the PQS in that frame. Four bytes a texel:
     //   R  the shore term 0..255: how early the water freezes, from the distance to the nearest land (a chamfer distance that knows the
     //      texel's length on the sphere) and the depth (shallow freezes first);
-    //   G  the mean of R over the sea texels around (the footprint of one texel of the field's 256 x 128 map), so that the shore term
-    //      minus its mean has zero mean over a field texel (IceMask keeps the field's fraction);
+    //   G  the mean of R over the sea texels in a 9 x 9 box (the bilinear support of a sample of the field's 256 x 128 map: one field
+    //      texel is 4 x 4 texels here, the support reaches one field texel to each side), so that the shore term minus its mean has
+    //      about zero mean over that support (IceMask keeps the field's fraction). The mean is a box average, the shader samples the
+    //      field map bilinearly, and IceMask clamps the local fraction to 0..1: near coasts the mean is therefore approximate, and
+    //      IceOrbitPicture.CoastCoverage measures the remaining bias (row D35.coast.error_cpu);
     //   B  255 on the sea, 0 on land;
     //   A  the depth term 0..255 (1 at the shore, 0 from 200 m down), for the look.
     // The distance is a two-pass chamfer transform (Borgefors) with the texel's length on the sphere as the step.
@@ -23,7 +26,8 @@ namespace ReDefinition.Atmospheres
         internal const float ShoreShare = 0.65f;
         // The depth in metres from which the depth term is 0.
         internal const float DepthScaleM = 200f;
-        // The half width in texels of the box that gives the mean (4: the footprint of a texel of the 256 x 128 field map).
+        // The half width in texels of the box that gives the mean: 4 texels, one texel of the 256 x 128 field map to each side, the
+        // bilinear support of a field sample (the box is 9 texels wide, 2.25 field texels).
         internal const int MeanRadius = 4;
 
         // Whether a height is sea: at or below the sea level of the body.

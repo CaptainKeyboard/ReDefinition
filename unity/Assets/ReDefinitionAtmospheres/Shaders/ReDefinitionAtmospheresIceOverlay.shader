@@ -7,7 +7,8 @@
 // thickness from _IceMap (the field's 256 x 128 map), the coast from _ShoreMap (ShoreGrid), the drift offset. Open water, leads and
 // the cut at the coast are DISCARD, so the real ocean (Scatterer's waves and foam, or the stock ocean) shows through unchanged: the
 // water logic is never modified. Thin ice is a dither on the world-fixed lattice of the sphere (not the screen), so temporal upscalers
-// see no shimmer. The sheet writes depth (queue 2504, after Scatterer's ocean at 2502) and is raised by _Lift metres along the normal.
+// see no shimmer [VERIFY under TAA, DLSS, FSR and XeSS at 5 km: the 1 m lattice is untested there]. Thin ice is therefore a stipple on an
+// opaque pass: there is no blending, and no water is seen through thin ice. The sheet writes depth (queue 2504, after Scatterer's ocean at 2502) and is raised by _Lift metres along the normal.
 //
 // Pass 0 draws the sheet. Pass 1 (coverage) and pass 2 (hash) are for the series probe: Graphics.Blit into a float target, no camera.
 // Pass 1 evaluates the ice on a window of latitude and longitude and writes (ice, lead, sea, local fraction); pass 2 evaluates the
@@ -72,14 +73,18 @@ Shader "ReDefinition/AtmospheresIce"
     // ---- the hash (IceHash.cs) ----------------------------------------------------------------------------------------------------
     uint IceMix(uint v)
     {
-        uint state = v * 747796405u + 2891336453u;
-        uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-        return (word >> 22u) ^ word;
+        // lowbias32, Chris Wellons' hash-prospector (The Unlicense)
+        v ^= v >> 16u;
+        v *= 0x7feb352du;
+        v ^= v >> 15u;
+        v *= 0x846ca68bu;
+        v ^= v >> 16u;
+        return v;
     }
 
     uint IceCell(int3 c, uint seed)
     {
-        return IceMix(asuint(c.x) * 0x8DA6B343u + IceMix(asuint(c.y) * 0xD8163841u + IceMix(asuint(c.z) * 0xCB1AB31Fu + seed)));
+        return IceMix(IceMix(IceMix(seed + asuint(c.z)) + asuint(c.y)) + asuint(c.x));
     }
 
     float IceUnit(uint h)
@@ -119,7 +124,7 @@ Shader "ReDefinition/AtmospheresIce"
             }
         }
         cellHash = nearest;
-        return float3(f1, f2, IceUnit(IceMix(nearest ^ 0x68E31DA4u)));
+        return float3(f1, f2, IceUnit(IceMix(nearest ^ 0x6A09E667u)));
     }
 
     float IceCorner(int3 c, uint seed)
@@ -293,7 +298,7 @@ Shader "ReDefinition/AtmospheresIce"
                 // The dither: a cell of the sphere-fixed lattice (about a metre), so it does not move with the camera or the jitter.
                 int3 cell = (int3)floor(dir * _Fade.w);
                 uint seed = ((uint)_SeedHi << 16u) | (uint)_SeedLo;
-                float dither = IceUnit(IceCell(cell, seed ^ 0x5851F42Du));
+                float dither = IceUnit(IceCell(cell, seed ^ 0xBB67AE85u));
                 float opacity = _Aid > 0.5 ? 1.0 : r.opacity;
                 if (dither >= opacity * fade) discard;
                 if (_Aid > 0.5) return fixed4(1, 0, 1, 1);

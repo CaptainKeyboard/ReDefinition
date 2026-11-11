@@ -45,18 +45,17 @@ namespace ReDefinition.Tests.Atmospheres.D35
         public void TheShaderUsesTheSameHashConstantsAndTheSameOperationsAsTheCpu()
         {
             string text = Compact(OverlayText());
-            Assert.IsTrue(text.Contains("uint state = v * " + IceHash.PcgMultiplier + "u + " + IceHash.PcgIncrement + "u;"), "PCG state");
-            Assert.IsTrue(text.Contains("uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * " + IceHash.PcgWordMultiplier + "u;"), "PCG word");
-            Assert.IsTrue(text.Contains("return (word >> 22u) ^ word;"), "PCG output");
-            Assert.IsTrue(text.Contains("IceMix(asuint(c.x) * 0x8DA6B343u + IceMix(asuint(c.y) * 0xD8163841u + IceMix(asuint(c.z) * 0xCB1AB31Fu + seed)))"), "the cell hash");
-            Assert.AreEqual(0x8DA6B343u, IceHash.PrimeX);
-            Assert.AreEqual(0xD8163841u, IceHash.PrimeY);
-            Assert.AreEqual(0xCB1AB31Fu, IceHash.PrimeZ);
+            Assert.IsTrue(text.Contains("v ^= v >> 16u; v *= 0x7feb352du; v ^= v >> 15u; v *= 0x846ca68bu; v ^= v >> 16u; return v;"), "the lowbias32 mixer");
+            Assert.AreEqual(0x7feb352du, IceHash.MixMultiplierA);
+            Assert.AreEqual(0x846ca68bu, IceHash.MixMultiplierB);
+            Assert.IsTrue(text.Contains("IceMix(IceMix(IceMix(seed + asuint(c.z)) + asuint(c.y)) + asuint(c.x))"), "the cell hash");
             Assert.IsTrue(text.Contains("IceMix(h + 0x9E3779B9u)") && text.Contains("IceMix(h + 0x7F4A7C15u)"), "the jitter salts");
             Assert.AreEqual(0x9E3779B9u, IceHash.JitterYSalt);
             Assert.AreEqual(0x7F4A7C15u, IceHash.JitterZSalt);
-            Assert.IsTrue(text.Contains("IceUnit(IceMix(nearest ^ 0x68E31DA4u))"), "the cell value");
-            Assert.AreEqual(0x68E31DA4u, IceHash.ValueSalt);
+            Assert.IsTrue(text.Contains("IceUnit(IceMix(nearest ^ 0x6A09E667u))"), "the cell value");
+            Assert.AreEqual(0x6A09E667u, IceHash.ValueSalt);
+            Assert.IsTrue(text.Contains("seed ^ 0xBB67AE85u"), "the dither salt");
+            Assert.AreEqual(0xBB67AE85u, IceHash.DitherSalt);
             Assert.IsTrue(text.Contains("return (h >> 8u) * (1.0 / 16777216.0);"), "the unit number");
             Assert.IsTrue(text.Contains("0.1 + 0.8 * float3("), "the jitter range");
             Assert.AreEqual(0.1f, IceHash.JitterLow);

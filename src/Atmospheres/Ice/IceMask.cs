@@ -51,7 +51,7 @@ namespace ReDefinition.Atmospheres
     // A floe is a Worley cell of the pattern (a drifting 3D domain: the direction on the sphere times the cells per radius, plus the
     // drift offset). Each cell has one number in [0, 1) that is uniform over cells; the cell is ice where that number is below the local
     // fraction, so the share of ice cells is the local fraction (exactly in the mean). The local fraction is the field's with two
-    // additions that have zero mean over the footprint of a field texel: the shore term (cells near the coast freeze first, the coast
+    // additions that have about zero mean over the bilinear support of a field sample (ShoreGrid's 9 x 9 box; the clamps and the box average make it approximate near coasts, IceOrbitPicture.CoastCoverage measures it): the shore term (cells near the coast freeze first, the coast
     // term minus its local mean, scaled by 2 min(f, 1 - f) so that nothing changes at 0 and 1) and the low-frequency noise that ragged
     // the pack edge (also scaled by 2 min(f, 1 - f), more away from the shore). Leads are the band of the Worley border (F2 - F1 below
     // a width) in an ice cell; the cell test is raised by the area the band takes (ice cells are chosen with p = local / (1 - band
@@ -85,7 +85,9 @@ namespace ReDefinition.Atmospheres
         // The thickness at which ice starts to hide the water, and the thickness of fully opaque ice, in metres.
         internal const float ThinM = 0.02f;
         internal const float ThickM = 0.30f;
-        // The opacity of the thinnest ice: a sheen, not a mirror of the water.
+        // The opacity of the thinnest ice: a sheen, not a mirror of the water. Known limit: the orbit shell hides the planet's sun glint
+        // only where its alpha is opaque; thin ice (this floor) lets part of the glint through, and the planet's colour map is untouched
+        // (a glint hook would be a change to the scaled-space shader).
         internal const float ThinOpacity = 0.15f;
         // How much the thickness varies between the floes of one field value (0 to 1).
         internal const float ThicknessSpread = 0.25f;
@@ -95,7 +97,7 @@ namespace ReDefinition.Atmospheres
         internal static readonly IceState None = new IceState();
 
         // The ice at a point. (dx, dy, dz) is the unit direction from the body's centre in the sphere's frame; fieldFraction and
-        // thicknessM are the field's at that place; shore and shoreMean are the coast term at the point and its mean over the footprint
+        // thicknessM are the field's at that place; shore and shoreMean are the coast term at the point and its mean over the support
         // of the field's texel (ShoreGrid); (ox, oy, oz) is the drift offset in cell units. The point must be on the sea: the caller
         // passes a sea test.
         internal static IceState Evaluate(IceParams p, float dx, float dy, float dz, float fieldFraction, float thicknessM, float shore, float shoreMean,

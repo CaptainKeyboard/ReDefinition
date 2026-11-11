@@ -104,6 +104,43 @@ namespace ReDefinition.Atmospheres
             new[] { 0.15, 0.25 }, new[] { 0.85, 0.25 }, new[] { 0.15, 0.45 }, new[] { 0.85, 0.45 }
         };
 
+        // How many of the four boxes lie on the sea: the rays through the box centre and its four corners meet the sphere of the sea level
+        // and the coast map says sea at every hit. A box on land or in the sky makes the near rows void (a magenta share that cannot reach 1
+        // because the box is not on water must not be read as the sheet failing, and a clean control over land is no evidence either).
+        // [VERIFY] The frame's row 0 is taken as the bottom of the picture (Texture2D.ReadPixels), so a box centre cy is a viewport y.
+        private static int BoxesOnSea(IceBodyState state, CelestialBody body)
+        {
+            Camera cam = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
+            if (cam == null || state == null || state.Shore == null) return 0;
+            Quaternion toSphere = Quaternion.Inverse(body.bodyTransform != null ? body.bodyTransform.rotation : body.transform.rotation);
+            double seaRadius = state.SeaRadiusM;
+            Vector3d centre = body.position;
+            int onSea = 0;
+            for (int b = 0; b < Boxes.Length; b++)
+            {
+                bool all = true;
+                for (int k = 0; k < 5 && all; k++)
+                {
+                    double vx = Boxes[b][0] + (k == 1 || k == 3 ? -0.05 : k == 2 || k == 4 ? 0.05 : 0.0);
+                    double vy = Boxes[b][1] + (k == 1 || k == 2 ? -0.05 : k == 3 || k == 4 ? 0.05 : 0.0);
+                    Ray ray = cam.ViewportPointToRay(new Vector3((float)vx, (float)vy, 0f));
+                    Vector3d o = (Vector3d)ray.origin - centre;
+                    Vector3d d = ((Vector3d)ray.direction).normalized;
+                    double bq = Vector3d.Dot(o, d);
+                    double c = Vector3d.Dot(o, o) - seaRadius * seaRadius;
+                    double disc = bq * bq - c;
+                    if (disc < 0.0) { all = false; break; }
+                    double t = -bq - Math.Sqrt(disc);
+                    if (t <= 0.0) { all = false; break; }
+                    Vector3 dirWorld = (Vector3)(o + d * t).normalized;
+                    Vector3 dir = toSphere * dirWorld;
+                    if (!ShoreGrid.IsSeaAt(state.Shore, dir.x, dir.y, dir.z)) all = false;
+                }
+                if (all) onSea++;
+            }
+            return onSea;
+        }
+
         // Reads the frame at the end of this frame (the screen, with the interface hidden by the caller).
         private IEnumerator<ProbeWait> Capture(ReconHost host, Action<ReconFrame> done)
         {
@@ -234,6 +271,9 @@ namespace ReDefinition.Atmospheres
             var meanSouth = new double[4];
             var phaseReady = new bool[4];
             double worstError = 0.0;
+            double worstCoast = 0.0;
+            double maxCoastField = 0.0;
+            int coastN = 0;
             for (int k = 0; k < 4; k++)
             {
                 double ut = ut0 + k * year / 4.0;
@@ -298,10 +338,29 @@ namespace ReDefinition.Atmospheres
                     if (w == 0) meanNorth[k] = fieldMean;
                     if (w == 1) meanSouth[k] = fieldMean;
                 }
+                // The coast zone: the same comparison where the shore term is high, to see the bias of the mean preservation near shores.
+                {
+                    double iceCoast, fieldCoast;
+                    int coastSamples;
+                    IceOrbitPicture.CoastCoverage(inputs, -85.0, 85.0, -180.0, 180.0, 0.25, IceOrbitPicture.CoastZoneShore, out iceCoast, out fieldCoast, out coastSamples);
+                    string coastPrefix = "D35.phase." + k + ".coast.";
+                    Emit(coastPrefix + "sea_samples", coastSamples);
+                    Emit(coastPrefix + "field_fraction", fieldCoast);
+                    Emit(coastPrefix + "rendered_cpu", iceCoast);
+                    if (coastSamples >= 400)
+                    {
+                        coastN++;
+                        maxCoastField = Math.Max(maxCoastField, fieldCoast);
+                        worstCoast = Math.Max(worstCoast, Math.Abs(iceCoast - fieldCoast));
+                    }
+                }
                 phaseReady[k] = true;
                 yield return ProbeWait.Frames(1);
             }
             Emit("D35.coverage_worst_error", worstError);
+            Emit("D35.coast.phases_measured", coastN);
+            Emit("D35.coast.error_cpu", worstCoast);
+            Emit("D35.coast.max_field_fraction", maxCoastField);
             bool allPhases = phaseReady[0] && phaseReady[1] && phaseReady[2] && phaseReady[3];
             Emit("D35.seasons_differ", allPhases && Math.Abs(meanNorth[0] - meanNorth[2]) + Math.Abs(meanSouth[1] - meanSouth[3]) > 0.02);
 
@@ -443,6 +502,11 @@ namespace ReDefinition.Atmospheres
                     Emit(prefix + "control_magenta_max", controlMax);
                     Emit(prefix + "natural_luma_change", lumaDiff / Boxes.Length);
                     Emit(prefix + "frame_changed", aid.LitFraction() > 0.0 && Math.Abs(sum / Boxes.Length - controlMax) > 0.2);
+                    int boxesOnSea = BoxesOnSea(state, body);
+                    Emit(prefix + "boxes_on_sea", boxesOnSea);
+                    // 1 when the sheet hides the water in every box of a clean, on-water measurement; 0 otherwise. At 5 km this number is the
+                    // answer to the open RECON P10/P11 question; the rows around it fail when the measurement is void.
+                    Emit(prefix + "hides_water", boxesOnSea == Boxes.Length && controlMax <= 0.01 && min >= 0.95);
                 }
 
                 // The cost of the sheet in frame time at 500 m: on against off.

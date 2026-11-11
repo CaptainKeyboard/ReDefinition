@@ -49,6 +49,8 @@ namespace ReDefinition.Atmospheres
 
         public void Tick(float dt)
         {
+            if (AtmospheresSettings.Enabled && AtmospheresSettings.SeaIce == SeaIceMode.Physical)
+                AtmospheresLog.WarnOnce("sea ice: seaIce = Physical is not built (no collider, buoyancy or passability, work package 8); it draws like OrbitAndGround.");
             bool any = IceTuning.OrbitWanted || IceTuning.GroundOverlayWanted;
             if (!any)
             {

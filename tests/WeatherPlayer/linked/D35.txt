@@ -1,0 +1,8 @@
+# Linked into the weather player for the sea ice (D35, scene ice-check): the hash and noises, the mask, the coast map and the probe's GPU
+# helper (Graphics.Blit passes into a float target), plus the overlay shader whose coverage, noise and hash passes the scene runs. The
+# module, the clipmap sheet, the orbit layer and the height reader name game types and are not linked.
+src/Atmospheres/Ice/IceHash.cs
+src/Atmospheres/Ice/IceMask.cs
+src/Atmospheres/Ice/ShoreGrid.cs
+src/Atmospheres/Ice/Probe/IceGpu.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresIceOverlay.shader

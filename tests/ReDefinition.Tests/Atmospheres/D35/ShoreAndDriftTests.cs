@@ -94,6 +94,37 @@ namespace ReDefinition.Tests.Atmospheres.D35
         }
 
         [TestMethod]
+        public void TheIceShareInTheCoastZoneKeepsTheFieldsFractionWithinTheBias()
+        {
+            // One continent at 100 to 140 degrees longitude, sea shelf around it; a fixed field fraction on the sea. The coast zone is
+            // where the shore term moves the ice and where the clamps of IceMask.Evaluate bite, so this is the place the mean can drift.
+            float[] h = Planet((lat, lon) => lon >= 100.0 && lon < 140.0 && Math.Abs(lat) < 70.0);
+            for (int i = 0; i < h.Length; i++)
+                if (h[i] < 0f) h[i] = (i % ShoreGrid.Width) % 64 < 32 ? -30f : -4000f;
+            var input = new IceInputs { Shore = ShoreGrid.Build(h, 0f, Radius) };
+            input.Params.RadiusM = Radius;
+            double worst = 0;
+            var report = new System.Text.StringBuilder();
+            foreach (float f in new[] { 0.1f, 0.3f, 0.5f, 0.7f, 0.9f })
+            {
+                input.ForcedFraction = f;
+                double ice, field;
+                int n;
+                IceOrbitPicture.CoastCoverage(input, -60.0, 60.0, 60.0, 180.0, 0.1, IceOrbitPicture.CoastZoneShore, out ice, out field, out n);
+                Assert.IsTrue(n > 5000, "the coast zone holds " + n + " samples at fraction " + f);
+                double error = ice - field;
+                report.Append(" f=" + f + ":" + error.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
+                worst = Math.Max(worst, Math.Abs(error));
+            }
+            Assert.IsTrue(worst <= CoastBiasLimit, "the coast-zone bias over the fractions is " + worst + " (limit " + CoastBiasLimit + ");" + report);
+        }
+
+        // The bias of the ice share against the field's fraction that is accepted in the coast zone: measured 0.002 to 0.004 on this
+        // planet at the five fractions (sampling noise of this grid is about 0.005); the series row D35.coast.error_cpu allows 0.05
+        // because the real field varies inside a window.
+        private const double CoastBiasLimit = 0.02;
+
+        [TestMethod]
         public void ShallowWaterFreezesBeforeDeepWater()
         {
             // No land at all, two depths: the shallow half has the higher term.

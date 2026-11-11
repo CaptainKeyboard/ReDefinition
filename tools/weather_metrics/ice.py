@@ -7,6 +7,9 @@ unity/Assets/ReDefinitionAtmospheres/Shaders/ReDefinitionAtmospheresIceOverlay.s
     python tools/weather_metrics/ice.py golden            prints the golden table as C# array literals (paste into IceHashTests)
     python tools/weather_metrics/ice.py check <file.json> compares a GPU dump (rows of the series probe) with this implementation
     python tools/weather_metrics/ice.py coverage <file.json> prints the coverage rows of a series result (field against rendered)
+
+As a module of the weather player's series it registers the series "ice" (python tools/build_weather_player.py --series ice): the
+scene ice-check runs the overlay shader's hash, noise and coverage passes on the player's GPU against the CPU code (IceCheckScene).
 """
 import json
 import math
@@ -15,15 +18,13 @@ import sys
 
 M32 = 0xFFFFFFFF
 
-PCG_MULTIPLIER = 747796405
-PCG_INCREMENT = 2891336453
-PCG_WORD_MULTIPLIER = 277803737
+# lowbias32 of Chris Wellons' hash-prospector (The Unlicense); the same mixer as PrecipMath.Hash.
+MIX_MULTIPLIER_A = 0x7FEB352D
+MIX_MULTIPLIER_B = 0x846CA68B
 JITTER_Y_SALT = 0x9E3779B9
 JITTER_Z_SALT = 0x7F4A7C15
-VALUE_SALT = 0x68E31DA4
-PRIME_X = 0x8DA6B343
-PRIME_Y = 0xD8163841
-PRIME_Z = 0xCB1AB31F
+VALUE_SALT = 0x6A09E667
+DITHER_SALT = 0xBB67AE85
 JITTER_LOW = 0.1
 JITTER_SPAN = 0.8
 
@@ -34,13 +35,17 @@ def f32(x):
 
 
 def mix(v):
-    state = (v * PCG_MULTIPLIER + PCG_INCREMENT) & M32
-    word = ((((state >> ((state >> 28) + 4)) ^ state) & M32) * PCG_WORD_MULTIPLIER) & M32
-    return ((word >> 22) ^ word) & M32
+    v &= M32
+    v ^= v >> 16
+    v = (v * MIX_MULTIPLIER_A) & M32
+    v ^= v >> 15
+    v = (v * MIX_MULTIPLIER_B) & M32
+    v ^= v >> 16
+    return v
 
 
 def cell(x, y, z, seed):
-    return mix((((x & M32) * PRIME_X) + mix((((y & M32) * PRIME_Y) + mix((((z & M32) * PRIME_Z) + seed) & M32)) & M32)) & M32)
+    return mix((mix((mix((seed + (z & M32)) & M32) + (y & M32)) & M32) + (x & M32)) & M32)
 
 
 def unit(h):
@@ -141,6 +146,15 @@ def coverage(path):
         worst = max(worst, error)
         print("%-24s field %.3f rendered %.3f error %.3f %s" % (row["name"], row["field"], row["rendered"], error, "ok" if error <= 0.05 else "OVER"))
     return 0 if worst <= 0.05 else 1
+
+
+try:
+    from weather_metrics import Stage, register_series
+    from weather_metrics.core import player_judged
+
+    register_series("ice", [Stage("scene", ["-mode", "scene", "-scene", "ice-check"])], player_judged("scene"), exclusive=False)
+except ImportError:
+    pass  # run as a script: the golden, check and coverage commands need no series
 
 
 if __name__ == "__main__":

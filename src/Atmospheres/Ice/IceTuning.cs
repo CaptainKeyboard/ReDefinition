@@ -35,10 +35,6 @@ namespace ReDefinition.Atmospheres
         // 1: the sheet draws flat magenta where it is (the aid view of the series).
         internal const string AidKey = "ice.aid";
 
-        // The thickness in metres above which a vehicle could pass over the ice; information only (physical ice is not built).
-        internal const string PassThicknessKey = "ice.passThicknessM";
-        internal const float PassThicknessDefault = 0.3f;
-
         // How often the orbit picture is made again at the earliest (real seconds) and how much game time must pass for it.
         internal const double PictureStepSeconds = 2.0;
         internal const double PictureGameStepSeconds = 1800.0;

@@ -169,6 +169,37 @@ namespace ReDefinition.Atmospheres
             fieldMean = sea > 0 ? sum / sea : 0.0;
         }
 
+        // The shore term (R channel of the coast map, 0 to 1) from which a sea sample counts as the coast zone: with the 65 percent coast
+        // share it holds the water within roughly 40 km of land (at the 42 km shore length of Kerbin) and the shallow shelf, which is
+        // where the shore term moves the ice and the clamps of IceMask.Evaluate bite.
+        internal const float CoastZoneShore = 0.3f;
+
+        // WindowCoverage restricted to the coast zone: only sea samples whose shore term is at least minShore are counted. The row
+        // D35.coast.* compares the two numbers there, so that the bias of the mean preservation near shores is a measured number.
+        internal static void CoastCoverage(IceInputs input, double latMin, double latMax, double lonMin, double lonMax, double stepDeg, float minShore,
+            out double iceShare, out double fieldMean, out int seaSamples)
+        {
+            int sea = 0, ice = 0;
+            double sum = 0;
+            for (double lat = latMin + stepDeg / 2; lat < latMax; lat += stepDeg)
+                for (double lon = lonMin + stepDeg / 2; lon < lonMax; lon += stepDeg)
+                {
+                    double x, y, z, u, v;
+                    input.Frame.Direction(lat, lon, out x, out y, out z);
+                    ShoreGrid.Uv(x, y, z, out u, out v);
+                    if (input.Shore != null && ShoreGrid.Sample(input.Shore, 0, u, v) < minShore) continue;
+                    bool onSea;
+                    IceState s = StateAtDirection(input, x, y, z, lat, lon, out onSea);
+                    if (!onSea) continue;
+                    sea++;
+                    if (s.Ice) ice++;
+                    sum += input.ForcedFraction >= 0f ? input.ForcedFraction : input.Params.Permanent ? 1.0 : Math.Min(1.0, Math.Max(0.0, input.Fraction.Sample(lat, lon)));
+                }
+            seaSamples = sea;
+            iceShare = sea > 0 ? ice / (double)sea : 0.0;
+            fieldMean = sea > 0 ? sum / sea : 0.0;
+        }
+
         private static byte ToByte(float v)
         {
             v = v < 0f ? 0f : v > 1f ? 1f : v;
