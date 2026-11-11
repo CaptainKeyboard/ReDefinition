@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using ReDefinition.Atmospheres;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace ReDefinition.WeatherPlayer
 {
@@ -65,6 +66,34 @@ namespace ReDefinition.WeatherPlayer
         }
 
         private int minGpuFrames = int.MaxValue;
+
+        // One block with only the depth copy attached (no lamp is drawn): the cost of the copy at the size of the brief, apart from the
+        // draws. The copy is a full-size RFloat blit every drawn frame, so it is reported on its own.
+        private IEnumerator CopyBlock(FrameTimers timers, int copies, Action<double> done)
+        {
+            Detach();
+            Pass.EnsureDepth(Cam.targetTexture.width, Cam.targetTexture.height);
+            DepthBuffer = new CommandBuffer { name = "lamp depth copy only" };
+            DrawBuffer = new CommandBuffer { name = "lamp draws none" };
+            for (int k = 0; k < copies; k++) Pass.RecordDepthCopy(DepthBuffer);
+            Cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, DepthBuffer);
+            Cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, DrawBuffer);
+            // The copy buffer is on the camera at the event the module uses; a block without it would read as a free copy.
+            bool attached = false;
+            foreach (CommandBuffer attachedBuffer in Cam.GetCommandBuffers(CameraEvent.BeforeForwardAlpha)) if (attachedBuffer == DepthBuffer) attached = true;
+            copyAttached &= attached;
+            yield return Frames(Settle);
+            timers.Clear();
+            for (int i = 0; i < BlockFrames; i++)
+            {
+                yield return Frames(1);
+                timers.Sample();
+            }
+            if (timers.GpuFrames < minGpuFrames) minGpuFrames = timers.GpuFrames;
+            done(timers.GpuMean);
+        }
+
+        private bool copyAttached = true;
 
         // 16 lamps in a 4 x 4 grid 1.2 m apart: four times the load of Four(), for the timer's sensitivity control.
         private LampDraw[] Sixteen()
@@ -146,6 +175,47 @@ namespace ReDefinition.WeatherPlayer
             Sink.AtLeast("timer.sixteen_to_four_ratio", controlMean / Math.Max(mean, 1e-6), 1.5);
             // At least 60 % of the frames of every block carry a GPU time (29 of 40 in one earlier run).
             Sink.AtLeast("gpu_frames_min_per_block", minGpuFrames == int.MaxValue ? 0 : minGpuFrames, 0.6 * BlockFrames);
+
+            // The depth copy alone between off blocks, as the control above: its bound is the share of the 0.5 ms the copy takes.
+            // Cycles of off, one copy, off, eight copies (the sensitivity control: eight times the load of the copy, which the timer must
+            // see), off.
+            var copy = new List<double>();
+            var copy8 = new List<double>();
+            var copyOff = new List<double>();
+            yield return Block(timers, null, 0, v => value = v);
+            copyOff.Add(value);
+            for (int c = 0; c < Cycles; c++)
+            {
+                yield return CopyBlock(timers, 1, v => value = v);
+                copy.Add(value);
+                yield return Block(timers, null, 0, v => value = v);
+                copyOff.Add(value);
+                yield return CopyBlock(timers, 8, v => value = v);
+                copy8.Add(value);
+                yield return Block(timers, null, 0, v => value = v);
+                copyOff.Add(value);
+            }
+            var copyDiffs = new List<double>();
+            double copySum = 0, copy8Sum = 0;
+            for (int c = 0; c < Cycles; c++)
+            {
+                double baseline1 = 0.5 * (copyOff[2 * c] + copyOff[2 * c + 1]);
+                double baseline8 = 0.5 * (copyOff[2 * c + 1] + copyOff[2 * c + 2]);
+                copyDiffs.Add(copy[c] - baseline1);
+                copySum += copy[c] - baseline1;
+                copy8Sum += copy8[c] - baseline8;
+            }
+            double copyMean = copySum / Cycles, copy8Mean = copy8Sum / Cycles, copySquares = 0;
+            foreach (double d in copyDiffs) copySquares += (d - copyMean) * (d - copyMean);
+            double copySpread = Math.Sqrt(copySquares / (Cycles - 1));
+            double copyUpper = copyMean + 2.36 * copySpread / Math.Sqrt(Cycles);
+            Sink.Info("gpu_ms.depth_copy_only", copyMean);
+            Sink.Info("gpu_ms.depth_copy_x8", copy8Mean);
+            Sink.AtMost("gpu_ms.depth_copy_noise", copySpread, 0.15);
+            Sink.Flag("depth_copy_attached", copyAttached);
+            Sink.AtLeast("timer.sensitive_to_8_copies", copy8Mean, 0.05);
+            Sink.AtLeast("gpu_frames_min_per_block_with_copies", minGpuFrames == int.MaxValue ? 0 : minGpuFrames, 0.6 * BlockFrames);
+            Sink.AtMost("depth_copy_ms_2560x1440", copyUpper, 0.3);
 
             // The positive control: the lamps really draw into the 2560x1440 target (the mean of the added light over the frame), so that
             // a cost near zero is a cheap draw and not a draw that did not happen.

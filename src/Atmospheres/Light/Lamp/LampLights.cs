@@ -17,6 +17,7 @@ namespace ReDefinition.Atmospheres
         private readonly List<Known> known = new List<Known>(32);
         private readonly List<Light> buffer = new List<Light>(8);
         private readonly Dictionary<int, Light> byId = new Dictionary<int, Light>(32);
+        private readonly Dictionary<int, Vessel> vesselById = new Dictionary<int, Vessel>(32);
         private double lastRefresh = double.NegativeInfinity;
 
         internal const double RefreshSeconds = 1.0;
@@ -35,14 +36,12 @@ namespace ReDefinition.Atmospheres
             return l;
         }
 
-        // The vessel a lamp belongs to, or null when the lamp is not in the list.
+        // The vessel a lamp belongs to, or null when the lamp is not in the list. One dictionary lookup, so that the per-frame cost of a
+        // drawn lamp does not grow with the number of lights in the list (50 lights on a vessel).
         internal Vessel VesselOf(int id)
         {
-            for (int i = 0; i < known.Count; i++)
-            {
-                if (known[i].Light != null && known[i].Light.GetInstanceID() == id) return known[i].Vessel;
-            }
-            return null;
+            Vessel v;
+            return vesselById.TryGetValue(id, out v) ? v : null;
         }
 
         // Lists the lights of the vessels near the camera. A vessel counts when its centre is within the active range plus its own size
@@ -53,6 +52,7 @@ namespace ReDefinition.Atmospheres
             lastRefresh = now;
             known.Clear();
             byId.Clear();
+            vesselById.Clear();
             List<Vessel> vessels = FlightGlobals.VesselsLoaded;
             if (vessels == null) return;
             Vessel active = FlightGlobals.ActiveVessel;
@@ -78,6 +78,7 @@ namespace ReDefinition.Atmospheres
                         if (l == null || (l.type != LightType.Spot && l.type != LightType.Point)) continue;
                         known.Add(new Known { Light = l, Vessel = vessel });
                         byId[l.GetInstanceID()] = l;
+                        vesselById[l.GetInstanceID()] = vessel;
                     }
                 }
             }
@@ -105,6 +106,7 @@ namespace ReDefinition.Atmospheres
         {
             known.Clear();
             byId.Clear();
+            vesselById.Clear();
             lastRefresh = double.NegativeInfinity;
         }
     }

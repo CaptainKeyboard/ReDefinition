@@ -76,12 +76,15 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // The cloud density at a world position, 0 to 1: the larger of the volume pass's and EVE's.
+        // The cloud density at a world position, 0 to 1: the larger of the volume pass's and EVE's. Tuning lamp.forceCloudDensity (default
+        // 0, a test forcing for the series probe: the cloud source of the chain from density to sigma to beam without a real cloud) is a
+        // floor under it everywhere.
         internal float CloudDensity(Vector3 world, CelestialBody body, ref LampTuning t)
         {
             float own = VolumePass.DensityAt(world);
             float eve = EveDensity(world, body, ref t);
-            return Math.Max(own, eve);
+            float forced = Tuning.Get("lamp.forceCloudDensity", 0f);
+            return Math.Max(Math.Max(own, eve), forced);
         }
 
         private float EveDensity(Vector3 world, CelestialBody body, ref LampTuning t)

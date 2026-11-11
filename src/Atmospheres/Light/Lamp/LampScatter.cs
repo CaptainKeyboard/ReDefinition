@@ -18,17 +18,26 @@ namespace ReDefinition.Atmospheres
     // AfterForwardAlpha. With no lamp within 150 m or a sigma below 1e-4 nothing is attached, nothing is copied: zero cost.
     //
     // Two ways to compose, one look (LampPass and one shader), as the precipitation renderer does:
-    //   Scene  the command buffers above, before the upscaler. Smear of the additive beam under DLSS is measured at 20 deg/s; more than
-    //          3 frames moves the lamp to Host.
-    //   Host   after the upscaler through ReDefinition.Api with the host's render-size depth; chosen by weatherCompose Auto only where
-    //          Tuning lamp.hostProven.<vendor> is set (the smear measurement). The colour is scaled by lamp.hostGain; the
-    //          luminance-relative exposure rule of the veil is not applied here [VERIFY: needs the image-luminance capture of
-    //          PrecipPass, which is not a shared service].
+    //   Scene  the command buffers above, before the upscaler. The smear of the additive beam (no motion vectors) after a turn of 20
+    //          deg/s under DLSS, FSR and XeSS is NOT measured yet: the player's scene mode has no upscaler, and no K-W3b run has
+    //          happened. The rows D32.smear_frames_scene / D32.smear_frames_host of tests/series/rows/D32.json measure it in the
+    //          game; the rule is "Scene while the smear is at most 3 frames, else Host".
+    //   Host   after the upscaler through ReDefinition.Api with the host's render-size depth. It is NOT selectable until the exposure
+    //          rule below exists: the composite needs Tuning flag lamp.hostAllowed (default false; the series probe sets it for its own
+    //          Host measurement, E40 sets it together with lamp.hostProven.<vendor> once the exposure factor is in). The colour is
+    //          scaled by lamp.hostGain; the luminance-relative exposure rule of the veil (scale by the same factor as the veil) is not
+    //          applied here [VERIFY: needs the image-luminance capture of PrecipPass, which is not a shared service]. weatherCompose
+    //          Host and Auto therefore both give Scene today.
     //
     // Motion vectors: none written. Depth: none written; the beam is clipped against a copy of the scene depth. Masks: no reactive mask
-    // (DLSS has none), the draw is a command buffer and no scene object. Frame generation: the beam is part of the picture before the
-    // HUD-less copy. Raytracing: not an input (RT sees the Unity light itself; the beam is only scattering, no double count).
-    // Exposure: scene units in Scene mode. Order: transparent queue after EVE's composite.
+    // (DLSS has none), the draw is a command buffer and no scene object. Frame generation: both composites are drawn before the
+    // HUD-less copy by their place in the frame (Scene: at AfterForwardAlpha, before the upscaler; Host: in the hook after the upscaler
+    // that the host runs before TUFX and the HUD-less copy, master plan 6.1) [VERIFY with a HUD-less capture of the frame-generation
+    // replay in E40]. Raytracing: not an input (RT sees the Unity light itself; the beam is only scattering, no double count) [VERIFY
+    // with an RT-on start]. Exposure: scene units in Scene mode. Order: transparent queue after EVE's composite.
+    //
+    // Shared service: Init writes Services.PostUpscale when it still holds the null object (the precipitation renderer does the same);
+    // whoever assigns first owns the bridge, and Shutdown unregisters only this module's hook.
     [AtmospheresModule(65)]
     internal sealed class LampScatter : IAtmospheresModule
     {
@@ -92,6 +101,16 @@ namespace ReDefinition.Atmospheres
         internal static double CpuMs { get; private set; }
         internal static int EveLayers { get; private set; }
         internal static int KnownLights { get; private set; }
+
+        // The lights that were on, a lamp by the module's rules (intensity, range) and within reach at the last scoring: what the
+        // module could draw, as opposed to KnownLights, which counts the lights of the parts whether they are on or not.
+        internal static int LitCandidates { get; private set; }
+
+        // The first drawn lamp of the last frame: where it is, which way it points and how far it reaches (world space), for the probe
+        // that puts its sample points on the beam. Valid while LastDrawCount > 0.
+        internal static Vector3 FirstDrawPosition { get; private set; }
+        internal static Vector3 FirstDrawAxis { get; private set; }
+        internal static float FirstDrawRange { get; private set; }
 
         // The cloud density the lamp scatter would see at a world position (the probe samples EVE's layers and the volume pass with it).
         internal float ProbeCloudDensity(Vector3 world, CelestialBody body)
@@ -165,7 +184,9 @@ namespace ReDefinition.Atmospheres
         //   lamp.rescoreHz 5 (1-10)  lamp.minIntensity 0.1 (0-1)  lamp.minRangeM 2 (0-10)  lamp.glintAmp 0.35 (0-1)
         //   lamp.glintSizeM 0.5 (0.2-2)  lamp.precipExponent 1.3 (1-2)  lamp.maxSigma 0.5 (0.1-1)
         //   lamp.hostGain 1 (0.2-3)  lamp.jitterFrames 0 (0-8)
-        //   flags lamp.src.fog / .precip / .cloud / .dust true, lamp.depthFlipY false, lamp.hostProven.<nvidia|amd|intel|other> false
+        //   lamp.forceCloudDensity 0 (0-1, a test floor under the cloud density)
+        //   flags lamp.src.fog / .precip / .cloud / .dust true, lamp.depthFlipY false, lamp.rtExplicit true,
+        //   lamp.hostAllowed false (Host composite selectable at all), lamp.hostProven.<nvidia|amd|intel|other> false
         // The ranges are the tuning ranges proposed here, not enforced.
         internal static LampTuning ReadTuning()
         {
@@ -283,7 +304,8 @@ namespace ReDefinition.Atmospheres
             // The mode and its cross-fade.
             // The hook counts as answering once it was called, and for the first 120 frames after the registration; a hook that was
             // registered and never called leaves the Scene composite in charge.
-            bool hostUsable = hostRegistered && !hostFailed && Services.PostUpscale.DepthAvailable
+            // The Host composite is not selectable without lamp.hostAllowed (the exposure rule is missing, see the header).
+            bool hostUsable = Tuning.Flag("lamp.hostAllowed", false) && hostRegistered && !hostFailed && Services.PostUpscale.DepthAvailable
                               && (lastHostCallFrame >= 0 || Time.frameCount - hostRegisterFrame < 120)
                               && !(compose.HostWeight > 0f && lastHostCallFrame >= 0 && Time.frameCount - lastHostCallFrame > 3 && Drawing);
             bool pairProven = Tuning.Flag("lamp.hostProven." + VendorKey(), false);
@@ -302,6 +324,7 @@ namespace ReDefinition.Atmospheres
                 lastScore = now;
                 Vessel hide = CameraInsideActiveVessel() ? vessel : null;
                 lights.Candidates(camPos, hide, ref t, candidates);
+                LitCandidates = candidates.Count;
                 QualityTier tier = AtmospheresSettings.QualityTier != QualityTier.Auto ? AtmospheresSettings.QualityTier : WeatherHooks.Caps.Tier;
                 selector.Rescore(candidates, Math.Min(LampMath.Cap(AtmospheresSettings.LightCount, tier), MaxDraws));
             }
@@ -399,6 +422,12 @@ namespace ReDefinition.Atmospheres
                 d.GlintAmp = LampMath.GlintDepth(t.GlintAmp, view.Level, s.Parts.Precip, s.Parts.Total);
                 draws[drawCount++] = d;
             }
+            if (drawCount > 0)
+            {
+                FirstDrawPosition = draws[0].Position;
+                FirstDrawAxis = draws[0].Axis;
+                FirstDrawRange = draws[0].Range;
+            }
             // The medium at the first lamp of the set, whether or not a lamp is drawn (the probe reads it every frame).
             LastSigma = firstParts;
             LastSigmaCamera = firstCamera;
@@ -460,9 +489,15 @@ namespace ReDefinition.Atmospheres
                 depthBuffer.Clear();
                 depthBuffer.BeginSample("ReDefinition lamp depth");
                 pass.RecordDepthCopy(depthBuffer);
+                // The copy is a blit into its own target; the camera's target is bound again, here and at the start of the draw, so
+                // that neither buffer depends on what Unity does with the target between two camera events (Tuning lamp.rtExplicit,
+                // default on; the series probe measures the beam with it off as well) [VERIFY in K-W3b].
+                bool explicitTarget = Tuning.Flag("lamp.rtExplicit", true);
+                if (explicitTarget) depthBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
                 depthBuffer.EndSample("ReDefinition lamp depth");
                 drawBuffer.Clear();
                 drawBuffer.BeginSample("ReDefinition lamp scene");
+                if (explicitTarget) drawBuffer.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
                 LampFrame f = frame;
                 f.Weight = compose.SceneWeight;
                 pass.Record(drawBuffer, draws, drawCount, ref f, pass.DepthCopy);
@@ -489,6 +524,7 @@ namespace ReDefinition.Atmospheres
         {
             Drawing = false;
             LastDrawCount = 0;
+            LitCandidates = 0;
             drawCount = 0;
             Detach();
             selector.Clear();

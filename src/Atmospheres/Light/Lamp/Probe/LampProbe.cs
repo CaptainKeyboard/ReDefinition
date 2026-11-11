@@ -6,25 +6,51 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The probe of package D32 inside the integrated series K-W3b (start "lights"): the lamp scatter against the running game. What it
-    // measures from inside the game, as rows of the series:
-    //   - D32.lamps_known: the lamps found on the vessels in reach (the series craft carries lights);
-    //   - clear air: no lamp is drawn and no command buffer is attached (zero cost): D32.clear_air_draws, D32.clear_air_buffers;
-    //   - snow forced on a disc round the vessel: with all sources on the lamps are drawn, the buffers are attached and the depth copy
-    //     runs (D32.snow_draws, D32.snow_buffers, D32.snow_depth_copies);
-    //   - the variants all / fog / snow / cloud / dust switch each medium source on its own and report its sigma at the first lamp
-    //     (D32.light_sigma_fog, D32.light_sigma_snow, D32.light_sigma_cloud, D32.light_sigma_dust, with the variant's name);
-    //   - the cloud density at the nearest EVE layer's mid shell in eight directions round the vessel (D32.cloud_density_max): the source
-    //     the lamp reads inside a cloud; flying into a cloud is not scripted;
-    //   - the CPU milliseconds of the module's frame work (D32.cpu_ms).
-    // What it does not measure, and why: the beam's luminance (a pixel read needs the frame source of the game, which the
-    // reconnaissance found unreliable [VERIFY]; the player's lamp-check measures it against the maths), the smear under DLSS, the ghost
-    // metrics and the frame-generation duplicates (proxy runs, E40). Their rows are in tests/series/rows/D32.json as not required.
+    // The probe of package D32 inside the integrated series K-W3b (start "lights"): the lamp scatter against the running game. The
+    // start needs the full mod set (EVE, Scatterer, Deferred, TUFX): RECON found the frame frozen with EVE present and Scatterer
+    // absent, so no frame row means anything in that set (the row D32.scatterer_present is required).
+    //
+    // Steps and rows (all in tests/series/rows/D32.json):
+    //   1. Lamps off. The craft's lights are switched off through KSPActionGroup.Light, and in forced snow nothing is drawn:
+    //      D32.lights_off_candidates, D32.lights_off_draws (the control of the next step). Clear air with the lamps lit:
+    //      D32.lit_candidates (at least one lit lamp), D32.clear_air_draws, D32.clear_air_buffers, D32.clear_air_sigma.
+    //   2. Snow forced on a disc round the vessel, the lamps lit; the variants all / fog / snow / cloud / dust / none switch each
+    //      medium source on its own and report its sigma at the first lamp. The cloud variant adds the test floor
+    //      lamp.forceCloudDensity (0.8): the chain from a cloud density to a sigma to a drawn beam, with the camera inside it too.
+    //      A real EVE cloud is not flown into: the craft stands on the ground or flies the series' own course, and a scripted climb
+    //      to a layer is not reliable; D32.cloud_density_max reports what the real layers give round the vessel.
+    //   3. Frame rows, where a frame source follows the scene (D32.frame_live, a white wall in front of the camera must move the
+    //      luma): the camera is put to a side view of the first lamp's beam, the luma at eight points along the beam is read with the
+    //      scatter on, off and off again (settings lightInMedium 1, 0, 0). D32.beam_delta_snow is on minus off, D32.beam_noise_snow the
+    //      difference of the two off frames, D32.beam_control (variant none: no source, scatter on against off) is the artefact of
+    //      the switch itself; D32.beam_signal_ratio is the beam over the larger of control and noise. The same in the cloud variant
+    //      (D32.cloud_beam_delta). A white wall between camera and beam hides the points behind it: D32.wall_hidden_share.
+    //   4. Under an upscaler (D32.upscaler_active), read from the screen (the picture after it, interface hidden; D32.smear_source_screen):
+    //      the camera turns by 10 degrees at 20 degrees per second; the error of the frames
+    //      after the turn against the converged frame, with the beam and without it, gives D32.smear_frames_dlss_20degps (frames until the
+    //      beam's extra error is under a quarter of its own contribution) and D32.ghost_vs_baseline (the tail error ratio). The
+    //      frame-generation duplicates are measured by the replay of the proxy's dump (tools/replay_fg.ps1, tools/replay_measure.py)
+    //      and are not a probe row.
+    //   5. IVA: with a crew the camera enters the IVA and no lamp of the own vessel is drawn (D32.iva_draws).
+    //   6. The CPU milliseconds of the module's frame work and the depth copy's spread.
+    // Whatever the probe changes (the lights, the camera, the wall) is put back in the finally block.
     [AtmospheresModule(986)]
     internal sealed class LampProbe : SeriesProbe
     {
         internal const string SeriesId = "K-W3b";
         private static readonly string[] Sources = { "fog", "precip", "cloud", "dust" };
+
+        // The test floor of the cloud variant, the density of a thick EVE deck.
+        private const float ForcedCloud = 0.8f;
+        private const int PointCount = 8;
+        private const double PointFrom = 0.15, PointTo = 0.75;
+        private const double BoxSize = 0.012;
+        private const double TurnDegreesPerSecond = 20.0;
+        private const double TurnSeconds = 0.5;
+        private const int TailFrames = 10;
+
+        // The noise of the frame reading in luma: the smallest extra error that counts as a smear (the beam_noise_snow row's limit).
+        private const double SmearNoiseFloor = 0.003;
 
         protected override string SeriesName
         {
@@ -33,12 +59,12 @@ namespace ReDefinition.Atmospheres
 
         protected override double MaxSeconds
         {
-            get { return 12 * 60; }
+            get { return 15 * 60; }
         }
 
         protected override IList<string> DefaultVariants
         {
-            get { return new[] { "all", "fog", "snow", "cloud", "dust" }; }
+            get { return new[] { "all", "fog", "snow", "cloud", "dust", "none" }; }
         }
 
         protected override void ApplyVariant(string name)
@@ -49,11 +75,13 @@ namespace ReDefinition.Atmospheres
                 bool on = name == "all" || source == only;
                 ForceTuning("lamp.src." + source, on ? 1f : 0f);
             }
+            ForceTuning("lamp.forceCloudDensity", name == "cloud" ? ForcedCloud : 0f);
         }
 
         protected override void RevertVariant(string name)
         {
             foreach (string source in Sources) ForceTuning("lamp.src." + source, 1f);
+            ForceTuning("lamp.forceCloudDensity", 0f);
         }
 
         private static string Num(double v)
@@ -61,7 +89,400 @@ namespace ReDefinition.Atmospheres
             return v.ToString("0.#####", CultureInfo.InvariantCulture);
         }
 
+        // Whether an assembly whose name contains the fragment is loaded.
+        private static bool Loaded(string fragment)
+        {
+            foreach (System.Reflection.Assembly a in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                string n = a.GetName().Name;
+                if (n != null && n.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            }
+            return false;
+        }
+
+        // ---- state put back at the end ----
+        private Vessel lightsVessel;
+        private bool lightsWere;
+        private bool cameraSaved;
+        private float savedHeading, savedPitch, savedDistance, savedMinDistance, savedMaxDistance;
+        private bool uiHidden;
+        private ReconHost host;
+        private ReconBall wall;
+        private Material wallMaterial;
+        private Action wallFollow, turnFollow;
+        private readonly List<Action> hooks = new List<Action>();
+
+        private void Restore()
+        {
+            try
+            {
+                if (host != null)
+                {
+                    for (int i = 0; i < hooks.Count; i++) host.PerFrame.Remove(hooks[i]);
+                    hooks.Clear();
+                }
+                RemoveWall();
+                if (host != null)
+                {
+                    ReconHost.Release();
+                    host = null;
+                }
+                if (uiHidden)
+                {
+                    GameEvents.onShowUI.Fire();
+                    uiHidden = false;
+                }
+                // The flight camera first (the mode change resets it), then its own state.
+                if (CameraManager.Instance != null && CameraManager.Instance.currentCameraMode != CameraManager.CameraMode.Flight)
+                {
+                    CameraManager.Instance.SetCameraFlight();
+                }
+                if (cameraSaved && FlightCamera.fetch != null)
+                {
+                    FlightCamera.fetch.minDistance = savedMinDistance;
+                    FlightCamera.fetch.maxDistance = savedMaxDistance;
+                    FlightCamera.fetch.camHdg = savedHeading;
+                    FlightCamera.fetch.camPitch = savedPitch;
+                    FlightCamera.fetch.SetDistanceImmediate(savedDistance);
+                }
+                if (lightsVessel != null && lightsVessel.ActionGroups != null)
+                {
+                    lightsVessel.ActionGroups.SetGroup(KSPActionGroup.Light, lightsWere);
+                }
+            }
+            catch (Exception e)
+            {
+                LogLine("D32: the probe could not put everything back (" + e.GetType().Name + " " + e.Message + ")");
+            }
+            ClearForced();
+        }
+
+        private void RemoveWall()
+        {
+            if (wallFollow != null && host != null) host.PerFrame.Remove(wallFollow);
+            wallFollow = null;
+            if (wall != null) wall.Destroy();
+            wall = null;
+            if (wallMaterial != null) UnityEngine.Object.Destroy(wallMaterial);
+            wallMaterial = null;
+        }
+
         protected override IEnumerator<ProbeWait> Scenario()
+        {
+            try
+            {
+                IEnumerator<ProbeWait> inner = Run();
+                while (inner.MoveNext()) yield return inner.Current;
+            }
+            finally
+            {
+                Restore();
+            }
+        }
+
+        // ---- frame reading ----
+        private ReconFrame frame;
+        private double[] pointU, pointV;
+        private Vector3[] pointWorld;
+        private int pointsInView;
+
+        private IEnumerable<ProbeWait> Capture()
+        {
+            host.Read();
+            double end = Time.realtimeSinceStartup + 10.0;
+            while (host.Reading && Time.realtimeSinceStartup < end) yield return ProbeWait.Frames(1);
+            frame = host.Reading ? null : host.Frame;
+        }
+
+        // The luma of the frame round each beam point, in the order of the points; NaN where the frame is missing or the point is out
+        // of view.
+        private double[] ReadPoints()
+        {
+            var values = new double[PointCount];
+            for (int i = 0; i < PointCount; i++)
+            {
+                if (frame == null || !LampProbeMath.InView(pointU[i], pointV[i], 1.0, 1.0, 0.03))
+                {
+                    values[i] = double.NaN;
+                    continue;
+                }
+                values[i] = LampProbeMath.Mean(ToDoubles(frame.Lumas(pointU[i], pointV[i], BoxSize, BoxSize)));
+            }
+            return values;
+        }
+
+        private static List<double> ToDoubles(List<float> list)
+        {
+            var d = new List<double>(list.Count);
+            for (int i = 0; i < list.Count; i++) d.Add(list[i]);
+            return d;
+        }
+
+        // The mean over the points that are valid in every given array (and in the mask when it is not null).
+        private static double MeanOver(double[] values, bool[] mask)
+        {
+            var list = new List<double>();
+            for (int i = 0; i < values.Length; i++)
+            {
+                if (double.IsNaN(values[i])) continue;
+                if (mask != null && !mask[i]) continue;
+                list.Add(values[i]);
+            }
+            return LampProbeMath.Mean(list);
+        }
+
+        private static double[] Minus(double[] a, double[] b)
+        {
+            var d = new double[a.Length];
+            for (int i = 0; i < a.Length; i++) d[i] = a[i] - b[i];
+            return d;
+        }
+
+        // Puts the screen positions of the beam's points (fractions of the frame) into pointU and pointV for the camera as it is now.
+        private void ProjectPoints(Camera cam)
+        {
+            pointsInView = 0;
+            for (int i = 0; i < PointCount; i++)
+            {
+                Vector3 s = cam.WorldToScreenPoint(pointWorld[i]);
+                pointU[i] = s.z > 0f ? s.x / cam.pixelWidth : -1.0;
+                pointV[i] = s.z > 0f ? s.y / cam.pixelHeight : -1.0;
+                if (LampProbeMath.InView(pointU[i], pointV[i], 1.0, 1.0, 0.03)) pointsInView++;
+            }
+        }
+
+        // The beam's points in the world, from the first drawn lamp (valid while a lamp is drawn).
+        private void CapturePoints()
+        {
+            pointWorld = new Vector3[PointCount];
+            pointU = new double[PointCount];
+            pointV = new double[PointCount];
+            Vector3 lamp = LampScatter.FirstDrawPosition, axis = LampScatter.FirstDrawAxis;
+            // The beam is seen as far as the visibility the medium gives (about 4 / sigma), not to the lamp's whole range.
+            float range = Mathf.Min(LampScatter.FirstDrawRange, 4f / Mathf.Max(LampScatter.LastSigma.Total, 0.001f));
+            for (int i = 0; i < PointCount; i++)
+            {
+                double fx, fy;
+                LampProbeMath.SegmentPoint(0, 0, 1, 0, i, PointCount, PointFrom, PointTo, out fx, out fy);
+                pointWorld[i] = lamp + axis * (range * (float)fx);
+            }
+        }
+
+        // Puts the camera on the side of the beam: the heading (of four) at which the beam's span on the screen is the longest.
+        private IEnumerable<ProbeWait> PlaceCamera()
+        {
+            FlightCamera fc = FlightCamera.fetch;
+            Camera cam = fc.mainCamera;
+            float bestHeading = fc.camHdg;
+            double bestSpan = -1.0;
+            int bestInView = 0;
+            for (int k = 0; k < 4; k++)
+            {
+                float heading = (float)(k * Math.PI / 2.0);
+                fc.maxDistance = Mathf.Max(fc.maxDistance, 60f);
+                fc.minDistance = Mathf.Min(fc.minDistance, 20f);
+                fc.SetDistanceImmediate(30f);
+                fc.camPitch = 10f * Mathf.Deg2Rad;
+                fc.camHdg = heading;
+                yield return ProbeWait.Frames(4);
+                ProjectPoints(cam);
+                double span = Math.Sqrt(Math.Pow(pointU[0] - pointU[PointCount - 1], 2) + Math.Pow(pointV[0] - pointV[PointCount - 1], 2));
+                if (pointsInView >= PointCount - 1 && span > bestSpan)
+                {
+                    bestSpan = span;
+                    bestHeading = heading;
+                    bestInView = pointsInView;
+                }
+            }
+            fc.camHdg = bestHeading;
+            yield return ProbeWait.Seconds(1);
+            ProjectPoints(cam);
+            Emit("D32.beam_points_in_view", pointsInView);
+            Emit("D32.beam_screen_span", Math.Max(bestSpan, 0.0));
+            if (bestInView == 0) LogLine("D32: no camera heading shows the beam");
+        }
+
+        // One sample: the per-point lumas of a frame read now.
+        private double[] lastSample;
+
+        private IEnumerable<ProbeWait> Sample()
+        {
+            foreach (ProbeWait w in Capture()) yield return w;
+            lastSample = ReadPoints();
+        }
+
+        // Scatter on, off, off again, repeated: the beam's mean added luma and the difference of the two off frames.
+        private double abDelta, abNoise;
+        private double[] abOn, abOff;
+
+        private IEnumerable<ProbeWait> MeasureOnOff(int pairs)
+        {
+            var on = new List<double[]>();
+            var off = new List<double[]>();
+            var off2 = new List<double[]>();
+            for (int p = 0; p < pairs; p++)
+            {
+                SetSetting(AtmospheresSettings.Keys.LightInMedium, 1.0);
+                yield return ProbeWait.Seconds(1.5);
+                foreach (ProbeWait w in Sample()) yield return w;
+                on.Add(lastSample);
+                SetSetting(AtmospheresSettings.Keys.LightInMedium, 0.0);
+                yield return ProbeWait.Seconds(1.0);
+                foreach (ProbeWait w in Sample()) yield return w;
+                off.Add(lastSample);
+                yield return ProbeWait.Frames(20);
+                foreach (ProbeWait w in Sample()) yield return w;
+                off2.Add(lastSample);
+            }
+            SetSetting(AtmospheresSettings.Keys.LightInMedium, 1.0);
+            abOn = AverageSamples(on);
+            abOff = AverageSamples(off);
+            var offB = AverageSamples(off2);
+            abDelta = MeanOver(Minus(abOn, abOff), null);
+            var noise = new double[PointCount];
+            for (int i = 0; i < PointCount; i++) noise[i] = Math.Abs(abOff[i] - offB[i]);
+            abNoise = MeanOver(noise, null);
+        }
+
+        private static double[] AverageSamples(List<double[]> samples)
+        {
+            var mean = new double[PointCount];
+            for (int i = 0; i < PointCount; i++)
+            {
+                var list = new List<double>();
+                for (int s = 0; s < samples.Count; s++) if (!double.IsNaN(samples[s][i])) list.Add(samples[s][i]);
+                mean[i] = LampProbeMath.Mean(list);
+            }
+            return mean;
+        }
+
+        // Whether a white wall in front of the camera moves the luma at the frame's centre (target first, then the screen).
+        private IEnumerable<ProbeWait> FrameLiveness(Vessel vessel, Action<bool> done)
+        {
+            Camera cam = FlightCamera.fetch.mainCamera;
+            Shader flat = Shader.Find("Hidden/Internal-Colored");
+            if (flat == null)
+            {
+                done(false);
+                yield break;
+            }
+            var without = new double[2];
+            var with = new double[2];
+            for (int mode = 0; mode < 2; mode++)
+            {
+                host.UseScreen = mode == 1;
+                foreach (ProbeWait w in Capture()) yield return w;
+                without[mode] = frame != null ? LampProbeMath.Mean(ToDoubles(frame.Lumas(0.5, 0.5, 0.04, 0.04))) : double.NaN;
+            }
+            // The wall fields are also what Restore removes, so that an abort in this step leaves no ball in the scene.
+            wallMaterial = ReconMesh.Flat(Color.white, 2000);
+            wall = new ReconBall(vessel, (Vector3d)cam.transform.position + (Vector3d)cam.transform.forward * 4.0 - vessel.CoMD, 3f, wallMaterial, 0);
+            wallFollow = wall.Update;
+            host.PerFrame.Add(wallFollow);
+            yield return ProbeWait.Frames(10);
+            for (int mode = 0; mode < 2; mode++)
+            {
+                host.UseScreen = mode == 1;
+                foreach (ProbeWait w in Capture()) yield return w;
+                with[mode] = frame != null ? LampProbeMath.Mean(ToDoubles(frame.Lumas(0.5, 0.5, 0.04, 0.04))) : double.NaN;
+            }
+            RemoveWall();
+            liveTarget = Math.Abs(with[0] - without[0]) > 0.03;
+            liveScreen = Math.Abs(with[1] - without[1]) > 0.03;
+            host.UseScreen = !liveTarget && liveScreen;
+            done(liveTarget || liveScreen);
+        }
+
+        // Which frame sources followed the scene: the camera's target (before the upscaler) and the screen (after it).
+        private bool liveTarget, liveScreen;
+
+        // The wall: an opaque white ball near the camera, on the line to the middle of the beam, covering the points whose direction is
+        // within 0.8 of its angular radius. Returns by mask which points are behind it.
+        private bool[] PlaceWall(Vessel vessel, Camera cam)
+        {
+            Vector3 camPos = cam.transform.position;
+            Vector3 middle = pointWorld[PointCount / 2];
+            Vector3 toMiddle = (middle - camPos).normalized;
+            const float distance = 3f, radius = 1.2f;
+            Vector3 at = camPos + toMiddle * distance;
+            // A mid grey, not white: a white wall saturates an 8-bit frame and a beam that shows through it could not raise it.
+            wallMaterial = ReconMesh.Flat(new Color(0.25f, 0.25f, 0.25f), 2000);
+            wall = new ReconBall(vessel, (Vector3d)at - vessel.CoMD, radius, wallMaterial, 0);
+            wallFollow = wall.Update;
+            host.PerFrame.Add(wallFollow);
+            double halfAngle = Math.Atan2(radius, distance);
+            var mask = new bool[PointCount];
+            for (int i = 0; i < PointCount; i++)
+            {
+                double angle = Math.Acos(Mathf.Clamp(Vector3.Dot(toMiddle, (pointWorld[i] - camPos).normalized), -1f, 1f));
+                mask[i] = angle < 0.8 * halfAngle;
+            }
+            return mask;
+        }
+
+        private static int Count(bool[] mask)
+        {
+            int n = 0;
+            for (int i = 0; i < mask.Length; i++) if (mask[i]) n++;
+            return n;
+        }
+
+        // The turn: the camera's heading advances by 20 degrees per second for half a second.
+        private IEnumerable<ProbeWait> Turn(float startHeading)
+        {
+            FlightCamera fc = FlightCamera.fetch;
+            fc.camHdg = startHeading;
+            float turned = 0f, target = (float)(TurnDegreesPerSecond * TurnSeconds) * Mathf.Deg2Rad;
+            turnFollow = () =>
+            {
+                if (turned >= target) return;
+                float step = Mathf.Min((float)TurnDegreesPerSecond * Mathf.Deg2Rad * Time.unscaledDeltaTime, target - turned);
+                fc.camHdg += step;
+                turned += step;
+            };
+            host.PerFrame.Add(turnFollow);
+            hooks.Add(turnFollow);
+            while (turned < target) yield return ProbeWait.Frames(1);
+            host.PerFrame.Remove(turnFollow);
+            hooks.Remove(turnFollow);
+        }
+
+        // The errors of the TailFrames frames after a turn against the converged frame at the final heading, with the scatter as set.
+        private double[] tailError;
+        private double[] convergedPoints;
+        private int tailStrideFrames;
+
+        private IEnumerable<ProbeWait> TurnAndTail(float startHeading)
+        {
+            FlightCamera fc = FlightCamera.fetch;
+            Camera cam = fc.mainCamera;
+            fc.camHdg = startHeading;
+            yield return ProbeWait.Frames(60);
+            foreach (ProbeWait w in Turn(startHeading)) yield return w;
+            // The beam's points on the screen at the final heading, which is also the heading of the converged frame.
+            ProjectPoints(cam);
+            var frames = new List<double[]>();
+            int first = Time.frameCount;
+            for (int i = 0; i < TailFrames; i++)
+            {
+                foreach (ProbeWait w in Sample()) yield return w;
+                frames.Add(lastSample);
+            }
+            tailStrideFrames = Math.Max(1, (Time.frameCount - first) / TailFrames);
+            yield return ProbeWait.Frames(120);
+            foreach (ProbeWait w in Sample()) yield return w;
+            convergedPoints = lastSample;
+            tailError = new double[TailFrames];
+            for (int i = 0; i < TailFrames; i++)
+            {
+                var d = new double[PointCount];
+                for (int p = 0; p < PointCount; p++) d[p] = Math.Abs(frames[i][p] - convergedPoints[p]);
+                tailError[i] = MeanOver(d, null);
+            }
+        }
+
+        // ---- the scenario ----
+        private IEnumerator<ProbeWait> Run()
         {
             yield return ProbeWait.Until(() => HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.ActiveVessel != null,
                 330, "the flight");
@@ -75,6 +496,10 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.LightInMedium, 1.0);
             SetSetting(AtmospheresSettings.Keys.LightInMediumStrength, 1.0);
             SetSetting(AtmospheresSettings.Keys.LightCount, 4.0);
+            Emit("D32.scatterer_present", Loaded("scatterer"));
+            Emit("D32.eve_present", Loaded("EVEManager") || Loaded("EVE"));
+            Emit("D32.deferred_present", Loaded("Deferred"));
+            Emit("D32.tufx_present", Loaded("TUFX"));
             yield return ProbeWait.Until(() => LampScatter.Instance != null && LampScatter.KnownLights > 0, 150, "lamps on the vessels");
             Emit("D32.lamps_known", LampScatter.KnownLights);
             if (LampScatter.Instance == null || LampScatter.KnownLights == 0)
@@ -84,15 +509,36 @@ namespace ReDefinition.Atmospheres
             }
             Vessel vessel = FlightGlobals.ActiveVessel;
             CelestialBody body = vessel.mainBody;
+            FlightCamera fc = FlightCamera.fetch;
+            if (fc != null)
+            {
+                cameraSaved = true;
+                savedHeading = fc.camHdg;
+                savedPitch = fc.camPitch;
+                savedDistance = fc.Distance;
+                savedMinDistance = fc.minDistance;
+                savedMaxDistance = fc.maxDistance;
+            }
+            host = ReconHost.Get();
 
-            // Clear air: the module draws nothing and attaches nothing. The forced precipitation is not there yet; the fog of a clear day
-            // is below the least sigma, else the row says so.
+            // 1. The craft's lights off: no lit candidate, nothing drawn (also in snow, below).
+            lightsVessel = vessel;
+            lightsWere = vessel.ActionGroups[KSPActionGroup.Light];
+            Emit("D32.lights_initially_on", lightsWere);
+            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, false);
             yield return ProbeWait.Seconds(4);
+            Emit("D32.lights_off_candidates", LampScatter.LitCandidates);
+
+            // Lights on, clear air: lit candidates exist, nothing is drawn, nothing is attached.
+            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, true);
+            yield return ProbeWait.Seconds(4);
+            Emit("D32.lit_candidates", LampScatter.LitCandidates);
             Emit("D32.clear_air_draws", LampScatter.LastDrawCount);
             Emit("D32.clear_air_buffers", LampScatter.BuffersAttached);
             Emit("D32.clear_air_sigma", LampScatter.LastSigma.Total);
 
-            // Snow round the vessel, the lamps on.
+            // 2. Snow round the vessel. The lights go off first: snow without a lit lamp draws nothing.
+            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, false);
             double ut = Planetarium.GetUniversalTime();
             bool forced = ForcePrecipitation(body.flightGlobalsIndex, vessel.latitude, vessel.longitude, 40.0, 25f, PrecipType.Snow, ut - 10.0, ut + 3600.0);
             Emit("D32.snow_forced", forced);
@@ -101,7 +547,16 @@ namespace ReDefinition.Atmospheres
                 yield return ProbeWait.Until(() => WeatherHooks.View.Active && WeatherHooks.View.Level > 0.25f, 90, "snow at the vessel");
             }
             Emit("D32.snow_level", WeatherHooks.View.Level);
+            yield return ProbeWait.Seconds(4);
+            Emit("D32.lights_off_draws", LampScatter.LastDrawCount);
+            vessel.ActionGroups.SetGroup(KSPActionGroup.Light, true);
+            yield return ProbeWait.Until(() => LampScatter.LitCandidates > 0, 20, "a lit lamp");
 
+            bool live = false;
+            bool liveChecked = false;
+            bool geometry = false;
+            double deltaSnow = double.NaN, noiseSnow = double.NaN, controlDelta = double.NaN;
+            double[] openDelta = null;
             foreach (string name in new List<string>(Variants))
             {
                 BeginVariant(name);
@@ -114,6 +569,12 @@ namespace ReDefinition.Atmospheres
                 if (name == "all" || name == "dust") Emit("D32.light_sigma_dust", s.Dust);
                 Emit("D32.light_sigma_total", s.Total);
                 Emit("D32.variant_draws", LampScatter.LastDrawCount);
+                if (name == "cloud")
+                {
+                    Emit("D32.cloud_forced_density", ForcedCloud);
+                    Emit("D32.cloud_sigma_expected", LampMath.CloudSigma(ForcedCloud, LampTuning.Defaults().CloudSigmaFull));
+                    Emit("D32.cloud_camera_sigma", LampScatter.LastSigmaCamera);
+                }
                 if (name == "all")
                 {
                     Emit("D32.snow_draws", LampScatter.LastDrawCount);
@@ -124,16 +585,137 @@ namespace ReDefinition.Atmospheres
                     Emit("D32.mode_scene", LampScatter.ActiveMode == WeatherCompose.Scene);
                     Emit("D32.depth_copy_varies", LampScatter.Instance.ProbeDepthSpread());
                     Emit("D32.cpu_ms", LampScatter.CpuMs);
+                    if (LampScatter.LastDrawCount > 0 && host != null)
+                    {
+                        CapturePoints();
+                        foreach (ProbeWait w in PlaceCamera()) yield return w;
+                        geometry = pointsInView >= PointCount - 1;
+                    }
+                }
+                if (geometry && !liveChecked)
+                {
+                    liveChecked = true;
+                    foreach (ProbeWait w in FrameLiveness(vessel, v => live = v)) yield return w;
+                    Emit("D32.frame_live", live);
+                }
+                if (geometry && live && (name == "all" || name == "none" || name == "cloud"))
+                {
+                    foreach (ProbeWait w in MeasureOnOff(3)) yield return w;
+                    if (name == "all")
+                    {
+                        deltaSnow = abDelta;
+                        noiseSnow = abNoise;
+                        openDelta = Minus(abOn, abOff);
+                        Emit("D32.beam_delta_snow", deltaSnow);
+                        Emit("D32.beam_noise_snow", noiseSnow);
+                    }
+                    else if (name == "none")
+                    {
+                        controlDelta = abDelta;
+                        Emit("D32.beam_control", Math.Abs(controlDelta));
+                    }
+                    else
+                    {
+                        Emit("D32.cloud_beam_delta", abDelta);
+                        Emit("D32.cloud_beam_noise", abNoise);
+                    }
+                    if (name == "all" && openDelta != null)
+                    {
+                        // The wall between the camera and the beam: the added luma behind it against the same points in the open.
+                        bool[] mask = PlaceWall(vessel, FlightCamera.fetch.mainCamera);
+                        Emit("D32.wall_points_covered", Count(mask));
+                        yield return ProbeWait.Frames(10);
+                        foreach (ProbeWait w in MeasureOnOff(2)) yield return w;
+                        double behind = MeanOver(Minus(abOn, abOff), mask);
+                        double open = MeanOver(openDelta, mask);
+                        Emit("D32.wall_open_delta", open);
+                        Emit("D32.wall_hidden_share", open > 0 ? Math.Max(0.0, behind) / open : 1.0);
+                        RemoveWall();
+                        yield return ProbeWait.Frames(10);
+                    }
                 }
                 EndVariant();
             }
+            if (!double.IsNaN(deltaSnow))
+            {
+                double control = double.IsNaN(controlDelta) ? 0.0 : controlDelta;
+                Emit("D32.beam_signal_ratio", LampProbeMath.SignalRatio(deltaSnow, control, noiseSnow, 0.002));
+            }
 
-            // The cloud density the lamp would read in EVE's layers: eight directions round the vessel, at the nearest layer's mid shell.
+            // 4. Smear and ghost under an upscaler.
+            UpscalerKind upscaler = WeatherHooks.Caps.Upscaler;
+            Emit("D32.upscaler_active", upscaler != UpscalerKind.None);
+            EmitText("D32.upscaler_name", upscaler.ToString());
+            // The camera's target is the picture before the upscaler, so the temporal rows read the screen, the picture after it (with the
+            // interface hidden, as RECON's screen source does). Without a live screen they have no value and fail as missing.
+            bool screenSource = geometry && live && liveScreen;
+            Emit("D32.smear_source_screen", screenSource);
+            if (screenSource && upscaler != UpscalerKind.None && fc != null)
+            {
+                host.UseScreen = true;
+                GameEvents.onHideUI.Fire();
+                uiHidden = true;
+                yield return ProbeWait.Frames(10);
+                ForceTuning("lamp.forceCloudDensity", 0f);
+                float h0 = fc.camHdg;
+                SetSetting(AtmospheresSettings.Keys.LightInMedium, 1.0);
+                foreach (ProbeWait w in TurnAndTail(h0)) yield return w;
+                double[] errorWith = tailError;
+                double[] convOn = convergedPoints;
+                int stride = tailStrideFrames;
+                SetSetting(AtmospheresSettings.Keys.LightInMedium, 0.0);
+                yield return ProbeWait.Seconds(1);
+                foreach (ProbeWait w in TurnAndTail(h0)) yield return w;
+                double[] errorWithout = tailError;
+                double[] convOff = convergedPoints;
+                SetSetting(AtmospheresSettings.Keys.LightInMedium, 1.0);
+                double beam = MeanOver(Minus(convOn, convOff), null);
+                Emit("D32.smear_beam_delta", beam);
+                Emit("D32.smear_capture_stride", stride);
+                Emit("D32.smear_frames_dlss_20degps", LampProbeMath.SmearFrames(errorWith, errorWithout, beam, 0.25, SmearNoiseFloor));
+                var tailWith = new List<double>();
+                var tailWithout = new List<double>();
+                for (int i = 3; i < TailFrames; i++)
+                {
+                    tailWith.Add(errorWith[i]);
+                    tailWithout.Add(errorWithout[i]);
+                }
+                double floor = Math.Max(0.002, 0.25 * Math.Abs(beam));
+                Emit("D32.ghost_vs_baseline", (LampProbeMath.Mean(tailWith) + floor) / (LampProbeMath.Mean(tailWithout) + floor));
+                fc.camHdg = h0;
+                host.UseScreen = false;
+                GameEvents.onShowUI.Fire();
+                uiHidden = false;
+            }
+
+            // 5. The IVA: no lamp of the own vessel is drawn from inside it.
+            bool iva = false;
+            if (vessel.GetCrewCount() > 0 && CameraManager.Instance != null)
+            {
+                try
+                {
+                    iva = CameraManager.Instance.SetCameraIVA();
+                }
+                catch (Exception e)
+                {
+                    LogLine("D32: the IVA could not be entered (" + e.GetType().Name + " " + e.Message + ")");
+                }
+            }
+            Emit("D32.iva_available", iva);
+            if (iva)
+            {
+                yield return ProbeWait.Seconds(4);
+                Emit("D32.iva_draws", LampScatter.LastDrawCount);
+                Emit("D32.iva_candidates", LampScatter.LitCandidates);
+                CameraManager.Instance.SetCameraFlight();
+                yield return ProbeWait.Seconds(2);
+            }
+
+            // 6. The cloud density the lamp would read in EVE's layers: eight directions round the vessel, at the nearest layer's mid shell.
             float best = 0f;
             Vector3d up = (vessel.GetWorldPos3D() - body.position).normalized;
             Vector3d north = body.transform.up;
             Vector3d east = Vector3d.Cross(north, up).normalized;
-            double radius = (vessel.GetWorldPos3D() - body.position).magnitude;
             Emit("D32.eve_layers", LampScatter.EveLayers);
             for (int i = 0; i < 8; i++)
             {

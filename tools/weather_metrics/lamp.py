@@ -12,9 +12,13 @@ composite agreeing with the Scene composite within 5 %.
 Series "lamp-time" runs the scene lamp-time under the exclusive lock: the GPU milliseconds of four lamps in snow at 2560x1440 against the
 frames without them, at most 0.5 ms. It needs the proxy beside the player (the GPU timer); without it the metric fails, it is not skipped.
 
-Open, not part of these series (owner E40 and the K-W3b rows): the smear of the beam under DLSS at 20 degrees a second (the scene mode of
-the player has no upscaler; the turn mode of the runner is not the lamp's), the ghost metrics and the frame-generation duplicates.
-tests/series/rows/D32.json lists them as non-required rows.
+The scene lamp-time also reports the depth copy alone (gpu_ms.depth_copy_only, limit depth_copy_ms_2560x1440).
+
+Not measured by these series: the smear of the beam under DLSS at 20 degrees a second, the ghost metrics and the frame-generation
+duplicates (the scene mode of the player has no upscaler; the turn mode of the runner is not the lamp's). The probe of the game
+(src/Atmospheres/Light/Lamp/Probe/LampProbe.cs, series K-W3b, start lights) measures smear and ghost under the upscaler the game runs;
+the duplicates are decided by the replay of the proxy's dump (.local/plans/atmospheres/D32-kw3b-spec.md). tests/series/rows/D32.json
+holds the rows.
 """
 import os
 import sys

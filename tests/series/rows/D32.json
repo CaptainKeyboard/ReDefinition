@@ -9,7 +9,83 @@
       "start": "lights",
       "metric": "D32.lamps_known",
       "min": 1,
-      "note": "the lamp discovery found spot or point lights on the vessels in reach (the series craft carries lights)"
+      "note": "the lamp discovery found spot or point lights on the vessels in reach (the series craft carries lights); it counts lights that are off as well, so the rows lit_candidates and lights_off_candidates carry the switching"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.scatterer_present",
+      "equals": 1,
+      "note": "the start runs with Scatterer: RECON found the frame frozen with EVE present and Scatterer absent, so no frame or cloud row means anything in that set"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.lights_off_candidates",
+      "equals": 0,
+      "note": "control: with the craft's lights switched off (KSPActionGroup.Light false) no lamp is a lit candidate"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.lit_candidates",
+      "min": 1,
+      "note": "with the lights switched on (KSPActionGroup.Light true) at least one lamp is a lit candidate by the module's rules (intensity, range, reach); the draw rows below count only these"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.lights_off_draws",
+      "equals": 0,
+      "note": "control: in the forced snow with the lights off nothing is drawn, so snow_draws below is the lamps' doing"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.lights_initially_on",
+      "min": 0,
+      "required": false,
+      "note": "informative: the lights' state before the probe switched them (restored at the end)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.eve_present",
+      "min": 0,
+      "required": false,
+      "note": "interaction table (expected effects in .local/plans/atmospheres/D32-kw3b-spec.md): EVE loaded"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.deferred_present",
+      "min": 0,
+      "required": false,
+      "note": "interaction table: Deferred loaded. The shader of D32 is drawn by a command buffer with its own material and does not depend on RECON P8 (a foreign opaque lit shader under Deferred); Deferred's own lights are covered by lit_candidates and the draw rows with this mod present"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.tufx_present",
+      "min": 0,
+      "required": false,
+      "note": "interaction table: TUFX loaded (its bloom of the beam is a look item for E40)"
     },
     {
       "series": "K-W3b",
@@ -18,7 +94,7 @@
       "start": "lights",
       "metric": "D32.clear_air_draws",
       "equals": 0,
-      "note": "clear air: no lamp is drawn (sigma below 1e-4, zero cost)"
+      "note": "clear air with the lamps lit (lit_candidates >= 1): no lamp is drawn (sigma below 1e-4, zero cost); if it fails, clear_air_sigma tells whether the body's real fog or haze is above the least sigma (then the air is not clear) or a source reads wrongly"
     },
     {
       "series": "K-W3b",
@@ -95,7 +171,8 @@
       "metric": "D32.mode_scene",
       "equals": 1,
       "variant": "all",
-      "note": "weatherCompose Auto resolves to Scene while no player metrics are recorded for the vendor (1 = Scene)"
+      "required": false,
+      "note": "informative: weatherCompose resolves to Scene (1 = Scene); it cannot fail while lamp.hostAllowed is false, so it carries no verdict"
     },
     {
       "series": "K-W3b",
@@ -126,11 +203,33 @@
       "package": "D32",
       "start": "lights",
       "metric": "D32.light_sigma_cloud",
+      "min": 0.0001,
+      "variant": "cloud",
+      "unit": "1/m",
+      "note": "cloud alone with the test floor lamp.forceCloudDensity 0.8 (the cloud chain from density to sigma without flying into a cloud, which is not scripted): sigma of the cloud source at the first lamp, 1/m (ATMORESULT light_sigma_cloud), above the least sigma"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cloud_camera_sigma",
+      "min": 0.0001,
+      "variant": "cloud",
+      "unit": "1/m",
+      "note": "cloud variant: sigma at the camera (inside the forced cloud), the term that dims the beam by exp(-sigma d)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cloud_sigma_expected",
       "min": 0,
       "variant": "cloud",
       "unit": "1/m",
-      "note": "cloud alone: sigma of the cloud source at the first lamp, 1/m (ATMORESULT light_sigma_cloud); zero outside a cloud (informative: it reads zero where the source is absent, so the row has no verdict beyond being present)",
-      "required": false
+      "required": false,
+      "note": "informative: LampMath.CloudSigma at the forced density 0.8 with the default full sigma, to read light_sigma_cloud against (the body scale and cloud gain of the running game are applied on top)"
     },
     {
       "series": "K-W3b",
@@ -163,7 +262,7 @@
       "metric": "D32.cloud_density_max",
       "min": 0,
       "required": false,
-      "note": "the cloud density the lamp reads (volume pass and EVE layers) at the best of 64 places round the vessel, 0.5 to 4 km up; flying into a cloud is not scripted, so zero only means the sampled places were clear"
+      "note": "the cloud density the lamp reads (volume pass and EVE layers) at the best of 64 places round the vessel, 0.5 to 4 km up; the real EVE layers at the sampled places; flying into a cloud is not scripted (the cloud rows use the forced floor), so zero only means the sampled places were clear"
     },
     {
       "series": "K-W3b",
@@ -315,6 +414,29 @@
     {
       "series": "player-D32-time",
       "section": "D32",
+      "metric": "depth_copy_ms_2560x1440",
+      "max": 0.3,
+      "unit": "ms",
+      "note": "player (lamp-time): the full-resolution depth copy alone, without any lamp drawn, costs at most 0.3 ms on the upper 95 % bound of 8 alternating differences; it runs every frame a lamp is drawn, so it is reported apart from the draws"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
+      "metric": "depth_copy_attached",
+      "equals": 1,
+      "note": "player (lamp-time): the copy buffer was on the camera at BeforeForwardAlpha in every copy block, so that a low copy cost is a cheap copy and not a missing one"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
+      "metric": "timer.sensitive_to_8_copies",
+      "min": 0.05,
+      "unit": "ms",
+      "note": "player (lamp-time): eight copies in one buffer cost at least 0.05 ms more than none, so that the timer sees copies"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
       "metric": "lamps_draw_into_the_target",
       "min": 0.002,
       "note": "player (lamp-time): the lamps add light to the 2560x1440 target, so that a low cost is a cheap draw"
@@ -324,11 +446,46 @@
       "section": "D32",
       "package": "D32",
       "start": "lights",
+      "metric": "D32.upscaler_active",
+      "equals": 1,
+      "note": "the temporal rows below are only meaningful under an upscaler: the lights start of K-W3b runs with DLSS (the lamp scatter is judged under DLSS first); the same start under FSR and XeSS is the E40 repeat"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.smear_source_screen",
+      "equals": 1,
+      "note": "the temporal rows read the screen (the picture after the upscaler, interface hidden), not the camera's target (before it); 1 when the screen followed the scene in the liveness check"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.smear_beam_delta",
+      "min": 0.004,
+      "note": "the beam exists at the converged frame of the turn test (scatter on minus off, mean luma over the eight beam points), so that the smear is a smear of something"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.smear_capture_stride",
+      "max": 1,
+      "note": "the frame source delivered one frame per capture after the turn (frames between two captures), so that the figure below counts frames"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
       "metric": "D32.smear_frames_dlss_20degps",
       "max": 3,
-      "required": false,
       "unit": "frames",
-      "note": "OPEN (owner E40, proxy run): frames of smear of the beam after a 20 degree per second turn under DLSS K/M/L; at most 3 keeps the Scene composite, else Host (lamp.hostProven.<vendor>)"
+      "note": "frames after a 10 degree turn at 20 degrees per second until the beam's extra error against the converged frame is under a quarter of its own contribution (scatter on against off, same turn); at most 3 keeps the Scene composite, else Host (lamp.hostProven.<vendor> after the exposure rule exists). Name from the brief; the upscaler is the one of upscaler_name"
     },
     {
       "series": "K-W3b",
@@ -337,8 +494,7 @@
       "start": "lights",
       "metric": "D32.ghost_vs_baseline",
       "max": 1.2,
-      "required": false,
-      "note": "OPEN (owner E40): ghost metrics with the lamp on against the baseline without it, at most 1.2 (baseline + 20 %)"
+      "note": "ghost: the mean error of frames 4 to 10 after the turn at the beam points with the beam on, over the same without it (both plus a floor of a quarter of the beam's contribution), at most 1.2 (baseline + 20 %)"
     },
     {
       "series": "K-W3b",
@@ -348,7 +504,7 @@
       "metric": "D32.fg_duplicates_vs_baseline",
       "max": 1.2,
       "required": false,
-      "note": "OPEN (owner E40): frame-generation duplicates with the lamp on against the baseline, at most 1.2"
+      "note": "OPEN, decided by the replay and not by the probe: frame-generation duplicates with the beam on against off at most 1.2. Procedure in .local/plans/atmospheres/D32-kw3b-spec.md (proxy dump of the same turn with lightInMedium 1 and 0, tools/replay_fg.ps1, tools/replay_measure.py); the value is entered into the series table by hand after the replay"
     },
     {
       "series": "K-W3b",
@@ -357,8 +513,128 @@
       "start": "lights",
       "metric": "D32.depth_copy_varies",
       "min": 0.001,
+      "note": "the lamp's copy of the scene depth (made at BeforeForwardAlpha by a shader pass) holds different values at nine places of the picture; a copy of one value is not a copy of a scene. Required: it can fail on the first K-W3b run (RECON P6 measured command-buffer taps, not a material that reads the global); wall_hidden_share is the check that the copy clips the beam"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.frame_live",
+      "equals": 1,
+      "note": "a frame source followed the scene (a white wall 4 m in front of the camera moved the luma at the centre by more than 0.03, target or screen); without it no frame row below has a value"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.beam_points_in_view",
+      "min": 7,
+      "note": "at least 7 of the 8 points along the beam (15 % to 75 % of the reach) are in the picture from the chosen side view"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.beam_delta_snow",
+      "min": 0.004,
+      "note": "forced snow, all sources, lamps lit: the mean luma the scatter adds at the eight beam points (scatter on minus off, three pairs, same pose and state). First thresholds of the series; E40 sets them with the look"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.beam_noise_snow",
+      "max": 0.003,
+      "note": "the noise the beam is read against: mean difference of two scatter-off frames of the same state (the flakes move)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.beam_control",
+      "max": 0.003,
+      "note": "control (variant none, every source off, lamps lit, nothing drawn): the difference of scatter on and off is what the reading shows without any beam (flakes, light changes, the switch itself); the beam is read against it"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.beam_signal_ratio",
+      "min": 3,
+      "note": "beam_delta_snow over the larger of the control, the noise and a floor of 0.002: a beam that is not three times what no beam gives is not seen"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cloud_beam_delta",
+      "min": 0.004,
+      "variant": "cloud",
+      "note": "inside the forced cloud (density floor 0.8 at the lamp and at the camera, precipitation source off): the mean luma the scatter adds at the beam points; in-game luminance in a cloud is measured here and only here (a real EVE cloud is not flown into)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cloud_beam_noise",
+      "max": 0.003,
+      "variant": "cloud",
+      "note": "the noise of the cloud variant's reading (two scatter-off frames)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.wall_points_covered",
+      "min": 3,
+      "note": "the white wall (1.2 m ball, 3 m from the camera, on the line to the middle of the beam) covers at least 3 of the 8 beam points"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.wall_open_delta",
+      "min": 0.004,
+      "note": "the added luma at the covered points without the wall, so that a hidden beam is a beam that was there"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.wall_hidden_share",
+      "max": 0.3,
+      "note": "the added luma at the covered points with the wall over the same without it: at most 30 % of the open beam shows through an opaque wall (the check that the depth copy clips the beam in the game)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.iva_available",
+      "min": 0,
       "required": false,
-      "note": "the lamp's copy of the scene depth (made at BeforeForwardAlpha by a shader pass) holds different values at nine places of the picture; a copy of one value is not a copy of a scene [VERIFY: RECON P6 measured command-buffer taps, not a material that reads the global]; a flight with sky and ground in view is assumed"
+      "note": "the series craft has a crew and the IVA could be entered; when 0 the IVA hiding is unmeasured and the report says so"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.iva_draws",
+      "equals": 0,
+      "required": false,
+      "note": "from inside the own vessel (IVA) no lamp of it is drawn (only emitted when the IVA was entered, hence not required)"
     }
   ]
 }
