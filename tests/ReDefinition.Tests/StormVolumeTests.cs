@@ -141,38 +141,6 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheVolumeStepsComeBackAndAreBroughtIntoTheirRanges()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "volume-settings-" + Guid.NewGuid().ToString("N"));
-            string file = Path.Combine(folder, "settings.cfg");
-            ConfigNode saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                Assert.AreEqual(28, AtmospheresSettings.StormVolumeStepsDefault);
-                AtmospheresSettings.StormVolumeSteps = 40;
-                AtmospheresSettings.Write(file);
-                AtmospheresSettings.StormVolumeSteps = 28;
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(40, AtmospheresSettings.StormVolumeSteps);
-
-                File.WriteAllText(file, "stormVolumeSteps = 3\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(16, AtmospheresSettings.StormVolumeSteps);
-                File.WriteAllText(file, "stormVolumeSteps = 500\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(48, AtmospheresSettings.StormVolumeSteps);
-                File.WriteAllText(file, "stormVolumeSteps = x\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(48, AtmospheresSettings.StormVolumeSteps, "a value that is not a number is ignored");
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                if (Directory.Exists(folder)) Directory.Delete(folder, true);
-            }
-        }
-
-        [TestMethod]
         public void TheSunLightsTheVeilOnlyWhileItIsUp()
         {
             Assert.AreEqual(0.0, StormLook.SunVisibility(-0.2), 1e-9, "no sun term at night");

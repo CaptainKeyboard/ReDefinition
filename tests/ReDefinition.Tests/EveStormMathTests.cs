@@ -572,31 +572,5 @@ namespace ReDefinition.Tests
             Assert.IsTrue(max > 1.0, "a vertex lies past the edge of the map: " + max);
             Assert.IsTrue(max - min < 0.1, "and the fan is not torn across the map: " + (max - min));
         }
-
-        [TestMethod]
-        public void TheStormCloudSettingIsExistingByDefaultAndComesBackFromTheFile()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "storm-clouds-" + Guid.NewGuid().ToString("N"));
-            string file = Path.Combine(folder, "settings.cfg");
-            var saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                AtmospheresSettings.ResetToDefaults();
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Existing, AtmospheresSettings.StormClouds);
-                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Own;
-                AtmospheresSettings.Write(file);
-                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Existing;
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds);
-                File.WriteAllText(file, "stormClouds = nonsense\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds, "a name that is none is ignored");
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                if (Directory.Exists(folder)) Directory.Delete(folder, true);
-            }
-        }
     }
 }

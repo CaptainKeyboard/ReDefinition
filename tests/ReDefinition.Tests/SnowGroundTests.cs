@@ -179,45 +179,5 @@ namespace ReDefinition.Tests
             Assert.IsNull(SeasonState.Choose(1.5f, null), "a forced phase outside the year does not count");
             Assert.AreEqual(0.25, SeasonState.Choose(0.25f, null).Value, 1e-6, "a forced phase needs no clock");
         }
-
-        [TestMethod]
-        public void TheGroundSettingsComeBackAsSavedAndBadValuesAreBroughtIn()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "atmospheres-ground-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
-            ConfigNode saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                string file = Path.Combine(folder, "settings.cfg");
-                AtmospheresSettings.GroundRefreshMode = AtmospheresSettings.GroundRefresh.Rebuild;
-                AtmospheresSettings.RefreshSeconds = 12.5f;
-                AtmospheresSettings.ForcePhase = 0.75f;
-                AtmospheresSettings.Write(file);
-                AtmospheresSettings.GroundRefreshMode = AtmospheresSettings.GroundRefresh.Live;
-                AtmospheresSettings.RefreshSeconds = 5f;
-                AtmospheresSettings.ForcePhase = -1f;
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Rebuild, AtmospheresSettings.GroundRefreshMode);
-                Assert.AreEqual(12.5f, AtmospheresSettings.RefreshSeconds);
-                Assert.AreEqual(0.75f, AtmospheresSettings.ForcePhase);
-
-                File.WriteAllText(file, "groundRefreshMode = nonsense\nrefreshSeconds = 9999\nforcePhase = -4\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Rebuild, AtmospheresSettings.GroundRefreshMode, "a name that is none is ignored");
-                Assert.AreEqual(AtmospheresSettings.RefreshSecondsMax, AtmospheresSettings.RefreshSeconds);
-                Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase, "a negative number means the clock");
-
-                File.WriteAllText(file, "groundRefreshMode = Off\nrefreshSeconds = 0\nforcePhase = 1.5\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Off, AtmospheresSettings.GroundRefreshMode);
-                Assert.AreEqual(AtmospheresSettings.RefreshSecondsMin, AtmospheresSettings.RefreshSeconds);
-                Assert.AreEqual(0.5f, AtmospheresSettings.ForcePhase, "a phase of a year or more wraps");
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                Directory.Delete(folder, true);
-            }
-        }
     }
 }

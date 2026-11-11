@@ -4,8 +4,8 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // Starts ReDefinition Atmospheres once, when the game starts: checks the shared Common DLL, reads the settings and writes one line
-    // into KSP.log.
+    // Starts ReDefinition Atmospheres once, when the game starts: checks the shared Common DLL, reads the settings, adds the body watcher
+    // and the module runner (the modules of the other packages start from there), and writes one line into KSP.log.
     [KSPAddon(KSPAddon.Startup.Instantly, true)]
     internal sealed class AtmospheresStartup : MonoBehaviour
     {
@@ -23,6 +23,8 @@ namespace ReDefinition.Atmospheres
                 AtmospheresLog.WarnOnce("the start-up checks failed and the defaults are used (" + CompatibilityLog.Reason(e) + ")");
             }
             // Each part is added on its own: one that cannot start does not keep the others from it.
+            AddPart<BodyWatcher>();
+            AddPart<ModuleRunner>();
             AddPart<SnowRefresher>();
             AddPart<OrbitSnow>();
             try
@@ -52,20 +54,19 @@ namespace ReDefinition.Atmospheres
         {
             var culture = System.Globalization.CultureInfo.InvariantCulture;
             return (AtmospheresSettings.Enabled ? "on" : "off")
-                   + ", body " + SeasonClock.BodyName
+                   + ", weather effects " + (AtmospheresSettings.WeatherEffects ? "on" : "off")
+                   + ", cloud source " + AtmospheresSettings.CloudSource
                    + ", year length factor " + AtmospheresSettings.YearLengthFactor.ToString(culture)
-                   + ", snow strength " + AtmospheresSettings.SnowStrength.ToString(culture)
-                   + ", winter snow line " + AtmospheresSettings.WinterSnowLine.ToString(culture) + " deg"
-                   + ", ground refresh " + EnumNames<AtmospheresSettings.GroundRefresh>.Name(AtmospheresSettings.GroundRefreshMode)
-                   + " every " + AtmospheresSettings.RefreshSeconds.ToString(culture) + " s"
+                   + ", cover strength " + AtmospheresSettings.CoverStrength.ToString(culture)
                    + (AtmospheresSettings.ForcePhase >= 0f ? ", FORCED PHASE " + AtmospheresSettings.ForcePhase.ToString(culture) : "")
-                   + ", storms " + (AtmospheresSettings.StormsEnabled ? "on, frequency " + AtmospheresSettings.StormFrequency.ToString(culture) : "off")
-                   + ", orbit snow " + (AtmospheresSettings.OrbitSnow ? "on, map width up to " + AtmospheresSettings.OrbitSnowWidth : "off")
-                   + ", storm sky darkening " + AtmospheresSettings.StormSkyDarkening.ToString(culture)
+                   + (AtmospheresSettings.ForceLevel >= 0f ? ", FORCED LEVEL " + AtmospheresSettings.ForceLevel.ToString(culture) : "")
+                   + ", heavy share " + AtmospheresSettings.HeavyShare.ToString(culture)
+                   + ", orbit overlay " + (AtmospheresSettings.OrbitOverlay ? "on, map width up to " + AtmospheresSettings.OrbitMapWidth : "off")
+                   + ", sky dimming " + AtmospheresSettings.SkyDimming.ToString(culture)
                    + ", Parallax " + (TypeLookup.Find("Parallax.ConfigLoader") != null ? "found" : "not found")
                    + ", EVE " + (TypeLookup.Find("Atmosphere.RaymarchedCloudsQualityManager") != null ? "found" : "not found")
-                   + ", EVE snow field: " + (AtmospheresSettings.StormEveSnow ? EveSnowLink.Summary : "off by setting")
-                   + ", EVE rain to snow: " + (AtmospheresSettings.StormEveRainToSnow ? EveRainLink.Summary : "off by setting");
+                   + ", EVE snow field: " + EveSnowLink.Summary
+                   + ", EVE rain to snow: " + (AtmospheresSettings.TypeByTemperature ? EveRainLink.Summary : "off by setting");
         }
     }
 }

@@ -214,48 +214,5 @@ namespace ReDefinition.Tests
             Assert.IsTrue(StormLook.FogBrightness(1) > StormLook.FogBrightness(-1));
             Assert.IsTrue(StormLook.FogBrightness(-1) >= 0.1);
         }
-
-        [TestMethod]
-        public void TheStormSettingsComeBackAndAreBroughtIntoTheirRanges()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "storm-settings-" + Guid.NewGuid().ToString("N"));
-            string file = Path.Combine(folder, "settings.cfg");
-            ConfigNode saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                AtmospheresSettings.StormSeed = 77;
-                AtmospheresSettings.StormVisibilityM = 90f;
-                AtmospheresSettings.StormVeil = 0.4f;
-                AtmospheresSettings.StormSnowfall = false;
-                AtmospheresSettings.ForceStorm = 0.35f;
-                AtmospheresSettings.Write(file);
-                AtmospheresSettings.StormSeed = 1;
-                AtmospheresSettings.StormVisibilityM = 60f;
-                AtmospheresSettings.StormVeil = 0.6f;
-                AtmospheresSettings.StormSnowfall = true;
-                AtmospheresSettings.ForceStorm = -1f;
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(77, AtmospheresSettings.StormSeed);
-                Assert.AreEqual(90f, AtmospheresSettings.StormVisibilityM);
-                Assert.AreEqual(0.4f, AtmospheresSettings.StormVeil);
-                Assert.IsFalse(AtmospheresSettings.StormSnowfall);
-                Assert.AreEqual(0.35f, AtmospheresSettings.ForceStorm);
-
-                File.WriteAllText(file, "stormVisibility = 5\nstormVeil = 7\nforceStorm = 4\nstormSeed = x\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(StormLook.MinVisibilityLow, AtmospheresSettings.StormVisibilityM);
-                Assert.AreEqual(StormLook.VeilMax, AtmospheresSettings.StormVeil);
-                Assert.AreEqual(1f, AtmospheresSettings.ForceStorm);
-                Assert.AreEqual(77, AtmospheresSettings.StormSeed, "a seed that is not a number is ignored");
-                File.WriteAllText(file, "forceStorm = -3\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(-1f, AtmospheresSettings.ForceStorm);
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                if (Directory.Exists(folder)) Directory.Delete(folder, true);
-            }
-        }
     }
 }

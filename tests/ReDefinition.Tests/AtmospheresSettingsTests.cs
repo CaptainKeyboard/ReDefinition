@@ -2,27 +2,21 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
-    // The settings of the atmospheres: every value is brought into its range or ignored, the file lists the keys the player guide lists,
-    // with the same defaults and ranges, and the file is made when it is missing.
+    // The settings of the atmospheres: one table gives every setting its key, default, range, tooltip, category, greyed-out reason and
+    // profile row; every value is brought into its range or ignored, the file lists the keys of the table, and the file is made when it
+    // is missing. (The comparison with the player guide returns when the documentation package rewrites the guide for the new keys.)
     [TestClass]
     public class AtmospheresSettingsTests
     {
-        private static readonly Regex TableRow = new Regex(@"^\| `(?<key>\w+)` \| `(?<default>[^`]*)` \| (?<range>.*?) \| .* \|[ \t\r]*$", RegexOptions.Multiline);
-        private static readonly Regex FileLine = new Regex(@"^\s*(?<key>\w+)\s*=\s*(?<value>.*?)\s*$", RegexOptions.Multiline);
-
-        private static string Repo()
-        {
-            string repo = AppContext.BaseDirectory;
-            while (repo != null && !File.Exists(Path.Combine(repo, "ReDefinition.sln"))) repo = Path.GetDirectoryName(repo);
-            Assert.IsNotNull(repo, "the repository root");
-            return repo;
-        }
+        private static readonly Regex FileLine = new Regex(@"^[ \t]*(?<key>\w+)[ \t]*=[ \t]*(?<value>.*?)[ \t\r]*$", RegexOptions.Multiline);
 
         // The settings after reading a file with that one line, written out again as key to value.
         private static Dictionary<string, string> ReadBack(string line)
@@ -60,69 +54,63 @@ namespace ReDefinition.Tests
         [DataRow("yearLengthFactor", "NaN", "1")]
         [DataRow("yearLengthFactor", "Infinity", "1")]
         [DataRow("yearLengthFactor", "abc", "1")]
-        [DataRow("snowStrength", "-1", "0")]
-        [DataRow("snowStrength", "5", "1")]
-        [DataRow("snowStrength", "NaN", "1")]
-        [DataRow("snowStrength", "abc", "1")]
-        [DataRow("winterSnowLine", "0", "30")]
-        [DataRow("winterSnowLine", "99", "60")]
-        [DataRow("winterSnowLine", "NaN", "42")]
-        [DataRow("winterSnowLine", "abc", "42")]
-        [DataRow("refreshSeconds", "0", "1")]
-        [DataRow("refreshSeconds", "9999", "120")]
-        [DataRow("refreshSeconds", "NaN", "5")]
-        [DataRow("refreshSeconds", "abc", "5")]
-        [DataRow("stormFrequency", "-2", "0")]
-        [DataRow("stormFrequency", "9", "2")]
-        [DataRow("stormFrequency", "NaN", "1")]
-        [DataRow("stormFrequency", "abc", "1")]
-        [DataRow("stormSeed", "12", "12")]
-        [DataRow("stormSeed", "-7", "-7")]
-        [DataRow("stormSeed", "abc", "1")]
-        [DataRow("stormVisibility", "1", "20")]
-        [DataRow("stormVisibility", "9999", "500")]
-        [DataRow("stormVisibility", "NaN", "60")]
-        [DataRow("stormVisibility", "abc", "60")]
-        [DataRow("stormVeil", "-1", "0")]
-        [DataRow("stormVeil", "9", "0.95")]
-        [DataRow("stormVeil", "NaN", "0.85")]
-        [DataRow("stormVeil", "abc", "0.85")]
-        [DataRow("stormSkyDarkening", "-1", "0")]
-        [DataRow("stormSkyDarkening", "9", "1")]
-        [DataRow("stormSkyDarkening", "NaN", "0.6")]
-        [DataRow("stormSkyDarkening", "abc", "0.6")]
-        [DataRow("stormCellRadiusKm", "1", "5")]
-        [DataRow("stormCellRadiusKm", "99", "25")]
-        [DataRow("stormCellRadiusKm", "NaN", "12")]
-        [DataRow("stormCellRadiusKm", "abc", "12")]
-        [DataRow("stormVolumeSteps", "1", "16")]
-        [DataRow("stormVolumeSteps", "999", "48")]
-        [DataRow("stormVolumeSteps", "NaN", "28")]
-        [DataRow("stormVolumeSteps", "abc", "28")]
-        [DataRow("stormMaxCells", "0", "1")]
-        [DataRow("stormMaxCells", "99", "12")]
-        [DataRow("stormMaxCells", "NaN", "6")]
-        [DataRow("stormMaxCells", "abc", "6")]
-        [DataRow("orbitSnowWidth", "1", "1024")]
-        [DataRow("orbitSnowWidth", "99999", "4096")]
-        [DataRow("orbitSnowWidth", "NaN", "2048")]
-        [DataRow("orbitSnowWidth", "abc", "2048")]
-        [DataRow("forceStorm", "-5", "-1")]
-        [DataRow("forceStorm", "9", "1")]
-        [DataRow("forceStorm", "NaN", "-1")]
-        [DataRow("forceStorm", "abc", "-1")]
+        [DataRow("coverStrength", "-1", "0")]
+        [DataRow("coverStrength", "5", "1")]
+        [DataRow("coverStrength", "NaN", "1")]
+        [DataRow("coverStrength", "abc", "1")]
+        [DataRow("heavyShare", "-2", "0")]
+        [DataRow("heavyShare", "9", "2")]
+        [DataRow("heavyShare", "NaN", "1")]
+        [DataRow("lightWeatherFrequency", "9", "2")]
+        [DataRow("simSeed", "12", "12")]
+        [DataRow("simSeed", "-7", "-7")]
+        [DataRow("simSeed", "abc", "1")]
+        [DataRow("simSeed", "2147483647", "2147483647")]
+        [DataRow("blizzardVisibilityM", "1", "20")]
+        [DataRow("blizzardVisibilityM", "9999", "500")]
+        [DataRow("blizzardVisibilityM", "NaN", "60")]
+        [DataRow("veilStrength", "-1", "0")]
+        [DataRow("veilStrength", "9", "0.95")]
+        [DataRow("veilStrength", "abc", "0.85")]
+        [DataRow("skyDimming", "-1", "0")]
+        [DataRow("skyDimming", "9", "1")]
+        [DataRow("skyDimming", "NaN", "0.6")]
+        [DataRow("volumeSteps", "1", "16")]
+        [DataRow("volumeSteps", "999", "48")]
+        [DataRow("volumeSteps", "NaN", "28")]
+        [DataRow("volumeResolution", "0", "0.25")]
+        [DataRow("volumeResolution", "3", "1")]
+        [DataRow("orbitMapWidth", "1", "1024")]
+        [DataRow("orbitMapWidth", "99999", "4096")]
+        [DataRow("orbitMapWidth", "NaN", "2048")]
+        [DataRow("forceLevel", "-5", "-1")]
+        [DataRow("forceLevel", "9", "1")]
+        [DataRow("forceLevel", "NaN", "-1")]
+        [DataRow("forceLevel", "abc", "-1")]
         [DataRow("forcePhase", "-5", "-1")]
         [DataRow("forcePhase", "1.25", "0.25")]
         [DataRow("forcePhase", "NaN", "-1")]
         [DataRow("forcePhase", "abc", "-1")]
+        [DataRow("gustStrength", "0", "0")]
+        [DataRow("gustStrength", "7", "2")]
+        [DataRow("launchMaxWindMs", "-3", "0")]
+        [DataRow("launchMinVisibilityM", "99999", "20000")]
         [DataRow("enabled", "maybe", "True")]
-        [DataRow("storms", "0", "True")]
-        [DataRow("groundRefreshMode", "nonsense", "Live")]
-        [DataRow("groundRefreshMode", "Off", "Off")]
-        [DataRow("stormClouds", "nonsense", "Existing")]
-        [DataRow("stormClouds", "Own", "Own")]
-        [DataRow("forceStormCell", "nonsense", "off")]
-        [DataRow("forceStormCell", "99,200,90", "90,-160,25")]
+        [DataRow("weatherEffects", "0", "True")]
+        [DataRow("weatherEffects", "False", "False")]
+        [DataRow("audioDistantStorm", "True", "True")]
+        [DataRow("cloudSource", "nonsense", "Eve")]
+        [DataRow("cloudSource", "Both", "Both")]
+        [DataRow("cloudSource", "none", "None")]
+        [DataRow("weatherCompose", "Host", "Host")]
+        [DataRow("windSource", "Foreign", "Foreign")]
+        [DataRow("vehicleCover", "Always", "Always")]
+        [DataRow("seaIce", "Physical", "Physical")]
+        [DataRow("alertMinLevel", "Blizzard", "Blizzard")]
+        [DataRow("alertMinLevel", "None", "Heavy")]
+        [DataRow("qualityTier", "Max", "Max")]
+        [DataRow("alertSites", "Home;Pad", "Home;Pad")]
+        [DataRow("forceBody", "Duna", "Duna")]
         public void EveryValueIsBroughtIntoItsRangeOrIgnored(string key, string input, string expected)
         {
             Dictionary<string, string> written = ReadBack(key + " = " + input);
@@ -130,106 +118,188 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void ThePlayerGuideListsTheKeysTheFileWritesAndNoOthers()
+        public void EveryNumberSettingIsBroughtIntoItsRangeFromBothSides()
         {
-            string guide = File.ReadAllText(Path.Combine(Repo(), "docs", "player", "seasons.md"));
-            var documented = new SortedSet<string>();
-            foreach (Match m in TableRow.Matches(guide)) documented.Add(m.Groups["key"].Value);
-
-            string folder = Path.Combine(Path.GetTempPath(), "atmospheres-keys-" + Guid.NewGuid().ToString("N"));
-            try
+            // forcePhase wraps a number into 0 to 1 instead of clamping it; it has its own rows above.
+            foreach (SettingDef def in AtmospheresSettings.Definitions.Where(d => (d.Kind == SettingKind.Float || d.Kind == SettingKind.Int) && d.Key != "forcePhase"))
             {
-                string file = Path.Combine(folder, "settings.cfg");
-                Assert.IsTrue(AtmospheresSettings.Write(file));
-                var written = new SortedSet<string>(Parse(File.ReadAllText(file)).Keys);
-                CollectionAssert.AreEqual(new List<string>(written), new List<string>(documented),
-                    "written: " + string.Join(", ", written) + "; documented: " + string.Join(", ", documented));
-            }
-            finally
-            {
-                if (Directory.Exists(folder)) Directory.Delete(folder, true);
+                string low = def.Format(def.Min);
+                string high = def.Format(def.Max);
+                Assert.AreEqual(low, ReadBack(def.Key + " = -1e30")[def.Key], def.Key + " below");
+                Assert.AreEqual(high, ReadBack(def.Key + " = 1e30")[def.Key], def.Key + " above");
+                Assert.AreEqual(def.Format(def.Default), ReadBack(def.Key + " = oops")[def.Key], def.Key + " not a number");
             }
         }
 
         [TestMethod]
-        public void TheDefaultsInThePlayerGuideAreTheDefaultsTheFileWrites()
+        public void TheKeysClassAndTheTableAgreeKeyForKey()
         {
-            string guide = File.ReadAllText(Path.Combine(Repo(), "docs", "player", "seasons.md"));
-            Dictionary<string, string> defaults;
+            var constants = typeof(AtmospheresSettings.Keys).GetFields(BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)
+                .Where(f => f.IsLiteral).Select(f => (string)f.GetRawConstantValue()).ToList();
+            var keys = AtmospheresSettings.Definitions.Select(d => d.Key).ToList();
+            CollectionAssert.AreEquivalent(constants, keys);
+            Assert.AreEqual(keys.Count, new HashSet<string>(keys).Count, "no key twice");
+            Assert.IsTrue(keys.Count >= 90, "keys: " + keys.Count);
+            foreach (string key in keys) Assert.IsTrue(Regex.IsMatch(key, "^[a-z][a-zA-Z0-9]*$"), key + " is lowerCamelCase");
+        }
+
+        [TestMethod]
+        public void EveryKeyTheBriefsNameIsPreDeclared()
+        {
+            string[] named =
+            {
+                "weatherEffects", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
+                "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "solarDimming", "solarDimmingStrength",
+                "visibilityExport", "simEnabled", "simGrid", "simLevels", "simSliceMs", "simSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
+                "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
+                "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
+                "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
+                "iceCollision", "forecastEnabled", "alertsEnabled", "alertLeadHours", "alertMinLevel", "alertWindMs", "alertWarpStop", "alertKac", "alertMessageApp",
+                "alertSites", "forecastHorizonHours", "forecastUncertainty", "launchMaxLevel", "launchMaxWindMs", "launchMinVisibilityM", "launchLeadHours",
+                "orbitBodies", "qualityGovernor", "forceLevel", "forceType", "forceBody", "forcePhase", "atmoDebug"
+            };
+            foreach (string key in named) Assert.IsNotNull(AtmospheresSettings.Definition(key), key);
+        }
+
+        [TestMethod]
+        public void TheKeysTheContractRemovesAreNotSettings()
+        {
+            foreach (string key in new[] { "iceWinterLine", "freezeLineDeg", "lagYears", "winterSnowLine", "groundRefreshMode", "refreshSeconds", "storms",
+                "stormFrequency", "stormSeed", "stormVisibility", "stormVeil", "stormSnowfall", "stormSkyDarkening", "stormEveSnow", "stormEveRainToSnow", "stormCellRadiusKm",
+                "stormVolume", "stormVolumeSteps", "stormClouds", "stormOwnFlakes", "stormMaxCells", "orbitSnow", "orbitSnowWidth", "forceStorm", "forceStormCell", "snowStrength" })
+            {
+                Assert.IsNull(AtmospheresSettings.Definition(key), key);
+            }
+            Assert.IsFalse(ReadBack("stormFrequency = 1.5").ContainsKey("stormFrequency"), "an old key is neither read nor written");
+        }
+
+        [TestMethod]
+        public void EveryKeyHasADefaultInRangeATooltipInTitleCaseACategoryAndKnownIds()
+        {
+            var words = new Regex(@"^[A-Z0-9]");
+            var problems = new List<string>();
+            foreach (SettingDef def in AtmospheresSettings.Definitions)
+            {
+                if (def.Kind != SettingKind.Text && (def.Default < def.Min || def.Default > def.Max)) problems.Add(def.Key + ": default outside the range");
+                if (string.IsNullOrWhiteSpace(def.Tooltip)) problems.Add(def.Key + ": no tooltip");
+                else
+                {
+                    foreach (string word in def.Tooltip.Split(' '))
+                    {
+                        if (word.Length > 0 && !words.IsMatch(word)) problems.Add(def.Key + ": tooltip word not in Title Case: " + word);
+                    }
+                    if (def.Tooltip.EndsWith(".")) problems.Add(def.Key + ": tooltip ends with a full stop");
+                }
+                if (Array.IndexOf(AtmospheresSettings.Categories.All, def.Category) < 0) problems.Add(def.Key + ": category " + def.Category);
+                if (def.GreyReason.Length > 0 && Array.IndexOf(AtmospheresSettings.GreyReasons.All, def.GreyReason) < 0) problems.Add(def.Key + ": grey reason " + def.GreyReason);
+                if (def.ProfileRow.Length > 0 && Array.IndexOf(AtmospheresSettings.ProfileRows.All, def.ProfileRow) < 0) problems.Add(def.Key + ": profile row " + def.ProfileRow);
+                if (def.Kind == SettingKind.Choice && (def.Choices == null || def.Choices.Length < 2)) problems.Add(def.Key + ": choices");
+                if (def.Kind != SettingKind.Choice && def.Choices != null) problems.Add(def.Key + ": choices on a non-choice");
+            }
+            Assert.AreEqual(0, problems.Count, string.Join("\n", problems));
+            foreach (string category in AtmospheresSettings.Categories.All)
+            {
+                Assert.IsTrue(AtmospheresSettings.Definitions.Any(d => d.Category == category), "an empty category: " + category);
+            }
+        }
+
+        [TestMethod]
+        public void TheGustTooltipSaysWhatGustsDo()
+        {
+            StringAssert.Contains(AtmospheresSettings.Definition("gustStrength").Tooltip, "Visibility And Flake Density Pulse With Wind Gusts");
+            Assert.AreEqual(0.0, AtmospheresSettings.Definition("gustStrength").Min, "0 is off");
+        }
+
+        [TestMethod]
+        public void TheDefaultsAreTheOnesTheContractNames()
+        {
             ConfigNode saved = AtmospheresSettings.Snapshot();
-            string folder = Path.Combine(Path.GetTempPath(), "atmospheres-defaults-" + Guid.NewGuid().ToString("N"));
             try
             {
                 AtmospheresSettings.ResetToDefaults();
+                Assert.AreEqual(1.0f, AtmospheresSettings.VolumeResolution, "full resolution until the half-resolution look is proven");
+                Assert.IsFalse(AtmospheresSettings.AudioDistantStorm, "distant storm sound is off");
+                Assert.AreEqual(LevelChoice.Heavy, AtmospheresSettings.LaunchMaxLevel);
+                Assert.AreEqual(10f, AtmospheresSettings.LaunchMaxWindMs);
+                Assert.AreEqual(1000f, AtmospheresSettings.LaunchMinVisibilityM);
+                Assert.AreEqual(2f, AtmospheresSettings.LaunchLeadHours);
+                Assert.IsFalse(AtmospheresSettings.QualityGovernor, "the governor is off");
+                Assert.AreEqual(AuroraMode.Auto, AtmospheresSettings.Aurora);
+                Assert.AreEqual(ReDefinition.Core.QualityTier.Auto, AtmospheresSettings.QualityTier);
+                Assert.AreEqual(VehicleCoverMode.Landed, AtmospheresSettings.VehicleCover);
+                Assert.IsFalse(AtmospheresSettings.IceCollision);
+                Assert.AreEqual(-1f, AtmospheresSettings.ForceLevel);
+                Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase);
+                Assert.AreEqual(ReDefinition.Core.PrecipBand.Heavy, AtmospheresSettings.BandOf(LevelChoice.Heavy));
+                Assert.AreEqual(ReDefinition.Core.PrecipBand.Flurries, AtmospheresSettings.BandOf(LevelChoice.Flurries));
+                Assert.IsTrue(AtmospheresSettings.PrecipTypeDrawn(ReDefinition.Core.PrecipType.FreezingRain));
+                Assert.IsFalse(AtmospheresSettings.PrecipTypeDrawn(ReDefinition.Core.PrecipType.None));
+            }
+            finally
+            {
+                AtmospheresSettings.Restore(saved);
+            }
+        }
+
+        [TestMethod]
+        public void ChoicesHaveTheNamesOfTheirEnumInOrder()
+        {
+            var pairs = new Dictionary<string, Type>
+            {
+                { "cloudSource", typeof(CloudSourceKind) }, { "weatherCompose", typeof(WeatherCompose) }, { "windSource", typeof(WindSourceMode) },
+                { "windInjection", typeof(WindInjection) }, { "volumeCompose", typeof(VolumeCompose) }, { "aurora", typeof(AuroraMode) },
+                { "audioMuffling", typeof(AudioMuffling) }, { "eveSound", typeof(EveSoundPolicy) }, { "audioBedSource", typeof(AudioBedSource) },
+                { "vehicleCover", typeof(VehicleCoverMode) }, { "seaIce", typeof(SeaIceMode) }, { "orbitBodies", typeof(OrbitBodiesMode) },
+                { "simGrid", typeof(SimGridChoice) }, { "alertMinLevel", typeof(LevelChoice) }, { "launchMaxLevel", typeof(LevelChoice) },
+                { "forceType", typeof(ForceType) }, { "atmoDebug", typeof(AtmoDebugMode) }, { "qualityTier", typeof(ReDefinition.Core.QualityTier) }
+            };
+            foreach (KeyValuePair<string, Type> pair in pairs)
+            {
+                SettingDef def = AtmospheresSettings.Definition(pair.Key);
+                CollectionAssert.AreEqual(Enum.GetNames(pair.Value), def.Choices, pair.Key);
+                Array values = Enum.GetValues(pair.Value);
+                for (int i = 0; i < values.Length; i++) Assert.AreEqual(i, Convert.ToInt32(values.GetValue(i)), pair.Key + " is numbered from 0 in order");
+            }
+            Assert.AreEqual(CloudSourceKind.Eve, AtmospheresSettings.CloudSource);
+        }
+
+        [TestMethod]
+        public void EverySettingComesBackAsItWasWritten()
+        {
+            ConfigNode saved = AtmospheresSettings.Snapshot();
+            string folder = Path.Combine(Path.GetTempPath(), "atmospheres-roundtrip-" + Guid.NewGuid().ToString("N"));
+            try
+            {
+                AtmospheresSettings.ResetToDefaults();
+                // Move every setting off its default, to the top of its range or the last choice.
+                foreach (SettingDef def in AtmospheresSettings.Definitions)
+                {
+                    if (def.Kind == SettingKind.Text) AtmospheresSettings.SetText(def.Key, "a;b");
+                    else AtmospheresSettings.SetNumber(def.Key, Moved(def));
+                }
                 string file = Path.Combine(folder, "settings.cfg");
-                AtmospheresSettings.Write(file);
-                defaults = Parse(File.ReadAllText(file));
+                Assert.IsTrue(AtmospheresSettings.Write(file));
+                ConfigNode written = AtmospheresSettings.Snapshot();
+                AtmospheresSettings.ResetToDefaults();
+                AtmospheresSettings.Read(file);
+                foreach (SettingDef def in AtmospheresSettings.Definitions)
+                {
+                    if (def.Kind == SettingKind.Text) Assert.AreEqual("a;b", AtmospheresSettings.Text(def.Key), def.Key);
+                    else Assert.AreEqual(def.Limit(Moved(def)), AtmospheresSettings.Number(def.Key), def.Key);
+                }
+                Assert.AreEqual(written.values.Count, AtmospheresSettings.Definitions.Count);
             }
             finally
             {
                 AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
-            int checkedKeys = 0;
-            foreach (Match m in TableRow.Matches(guide))
-            {
-                string key = m.Groups["key"].Value, documented = m.Groups["default"].Value;
-                double a, b = 0;
-                bool numbers = double.TryParse(documented, NumberStyles.Float, CultureInfo.InvariantCulture, out a);
-                if (numbers) numbers = double.TryParse(defaults[key], NumberStyles.Float, CultureInfo.InvariantCulture, out b);
-                if (numbers)
-                {
-                    Assert.AreEqual(b, a, 1e-9, key + ": the guide says " + documented + ", the file " + defaults[key]);
-                }
-                else
-                {
-                    Assert.AreEqual(documented, defaults[key], key);
-                }
-                checkedKeys++;
-            }
-            Assert.IsTrue(checkedKeys >= 24, "keys checked: " + checkedKeys);
         }
 
-        [TestMethod]
-        public void TheRangesInThePlayerGuideAreTheLimitsInTheCode()
+        // A value other than the default: the top of the range, or the bottom where the default is the top.
+        private static double Moved(SettingDef def)
         {
-            var limits = new Dictionary<string, string>
-            {
-                { "yearLengthFactor", Range(AtmospheresSettings.YearLengthFactorMin, AtmospheresSettings.YearLengthFactorMax) },
-                { "snowStrength", Range(0f, 1f) },
-                { "stormFrequency", Range(0f, AtmospheresSettings.StormFrequencyMax) },
-                { "stormVisibility", Range(StormLook.MinVisibilityLow, StormLook.MinVisibilityHigh) },
-                { "stormVeil", Range(0f, StormLook.VeilMax) },
-                { "stormSkyDarkening", Range(0f, 1f) },
-                { "stormCellRadiusKm", Range(AtmospheresSettings.StormCellRadiusMinKm, AtmospheresSettings.StormCellRadiusMaxKm) },
-                { "stormVolumeSteps", Range(AtmospheresSettings.StormVolumeStepsMin, AtmospheresSettings.StormVolumeStepsMax) },
-                { "stormMaxCells", Range(AtmospheresSettings.StormMaxCellsMin, AtmospheresSettings.StormMaxCellsMax) },
-                { "orbitSnowWidth", Range(AtmospheresSettings.OrbitSnowWidthMin, AtmospheresSettings.OrbitSnowWidthMax) },
-                { "winterSnowLine", Range((float)SnowMask.LowestWinterLineDegrees, (float)SnowMask.HighestWinterLineDegrees) },
-                { "refreshSeconds", Range(AtmospheresSettings.RefreshSecondsMin, AtmospheresSettings.RefreshSecondsMax) }
-            };
-            string guide = File.ReadAllText(Path.Combine(Repo(), "docs", "player", "seasons.md"));
-            var plainRange = new Regex(@"^-?[\d.]+ to [\d.]+$");
-            int checkedKeys = 0;
-            foreach (Match m in TableRow.Matches(guide))
-            {
-                string key = m.Groups["key"].Value, range = m.Groups["range"].Value;
-                if (!plainRange.IsMatch(range)) continue;
-                Assert.IsTrue(limits.ContainsKey(key), key + " has the range " + range + " in the guide and none in this test");
-                Assert.AreEqual(limits[key], range, key);
-                checkedKeys++;
-            }
-            Assert.AreEqual(limits.Count, checkedKeys, "every limit of the code is in the guide");
-        }
-
-        private static string Range(float min, float max)
-        {
-            return min.ToString("R", CultureInfo.InvariantCulture) + " to " + max.ToString("R", CultureInfo.InvariantCulture);
-        }
-
-        private static string Range(int min, int max)
-        {
-            return min.ToString(CultureInfo.InvariantCulture) + " to " + max.ToString(CultureInfo.InvariantCulture);
+            return def.Default == def.Max ? def.Min : def.Max;
         }
 
         [TestMethod]
@@ -243,12 +313,12 @@ namespace ReDefinition.Tests
                 AtmospheresSettings.ResetToDefaults();
                 Assert.IsTrue(AtmospheresSettings.LoadFrom(file), "made");
                 Assert.IsTrue(File.Exists(file));
-                Assert.AreEqual("2048", Parse(File.ReadAllText(file))["orbitSnowWidth"]);
+                Assert.AreEqual("2048", Parse(File.ReadAllText(file))["orbitMapWidth"]);
 
-                File.WriteAllText(file, "snowStrength = 0.25\n");
+                File.WriteAllText(file, "coverStrength = 0.25\n");
                 Assert.IsFalse(AtmospheresSettings.LoadFrom(file), "read, not made");
-                Assert.AreEqual(0.25f, AtmospheresSettings.SnowStrength);
-                Assert.AreEqual("snowStrength = 0.25\n", File.ReadAllText(file), "the player's file is left as it is");
+                Assert.AreEqual(0.25f, AtmospheresSettings.CoverStrength);
+                Assert.AreEqual("coverStrength = 0.25\n", File.ReadAllText(file), "the player's file is left as it is");
             }
             finally
             {
@@ -265,28 +335,77 @@ namespace ReDefinition.Tests
             {
                 AtmospheresSettings.ResetToDefaults();
                 Assert.IsTrue(AtmospheresSettings.Enabled);
-                Assert.AreEqual(2048, AtmospheresSettings.OrbitSnowWidth);
-                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Live, AtmospheresSettings.GroundRefreshMode);
-                Assert.IsFalse(AtmospheresSettings.ForceCellOn);
+                Assert.AreEqual(2048, AtmospheresSettings.OrbitMapWidth);
                 Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase);
 
-                AtmospheresSettings.StormSeed = 99;
-                AtmospheresSettings.OrbitSnowWidth = 1024;
-                AtmospheresSettings.ForceCellOn = true;
-                AtmospheresSettings.ForceCellLatitude = 50.5;
+                AtmospheresSettings.SetNumber("simSeed", 99);
+                AtmospheresSettings.SetNumber("orbitMapWidth", 1024);
+                AtmospheresSettings.SetText("forceBody", "Eve");
                 ConfigNode changed = AtmospheresSettings.Snapshot();
                 AtmospheresSettings.ResetToDefaults();
-                Assert.AreEqual(1, AtmospheresSettings.StormSeed);
+                Assert.AreEqual(1, AtmospheresSettings.SimSeed);
+                Assert.AreEqual("", AtmospheresSettings.ForceBody);
                 AtmospheresSettings.Restore(changed);
-                Assert.AreEqual(99, AtmospheresSettings.StormSeed);
-                Assert.AreEqual(1024, AtmospheresSettings.OrbitSnowWidth);
-                Assert.IsTrue(AtmospheresSettings.ForceCellOn);
-                Assert.AreEqual(50.5, AtmospheresSettings.ForceCellLatitude);
+                Assert.AreEqual(99, AtmospheresSettings.SimSeed);
+                Assert.AreEqual(1024, AtmospheresSettings.OrbitMapWidth);
+                Assert.AreEqual("Eve", AtmospheresSettings.ForceBody);
             }
             finally
             {
                 AtmospheresSettings.Restore(before);
             }
+        }
+
+        [TestMethod]
+        public void ASetterBringsTheValueIntoItsRangeAndRefusesWhatIsNotASetting()
+        {
+            ConfigNode saved = AtmospheresSettings.Snapshot();
+            try
+            {
+                Assert.IsTrue(AtmospheresSettings.SetNumber("lightCount", 99));
+                Assert.AreEqual(8, AtmospheresSettings.LightCount);
+                Assert.IsTrue(AtmospheresSettings.SetNumber("cameraFrost", 0));
+                Assert.IsFalse(AtmospheresSettings.CameraFrost);
+                Assert.IsFalse(AtmospheresSettings.SetNumber("lightCount", double.NaN));
+                Assert.IsFalse(AtmospheresSettings.SetNumber("noSuchKey", 1));
+                Assert.IsFalse(AtmospheresSettings.SetNumber("forceBody", 1), "a text setting is not a number");
+                Assert.IsFalse(AtmospheresSettings.SetText("lightCount", "x"));
+                Assert.IsFalse(AtmospheresSettings.SetText("forceBody", null));
+            }
+            finally
+            {
+                AtmospheresSettings.Restore(saved);
+            }
+        }
+
+        [TestMethod]
+        public void TheAliasesOfRenamedSettingsForwardToTheNewOnes()
+        {
+            ConfigNode saved = AtmospheresSettings.Snapshot();
+#pragma warning disable 618
+            try
+            {
+                AtmospheresSettings.StormSeed = 41;
+                Assert.AreEqual(41, AtmospheresSettings.SimSeed);
+                AtmospheresSettings.StormFrequency = 1.5f;
+                Assert.AreEqual(1.5f, AtmospheresSettings.HeavyShare);
+                AtmospheresSettings.SnowStrength = 0.5f;
+                Assert.AreEqual(0.5f, AtmospheresSettings.CoverStrength);
+                AtmospheresSettings.OrbitSnow = false;
+                Assert.IsFalse(AtmospheresSettings.OrbitOverlay);
+                AtmospheresSettings.StormsEnabled = false;
+                Assert.IsFalse(AtmospheresSettings.WeatherEffects);
+                AtmospheresSettings.ForceStorm = 0.35f;
+                Assert.AreEqual(0.35f, AtmospheresSettings.ForceLevel);
+                AtmospheresSettings.ResetToDefaults();
+                Assert.AreEqual(1, AtmospheresSettings.StormSeed);
+                Assert.AreEqual(AtmospheresSettings.StormCellRadiusDefaultKm, AtmospheresSettings.StormCellRadiusKm, "a deleted setting's field starts at its default");
+            }
+            finally
+            {
+                AtmospheresSettings.Restore(saved);
+            }
+#pragma warning restore 618
         }
 
         [TestMethod]

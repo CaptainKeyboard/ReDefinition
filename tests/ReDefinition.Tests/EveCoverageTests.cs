@@ -232,34 +232,6 @@ namespace ReDefinition.Tests
         }
 
         [TestMethod]
-        public void TheCloudModeIsExistingByDefaultAndComesBackFromTheFile()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "eve-clouds-" + Guid.NewGuid().ToString("N"));
-            string file = Path.Combine(folder, "settings.cfg");
-            var saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Existing, AtmospheresSettings.StormClouds, "existing layers by default");
-                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Own;
-                AtmospheresSettings.Write(file);
-                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Existing;
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds);
-                File.WriteAllText(file, "stormClouds = maybe\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds, "a name that is none is ignored");
-                File.WriteAllText(file, "stormClouds = Existing\n");
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Existing, AtmospheresSettings.StormClouds);
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                if (Directory.Exists(folder)) Directory.Delete(folder, true);
-            }
-        }
-
-        [TestMethod]
         public void TheConfigOfTheLayerNamesTheLayerAndTheCoverageFileExists()
         {
             string root = Repo();

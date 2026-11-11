@@ -209,29 +209,6 @@ namespace ReDefinition.Tests
             Assert.IsTrue(EveCellLayer.WideFromAltitudeM < 200000 && EveCellLayer.VolumeLiveBelowM < 260000, "inside EVE's fade, which starts at 200 km and ends at 260 km");
         }
 
-        [TestMethod]
-        public void TheOwnFlakesAreOffByDefaultAndComeBackFromTheFile()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "own-flakes-" + Guid.NewGuid().ToString("N"));
-            string file = Path.Combine(folder, "settings.cfg");
-            var saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                AtmospheresSettings.ResetToDefaults();
-                Assert.IsFalse(AtmospheresSettings.StormOwnFlakes, "off by default: EVE's snow field is the snow");
-                AtmospheresSettings.StormOwnFlakes = true;
-                AtmospheresSettings.Write(file);
-                StringAssert.Contains(File.ReadAllText(file), "stormOwnFlakes = True");
-                AtmospheresSettings.StormOwnFlakes = false;
-                AtmospheresSettings.Read(file);
-                Assert.IsTrue(AtmospheresSettings.StormOwnFlakes);
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                if (Directory.Exists(folder)) Directory.Delete(folder, true);
-            }
-        }
     }
 
     internal static class SwirlRectExtensions

@@ -215,54 +215,5 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0f, EveRainLink.Coverage);
             StringAssert.Contains(EveRainLink.Describe(), "fields 0");
         }
-
-        [TestMethod]
-        public void TheNewSettingsComeBackAndAreBroughtIntoTheirRanges()
-        {
-            string folder = Path.Combine(Path.GetTempPath(), "storm-sky-settings-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(folder);
-            ConfigNode saved = AtmospheresSettings.Snapshot();
-            try
-            {
-                string file = Path.Combine(folder, "settings.cfg");
-                AtmospheresSettings.StormSkyDarkening = 0.25f;
-                AtmospheresSettings.StormEveSnow = false;
-                AtmospheresSettings.StormEveRainToSnow = false;
-                AtmospheresSettings.OrbitSnow = false;
-                AtmospheresSettings.OrbitSnowWidth = 2048;
-                AtmospheresSettings.Write(file);
-                AtmospheresSettings.StormSkyDarkening = 0.6f;
-                AtmospheresSettings.StormEveSnow = true;
-                AtmospheresSettings.StormEveRainToSnow = true;
-                AtmospheresSettings.OrbitSnow = true;
-                AtmospheresSettings.OrbitSnowWidth = 4096;
-                AtmospheresSettings.Read(file);
-                Assert.AreEqual(0.25f, AtmospheresSettings.StormSkyDarkening);
-                Assert.IsFalse(AtmospheresSettings.StormEveSnow);
-                Assert.IsFalse(AtmospheresSettings.StormEveRainToSnow);
-                Assert.IsFalse(AtmospheresSettings.OrbitSnow);
-                Assert.AreEqual(2048, AtmospheresSettings.OrbitSnowWidth);
-
-                string range = Path.Combine(folder, "range.cfg");
-                File.WriteAllText(range, "stormSkyDarkening = 7\norbitSnowWidth = 100\n");
-                AtmospheresSettings.Read(range);
-                Assert.AreEqual(1f, AtmospheresSettings.StormSkyDarkening);
-                Assert.AreEqual(AtmospheresSettings.OrbitSnowWidthMin, AtmospheresSettings.OrbitSnowWidth);
-                File.WriteAllText(range, "stormSkyDarkening = -2\norbitSnowWidth = 90000\n");
-                AtmospheresSettings.Read(range);
-                Assert.AreEqual(0f, AtmospheresSettings.StormSkyDarkening);
-                Assert.AreEqual(AtmospheresSettings.OrbitSnowWidthMax, AtmospheresSettings.OrbitSnowWidth);
-                File.WriteAllText(range, "stormSkyDarkening = NaN\norbitSnow = maybe\nstormEveRainToSnow = perhaps\n");
-                AtmospheresSettings.Read(range);
-                Assert.IsFalse(AtmospheresSettings.StormEveRainToSnow, "not a flag is ignored for the rain replacement too");
-                Assert.AreEqual(0f, AtmospheresSettings.StormSkyDarkening, "not a number is ignored");
-                Assert.IsFalse(AtmospheresSettings.OrbitSnow, "not a flag is ignored");
-            }
-            finally
-            {
-                AtmospheresSettings.Restore(saved);
-                Directory.Delete(folder, true);
-            }
-        }
     }
 }

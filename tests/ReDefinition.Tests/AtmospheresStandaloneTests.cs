@@ -42,20 +42,22 @@ namespace ReDefinition.Tests
             try
             {
                 AtmospheresSettings.Enabled = false;
-                AtmospheresSettings.StormsEnabled = false;
+                AtmospheresSettings.SetNumber("weatherEffects", 0);
                 AtmospheresSettings.YearLengthFactor = 0.25f;
-                AtmospheresSettings.SnowStrength = 0.5f;
-                AtmospheresSettings.StormFrequency = 1.5f;
-                AtmospheresSettings.WinterSnowLine = 38.5f;
+                AtmospheresSettings.SetNumber("coverStrength", 0.5);
+                AtmospheresSettings.SetNumber("heavyShare", 1.5);
+                AtmospheresSettings.SetNumber("cloudSource", (double)CloudSourceKind.Ours);
+                AtmospheresSettings.SetText("alertSites", "Pad");
                 AtmospheresSettings.Write(file);
                 Defaults();
                 AtmospheresSettings.Read(file);
                 Assert.IsFalse(AtmospheresSettings.Enabled);
-                Assert.IsFalse(AtmospheresSettings.StormsEnabled);
+                Assert.IsFalse(AtmospheresSettings.WeatherEffects);
                 Assert.AreEqual(0.25f, AtmospheresSettings.YearLengthFactor);
-                Assert.AreEqual(0.5f, AtmospheresSettings.SnowStrength);
-                Assert.AreEqual(1.5f, AtmospheresSettings.StormFrequency);
-                Assert.AreEqual(38.5f, AtmospheresSettings.WinterSnowLine);
+                Assert.AreEqual(0.5f, AtmospheresSettings.CoverStrength);
+                Assert.AreEqual(1.5f, AtmospheresSettings.HeavyShare);
+                Assert.AreEqual(CloudSourceKind.Ours, AtmospheresSettings.CloudSource);
+                Assert.AreEqual("Pad", AtmospheresSettings.AlertSites);
             }
             finally
             {
@@ -100,18 +102,18 @@ namespace ReDefinition.Tests
             {
                 Defaults();
                 string file = Path.Combine(folder, "range.cfg");
-                File.WriteAllText(file, "yearLengthFactor = 500\nsnowStrength = -3\nstormFrequency = 9\nwinterSnowLine = 5\n");
+                File.WriteAllText(file, "yearLengthFactor = 500\ncoverStrength = -3\nheavyShare = 9\nlightCount = 99\n");
                 AtmospheresSettings.Read(file);
-                Assert.AreEqual(AtmospheresSettings.YearLengthFactorMax, AtmospheresSettings.YearLengthFactor);
-                Assert.AreEqual(0f, AtmospheresSettings.SnowStrength);
-                Assert.AreEqual(AtmospheresSettings.StormFrequencyMax, AtmospheresSettings.StormFrequency);
-                Assert.AreEqual((float)SnowMask.LowestWinterLineDegrees, AtmospheresSettings.WinterSnowLine);
+                Assert.AreEqual(10f, AtmospheresSettings.YearLengthFactor);
+                Assert.AreEqual(0f, AtmospheresSettings.CoverStrength);
+                Assert.AreEqual(2f, AtmospheresSettings.HeavyShare);
+                Assert.AreEqual(8, AtmospheresSettings.LightCount);
 
                 Defaults();
-                File.WriteAllText(file, "yearLengthFactor = NaN\nsnowStrength = Infinity\n");
+                File.WriteAllText(file, "yearLengthFactor = NaN\ncoverStrength = Infinity\n");
                 AtmospheresSettings.Read(file);
                 Assert.AreEqual(1f, AtmospheresSettings.YearLengthFactor);
-                Assert.AreEqual(1f, AtmospheresSettings.SnowStrength);
+                Assert.AreEqual(1f, AtmospheresSettings.CoverStrength);
             }
             finally
             {
