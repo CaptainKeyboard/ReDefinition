@@ -226,7 +226,8 @@ DECL_RE = re.compile(r"\b(?:class|struct|interface|enum)\s+([A-Z][A-Za-z0-9_]*)|
 def declared_types(repo, with_settings=True):
     names = set()
     roots = [os.path.join(repo, "src", "Common", "Weather"), os.path.join(repo, "src", "Atmospheres", "Infrastructure"),
-             os.path.join(repo, "src", "Atmospheres", "Bodies", "Schema")]
+             os.path.join(repo, "src", "Atmospheres", "Bodies", "Schema"),
+             os.path.join(repo, "src", "Atmospheres", "Generator"), os.path.join(repo, "src", "Atmospheres", "Field")]
     if with_settings:
         roots.append(os.path.join(repo, "src", "Atmospheres", "Settings"))
     for root in roots:
