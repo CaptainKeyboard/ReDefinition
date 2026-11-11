@@ -104,7 +104,7 @@ namespace AtmoSim.Core
         public double SystemTiltMin = -0.30, SystemTiltMax = 0.85;
         public double SystemCurlMax = 1.0;
         // Wavelength factor range (times 3 r) of the wave number distribution; the along-track envelope in wavelengths; the share of the generations that are isolated single lows.
-        public double SystemLambdaMin = 0.7, SystemLambdaMax = 1.7;
+        public double SystemLambdaMin = 0.7, SystemLambdaMax = 1.5;
         // Zonal modulation of the system amplitude (storm-track zones, share of the amplitude) and the per-generation speed factor spread.
         public double SystemZonalAmp = 0.25, SystemSpeedSpread = 0.18;
         // R2b: the moist belt meanders and breaks (longitude-dependent position, width and strength, land/sea shift), the subtropical dry zone meanders, trade-wind cumulus fills the dry zone; false = round 1.

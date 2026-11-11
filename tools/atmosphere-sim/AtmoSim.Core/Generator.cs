@@ -47,6 +47,8 @@ namespace AtmoSim.Core
         // Phase speed (m/s) of the equatorial waves that modulate the ITCZ lift: westward.
         public const double ItczWaveSpeedMs = 6.0;
         public const int MaxSlots = 8;
+        // The convergence lift that the cloud sees; a larger BodyParams.ItczLift (round 2) adds rain only.
+        public const double ItczCloudLiftMax = 0.7;
         // Round 2: wave numbers of the travelling longitude waves that shape the moist belt, the subtropical dry zone and the clusters of the belt.
         public const int WaveCount = 14;
         private static readonly int[] WaveK = { 1, 2, 3, 4, 5, 6, 8, 11, 2, 3, 5, 3, 4, 7 };
@@ -414,6 +416,8 @@ namespace AtmoSim.Core
             }
             // the systems of a hemisphere fade to zero at the equator (they are evaluated only for their own hemisphere, so no jump at latitude 0)
             double eqw = DMath.SmoothStep(0.0, 0.2, la);
+            // Round 2: the systems fade out toward the pole (above 70 degrees the wave pattern of a small parallel is a fan of radial lines, which no real system shows)
+            if (Body.Round2Systems) eqw *= 1.0 - DMath.SmoothStep(1.2, 1.45, la);
             p *= eqw; tAnom *= eqw; fr *= eqw; dpdx *= eqw; dpdy *= eqw;
             double frontK100 = fr * 1e5;
             double frontN = DMath.Min(1.0, frontK100 / D.FrontRefKPer100Km);
@@ -437,14 +441,14 @@ namespace AtmoSim.Core
                 // Round 2: the belt meanders (four travelling longitude waves, up to 9 degrees), shifts further toward the summer hemisphere over land (monsoon), and varies in width;
                 // the subtropical dry zone meanders too and is wider
                 double sc = Body.ItczMeanderScale;
-                // the waves are evaluated where they matter: the belt within 35 degrees of its mean latitude, the dry zone equatorward of 75 degrees (outside, both terms are below 1e-3)
+                // the waves are evaluated where they matter: the belt within 51 degrees of its mean latitude (its widest Gaussian is below 0.005 there), the dry zone equatorward of 75 degrees (outside, both terms are below 1e-3)
                 double dl = beltLat < 0.0 ? -beltLat : beltLat;
-                if (dl < 0.62)
+                if (dl < 0.9)
                 {
                     double mer = sc * (0.060 * DMath.Sin(lonRad + f.Wp[0]) + 0.045 * DMath.Sin(2.0 * lonRad + f.Wp[1]) + 0.032 * DMath.Sin(3.0 * lonRad + f.Wp[2]) + 0.022 * DMath.Sin(4.0 * lonRad + f.Wp[3]));
                     beltLat -= mer + 0.9 * f.ItczLat * (1.0 - moist);
                     double wm = DMath.Clamp(1.0 + 0.40 * DMath.Sin(3.0 * lonRad + f.Wp[11]) + 0.25 * DMath.Sin(5.0 * lonRad + f.Wp[4]), 0.55, 1.6);
-                    beltW2 = 0.04 * wm * wm;
+                    beltW2 = 0.06 * wm * wm;
                 }
                 else beltLat = 9.0;
                 if (la < 1.3)
@@ -494,7 +498,10 @@ namespace AtmoSim.Core
             // uplift, cloud water, rain
             double aref = 0.8 * D.PressureAmpPa;
             double lowP = p < 0.0 ? DMath.Min(1.0, -p / aref) : 0.0;
-            double itczU = Body.ItczLift > 0.0 && belt > 0.02 ? Body.ItczLift * belt * itczM : 0.0;
+            // the cloud sees the convergence lift up to 0.7; the part above it (round 2) only makes the rain of the clusters more intense, so the cloud does not saturate into hard-edged patches
+            double itczLiftCloud = Body.ItczLift > ItczCloudLiftMax ? ItczCloudLiftMax : Body.ItczLift;
+            double itczU = Body.ItczLift > 0.0 && belt > 0.02 ? itczLiftCloud * belt * itczM : 0.0;
+            double itczRainExtra = Body.ItczLift > ItczCloudLiftMax && belt > 0.02 ? (Body.ItczLift - ItczCloudLiftMax) * belt * itczM : 0.0;
             double uplift = DMath.Min(1.4, 0.85 * lowP + 0.5 * frontN + itczU);
             double bg = DMath.Clamp(hLift * CloudBgGain - CloudBgOffset, 0.0, 1.0);
             double xdyn = hLift * (UpliftGain * uplift + FrontGain * frontN);
@@ -539,7 +546,7 @@ namespace AtmoSim.Core
             {
                 // soft onset: softplus of the driver above the threshold (a skirt of drizzle instead of an edge), then rain cells inside the rain area
                 // (quadratic onset over 2 sw, exactly zero below it, so dry places stay dry and the rate is continuous with a continuous slope)
-                double z = xdyn - Body.StratThreshold, sw = Body.RainSoftness;
+                double z = xdyn + hLift * UpliftGain * itczRainExtra - Body.StratThreshold, sw = Body.RainSoftness;
                 pStrat = z <= -sw ? 0.0 : (z >= sw ? StratRateMmH * z : StratRateMmH * (z + sw) * (z + sw) / (4.0 * sw));
                 if (pStrat > 0.001 && Body.RainCellAmp > 0.0)
                 {

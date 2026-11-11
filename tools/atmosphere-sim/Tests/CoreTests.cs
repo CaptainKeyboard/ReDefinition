@@ -714,7 +714,7 @@ namespace AtmoSim.Tests
             Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike(), 1), q, order, 0));
         }
 
-        public const ulong GoldenRound2Hash = 0xF56725D503400F41UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, default levers of tuning round 2
+        public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, default levers of tuning round 2
 
         // Tuning round 2: the lattice noise is periodic in longitude (no seam at the date line) and smooth.
         [TestMethod]

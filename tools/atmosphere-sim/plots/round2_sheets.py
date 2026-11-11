@@ -297,7 +297,8 @@ def strips(out, d, month_dir, starts=(20, 60, 100), n=8, step=1):
     meta, f = load_frames(d)
     mm = json.load(open(os.path.join(month_dir, "month_meta.json")))
     events = json.load(open(os.path.join(month_dir, "month_events.json")))
-    tracks = link_tracks(events)
+    tracks = link_tracks(events, 12.0)   # the detector events are hourly (a 6 h step is 30 to 40 degrees of longitude on this small planet)
+    evstep = int(round(meta["frame_s"] / mm["frame_s"]))
     cmap = plt.get_cmap("tab20")
     for si, s0 in enumerate(starts):
         fig, axs = plt.subplots(4, 4, figsize=(20, 11.6))
@@ -310,8 +311,9 @@ def strips(out, d, month_dir, starts=(20, 60, 100), n=8, step=1):
             ax.imshow(aid_cover_rgb(f, k), extent=[0, 360, -90, 90], aspect="auto", interpolation="bilinear")
             draw_coast(ax, f, "w", 0.3)
             for tr in tracks:
-                pts = [p for p in tr["pts"] if p[0] <= k]
-                if not pts or pts[-1][0] < k - 1 or len(tr["pts"]) < 4:
+                ke = k * evstep
+                pts = [p for p in tr["pts"] if p[0] <= ke and p[0] >= ke - 12]
+                if not pts or pts[-1][0] < ke - 2 or len(tr["pts"]) < 12:
                     continue
                 col = cmap(tr["id"] % 20)
                 la = np.array([p[1] for p in pts]); lo = np.array([p[2] % 360 for p in pts])
@@ -319,7 +321,7 @@ def strips(out, d, month_dir, starts=(20, 60, 100), n=8, step=1):
                     if abs(lo[i] - lo[i - 1]) < 180:
                         ax.plot(lo[i - 1:i + 1], la[i - 1:i + 1], "-", color=col, lw=1.6)
                 ax.plot(lo[-1], la[-1], "o", mfc="none", mec=col, mew=1.6, ms=7)
-            for b in events[k].get("bands", []):
+            for b in events[min(len(events) - 1, k * evstep)].get("bands", []):
                 ang = np.radians(b.get("axis_deg", 0.0))
                 half = 0.5 * b.get("extent_km", 600.0) / (2 * np.pi * meta["radius_km"] / 360.0)
                 lo0, la0 = b["lon"] % 360, b["lat"]
@@ -427,7 +429,7 @@ def tile_motion(a0, a1, dt_s, radius_km, lat_c, size=(24, 24)):
 
 def motion_field(d, step=1):
     meta, f = load_frames(d)
-    cov = f["cover"]
+    cov = f["cover"] - f["cover"].mean(axis=0)   # the anomaly against the time mean: stationary patterns (coasts, the dry zone) do not pull the correlation to zero motion
     dt = meta["frame_s"] * step
     ny, nx = cov.shape[1:]
     lats = np.arange(-85, 90, 10)
@@ -454,7 +456,7 @@ def drift_table(d, step=1):
 def motion_strips(out, d, step=1):
     """Tropical belt and polar caps: natural row and aid row with arrows of the detected pattern motion (phase correlation of 24 x 24 tiles), 6 frames each."""
     meta, f = load_frames(d)
-    cov = f["cover"]
+    cov = f["cover"] - f["cover"].mean(axis=0)
     dt = meta["frame_s"] * step
     regions = [("tropical belt, 30 S to 30 N", (-30, 30), (-25, -15, -5, 5, 15, 25)), ("north polar cap, 60 to 90 N", (60, 90), (65, 75, 85)), ("south polar cap, 90 S to 60 S", (-90, -60), (-65, -75, -85))]
     for name, (lo, hi), lats in regions:
@@ -488,11 +490,46 @@ def main2():
     os.makedirs(out, exist_ok=True)
     if cmd == "motion":
         motion_strips(out, d, int(sys.argv[4]) if len(sys.argv) > 4 else 1)
-        open(os.path.join(out, "drift_direction.md"), "w").write(drift_table(d, int(sys.argv[4]) if len(sys.argv) > 4 else 1) + "
-")
+        open(os.path.join(out, "drift_direction.md"), "w").write(drift_table(d, int(sys.argv[4]) if len(sys.argv) > 4 else 1) + "\n")
     else:
         main()
 
 
 if __name__ == "__main__":
     main2()
+
+
+def track_drift_table(month_dir, radius_km):
+    """East and north velocity of the linked pressure-minimum tracks (6 h frames) by latitude band of 10 degrees (35 to 70 degrees in the detector belt)."""
+    mm = json.load(open(os.path.join(month_dir, "month_meta.json")))
+    events = json.load(open(os.path.join(month_dir, "month_events.json")))
+    dt = mm["frame_s"]
+    tracks = link_tracks(events)
+    rows = {}
+    for tr in tracks:
+        if len(tr["pts"]) < 4:
+            continue
+        for a, b in zip(tr["pts"][:-1], tr["pts"][1:]):
+            if b[0] - a[0] != 1:
+                continue
+            dlo = (b[2] - a[2] + 540) % 360 - 180
+            lat = 0.5 * (a[1] + b[1])
+            e = dlo * np.pi / 180 * np.cos(np.radians(lat)) * radius_km * 1000.0 / dt
+            n = (b[1] - a[1]) * np.pi / 180 * radius_km * 1000.0 / dt
+            rows.setdefault(int(np.floor(lat / 10.0) * 10 + 5), []).append((e, n))
+    lines = ["| latitude band centre (deg) | track steps | mean east (m/s) | mean north (m/s) | share eastward | heading of the mean motion |", "|---|---|---|---|---|---|"]
+    for lat in sorted(rows):
+        a = np.array(rows[lat]); e, n = a[:, 0].mean(), a[:, 1].mean()
+        lines.append("| %d | %d | %.1f | %.1f | %.2f | %.0f |" % (lat, len(a), e, n, (a[:, 0] > 0).mean(), (np.degrees(np.arctan2(e, n)) + 360) % 360))
+    return "\n".join(lines)
+
+
+def main3():
+    if sys.argv[1] == "trackdrift":
+        print(track_drift_table(sys.argv[3], float(sys.argv[4])))
+    else:
+        main2()
+
+
+if __name__ == "__main__":
+    main3()
