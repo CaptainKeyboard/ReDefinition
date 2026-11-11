@@ -7,6 +7,8 @@
     <Nullable>disable</Nullable>
     <Optimize>true</Optimize>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Steady-state code from the first call (Mono compiles once, without tiers); the cost loop of criterion 6 must not measure tier-0 code. -->
+    <TieredCompilation>false</TieredCompilation>
   </PropertyGroup>
 
   <ItemGroup>

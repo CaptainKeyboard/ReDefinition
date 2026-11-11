@@ -32,6 +32,10 @@ namespace AtmoSim.Runner
             if (cmd == "crit-fields") return Criteria.Fields(args);
             if (cmd == "crit-surface") return CriteriaSurface.Run(args);
             if (cmd == "crit-cells") return CriteriaCells.Run(args);
+            if (cmd == "diag-levels") return Diagnostics.Levels(args);
+            if (cmd == "diag-micro") return Diagnostics.Micro(args);
+            if (cmd == "diag-climate") return Diagnostics.Climate(args);
+            if (cmd == "diag-surfacehash") return Diagnostics.SurfaceHash(args);
             Console.Error.WriteLine("unknown command " + cmd);
             return 2;
         }

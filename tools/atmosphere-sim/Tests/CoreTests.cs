@@ -487,6 +487,27 @@ namespace AtmoSim.Tests
         }
 
         [TestMethod]
+        public void SurfaceStateDoesNotDependOnTheEvaluationOrderOrTheCaches()
+        {
+            var bp = BodyParams.KerbinLike();
+            var g = new WeatherGenerator(bp, 2);
+            double lat = 1.15;
+            var forward = SeaSite(g, lat);
+            var shuffled = SeaSite(g, lat);
+            var times = new List<double>();
+            for (int k = 0; k < 60; k++) times.Add(2.0e6 + k * 0.37 * bp.YearS / 4.0 + (k % 5) * 3300.0);
+            var first = new List<SurfaceState>();
+            foreach (double t in times) first.Add(forward.Evaluate(t));
+            var order = new List<int>(); for (int k = 0; k < times.Count; k++) order.Add(k);
+            var rnd = new Random(4); for (int k = order.Count - 1; k > 0; k--) { int j = rnd.Next(k + 1); int tmp = order[k]; order[k] = order[j]; order[j] = tmp; }
+            foreach (int k in order)
+            {
+                var a = shuffled.Evaluate(times[k]); var b = first[k];
+                Assert.AreEqual(b.SnowSweMm, a.SnowSweMm); Assert.AreEqual(b.IceThicknessM, a.IceThicknessM); Assert.AreEqual(b.MixedLayerK, a.MixedLayerK); Assert.AreEqual(b.Wet01, a.Wet01);
+            }
+        }
+
+        [TestMethod]
         public void IceThicknessIsContinuousAtTheAnchorBoundaries()
         {
             var bp = BodyParams.KerbinLike();

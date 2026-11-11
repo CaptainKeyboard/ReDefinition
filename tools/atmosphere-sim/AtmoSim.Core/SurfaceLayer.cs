@@ -73,6 +73,8 @@ namespace AtmoSim.Core
         private readonly double[] anchorTml = new double[4], anchorH = new double[4];
         private readonly int cap6;
         private readonly float[] tSer, pSer, wSer, hSer;
+        // Per-step values that need an Exp, computed once with the sample: snow added by the step (water equivalent, mm) and the decay factor of the wet recurrence.
+        private readonly double[] snowAdd, wetDecay;
         private readonly long[] stamp;
         private long cacheM0 = long.MinValue, cacheM1 = long.MinValue;
         private double cacheV0, cacheV1;
@@ -92,6 +94,7 @@ namespace AtmoSim.Core
             cap6 = Math.Max(need, SnowWindowSteps + 8);
             if (cap6 > 1400) cap6 = 1400;
             tSer = new float[cap6]; pSer = new float[cap6]; wSer = new float[cap6]; hSer = new float[cap6];
+            snowAdd = new double[cap6]; wetDecay = new double[cap6];
             stamp = new long[cap6];
             for (int i = 0; i < cap6; i++) stamp[i] = long.MinValue;
             if (sea) BuildAnchors();
@@ -137,15 +140,24 @@ namespace AtmoSim.Core
 
         // ---- cached 6-hour series ---------------------------------------------------------------------------------------
 
-        private int Slot(long step) { return (int)(((step % cap6) + cap6) % cap6); }
+        private int Slot(long step) { int r = (int)(step % cap6); return r < 0 ? r + cap6 : r; }
 
         private void Ensure(long step)
         {
             int i = Slot(step);
             if (stamp[i] == step) return;
+            Fill(step, i);
+        }
+
+        private void Fill(long step, int i)
+        {
             Weather w;
             g.Sample(lat, lon, terrain, step * StepS, out w);
             tSer[i] = (float)w.TempMeanK; pSer[i] = (float)w.PrecipMmH; wSer[i] = (float)w.WindSpeed; hSer[i] = (float)w.Humidity;
+            double t = tSer[i], p = pSer[i];
+            snowAdd[i] = p > 0.0 ? p * 6.0 * (1.0 / (1.0 + DMath.Exp((t - tFreeze - 1.2 - 1.0) / 0.9))) : 0.0;
+            double tau = 18.0 * DMath.Exp(-(t - 288.0) / 25.0);
+            wetDecay[i] = DMath.Exp(-6.0 / DMath.Max(2.0, tau));
             stamp[i] = step; SamplesTaken++;
         }
 
@@ -162,16 +174,12 @@ namespace AtmoSim.Core
         {
             long m0 = m - SnowWindowSteps;
             double swe = SnowBaseMm(m0 * StepS);
-            for (long s = m0 + 1; s <= m; s++)
+            int i = Slot(m0 + 1);
+            for (long s = m0 + 1; s <= m; s++, i = i + 1 == cap6 ? 0 : i + 1)
             {
-                Ensure(s);
-                int i = Slot(s);
-                double t = tSer[i], p = pSer[i], wnd = wSer[i];
-                if (p > 0.0)
-                {
-                    double fs = 1.0 / (1.0 + DMath.Exp((t - tFreeze - 1.2 - 1.0) / 0.9));
-                    swe += p * 6.0 * fs;
-                }
+                if (stamp[i] != s) Fill(s, i);
+                double t = tSer[i], wnd = wSer[i];
+                swe += snowAdd[i];
                 if (t > tFreeze) swe -= 3.0 * (t - tFreeze) * 0.25;
                 swe -= 0.15 * 0.25 * (1.0 + wnd / 8.0);
                 if (wnd > 12.0) swe -= swe * DMath.Min(0.5, 0.02 * (wnd - 12.0) * 0.25);
@@ -198,8 +206,7 @@ namespace AtmoSim.Core
             {
                 Ensure(s);
                 int i = Slot(s);
-                double tau = 18.0 * DMath.Exp(-(tSer[i] - 288.0) / 25.0);
-                wsum = wsum * DMath.Exp(-6.0 / DMath.Max(2.0, tau)) + pSer[i] * 6.0 * 0.8;
+                wsum = wsum * wetDecay[i] + pSer[i] * 6.0 * 0.8;
             }
             return 1.0 - DMath.Exp(-wsum / 0.5);
         }
@@ -224,11 +231,6 @@ namespace AtmoSim.Core
             return dep;
         }
 
-        // Daily mean temperature of the day [t0, t1) from the cached series, linear interpolation at the segment ends and middle.
-        private double MeanT(double t0, double t1)
-        {
-            return 0.5 * (0.5 * (Interp(t0) + Interp(t1)) + Interp(0.5 * (t0 + t1)));
-        }
 
         private double Interp(double ut)
         {
@@ -243,12 +245,18 @@ namespace AtmoSim.Core
             int q = (int)(((anchorIdx % 4) + 4) % 4);
             tml = anchorTml[q]; h = anchorH[q];
             double t = anchorUt;
+            // Daily mean temperature of the step [t, t + dt) from the cached series: linear interpolation at the segment ends and the middle. The end of a step is
+            // the start of the next one, so its interpolation is carried over (the same argument, the same value).
+            double iStart = Interp(t);
             while (t < ut)
             {
                 double dt = DMath.Min(86400.0, ut - t);
                 double tm = 0.5 * (t + t + dt);
-                IceModel.Step(ref tml, ref h, MeanT(t, t + dt), ClimSolar(tm), snowM, tFreeze, cap, dt / 86400.0);
+                double iEnd = Interp(t + dt);
+                double meanT = 0.5 * (0.5 * (iStart + iEnd) + Interp(0.5 * (t + (t + dt))));
+                IceModel.Step(ref tml, ref h, meanT, ClimSolar(tm), snowM, tFreeze, cap, dt / 86400.0);
                 t += dt;
+                iStart = iEnd;
             }
         }
 
@@ -277,11 +285,20 @@ namespace AtmoSim.Core
                 double aUt = aIdx * quarterS;
                 double tmlA, hA, tmlB, hB;
                 double snowOnIce = s.SnowDepthM;
-                IceFrom(aUt, aIdx, ut, snowOnIce, out tmlA, out hA);
-                IceFrom(aUt - quarterS, aIdx - 1, ut, snowOnIce, out tmlB, out hB);
                 double wA = DMath.SmoothStep(0.0, 0.5 * quarterS, ut - aUt);
-                s.IceThicknessM = wA * hA + (1.0 - wA) * hB;
-                s.MixedLayerK = wA * tmlA + (1.0 - wA) * tmlB;
+                // the cross-fade weight is exactly 1 (or 0) over most of a quarter: the integration with weight 0 is not needed (0 * x = 0 for a finite x)
+                if (wA == 1.0)
+                {
+                    IceFrom(aUt, aIdx, ut, snowOnIce, out tmlA, out hA);
+                    s.IceThicknessM = hA; s.MixedLayerK = tmlA;
+                }
+                else
+                {
+                    IceFrom(aUt, aIdx, ut, snowOnIce, out tmlA, out hA);
+                    IceFrom(aUt - quarterS, aIdx - 1, ut, snowOnIce, out tmlB, out hB);
+                    s.IceThicknessM = wA * hA + (1.0 - wA) * hB;
+                    s.MixedLayerK = wA * tmlA + (1.0 - wA) * tmlB;
+                }
                 s.IceFraction = DMath.SmoothStep(0.0, 0.15, s.IceThicknessM);
             }
             return s;

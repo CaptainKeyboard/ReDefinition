@@ -35,10 +35,15 @@ namespace AtmoSim.Runner
         {
             string outFile = args.Length > 1 ? args[1] : null;
             var r = new Dictionary<string, object>();
+            object tiered = AppContext.GetData("System.Runtime.TieredCompilation");
+            r["jit_tiered_compilation_setting"] = tiered == null ? "default (on)" : tiered.ToString();
             var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
             Weather w;
-            // warm-up (JIT, thread-local frame, grid)
-            for (int i = 0; i < 20000; i++) g.Sample(0.8, 0.01 * i, 0.0, 1000.0, out w);
+            // warm-up (JIT tier-up, thread-local frame, grid): 1.5 s of the benchmark pattern, so a run with tiered compilation measures steady-state code too
+            {
+                var wq = Queries(4096, 9, 3.0e7); var wu = Stopwatch.StartNew(); long wk = 0;
+                while (wu.ElapsedMilliseconds < 1500) { var c = wq[wk % wq.Length]; g.Sample(c.Lat, c.Lon, c.Alt, 1.0e6 + (wk / 256) * 3600.0, out w); wk++; }
+            }
 
             // (a) map-like pattern: 256 consecutive points per UT, UT changes each batch
             int n = 40000;
