@@ -24,6 +24,14 @@ namespace ReDefinition.Atmospheres
     //    (windInjection Force) the same drift within 30 %; during each window only its own route acted. A forced absurd wind makes the
     //    clamp fire (smallest share below 1) and the applied wind stays under the violent cap. Ten minutes of game time at physics warp 3x
     //    leave every position finite and every speed under 100 m/s.
+    // Rows of the brief that are not built, each with its trigger (the series table notes name them as well):
+    //  - flight drift and crab of an aircraft on a take-off run (trigger: a scripted take-off probe); the runway row measures a landed craft;
+    //  - H1 against H3 on a test glider (trigger: a glider craft in the probe save); the canopy carries the comparison;
+    //  - 10 minutes at physics warp 3x (trigger: a drop from 8 km); the soak row requires 300 s;
+    //  - FAR stub present or absent, MFI absent, Krakensbane transition (trigger: a FAR fixture assembly in the series start); the mode
+    //    table and the route cells are covered by L0 tests;
+    //  - the Planner ascent and landing probe at wind 0 and 10 m/s, and windSource=Off set explicitly in the existing probes (those
+    //    probes belong to the Planner package: request to the orchestrator).
     // The views are numbers: the series table is the evidence (a trajectory log line per second goes to the game log).
     [AtmospheresModule(987)]
     internal sealed partial class WindProbe : SeriesProbe
@@ -142,6 +150,7 @@ namespace ReDefinition.Atmospheres
                 }
                 double ratio = reference > 1e-6 ? applied / reference : double.NaN;
                 Emit("D31.mode_" + cell.Name + "_ratio", ratio);
+                Emit("D31.mode_" + cell.Name + "_ms", applied);
                 Check("mode " + cell.Name, !double.IsNaN(ratio) && Math.Abs(ratio - cell.Expect) < 0.04, "ratio " + Num(ratio) + ", expected " + Num(cell.Expect));
             }
             WindModule.ForeignOverride = null;

@@ -110,6 +110,75 @@ namespace ReDefinition.Tests.Atmospheres.D31
             Assert.IsFalse(string.IsNullOrEmpty(farOnly.Warning), "the log says why");
         }
 
+        [TestMethod]
+        public void FarWithAWindApiWhoseBridgeIsNotUsableIsOffAndTheStatusSaysSo()
+        {
+            ForeignWinds both = With("FerramAerospaceResearch", "WindAPI");
+            foreach (WindSourceMode mode in new[] { WindSourceMode.Auto, WindSourceMode.Ours })
+            {
+                WindPlan broken = WindPlanner.Decide(mode, both, WindInjection.Auto, true, true, false);
+                Assert.AreEqual(WindRoute.Off, broken.Route, mode + ": no provider can be registered, so nothing acts");
+                Assert.IsFalse(broken.AppliesAnything);
+                StringAssert.Contains(broken.Warning, "bridge is not usable");
+                StringAssert.Contains(broken.Status, "no wind forces");
+                StringAssert.Contains(broken.OwnerLine(), "mode: off");
+                Assert.AreEqual(WindRoute.Far, WindPlanner.Decide(mode, both, WindInjection.Auto, true, true, true).Route, mode + ": with the bridge it is FAR");
+            }
+            WindPlan noApi = WindPlanner.Decide(WindSourceMode.Auto, With("FerramAerospaceResearch"), WindInjection.Auto, true, true, true);
+            StringAssert.Contains(noApi.Status, "without WindAPI");
+            StringAssert.Contains(noApi.Status, "no wind forces");
+        }
+
+        [TestMethod]
+        public void ForeignModeWithOnlyInfrastructureSaysSoAndNotThatNoWindModWasFound()
+        {
+            WindPlan far = WindPlanner.Decide(WindSourceMode.Foreign, With("FerramAerospaceResearch", "WindAPI"), WindInjection.Auto, true, true);
+            StringAssert.Contains(far.Status, "FAR is installed but applies no wind of its own");
+            Assert.IsFalse(far.AppliesAnything);
+            WindPlan none = WindPlanner.Decide(WindSourceMode.Foreign, ForeignWinds.None, WindInjection.Auto, true, true);
+            StringAssert.Contains(none.Status, "no other wind mod found");
+            WindPlan owner = WindPlanner.Decide(WindSourceMode.Foreign, With("CPWE", "WindAPI"), WindInjection.Auto, true, true);
+            Assert.AreEqual(WindStatus.Text(WindSourceMode.Foreign, "CPWE"), owner.Status, "a real applier keeps the table's sentence");
+        }
+
+        [TestMethod]
+        public void TheSlewRateNeverExceedsTheSharedLimitOfLimitWind()
+        {
+            Assert.AreEqual(WindNoise.MaxWindSlewMsPerS, WindMath.EffectiveSlew(50.0), 1e-9, "a node above the shared limit is cut to it");
+            Assert.AreEqual(3.0, WindMath.EffectiveSlew(3.0), 1e-9, "a node below it stays");
+            // One second of the vector slew changes the speed no more than LimitWind lets a wind speed change in that second.
+            double dt = 0.02;
+            var s = new VesselWindState();
+            s.MarkUnpacked(0.0);
+            Vec3 w = new Vec3(0, 0, 0);
+            double speed = 0.0, worst = 0.0;
+            for (int k = 0; k < 500; k++)
+            {
+                Vec3 next = s.Step(new Vec3(30, 0, 0), new Vec3(), 1.2, 0, k * dt, WindMath.EffectiveSlew(50.0), 1e9);
+                double limited = WindNoise.LimitWind((float)speed, 30f, (float)dt);
+                worst = Math.Max(worst, next.Length - speed - (limited - speed));
+                speed = next.Length;
+                w = next;
+            }
+            Assert.IsTrue(worst <= 1e-4, "the speed never rose faster than LimitWind allows, excess " + worst);
+            Assert.AreEqual(30.0, w.X, 1e-6);
+        }
+
+        [TestMethod]
+        public void TheTotalAccelerationOfAStandingWindOnACanopyIsFarOverTheLimit()
+        {
+            // The reason the clamp judges one step and not the total: a canopy (650 m2 per tonne) starting from its terminal speed of 5 m/s
+            // in a standing 15 m/s wind would be held by a total clamp to a wind of a fraction of a metre per second.
+            Vec3 v = new Vec3(0, 0, -5), wind = new Vec3(15, 0, 0);
+            double total = WindMath.ExtraAcceleration(1.2, 650.0, v, wind);
+            Assert.IsTrue(total > 50.0, "the total extra acceleration of the standing wind is " + total + " m/s2");
+            double share = WindMath.ClampShare(1.2, 650.0, v, wind, 1.5);
+            Assert.IsTrue(share < 0.1, "a total clamp at 1.5 m/s2 would keep " + share + " of the wind");
+            // The step the slew makes in one tick (8 m/s per s, 0.02 s) is far under it.
+            Vec3 step = new Vec3(8.0 * 0.02, 0, 0);
+            Assert.AreEqual(1.0, WindMath.ClampShare(1.2, 650.0, v, step, 1.5), 1e-12, "one tick's step is not clamped");
+        }
+
         // The numeric A/B of the plan: the wind a vehicle gets in total is the foreign mod's base (when it applies one) plus what this mod
         // applies; the base wind must be in it once in every mode.
         [TestMethod]

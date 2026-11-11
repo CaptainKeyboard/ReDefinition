@@ -80,7 +80,9 @@ namespace ReDefinition.Atmospheres
             {
                 Part p = parts[i];
                 Rigidbody rb = p.Rigidbody;
-                if (rb == null || p.ShieldedFromAirstream || p.DragCubes == null || p.DragCubes.None || !(p.atmDensity > 0.0)) continue;
+                // A part in the water is left alone, as the H1 hook leaves it: the air-relative velocity would make a current of the same size
+                // in the water's drag.
+                if (rb == null || p.ShieldedFromAirstream || p.DragCubes == null || p.DragCubes.None || !(p.atmDensity > 0.0) || p.submergedPortion > 0.0) continue;
                 // The drag area over the mass for the clamp, from what the integrator computed for this part this tick.
                 WindService.StateOf(v).AddPart(p.dragScalar, p.dynamicPressurekPa);
                 Vector3 u0 = p.dragVector;

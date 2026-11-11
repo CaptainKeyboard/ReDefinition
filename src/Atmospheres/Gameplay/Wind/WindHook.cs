@@ -28,6 +28,15 @@ namespace ReDefinition.Atmospheres
 
         private static Action<object, Part> baseUpdate;
 
+        // Gives a hook that shut itself off a new chance (called at a scene change). The settings window reads Disabled and Status through
+        // WindModule.StatusText.
+        internal static void ResetFailures()
+        {
+            if (Disabled && Registered) Status = "registered";
+            Disabled = false;
+            failureStreak = 0;
+        }
+
         // Whether ModularFlightIntegrator is loaded (the window's injection text asks this).
         internal static bool IntegratorPresent
         {
@@ -109,6 +118,9 @@ namespace ReDefinition.Atmospheres
         private static void UpdateAerodynamics(object integrator, Part part)
         {
             Calls++;
+            bool profile = WindService.Profile;
+            long t0 = profile ? System.Diagnostics.Stopwatch.GetTimestamp() : 0L;
+            long spent = 0L;
             Rigidbody body = null;
             Vector3 velocity = Vector3.zero;
             bool shifted = false;
@@ -148,15 +160,23 @@ namespace ReDefinition.Atmospheres
                     AtmospheresLog.WarnOnce("wind hook " + Status);
                 }
             }
+            if (profile) spent = System.Diagnostics.Stopwatch.GetTimestamp() - t0;
             try
             {
                 baseUpdate(integrator, part);
             }
             finally
             {
+                if (profile) t0 = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (shifted) body.velocity = velocity;
             }
             if (state != null && part != null) state.AddPart(part.dragScalar, part.dynamicPressurekPa);
+            if (profile)
+            {
+                // The wind work around the base call (the stock aerodynamics, or KSPCommunityFixes' replacement, is not counted).
+                WindService.HookTicks += spent + System.Diagnostics.Stopwatch.GetTimestamp() - t0;
+                WindService.HookCalls++;
+            }
         }
     }
 }

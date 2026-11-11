@@ -145,7 +145,10 @@ namespace ReDefinition.Atmospheres
     // would push twice, so Auto adds only the storm delta where a foreign mod applies a base wind, and Foreign and Off apply nothing.
     internal static class WindPlanner
     {
-        internal static WindPlan Decide(WindSourceMode mode, ForeignWinds foreign, WindInjection injection, bool modularFlightIntegrator, bool windForces)
+        // windApiConnected: whether the reflection bridge to WindAPI found its types and members (a WindAPI that is loaded but differs, or
+        // whose bridge switched itself off, does not count).
+        internal static WindPlan Decide(WindSourceMode mode, ForeignWinds foreign, WindInjection injection, bool modularFlightIntegrator, bool windForces,
+            bool windApiConnected = true)
         {
             if (foreign == null) foreign = ForeignWinds.None;
             var plan = new WindPlan { ForeignOwner = foreign.Owner, Mode = mode };
@@ -153,20 +156,30 @@ namespace ReDefinition.Atmospheres
             if (!windForces || mode == WindSourceMode.Off || mode == WindSourceMode.Foreign)
             {
                 plan.Route = WindRoute.Off;
+                // Foreign with only infrastructure (FAR, WindAPI) present: those carry other mods' wind and apply none of their own.
+                if (mode == WindSourceMode.Foreign && plan.ForeignOwner == null && (foreign.FarPresent || foreign.WindApiPresent))
+                {
+                    plan.Status = "Wind: " + (foreign.FarPresent ? "FAR" : "WindAPI") + " is installed but applies no wind of its own, so no wind forces; visuals only.";
+                }
                 return plan;
             }
 
             if (foreign.FarPresent)
             {
                 // FAR replaces the stock aerodynamics: the stock hook would do nothing. The only way in is WindAPI's provider list.
-                if (foreign.WindApiPresent)
+                if (foreign.WindApiPresent && windApiConnected)
                 {
                     plan.Route = WindRoute.Far;
                 }
                 else
                 {
                     plan.Route = WindRoute.Off;
-                    plan.Warning = "FAR is installed without WindAPI, so there is no way to add a wind to its aerodynamics; no wind forces.";
+                    plan.Warning = foreign.WindApiPresent
+                        ? "FAR is installed and WindAPI is loaded but its bridge is not usable, so there is no way to add a wind to FAR's aerodynamics; no wind forces."
+                        : "FAR is installed without WindAPI, so there is no way to add a wind to its aerodynamics; no wind forces.";
+                    plan.Status = foreign.WindApiPresent
+                        ? "Wind: FAR is installed and the WindAPI bridge is not usable, so ours cannot be added; no wind forces."
+                        : "Wind: FAR is installed without WindAPI, so ours cannot be added; no wind forces.";
                     return plan;
                 }
             }

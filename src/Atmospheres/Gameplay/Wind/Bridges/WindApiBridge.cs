@@ -7,11 +7,16 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The bridge to WindAPI (https://github.com/Zondulus/WindAPI; interface shape from the brief, no copy installed, licence not read here
-    // [VERIFY], so no credit row). WindAPI multiplexes the wind that FAR applies: a mod
-    // implements WindAPI.IWindProvider (ProviderID, GetWind(CelestialBody, Part, Vector3) returning a world-frame vector) and registers it
-    // with WindAPI.WindManager.Instance.RegisterProvider; WindManager.Instance.GetWindAtLocation(body, part, position, ignoreProvider) sums
-    // the providers. The bridge reaches both by reflection only: no reference to WindAPI.dll. It does two things.
+    // The bridge to WindAPI by Zondulus (https://github.com/Zondulus/WindAPI, CC0 1.0, `License.txt` of the repository; interface taken from
+    // `WindAPI Source.cs` and `README.md` at commit 2dd45c40, version 1.0.0.0). WindAPI multiplexes the wind that FAR applies. The members
+    // used, as that source declares them:
+    //   interface WindAPI.IWindProvider { Vector3 GetWind(CelestialBody body, Part part, Vector3 position); string ProviderID { get; } }
+    //   class WindAPI.WindManager : MonoBehaviour { static WindManager Instance { get; }; void RegisterProvider(IWindProvider);
+    //     void DeregisterProvider(IWindProvider); Vector3 GetWindAtLocation(CelestialBody, Part, Vector3 position, IWindProvider ignoreProvider = null) }
+    // GetWind returns a world-frame vector, the part may be null (trajectory queries), a provider that throws is disabled for the rest of
+    // the flight session, and the manager is a flight-scene object made again for each flight (Instance is null outside the flight). The
+    // bridge reaches all of it by reflection only: no reference to WindAPI.dll. If a type or member differs it stays off and says so once.
+    // It does two things.
     //  - It reads the sum of the other providers at a place (our own provider ignored) as an IWeatherSource, "WindAPI", so that the wind
     //    that other mods put into FAR shows in the weather seam and in the forecast.
     //  - It registers a provider of our own whose GetWind returns the wind this mod applies to the part's vessel, so that FAR (which
@@ -19,8 +24,8 @@ namespace ReDefinition.Atmospheres
     //    to a vehicle, and the plan then uses the stock route.
     // DEFERRED, each with its trigger (a copy of the mod is installed, or a fixture can be written from its source): the bridges to FAR's own
     // wind (FARAtmosphere), Kerbal Weather Project and CPWE. Until then those mods are only detected by assembly name (ForeignWindDetector).
-    // Experimental: no copy of WindAPI is installed; the shape is the one in its README and source, and the tests drive it with a fixture of
-    // the same shape. If a type or member is not found the bridge stays off and says so once.
+    // Experimental: no copy of WindAPI is installed here, so the bridge has not run against the real assembly; the tests drive it with a
+    // fixture that declares the members above.
     // What the emitted provider calls. Public because the provider lives in a dynamic assembly that may not reach internal types.
     public static class WindApiCallbacks
     {
@@ -50,7 +55,17 @@ namespace ReDefinition.Atmospheres
         // Reads the wind (world frame) of the other providers at a position.
         private Func<CelestialBody, Part, Vector3, object, Vector3> read;
         private Action<object> register, deregister;
+        private Func<object> current;
         private object provider;
+        // The manager our provider was registered with: the manager is made again for each flight, and a provider registered with the old
+        // one is gone.
+        private object registeredWith;
+        // Failures of the read in a row; at FailureLimit the bridge disconnects.
+        private int failureStreak;
+        internal const int FailureLimit = 3;
+
+        // Where the bridge's warnings go (the game log); the tests put a recorder here because the engine's logger needs the engine.
+        internal static Action<string, string> Warn = CompatibilityLog.Warn;
 
         internal bool Connected { get; private set; }
         internal string Status { get; private set; }
@@ -58,8 +73,17 @@ namespace ReDefinition.Atmospheres
         // The source the weather seam and the forecast ask; null until connected.
         internal IWeatherSource Source { get; private set; }
 
-        internal WindApiBridge()
+        private readonly string managerTypeName, providerTypeName;
+
+        internal WindApiBridge() : this(ManagerType, ProviderType)
         {
+        }
+
+        // The type names are the ones WindAPI ships; the tests name a differently shaped fixture to see the bridge stay off.
+        internal WindApiBridge(string managerTypeName, string providerTypeName)
+        {
+            this.managerTypeName = managerTypeName;
+            this.providerTypeName = providerTypeName;
             Status = "not tried";
         }
 
@@ -69,19 +93,28 @@ namespace ReDefinition.Atmospheres
             if (Connected) return true;
             try
             {
-                Type manager = Find(ManagerType), providerInterface = Find(ProviderType);
+                Type manager = Find(managerTypeName), providerInterface = Find(providerTypeName);
                 if (manager == null || providerInterface == null)
                 {
                     Status = "WindAPI is not loaded";
                     return false;
                 }
+                // Every member by its exact signature: a WindAPI whose shape differs leaves the bridge off and says what is missing.
                 PropertyInfo instance = manager.GetProperty("Instance", BindingFlags.Public | BindingFlags.Static);
-                MethodInfo get = manager.GetMethod("GetWindAtLocation");
-                MethodInfo reg = manager.GetMethod("RegisterProvider");
-                MethodInfo dereg = manager.GetMethod("DeregisterProvider");
-                if (instance == null || get == null || reg == null || dereg == null)
+                MethodInfo get = manager.GetMethod("GetWindAtLocation", new[] { typeof(CelestialBody), typeof(Part), typeof(Vector3), providerInterface });
+                MethodInfo reg = manager.GetMethod("RegisterProvider", new[] { providerInterface });
+                MethodInfo dereg = manager.GetMethod("DeregisterProvider", new[] { providerInterface });
+                PropertyInfo id = providerInterface.GetProperty("ProviderID");
+                MethodInfo getWind = providerInterface.GetMethod("GetWind", new[] { typeof(CelestialBody), typeof(Part), typeof(Vector3) });
+                if (instance == null || instance.PropertyType != manager || get == null || get.ReturnType != typeof(Vector3) || reg == null || dereg == null
+                    || id == null || id.PropertyType != typeof(string) || id.GetGetMethod() == null || getWind == null || getWind.ReturnType != typeof(Vector3))
                 {
-                    Status = "WindAPI's API differs from the one this bridge knows";
+                    Status = "WindAPI's API differs from the one this bridge knows (missing or different: "
+                             + (instance == null || instance.PropertyType != manager ? "WindManager.Instance " : "")
+                             + (get == null || get.ReturnType != typeof(Vector3) ? "GetWindAtLocation " : "")
+                             + (reg == null ? "RegisterProvider " : "") + (dereg == null ? "DeregisterProvider " : "")
+                             + (id == null || id.PropertyType != typeof(string) ? "ProviderID " : "")
+                             + (getWind == null || getWind.ReturnType != typeof(Vector3) ? "GetWind" : "") + ")";
                     return false;
                 }
                 ParameterExpression b = Expression.Parameter(typeof(CelestialBody), "body");
@@ -94,6 +127,7 @@ namespace ReDefinition.Atmospheres
                         Expression.Constant(Vector3.zero),
                         Expression.Call(inst, get, b, p, pos, Expression.Convert(ignore, providerInterface))),
                     b, p, pos, ignore).Compile();
+                current = Expression.Lambda<Func<object>>(Expression.Convert(inst, typeof(object))).Compile();
                 ParameterExpression arg = Expression.Parameter(typeof(object), "provider");
                 register = Expression.Lambda<Action<object>>(
                     Expression.IfThen(Expression.NotEqual(inst, Expression.Constant(null, manager)),
@@ -114,21 +148,89 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Registers our provider with WindAPI's manager (once the manager exists: it is made in the flight scene).
-        internal void Register()
+        // True while a manager exists that our provider is not registered with (the manager is made in the flight scene, once per flight).
+        internal bool NeedsRegistration
         {
-            if (Connected) register(provider);
+            get
+            {
+                if (!Connected) return false;
+                object manager = Safe(current);
+                return manager != null && !ReferenceEquals(manager, registeredWith);
+            }
+        }
+
+        // Registers our provider with WindAPI's manager; false while no manager exists (outside the flight scene).
+        internal bool Register()
+        {
+            if (!Connected) return false;
+            object manager = Safe(current);
+            if (manager == null) return false;
+            if (ReferenceEquals(manager, registeredWith)) return true;
+            try
+            {
+                register(provider);
+                registeredWith = manager;
+                return true;
+            }
+            catch (Exception e)
+            {
+                Fail("registering the provider", e);
+                return false;
+            }
         }
 
         internal void Deregister()
         {
-            if (Connected) deregister(provider);
+            if (!Connected || registeredWith == null) return;
+            try
+            {
+                deregister(provider);
+            }
+            catch (Exception e)
+            {
+                Warn("wind-windapi", "Atmospheres: the WindAPI provider could not be removed (" + CompatibilityLog.Reason(e) + ")");
+            }
+            registeredWith = null;
         }
 
-        // The wind of the other providers at a world position, our own provider left out.
+        // The wind of the other providers at a world position, our own provider left out. A call that throws counts as a failure, is logged
+        // once and gives zero; after FailureLimit in a row the bridge disconnects (the plan then drops the FAR route and says so).
         internal Vector3 OthersAt(CelestialBody body, Vector3 worldPosition)
         {
-            return Connected ? read(body, null, worldPosition, provider) : Vector3.zero;
+            if (!Connected) return Vector3.zero;
+            try
+            {
+                Vector3 w = read(body, null, worldPosition, provider);
+                failureStreak = 0;
+                return w;
+            }
+            catch (Exception e)
+            {
+                Fail("reading the other providers' wind", e);
+                return Vector3.zero;
+            }
+        }
+
+        private static object Safe(Func<object> f)
+        {
+            try
+            {
+                return f();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
+        private void Fail(string what, Exception e)
+        {
+            string reason = CompatibilityLog.Reason(e);
+            Warn("wind-windapi", "Atmospheres: WindAPI failed while " + what + " (" + reason + ")");
+            if (++failureStreak < FailureLimit) return;
+            Connected = false;
+            Status = "switched off after " + FailureLimit + " failures in a row (" + reason + ")";
+            Warn("wind-windapi-off", "Atmospheres: the WindAPI bridge is " + Status);
         }
 
         private static Type Find(string name)

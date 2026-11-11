@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using ReDefinition.Core;
 using UnityEngine;
 
@@ -31,6 +32,21 @@ namespace ReDefinition.Atmospheres
         internal static Vessel LastVessel;
         internal static double LastClampShare = 1.0;
         internal static int Computations;
+
+        // Cost measurement for the series probe: with Profile on, WindFor adds the time of each computation (hub sample, frame, state step)
+        // to ComputeTicks, and the H1 hook adds the time it spends around the base call to HookTicks; both are Stopwatch ticks. Off in the game.
+        internal static bool Profile;
+        internal static long ComputeTicks, ComputeCalls, HookTicks, HookCalls;
+
+        // Microseconds per computation and per hook call since the counters were cleared; NaN when none ran.
+        internal static double ComputeMicroseconds { get { return ComputeCalls > 0 ? ComputeTicks * 1e6 / Stopwatch.Frequency / ComputeCalls : double.NaN; } }
+
+        internal static double HookMicroseconds { get { return HookCalls > 0 ? HookTicks * 1e6 / Stopwatch.Frequency / HookCalls : double.NaN; } }
+
+        internal static void ClearProfile()
+        {
+            ComputeTicks = ComputeCalls = HookTicks = HookCalls = 0L;
+        }
         // The vessels that a hook or a force acted on this session.
         internal static int FailureCount;
 
@@ -80,6 +96,7 @@ namespace ReDefinition.Atmospheres
             long stamp = StampNow();
             if (state.Stamp == stamp) return state.Applied;
             state.Stamp = stamp;
+            long t0 = Profile ? Stopwatch.GetTimestamp() : 0L;
             // The drag area measured over the last tick closes; the next one starts.
             state.CloseTick(v.GetTotalMass());
             Vec3 applied = new Vec3(0.0, 0.0, 0.0);
@@ -98,6 +115,11 @@ namespace ReDefinition.Atmospheres
             LastVessel = v;
             LastClampShare = state.LastClampShare;
             Computations++;
+            if (Profile)
+            {
+                ComputeTicks += Stopwatch.GetTimestamp() - t0;
+                ComputeCalls++;
+            }
             return applied;
         }
 
@@ -173,7 +195,9 @@ namespace ReDefinition.Atmospheres
             Vector3d sv = v.srf_velocity;
             var vel = new Vec3(sv.x, sv.y, sv.z);
             double spin = v.angularVelocity.magnitude;
-            double maxSlew = rules.MaxSlewMsPerS;
+            // The vector slew bounds the change of the speed as well as of the direction, so it never exceeds the shared limit of
+            // WindNoise.LimitWind (CONTRACT.md: every consumer that writes a wind speed holds to it); a body's node may lower it.
+            double maxSlew = WindMath.EffectiveSlew(rules.MaxSlewMsPerS);
             double maxAccel = MaxAccelOverride ?? rules.MaxAccelMs2;
             return state.Step(targetWorld, vel, v.atmDensity, spin, ut, maxSlew, maxAccel);
         }

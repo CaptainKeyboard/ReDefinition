@@ -7,10 +7,12 @@ namespace ReDefinition.Atmospheres
 {
     // Solar panels dimmed by cloud and storm along the sun ray (package D31, optional, setting solarDimming).
     //
-    // How the factor reaches the panel. ModuleDeployableSolarPanel.FixedUpdate sets efficiencyMult from a private original value on every
-    // tick before it works out _flowRate, and efficiencyMult is a persistent field, so scaling it after the panel's update has no effect on
-    // that tick and would be written to the save. The factor therefore goes into timeEfficCurve (a public configuration field that the panel
-    // multiplies into _efficMult, not persistent): the panel's own curve is replaced by a copy scaled by the factor and put back when the
+    // How the factor reaches the panel. In the decompiled Assembly-CSharp (KSP 1.12.5, ModuleDeployableSolarPanel) the line
+    // `efficiencyMult = ApplyEfficiencyAdjustments(originalEfficiencyMultiplier);` runs on every tick before the flow is worked out, and
+    // `_efficMult = temperatureEfficCurve.Evaluate(skinTemperature) * timeEfficCurve.Evaluate((UT - launchUT) * 1.1574074074074073E-05) * efficiencyMult;
+    // _flowRate = sunAOA * _efficMult * _distMult;` is the flow. efficiencyMult is a persistent field, so scaling it after the panel's
+    // update has no effect on that tick and would be written to the save. The factor therefore goes into timeEfficCurve (a public
+    // configuration field that the panel multiplies into _efficMult, not persistent): the panel's own curve is replaced by a copy scaled by the factor and put back when the
     // factor is 1, at scene exit, on rails, at a save and at shutdown. efficiencyMult is never written, so a save mid-storm holds the
     // value it held without it (row: the saved efficiencyMult).
     // Unknown panel modules of other mods are skipped and named once. Vessels on rails and unloaded vessels are not touched.
@@ -20,6 +22,7 @@ namespace ReDefinition.Atmospheres
         {
             internal FloatCurve Original;
             internal FloatCurve Scaled;
+            internal Vessel Owner;
             internal double Applied = 1.0;
         }
 
@@ -53,7 +56,7 @@ namespace ReDefinition.Atmospheres
             if (!Wanted(v))
             {
                 // Nothing dimmed anywhere (the usual case with the setting off): no walk over the vessel.
-                if (Panels.Count > 0 || Vessels.Count > 0) Restore(v);
+                if (Vessels.ContainsKey(v)) Restore(v);
                 return;
             }
             VesselRecord r;
@@ -142,7 +145,7 @@ namespace ReDefinition.Atmospheres
             if (!Panels.TryGetValue(panel, out r))
             {
                 if (factor >= 1.0 - SolarMath.ApplyEpsilon || panel.timeEfficCurve == null) return;
-                r = new Record { Original = panel.timeEfficCurve };
+                r = new Record { Original = panel.timeEfficCurve, Owner = panel.vessel };
                 Panels[panel] = r;
             }
             // The panel's curve was replaced by someone else since we scaled it: leave it alone and forget it.
@@ -234,9 +237,22 @@ namespace ReDefinition.Atmospheres
         }
 
         // Forgets the vessels' smoothing so that the factor starts again; the panels keep what they have.
+        // The vessel is gone (destroyed or unloaded): its panels' records go with it, so that a destroyed vessel leaves nothing in Panels.
         internal static void ForgetVessel(Vessel v)
         {
-            if (v != null) Vessels.Remove(v);
+            if (v == null) return;
+            Vessels.Remove(v);
+            if (Panels.Count == 0) return;
+            List<ModuleDeployableSolarPanel> gone = null;
+            foreach (KeyValuePair<ModuleDeployableSolarPanel, Record> pair in Panels)
+            {
+                if (pair.Key == null || ReferenceEquals(pair.Value.Owner, v))
+                {
+                    if (gone == null) gone = new List<ModuleDeployableSolarPanel>();
+                    gone.Add(pair.Key);
+                }
+            }
+            if (gone != null) foreach (ModuleDeployableSolarPanel p in gone) Panels.Remove(p);
         }
 
         private static void RestorePanel(ModuleDeployableSolarPanel panel)

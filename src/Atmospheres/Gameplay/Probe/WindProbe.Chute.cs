@@ -110,7 +110,15 @@ namespace ReDefinition.Atmospheres
             Emit("D31.chute_route_h1", (double)(int)WindService.Plan.Route);
             int shifted0 = WindHook.Shifted, forces0 = WindForceModule.Applications;
             double lateH1 = double.NaN, mech = double.NaN;
+            WindService.ClearProfile();
+            WindService.Profile = true;
             foreach (ProbeWait w in DriftWindow(pod, home, chute.part, delta0, v => lateH1 = v, m => mech = m)) yield return w;
+            WindService.Profile = false;
+            // The cost of the whole per-tick path (hub sample, frame, state step; and the hook around the base call), small craft: the
+            // 200-part number needs a large craft and is not measured here.
+            Emit("D31.cost_compute_us", WindService.ComputeMicroseconds);
+            Emit("D31.cost_hook_us_per_part", WindService.HookMicroseconds);
+            Emit("D31.cost_hook_calls", WindService.HookCalls);
             Emit("D31.chute_h1_mechanism_error_rel", mech);
             Emit("D31.chute_h1_along_late_m", lateH1);
             Emit("D31.chute_h1_error_rel", predictedLate > 0.0 ? Math.Abs(lateH1 - predictedLate) / predictedLate : double.NaN);

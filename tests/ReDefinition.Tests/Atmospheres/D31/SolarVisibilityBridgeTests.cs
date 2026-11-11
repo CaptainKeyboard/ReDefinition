@@ -6,8 +6,32 @@ using ReDefinition.Atmospheres;
 using ReDefinition.Core;
 using UnityEngine;
 
-// The fixtures of the two foreign APIs, in the namespaces and shapes the mods ship them: WindAPI [VERIFY] and
-// ModularFlightIntegrator (sarbian, MIT). Plain classes: the bridge reaches them by name and member only.
+// The fixtures of the two foreign APIs, in the namespaces and shapes the mods ship them: WindAPI by Zondulus (CC0 1.0; members as
+// `WindAPI Source.cs` at commit 2dd45c40 declares them) and ModularFlightIntegrator (sarbian, MIT). Plain classes: the bridge reaches
+// them by name and member only. WindAPIOdd is a WindAPI whose manager lacks DeregisterProvider.
+namespace WindAPIOdd
+{
+    public interface IWindProvider
+    {
+        string ProviderID { get; }
+        Vector3 GetWind(CelestialBody body, Part part, Vector3 position);
+    }
+
+    public class WindManager
+    {
+        public static WindManager Instance { get; set; }
+
+        public void RegisterProvider(IWindProvider provider)
+        {
+        }
+
+        public Vector3 GetWindAtLocation(CelestialBody body, Part part, Vector3 position, IWindProvider ignoreProvider = null)
+        {
+            return Vector3.zero;
+        }
+    }
+}
+
 namespace WindAPI
 {
     public interface IWindProvider
@@ -21,6 +45,7 @@ namespace WindAPI
         public static WindManager Instance { get; set; }
         public readonly List<IWindProvider> Providers = new List<IWindProvider>();
         public Vector3 Other = new Vector3(0, 0, 0);
+        public bool Throw;
 
         public void RegisterProvider(IWindProvider provider)
         {
@@ -34,6 +59,7 @@ namespace WindAPI
 
         public Vector3 GetWindAtLocation(CelestialBody body, Part part, Vector3 position, IWindProvider ignoreProvider = null)
         {
+            if (Throw) throw new InvalidOperationException("a provider dereferenced the null part");
             Vector3 sum = Other;
             foreach (IWindProvider p in Providers)
             {
@@ -196,6 +222,106 @@ namespace ReDefinition.Tests.Atmospheres.D31
             WindApiCallbacks.OurWind = null;
             WindAPI.WindManager.Instance = null;
             Assert.AreEqual(Vector3.zero, bridge.OthersAt(null, Vector3.zero), "no manager yet: calm");
+        }
+
+        [TestMethod]
+        public void AProviderThatThrowsInTheReadGivesCalmAndSwitchesTheBridgeOffAfterThreeFailures()
+        {
+            var manager = new WindAPI.WindManager { Throw = true };
+            WindAPI.WindManager.Instance = manager;
+            var warnings = new List<string>();
+            WindApiBridge.Warn = (kind, message) => warnings.Add(kind + ": " + message);
+            try
+            {
+                var bridge = new WindApiBridge();
+                Assert.IsTrue(bridge.Connect(), bridge.Status);
+                for (int i = 0; i < WindApiBridge.FailureLimit; i++)
+                {
+                    Assert.IsTrue(bridge.Connected, "still connected before failure " + (i + 1));
+                    Assert.AreEqual(Vector3.zero, bridge.OthersAt(null, Vector3.zero), "a throwing read gives calm and does not throw");
+                }
+                Assert.IsFalse(bridge.Connected, "disconnected after " + WindApiBridge.FailureLimit + " failures in a row");
+                StringAssert.Contains(bridge.Status, "switched off");
+                Assert.AreEqual(WindApiBridge.FailureLimit + 1, warnings.Count, "one warning per failure and one for the switch-off");
+                StringAssert.Contains(warnings[0], "a provider dereferenced the null part");
+                manager.Throw = false;
+                Assert.AreEqual(Vector3.zero, bridge.OthersAt(null, Vector3.zero), "a disconnected bridge reads nothing");
+            }
+            finally
+            {
+                WindAPI.WindManager.Instance = null;
+                WindApiBridge.Warn = CompatibilityLog.Warn;
+            }
+        }
+
+        [TestMethod]
+        public void AGoodReadBetweenFailuresKeepsTheBridgeConnected()
+        {
+            var manager = new WindAPI.WindManager();
+            WindAPI.WindManager.Instance = manager;
+            WindApiBridge.Warn = (kind, message) => { };
+            try
+            {
+                var bridge = new WindApiBridge();
+                Assert.IsTrue(bridge.Connect(), bridge.Status);
+                for (int round = 0; round < 3; round++)
+                {
+                    manager.Throw = true;
+                    bridge.OthersAt(null, Vector3.zero);
+                    bridge.OthersAt(null, Vector3.zero);
+                    manager.Throw = false;
+                    bridge.OthersAt(null, Vector3.zero);
+                }
+                Assert.IsTrue(bridge.Connected, "two failures, then a good read, three times over: the streak never reaches the limit");
+            }
+            finally
+            {
+                WindAPI.WindManager.Instance = null;
+                WindApiBridge.Warn = CompatibilityLog.Warn;
+            }
+        }
+
+        [TestMethod]
+        public void ANewManagerForANewFlightGetsOurProviderAgain()
+        {
+            var first = new WindAPI.WindManager();
+            WindAPI.WindManager.Instance = first;
+            try
+            {
+                var bridge = new WindApiBridge();
+                Assert.IsTrue(bridge.Connect(), bridge.Status);
+                Assert.IsTrue(bridge.NeedsRegistration);
+                Assert.IsTrue(bridge.Register());
+                Assert.IsFalse(bridge.NeedsRegistration, "registered with this manager");
+                Assert.AreEqual(1, first.Providers.Count);
+
+                var second = new WindAPI.WindManager();
+                WindAPI.WindManager.Instance = second;
+                Assert.IsTrue(bridge.NeedsRegistration, "the flight scene made a new manager");
+                Assert.IsTrue(bridge.Register());
+                Assert.AreEqual(1, second.Providers.Count);
+                Assert.AreEqual(1, first.Providers.Count, "the old manager is left as it was");
+
+                WindAPI.WindManager.Instance = null;
+                Assert.IsFalse(bridge.NeedsRegistration, "no manager, nothing to register with");
+                Assert.IsFalse(bridge.Register());
+            }
+            finally
+            {
+                WindAPI.WindManager.Instance = null;
+            }
+        }
+
+        [TestMethod]
+        public void AWindApiOfADifferentShapeLeavesTheBridgeOffAndNamesWhatDiffers()
+        {
+            var odd = new WindApiBridge("WindAPIOdd.WindManager", "WindAPIOdd.IWindProvider");
+            Assert.IsFalse(odd.Connect());
+            Assert.IsFalse(odd.Connected);
+            StringAssert.Contains(odd.Status, "DeregisterProvider");
+            var absent = new WindApiBridge("NoSuchWind.Manager", "NoSuchWind.Provider");
+            Assert.IsFalse(absent.Connect());
+            Assert.AreEqual("WindAPI is not loaded", absent.Status);
         }
 
         // --- The ModularFlightIntegrator override ---

@@ -33,7 +33,9 @@ namespace ReDefinition.Atmospheres
     internal static class WindCompose
     {
         // The share of the field's wind that is counted as the storm's: 0 in fair weather, 1 from a heavy fall. The field's sample carries
-        // one wind and no split, so the split follows the level. [VERIFY with the generator's author: a sample with a storm wind of its own
+        // one wind and no split, so the split follows the level. What Auto adds beside a foreign base wind is therefore the field's whole
+        // wind times this share, not the field's wind minus a base: where the foreign mod pushes 10 m/s and the field says 10 m/s at level
+        // 0.8, the vehicle feels about 20 m/s. (WindStatus calls this the "storm delta"; its wording belongs to the settings window.) [VERIFY with the generator's author: a sample with a storm wind of its own
         // would replace this.]
         internal static double StormShare(double level01)
         {
@@ -104,7 +106,11 @@ namespace ReDefinition.Atmospheres
             // the clamp. The clamp judges the step, not the wind: the extra drag acceleration of the air-relative velocity of the last tick
             // (the ground velocity less the wind applied then) against the same velocity changed by the step. A vessel that drifts with the
             // wind (a canopy at the wind's speed) therefore feels the whole wind; only a step that would push it harder than maxWindAccel is
-            // cut, so a jump of the input cannot launch a craft.
+            // cut, so a jump of the input cannot launch a craft. maxWindAccel (1.5 m/s2) is therefore the limit of the acceleration ADDED BY ONE
+            // STEP, not of the total wind-induced acceleration: judged on the total (drag at v - w against drag at v) a canopy at a standing
+            // 15 m/s wind (650 m2 per tonne, 1.2 kg/m3) would be held to a wind of a fraction of a metre per second, which is the opposite of
+            // what the canopy row asks for (see TheTotalAccelerationOfAStandingWindOnACanopyIsFarOverTheLimit). The consequence: a vessel
+            // already in a strong, slowly built wind is limited by the speed cap and the slew, not by this clamp.
             Vec3 step = (dt > 0.0 ? WindMath.Slew(Applied, target, maxSlew, dt) : target) - Applied;
             LastClampShare = 1.0;
             if (step.Length > 1e-9)

@@ -35,7 +35,7 @@ namespace ReDefinition.Atmospheres
         // The sentence for the settings window.
         internal static string StatusText
         {
-            get { return WindService.Plan.Status; }
+            get { return WindService.Plan.Status + (WindHook.Disabled ? " The wind hook is switched off: " + WindHook.Status + "." : ""); }
         }
 
         public void Init()
@@ -50,7 +50,7 @@ namespace ReDefinition.Atmospheres
         public void Tick(float dt)
         {
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
-            if (!on || !AtmospheresSettings.WindForces)
+            if (!on)
             {
                 // Off costs one reference comparison: the plan object is made once.
                 if (!ReferenceEquals(WindService.Plan, OffPlan))
@@ -62,6 +62,20 @@ namespace ReDefinition.Atmospheres
                 }
                 return;
             }
+            if (!AtmospheresSettings.WindForces)
+            {
+                // No wind forces: nothing pushes a vehicle, and the pictures still follow the foreign wind that is applied (the source
+                // stays in the weather seam).
+                if (!ReferenceEquals(WindService.Plan, OffPlan))
+                {
+                    SetPlan(OffPlan);
+                    announced = false;
+                    keyValid = false;
+                }
+                if (!scanned) Scan();
+                SyncSources(true);
+                return;
+            }
             if (!scanned) Scan();
             WindSourceMode mode = AtmospheresSettings.WindSource;
             WindInjection injection = AtmospheresSettings.WindInjection;
@@ -70,26 +84,26 @@ namespace ReDefinition.Atmospheres
 
             // The plan is worked out again only when one of its inputs changed: the settings, the mods found, the integrator and the slot.
             if (!keyValid || mode != keyMode || injection != keyInjection || !ReferenceEquals(known, keyForeign) || integrator != keyIntegrator
-                || WindHook.Registered != keyRegistered)
+                || WindHook.Registered != keyRegistered || windApi.Connected != keyBridge)
             {
                 // The route the settings ask for; the override is registered only where the plan wants it, so that a mod that holds the
                 // slot keeps it and the wind then goes in as a force.
                 bool mfi = WindHook.Registered;
-                WindPlan wish = WindPlanner.Decide(mode, known, injection, integrator, true);
+                bool bridge = windApi.Connected;
+                WindPlan wish = WindPlanner.Decide(mode, known, injection, integrator, true, bridge);
                 if (wish.Route == WindRoute.Aero && !WindHook.Registered)
                 {
                     mfi = WindHook.Register();
                     if (!mfi) AtmospheresLog.WarnOnce("wind: the ModularFlightIntegrator override was not registered (" + WindHook.Status + "); the wind goes in as a force.");
                 }
-                WindPlan plan = WindPlanner.Decide(mode, known, injection, mfi, true);
-                if (windApi.Connected && plan.Route == WindRoute.Far && !windApiRegistered)
+                WindPlan plan = WindPlanner.Decide(mode, known, injection, mfi, true, bridge);
+                if (plan.Route == WindRoute.Far)
                 {
-                    // The plan's route Far is served by our provider in WindAPI.
+                    // The plan's route Far is served by our provider in WindAPI (registered below, once its manager exists).
                     WindApiCallbacks.OurWind = PartWind;
                     WindService.OthersWindMs = OthersWind;
-                    windApi.Register();
-                    windApiRegistered = true;
                 }
+                keyBridge = bridge;
                 keyValid = true;
                 keyMode = mode;
                 keyInjection = injection;
@@ -99,12 +113,15 @@ namespace ReDefinition.Atmospheres
                 SetPlan(plan);
                 announced = false;
             }
+            // The manager of WindAPI is made for each flight: our provider goes in again whenever a new one appears.
+            if (WindService.Plan.Route == WindRoute.Far && windApi.NeedsRegistration && windApi.Register()) windApiRegistered = true;
             SyncSources(true);
             Announce();
             LogReadout(dt);
         }
 
         // The state the plan was last worked out from.
+        private bool keyBridge;
         private bool keyValid;
         private WindSourceMode keyMode;
         private WindInjection keyInjection;
@@ -189,7 +206,9 @@ namespace ReDefinition.Atmospheres
         // in the forecast in every mode but Off, where the forecast's own windSource order keeps it apart.
         private void SyncSources(bool active)
         {
-            IWeatherSource source = windApi.Connected ? windApi.Source : null;
+            // The source object outlives a disconnect, so that a source already registered can still be taken out.
+            IWeatherSource held = windApi.Source;
+            IWeatherSource source = windApi.Connected ? held : null;
             WindSourceMode mode = AtmospheresSettings.WindSource;
             bool wantHub = active && source != null && (mode == WindSourceMode.Auto || mode == WindSourceMode.Foreign);
             if (wantHub && !sourceInHub)
@@ -199,7 +218,7 @@ namespace ReDefinition.Atmospheres
             }
             else if (!wantHub && sourceInHub)
             {
-                WeatherHub.Unregister(source);
+                WeatherHub.Unregister(held);
                 sourceInHub = false;
             }
             bool wantForecast = source != null && active;
@@ -210,12 +229,13 @@ namespace ReDefinition.Atmospheres
             }
             else if (!wantForecast && sourceInForecast)
             {
-                ForecastWindProviders.Remove(source);
+                ForecastWindProviders.Remove(held);
                 sourceInForecast = false;
             }
         }
 
-        // The wind our WindAPI provider returns for a part.
+        // The wind our WindAPI provider returns for a part. FAR does not fill part.dragScalar [VERIFY with FAR installed], so on this route the drag area behind the
+        // acceleration clamp stays 0 and the clamp is inert; the slew limit, the speed cap and the ramp hold.
         private static Vector3 PartWind(Part part)
         {
             Vessel v = part != null ? part.vessel : null;
@@ -296,6 +316,8 @@ namespace ReDefinition.Atmospheres
         private static void OnSceneLoad(GameScenes scene)
         {
             WindService.ForgetAll();
+            // A hook that shut itself off after failures gets a new chance in the next scene.
+            WindHook.ResetFailures();
         }
     }
 }

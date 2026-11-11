@@ -1,4 +1,5 @@
 using System;
+using ReDefinition.Core;
 
 namespace ReDefinition.Atmospheres
 {
@@ -87,6 +88,15 @@ namespace ReDefinition.Atmospheres
                 east * eastWorld.X + north * northWorld.X + up * upWorld.X,
                 east * eastWorld.Y + north * northWorld.Y + up * upWorld.Y,
                 east * eastWorld.Z + north * northWorld.Z + up * upWorld.Z);
+        }
+
+        // The slew rate in force: the body's node value, never above the shared limit of WindNoise.LimitWind (CONTRACT.md section 3: every
+        // consumer that writes a wind speed holds to it). The vector slew changes the speed by at most the vector's step, so this keeps the
+        // speed within what LimitWind allows.
+        internal static double EffectiveSlew(double nodeMaxSlewMsPerS)
+        {
+            double shared = WindNoise.MaxWindSlewMsPerS;
+            return nodeMaxSlewMsPerS < shared ? nodeMaxSlewMsPerS : shared;
         }
 
         // The wind one step on: it moves towards the target by at most maxSlewMsPerS * dt (as a vector, so the direction cannot jump either).
