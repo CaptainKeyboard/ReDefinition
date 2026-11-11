@@ -130,10 +130,11 @@ tables for dust, sand, ash, methane are body configuration (C12) and not asserte
 | 13 | Bounded catch-up | worst case over 50 arbitrary UTs (steps taken x measured step cost) <= 20 s; the epoch length is DERIVED: epochSteps = floor(20 s / stepCost) - 2 spin-up - 2 crossfade; crossfade: 99th percentile per-step change of the blended coverage/precipitation maps inside the crossfade window <= 3 x the same number outside it; memory of the second trajectory counted |
 | 14 | Pre-signing | this header signed by the reviewer before the runs; D3 passes |
 
-Note A (to be confirmed by the reviewer). The brief says "autumn ice > spring ice at mirrored phases". With ocean heat storage the physical direction at equal
+Note A (confirmed by REV-B10h-1). The brief says "autumn ice > spring ice at mirrored phases". With ocean heat storage the physical direction at equal
 insolation is the opposite (spring ice > autumn ice: the sea keeps the summer heat into autumn, the Arctic extent at the same insolation is larger in spring than in autumn).
-The header fixes the PHYSICAL direction as the test (ice area at phase 0.25 > ice area at phase 0.75 for the northern hemisphere, mirrored for the southern) and the reviewer
-confirms or reverses it before the runs.
+The test is the PHYSICAL direction: ice area at phase 0.25 over ice area at phase 0.75 for the northern hemisphere, mirrored for the southern; the hemisphere mean of the
+ratio must be >= 1.2 (amendment H-7, a sharpening written before the runs). A ratio below 1.2 or a reversal means the sea heat capacity is too small and is reported as such.
+The brief text "autumn ice > spring ice" is superseded by this note.
 
 Epoch/surface continuity (part of 9, 10 and 13): the snow cover fraction of every table band and the ice-edge latitude, evaluated across epoch boundaries, jump by <= 0.10 (cover)
 and <= 3 degrees (ice edge) within the crossfade window; otherwise the epoch is lengthened within the 20 s bound or the slow state gets the analytic design of C26.
@@ -162,10 +163,29 @@ cross-sections through a developing cell and a front, zonal-mean plots per set, 
 * Height/ocean grid source: `src/Atmospheres/OrbitHeights.cs` reads a grid of `OrbitMask.HeightWidth x HeightHeight` PQS heights (B13 may move it); the production port of `OceanFraction`/`TerrainM`
   is C25's work and is not needed for the proof.
 
+### H8 Amendments required by the sign-off (written before any criterion run; they close open definitions and change no threshold)
+
+* H-1 Epoch parameters. Spin-up window = 20 body days (rotation periods of the body, 120 steps on the Kerbin-like set at 1 h), crossfade length = 4 body days (24 steps).
+  `epochSteps = floor(20 s / stepCost) - 2 x spinUpSteps - 2 x crossfadeSteps` with `spinUpSteps = 20 x RotationPeriodS / StepSeconds` and
+  `crossfadeSteps = 4 x RotationPeriodS / StepSeconds`. They are not changed after results; the one structural retry may change them and the change is reported.
+  The slow surface state (snow, sea ice, soil water) is re-initialised from climatology at each epoch start. At a step cost around 30 ms the whole worker budget is ~660 steps
+  (~28 game days on the Kerbin-like set), so an epoch is short against the seasonal memory of snow and sea ice; the header expects the across-epoch continuity part of
+  criteria 9 and 10 to FAIL in that case. A FAIL there is reported as FAIL and triggers the analytic slow state of C26 (fallback hybrid description), not tuning.
+* H-2 Criterion 2 and `EddyScale`. `EddyScale` is a gameplay scale, not physics. A pass of criterion 2 reached only with `EddyScale` < 1 is reported as "PASS with EddyScale = x (gameplay scale)",
+  not as an emergent result, and it counts as the one structural change. The tracker numbers of the unmodified (`EddyScale` = 1) run are reported in any case. No threshold changes.
+  Physical expectation on the Kerbin-like set: deformation radius about 280 km, fastest-growing wavelength about 1100 km, about 2 waves on the 50 N circle (2424 km), so 2-4 simultaneous lows per hemisphere.
+* H-3 Criterion 3 and the subtropical dry belt. The model has no Hadley circulation and no subsidence. A FAIL of the zonal ratio part of criterion 3 (tropics over subtropics >= 3) is reported
+  as FAIL and enters the FALLBACK evaluation. The single structural retry may be spent on a stated Hadley/subsidence term (a zonal-mean tropical overturning derived from the zonal-mean heating, which dries
+  the 15-35 degree belt); this term is named here so that it is not an after-the-fact choice. If the retry is spent on it, it is not spent on criterion 2.
+* H-4 Persistence of D1 is 12 h of game time (2 body days on the Kerbin-like set is 12 h; the wording "max(2 days, 12 h)" is replaced by "12 h"). Track swaps (a track whose successor is closer to another
+  track's last position than to its own) are an additional reported tracker number; the tracking radius 25 m/s x 6 h = 540 km against an expected spacing of ~1100 km makes swaps possible.
+* H-5 The tracker reports front events split by arm (thermal / cloud-water-path / both). The real field with the frame order shuffled in time (spatially intact) is reported for D1 as an extra (tracks should collapse); it is not a pass/fail control.
+* H-7 see Note A (ratio >= 1.2).
+
 ### Sign-off
 
-Reviewer: ____________________  date: __________  verdict: SIGNED / CHANGES REQUESTED (list)
-Core commit at header time: (filled in by the commit that adds this file)
+Reviewer: REV-B10h-1  date: 2026-11-11  verdict: SIGNED under conditions H-1 to H-4 (written above in H8)
+Core commit at header time: efc650c4
 
 ---------------------------------------------------------------------------------------------------------------------------
 

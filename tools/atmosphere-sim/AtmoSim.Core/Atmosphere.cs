@@ -21,7 +21,7 @@ namespace AtmoSim.Core
         public SimConfig Clone() { return (SimConfig)MemberwiseClone(); }
     }
 
-    // Technique references (textbook methods, no foreign code): the two-level quasi-geostrophic model (Phillips 1956), the spectral
+    // Technique references: the two-level quasi-geostrophic model (Phillips 1956), the spectral
     // transform method on the sphere (Hoskins and Simmons 1975) with normalised associated Legendre functions, semi-Lagrangian
     // advection (Stam, "Stable Fluids", 1999, as the transport scheme), a moist-static-energy convection trigger (Betts-Miller style
     // adjustment) [VERIFY bibliographic details].
