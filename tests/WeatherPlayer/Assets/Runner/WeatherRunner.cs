@@ -55,6 +55,11 @@ namespace ReDefinition.WeatherPlayer
             upscaler = WeatherPass.Argument("-upscale");
             output = WeatherPass.Argument("-out") ?? ".";
             Directory.CreateDirectory(output);
+            if (mode == "scene")
+            {
+                StartCoroutine(SceneMode());
+                return;
+            }
             if (mode == "turn" && upscaler != null && upscaler != "native")
             {
                 float scale = float.Parse(WeatherPass.Argument("-scale") ?? "0.5", CultureInfo.InvariantCulture);
@@ -69,6 +74,66 @@ namespace ReDefinition.WeatherPlayer
             Log(mode + ", " + SystemInfo.graphicsDeviceName + ", " + SystemInfo.graphicsDeviceVersion);
             BuildScene();
             StartCoroutine(mode == "turn" ? Turn() : mode == "time" ? Time_() : Stills());
+        }
+
+        // Every scene class with [WeatherScene], by id.
+        private static Dictionary<string, Type> FindScenes()
+        {
+            var scenes = new Dictionary<string, Type>();
+            foreach (Type type in typeof(WeatherRunner).Assembly.GetTypes())
+            {
+                var attribute = (WeatherSceneAttribute)Attribute.GetCustomAttribute(type, typeof(WeatherSceneAttribute), false);
+                if (attribute != null && typeof(WeatherSceneBase).IsAssignableFrom(type) && !type.IsAbstract) scenes[attribute.Id] = type;
+            }
+            return scenes;
+        }
+
+        // -mode scene -scene <id>: builds the scene's world, runs it, prints its metric lines and ends with the verdict line.
+        private IEnumerator SceneMode()
+        {
+            var sink = new MetricSink();
+            string id = WeatherPass.Argument("-scene");
+            Dictionary<string, Type> scenes = FindScenes();
+            Log("scene " + id + ", " + SystemInfo.graphicsDeviceName + ", " + SystemInfo.graphicsDeviceVersion);
+            Type type;
+            if (id == null || !scenes.TryGetValue(id, out type))
+            {
+                Log("FAIL  no scene " + id + "; the scenes are " + string.Join(", ", new List<string>(scenes.Keys).ToArray()));
+                Application.Quit();
+                yield break;
+            }
+            var scene = (WeatherSceneBase)Activator.CreateInstance(type);
+            IEnumerator run = null;
+            try
+            {
+                scene.Setup(output, sink, null);
+                run = scene.Run();
+            }
+            catch (Exception e)
+            {
+                Log("FAIL  " + e);
+                Application.Quit();
+                yield break;
+            }
+            while (true)
+            {
+                bool more;
+                try
+                {
+                    more = run.MoveNext();
+                }
+                catch (Exception e)
+                {
+                    sink.Flag("scene_ran", false);
+                    Log("FAIL  " + e);
+                    Application.Quit();
+                    yield break;
+                }
+                if (!more) break;
+                yield return run.Current;
+            }
+            sink.Finish();
+            Application.Quit();
         }
 
         private static int Argument(string name, int fallback)

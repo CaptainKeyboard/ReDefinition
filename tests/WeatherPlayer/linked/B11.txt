@@ -1,0 +1,32 @@
+# Linked into the weather player by tools/build_weather_player.py (see its header): one glob per line, matched against repo-relative
+# paths with ** for any folders. A .cs file is compiled into the player (Assets/Linked), a .shader/.cginc/.hlsl file is carried in
+# Resources. The player's infrastructure: the proxy bridges, FSR 3's port, the command line, the storm noise and volume maths.
+src/Proxy/**/ProxyDll.cs
+src/Proxy/**/ProxyEvents.cs
+src/Proxy/**/RtNative.cs
+src/Proxy/**/PacketRing.cs
+src/Proxy/**/StreamlineCamera.cs
+src/Proxy/**/NativeText.cs
+src/Proxy/**/NativeUpscalerLink.cs
+src/Proxy/**/DlssBridge.cs
+src/Proxy/**/AmdUpscalerBridge.cs
+src/Proxy/**/XessUpscalerBridge.cs
+src/Fsr3/**/Fsr3Constants.cs
+src/Fsr3/**/Fsr3ShaderIDs.cs
+src/Fsr3/**/Fsr3Upscaler.cs
+src/Fsr3/**/Fsr3UpscalerShaders.cs
+src/Fsr3/**/Fsr3UpscalerContext.cs
+src/Fsr3/**/Fsr3UpscalerPass.cs
+src/Fsr3/**/Fsr3UpscalerResources.cs
+src/Fsr3/**/ResourceView.cs
+src/Common/**/CommandLine.cs
+src/Atmospheres/**/StormNoise.cs
+src/Atmospheres/**/Mathx.cs
+src/Atmospheres/**/StormVolumeMath.cs
+# What the linked code names of the raytracing player's runner: the profiler's markers, the proxy's refusal, the rig's sharpness.
+tests/RaytracingPlayer/Assets/Runner/GameStubs.cs
+tests/RaytracingPlayer/Assets/Runner/UpscalerRigStub.cs
+# Shaders: the raytracing capture, the storm curtain and the cloud slab.
+unity/Assets/ReDefinition/**/ReDefinitionRtCapture.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresStormVolume.shader
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresCloudSlab.shader
