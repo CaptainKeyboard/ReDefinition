@@ -18,10 +18,12 @@ namespace ReDefinition.Atmospheres
         private sealed class StreamTone
         {
             internal volatile bool On;
+            internal volatile int Calls;
             private double phase;
 
             public void Generate(float[] data)
             {
+                Calls++;
                 double step = 2.0 * Math.PI * 440.0 / 48000.0;
                 for (int i = 0; i < data.Length; i++)
                 {
@@ -49,17 +51,29 @@ namespace ReDefinition.Atmospheres
             Camera camera = FlightCamera.fetch.mainCamera;
             var listener = camera.GetComponent(audioListenerType);
             Emit("P5.listener_on_main_camera", listener != null);
-            if (listener == null)
+            // Run1 placed the sources by the transform of "a" listener, and the output said both sources were heard from the left: the
+            // listener the engine uses is the ACTIVE ENABLED one, so the scene's listeners are listed and that one is taken.
+            var listenerList = new StringBuilder();
+            Component active = null;
+            foreach (UnityEngine.Object found in UnityEngine.Object.FindObjectsOfType(audioListenerType))
             {
-                UnityEngine.Object found = UnityEngine.Object.FindObjectOfType(audioListenerType);
-                listener = found as Component;
+                var component = found as Component;
+                if (component == null) continue;
+                object enabledValue = ReconDyn.Get(found, "enabled");
+                bool isEnabled = enabledValue is bool && (bool)enabledValue;
+                bool isActive = component.gameObject.activeInHierarchy && isEnabled;
+                listenerList.Append(component.gameObject.name).Append(isActive ? " (active)" : " (inactive)").Append("; ");
+                if (isActive && active == null) active = component;
             }
+            EmitText("P5.listeners", listenerList.ToString().Trim());
+            if (active != null) listener = active;
             if (listener == null)
             {
                 EmitText("P5.error", "no AudioListener in the flight scene");
                 yield break;
             }
             Transform at = listener.transform;
+            EmitText("P5.listener_used", listener.gameObject.name);
 
             // Path A.
             GameObject goA = ReconMesh.Track(new GameObject("ReDefinition recon audio A"));
@@ -115,6 +129,13 @@ namespace ReDefinition.Atmospheres
                 Emit("P5.path_b_added_right_" + (side == 0 ? "src_left" : "src_right"), ReconMath.AddedRms(outputR, baseR));
                 stream.On = false;
             }
+            // Run1: path B added nothing on any channel. Whether the stream was asked for samples and whether the source plays says if the
+            // stream path is dead or the probe's setup was.
+            Emit("P5.path_b_generate_calls", stream.Calls);
+            object playingB = ReconDyn.Get(sourceB, "isPlaying");
+            Emit("P5.path_b_is_playing", playingB is bool && (bool)playingB);
+            object playingA = ReconDyn.Get(sourceA, "isPlaying");
+            Emit("P5.path_a_is_playing", playingA is bool && (bool)playingA);
             Emit("P5.pan_a", panA[0] - panA[1]);
             Emit("P5.pan_b", panB[0] - panB[1]);
             Emit("P5.output_alive", ReconMath.AddedRms(outputL, 0) + ReconMath.AddedRms(outputR, 0) > 0 || baseL + baseR > 0);
@@ -150,6 +171,36 @@ namespace ReDefinition.Atmospheres
             {
                 FlightDriver.SetPause(false, false);
                 pausedByProbe = false;
+            }
+            // Run1: the game's pause (Time.timeScale 0) did not silence the filter-read path and AudioListener.pause stayed false. The
+            // listener's own pause flag is the mechanism the plan names: set it, read the output, put it back.
+            PropertyInfo pauseProperty = audioListenerType.GetProperty("pause", BindingFlags.Public | BindingFlags.Static);
+            if (pauseProperty != null)
+            {
+                yield return ProbeWait.Frames(10);
+                foreach (ProbeWait w in ReadOutput(6)) yield return w;
+                Emit("P5.running_rms_before_listener_pause", Math.Max(outputL, outputR));
+                try
+                {
+                    pauseProperty.SetValue(null, true, null);
+                }
+                catch (Exception e)
+                {
+                    EmitText("P5.error", "AudioListener.pause could not be set: " + e.Message);
+                }
+                yield return ProbeWait.Frames(15);
+                foreach (ProbeWait w in ReadOutput(6)) yield return w;
+                Emit("P5.listener_pause_rms", Math.Max(outputL, outputR));
+                try
+                {
+                    pauseProperty.SetValue(null, false, null);
+                }
+                catch (Exception)
+                {
+                }
+                yield return ProbeWait.Frames(10);
+                object after = pauseProperty.GetValue(null, null);
+                Emit("P5.listener_pause_restored", after is bool && !(bool)after);
             }
             tone.On = false;
             stream.On = false;

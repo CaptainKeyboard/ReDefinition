@@ -75,11 +75,30 @@ namespace ReDefinition.Atmospheres
             double kscLapse = double.NaN;
             var kscByPhase = new double[4][];
 
+            // The finding of run1, kept as rows: the position overload against the offset it is made of, at the pad on the base time.
+            CelestialBody home = bodies.Find(x => x.bodyName == "Kerbin");
+            if (home != null)
+            {
+                Vector3d pad = SurfacePoint(home, KscLatitude, KscLongitude, KscAltitude);
+                Emit("P1.stock_position_overload_ksc_value", home.GetFullTemperature(pad));
+                Emit("P1.unit_sun_offset_ksc_k", SunOffset(home, pad, KscAltitude));
+                Emit("P1.ksc_temperature_base_ut_k", Temperature(home, KscLatitude, KscLongitude, KscAltitude));
+            }
+
             foreach (Slot slot in slots)
             {
                 Planetarium.SetUniversalTime(slot.Ut);
                 yield return ProbeWait.Frames(4);
                 CelestialBody b = slot.Body;
+                // Whether the clock jump reached the orbit the temperature reads (the body that orbits the star) and the sun direction.
+                CelestialBody referencing = b;
+                int hops = 0;
+                while (referencing.referenceBody != null && referencing.referenceBody != referencing && referencing.referenceBody.referenceBody != null
+                       && referencing.referenceBody.referenceBody != referencing.referenceBody && hops++ < 6) referencing = referencing.referenceBody;
+                if (referencing.orbit != null)
+                {
+                    Emit("P1.true_anomaly_deg_" + b.bodyName + "_phase" + slot.Phase, referencing.orbit.trueAnomaly * 57.29578);
+                }
                 phaseUts[b.bodyName][slot.Phase] = slot.Ut;
                 float[] block = values[b.bodyName];
                 int at = slot.Phase * longitudes.Length * altitudes.Length * latitudes.Length;
@@ -152,7 +171,8 @@ namespace ReDefinition.Atmospheres
             foreach (CelestialBody b in bodies)
             {
                 var json = new ReconJson().BeginObject();
-                json.Text("body", b.bodyName).Number("year_s", YearOf(b)).Text("layout", "phase, longitude, altitude, latitude (row-major)").Text("unit", "kelvin");
+                json.Text("body", b.bodyName).Number("year_s", YearOf(b)).Text("layout", "phase, longitude, altitude, latitude (row-major)").Text("unit", "kelvin")
+                    .Text("method", "GetFullTemperature(altitude, GetAtmoThermalStats offset with the unit sun vector)");
                 json.BeginArray("phase_ut");
                 foreach (double ut in phaseUts[b.bodyName]) json.Number(null, ut);
                 json.EndArray();
@@ -167,9 +187,24 @@ namespace ReDefinition.Atmospheres
             Say("P1: " + samples + " samples, " + finite + " finite, KSC " + Num(kmin) + " to " + Num(kmax) + " K");
         }
 
+        // The full temperature of the air at a surface point, in kelvin. CelestialBody.GetFullTemperature(Vector3d) returns only the
+        // sun-based OFFSET of the atmosphere (it ends in GetAtmoThermalStats' atmosphereTemperatureOffset) and passes that method an
+        // unnormalised sun vector, whose dot products then reach the latitude-by-sun curve as numbers of the order of 1e7 (run1: KSC
+        // -9.1e6 .. +9.1e6, poles -50). The temperature is GetFullTemperature(altitude, offset) with the offset taken from
+        // GetAtmoThermalStats with the unit sun vector, as the flight integrator calls it [VERIFY against FlightIntegrator: the unit vector].
         private double Temperature(CelestialBody body, double latitude, double longitude, double altitude)
         {
-            return body.GetFullTemperature(SurfacePoint(body, latitude, longitude, altitude));
+            Vector3d position = SurfacePoint(body, latitude, longitude, altitude);
+            return body.GetFullTemperature(altitude, SunOffset(body, position, altitude));
+        }
+
+        private static double SunOffset(CelestialBody body, Vector3d position, double altitude)
+        {
+            Vector3d sun = (Planetarium.fetch.Sun.scaledBody.transform.position - ScaledSpace.LocalToScaledSpace(position)).normalized;
+            Vector3d up = FlightGlobals.getUpAxis(body, position);
+            double offset, emissive, albedo;
+            body.GetAtmoThermalStats(false, Planetarium.fetch.Sun, sun, Vector3d.Dot(sun, up), up, altitude, out offset, out emissive, out albedo);
+            return offset;
         }
 
         // Which way a surface point is made, per body: 1 = GetWorldSurfacePosition (carries the body's rotation, which the sun term of the

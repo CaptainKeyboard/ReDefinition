@@ -92,19 +92,67 @@ namespace ReDefinition.Tests.Atmospheres.B09
             var kerbin = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(kerbinHeights));
             double ocean = (double)kerbin["ocean_fraction"];
             Assert.IsTrue(ocean >= 0.5 && ocean <= 0.8, "Kerbin ocean fraction " + ocean);
+        }
 
+        // The temperature dumps are judged for what they are: air temperatures in kelvin that fall with altitude. A dump counts only if it
+        // names its method (the files of run1 do not: they held the sun-based offset of CelestialBody.GetFullTemperature(Vector3d), -9.1e6 .. +9.1e6,
+        // and were removed). The dumps of the latest start that wrote them are read; with none the test is inconclusive.
+        [TestMethod]
+        public void TheTemperatureDumpsAreAirTemperatures()
+        {
+            string root = RepoRoot.Root("tests", "series", "rows", "B09.json");
+            string folder = Path.Combine(root, "tests", "data", "recon", "dumps");
+            if (!Directory.Exists(folder)) Assert.Inconclusive("tests/data/recon/dumps does not exist: the K-pre series has not been run in this checkout");
+
+            int checkedBodies = 0;
             foreach (string body in RequiredBodies)
             {
-                string file = Path.Combine(folder, "run1-temperature-" + body + ".json");
-                Assert.IsTrue(File.Exists(file), file + " is missing");
+                string[] files = Directory.GetFiles(folder, "run*-temperature-" + body + ".json");
+                if (files.Length == 0) continue;
+                string file = files.OrderByDescending(f => Path.GetFileName(f), StringComparer.Ordinal).First();
                 var t = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(file));
-                int expected = ((List<object>)t["phase_ut"]).Count * ((List<object>)t["longitude_deg"]).Count * ((List<object>)t["altitude_m"]).Count
-                               * ((List<object>)t["latitude_deg"]).Count;
+                Assert.IsTrue(t.ContainsKey("method") && ((string)t["method"]).Contains("GetAtmoThermalStats"),
+                              file + " does not name the method that made it: it predates the fix of the probe and is not a temperature");
+                int phases = ((List<object>)t["phase_ut"]).Count, longitudes = ((List<object>)t["longitude_deg"]).Count;
+                var altitudes = ((List<object>)t["altitude_m"]).Cast<double>().ToList();
+                var latitudes = ((List<object>)t["latitude_deg"]).Cast<double>().ToList();
                 var values = (List<object>)t["temperature_k"];
-                Assert.AreEqual(expected, values.Count, file);
+                Assert.AreEqual(phases * longitudes * altitudes.Count * latitudes.Count, values.Count, file);
                 Assert.IsFalse(values.Any(v => v == null), file + " has a non-finite temperature");
                 Assert.IsTrue(values.All(v => (double)v > 0 && (double)v < 2000), file + " has an implausible temperature");
+
+                int sea = altitudes.IndexOf(0.0), top = altitudes.IndexOf(10000.0), equator = latitudes.IndexOf(0.0);
+                Assert.IsTrue(sea >= 0 && top >= 0 && equator >= 0, file + " lacks the sea level, 10 km or equator samples");
+                double largestLapse = 0;
+                for (int ph = 0; ph < phases; ph++)
+                {
+                    for (int lo = 0; lo < longitudes; lo++)
+                    {
+                        for (int la = 0; la < latitudes.Count; la++)
+                        {
+                            double atSea = (double)values[((ph * longitudes + lo) * altitudes.Count + sea) * latitudes.Count + la];
+                            double atTop = (double)values[((ph * longitudes + lo) * altitudes.Count + top) * latitudes.Count + la];
+                            Assert.IsTrue(atSea >= atTop - 0.5, file + ": the air is colder at sea level than at 10 km (phase " + ph + ", longitude " + lo + ", latitude " + latitudes[la] + ")");
+                            largestLapse = Math.Max(largestLapse, atSea - atTop);
+                        }
+                    }
+                }
+                Assert.IsTrue(largestLapse > 1.0, file + ": altitude has no effect on the temperature (largest difference " + largestLapse + " K)");
+                if (body == "Kerbin")
+                {
+                    Assert.IsTrue(largestLapse > 15.0, file + ": the Kerbin lapse between sea level and 10 km is only " + largestLapse + " K");
+                    for (int ph = 0; ph < phases; ph++)
+                    {
+                        for (int lo = 0; lo < longitudes; lo++)
+                        {
+                            double atSea = (double)values[((ph * longitudes + lo) * altitudes.Count + sea) * latitudes.Count + equator];
+                            Assert.IsTrue(atSea > 233 && atSea < 333, file + ": the equator at sea level reads " + atSea + " K (phase " + ph + ", longitude " + lo + ")");
+                        }
+                    }
+                }
+                checkedBodies++;
             }
+            if (checkedBodies == 0) Assert.Inconclusive("no temperature dump exists: run1's were not temperatures and were removed; run2 writes them");
         }
     }
 }

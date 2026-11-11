@@ -13,7 +13,8 @@ namespace ReDefinition.Atmospheres
     // -atmoSeries Kpre on the game's command line, started by tools/atmo_series.py, and it ends the game with Probe: PASSED or FAILED.
     //
     // Two starts. run1 has the full mod set (EVE, Scatterer, Deferred, TUFX, Parallax) and measures every premise; run2 has Scatterer
-    // absent and measures the premises that depend on the ocean and the camera chain (P6 to P8 and P10). A premise that does not hold is
+    // absent and measures the premises that depend on the ocean and the camera chain (P6 to P8 and P10), and again P1, P5 and P9, whose
+    // probes had defects in run1 (the temperature call, the audio listener, the EVE material). A premise that does not hold is
     // a result, not a failure of the probe: the metrics carry the numbers, tests/series/rows/B09.json the thresholds, and
     // tests/data/recon/RECON.md the table with the consequence taken.
     //
@@ -105,18 +106,19 @@ namespace ReDefinition.Atmospheres
             if (spawnOk) foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
             foreach (ProbeWait w in Guard("P8", ForeignShader())) yield return w;
             foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
+            // P1 is a blocking premise: it comes before the informative steps, so that a start that runs out of time loses those.
+            // P1, P5 and P9 run in both starts: run1 measured them with defects of the probe, run2 measures them again.
+            foreach (ProbeWait w in Guard("P1", TemperatureSamples())) yield return w;
+            Vessel after = FlightGlobals.ActiveVessel;
+            Emit("P1.vessel_intact", after != null && after.state != Vessel.State.DEAD);
+            foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
             if (full)
             {
-                // P1 is a blocking premise: it comes before the informative steps, so that a start that runs out of time loses those.
-                foreach (ProbeWait w in Guard("P1", TemperatureSamples())) yield return w;
-                Vessel after = FlightGlobals.ActiveVessel;
-                Emit("P1.vessel_intact", after != null && after.state != Vessel.State.DEAD);
-                foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
                 foreach (ProbeWait w in Guard("P12", AmbientFactors())) yield return w;
                 foreach (ProbeWait w in Guard("P3", VertexSpacing())) yield return w;
-                foreach (ProbeWait w in Guard("P9", EveLayers())) yield return w;
-                foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
             }
+            foreach (ProbeWait w in Guard("P9", EveLayers())) yield return w;
+            if (full) foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
             Say("the scenario ended");
             host.PerFrame.Clear();
             host.EndOfFrame.Clear();
@@ -171,6 +173,11 @@ namespace ReDefinition.Atmospheres
                 ReconMesh.DestroyTracked();
                 UndressPod();
                 ReconWindHook.Wind = Vector3.zero;
+                if (audioListenerType != null)
+                {
+                    System.Reflection.PropertyInfo listenerPause = audioListenerType.GetProperty("pause", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    if (listenerPause != null) listenerPause.SetValue(null, false, null);
+                }
                 if (renderSettingsKept)
                 {
                     RenderSettings.fog = keptFog;
@@ -236,7 +243,9 @@ namespace ReDefinition.Atmospheres
             json.BeginObject("mods");
             foreach (string mod in mods)
             {
-                bool present = AssemblyLoaded(mod);
+                // The assemblies of two mods carry other names than the mods (run1 read both as absent).
+                string assembly = mod == "EnvironmentalVisualEnhancements" ? "EVEManager" : mod == "Parallax" ? "ParallaxContinued" : mod;
+                bool present = AssemblyLoaded(assembly);
                 json.Flag(mod, present);
                 Emit("Env." + mod, present);
             }

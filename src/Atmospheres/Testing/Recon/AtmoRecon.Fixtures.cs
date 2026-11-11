@@ -99,6 +99,16 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(SettleFrames);
             foreach (ProbeWait w in Capture()) yield return w;
             List<float> on1 = lastFrame != null ? lastFrame.Lumas(centre.x, centre.y, 0.06, 0.06) : null;
+            // Run1, 5 km: the share was 0.66 with a clean control and a luma ratio of 4.6, so the disc was drawn but part of the region
+            // was not disc. The four quarters of the region say whether that part is local (cloud, a wave) or spread over it (blending).
+            var quarters = new List<float>[4];
+            if (lastFrame != null)
+            {
+                for (int q = 0; q < 4; q++)
+                {
+                    quarters[q] = lastFrame.Lumas(centre.x + (q % 2 == 0 ? -0.015 : 0.015), centre.y + (q < 2 ? -0.015 : 0.015), 0.03, 0.03);
+                }
+            }
             yield return ProbeWait.Frames(5);
             foreach (ProbeWait w in Capture()) yield return w;
             List<float> on2 = lastFrame != null ? lastFrame.Lumas(centre.x, centre.y, 0.06, 0.06) : null;
@@ -119,6 +129,10 @@ namespace ReDefinition.Atmospheres
             float middle = 0.5f * (medianOff + medianOn);
             bool brighter = medianOn > medianOff;
             double share = ShareBeyond(on1, middle, brighter), control = ShareBeyond(off2, middle, brighter);
+            for (int q = 0; q < 4; q++)
+            {
+                if (quarters[q] != null) Emit(prefix + "quarter" + q + "_fraction_" + name, ShareBeyond(quarters[q], middle, brighter));
+            }
             Emit(prefix + "disc_fraction_" + name, share);
             Emit(prefix + "control_fraction_" + name, control);
             Emit(prefix + "luma_off_" + name, medianOff);
@@ -267,7 +281,9 @@ namespace ReDefinition.Atmospheres
         {
             Shader stock = FirstShader("KSP/Diffuse", "KSP/Bumped Specular", "KSP/Specular");
             string candidates;
-            List<Shader> foreigns = FindBundleShaders(2, out candidates);
+            ReconJson survey;
+            List<Shader> foreigns = FindBundleShaders(2, out candidates, out survey);
+            survey.Save(DumpPath("shaders.json"));
             Shader builtin = FirstShader("Legacy Shaders/Diffuse", "Diffuse", "Standard");
             Shader forwardOnly = FirstShader("Legacy Shaders/VertexLit", "Mobile/VertexLit", "VertexLit");
             EmitText("P8.stock_shader", stock != null ? stock.name : "none");
@@ -358,44 +374,80 @@ namespace ReDefinition.Atmospheres
         // not know its bundle). Lit means a pass whose LightMode is ForwardBase or Deferred; it needs _MainTex and _Color and an opaque
         // queue. Shaders with a Deferred pass come first, then by name. The first candidates (up to twelve) go to a row, so that the log says
         // what was chosen from.
-        private static List<Shader> FindBundleShaders(int max, out string candidates)
+        private static List<Shader> FindBundleShaders(int max, out string candidates, out ReconJson survey)
         {
+            // Run1 found no candidate; every shader that is not Unity's or the game's goes to a survey dump with the reason it was left
+            // out, so that the next start's rows say why (name, passes, queue, the properties the test needs).
+            survey = new ReconJson().BeginObject().BeginArray("shaders");
+            int surveyed = 0, rejectedWord = 0, rejectedUnlit = 0, rejectedProps = 0, rejectedUnsupported = 0;
             string[] ownPrefixes = { "Legacy Shaders/", "KSP/", "Hidden/", "UI/", "Unlit/", "Standard", "Mobile/", "Particles/", "Sprites/", "Skybox/",
                                      "Nature/", "FX/", "GUI/", "Diffuse", "VertexLit", "Internal", "Hidden", "TextMeshPro", "Autodesk", "Terrain/" };
             // Shaders of a mod that are not the lit surface of a mesh: instanced scatter, planets and their cube maps, effects, debug views.
-            string[] unwanted = { "cloud", "ocean", "sky", "atmos", "terrain", "scaled", "particle", "flare", "shadow", "depth", "billboard", "line",
-                                  "fog", "aurora", "ring", "water", "sprite", "decal", "projector", "debug", "instanc", "planet", "city", "bubble",
-                                  "invisible", "show", "wireframe", "compute", "scatter" };
+            // Terrain, planet and scatter shaders are no longer excluded by name: Parallax's scatter and Kopernicus's surface shaders are
+            // the kind of foreign opaque shader the shells meet.
+            string[] unwanted = { "cloud", "ocean", "sky", "atmos", "scaled", "particle", "flare", "shadow", "depth", "billboard", "line",
+                                  "fog", "aurora", "ring", "water", "sprite", "decal", "projector", "debug", "instanc", "bubble",
+                                  "invisible", "show", "wireframe", "compute" };
             var found = new List<Shader>();
             foreach (Shader shader in Resources.FindObjectsOfTypeAll<Shader>())
             {
-                if (shader == null || !shader.isSupported) continue;
+                if (shader == null) continue;
                 string name = shader.name;
                 if (string.IsNullOrEmpty(name) || StartsWithAny(name, ownPrefixes)) continue;
+                surveyed++;
                 string lower = name.ToLowerInvariant();
-                bool skip = false;
+                string reason = "candidate";
+                if (!shader.isSupported)
+                {
+                    reason = "unsupported";
+                    rejectedUnsupported++;
+                }
                 foreach (string word in unwanted)
                 {
-                    if (lower.Contains(word)) skip = true;
+                    if (reason == "candidate" && lower.Contains(word))
+                    {
+                        reason = "word " + word;
+                        rejectedWord++;
+                    }
                 }
-                if (skip) continue;
-                if (!HasLightMode(shader, "ForwardBase") && !HasLightMode(shader, "Deferred")) continue;
-                bool suited = false;
-                Material probe = null;
-                try
+                bool forwardBase = HasLightMode(shader, "ForwardBase"), deferred = HasLightMode(shader, "Deferred");
+                if (reason == "candidate" && !forwardBase && !deferred)
                 {
-                    probe = new Material(shader);
-                    suited = probe.renderQueue <= 2500 && probe.HasProperty("_MainTex") && probe.HasProperty("_Color");
+                    reason = "no lit pass";
+                    rejectedUnlit++;
                 }
-                catch (Exception)
+                bool hasMain = false, hasColor = false;
+                int queue = -1;
+                if (reason == "candidate")
                 {
+                    Material probe = null;
+                    try
+                    {
+                        probe = new Material(shader);
+                        queue = probe.renderQueue;
+                        hasMain = probe.HasProperty("_MainTex");
+                        hasColor = probe.HasProperty("_Color");
+                    }
+                    catch (Exception)
+                    {
+                    }
+                    finally
+                    {
+                        if (probe != null) UnityEngine.Object.Destroy(probe);
+                    }
+                    if (queue < 0 || queue > 2500 || !hasMain || !hasColor)
+                    {
+                        reason = "queue " + queue + " _MainTex " + hasMain + " _Color " + hasColor;
+                        rejectedProps++;
+                    }
                 }
-                finally
-                {
-                    if (probe != null) UnityEngine.Object.Destroy(probe);
-                }
-                if (suited) found.Add(shader);
+                survey.BeginObject().Text("name", name).Text("verdict", reason).Flag("forwardBase", forwardBase).Flag("deferred", deferred)
+                    .Number("passes", shader.passCount).EndObject();
+                if (reason == "candidate") found.Add(shader);
             }
+            survey.EndArray().EndObject();
+            string surveyCounts = "; surveyed " + surveyed + ", left out by name " + rejectedWord + ", no lit pass " + rejectedUnlit + ", properties "
+                                  + rejectedProps + ", unsupported " + rejectedUnsupported;
             found.Sort((a, b) =>
             {
                 int byDeferred = HasLightMode(b, "Deferred").CompareTo(HasLightMode(a, "Deferred"));
@@ -403,7 +455,7 @@ namespace ReDefinition.Atmospheres
             });
             var names = new List<string>();
             for (int i = 0; i < found.Count && i < 12; i++) names.Add(found[i].name + (HasLightMode(found[i], "Deferred") ? " (deferred)" : ""));
-            candidates = found.Count + " candidates: " + (names.Count > 0 ? string.Join(", ", names.ToArray()) : "none");
+            candidates = found.Count + " candidates: " + (names.Count > 0 ? string.Join(", ", names.ToArray()) : "none") + surveyCounts;
             if (found.Count > max) found.RemoveRange(max, found.Count - max);
             return found;
         }

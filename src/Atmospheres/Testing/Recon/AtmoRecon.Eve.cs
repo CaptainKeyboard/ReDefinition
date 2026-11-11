@@ -70,14 +70,43 @@ namespace ReDefinition.Atmospheres
                 EmitText("P9.error", "no volumetric layer on Kerbin to bind a texture to");
                 yield break;
             }
-            Material material = ReconDyn.Get(firstKerbinVolume, "RaymarchedCloudMaterial") as Material;
-            if (material == null)
-            {
-                EmitText("P9.error", "the volumetric layer has no material");
-                yield break;
-            }
+            // Run1 tried the first layer only and its material did not take the texture. Every volumetric layer on Kerbin is tried now,
+            // with the shader name and whether the material has the property at all; the first that takes it is used for the latency.
             var target = new RenderTexture(512, 256, 0, RenderTextureFormat.R8);
             target.Create();
+            Material material = null;
+            foreach (object layer in layers)
+            {
+                if (Convert.ToString(ReconDyn.Get(layer, "Body")) != "Kerbin") continue;
+                object volume = ReconDyn.Get(layer, "LayerRaymarchedVolume");
+                if (volume == null) continue;
+                string layerName = Convert.ToString(ReconDyn.Get(layer, "Name"));
+                Material candidate = ReconDyn.Get(volume, "RaymarchedCloudMaterial") as Material;
+                if (candidate == null)
+                {
+                    EmitText("P9.material." + layerName, "none");
+                    continue;
+                }
+                bool hasProperty = candidate.HasProperty("CloudCoverage");
+                Texture previous = hasProperty ? candidate.GetTexture("CloudCoverage") : null;
+                candidate.SetTexture("CloudCoverage", target);
+                bool took = candidate.GetTexture("CloudCoverage") == target;
+                candidate.SetTexture("CloudCoverage", previous);
+                EmitText("P9.material." + layerName, candidate.shader.name + ", CloudCoverage " + (hasProperty ? "present" : "absent") + ", takes a render texture " + took);
+                if (took && material == null)
+                {
+                    material = candidate;
+                    firstKerbinVolume = volume;
+                    firstKerbinObject = layer;
+                }
+            }
+            if (material == null)
+            {
+                EmitText("P9.error", "no volumetric layer on Kerbin has a material that takes a render texture as CloudCoverage");
+                Emit("P9.bind_works", false);
+                target.Release();
+                yield break;
+            }
             material.SetTexture("CloudCoverage", target);
             bool bound = material.GetTexture("CloudCoverage") == target;
             Emit("P9.bind_works", bound);

@@ -25,6 +25,8 @@ namespace ReDefinition.Atmospheres
             internal Camera Owner;
             // A tap that samples another tap's target instead of the depth (the consumer of the copy at a later event).
             internal DepthTap Source;
+            // The pixels read back (null where the read did not happen).
+            internal Color[] Pixels;
         }
 
         private static readonly CameraEvent[] DepthEvents =
@@ -34,7 +36,17 @@ namespace ReDefinition.Atmospheres
         };
 
         // The events that can hold the fallback copy, in the order of preference.
-        private static readonly CameraEvent[] CopyEvents = { CameraEvent.AfterForwardOpaque, CameraEvent.AfterDepthTexture, CameraEvent.AfterGBuffer };
+        // Run1 showed the first three hold nothing on the flight camera (never executed, or zero); the copy at the start of the transparent
+        // queue is the one that has content, so it is a candidate whose consumer runs after the transparent queue.
+        private static readonly CameraEvent[] CopyEvents =
+            { CameraEvent.AfterForwardOpaque, CameraEvent.AfterDepthTexture, CameraEvent.AfterGBuffer, CameraEvent.BeforeForwardAlpha };
+
+        // Where a copy made at an event is read back by a later command buffer: at the start of the transparent queue, or, for a copy made
+        // there, after it.
+        private static CameraEvent ConsumerEvent(CameraEvent copy)
+        {
+            return copy == CameraEvent.BeforeForwardAlpha ? CameraEvent.AfterForwardAlpha : CameraEvent.BeforeForwardAlpha;
+        }
 
         private const int TapWidth = 256, TapHeight = 144;
 
@@ -48,6 +60,37 @@ namespace ReDefinition.Atmospheres
             ListCameras("flight");
             Texture bound = Shader.GetGlobalTexture("_CameraDepthTexture");
             Emit("P6.depth_global_bound", bound != null);
+
+            // Two opaque balls at known distances in front of the camera and a point of empty view: run1 judged a copy valid only when it
+            // showed both sky and surface, which a frame without sky pixels can never do. The test is now that the depth holds the
+            // balls: the value under the near ball differs from the empty view, the far ball lies between, and the order follows the
+            // distance (whatever the depth encoding is).
+            Vessel pod = FlightGlobals.ActiveVessel;
+            Shader ballShader = FirstShader("Legacy Shaders/Diffuse", "Diffuse", "Standard", "KSP/Diffuse");
+            ReconBall nearBall = null, farBall = null;
+            Material ballMaterial = null;
+            Action followBalls = null;
+            Vector3[] views = null;
+            if (ballShader != null && pod != null)
+            {
+                ballMaterial = new Material(ballShader) { color = new Color(0.5f, 0.5f, 0.5f, 1f) };
+                Vector3d cameraAt = main.transform.position;
+                Vector3d forward = main.transform.forward, right = main.transform.right;
+                nearBall = new ReconBall(pod, cameraAt + forward * 15.0 - right * 2.5 - pod.CoMD, 1.5f, ballMaterial, 0);
+                farBall = new ReconBall(pod, cameraAt + forward * 45.0 + right * 6.0 - pod.CoMD, 4f, ballMaterial, 0);
+                followBalls = () =>
+                {
+                    nearBall.Update();
+                    farBall.Update();
+                };
+                host.PerFrame.Add(followBalls);
+                views = new[] { ViewportOf(main, nearBall.Position), ViewportOf(main, farBall.Position), new Vector3(0.5f, 0.8f, 1f) };
+                Emit("P6.balls_in_view", views[0].z > 0 && views[1].z > 0 && views[0].x > 0.05f && views[0].x < 0.95f && views[1].x > 0.05f && views[1].x < 0.95f);
+            }
+            else
+            {
+                EmitText("P6.error", "no lit shader or no vessel for the calibration balls");
+            }
 
             // The taps on the scene cameras.
             var taps = new List<DepthTap>();
@@ -79,7 +122,7 @@ namespace ReDefinition.Atmospheres
                 {
                     DepthTap source = taps.Find(t => t.Owner == main && t.Event == evt && !t.Global);
                     if (source == null) continue;
-                    var tap = new DepthTap { Camera = main.name, Event = CameraEvent.BeforeForwardAlpha, Owner = main, Source = source };
+                    var tap = new DepthTap { Camera = main.name, Event = ConsumerEvent(evt), Owner = main, Source = source };
                     tap.Target = new RenderTexture(TapWidth, TapHeight, 0, RenderTextureFormat.RFloat);
                     tap.Target.Create();
                     RenderTexture active = RenderTexture.active;
@@ -88,7 +131,7 @@ namespace ReDefinition.Atmospheres
                     RenderTexture.active = active;
                     tap.Buffer = new CommandBuffer { name = "recon depth consumer of " + evt };
                     tap.Buffer.Blit(new RenderTargetIdentifier(source.Target), tap.Target);
-                    main.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, tap.Buffer);
+                    main.AddCommandBuffer(ConsumerEvent(evt), tap.Buffer);
                     taps.Add(tap);
                 }
             }
@@ -124,37 +167,31 @@ namespace ReDefinition.Atmospheres
                 double[] after = Get(results, camera, CameraEvent.AfterForwardAlpha, true);
                 double[] alphaBuiltin = Get(results, camera, CameraEvent.BeforeForwardAlpha, false);
                 double[] reference = null;
-                CameraEvent referenceEvent = CameraEvent.AfterForwardOpaque;
-                // The first event whose copy is valid (it ran and shows both sky and surface); where none is valid, the first that ran, so
-                // that the rows below still compare something. Every event's validity goes to a row.
+                CameraEvent referenceEvent = CameraEvent.BeforeForwardAlpha;
+                // The first event whose copy is valid: it ran, it varies over the frame, and it holds the calibration balls in the right
+                // order (DepthHoldsBalls). Every event's validity goes to a row.
                 bool chosenValid = false;
+                bool isMain = camera == main.name;
                 foreach (CameraEvent evt in CopyEvents)
                 {
                     double[] candidate = Get(results, camera, evt, false);
-                    bool ran = candidate != null && candidate[0] > 0;
-                    bool valid = ran && candidate[2] > 0.02 && candidate[2] < 0.98;
-                    if (camera == main.name) Emit("P6.copy_valid_" + evt, valid);
+                    DepthTap candidateTap = taps.Find(t => t.Camera == camera && t.Event == evt && !t.Global && t.Source == null);
+                    bool valid = isMain && candidate != null && candidate[0] > 0 && candidate[4] - candidate[3] > 0.05 && DepthHoldsBalls(candidateTap, views, "copy_" + evt);
+                    if (isMain) Emit("P6.copy_valid_" + evt, valid);
                     if (valid && !chosenValid)
                     {
                         reference = candidate;
                         referenceEvent = evt;
                         chosenValid = true;
                     }
-                    else if (ran && reference == null)
-                    {
-                        reference = candidate;
-                        referenceEvent = evt;
-                    }
                 }
-                bool referenceValid = reference != null && reference[2] > 0.02 && reference[2] < 0.98;
-                // Readable counts only against a valid reference (sky and surface both present) and when the global texture at the
-                // transparent queue shows that mix too, so that two constant or unbound textures cannot agree on nothing.
-                bool alphaSame = alpha != null && alpha[0] > 0 && reference != null && referenceValid
-                                 && alpha[2] > 0.02 && alpha[2] < 0.98
-                                 && Math.Abs(alpha[1] - reference[1]) <= 0.1 * Math.Abs(reference[1]) + 1e-6
-                                 && Math.Abs(alpha[2] - reference[2]) <= 0.2 * Math.Abs(reference[2]) + 1e-6;
-                bool afterSame = after != null && after[0] > 0 && reference != null
-                                 && Math.Abs(after[1] - reference[1]) <= 0.1 * Math.Abs(reference[1]) + 1e-6;
+                bool referenceValid = chosenValid;
+                // Readable: the global texture at the start of the transparent queue varies over the frame, holds the balls in order and is
+                // the same at its end (nothing rebound or overwrote it during the queue).
+                DepthTap alphaTap = taps.Find(t => t.Camera == camera && t.Event == CameraEvent.BeforeForwardAlpha && t.Global && t.Source == null);
+                bool alphaSame = isMain && alpha != null && alpha[0] > 0 && alpha[4] - alpha[3] > 0.05 && DepthHoldsBalls(alphaTap, views, "global_alpha");
+                bool afterSame = after != null && after[0] > 0 && alpha != null && Math.Abs(after[1] - alpha[1]) <= 0.01 * Math.Abs(alpha[1]) + 1e-6;
+                if (!afterSame) alphaSame = false;
                 Emit("P6." + camera.Replace(' ', '_') + ".reference_valid", referenceValid);
                 Emit("P6." + camera.Replace(' ', '_') + ".readable_at_alpha", alphaSame);
                 Emit("P6." + camera.Replace(' ', '_') + ".builtin_depth_executes_at_alpha", alphaBuiltin != null && alphaBuiltin[0] > 0);
@@ -168,10 +205,11 @@ namespace ReDefinition.Atmospheres
                     if (alphaSame) readableMain = true;
                     if (referenceValid) fallbackMain = true;
                     double[] consumed;
-                    results.TryGetValue(camera + "|" + CameraEvent.BeforeForwardAlpha + "|C" + referenceEvent, out consumed);
+                    results.TryGetValue(camera + "|" + ConsumerEvent(referenceEvent) + "|C" + referenceEvent, out consumed);
+                    DepthTap consumerTap = taps.Find(t => t.Source != null && t.Source.Event == referenceEvent && t.Camera == camera);
                     consumerOk = referenceValid && consumed != null && consumed[0] > 0 && reference != null
-                                 && Math.Abs(consumed[1] - reference[1]) <= 0.1 * Math.Abs(reference[1]) + 1e-6
-                                 && Math.Abs(consumed[2] - reference[2]) <= 0.2 * Math.Abs(reference[2]) + 1e-6;
+                                 && Math.Abs(consumed[1] - reference[1]) <= 0.01 * Math.Abs(reference[1]) + 1e-6
+                                 && DepthHoldsBalls(consumerTap, views, "consumer_of_" + referenceEvent);
                     EmitText("P6.fallback_event", referenceEvent.ToString());
                     Emit("P6.copy_consumed_at_alpha", consumerOk);
                 }
@@ -197,6 +235,11 @@ namespace ReDefinition.Atmospheres
                 }
             }
 
+            if (followBalls != null) host.PerFrame.Remove(followBalls);
+            if (nearBall != null) nearBall.Destroy();
+            if (farBall != null) farBall.Destroy();
+            if (ballMaterial != null) UnityEngine.Object.Destroy(ballMaterial);
+
             // The IVA: the cameras there, and the order the interior mods leave them in.
             bool iva = false;
             try
@@ -217,6 +260,53 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // Whether a tap's pixels show the calibration balls: the value under the near ball, under the far ball and in the empty view
+        // (views[0..2]) are each at least 0.01 apart, and the near ball, the far ball and the empty view follow in that order (either way
+        // up, since the encoding of the depth is not assumed). A render texture can come back upside down, so the flipped reading counts
+        // too and says so in a row.
+        private bool DepthHoldsBalls(DepthTap tap, Vector3[] views, string label)
+        {
+            if (tap == null || tap.Pixels == null || views == null) return false;
+            for (int flip = 0; flip < 2; flip++)
+            {
+                double near = Texel(tap, views[0], flip == 1), far = Texel(tap, views[1], flip == 1), empty = Texel(tap, views[2], flip == 1);
+                bool ok = !double.IsNaN(near) && !double.IsNaN(far) && !double.IsNaN(empty)
+                          && Math.Abs(near - far) > 0.01 && Math.Abs(far - empty) > 0.01 && (far - near) * (empty - far) > 0;
+                if (flip == 0)
+                {
+                    Emit("P6.balls_" + label + "_near", near);
+                    Emit("P6.balls_" + label + "_far", far);
+                    Emit("P6.balls_" + label + "_empty", empty);
+                }
+                if (ok)
+                {
+                    Emit("P6.balls_" + label + "_flipped", flip == 1);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // The mean of the written pixels in a 3 x 3 block around a viewport point; NaN where none was written.
+        private static double Texel(DepthTap tap, Vector3 view, bool flip)
+        {
+            int cx = Mathf.Clamp((int)(view.x * TapWidth), 1, TapWidth - 2);
+            int cy = Mathf.Clamp((int)((flip ? 1f - view.y : view.y) * TapHeight), 1, TapHeight - 2);
+            double sum = 0;
+            int n = 0;
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    float v = tap.Pixels[(cy + dy) * TapWidth + cx + dx].r;
+                    if (v < -0.5f) continue;
+                    sum += v;
+                    n++;
+                }
+            }
+            return n == 0 ? double.NaN : sum / n;
+        }
+
         private static double[] Get(Dictionary<string, double[]> results, string camera, CameraEvent evt, bool global)
         {
             double[] stats;
@@ -232,6 +322,7 @@ namespace ReDefinition.Atmospheres
             read.ReadPixels(new Rect(0, 0, TapWidth, TapHeight), 0, 0, false);
             RenderTexture.active = active;
             Color[] pixels = read.GetPixels();
+            tap.Pixels = pixels;
             UnityEngine.Object.Destroy(read);
             int written = 0, notZero = 0, notOne = 0;
             double sum = 0, min = double.MaxValue, max = double.MinValue;
