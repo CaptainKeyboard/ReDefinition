@@ -74,11 +74,28 @@ namespace ReDefinition.WeatherPlayer
         private GameObject curtainObject;
         private Transform curtainTransform;
 
-        // The slab texture the last frame's march wrote, for the analytic motion pass.
-        internal RenderTexture SlabTexture { get { return slabTexture; } }
+        // The march texture the last frame wrote (the volume pass's or the spike slab's), for the analytic motion pass.
+        internal RenderTexture SlabTexture { get { return Volume != null ? Volume.Renderer.Target : slabTexture; } }
 
         // Why the slab or the curtain cannot be drawn, or null.
         internal string Problem;
+
+        // The volume pass of the atmospheres in place of the spike's slab (-volume 1, scenario -scenario, tuning -vset name=v;name=v): the
+        // window, the renderer and the frame numbers. Null where the spike's slab is drawn.
+        internal VolumeSetup Volume;
+
+        private static readonly Action<CommandBuffer> MarkSlabStart = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabStart),
+            MarkSlabMarched = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabMarched),
+            MarkSlabEnd = cb => WeatherGpuTimer.Mark(cb, WeatherGpuTimer.SlabComposited);
+
+        // Whether the pass draws the volume (and so the analytic motion comes from it).
+        internal bool VolumeMode { get { return Volume != null; } }
+
+        // The jitter index of the frame (the upscaler's phase), set by the pass with the jitter.
+        internal int JitterIndex;
+
+        // The volume pass's share S of the curtain gate, 0 to 1 (the curtain's step count follows it).
+        internal float CurtainShare = 1f;
 
         internal void Init(Camera camera)
         {
@@ -125,6 +142,35 @@ namespace ReDefinition.WeatherPlayer
             cam.AddCommandBuffer(CameraEvent.AfterSkybox, slabBuffer);
             cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, markBeforeCurtain);
             cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, markAfterCurtain);
+
+            string volumeArgument = WeatherPass.Argument("-volume");
+            if (volumeArgument != null && volumeArgument != "0")
+            {
+                Volume = new VolumeSetup();
+                string vset = WeatherPass.Argument("-vset");
+                if (!string.IsNullOrEmpty(vset))
+                {
+                    foreach (string pair in vset.Split(';'))
+                    {
+                        string[] kv = pair.Split('=');
+                        float v;
+                        if (kv.Length == 2 && float.TryParse(kv[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v))
+                            Volume.SetOverride(kv[0], v);
+                    }
+                }
+                if (!Volume.Init(WeatherPass.Argument("-scenario") ?? "convective", VolumeSetup.TierArgument()))
+                {
+                    Problem = Volume.Problem;
+                    Volume = null;
+                    return;
+                }
+                Volume.Renderer.Attach(cam, CameraEvent.AfterSkybox);
+                // The curtain stands under the core: its base is the core's, its width a share of the core's radius.
+                Cell.BaseM = 1100f;
+                Cell.Radius = 4500f;
+                CurtainShare = Volume.Get("volume.curtainS", 1f);
+                CurtainSteps = VolumeMath.CurtainSteps(CurtainShare);
+            }
         }
 
         // The bounding cylinder of the curtain, radius 1 and height 1 from y 0, as StormVolume builds it.
@@ -212,7 +258,13 @@ namespace ReDefinition.WeatherPlayer
             curtainObject.SetActive(CurtainOn);
 
             slabBuffer.Clear();
-            if (SlabOn)
+            if (Volume != null)
+            {
+                Volume.Renderer.Commands.Clear();
+                if (SlabOn)
+                    Volume.Prepare(cam, c, Frame, time, JitterPixels, JitterIndex, MarkSlabStart, MarkSlabMarched, MarkSlabEnd, Volume.Get("volume.analytic", 1f) > 0.5f);
+            }
+            else if (SlabOn)
             {
                 EnsureTexture();
                 WeatherGpuTimer.Mark(slabBuffer, WeatherGpuTimer.SlabStart);

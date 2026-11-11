@@ -1,0 +1,30 @@
+{
+  "$schema": "../schema.json",
+  "package": "C21",
+  "rows": [
+    { "series": "player-C21", "section": "C21", "metric": "cost_half_32_1707x960_ms", "max": 0.6, "unit": "ms", "note": "cost, player on the A4500 (timing run, exclusive): half-resolution march and composite, 32 steps, worst of three views, 1707x960; the spike's value is the baseline +-15 %" },
+    { "series": "player-C21", "section": "C21", "metric": "cost_half_32_2560x1440_ms", "max": 1.3, "unit": "ms", "note": "as above at 2560x1440" },
+    { "series": "player-C21", "section": "C21", "metric": "cost_curtain_inside_ms", "max": 0.7, "unit": "ms", "note": "the curtain inside the cell at 16 steps (gate share 1)" },
+    { "series": "player-C21", "section": "C21", "metric": "cost_full_32_1707x960_ms", "unit": "ms", "required": false, "note": "full resolution is reported and rejected if above 1.5 ms inside" },
+    { "series": "player-C21", "section": "C21", "metric": "ghost_move.dlss_K", "max": 0.020, "note": "temporal, render scale 0.667, camera turn 2 then 12 deg per frame, sky band at the 25 km view" },
+    { "series": "player-C21", "section": "C21", "metric": "ghost_move.dlss_M", "max": 0.020 },
+    { "series": "player-C21", "section": "C21", "metric": "ghost_move.dlss_L", "max": 0.020 },
+    { "series": "player-C21", "section": "C21", "metric": "ghost_move.fsr3", "max": 0.020 },
+    { "series": "player-C21", "section": "C21", "metric": "trail_px.dlss_K", "max": 0.14 },
+    { "series": "player-C21", "section": "C21", "metric": "trail_px.dlss_M", "max": 0.14 },
+    { "series": "player-C21", "section": "C21", "metric": "trail_px.dlss_L", "max": 0.14 },
+    { "series": "player-C21", "section": "C21", "metric": "trail_px.fsr3", "max": 0.14 },
+    { "series": "player-C21", "section": "C21", "metric": "shimmer.dlss_K", "max": 0.0015 },
+    { "series": "player-C21", "section": "C21", "metric": "shimmer.dlss_M", "max": 0.0015 },
+    { "series": "player-C21", "section": "C21", "metric": "shimmer.dlss_L", "max": 0.0015 },
+    { "series": "player-C21", "section": "C21", "metric": "shimmer.fsr3", "max": 0.0015 },
+    { "series": "player-C21", "section": "C21", "metric": "shimmer.xess", "max": 0.005, "required": false, "note": "XeSS is reported with a mitigation if above 0.005" },
+    { "series": "player-C21", "section": "C21", "metric": "mv_match", "min": 0.98, "note": "analytic motion against Unity's raw motion at the replaced pixels on the moving stand-in" },
+    { "series": "player-C21", "section": "C21", "metric": "contrib_overlap.V1b", "min": 0.8, "note": "the pass on/off difference lies in the expected cell region (contribution mask overlap)" },
+    { "series": "player-C21", "section": "C21", "metric": "window_deterministic", "equals": 1 },
+    { "series": "player-C21", "section": "C21", "metric": "prepare_alloc_bytes_per_frame", "max": 8, "note": "0 allocations per frame in the per-frame preparation" },
+    { "series": "K-W1", "section": "C21", "package": "C21", "start": "run1", "metric": "volume.ready", "min": 1, "required": false, "note": "sanity: the volume pass built its renderer and window in the game (log line 'volume pass: ready')" },
+    { "series": "K-W1", "section": "C21", "package": "C21", "start": "run1", "metric": "volume.window_builds", "min": 1, "required": false, "note": "sanity: at least one window rebuild completed" },
+    { "series": "K-W1", "section": "C21", "package": "C21", "start": "run1", "metric": "volume.resample_ms_max", "max": 2, "required": false, "unit": "ms", "note": "sanity: the longest main-thread slice of a window rebuild" }
+  ]
+}

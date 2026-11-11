@@ -1,0 +1,13 @@
+# Linked into the weather player for the volume pass (package C21): the pass's own rendering, the window resampler, the sub-grid rule
+# and the pure numbers, as they are in the mod, with the field's window and map types they read, and the pass's shader.
+src/Atmospheres/Render/Volume/VolumeMath.cs
+src/Atmospheres/Render/Volume/VolumeSubGrid.cs
+src/Atmospheres/Render/Volume/VolumeWindowResampler.cs
+src/Atmospheres/Render/Volume/VolumeRenderer.cs
+src/Atmospheres/Render/Volume/CurtainPass.cs
+src/Common/Weather/IWeatherField.cs
+src/Common/Weather/WeatherMap.cs
+src/Common/Weather/WeatherSample.cs
+src/Common/Weather/Forecast.cs
+src/Common/Weather/PrecipScale.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresVolume.shader

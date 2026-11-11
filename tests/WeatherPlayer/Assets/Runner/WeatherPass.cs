@@ -149,6 +149,7 @@ namespace ReDefinition.WeatherPlayer
             }
             RenderedProjection = cam.projectionMatrix;
             slab.JitterPixels = JitterPixels;
+            slab.JitterIndex = jitter ? Time.frameCount % jitterPhases + 1 : 0;
             // A reference is drawn at the simulation time of its turn frame, so the wind has not moved the cloud between them.
             slab.Frame = FrameOverride >= 0 ? FrameOverride : frameIndex;
             frameIndex++;
@@ -205,7 +206,13 @@ namespace ReDefinition.WeatherPlayer
             command.Blit(source, depthRaw, capture, 0);
             command.Blit(source, motionRaw, capture, 4);
             Matrix4x4 unjittered = GL.GetGPUProjectionMatrix(UnjitteredProjection, false) * cam.worldToCameraMatrix;
-            if (analytic && slab.SlabOn && slab.SlabTexture != null)
+            if (analytic && slab.SlabOn && slab.VolumeMode)
+            {
+                // The volume pass's own analytic motion and depth (its hit distance and the window's advection).
+                slab.Volume.Renderer.AppendAnalytic(command, motionRaw, motion, depthRaw, depth, unjittered,
+                                                    havePrevious ? previousUnjittered : unjittered, 1f / 60f, Argument("-mvFlip") != null);
+            }
+            else if (analytic && slab.SlabOn && slab.SlabTexture != null)
             {
                 float middle = slab.Cell.BaseM + 0.35f * (slab.Cell.TopM - slab.Cell.BaseM);
                 slab.FillMotionMaterial(fix, middle);
