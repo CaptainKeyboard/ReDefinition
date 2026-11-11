@@ -182,6 +182,24 @@ cross-sections through a developing cell and a front, zonal-mean plots per set, 
 * H-5 The tracker reports front events split by arm (thermal / cloud-water-path / both). The real field with the frame order shuffled in time (spatially intact) is reported for D1 as an extra (tracks should collapse); it is not a pass/fail control.
 * H-7 see Note A (ratio >= 1.2).
 
+### H9 Implementation definitions of the analysis tools (written before the criterion runs; they close wording of H2-H5 and change no threshold)
+
+* Frame = 6 h of game time. "Day" = one rotation period of the body (H1). Front events are reported per 10 body days (the pass rule) and per 10 Earth days.
+* D1 minima that lie within the ring radius R of a deeper minimum of the same frame count as one system (non-maximum suppression); the count without it is reported too.
+* Statistics start with year 2 (year 1 is spin-up); detector frames of years 2 to the end; the snow-line table, ice tables and the snow/ice annual cycles use years 3-5.
+* Snow cover: `SnowW` (m of water equivalent) >= 0.02 on land cells (ocean fraction < 0.5); "2 cm" is read as 2 cm of water equivalent, "10 m LWE" as `SnowW` <= 10 m.
+* Cold season of a hemisphere: the phases at which the daily-mean insolation at 57 degrees (with the eccentricity factor) is below its annual mean. Sites = grid cells with |lat| 45-70 in the hemisphere's cold season.
+* Criterion 4 classes follow H3 (blizzard class = snow with rate >= 2.0 mm/h and 10 m wind >= 15.6 m/s, or rain >= 25 mm/h). Criterion 11 blizzard condition is the literal rate >= 2.0 mm/h and wind >= 15.6 m/s for any type (snow-only is reported).
+* Wind percentiles of "all cells" are area-weighted (the unweighted ones are reported). Storm-track cells: ocean fraction >= 0.5, |lat| 45-65.
+* Sea ice fraction of a cell = 1 - exp(-IceH / 0.15 m) (as in the model); zonal-mean ice fraction is the mean over the ocean cells of a row; ice area is the area-weighted global fraction. Midwinter = year phase 0 (north) and 0.5 (south).
+* Wave-1 test (criterion 3): last 30 body days of the run, level nearest sigma 0.9, rows |lat| <= 45, longitude relative to the sub-solar longitude of the model's geometry; amplitude = sqrt(cos and sin coefficients of u and v squared), averaged over rows, over the amplitude of the 30-day mean zonal-mean u.
+* Criterion 12: clusters of resolved updraft >= 2 m/s over the whole grid (4-connected), overlap tracking per step in years 2 and 3; shares measured in the tropics (|lat| < 20 degrees).
+* Criterion 7: coverage = min(1, cloud water path / 0.3 kg m-2), precipitation level = piecewise log-linear `PrecipRateToLevel` of H3; the 99th percentile of |change| per game second over all cells and steps of year 2.
+* Epoch tests (criteria 9, 10, 13): two boundaries of the pipeline closest to year 3 phase 0.12 and 0.55; start and end of the crossfade window are compared (snow cover of the six table bands, ice-edge latitude); the crossfade smoothness compares the blended maps inside the window with the same maps in the 24 steps before and after it.
+* Seed comparison maps: 24 h means of the precipitation rate, days 10-70 of year 2. Zonal means of the A/B pairs are the means over years 2 to the end of each run.
+* A map-generator defect (the ocean quantile search divided by an extra factor of the longitude count, which gave all-ocean maps) was fixed before any criterion run; the synthetic land share is then about 28-32 % with the seeds used.
+* Mono: no Mono run in this package (C25's player test).
+
 ### Sign-off
 
 Reviewer: REV-B10h-1  date: 2026-11-11  verdict: SIGNED under conditions H-1 to H-4 (written above in H8)

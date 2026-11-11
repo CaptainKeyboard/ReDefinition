@@ -8,6 +8,8 @@ namespace AtmoSim.Core
         // Cumulative bookkeeping of the water stores (kg/m2, global mean) for the closure check of criterion 1.
         public double OceanSourceKgM2;
         public double StoresInitialKgM2 = double.NaN;
+        // Dust bookkeeping (not part of the state hash): dry-land cell-steps, lifting cell-steps, lifts at or below the threshold.
+        public long DustLandCellSteps, DustLiftCellSteps, DustLiftBelowThreshold;
 
         private const double CapeMin = 30.0;
         private const double QcCrit = 2.0e-4;
@@ -345,6 +347,9 @@ namespace AtmoSim.Core
                         double lift = w10 > Body.DustWindThresholdMs ? 2.0e-6 * (w10 - Body.DustWindThresholdMs) * (w10 - Body.DustWindThresholdMs) * dt : 0.0;
                         double settle = DustAir[c] * (1.0 - DMath.Exp(-dt / 172800.0));
                         DustAir[c] += lift - settle; DustDep[c] += settle;
+                        // counters of criterion 3 (cell-steps over dry land, with a lift, and lifts below the threshold)
+                        DustLandCellSteps++;
+                        if (lift > 0.0) { DustLiftCellSteps++; if (w10 <= Body.DustWindThresholdMs) DustLiftBelowThreshold++; }
                     }
                 }
                 iceNet += rowIce / NLon * phy.Weight[j];

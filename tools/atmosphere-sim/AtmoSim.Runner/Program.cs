@@ -12,6 +12,20 @@ namespace AtmoSim.Runner
         {
             string cmd = args.Length > 0 ? args[0] : "smoke";
             if (cmd == "smoke") return Smoke(args);
+            if (cmd == "maps")
+            {
+                var bp0 = ByName(args[1]); int nl0 = int.Parse(args[2]);
+                var s0 = new Atmosphere(bp0, new SimConfig { NLon = nl0, NLat = nl0 / 2, Levels = 12, Seed = ulong.Parse(args[3]) });
+                double mn = 9, mx = -9, land = 0; foreach (double o in s0.OceanFrac) { mn = Math.Min(mn, o); mx = Math.Max(mx, o); if (o < 0.5) land++; }
+                Console.WriteLine("ocean min " + mn + " max " + mx + " land share " + land / s0.OceanFrac.Length);
+                return 0;
+            }
+            if (cmd == "cost") return Timing.Cost(args);
+            if (cmd == "determinism") return Timing.Determinism(args);
+            if (cmd == "forecast") return Timing.Forecast(args);
+            if (cmd == "run") return Study.Run(args);
+            if (cmd == "epoch") return EpochStudy.Run(args);
+            if (cmd == "evaluate") return Evaluate.Run(args);
             Console.Error.WriteLine("unknown command " + cmd);
             return 2;
         }
