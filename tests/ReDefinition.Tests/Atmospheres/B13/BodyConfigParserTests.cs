@@ -15,13 +15,13 @@ namespace ReDefinition.Tests.Atmospheres.B13
         private static readonly string[] MalformedNodes =
         {
             "REDEFINITION_BODY { name = X ; SEASONS { tilt = abc } }",
-            "REDEFINITION_BODY { name = X ; SIM { gridLat = 99999 ; gridLon = -4 ; levels = x } }",
+            "REDEFINITION_BODY { name = X ; GENERATOR { rotationPeriodS = 5 ; obliquityDeg = 200 ; gravityMs2 = x } }",
             "REDEFINITION_BODY { name = X ; PRECIP { TYPE { kind = Bogus ; centreC = hot } } }",
             "REDEFINITION_BODY { name = X ; PRECIP { bandRates = 1, 2, 3 } }",
             "REDEFINITION_BODY { name = X ; COVER { kind = Snow ; colour = red } }",
             "REDEFINITION_BODY { name = X ; SEASONS { yearFactor = -5 ; yearSource = Sideways } }",
             "REDEFINITION_BODY { name = X ; FOO { a = 1 } }",
-            "REDEFINITION_BODY { name = X ; CELLS { BAND { types = Unicorn, Snow ; fromLat = 200 } ; gate = Never } }",
+            "REDEFINITION_BODY { name = X ; GENERATOR { oceanSource = Unicorn ; tropopauseDepthShare = 5 ; dust = Never } }",
             "REDEFINITION_BODY { name = X ; status = Maybe ; enabled = perhaps }",
             "REDEFINITION_BODY { name = X ; TEMPERATURE { TARGET { key0 = 100 280 ; key1 = 50 270 } ; waterCelsius = NaN } }"
         };
@@ -53,9 +53,9 @@ namespace ReDefinition.Tests.Atmospheres.B13
         public void ABadValueKeepsTheDefaultAndAClampedOneIsClamped()
         {
             BodyParseResult r = BodyTestSupport.Run(BodyTestSupport.Planet("X", BodyTestSupport.HomeYear), MalformedNodes[1]);
-            Assert.AreEqual(BodyLimits.MaxGridLat, r.Climate.Sim.GridLat);
-            Assert.AreEqual(BodyLimits.MinGridLon, r.Climate.Sim.GridLon);
-            Assert.AreEqual(16, r.Climate.Sim.Levels, "an unreadable number keeps the default");
+            Assert.AreEqual(BodyLimits.MinRotationPeriodS, r.Climate.Generator.RotationPeriodS);
+            Assert.AreEqual(BodyLimits.MaxObliquityDeg, r.Climate.Generator.ObliquityDeg);
+            Assert.IsTrue(double.IsNaN(r.Climate.Generator.GravityMs2), "an unreadable number keeps the default (read from the game)");
             Assert.AreEqual(0.0, BodyTestSupport.Run(BodyTestSupport.Planet("X", 1e7), MalformedNodes[0]).Climate.Seasons.TiltDegrees, "a tilt that is not a number is Auto");
         }
 
@@ -73,8 +73,7 @@ namespace ReDefinition.Tests.Atmospheres.B13
             Assert.IsNotNull(c.Temperature);
             Assert.IsNotNull(c.Precip);
             Assert.IsNotNull(c.Ice);
-            Assert.IsNotNull(c.Cells);
-            Assert.IsNotNull(c.Sim);
+            Assert.IsNotNull(c.Generator);
             Assert.IsNotNull(c.Clouds);
             Assert.IsNotNull(c.Look);
             Assert.IsNotNull(c.Sound);
@@ -165,18 +164,13 @@ namespace ReDefinition.Tests.Atmospheres.B13
             Assert.AreEqual(1, c.Covers.Count);
             Assert.AreEqual(CoverKind.Snow, c.Covers[0].Kind);
             Assert.IsTrue(c.Covers[0].NoWater);
-            Assert.IsTrue(c.Sim.GridLat >= BodyLimits.MinGridLat && c.Sim.GridLat <= BodyLimits.MaxGridLat, "sim grid latitude within the limits");
-            Assert.IsTrue(c.Sim.GridLon >= BodyLimits.MinGridLon && c.Sim.GridLon <= BodyLimits.MaxGridLon, "sim grid longitude within the limits");
-            Assert.IsTrue(c.Sim.Levels >= BodyLimits.MinLevels && c.Sim.Levels <= BodyLimits.MaxLevels, "sim levels within the limits");
-            Assert.IsTrue(c.Sim.StepSeconds >= BodyLimits.MinStepSeconds && c.Sim.StepSeconds <= BodyLimits.MaxStepSeconds, "sim step within the limits");
+            Assert.IsTrue(c.Generator.Enabled);
+            Assert.AreEqual(GeneratorOceanSource.Terrain, c.Generator.OceanSource);
             Assert.AreEqual(12f, c.Wind.MaxWindMs);
             Assert.AreEqual(25f, c.Wind.ViolentWindMs);
             Assert.AreEqual(60f, c.Look.VisibilityMinM);
-            Assert.AreEqual(2, c.Cells.Bands.Count);
-            Assert.IsTrue(c.Sim.GridLat >= BodyLimits.MinGridLat && c.Sim.GridLat <= BodyLimits.MaxGridLat);
-            Assert.IsTrue(c.Sim.GridLon >= BodyLimits.MinGridLon && c.Sim.GridLon <= BodyLimits.MaxGridLon);
-            Assert.IsTrue(c.Sim.Levels >= BodyLimits.MinLevels && c.Sim.Levels <= BodyLimits.MaxLevels);
-            Assert.IsTrue(c.Sim.StepSeconds >= BodyLimits.MinStepSeconds && c.Sim.StepSeconds <= BodyLimits.MaxStepSeconds);
+            Assert.IsTrue(c.Generator.Waves && c.Generator.Cells);
+            Assert.AreEqual(0.0, c.Generator.SeaLevelM);
             Assert.AreEqual(2, c.Clouds.WeatherLayers.Count);
             Assert.AreEqual("Kerbin-base-layer", c.Clouds.BaseLayer);
         }
@@ -186,7 +180,7 @@ namespace ReDefinition.Tests.Atmospheres.B13
         {
             string path = Path.Combine(RepoRoot.Root("src", "ReDefinition.csproj"), "GameData", "ReDefinition", "Atmospheres", "Bodies", "Kerbin.cfg");
             ConfigNode node = ConfigNode.Load(path).GetNode(BodyConfigParser.NodeName);
-            var expected = new[] { "SEASONS", "TEMPERATURE", "PRECIP", "COVER", "ICE", "CELLS", "SIM", "CLOUDS", "LOOK", "WIND", "GAMEPLAY", "AURORA", "LIGHT_MEDIUM", "FROST", "FORECAST" };
+            var expected = new[] { "SEASONS", "TEMPERATURE", "PRECIP", "COVER", "ICE", "GENERATOR", "CLOUDS", "LOOK", "WIND", "GAMEPLAY", "AURORA", "LIGHT_MEDIUM", "FROST", "FORECAST" };
             foreach (string name in expected) Assert.IsTrue(node.HasNode(name), name + " is missing in the shipped node");
         }
 

@@ -62,10 +62,10 @@ namespace ReDefinition.Tests
         [DataRow("heavyShare", "9", "2")]
         [DataRow("heavyShare", "NaN", "1")]
         [DataRow("lightWeatherFrequency", "9", "2")]
-        [DataRow("simSeed", "12", "12")]
-        [DataRow("simSeed", "-7", "-7")]
-        [DataRow("simSeed", "abc", "1")]
-        [DataRow("simSeed", "2147483647", "2147483647")]
+        [DataRow("genSeed", "12", "12")]
+        [DataRow("genSeed", "-7", "-7")]
+        [DataRow("genSeed", "abc", "1")]
+        [DataRow("genSeed", "2147483647", "2147483647")]
         [DataRow("blizzardVisibilityM", "1", "20")]
         [DataRow("blizzardVisibilityM", "9999", "500")]
         [DataRow("blizzardVisibilityM", "NaN", "60")]
@@ -150,7 +150,7 @@ namespace ReDefinition.Tests
             {
                 "weatherEffects", "seasonMode", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
                 "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "solarDimming", "solarDimmingStrength",
-                "visibilityExport", "simEnabled", "simGrid", "simLevels", "simSliceMs", "simSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
+                "visibilityExport", "genEnabled", "simGrid", "simLevels", "simSliceMs", "genSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
                 "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
                 "weatherAudio", "weatherAudioVolume", "audioWind", "audioPrecip", "audioFootsteps", "audioFootstepsSurface", "audioDistantStorm", "audioQuietSnow",
                 "audioMuffling", "eveSound", "audioBedSource", "audioProbeSolo", "groundCover", "vehicleCover", "tracks", "coverDrift", "seaIce", "iceDrawDistanceKm",
@@ -352,15 +352,15 @@ namespace ReDefinition.Tests
                 Assert.AreEqual(2048, AtmospheresSettings.OrbitMapWidth);
                 Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase);
 
-                AtmospheresSettings.SetNumber("simSeed", 99);
+                AtmospheresSettings.SetNumber("genSeed", 99);
                 AtmospheresSettings.SetNumber("orbitMapWidth", 1024);
                 AtmospheresSettings.SetText("forceBody", "Eve");
                 ConfigNode changed = AtmospheresSettings.Snapshot();
                 AtmospheresSettings.ResetToDefaults();
-                Assert.AreEqual(1, AtmospheresSettings.SimSeed);
+                Assert.AreEqual(1, AtmospheresSettings.GenSeed);
                 Assert.AreEqual("", AtmospheresSettings.ForceBody);
                 AtmospheresSettings.Restore(changed);
-                Assert.AreEqual(99, AtmospheresSettings.SimSeed);
+                Assert.AreEqual(99, AtmospheresSettings.GenSeed);
                 Assert.AreEqual(1024, AtmospheresSettings.OrbitMapWidth);
                 Assert.AreEqual("Eve", AtmospheresSettings.ForceBody);
             }
@@ -400,7 +400,7 @@ namespace ReDefinition.Tests
             try
             {
                 AtmospheresSettings.StormSeed = 41;
-                Assert.AreEqual(41, AtmospheresSettings.SimSeed);
+                Assert.AreEqual(41, AtmospheresSettings.GenSeed);
                 AtmospheresSettings.StormFrequency = 1.5f;
                 Assert.AreEqual(1.5f, AtmospheresSettings.HeavyShare);
                 AtmospheresSettings.SnowStrength = 0.5f;

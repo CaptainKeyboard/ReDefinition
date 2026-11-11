@@ -227,7 +227,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             {
                 "yearLengthFactor", "seasonMode", "lightWeatherFrequency", "heavyShare", "windStrength", "gustStrength", "precipDensity",
                 "fogBrightness", "veilStrength", "blizzardVisibilityM", "skyDimming", "lightInMediumStrength", "auroraAmbientTint",
-                "weatherAudioVolume", "coverStrength", "coverDrift", "forecastUncertainty", "simSeed"
+                "weatherAudioVolume", "coverStrength", "coverDrift", "forecastUncertainty", "genSeed"
             };
             foreach (string key in TierRows.SetKeys) Assert.IsFalse(taste.Contains(key), key + " is taste");
             foreach (SettingDef def in AtmospheresSettings.Definitions)

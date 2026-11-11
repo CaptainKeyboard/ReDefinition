@@ -61,7 +61,7 @@ namespace ReDefinition.Atmospheres
                 case AtmospheresSettings.GreyReasons.NeedsHost:
                     return env.HostApi ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsSim:
-                    return value(AtmospheresSettings.Keys.SimEnabled) != 0.0 ? null : def.GreyReason;
+                    return value(AtmospheresSettings.Keys.GenEnabled) != 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsVolume:
                     return value(AtmospheresSettings.Keys.VolumePass) != 0.0 ? null : def.GreyReason;
                 case AtmospheresSettings.GreyReasons.NeedsAudio:

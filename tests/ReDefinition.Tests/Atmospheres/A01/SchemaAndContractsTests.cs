@@ -15,7 +15,7 @@ namespace ReDefinition.Tests.Atmospheres.A01
         private static readonly Type[] SchemaTypes =
         {
             typeof(BodyClimate), typeof(BodyStatus), typeof(SeasonRules), typeof(TemperatureRules), typeof(PrecipRules), typeof(PrecipTypeRule),
-            typeof(CoverRules), typeof(IceRules), typeof(CellRules), typeof(CellBand), typeof(SimRules), typeof(CloudRules), typeof(LookRules),
+            typeof(CoverRules), typeof(IceRules), typeof(GeneratorRules), typeof(CloudRules), typeof(LookRules),
             typeof(SoundRules), typeof(WindRules), typeof(GameplayRules), typeof(AuroraRules), typeof(LightMediumRules), typeof(FrostRules),
             typeof(ForecastRules), typeof(Curve)
         };
@@ -56,8 +56,7 @@ namespace ReDefinition.Tests.Atmospheres.A01
             Assert.IsNotNull(c.Precip);
             Assert.AreEqual(0, c.Covers.Count);
             Assert.IsNotNull(c.Ice);
-            Assert.IsNotNull(c.Cells);
-            Assert.IsNotNull(c.Sim);
+            Assert.IsNotNull(c.Generator);
             Assert.IsNotNull(c.Clouds);
             Assert.IsNotNull(c.Look);
             Assert.IsNotNull(c.Sound);
@@ -106,10 +105,10 @@ namespace ReDefinition.Tests.Atmospheres.A01
             var rule = new PrecipTypeRule("snow", PrecipType.Snow, levelNames: names);
             names.Add("b");
             Assert.AreEqual(1, rule.LevelNames.Count);
-            var forcing = new Dictionary<string, double> { { "k", 1.0 } };
-            var sim = new SimRules(forcing: forcing);
-            forcing["k"] = 2.0;
-            Assert.AreEqual(1.0, sim.Forcing["k"]);
+            var levers = new Dictionary<string, double> { { "k", 1.0 } };
+            var generator = new GeneratorRules(levers: levers);
+            levers["k"] = 2.0;
+            Assert.AreEqual(1.0, generator.Levers["k"]);
         }
 
         [TestMethod]

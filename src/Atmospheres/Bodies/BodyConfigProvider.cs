@@ -23,7 +23,7 @@ namespace ReDefinition.Atmospheres
 
         // The provider with the sources of the game; the other constructor is for tests.
         internal BodyConfigProvider()
-            : this(GameNodes, EveFieldNames, () => BodiesFile.Read(null), () => AtmospheresSettings.SimSeed)
+            : this(GameNodes, EveFieldNames, () => BodiesFile.Read(null), () => AtmospheresSettings.GenSeed)
         {
         }
 

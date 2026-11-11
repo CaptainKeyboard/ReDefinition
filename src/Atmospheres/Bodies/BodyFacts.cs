@@ -17,6 +17,12 @@ namespace ReDefinition.Atmospheres
         internal double AtmosphereDepthM;
         internal double SeaLevelPressureKPa;
         internal double SeaLevelTemperatureK = double.NaN;
+        // The surface gravity in m/s^2, the stellar flux at the body in W/m^2 and the gas constant and heat capacity of the air in J/(kg K);
+        // NaN where not read.
+        internal double SurfaceGravityMs2 = double.NaN;
+        internal double SolarFluxWm2 = double.NaN;
+        internal double GasConstant = double.NaN;
+        internal double Cp = double.NaN;
         // A solid surface (PQS) or an ocean: where neither exists nothing can lie on the ground.
         internal bool HasSurface;
         internal bool HasOcean;

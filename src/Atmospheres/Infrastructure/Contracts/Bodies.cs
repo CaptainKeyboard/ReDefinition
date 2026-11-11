@@ -58,7 +58,7 @@ namespace ReDefinition.Atmospheres
             }
             BodyStatus status = body.atmosphere ? BodyStatus.Full : BodyStatus.Off("NoAtmosphere");
             climate = BodyClimate.Generic(body.name, body.flightGlobalsIndex, body.Radius, year, body.rotationPeriod, status,
-                BodyClimate.SeedOf(body.name, AtmospheresSettings.SimSeed));
+                BodyClimate.SeedOf(body.name, AtmospheresSettings.GenSeed));
             cache[body.name] = climate;
             return climate;
         }

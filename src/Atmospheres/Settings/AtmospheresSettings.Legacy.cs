@@ -59,12 +59,12 @@ namespace ReDefinition.Atmospheres
             set { SetNumber(Keys.HeavyShare, value); }
         }
 
-        // stormSeed -> simSeed.
-        [Obsolete("Renamed to SimSeed.")]
+        // stormSeed -> genSeed.
+        [Obsolete("Renamed to GenSeed.")]
         internal static int StormSeed
         {
-            get { return SimSeed; }
-            set { SetNumber(Keys.SimSeed, value); }
+            get { return GenSeed; }
+            set { SetNumber(Keys.GenSeed, value); }
         }
 
         // stormVisibility -> blizzardVisibilityM.

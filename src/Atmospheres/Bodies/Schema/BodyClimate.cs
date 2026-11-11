@@ -58,7 +58,7 @@ namespace ReDefinition.Atmospheres
     {
         internal BodyClimate(string name, int index, double radius, double yearSeconds, double daySeconds, BodyStatus status, int seed,
             SeasonRules seasons = null, TemperatureRules temperature = null, PrecipRules precip = null, System.Collections.Generic.IEnumerable<CoverRules> covers = null,
-            IceRules ice = null, CellRules cells = null, SimRules sim = null, CloudRules clouds = null, LookRules look = null, SoundRules sound = null,
+            IceRules ice = null, GeneratorRules generator = null, CloudRules clouds = null, LookRules look = null, SoundRules sound = null,
             WindRules wind = null, GameplayRules gameplay = null, AuroraRules aurora = null, LightMediumRules lightMedium = null, FrostRules frost = null,
             ForecastRules forecast = null)
         {
@@ -74,8 +74,7 @@ namespace ReDefinition.Atmospheres
             Precip = precip ?? PrecipRules.Default;
             Covers = SchemaList.Of(covers);
             Ice = ice ?? IceRules.Default;
-            Cells = cells ?? CellRules.Default;
-            Sim = sim ?? SimRules.Default;
+            Generator = generator ?? GeneratorRules.Default;
             Clouds = clouds ?? CloudRules.Default;
             Look = look ?? LookRules.Default;
             Sound = sound ?? SoundRules.Default;
@@ -95,7 +94,7 @@ namespace ReDefinition.Atmospheres
         internal double YearSeconds { get; }
         internal double DaySeconds { get; }
         internal BodyStatus Status { get; }
-        // The seed of the body's weather: a hash of its name and the player's global seed (setting simSeed).
+        // The seed of the body's weather: a hash of its name and the player's global seed (setting genSeed).
         internal int Seed { get; }
 
         internal SeasonRules Seasons { get; }
@@ -103,8 +102,7 @@ namespace ReDefinition.Atmospheres
         internal PrecipRules Precip { get; }
         internal System.Collections.Generic.IReadOnlyList<CoverRules> Covers { get; }
         internal IceRules Ice { get; }
-        internal CellRules Cells { get; }
-        internal SimRules Sim { get; }
+        internal GeneratorRules Generator { get; }
         internal CloudRules Clouds { get; }
         internal LookRules Look { get; }
         internal SoundRules Sound { get; }

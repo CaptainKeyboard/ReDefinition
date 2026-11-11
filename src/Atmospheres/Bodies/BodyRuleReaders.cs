@@ -5,19 +5,20 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The limits the readers hold the simulation grid to.
+    // The limits the readers hold the generator's inputs to.
     internal static class BodyLimits
     {
-        internal const int MinGridLat = 8;
-        internal const int MaxGridLat = 256;
-        internal const int MinGridLon = 16;
-        internal const int MaxGridLon = 512;
-        internal const int MinLevels = 4;
-        internal const int MaxLevels = 64;
-        internal const double MinStepSeconds = 60.0;
-        internal const double MaxStepSeconds = 86400.0;
-        internal const int MinEpochSteps = 1;
-        internal const int MaxEpochSteps = 100000;
+        internal const double MinRotationPeriodS = 60.0;
+        internal const double MaxRotationPeriodS = 1.0e9;
+        internal const double MinObliquityDeg = 0.0;
+        internal const double MaxObliquityDeg = 90.0;
+        internal const double MinPressureKPa = 0.001;
+        internal const double MaxPressureKPa = 1.0e5;
+        internal const double MinGravityMs2 = 0.01;
+        internal const double MaxGravityMs2 = 1000.0;
+        internal const double MinTemperatureK = 3.0;
+        internal const double MaxTemperatureK = 2000.0;
+        internal const int MaxSeedOffset = 1000000000;
     }
 
     // Reads the sub-nodes of REDEFINITION_BODY into the rule classes of the schema. Every method takes a reader on the sub-node (which
@@ -119,42 +120,26 @@ namespace ReDefinition.Atmospheres
                 r.Bool("permanent", false), r.Bool("liquid", true));
         }
 
-        internal static CellRules Cells(BodyNodeReader r)
+        internal static GeneratorRules Generator(BodyNodeReader r)
         {
-            var bands = new List<CellBand>();
-            int index = 0;
-            foreach (ConfigNode child in r.Nodes("BAND"))
+            var levers = new Dictionary<string, double>();
+            BodyNodeReader l = r.Child("LEVERS");
+            foreach (string key in l.Keys())
             {
-                BodyNodeReader b = r.Wrap(child, "BAND[" + index++ + "]");
-                var kinds = new List<PrecipType>();
-                foreach (string name in b.List("types"))
-                {
-                    PrecipType kind;
-                    if (Enum.TryParse(name, true, out kind) && Enum.IsDefined(typeof(PrecipType), kind)) kinds.Add(kind);
-                    else b.Warn("types", "'" + name + "' is not a precipitation type; it is ignored");
-                }
-                bands.Add(new CellBand(b.String("id", "band" + index), b.Double("fromLat", 0.0, -90.0, 90.0), b.Double("toLat", 90.0, -90.0, 90.0),
-                    b.Double("chance", 1.0, 0.0, 1.0), kinds));
+                double value = l.Double(key, double.NaN);
+                if (!double.IsNaN(value) && !double.IsInfinity(value)) levers[key] = value;
             }
-            return new CellRules(r.Double("sectorLengthKm", 100.0, 1.0, 10000.0), r.Double("radiusMinKm", 5.0, 0.1, 5000.0), r.Double("radiusMaxKm", 25.0, 0.1, 5000.0),
-                r.Double("driftMinMs", 1.5, 0.0, 200.0), r.Double("driftMaxMs", 4.0, 0.0, 200.0), r.Double("driftDeg", 90.0, 0.0, 360.0),
-                r.Double("slotBodyDays", 4.0, 0.01, 1000.0), r.Enum("gate", CellGate.Winter), r.Double("broadShare", 0.0, 0.0, 1.0),
-                r.Double("coreShare", 1.0, 0.0, 1.0), bands);
-        }
-
-        internal static SimRules Sim(BodyNodeReader r)
-        {
-            var forcing = new Dictionary<string, double>();
-            BodyNodeReader f = r.Child("FORCING");
-            foreach (string key in f.Keys())
-            {
-                double value = f.Double(key, double.NaN);
-                if (!double.IsNaN(value)) forcing[key] = value;
-            }
-            return new SimRules(r.Int("gridLat", 64, BodyLimits.MinGridLat, BodyLimits.MaxGridLat), r.Int("gridLon", 128, BodyLimits.MinGridLon, BodyLimits.MaxGridLon),
-                r.Int("levels", 16, BodyLimits.MinLevels, BodyLimits.MaxLevels), r.Double("stepSeconds", 3600.0, BodyLimits.MinStepSeconds, BodyLimits.MaxStepSeconds),
-                r.Int("epochSteps", 666, BodyLimits.MinEpochSteps, BodyLimits.MaxEpochSteps), r.Double("seaHeatCapacity", 1.0, 0.01, 100.0),
-                r.Double("freezingPointC", 0.0, -273.15, 1000.0), forcing);
+            return new GeneratorRules(r.Bool("enabled", true), r.DoubleOrAuto("rotationPeriodS", BodyLimits.MinRotationPeriodS, BodyLimits.MaxRotationPeriodS),
+                r.DoubleOrAuto("obliquityDeg", BodyLimits.MinObliquityDeg, BodyLimits.MaxObliquityDeg), r.DoubleOrAuto("solarFluxWm2", 0.0, 1.0e6),
+                r.DoubleOrAuto("surfacePressureKPa", BodyLimits.MinPressureKPa, BodyLimits.MaxPressureKPa),
+                r.DoubleOrAuto("gravityMs2", BodyLimits.MinGravityMs2, BodyLimits.MaxGravityMs2), r.DoubleOrAuto("tropopauseM", 100.0, 1.0e6),
+                r.Double("tropopauseDepthShare", 0.15, 0.01, 1.0), r.DoubleOrAuto("lapseKPerM", 0.0, 0.1),
+                r.DoubleOrAuto("surfaceMeanK", BodyLimits.MinTemperatureK, BodyLimits.MaxTemperatureK), r.DoubleOrAuto("diurnalLandAmpK", 0.0, 200.0),
+                r.DoubleOrAuto("gasConstant", 10.0, 10000.0), r.DoubleOrAuto("cp", 100.0, 100000.0), r.DoubleOrAuto("precipFactor", 0.0, 10.0),
+                r.Enum("oceanSource", GeneratorOceanSource.Terrain), r.DoubleOrAuto("oceanFraction", 0.0, 1.0), r.Double("seaLevelM", 0.0, -1.0e6, 1.0e6),
+                r.DoubleOrAuto("salinityPsu", 0.0, 400.0), r.DoubleOrAuto("freezeShiftKPerPsu", -1.0, 0.0), r.DoubleOrAuto("mixedLayerDepthM", 0.1, 10000.0),
+                r.DoubleOrAuto("seaHeatCapacity", 0.01, 100.0), r.Enum("dust", GeneratorDust.Auto), r.DoubleOrAuto("dustWindThresholdMs", 0.1, 200.0),
+                r.Int("seedOffset", 0, -BodyLimits.MaxSeedOffset, BodyLimits.MaxSeedOffset), r.Bool("waves", true), r.Bool("cells", true), levers);
         }
 
         internal static CloudRules Clouds(BodyNodeReader r)

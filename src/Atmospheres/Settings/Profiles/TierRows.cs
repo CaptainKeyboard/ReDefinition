@@ -111,7 +111,7 @@ namespace ReDefinition.Atmospheres
             { AtmospheresSettings.Keys.WindInjection, "gameplay: how the wind reaches a vehicle" },
             { AtmospheresSettings.Keys.WindForces, "gameplay switch" },
             { AtmospheresSettings.Keys.WindStrength, "gameplay and taste" },
-            { AtmospheresSettings.Keys.SimEnabled, "a switch of the player's" },
+            { AtmospheresSettings.Keys.GenEnabled, "a switch of the player's" },
             { AtmospheresSettings.Keys.SimLevels, "0 asks for the body's own; the grid choice carries the size" },
             { AtmospheresSettings.Keys.SimSliceMs, "a hitch limit of the main thread, not a size" },
             { AtmospheresSettings.Keys.PrecipDensity, "taste: how dense the precipitation looks; the cap is TierRow.ParticleCap" },

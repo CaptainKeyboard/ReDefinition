@@ -37,11 +37,11 @@ namespace ReDefinition.Atmospheres
             internal const string SolarDimmingStrength = "solarDimmingStrength";
             internal const string VisibilityExport = "visibilityExport";
             // Simulation
-            internal const string SimEnabled = "simEnabled";
+            internal const string GenEnabled = "genEnabled";
             internal const string SimGrid = "simGrid";
             internal const string SimLevels = "simLevels";
             internal const string SimSliceMs = "simSliceMs";
-            internal const string SimSeed = "simSeed";
+            internal const string GenSeed = "genSeed";
             // Volume
             internal const string VolumePass = "volumePass";
             internal const string VolumeResolution = "volumeResolution";
@@ -262,11 +262,11 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("visibilityExport", true, W, "Export Visibility", MASTER),
 
                 // Simulation
-                SettingDef.Bool("simEnabled", true, S, "Weather Simulation", MASTER, RS),
+                SettingDef.Bool("genEnabled", true, S, "Weather Generator", MASTER, RS),
                 SettingDef.Choice("simGrid", typeof(SimGridChoice), SimGridChoice.Auto, S, "Simulation Grid", SIM, RS),
                 SettingDef.Int("simLevels", 0, 0, 32, S, "Simulation Levels", SIM, RS),
                 SettingDef.Float("simSliceMs", 0.5, 0.1, 4.0, S, "Simulation Slice", SIM, RS),
-                SettingDef.Int("simSeed", 1, int.MinValue, int.MaxValue, S, "Weather Seed", SIM),
+                SettingDef.Int("genSeed", 1, int.MinValue, int.MaxValue, S, "Weather Seed", SIM),
 
                 // Volume
                 SettingDef.Bool("volumePass", true, V, "Volumetric Clouds And Curtains", MASTER, RV),

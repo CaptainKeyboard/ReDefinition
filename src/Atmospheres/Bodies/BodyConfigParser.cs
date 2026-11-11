@@ -31,7 +31,7 @@ namespace ReDefinition.Atmospheres
 
         private static readonly HashSet<string> KnownNodes = new HashSet<string>
         {
-            "SEASONS", "TEMPERATURE", "PRECIP", "COVER", "ICE", "CELLS", "SIM", "CLOUDS", "LOOK", "SOUND", "WIND", "GAMEPLAY", "AURORA",
+            "SEASONS", "TEMPERATURE", "PRECIP", "COVER", "ICE", "GENERATOR", "CLOUDS", "LOOK", "SOUND", "WIND", "GAMEPLAY", "AURORA",
             "LIGHT_MEDIUM", "FROST", "FORECAST"
         };
 
@@ -94,7 +94,7 @@ namespace ReDefinition.Atmospheres
             BodyStatus status = ResolveStatus(root, f, accept, warnings);
 
             var climate = new BodyClimate(f.Name, f.Index, f.RadiusM, year, f.DaySeconds, status, seed, seasons, temperature, precip, covers,
-                BodyRuleReaders.Ice(root.Child("ICE")), BodyRuleReaders.Cells(root.Child("CELLS")), BodyRuleReaders.Sim(root.Child("SIM")),
+                BodyRuleReaders.Ice(root.Child("ICE")), BodyRuleReaders.Generator(root.Child("GENERATOR")),
                 BodyRuleReaders.Clouds(root.Child("CLOUDS")), BodyRuleReaders.Look(root.Child("LOOK")), BodyRuleReaders.Sound(root.Child("SOUND")),
                 BodyRuleReaders.Wind(root.Child("WIND")), BodyRuleReaders.Gameplay(root.Child("GAMEPLAY")), BodyRuleReaders.Aurora(root.Child("AURORA")),
                 BodyRuleReaders.LightMedium(root.Child("LIGHT_MEDIUM")), BodyRuleReaders.Frost(root.Child("FROST")), BodyRuleReaders.Forecast(root.Child("FORECAST")));

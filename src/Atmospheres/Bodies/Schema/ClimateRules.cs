@@ -259,105 +259,125 @@ namespace ReDefinition.Atmospheres
         internal bool Liquid { get; }
     }
 
-    // When a cell of the fallback weather generator may occur.
-    internal enum CellGate
+    // Where the generator's ocean-fraction and moisture-source raster comes from.
+    internal enum GeneratorOceanSource
     {
-        Winter,
-        Always,
-        Season,
-        Temperature
+        // The game's terrain: ocean where the body has an ocean and the surface lies below sea level.
+        Terrain,
+        // Synthetic continents of the seed with the key oceanFraction as the target (a body without readable terrain).
+        Synthetic,
+        // No ocean at all (a dry body).
+        None
     }
 
-    // A latitude band of the fallback generator and what may fall there. Node bands inside CELLS.
-    internal sealed class CellBand
+    // Whether the body carries dust or sand that wind lifts.
+    internal enum GeneratorDust
     {
-        internal CellBand(string id, double fromLatDeg, double toLatDeg, double chance, IEnumerable<ReDefinition.Core.PrecipType> types)
-        {
-            Id = id ?? "";
-            FromLatDeg = fromLatDeg;
-            ToLatDeg = toLatDeg;
-            Chance = chance;
-            Types = SchemaList.Of(types);
-        }
-
-        internal string Id { get; }
-        internal double FromLatDeg { get; }
-        internal double ToLatDeg { get; }
-        internal double Chance { get; }
-        internal IReadOnlyList<ReDefinition.Core.PrecipType> Types { get; }
+        // Dusty where the body's precipitation types include dust or sand.
+        Auto,
+        On,
+        Off
     }
 
-    // The weather cells of the FALLBACK generator, used only when the simulation is not. Node CELLS.
-    internal sealed class CellRules
+    // The inputs of the weather generator for one body (package C25). Node GENERATOR. A key that is NaN (the default) means "not
+    // stated": the generator takes the value from the game's facts of the body (radius, rotation, pressure, gravity, the probe of the
+    // temperature curves) or, where the game has none, the generator's own default. All numbers are SI, degrees where the key says so.
+    // The sub-node LEVERS names a field of the generator's parameter set and a value (a tuning lever of the generator), so that a lever
+    // added to the generator needs no new key.
+    internal sealed class GeneratorRules
     {
-        internal static readonly CellRules Default = new CellRules();
+        internal static readonly GeneratorRules Default = new GeneratorRules();
 
-        internal CellRules(double sectorLengthKm = 100.0, double radiusMinKm = 5.0, double radiusMaxKm = 25.0, double driftMinMs = 1.5, double driftMaxMs = 4.0,
-            double driftDeg = 90.0, double slotBodyDays = 4.0, CellGate gate = CellGate.Winter, double broadShare = 0.0, double coreShare = 1.0,
-            IEnumerable<CellBand> bands = null)
+        internal GeneratorRules(bool enabled = true, double rotationPeriodS = double.NaN, double obliquityDeg = double.NaN, double solarFluxWm2 = double.NaN,
+            double surfacePressureKPa = double.NaN, double gravityMs2 = double.NaN, double tropopauseM = double.NaN, double tropopauseDepthShare = 0.15,
+            double lapseKPerM = double.NaN, double surfaceMeanK = double.NaN, double diurnalLandAmpK = double.NaN, double gasConstant = double.NaN,
+            double cp = double.NaN, double precipFactor = double.NaN, GeneratorOceanSource oceanSource = GeneratorOceanSource.Terrain,
+            double oceanFraction = double.NaN, double seaLevelM = 0.0, double salinityPsu = double.NaN, double freezeShiftKPerPsu = double.NaN,
+            double mixedLayerDepthM = double.NaN, double seaHeatCapacity = double.NaN, GeneratorDust dust = GeneratorDust.Auto,
+            double dustWindThresholdMs = double.NaN, int seedOffset = 0, bool waves = true, bool cells = true, IDictionary<string, double> levers = null)
         {
-            SectorLengthKm = sectorLengthKm;
-            RadiusMinKm = radiusMinKm;
-            RadiusMaxKm = radiusMaxKm;
-            DriftMinMs = driftMinMs;
-            DriftMaxMs = driftMaxMs;
-            DriftDeg = driftDeg;
-            SlotBodyDays = slotBodyDays;
-            Gate = gate;
-            BroadShare = broadShare;
-            CoreShare = coreShare;
-            Bands = SchemaList.Of(bands);
-        }
-
-        internal double SectorLengthKm { get; }
-        internal double RadiusMinKm { get; }
-        internal double RadiusMaxKm { get; }
-        internal double DriftMinMs { get; }
-        internal double DriftMaxMs { get; }
-        internal double DriftDeg { get; }
-        // The slot length in days of the body.
-        internal double SlotBodyDays { get; }
-        internal CellGate Gate { get; }
-        // The shares of broad and core cells in the level table.
-        internal double BroadShare { get; }
-        internal double CoreShare { get; }
-        internal IReadOnlyList<CellBand> Bands { get; }
-    }
-
-    // The simulation grid and its forcing. Node SIM. The player's settings simGrid, simLevels and simSeed override the grid and the seed.
-    internal sealed class SimRules
-    {
-        internal static readonly SimRules Default = new SimRules();
-
-        internal SimRules(int gridLat = 64, int gridLon = 128, int levels = 16, double stepSeconds = 3600.0, int epochSteps = 666,
-            double seaHeatCapacity = 1.0, double freezingPointC = 0.0, IDictionary<string, double> forcing = null)
-        {
-            GridLat = gridLat;
-            GridLon = gridLon;
-            Levels = levels;
-            StepSeconds = stepSeconds;
-            EpochSteps = epochSteps;
+            Enabled = enabled;
+            RotationPeriodS = rotationPeriodS;
+            ObliquityDeg = obliquityDeg;
+            SolarFluxWm2 = solarFluxWm2;
+            SurfacePressureKPa = surfacePressureKPa;
+            GravityMs2 = gravityMs2;
+            TropopauseM = tropopauseM;
+            TropopauseDepthShare = tropopauseDepthShare;
+            LapseKPerM = lapseKPerM;
+            SurfaceMeanK = surfaceMeanK;
+            DiurnalLandAmpK = diurnalLandAmpK;
+            GasConstant = gasConstant;
+            Cp = cp;
+            PrecipFactor = precipFactor;
+            OceanSource = oceanSource;
+            OceanFraction = oceanFraction;
+            SeaLevelM = seaLevelM;
+            SalinityPsu = salinityPsu;
+            FreezeShiftKPerPsu = freezeShiftKPerPsu;
+            MixedLayerDepthM = mixedLayerDepthM;
             SeaHeatCapacity = seaHeatCapacity;
-            FreezingPointC = freezingPointC;
+            Dust = dust;
+            DustWindThresholdMs = dustWindThresholdMs;
+            SeedOffset = seedOffset;
+            Waves = waves;
+            Cells = cells;
             var copy = new Dictionary<string, double>();
-            if (forcing != null)
+            if (levers != null)
             {
-                foreach (KeyValuePair<string, double> pair in forcing) copy[pair.Key] = pair.Value;
+                foreach (KeyValuePair<string, double> pair in levers) copy[pair.Key] = pair.Value;
             }
-            Forcing = copy;
+            Levers = copy;
         }
 
-        // The grid: latitude and longitude cells, and the vertical levels.
-        internal int GridLat { get; }
-        internal int GridLon { get; }
-        internal int Levels { get; }
-        // The fixed step in seconds of game time, and the steps in one epoch.
-        internal double StepSeconds { get; }
-        internal int EpochSteps { get; }
-        // The sea's heat capacity against the default, and the freezing point of its water in degrees Celsius.
+        // Key enabled: false switches the generator off for this body (no weather there).
+        internal bool Enabled { get; }
+        // Key rotationPeriodS: the sidereal rotation period in seconds; NaN reads the body's.
+        internal double RotationPeriodS { get; }
+        // Key obliquityDeg: the axial tilt that drives the insolation. NaN: the tilt of the SEASONS node when the body is tilted, else
+        // DefaultObliquityDeg (the game's bodies have no tilt, the seasons are an artificial phase).
+        internal double ObliquityDeg { get; }
+        // Key solarFluxWm2: the stellar flux at the body; NaN reads it from the body's orbit and the star's luminosity.
+        internal double SolarFluxWm2 { get; }
+        // Key surfacePressureKPa: NaN reads the body's sea-level pressure.
+        internal double SurfacePressureKPa { get; }
+        // Key gravityMs2: NaN reads the body's surface gravity.
+        internal double GravityMs2 { get; }
+        // Keys tropopauseM and tropopauseDepthShare: the height of the tropopause; NaN takes the share of the atmosphere's depth.
+        internal double TropopauseM { get; }
+        internal double TropopauseDepthShare { get; }
+        // Keys lapseKPerM, surfaceMeanK, diurnalLandAmpK: NaN takes the fit of the game's temperature curves (ThermalFit), else the temperature
+        // target of the body, else the generator's default.
+        internal double LapseKPerM { get; }
+        internal double SurfaceMeanK { get; }
+        internal double DiurnalLandAmpK { get; }
+        // Keys gasConstant and cp: J/(kg K) of the air; NaN is dry air.
+        internal double GasConstant { get; }
+        internal double Cp { get; }
+        // Key precipFactor: the body factor of the absolute precipitation bands; NaN scales with the square root of the surface pressure.
+        internal double PrecipFactor { get; }
+        // Keys oceanSource, oceanFraction (the target of the synthetic source) and seaLevelM (the height that counts as sea level).
+        internal GeneratorOceanSource OceanSource { get; }
+        internal double OceanFraction { get; }
+        internal double SeaLevelM { get; }
+        // Keys salinityPsu, freezeShiftKPerPsu, mixedLayerDepthM, seaHeatCapacity (relative to water): the sea of the ice model. The
+        // freezing point of the liquid is the TEMPERATURE node's waterCelsius.
+        internal double SalinityPsu { get; }
+        internal double FreezeShiftKPerPsu { get; }
+        internal double MixedLayerDepthM { get; }
         internal double SeaHeatCapacity { get; }
-        internal double FreezingPointC { get; }
-        // Further forcing parameters by name (key = number), read by the simulation.
-        internal IReadOnlyDictionary<string, double> Forcing { get; }
+        // Keys dust and dustWindThresholdMs.
+        internal GeneratorDust Dust { get; }
+        internal double DustWindThresholdMs { get; }
+        // Key seedOffset: added to the body's seed, so that two bodies of one name or one saved world can differ.
+        internal int SeedOffset { get; }
+        // Keys waves and cells: false removes the moving systems or the convective cells (a switch of the generator's A/B runs).
+        internal bool Waves { get; }
+        internal bool Cells { get; }
+        // The LEVERS sub-node: a field of the generator's parameter set and its number (a boolean field takes 0 or 1).
+        internal IReadOnlyDictionary<string, double> Levers { get; }
+
+        // The tilt that stands in for the game's missing one: an artificial axis so that the insolation has seasons. [VERIFY with the owner]
+        internal const double DefaultObliquityDeg = 23.44;
     }
 }

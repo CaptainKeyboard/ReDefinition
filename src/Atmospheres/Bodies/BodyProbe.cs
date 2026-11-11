@@ -32,6 +32,7 @@ namespace ReDefinition.Atmospheres
             Guard(notes, "home body", () => facts.HomeOrbitPeriod = HomePeriod());
             if (facts.HasAtmosphere) Guard(notes, "temperature", () => ReadTemperature(body, facts));
             Guard(notes, "axis", () => ReadAxis(body, facts));
+            Guard(notes, "generator inputs", () => ReadGeneratorInputs(body, facts));
             if (eveFieldNames != null) facts.EveFields = MatchingFields(eveFieldNames, facts.Name);
             return facts;
         }
@@ -85,6 +86,25 @@ namespace ReDefinition.Atmospheres
             if (xs.Count == 0) return;
             facts.TemperatureTarget = new Curve(xs.ToArray(), ys.ToArray());
             facts.SeaLevelTemperatureK = ys[0];
+        }
+
+        // The inputs of the weather generator that the game states: the surface gravity, the stellar flux (luminosity over the area of the sphere
+        // at the semi-major axis of the planet that circles the star) and the gas constant and heat capacity from the molar mass and the
+        // adiabatic index of the air.
+        private static void ReadGeneratorInputs(CelestialBody body, BodyFacts facts)
+        {
+            if (body.GeeASL > 0) facts.SurfaceGravityMs2 = body.GeeASL * PhysicsGlobals.GravitationalAcceleration;
+            CelestialBody planet = body;
+            for (int i = 0; i < 16 && planet.referenceBody != null && planet.referenceBody != planet && !planet.referenceBody.isStar; i++) planet = planet.referenceBody;
+            if (planet.orbit != null && planet.orbit.semiMajorAxis > 0 && PhysicsGlobals.SolarLuminosity > 0)
+            {
+                facts.SolarFluxWm2 = PhysicsGlobals.SolarLuminosity / (4.0 * Math.PI * planet.orbit.semiMajorAxis * planet.orbit.semiMajorAxis);
+            }
+            if (body.atmosphere && body.atmosphereMolarMass > 0 && body.atmosphereAdiabaticIndex > 1.0)
+            {
+                facts.GasConstant = PhysicsGlobals.IdealGasConstant / body.atmosphereMolarMass;
+                facts.Cp = body.atmosphereAdiabaticIndex / (body.atmosphereAdiabaticIndex - 1.0) * facts.GasConstant;
+            }
         }
 
         private static void ReadAxis(CelestialBody body, BodyFacts facts)

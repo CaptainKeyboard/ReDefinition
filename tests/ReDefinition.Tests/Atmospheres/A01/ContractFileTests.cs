@@ -42,7 +42,7 @@ namespace ReDefinition.Tests.Atmospheres.A01
             {
                 "IAtmospheresModule", "AtmospheresModuleAttribute", "ModuleRegistry", "Tuning", "BodyWatcher", "AtmospheresStartup", "IPostUpscaleCompositor",
                 "IOrbitOverlayLayer", "IEveFieldSuppressor", "IBodyProvider", "Bodies", "BodyClimate", "BodyStatus", "SeasonRules", "TemperatureRules", "PrecipRules",
-                "PrecipTypeRule", "CoverRules", "IceRules", "CellRules", "SimRules", "CloudRules", "LookRules", "SoundRules", "WindRules", "GameplayRules",
+                "PrecipTypeRule", "CoverRules", "IceRules", "GeneratorRules", "CloudRules", "LookRules", "SoundRules", "WindRules", "GameplayRules",
                 "AuroraRules", "LightMediumRules", "FrostRules", "ForecastRules", "AtmospheresSettings"
             })
             {

@@ -52,11 +52,11 @@ namespace ReDefinition.Atmospheres
         internal static bool VisibilityExport => B(Keys.VisibilityExport);
 
         // --- Simulation ---
-        internal static bool SimEnabled => B(Keys.SimEnabled);
+        internal static bool GenEnabled => B(Keys.GenEnabled);
         internal static SimGridChoice SimGrid => E<SimGridChoice>(Keys.SimGrid);
         internal static int SimLevels => I(Keys.SimLevels);
         internal static float SimSliceMs => F(Keys.SimSliceMs);
-        internal static int SimSeed => I(Keys.SimSeed);
+        internal static int GenSeed => I(Keys.GenSeed);
 
         // --- Volume ---
         internal static bool VolumePass => B(Keys.VolumePass);

@@ -144,7 +144,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             {
                 foreach (SettingDef def in AtmospheresSettings.Definitions)
                 {
-                    foreach (Func<string, double> values in new[] { Values(), On(), On("enabled", 0), On("simEnabled", 0, "volumePass", 0, "weatherAudio", 0,
+                    foreach (Func<string, double> values in new[] { Values(), On(), On("enabled", 0), On("genEnabled", 0, "volumePass", 0, "weatherAudio", 0,
                         "forecastEnabled", 0, "groundCover", 0, "seaIce", 0, "lightInMedium", 0, "windForces", 0, "precipDensity", 0, "solarDimming", 0, "alertsEnabled", 0) })
                     {
                         RowState state = Dependencies.Evaluate(def, values, env);
@@ -165,7 +165,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
         public void TheModOffGreysEverythingButItself()
         {
             Func<string, double> values = Values("enabled", 0, "weatherEffects", 1);
-            Assert.AreEqual(SettingHelp.ModOff, Reason("simEnabled", values, WindowEnvironment.Full()));
+            Assert.AreEqual(SettingHelp.ModOff, Reason("genEnabled", values, WindowEnvironment.Full()));
             Assert.AreEqual(SettingHelp.ModOff, Reason("yearLengthFactor", values, WindowEnvironment.Full()));
             Assert.IsNull(Reason("enabled", values, WindowEnvironment.Full()));
         }
@@ -241,12 +241,12 @@ namespace ReDefinition.Tests.Atmospheres.D36
         [TestMethod]
         public void TheGeneratorKeysNeedTheSimulation()
         {
-            foreach (string key in new[] { "simGrid", "simLevels", "simSliceMs", "simSeed", "lightWeatherFrequency", "heavyShare" })
+            foreach (string key in new[] { "simGrid", "simLevels", "simSliceMs", "genSeed", "lightWeatherFrequency", "heavyShare" })
             {
-                Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSim, Reason(key, On("simEnabled", 0), WindowEnvironment.Full()), key);
+                Assert.AreEqual(AtmospheresSettings.GreyReasons.NeedsSim, Reason(key, On("genEnabled", 0), WindowEnvironment.Full()), key);
                 Assert.IsNull(Reason(key, On(), WindowEnvironment.Full()), key);
             }
-            Assert.IsNull(Reason("simEnabled", On("simEnabled", 0), WindowEnvironment.Full()), "the switch itself stays");
+            Assert.IsNull(Reason("genEnabled", On("genEnabled", 0), WindowEnvironment.Full()), "the switch itself stays");
         }
 
         [TestMethod]
@@ -348,7 +348,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             // Ten different dependencies are shown with a reason (the cases above): count the distinct reason ids the rules can give.
             var ids = new HashSet<string>(StringComparer.Ordinal);
             WindowEnvironment bare = WindowEnvironment.Alone();
-            Func<string, double> allOff = On("simEnabled", 0, "volumePass", 0, "weatherAudio", 0, "forecastEnabled", 0, "groundCover", 0, "seaIce", 0,
+            Func<string, double> allOff = On("genEnabled", 0, "volumePass", 0, "weatherAudio", 0, "forecastEnabled", 0, "groundCover", 0, "seaIce", 0,
                 "lightInMedium", 0, "windForces", 0, "precipDensity", 0, "solarDimming", 0, "alertsEnabled", 0);
             foreach (SettingDef def in AtmospheresSettings.Definitions)
             {
@@ -436,7 +436,7 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.IsTrue(longest <= SettingsWindow.NameChars, which + ": " + longest + " characters against " + SettingsWindow.NameChars);
             // A whole number with a range too wide for a slider is typed; the seed is the only one.
             var typed = AtmospheresSettings.Definitions.Where(SettingsWindow.TypedNumber).Select(d => d.Key).ToArray();
-            CollectionAssert.AreEqual(new[] { "simSeed" }, typed);
+            CollectionAssert.AreEqual(new[] { "genSeed" }, typed);
         }
 
         [TestMethod]

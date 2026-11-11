@@ -55,11 +55,11 @@ namespace ReDefinition.Atmospheres
                 { "visibilityExport", "Tells other mods how far one can see in fog and precipitation." },
 
                 // Simulation
-                { "simEnabled", "Runs the weather simulation. Off, the weather is the body's average and nothing changes from day to day." },
+                { "genEnabled", "Runs the weather generator. Off, there is no weather: no moving systems, no precipitation and no wind from the field." },
                 { "simGrid", "How fine the weather grid is against the body's own: Coarse costs least, Fine is most detailed. Auto takes the body's own setting." },
                 { "simLevels", "How many layers of air the simulation has. 0 takes the body's own number." },
                 { "simSliceMs", "The most time in milliseconds the simulation may take in one frame. A smaller slice avoids hitches and catches up slower." },
-                { "simSeed", "The number the weather grows from. The same number gives the same weather on the same day." },
+                { "genSeed", "The number the weather grows from. The same number gives the same weather on the same day." },
 
                 // Volume
                 { "volumePass", "Draws the clouds and the curtains of precipitation as a volume. Off, only the flat parts are drawn." },

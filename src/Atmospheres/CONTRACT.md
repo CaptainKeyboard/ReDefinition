@@ -54,7 +54,7 @@ and never edit a shared one.
 | `Services` | `Infrastructure/Contracts` | The slots (`PostUpscale`, `EveFieldSuppressor`) with null objects. |
 | `IBodyProvider`, `Bodies`, `DefaultBodyProvider` | `Infrastructure/Contracts` | `Bodies.Get(CelestialBody)`, `Bodies.Active`; the default gives a generic climate; the body package assigns the real provider. |
 | `BodyClimate`, `BodyStatus` | `Bodies/Schema` | Immutable: Name, Index, Radius, YearSeconds, DaySeconds, Status (Off(reason), CoverOnly, Full, Broken(reason)), Seed and the rule classes. |
-| `SeasonRules`, `TemperatureRules`, `PrecipRules`, `PrecipTypeRule`, `CoverRules`, `IceRules`, `CellRules`, `CellBand`, `SimRules`, `CloudRules`, `LookRules`, `SoundRules`, `WindRules`, `GameplayRules`, `AuroraRules`, `LightMediumRules`, `FrostRules`, `ForecastRules`, `Curve` | `Bodies/Schema` | The sub-nodes of `REDEFINITION_BODY` (SEASONS, TEMPERATURE, PRECIP with TYPE, COVER, ICE, CELLS, SIM, CLOUDS, LOOK, SOUND, WIND, GAMEPLAY, AURORA, LIGHT_MEDIUM, FROST, FORECAST). Each constructor's parameters default to the generic default. |
+| `SeasonRules`, `TemperatureRules`, `PrecipRules`, `PrecipTypeRule`, `CoverRules`, `IceRules`, `GeneratorRules`, `CloudRules`, `LookRules`, `SoundRules`, `WindRules`, `GameplayRules`, `AuroraRules`, `LightMediumRules`, `FrostRules`, `ForecastRules`, `Curve` | `Bodies/Schema` | The sub-nodes of `REDEFINITION_BODY` (SEASONS, TEMPERATURE, PRECIP with TYPE, COVER, ICE, GENERATOR, CLOUDS, LOOK, SOUND, WIND, GAMEPLAY, AURORA, LIGHT_MEDIUM, FROST, FORECAST). Each constructor's parameters default to the generic default. |
 | `SeasonModel` (not part of A01) | `Bodies` | Created by B13 (it owns `Bodies/*.cs` with `SeasonClock` and `SeasonState`): the season data plus the pure `Phase(ut, model)`; A01 only delivers the data class `SeasonRules`. C25 (`BodyForcing`) reads the insolation phase through it; until B13 lands, `SeasonClock` is the phase. |
 | `AtmospheresSettings`, `SettingDef`, `SettingsTable` | `Settings` | The settings (section 6): `Keys`, `Categories`, `GreyReasons`, `ProfileRows`, typed readers, `SetNumber` / `SetText`, `Definitions`. |
 
@@ -161,11 +161,11 @@ The table of `SettingsTable.All`, in the order of the window.
 
 | Key | Default | Range | Tooltip | Greyed out | Profile row |
 |---|---|---|---|---|---|
-| `simEnabled` | on | on / off | Weather Simulation | needs-weather-effects | simulation |
+| `genEnabled` | on | on / off | Weather Generator | needs-weather-effects | simulation |
 | `simGrid` | Auto | Auto / Coarse / Normal / Fine | Simulation Grid | needs-simulation | simulation |
 | `simLevels` | 0 | 0 to 32 | Simulation Levels | needs-simulation | simulation |
 | `simSliceMs` | 0.5 | 0.1 to 4 | Simulation Slice | needs-simulation | simulation |
-| `simSeed` | 1 | -2147483648 to 2147483647 | Weather Seed | needs-simulation | - |
+| `genSeed` | 1 | -2147483648 to 2147483647 | Weather Seed | needs-simulation | - |
 
 **Volume**
 
@@ -293,14 +293,14 @@ The mod is unreleased, so no old name is kept as a key. The C# members of the ol
 | `groundRefreshMode`, `refreshSeconds` | delete | the cover package repaints within its own pass budget |
 | `storms` | delete | `weatherEffects` |
 | `stormFrequency` | rename | `heavyShare` (`lightWeatherFrequency` is new) |
-| `stormSeed` | rename | `simSeed` |
+| `stormSeed` | rename | `genSeed` |
 | `stormVisibility` | rename | `blizzardVisibilityM` |
 | `stormVeil` | rename | `veilStrength` |
 | `stormSnowfall` | delete | `precipDensity` at 0, and the per-type switches |
 | `stormSkyDarkening` | rename | `skyDimming` |
 | `stormEveSnow` | delete | `cloudSource` and `useEveWeather` |
 | `stormEveRainToSnow` | rename | `typeByTemperature` |
-| `stormCellRadiusKm`, `stormMaxCells` | delete | weather systems emerge from the simulation (`CellRules` serve the fallback only) |
+| `stormCellRadiusKm`, `stormMaxCells` | delete | weather systems emerge from the generator (`GeneratorRules`) |
 | `stormVolume` | rename | `volumePass` |
 | `stormVolumeSteps` | rename | `volumeSteps` |
 | `stormClouds` | delete | `cloudSource` replaces the cell layers |
