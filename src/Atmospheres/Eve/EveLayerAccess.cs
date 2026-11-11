@@ -78,7 +78,7 @@ namespace ReDefinition.Atmospheres
         private static MethodInfo getList;
         private static FieldInfo onApplyField;
         private static PropertyInfo nameProperty, bodyProperty, volumeProperty, layer2DProperty;
-        private static FieldInfo pqsField, mainPeriodField, offsetField;
+        private static FieldInfo pqsField, mainPeriodField, offsetField, upwardsField;
         private static PropertyInfo timeSettingsProperty;
         private static PropertyInfo coverageMapProperty, typeMapProperty, mainMaterialProperty, probeMaterialProperty, typesProperty;
         private static PropertyInfo innerProperty, outerProperty, rotationProperty, receivesProperty;
@@ -149,6 +149,9 @@ namespace ReDefinition.Atmospheres
                 sampleCoverage = link.Method(volume, "CloudsRaymarchedVolume", "SampleCoverage", Instance,
                     new[] { typeof(Vector3), typeof(float).MakeByRefType(), typeof(bool) });
                 typeNameField = link.Field(cloudType, "CloudType", "typeName", Instance, typeof(string));
+                // E43: optional, not part of the painter's path (a missing member leaves upwardsCloudSpeed to EVE, see AssumptionsE43)
+                upwardsField = volume.GetField("upwardsCloudSpeed", Instance);
+                if (upwardsField != null && upwardsField.FieldType != typeof(float)) upwardsField = null;
                 shadowMaterialProperty = link.Property(clouds2D, "Clouds2D", "ScreenSpaceShadowMaterial", Instance);
                 textureValueField = link.Field(wrapper, "TextureWrapper", "textureValue", Instance, typeof(Texture2D));
                 textureInitializedField = link.Field(wrapper, "TextureWrapper", "textureInitialized", Instance, typeof(bool));
@@ -423,6 +426,99 @@ namespace ReDefinition.Atmospheres
             object zero = Activator.CreateInstance(vt);
             mainPeriodField.SetValue(h.Pqs, zero);
             return true;
+        }
+
+        // The layer's own drift in revolutions per second (E43): the component of CloudsPQS.mainPeriod that turns the layer about the polar axis
+        // (DriftAxis, [VERIFY] in the game), zero while the drift is frozen.
+        internal const char DriftAxis = 'y';
+
+        internal static bool TryGetDriftRev(EveLayer h, out double rev)
+        {
+            rev = 0.0;
+            if (h.Pqs == null || mainPeriodField == null) return false;
+            try
+            {
+                object period = mainPeriodField.GetValue(h.Pqs);
+                if (period == null) return false;
+                FieldInfo f = period.GetType().GetField(DriftAxis.ToString());
+                if (f == null) return false;
+                rev = Convert.ToDouble(f.GetValue(period));
+                return true;
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("atmospheres-eve-driftread", "reading the drift of EVE layer '" + h.Name + "' failed", e);
+                return false;
+            }
+        }
+
+        // Sets the layer's own drift to rev revolutions per second about the polar axis and puts the difference of the phase into the offset, so
+        // that the layer does not jump (rotation = fract(ut x mainPeriod) x 360 + offset): offset' = offset + fract(ut x old) x 360 - fract(ut x new) x 360.
+        internal static bool SetDriftRev(EveLayer h, double ut, double rev)
+        {
+            if (h.Pqs == null || mainPeriodField == null || offsetField == null) return false;
+            try
+            {
+                object period = mainPeriodField.GetValue(h.Pqs);
+                if (period == null) return false;
+                Type vt = period.GetType();
+                FieldInfo axis = vt.GetField(DriftAxis.ToString());
+                if (axis == null) return false;
+                double old = Convert.ToDouble(axis.GetValue(period));
+                var offset = (Vector3)offsetField.GetValue(h.Pqs);
+                float delta = (float)((Fract(ut * old) - Fract(ut * rev)) * 360.0);
+                if (DriftAxis == 'x') offset.x += delta; else if (DriftAxis == 'y') offset.y += delta; else offset.z += delta;
+                offsetField.SetValue(h.Pqs, offset);
+                axis.SetValue(period, rev);
+                mainPeriodField.SetValue(h.Pqs, period);
+                return true;
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("atmospheres-eve-driftset", "setting the drift of EVE layer '" + h.Name + "' failed", e);
+                return false;
+            }
+        }
+
+        // CloudsRaymarchedVolume.upwardsCloudSpeed, read every frame by EVE (live); false where the field is not there (AssumptionsE43).
+        internal static bool UpwardsAvailable
+        {
+            get
+            {
+                Look();
+                return upwardsField != null && AtmospheresAssumptions.Holds(AssumptionsE43.Id);
+            }
+        }
+
+        internal static bool TryGetUpwards(EveLayer h, out float speed)
+        {
+            speed = 0f;
+            if (!UpwardsAvailable || h.Volume == null) return false;
+            try
+            {
+                speed = Convert.ToSingle(upwardsField.GetValue(h.Volume));
+                return true;
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("atmospheres-eve-upread", "reading upwardsCloudSpeed of EVE layer '" + h.Name + "' failed", e);
+                return false;
+            }
+        }
+
+        internal static bool SetUpwards(EveLayer h, float speed)
+        {
+            if (!UpwardsAvailable || h.Volume == null) return false;
+            try
+            {
+                upwardsField.SetValue(h.Volume, speed);
+                return true;
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("atmospheres-eve-upset", "setting upwardsCloudSpeed of EVE layer '" + h.Name + "' failed", e);
+                return false;
+            }
         }
 
         // Puts the wrappers' own textures back and has EVE bind them to the materials again (ApplyShaderParams is public): used when the

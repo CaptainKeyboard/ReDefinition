@@ -31,8 +31,9 @@ namespace ReDefinition.Atmospheres
     // log) cloudSource Eve and Both are treated as Ours: nothing is bound to EVE's layers and the own shell carries the picture. EVE's
     // own renderer is not stopped by this.
     //
-    // Not done (brief item 6, runtime steering): wind steering of mainPeriod/offset, upwardsCloudSpeed, scaledFade*, layer colour,
-    // per-type densities, RebuildCurvesFromConfig and SetTimeFade. Only the drift is frozen (FreezeDrift).
+    // Layer wind (package E43): after the drift is frozen (FreezeDrift) each bound layer is steered to the wind of its height and its
+    // upwardsCloudSpeed follows the updraft (LayerWindSteering, mode LayerWindOptions.Steering). Not done (brief item 6, runtime
+    // steering): scaledFade*, layer colour, per-type densities, RebuildCurvesFromConfig and SetTimeFade.
     [AtmospheresModule(60)]
     internal sealed class EveCloudModule : IAtmospheresModule
     {
@@ -48,6 +49,7 @@ namespace ReDefinition.Atmospheres
         private OwnShell shell;
         private List<EveLayer> layers = new List<EveLayer>();
         private readonly Dictionary<PaintSet, byte[]> luts = new Dictionary<PaintSet, byte[]>();
+        private readonly Dictionary<EveLayer, LayerSteerState> steering = new Dictionary<EveLayer, LayerSteerState>();
         private readonly List<EveCoverageMath.Blob> cells = new List<EveCoverageMath.Blob>();
         private readonly List<EveCoverageMath.Rect> painted = new List<EveCoverageMath.Rect>();
         private byte[] overlay;
@@ -86,6 +88,13 @@ namespace ReDefinition.Atmospheres
                 if (h.Tracker.State == BindState.Bound) return h;
             }
             return null;
+        }
+
+        // The steering state of a layer (E43), or null.
+        internal LayerSteerState SteeringOf(EveLayer h)
+        {
+            LayerSteerState st;
+            return steering.TryGetValue(h, out st) ? st : null;
         }
 
         internal IList<EveLayer> CurrentLayers
@@ -284,6 +293,18 @@ namespace ReDefinition.Atmospheres
                         AtmospheresLog.Say("cloud painter: layer '" + h.Name + "' is left to EVE: " + h.LeftReason);
                     }
                 }
+            }
+            // E43: each bound layer gets the wind of its height (option A, LayerWindSteering); a no-op in the modes Off and MapsOnly
+            foreach (EveLayer h in layers)
+            {
+                if (h.Tracker.State != BindState.Bound || h.LeftReason.Length > 0) continue;
+                LayerSteerState st;
+                if (!steering.TryGetValue(h, out st))
+                {
+                    st = new LayerSteerState();
+                    steering[h] = st;
+                }
+                LayerWindSteering.Update(h, st, b, ut, now);
             }
             if (now >= nextPaint) Paint(now, b, ut);
             binding.WatchdogIntervalS = Tuning.Get("eve.watchdogS", (float)BindingTracker.WatchdogIntervalS);
@@ -550,10 +571,14 @@ namespace ReDefinition.Atmospheres
         private void ReleaseEve(string reason)
         {
             if (layers.Count == 0 && luts.Count == 0) return;
+            double releaseUt = Planetarium.GetUniversalTime();
             foreach (EveLayer h in layers)
             {
+                LayerSteerState st;
+                if (steering.TryGetValue(h, out st)) LayerWindSteering.Release(h, st, releaseUt);
                 if (h.Tracker.State == BindState.Bound || h.MirrorInjected) EveLayerAccess.Restore(h);
             }
+            steering.Clear();
             AtmospheresLog.Say("cloud painter: EVE layers released (" + reason + "), losses " + binding.TotalLosses + ", rebinds " + binding.TotalRebinds);
             binding.Clear();
             EveRainLink.SetPainted(null);

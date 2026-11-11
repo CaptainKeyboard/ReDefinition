@@ -16,20 +16,28 @@ namespace AtmoSim.Core
         public PrecipKind Type;
         // Vertical profile parameters of the column (for the local 3D window): stratiform layer base/thickness/amount, cell top.
         public double LayerBaseM, LayerThicknessM, LayerAmount, CellTopM;
+        // Round 4 (E43): the life phase (0 birth, 1 death) and the life span in seconds of the strongest cell at the point (0, 0 where there is none).
+        public double CellPhase, CellLifeS;
         public double WindSpeedMs { get { return WindSpeed; } }
 
         // Cloud density (0..1.5) at an altitude of this column: a stratiform layer with a sin^2 profile plus towering cells.
         public double DensityAt(double altM)
         {
-            double strat = 0.0;
-            if (altM > LayerBaseM && altM < LayerBaseM + LayerThicknessM)
-            {
-                double sv = DMath.Sin(DMath.Pi * (altM - LayerBaseM) / LayerThicknessM);
-                strat = LayerAmount * sv * sv;
-            }
+            double strat = StratDensityAt(altM);
             double cellD = CellStrength * DMath.SmoothStep(300.0, 1500.0, altM) * (1.0 - DMath.SmoothStep(CellTopM - 1500.0, CellTopM, altM));
             double d = strat + 0.9 * cellD;
             return d > 1.5 ? 1.5 : d;
+        }
+
+        // The stratiform part of DensityAt: the sin^2 layer of the column.
+        public double StratDensityAt(double altM)
+        {
+            if (altM > LayerBaseM && altM < LayerBaseM + LayerThicknessM)
+            {
+                double sv = DMath.Sin(DMath.Pi * (altM - LayerBaseM) / LayerThicknessM);
+                return LayerAmount * sv * sv;
+            }
+            return 0.0;
         }
     }
 
@@ -670,7 +678,8 @@ namespace AtmoSim.Core
             }
             double pcell = Body.CellsEnabled ? DMath.Clamp(Body.CellFrontTerm * frontCell + trig * 0.9 * DMath.Max(0.0, inst - 0.35) + trig * 0.3 * uplift, 0.0, 0.95) : 0.0;
             double cs = 0.0, tower = 0.0;
-            if (pcell > 0.02) cs = CellStrength(latRad, lonRad, ut, pcell, out tower);
+            double cellPhase = 0.0, cellLife = 0.0;
+            if (pcell > 0.02) cs = CellStrength(latRad, lonRad, ut, pcell, out tower, out cellPhase, out cellLife);
 
             double cw = bg + xdyn + 0.7 * cs;
             if (r2itcz && Body.FairWeatherCloud > 0.0)
@@ -727,24 +736,41 @@ namespace AtmoSim.Core
             if (laShift < 0.0) laShift = 0.0;
             double uz, vz;
             D.SurfaceCirculation(laShift > DMath.HalfPi ? DMath.HalfPi : laShift, out uz, out vz);
-            double windE = us + uz, windN = vs + hs * vz;
-            if (ssw > 0.001)
-            {
-                double eastC = cosDs * DMath.Sin(dLon);
-                double northC = cosLat * sinDs - sinLat * cosDs * cosDl;
-                double vss = 6.0 * ssw;
-                windE += vss * eastC; windN += vss * northC;
-            }
             double alt = altM < 0.0 ? 0.0 : altM;
             double htrop = Body.TropopauseM;
-            double zr = DMath.Min(1.0, alt / (0.5 * htrop));
-            double windScale = 1.0 + 1.2 * zr;
-            windE *= windScale; windN *= windScale;
-            if (alt > 0.4 * htrop && ssw < 0.5)
+            double windE, windN;
+            if (Body.HeightWind)
             {
-                double jl = D.JetLat0 + 0.22 * hs * f.DLag;
-                double jp = DMath.Exp(-((la - jl) * (la - jl)) / 0.09);
-                windE += D.JetSpeed0 * (1.0 - 0.3 * DMath.Clamp(hs * f.DLag / 0.4084, -1.0, 1.0)) * jp * DMath.SmoothStep(0.4 * htrop, htrop, alt);
+                // Round 4 (E43): the wind of the height `alt` above the ground from HeightWind (friction layer, thermal wind, jet, return flow aloft)
+                double ssE = 0.0, ssN = 0.0;
+                if (ssw > 0.001)
+                {
+                    ssE = 6.0 * ssw * cosDs * DMath.Sin(dLon);
+                    ssN = 6.0 * ssw * (cosLat * sinDs - sinLat * cosDs * cosDl);
+                }
+                double warmS = tAnom / D.FrontAmpK;
+                warmS = warmS > 1.0 ? 1.0 : (warmS < -1.0 ? -1.0 : warmS);
+                HeightWind.Wind(D, Body, alt, hs, la, f.DLag, us, vs, uz, hs * vz, warmS, ssE, ssN, out windE, out windN);
+            }
+            else
+            {
+                windE = us + uz; windN = vs + hs * vz;
+                if (ssw > 0.001)
+                {
+                    double eastC = cosDs * DMath.Sin(dLon);
+                    double northC = cosLat * sinDs - sinLat * cosDs * cosDl;
+                    double vss = 6.0 * ssw;
+                    windE += vss * eastC; windN += vss * northC;
+                }
+                double zr = DMath.Min(1.0, alt / (0.5 * htrop));
+                double windScale = 1.0 + 1.2 * zr;
+                windE *= windScale; windN *= windScale;
+                if (alt > 0.4 * htrop && ssw < 0.5)
+                {
+                    double jl = D.JetLat0 + 0.22 * hs * f.DLag;
+                    double jp = DMath.Exp(-((la - jl) * (la - jl)) / 0.09);
+                    windE += D.JetSpeed0 * (1.0 - 0.3 * DMath.Clamp(hs * f.DLag / 0.4084, -1.0, 1.0)) * jp * DMath.SmoothStep(0.4 * htrop, htrop, alt);
+                }
             }
             double wind = DMath.Sqrt(windE * windE + windN * windN);
             double gust = 1.0 + 0.5 * cs + 0.3 * frontN;
@@ -800,9 +826,49 @@ namespace AtmoSim.Core
             w.LayerBaseM = zb; w.LayerThicknessM = th2; w.LayerAmount = bg + xdyn; w.CellTopM = top;
             w.Density3D = 0.0;
             w.WindEast = windE; w.WindNorth = windN; w.WindSpeed = wind; w.GustFactor = gust;
+            w.CellPhase = cs > 0.0 ? cellPhase : 0.0; w.CellLifeS = cs > 0.0 ? cellLife : 0.0;
             w.CellStrength = cs; w.Dust = dust; w.SnowFrac = fs; w.SleetFrac = fl; w.RainFrac = fRain; w.OceanFraction = oc;
             w.Type = kind;
             w.Density3D = w.DensityAt(alt);
+        }
+
+        // The large-scale wind of a height at a point: the zonal-mean circulation, the jet and the sub-solar flow without the wind of the pressure systems (round 4, E43).
+        // It is smooth in space and time; the drift of a layer of clouds follows it. A body with the round-3 profile (HeightWind off) gets the round-3 formula without systems.
+        public void MeanWind(double latRad, double lonRad, double altM, double ut, out double east, out double north)
+        {
+            Frame f = GetFrame(ut);
+            int hs = latRad >= 0.0 ? 1 : -1;
+            double la = hs * latRad;
+            double laShift = la - 0.22 * hs * f.DLag;
+            if (laShift < 0.0) laShift = 0.0;
+            double uz, vz;
+            D.SurfaceCirculation(laShift > DMath.HalfPi ? DMath.HalfPi : laShift, out uz, out vz);
+            double ssw = D.SubSolarWeight;
+            double ssE = 0.0, ssN = 0.0;
+            if (ssw > 0.001)
+            {
+                double sinLat = DMath.Sin(latRad), cosLat = DMath.Cos(latRad);
+                double dLon = f.SunLon - lonRad;
+                ssE = 6.0 * ssw * f.CosDLand * DMath.Sin(dLon);
+                ssN = 6.0 * ssw * (cosLat * f.SinDLand - sinLat * f.CosDLand * DMath.Cos(dLon));
+            }
+            double alt = altM < 0.0 ? 0.0 : altM;
+            if (Body.HeightWind)
+            {
+                HeightWind.Wind(D, Body, alt, hs, la, f.DLag, 0.0, 0.0, uz, hs * vz, 0.0, ssE, ssN, out east, out north);
+                return;
+            }
+            double htrop = Body.TropopauseM;
+            double e = uz + ssE, n = hs * vz + ssN;
+            double windScale = 1.0 + 1.2 * DMath.Min(1.0, alt / (0.5 * htrop));
+            e *= windScale; n *= windScale;
+            if (alt > 0.4 * htrop && ssw < 0.5)
+            {
+                double jl = D.JetLat0 + 0.22 * hs * f.DLag;
+                double jp = DMath.Exp(-((la - jl) * (la - jl)) / 0.09);
+                e += D.JetSpeed0 * (1.0 - 0.3 * DMath.Clamp(hs * f.DLag / 0.4084, -1.0, 1.0)) * jp * DMath.SmoothStep(0.4 * htrop, htrop, alt);
+            }
+            east = e; north = n;
         }
 
         // The pressure of the zonal-mean structure (subtropical highs, subpolar lows) is added by callers that want the full
@@ -862,14 +928,14 @@ namespace AtmoSim.Core
 
         // Strongest cell influence at a point from the lattice cells around it (3 rows x 3 columns in the frame drifting with
         // the steering wind of the row). Cells live 1-3 hours inside one 3-hour bucket and have a sin^2 life envelope.
-        private double CellStrength(double lat, double lon, double ut, double pcell, out double tower)
+        private double CellStrength(double lat, double lon, double ut, double pcell, out double tower, out double phase, out double life)
         {
             double lc = D.CellLatticeM;
             double rowH = lc / a;
             double bucketF = DMath.Floor(ut / CellHourBucketS);
             long bucket = (long)bucketF;
             long j0 = (long)DMath.Floor(lat / rowH);
-            double best = 0.0, bestTower = 0.0;
+            double best = 0.0, bestTower = 0.0, bestPhase = 0.0, bestLife = 0.0;
             for (int dj = -1; dj <= 1; dj++)
             {
                 long j = j0 + dj;
@@ -911,10 +977,10 @@ namespace AtmoSim.Core
                     double r2 = (dx * dx + dy * dy) / (rad * rad);
                     if (r2 > 9.0) continue;
                     double c = env * DMath.Exp(-r2) * DMath.SmoothStep(0.0, 0.1, margin);
-                    if (c > best) { best = c; bestTower = Hash.Draw(hc, 6); }
+                    if (c > best) { best = c; bestTower = Hash.Draw(hc, 6); bestPhase = age / dur; bestLife = dur; }
                 }
             }
-            tower = bestTower;
+            tower = bestTower; phase = bestPhase; life = bestLife;
             return best;
         }
 

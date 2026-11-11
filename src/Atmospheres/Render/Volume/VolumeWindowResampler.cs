@@ -36,6 +36,12 @@ namespace ReDefinition.Atmospheres
         private int coreCount;
 
         private WeatherWindow coarse;
+        // The refill of the coarse window with layered columns (WindowAdvection), in progress while refillGenerator is set.
+        private AtmoSim.Core.WeatherGenerator refillGenerator;
+        private AtmoSim.Core.LayerOptions refillOptions;
+        private int refillNext;
+        private double refillUt;
+        private ulong refillSeed;
         private VolumeLook look;
         private float halfWidth, height, centreEast, centreNorth, groundAlt, smoothing;
         private int nextSlice;
@@ -93,7 +99,14 @@ namespace ReDefinition.Atmospheres
             centreNorth = centreNorthM;
             groundAlt = groundAltM;
             smoothing = hasData ? Clamp01(smoothingShare) : 1f;
-            FindCores(ut, seed);
+            // E43: where the generator is ours, the window is refilled with layered columns (deck carried by its own wind, growing towers, tilt, consistency) in
+            // the first steps of the rebuild, and the cores are found from the refilled window; otherwise the field's window stands and the cores are found at once.
+            refillGenerator = WindowAdvection.GeneratorFor(window);
+            refillNext = 0;
+            refillUt = ut;
+            refillSeed = seed;
+            if (refillGenerator != null) refillOptions = LayerWindOptions.Layers();
+            else FindCores(ut, seed);
             nextSlice = 0;
             building = true;
             return true;
@@ -103,6 +116,15 @@ namespace ReDefinition.Atmospheres
         internal bool Step(int count)
         {
             if (!building) return true;
+            if (refillGenerator != null)
+            {
+                int rows = Math.Max(1, 4 * coarse.Ny * Math.Max(1, count) / nxz);
+                WindowAdvection.Refill(coarse, refillNext, rows, refillGenerator, refillOptions);
+                refillNext += rows;
+                if (refillNext < coarse.Ny) return false;
+                refillGenerator = null;
+                FindCores(refillUt, refillSeed);
+            }
             int end = Math.Min(nxz, nextSlice + Math.Max(1, count));
             for (int z = nextSlice; z < end; z++) BuildSlice(z);
             nextSlice = end;

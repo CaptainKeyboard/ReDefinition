@@ -28,6 +28,34 @@ namespace AtmoSim.Core
             }
         }
 
+        // Round 4 (E43): the coverage map of one layer of clouds at a height (equirectangular as Map): the layer looked up with its own wind, thinned beneath towers (LayerCoupling.Coverage).
+        public static void LayerMap(WeatherGenerator g, double ut, int nx, int ny, double layerMidM, LayerOptions o, float[] coverage)
+        {
+            for (int j = 0; j < ny; j++)
+            {
+                double lat = (90.0 - (j + 0.5) * 180.0 / ny) * DMath.Pi / 180.0;
+                for (int i = 0; i < nx; i++)
+                {
+                    double lon = (-180.0 + (i + 0.5) * 360.0 / nx) * DMath.Pi / 180.0;
+                    coverage[j * nx + i] = (float)LayerCoupling.Coverage(g, lat, lon, ut, layerMidM, o);
+                }
+            }
+        }
+
+        // Round 4 (E43): the local 3D window with the deck carried by its own wind, growing and sinking towers, the anvil tilt and the consistency rule (LayerCoupling.Column).
+        // updraft (may be null) receives the signed vertical speed of the towers.
+        public static void WindowLayered(WeatherGenerator g, double centreLat, double centreLon, double ut, int nx, int ny, int nz, double dxyM, double dzM, double zBaseM, float[] density, float[] updraft, LayerOptions o)
+        {
+            double a = g.Body.RadiusM;
+            double cosC = DMath.Cos(centreLat);
+            for (int j = 0; j < ny; j++)
+                for (int i = 0; i < nx; i++)
+                {
+                    double east = (i - 0.5 * (nx - 1)) * dxyM, north = (j - 0.5 * (ny - 1)) * dxyM;
+                    LayerCoupling.Column(g, centreLat + north / a, centreLon + east / (a * cosC), ut, zBaseM, dzM, nz, density, j * nx + i, nx * ny, updraft, o);
+                }
+        }
+
         // The local 3D window: nx x ny x nz cloud density points around a centre; spacing in metres; z from altitude zBase.
         public static void Window(WeatherGenerator g, double centreLat, double centreLon, double ut, int nx, int ny, int nz, double dxyM, double dzM, double zBaseM, float[] density)
         {

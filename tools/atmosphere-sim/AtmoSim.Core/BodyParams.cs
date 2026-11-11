@@ -151,13 +151,31 @@ namespace AtmoSim.Core
         // does not move the whole integrated history; 0 = round 2 (the same snow depth for every step).
         public double IceSnowMemoryDays = 8.0;
 
+        // ---- levers of tuning round 4 (package E43, wind by height and vertical motion). The values below are the round-4 values; Round3() restores the round-3 generator. ----
+        // R4a: the wind of a height above the ground comes from HeightWind (friction layer with Ekman turning, thermal-wind veering, jet, return flow aloft, trades reversed aloft);
+        // false = the round-3 profile (one speed factor for the system wind, the jet added above 40 % of the tropopause).
+        public bool HeightWind = true;
+        // Jet level as a share of the tropopause height, depth of the friction layer as a share of it, the turning of the wind across the friction layer (degrees, the surface wind blows
+        // across the isobars toward low pressure), the veering of the system wind with height in a warm sector (backing in a cold sector), the westerlies aloft over the Hadley cell as a
+        // share of the jet speed.
+        public double JetHeightFactor = 0.85, BoundaryLayerFraction = 0.09, EkmanTurnDeg = 25.0, VeerDeg = 35.0, TradeAloftFraction = 0.35;
+
         // Diagnostic (the close-up of one system in isolation): only this slot of this hemisphere is evaluated (-1 = all). Not a lever of the proof.
         public int DebugSingleSlot = -1, DebugSingleHemisphere = 0;
+
+        // The round-3 generator: every lever of round 4 switched off (20 000-query hash A3F0491D2808765F).
+        public BodyParams Round3()
+        {
+            var p = Clone();
+            p.HeightWind = false;
+            return p;
+        }
 
         // The round-2 generator: every lever of round 3 switched off (20 000-query hash D01F43163C7A1646).
         public BodyParams Round2()
         {
             var p = Clone();
+            p.HeightWind = false;
             p.Round3Systems = false; p.MatureStructure = false; p.Round3Itcz = false; p.SnowRadiativeHeatK = 0.0; p.IceSnowMemoryDays = 0.0;
             p.SystemSpeedSpread = 0.18; p.SystemLifeMinDays = 3.0; p.SystemLatScatter = 0.6; p.SystemAmpFraction = 0.025; p.SystemSpeedFactor = 1.0; p.WindowRise = 0.0; p.FrontCloudGain = 0.7; p.CellFrontTerm = 0.35; p.StratThreshold = 0.08;
             return p;

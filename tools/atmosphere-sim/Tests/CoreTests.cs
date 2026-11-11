@@ -709,19 +709,34 @@ namespace AtmoSim.Tests
             Assert.AreEqual(GoldenRound2Hash, Timing.HashQueries(g, Timing.Queries(20000, 77, 3.0e7), null, 0));
         }
 
+        // Tuning round 4 (E43): Round3() restores the round-3 generator bit for bit (the height profile of the wind off); the default generator has its own golden hash (HeightWindTests).
         [TestMethod]
-        public void TheRoundThreeGeneratorHasItsGoldenHashAndIsOrderIndependent()
+        public void TheRoundThreeSwitchReproducesTheRoundThreeResultHash()
         {
-            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            var g = new WeatherGenerator(BodyParams.KerbinLike().Round3(), 1);
             var q = Timing.Queries(20000, 77, 3.0e7);
             ulong h = Timing.HashQueries(g, q, null, 0);
             Assert.AreEqual(GoldenRound3Hash, h);
             var order = new int[q.Length]; for (int i = 0; i < order.Length; i++) order[i] = i;
             var rr = new Rng(5);
             for (int i = order.Length - 1; i > 0; i--) { int k = (int)(rr.Uniform() * (i + 1)); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
+            Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike().Round3(), 1), q, order, 0));
+        }
+
+        [TestMethod]
+        public void TheRoundFourGeneratorHasItsGoldenHashAndIsOrderIndependent()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            var q = Timing.Queries(20000, 77, 3.0e7);
+            ulong h = Timing.HashQueries(g, q, null, 0);
+            Assert.AreEqual(GoldenRound4Hash, h);
+            var order = new int[q.Length]; for (int i = 0; i < order.Length; i++) order[i] = i;
+            var rr = new Rng(5);
+            for (int i = order.Length - 1; i > 0; i--) { int k = (int)(rr.Uniform() * (i + 1)); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
             Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike(), 1), q, order, 0));
         }
 
+        public const ulong GoldenRound4Hash = 0x7CAF7C7A93CDAAB6UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 4 (E43)
         public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, levers of tuning round 2 (Round2())
         public const ulong GoldenRound3Hash = 0xA3F0491D2808765FUL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 3
 
