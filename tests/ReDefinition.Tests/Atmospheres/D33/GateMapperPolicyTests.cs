@@ -80,6 +80,34 @@ namespace ReDefinition.Tests.Atmospheres.D33
         }
 
         [TestMethod]
+        public void APauseOrAWarpWinsOverAViewThatWentStale()
+        {
+            var gate = new AudioGate();
+            gate.Arrive();
+            Run(gate, 2, true, false, false);
+            // The view is stale (no air) while the game is paused: the cut still takes a tenth of a second, not a second.
+            Assert.AreEqual(0f, Run(gate, 0.15, false, true, false), 1e-4f);
+            Assert.AreEqual(GateReason.Paused, gate.Reason);
+            gate.Arrive();
+            Run(gate, 2, true, false, false);
+            Run(gate, 0.6, false, false, true);
+            Assert.AreEqual(0f, gate.Gain, 1e-4f, "a warp with a stale view fades in half a second");
+            Assert.AreEqual(GateReason.Warp, gate.Reason);
+        }
+
+        [TestMethod]
+        public void TheListenerFollowsTheCameraMode()
+        {
+            ListenerState cabin = ListenerModel.From(true, false, false);
+            Assert.IsTrue(cabin.Cabin && !cabin.MapView && !cabin.Eva);
+            ListenerState helmet = ListenerModel.From(true, false, true);
+            Assert.IsFalse(helmet.Cabin, "a kerbal is not in a cabin");
+            Assert.IsTrue(helmet.Eva);
+            ListenerState map = ListenerModel.From(false, true, false);
+            Assert.IsTrue(map.MapView);
+        }
+
+        [TestMethod]
         public void TheParametersReachTheAudioThreadAsTheTableSays()
         {
             AudioSwitches sw = AudioSwitches.Defaults();
@@ -262,8 +290,10 @@ namespace ReDefinition.Tests.Atmospheres.D33
             Assert.IsNull(AudioOverrides.Switches);
             Assert.IsFalse(AudioOverrides.Walking);
             AudioOverrides.Walking = true;
+            AudioOverrides.Volumes = GameVolumes.Full();
             AudioOverrides.Clear();
             Assert.IsFalse(AudioOverrides.Walking);
+            Assert.IsNull(AudioOverrides.Volumes);
         }
     }
 }

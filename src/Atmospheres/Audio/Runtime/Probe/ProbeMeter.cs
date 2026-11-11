@@ -9,11 +9,11 @@ namespace ReDefinition.Atmospheres.Audio
         // Power mean over the windows, in dB relative to full scale.
         internal double RmsDb;
         internal double PeakAbs;
-        // Mean energy of the three bands (linear mean squares): below 250 Hz, 250 Hz to 2 kHz, above 2 kHz.
+        // Mean energy of the three bands (linear mean squares): below 250 Hz, 250 Hz to 2 kHz, 2 to 5 kHz.
         internal double Lo, Mid, Hi;
         // Left share of the energy, 0 to 1 (0.5 is the middle).
         internal double LeftShare;
-        // The spectral centroid in Hz, estimated from the three bands at 125, 700 and 4000 Hz.
+        // The spectral centroid in Hz, estimated from the three bands at 125, 700 and 3200 Hz.
         internal double CentroidHz;
     }
 
@@ -27,7 +27,7 @@ namespace ReDefinition.Atmospheres.Audio
 
         private readonly int windowFrames;
         private readonly float[] energyL, energyR, peak, lo, mid, hi;
-        private readonly Biquad loL = new Biquad(), hiPassMid = new Biquad(), lowPassMid = new Biquad(), hiHi = new Biquad();
+        private readonly Biquad loL = new Biquad(), hiPassMid = new Biquad(), lowPassMid = new Biquad(), hiHi = new Biquad(), hiTop = new Biquad();
         private readonly int capacity;
         private int framesInWindow;
         private double sumL, sumR, sumPeak, sumLo, sumMid, sumHi;
@@ -48,6 +48,7 @@ namespace ReDefinition.Atmospheres.Audio
             hiPassMid.HighPass(sampleRate, 250.0, 0.707);
             lowPassMid.LowPass(sampleRate, 2000.0, 0.707);
             hiHi.HighPass(sampleRate, 2000.0, 0.707);
+            hiTop.LowPass(sampleRate, 5000.0, 0.707);
         }
 
         internal int WindowCount { get { return windowCount; } }
@@ -78,7 +79,7 @@ namespace ReDefinition.Atmospheres.Audio
                 if (pk > sumPeak) sumPeak = pk;
                 double low = loL.Process(m);
                 double band = lowPassMid.Process(hiPassMid.Process(m));
-                double high = hiHi.Process(m);
+                double high = hiTop.Process(hiHi.Process(m));
                 sumLo += low * low;
                 sumMid += band * band;
                 sumHi += high * high;
@@ -132,7 +133,7 @@ namespace ReDefinition.Atmospheres.Audio
             s.Hi = eHi / n;
             s.LeftShare = eL + eR > 1e-18 ? eL / (eL + eR) : 0.5;
             double total = s.Lo + s.Mid + s.Hi;
-            s.CentroidHz = total > 1e-18 ? (s.Lo * 125.0 + s.Mid * 700.0 + s.Hi * 4000.0) / total : 0.0;
+            s.CentroidHz = total > 1e-18 ? (s.Lo * 125.0 + s.Mid * 700.0 + s.Hi * 3200.0) / total : 0.0;
             return s;
         }
 

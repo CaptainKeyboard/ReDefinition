@@ -49,12 +49,10 @@ namespace ReDefinition.Atmospheres.Audio
     // The listener rules of plan 07 section 3.6: a cabin muffles, the map view is outside the weather, a helmet colours a little.
     internal static class ListenerModel
     {
-        // The camera modes by name (CameraManager.CameraMode): Flight, Map, External, IVA, Internal.
-        internal static ListenerState From(string cameraMode, bool mapEnabled, bool eva)
+        // cabinCamera: the camera mode is IVA or Internal (CameraManager.CameraMode); mapCamera: it is Map or the map view is open.
+        internal static ListenerState From(bool cabinCamera, bool mapCamera, bool eva)
         {
-            bool map = mapEnabled || string.Equals(cameraMode, "Map", StringComparison.Ordinal);
-            bool cabin = !eva && (string.Equals(cameraMode, "IVA", StringComparison.Ordinal) || string.Equals(cameraMode, "Internal", StringComparison.Ordinal));
-            return new ListenerState { Cabin = cabin, MapView = map, Eva = eva };
+            return new ListenerState { Cabin = !eva && cabinCamera, MapView = mapCamera, Eva = eva };
         }
     }
 

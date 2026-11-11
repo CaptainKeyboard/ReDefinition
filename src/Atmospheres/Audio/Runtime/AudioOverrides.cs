@@ -17,12 +17,12 @@ namespace ReDefinition.Atmospheres.Audio
         // from it and plays the steps as it does for a kerbal.
         internal static bool Walking;
         internal static float WalkSpeedMs;
-        // The steps the module played since the last reset (counted in the playing code, for the series row).
-        internal static int StepsPlayed;
-        internal static float DistanceWalkedM;
+        // The game's volume sliders: a probe sets them to full so that the absolute rows do not depend on the player's settings.
+        internal static GameVolumes? Volumes;
 
         internal static void Clear()
         {
+            Volumes = null;
             Walking = false;
             WalkSpeedMs = 0f;
             Inputs = null;

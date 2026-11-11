@@ -101,7 +101,30 @@ namespace ReDefinition.Atmospheres.Audio
             return copy[lo] + (copy[hi] - copy[lo]) * (index - lo);
         }
 
+        // A percentile of the 2 to 5 kHz energy of the windows from (inclusive) to to (exclusive).
+        private double HighPercentile(int from, int to, double p)
+        {
+            var values = new List<float>();
+            for (int i = Math.Max(0, from); i < to; i++) values.Add((float)meter.HighEnergy(i));
+            return Percentile(values, p);
+        }
+
         protected override IEnumerator<ProbeWait> Scenario()
+        {
+            try
+            {
+                foreach (ProbeWait w in Body()) yield return w;
+            }
+            finally
+            {
+                // However the scenario ends, the game's own values are back.
+                AudioOverrides.Clear();
+                if (tap != null) UnityEngine.Object.Destroy(tap);
+                tap = null;
+            }
+        }
+
+        private IEnumerable<ProbeWait> Body()
         {
             yield return ProbeWait.Until(() => HighLogic.LoadedScene == GameScenes.FLIGHT && FlightGlobals.ready && FlightGlobals.ActiveVessel != null,
                 330, "the flight");
@@ -112,6 +135,7 @@ namespace ReDefinition.Atmospheres.Audio
             }
             int gc0 = GC.CollectionCount(0);
             AudioOverrides.Clear();
+            AudioOverrides.Volumes = GameVolumes.Full();
             AudioOverrides.Switches = Switches();
             AudioOverrides.Inputs = Weather(0f, 0f, 0f);
             AudioOverrides.Listener = new ListenerState();
@@ -119,6 +143,11 @@ namespace ReDefinition.Atmospheres.Audio
             AudioOverrides.OnRailsWarp = false;
             yield return ProbeWait.Until(() => WeatherAudioModule.Instance != null && WeatherAudioModule.Instance.HasObjects, 60, "the weather sound objects");
             WeatherAudioModule module = WeatherAudioModule.Instance;
+            if (module == null || !module.HasObjects)
+            {
+                Fail("D33: the weather sound made no objects in 60 s");
+                yield break;
+            }
             Emit("D33.objects_created", module.CreatedObjects);
             Emit("D33.output_rate_hz", module.Objects.SampleRate);
             Emit("D33.footstep_clips", module.FootstepClips);
@@ -234,22 +263,27 @@ namespace ReDefinition.Atmospheres.Audio
             // 9 EVA walk: a simulated walker at 2 m/s over snow, standing, and over bare ground.
             AudioOverrides.Inputs = Weather(0f, 0f, 0f);
             AudioOverrides.ForcedCover = 0.8f;
-            foreach (ProbeWait w in Measure(4.0, 3.0)) yield return w;
-            double hiStanding = last.Hi;
+            yield return ProbeWait.Seconds(4.0);
+            int standFrom = meter.WindowCount;
+            yield return ProbeWait.Seconds(3.0);
+            double hiStanding = HighPercentile(standFrom, meter.WindowCount, 0.9);
             module.ResetStepCounters();
             AudioOverrides.WalkSpeedMs = 2.0f;
             AudioOverrides.Walking = true;
             int walkFrom = meter.WindowCount;
             yield return ProbeWait.Seconds(12.5);
             AudioOverrides.Walking = false;
-            MeterSummary walking = meter.Summarise(walkFrom + 5, meter.WindowCount);
+            // The steps come every 0.35 s, so the loud 100 ms windows are about a third of them: the 90th percentile of the 2 to 5 kHz energy per
+            // window is the burst level.
+            double hiWalking = HighPercentile(walkFrom + 15, meter.WindowCount, 0.9);
             yield return ProbeWait.Seconds(1.5);
             double expected = module.DistanceWalkedM / StrideIntegrator.WalkStrideM;
             Emit("D33.walk_metres", module.DistanceWalkedM);
             Emit("D33.steps_found", module.StepsFound);
             Emit("D33.steps_played", module.StepsPlayed);
             Emit("D33.step_count_ratio", expected > 0 ? module.StepsPlayed / expected : 0.0);
-            Emit("D33.step_hi_ratio_db", ProbeMeter.Db(walking.Hi) - ProbeMeter.Db(hiStanding));
+            Emit("D33.step_hi_ratio_db", ProbeMeter.Db(hiWalking) - ProbeMeter.Db(hiStanding));
+            EmitText("D33.step_mixer_group", module.Objects.StepMixerGroup);
             module.ResetStepCounters();
             AudioOverrides.ForcedCover = 0.0f;
             yield return ProbeWait.Seconds(1.0);
@@ -317,9 +351,6 @@ namespace ReDefinition.Atmospheres.Audio
             Emit("D33.chatterer_wind_clip_present", GameDatabase.Instance != null && GameDatabase.Instance.ExistsAudioClip(Chatterer));
             Emit("D33.frame_generation_on", WeatherHooks.Caps.FrameGenerationOn);
             Emit("D33.solo_was_on", true);
-
-            AudioOverrides.Clear();
-            if (tap != null) UnityEngine.Object.Destroy(tap);
         }
     }
 }

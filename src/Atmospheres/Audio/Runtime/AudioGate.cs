@@ -43,12 +43,14 @@ namespace ReDefinition.Atmospheres.Audio
             reason = GateReason.Off;
         }
 
-        // Steps the gate. enabled: the switch is on, the scene wants the sound and there is air. paused: the game's pause. onRailsWarp: the
-        // time warp is on rails above rate 1. Returns the gain.
+        // Steps the gate. enabled: the weather has air and a view. paused: the game's pause. onRailsWarp: the time warp is on rails above
+        // rate 1. Returns the gain.
         internal float Step(float dtRealSeconds, bool enabled, bool paused, bool onRailsWarp)
         {
             float dt = dtRealSeconds < 0f ? 0f : dtRealSeconds > MaxStepS ? MaxStepS : dtRealSeconds;
-            GateReason now = !enabled ? GateReason.Off : paused ? GateReason.Paused : onRailsWarp ? GateReason.Warp : GateReason.Open;
+            // The pause and the warp come first: while the game is paused or on rails the view may go stale, and that must not turn into a
+            // slow fade to "off".
+            GateReason now = paused ? GateReason.Paused : onRailsWarp ? GateReason.Warp : !enabled ? GateReason.Off : GateReason.Open;
             if (now != reason)
             {
                 // The way back up depends on what held it down.

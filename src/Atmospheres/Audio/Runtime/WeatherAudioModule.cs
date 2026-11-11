@@ -24,6 +24,7 @@ namespace ReDefinition.Atmospheres.Audio
         private const float SnowMapSeconds = 3f;
         private const float FootCacheSeconds = 0.5f;
         private const float SoloScanSeconds = 2f;
+        private const float CreateRetrySeconds = 5f;
 
         private readonly SharedAudioState shared = new SharedAudioState();
         private readonly AudioGate gate = new AudioGate();
@@ -46,6 +47,7 @@ namespace ReDefinition.Atmospheres.Audio
         private bool textureLoaded;
         private bool subscribed;
         private float nextVolumeRead;
+        private float nextCreateTry;
         private float nextCell;
         private float nextSnowMap = -1f;
         private float nextSolo;
@@ -123,13 +125,23 @@ namespace ReDefinition.Atmospheres.Audio
                 if (objects != null) Teardown(switches.Master ? "no flight scene" : "switched off");
                 return;
             }
-            if (objects == null && !Create()) return;
+            if (objects == null)
+            {
+                // A failed start is tried again after a few seconds, not every frame.
+                if (Time.realtimeSinceStartup < nextCreateTry) return;
+                if (!Create())
+                {
+                    nextCreateTry = Time.realtimeSinceStartup + CreateRetrySeconds;
+                    return;
+                }
+            }
 
             float now = Time.realtimeSinceStartup;
             float real = Time.unscaledDeltaTime;
             Vessel vessel = GameGlobals.ActiveVessel;
             bool eva = vessel != null && vessel.isEVA;
-            if (now >= nextVolumeRead) ReadVolumes(now);
+            if (AudioOverrides.Volumes.HasValue) volumes = AudioOverrides.Volumes.Value;
+            else if (now >= nextVolumeRead) ReadVolumes(now);
 
             // The listener rules.
             if (AudioOverrides.Listener.HasValue)
@@ -138,8 +150,9 @@ namespace ReDefinition.Atmospheres.Audio
             }
             else
             {
-                string camera = CameraManager.Instance != null ? CameraManager.Instance.currentCameraMode.ToString() : "Flight";
-                listener = ListenerModel.From(camera, MapView.MapIsEnabled, eva);
+                CameraManager.CameraMode mode = CameraManager.Instance != null ? CameraManager.Instance.currentCameraMode : CameraManager.CameraMode.Flight;
+                bool cabinCamera = mode == CameraManager.CameraMode.IVA || mode == CameraManager.CameraMode.Internal;
+                listener = ListenerModel.From(cabinCamera, MapView.MapIsEnabled || mode == CameraManager.CameraMode.Map, eva);
             }
 
             // The weather at the listener.
@@ -193,10 +206,11 @@ namespace ReDefinition.Atmospheres.Audio
 
         private bool Create()
         {
+            WeatherAudioObjects created = null;
             try
             {
                 int rate = WeatherAudioObjects.OutputRate();
-                var created = new WeatherAudioObjects(shared, rate, 0x5EA50001u);
+                created = new WeatherAudioObjects(shared, rate, 0x5EA50001u);
                 float[] texture = null;
                 int textureRate = 0;
                 textureLoaded = false;
@@ -225,6 +239,11 @@ namespace ReDefinition.Atmospheres.Audio
             catch (Exception e)
             {
                 objects = null;
+                // Whatever was made before the failure goes again.
+                if (created != null)
+                {
+                    try { created.Destroy(); } catch (Exception) { }
+                }
                 AtmospheresLog.Failed("atmospheres-audio-create", "weather sound: could not start", e);
                 return false;
             }
@@ -261,9 +280,17 @@ namespace ReDefinition.Atmospheres.Audio
                 return false;
             }
             AudioClip clip = GameDatabase.Instance.GetAudioClip(path);
-            if (clip == null || clip.samples < 2 || !clip.LoadAudioData()) return false;
+            if (clip == null || clip.samples < 2 || !clip.LoadAudioData())
+            {
+                AtmospheresLog.WarnOnce("weather sound: " + path + " could not be decoded; the synthesised bed plays");
+                return false;
+            }
             var data = new float[clip.samples * clip.channels];
-            if (!clip.GetData(data, 0)) return false;
+            if (!clip.GetData(data, 0))
+            {
+                AtmospheresLog.WarnOnce("weather sound: " + path + " could not be read; the synthesised bed plays");
+                return false;
+            }
             mono = new float[clip.samples];
             for (int i = 0; i < clip.samples; i++)
             {
@@ -366,10 +393,20 @@ namespace ReDefinition.Atmospheres.Audio
             nextListenerScan = now + 2f;
             cachedListener = null;
             // The listener of the camera that is rendering: ScaledSpace's camera carries an inactive one.
+            // Among the enabled listeners on active objects the one whose object has the enabled camera with the highest depth.
             AudioListener[] all = UnityEngine.Object.FindObjectsOfType<AudioListener>();
+            float bestDepth = float.NegativeInfinity;
             for (int i = 0; i < all.Length; i++)
             {
-                if (all[i] != null && all[i].enabled && all[i].gameObject.activeInHierarchy) { cachedListener = all[i]; break; }
+                AudioListener candidate = all[i];
+                if (candidate == null || !candidate.enabled || !candidate.gameObject.activeInHierarchy) continue;
+                Camera camera = candidate.GetComponent<Camera>();
+                float depth = camera != null && camera.enabled ? camera.depth : float.NegativeInfinity;
+                if (cachedListener == null || depth > bestDepth)
+                {
+                    cachedListener = candidate;
+                    bestDepth = depth;
+                }
             }
             return cachedListener;
         }
@@ -463,8 +500,13 @@ namespace ReDefinition.Atmospheres.Audio
             AudioClip crunch = source.Pick(voice.Class, (int)(rng >> 8));
             float volume = switches.Volume * gain * volumes.Ambience * (listener.MapView ? 0.25f : 1f);
             Vector3 position = vessel != null ? vessel.transform.position : Vector3.zero;
-            float lowPass = muffling.OwnOnSamples ? (listener.MapView ? (float)WeatherAudioStream.MapCutoffHz : 22000f) : 22000f;
-            objects.PlayStep(crunch, voice, volume, position, lowPass);
+            if (simulated)
+            {
+                // The simulated walker has no kerbal: the steps sound two metres ahead of the listener.
+                AudioListener at = FindListener(now);
+                if (at != null) position = at.transform.position + at.transform.forward * 2f;
+            }
+            objects.PlayStep(crunch, voice, volume, position);
             stepsPlayed++;
         }
 

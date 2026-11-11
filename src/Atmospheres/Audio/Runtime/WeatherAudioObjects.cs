@@ -102,11 +102,10 @@ namespace ReDefinition.Atmospheres.Audio
         }
 
         // Plays one step: the sampled crunch under the procedural thump, at the foot position.
-        internal void PlayStep(AudioClip crunch, StepVoice voice, float volume, Vector3 position, float lowPassHz)
+        internal void PlayStep(AudioClip crunch, StepVoice voice, float volume, Vector3 position)
         {
             if (!Alive) return;
             steps.transform.position = position;
-            stepFilter.cutoffFrequency = lowPassHz;
             if (crunch != null)
             {
                 steps.pitch = voice.Pitch;
@@ -115,6 +114,12 @@ namespace ReDefinition.Atmospheres.Audio
             int t = voice.ThumpPitch > 0.85f ? 0 : voice.ThumpPitch > 0.7f ? 1 : 2;
             thump.pitch = 1f;
             thump.PlayOneShot(thumpClips[t], voice.ThumpGain * volume);
+        }
+
+        // The mixer group the step source is routed to ("" when none): RSE's routing shows here once it has taken the clip.
+        internal string StepMixerGroup
+        {
+            get { return steps != null && steps.outputAudioMixerGroup != null ? steps.outputAudioMixerGroup.name : ""; }
         }
 
         // Muffles the sampled clips (the own low-pass on exactly the sources RSE does not carry).

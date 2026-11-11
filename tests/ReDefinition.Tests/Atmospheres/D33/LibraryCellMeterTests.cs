@@ -265,9 +265,12 @@ namespace ReDefinition.Tests.Atmospheres.D33
             Assert.IsTrue(s.CentroidHz < 200);
 
             var high = new ProbeMeter(48000, 100);
-            MeterSummary h = Feed(high, n => 0f, n => (float)(0.3 * Math.Sin(2 * Math.PI * 6000 * n / 48000.0)), 48000);
-            Assert.IsTrue(h.Hi > h.Lo * 100 && h.Hi > h.Mid * 20);
-            Assert.IsTrue(h.CentroidHz > 3000);
+            MeterSummary h = Feed(high, n => 0f, n => (float)(0.3 * Math.Sin(2 * Math.PI * 3500 * n / 48000.0)), 48000);
+            Assert.IsTrue(h.Hi > h.Lo * 100 && h.Hi > h.Mid * 5, "hi " + h.Hi + " mid " + h.Mid);
+            Assert.IsTrue(h.CentroidHz > 2500, "centroid " + h.CentroidHz);
+            var above = new ProbeMeter(48000, 100);
+            MeterSummary a = Feed(above, n => 0f, n => (float)(0.3 * Math.Sin(2 * Math.PI * 12000 * n / 48000.0)), 48000);
+            Assert.IsTrue(a.Hi < h.Hi * 0.1, "the high band ends at 5 kHz");
             Assert.IsTrue(h.LeftShare < 0.01);
 
             var mid = new ProbeMeter(48000, 100);
