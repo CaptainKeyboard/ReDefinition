@@ -110,6 +110,9 @@ namespace ReDefinition.Atmospheres
         }
 
         // Whether the camera is in a cold region, with a margin so that it does not flicker: on from ColdOn, off below ColdOff.
+        // The binary gate is replaced by the field's type fractions (GroundEffectMath, EveGroundEffects); the storm effect that still
+        // calls it goes with C25.
+        [Obsolete("Replaced by the field's type fractions (GroundEffectMath); removed with the old storm effect.")]
         internal static bool Cold(bool wasCold, double snowCoverage)
         {
             if (double.IsNaN(snowCoverage)) return false;
@@ -300,10 +303,69 @@ namespace ReDefinition.Atmospheres
             return lastCoverage;
         }
 
-        // Keeps the first values of a layer's cloud types and sets the rain effects to 0. Droplets only for a layer without rain.
-        private static void Zero(Entry entry)
+        // Scales EVE's rain at the camera by what the field says falls there (once per frame, in Camera.onPreCull after EVE's Update):
+        // the rain particle field's coverage by the rain share (a sleet fall counts half), and the cloud types' droplets, wet surfaces,
+        // lightning and ambient volume by their factors of GroundEffectMath, written as original x factor and put back by Release. With
+        // all factors 1 EVE's rain is untouched; with all 0 it is gone (the old Suppress). Returns what the rain would have been.
+        internal static float Scale(GroundEffectMath.Factors f)
         {
-            // Zeroed is set first: a failure half-way leaves the types that were kept to be put back, and only those.
+            if (entries.Count == 0) return 0f;
+            if (lastFrame == Time.frameCount) return lastCoverage;
+            lastFrame = Time.frameCount;
+            float rain = 0f;
+            try
+            {
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    Entry entry = entries[i];
+                    if (entry.RainField)
+                    {
+                        float current = (float)coverageField.GetValue(entry.Field);
+                        if (current > rain) rain = current;
+                        float scaled = GroundEffectMath.Written(current, f.RainField);
+                        if (scaled != current)
+                        {
+                            coverageField.SetValue(entry.Field, scaled);
+                            if (scaled <= 0f) setRenderer.Invoke(entry.Field, RendererOff);
+                        }
+                    }
+                    Write(entry, f);
+                }
+                suppressed = f.RainField < 1f;
+            }
+            catch (Exception e)
+            {
+                for (int i = 0; i < entries.Count; i++) Restore(entries[i]);
+                getList = null;
+                summary = "not controllable (" + CompatibilityLog.Reason(e) + ")";
+                AtmospheresLog.Warn("atmospheres-eve-rain", "EVE rain: " + summary);
+            }
+            lastCoverage = Mathf.Clamp01(rain);
+            return lastCoverage;
+        }
+
+        // Keeps the first values of a layer's cloud types (once) and writes original x factor.
+        private static void Write(Entry entry, GroundEffectMath.Factors f)
+        {
+            if (!entry.Zeroed) Keep(entry);
+            for (int j = 0; j < entry.Types.Count; j++)
+            {
+                TypeRecord record = entry.Types[j];
+                if (!record.Kept) continue;
+                dropletsDensity.SetValue(record.Type, GroundEffectMath.Written(record.Droplets, f.Droplets));
+                if (entry.RainField)
+                {
+                    wetIntensity.SetValue(record.Type, GroundEffectMath.Written(record.Wet, f.Wet));
+                    lightningFrequency.SetValue(record.Type, GroundEffectMath.Written(record.Lightning, f.Lightning));
+                    ambientVolume.SetValue(record.Type, GroundEffectMath.Written(record.Ambient, f.RainSound));
+                }
+            }
+        }
+
+        // Reads the first values of a layer's cloud types and marks them kept; Zeroed is set first, so that a failure half-way leaves
+        // the types that were kept to be put back, and only those.
+        private static void Keep(Entry entry)
+        {
             entry.Zeroed = true;
             for (int j = 0; j < entry.Types.Count; j++)
             {
@@ -313,6 +375,16 @@ namespace ReDefinition.Atmospheres
                 record.Lightning = (float)lightningFrequency.GetValue(record.Type);
                 record.Ambient = (float)ambientVolume.GetValue(record.Type);
                 record.Kept = true;
+            }
+        }
+
+        // Keeps the first values of a layer's cloud types and sets the rain effects to 0. Droplets only for a layer without rain.
+        private static void Zero(Entry entry)
+        {
+            Keep(entry);
+            for (int j = 0; j < entry.Types.Count; j++)
+            {
+                TypeRecord record = entry.Types[j];
                 dropletsDensity.SetValue(record.Type, ZeroValue);
                 if (entry.RainField)
                 {
