@@ -6,8 +6,11 @@
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 1,
-  "starts": [ { "id": "run1", "description": "full mod set, EVE inside KSP" } ],
+  "plannedStarts": 2,
+  "starts": [
+    { "id": "run1", "description": "full mod set, EVE inside KSP" },
+    { "id": "noscatterer", "description": "EVE present, Scatterer away: the status of EVE's renderer (RECON run2 and run3 froze the frame), the fall back to cloudSource Ours; no frame is read", "disableMods": ["Scatterer"] }
+  ],
   "sections": [
     { "id": "C23", "package": "C23", "title": "EVE painter" },
     { "id": "C21", "package": "C21", "title": "Volume pass sanity" },

@@ -39,8 +39,15 @@ namespace ReDefinition.Atmospheres
         internal bool Mirrored;
         internal bool LayoutKnown;
 
-        // The materials the maps were bound on, to see that EVE made new ones.
+        // The materials the maps were bound on, to see that EVE made new ones (the shader declares no properties, so the binding itself
+        // cannot be read back: this identity and the paint set below are what the binding knows about itself).
         internal Material BoundMain, BoundProbe, BoundShadow2D;
+
+        // The paint set whose targets the materials carry; null while nothing is bound.
+        internal PaintSet BoundSet;
+
+        // The watchdog's sentinel as a delegate made once (the binding asks it at most once per interval).
+        internal Func<bool> SentinelCheck;
 
         // The textures of the two wrappers before the mirror went in (EVE's own, put back at the end), and whether the mirror is in.
         internal Texture2D OriginalCoverage, OriginalType;
@@ -270,7 +277,7 @@ namespace ReDefinition.Atmospheres
             h.InnerRadiusM = ToFloat(innerProperty.GetValue(volume, null));
             h.OuterRadiusM = ToFloat(outerProperty.GetValue(volume, null));
             h.ReceivesShadowsFrom = receivesProperty.GetValue(volume, null) as string ?? "";
-            h.CubeMap = h.Main != null && h.Main.IsKeywordEnabled("MAP_TYPE_CUBE_1");
+            h.CubeMap = h.Main != null && IsCubeMap(h.Main);
             if (h.Pqs == null) h.LeftReason = "the layer has no CloudsPQS to read timeSettings from";
             else
             {
@@ -285,6 +292,39 @@ namespace ReDefinition.Atmospheres
                 foreach (object t in types) names.Add(t != null ? typeNameField.GetValue(t) as string ?? "" : "");
             }
             h.TypeNames = names.ToArray();
+        }
+
+        // Whether the coverage or the type map is a native cube map (TextureWrapper.ApplyCubeMap enables MAP_TYPE_CUBE_n, MAP_TYPE_CUBE2_n
+        // or MAP_TYPE_CUBE6_n with the map's index: 1 for the coverage, 2 for the type): a 2D map does not fit.
+        internal static bool IsCubeMap(Material m)
+        {
+            for (int index = 1; index <= 2; index++)
+            {
+                string n = index.ToString();
+                if (m.IsKeywordEnabled("MAP_TYPE_CUBE_" + n) || m.IsKeywordEnabled("MAP_TYPE_CUBE2_" + n) || m.IsKeywordEnabled("MAP_TYPE_CUBE6_" + n)) return true;
+            }
+            return false;
+        }
+
+        // The number of volumetric layers EVE holds on any body: the layers that make EVE run its raymarch renderer.
+        internal static int VolumetricLayerCount()
+        {
+            if (!Available) return 0;
+            int n = 0;
+            try
+            {
+                IEnumerable list = getList.Invoke(null, null) as IEnumerable;
+                if (list == null) return 0;
+                foreach (object layer in list)
+                {
+                    if (layer != null && volumeProperty.GetValue(layer, null) != null) n++;
+                }
+            }
+            catch (Exception e)
+            {
+                AtmospheresLog.Failed("atmospheres-eve-count", "counting EVE's volumetric layers failed", e);
+            }
+            return n;
         }
 
         // Reads the layer's materials; true where one of them is not the object it was before.
@@ -416,6 +456,8 @@ namespace ReDefinition.Atmospheres
         }
 
         // The picture of the orbit and map view for the layer's 2D layer: the material EVE draws the 2D clouds with takes it as _MainTex.
+        // Set again at every repaint of the picture and right after EVE touched the layer (a SetTexture of a texture that is there costs
+        // nothing, and no read-back is needed: whether the 2D shader declares _MainTex is [VERIFY], the volume materials declare nothing).
         // False where the layer has no 2D layer or the member is missing.
         internal static bool Bind2D(EveLayer h, Texture picture)
         {
@@ -423,12 +465,6 @@ namespace ReDefinition.Atmospheres
             if (rendering == null || picture == null) return false;
             rendering.SetTexture("_MainTex", picture);
             return true;
-        }
-
-        internal static bool Intact2D(EveLayer h, Texture picture)
-        {
-            Material rendering = Rendering2D(h);
-            return rendering != null && ReferenceEquals(rendering.GetTexture("_MainTex"), picture);
         }
 
         private static Material Rendering2D(EveLayer h)

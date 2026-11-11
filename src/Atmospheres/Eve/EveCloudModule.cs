@@ -10,7 +10,7 @@ namespace ReDefinition.Atmospheres
     {
         internal static int Paints;
         internal static double LastPaintMs, WorstPaintMs, MeanPaintMs;
-        internal static int Losses, Rebinds, WatchdogFinds;
+        internal static int Losses, Rebinds, WatchdogFinds, Reasserts;
         internal static double MaxRebindLatencyS;
         internal static int LayersBound;
         internal static double MirrorWorstFrameMs;
@@ -22,15 +22,24 @@ namespace ReDefinition.Atmospheres
     // effects, the 2D picture and the own shell to the weather field. Runs while the mod and weatherEffects are on and the active body
     // has weather; for cloudSource Eve and Both it drives EVE, for Ours it draws the own shell, for None it does nothing.
     //
-    // Per frame: the binding is observed (an event of EVE's, the material's identity, and the watchdog's read-back every second) and made
+    // Per frame: the binding is observed (an event of EVE's, the identity of the materials and of the paint set, the keyword sentinel
+    // and the watchdog's re-assertion every second; nothing is read back from a texture property, EVE's shader declares none) and made
     // again where it is gone; the mirror works through a band of rows. Every PaintInterval (0.25 s) the field's maps are fetched, uploaded
     // and painted with the slew limit. The ground effects run in Camera.onPreCull, after EVE's Update.
+    //
+    // Where EVE cannot render (EveRenderCompat: EVE with volumetric layers and without Scatterer, or the invalid-pass error counted in the
+    // log) cloudSource Eve and Both are treated as Ours: nothing is bound to EVE's layers and the own shell carries the picture. EVE's
+    // own renderer is not stopped by this.
+    //
+    // Not done (brief item 6, runtime steering): wind steering of mainPeriod/offset, upwardsCloudSpeed, scaledFade*, layer colour,
+    // per-type densities, RebuildCurvesFromConfig and SetTimeFade. Only the drift is frozen (FreezeDrift).
     [AtmospheresModule(60)]
     internal sealed class EveCloudModule : IAtmospheresModule
     {
         private const float ScanIntervalS = 3f;
         private const float OrbitIntervalFarS = 2f, OrbitIntervalNearS = 10f;
         private const double LiveBelowM = 30000;
+        private const float RenderCheckIntervalS = 1f;
 
         private MapPainter painter;
         private readonly EveBinding binding = new EveBinding();
@@ -47,7 +56,7 @@ namespace ReDefinition.Atmospheres
         private CelestialBody body;
         private BodyClimate climate;
         private bool applyEventSubscribed, applyFlag, preCullSubscribed, shaderFailedLogged, wasActive;
-        private float nextScan, nextPaint, nextOrbit, lastPaint = -1f, nextStats;
+        private float nextScan, nextPaint, nextOrbit, lastPaint = -1f, nextStats, nextRenderCheck;
         private bool mirrorNew;
         private double paintMsSum;
         private int paintCount;
@@ -102,6 +111,23 @@ namespace ReDefinition.Atmospheres
             return mirror.TryGetMaps(set, out mirrored, out _);
         }
 
+        // The coverage the painter is told to paint everywhere instead of the field's (null: the field's own). For the series probe's
+        // render proof only; set through ForceCoverage so that the next paint jumps.
+        private float? debugCoverage;
+        private bool debugSnapPending;
+
+        internal void ForceCoverage(float? value)
+        {
+            debugCoverage = value;
+            debugSnapPending = value.HasValue;
+            nextPaint = 0f;
+        }
+
+        internal bool CoverageForced
+        {
+            get { return debugCoverage.HasValue; }
+        }
+
         // The paint set a layer is bound to (null while its layout is unknown or there is no painter).
         internal PaintSet SetOfLayer(EveLayer layer)
         {
@@ -145,11 +171,20 @@ namespace ReDefinition.Atmospheres
                 preCullSubscribed = false;
             }
             if (ReferenceEquals(Services.EveFieldSuppressor, ground)) Services.EveFieldSuppressor = null;
+            EveRenderCompat.Shutdown();
             if (ReferenceEquals(Current, this)) Current = null;
         }
 
         public void Tick(float dt)
         {
+            // The look at EVE's renderer runs before any early return, so that the combination EVE without Scatterer is reported at the
+            // first tick whatever the body or the switches are.
+            float checkNow = Time.realtimeSinceStartup;
+            if (checkNow >= nextRenderCheck)
+            {
+                nextRenderCheck = checkNow + RenderCheckIntervalS;
+                EveRenderCompat.Update(EveLayerAccess.Available);
+            }
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
             CelestialBody b = BodyWatcher.ActiveBody;
             BodyClimate c = b != null ? Bodies.Get(b) : null;
@@ -162,12 +197,16 @@ namespace ReDefinition.Atmospheres
             wasActive = true;
             body = b;
             climate = c;
-            CloudSourceKind source = c.Clouds.Source ?? AtmospheresSettings.CloudSource;
+            CloudSourceKind configured = c.Clouds.Source ?? AtmospheresSettings.CloudSource;
+            CloudSourceKind source = EveRenderCompat.EffectiveSource(configured);
             bool eveMode, ownMode;
             CloudModeModel.Decide(source, EveLayerAccess.Available, out eveMode, out ownMode);
             if (!eveMode)
             {
-                if (layers.Count > 0) ReleaseEve("cloudSource is " + source);
+                if (layers.Count > 0)
+                {
+                    ReleaseEve(source != configured ? "EVE cannot render here (" + EveRenderCompat.Reason + ")" : "cloudSource is " + source);
+                }
             }
             if (!eveMode && !ownMode)
             {
@@ -249,6 +288,9 @@ namespace ReDefinition.Atmospheres
             if (now >= nextPaint) Paint(now, b, ut);
             binding.WatchdogIntervalS = Tuning.Get("eve.watchdogS", (float)BindingTracker.WatchdogIntervalS);
             int bound = binding.Tick(now, Choose, text => AtmospheresLog.Say("cloud painter: " + text));
+            // The 2D layer's rendering material is a new object after EVE's Apply: the picture is set on it at once, not at the next
+            // repaint (the picture cannot be read back from the material either, so it is set whenever the layer was touched).
+            if (applyFlag || bound > 0) nextOrbit = 0f;
             applyFlag = false;
             paintedObjects.Clear();
             foreach (EveLayer h in layers)
@@ -314,6 +356,15 @@ namespace ReDefinition.Atmospheres
             if (!field.GetMap(b.flightGlobalsIndex, WeatherMapKind.Precipitation, ut, painter.LevelMap)) return;
             float dt = lastPaint < 0f ? interval : now - lastPaint;
             lastPaint = now;
+            // The probe's render proof: a uniform coverage, jumped to at once (the slew would take 12 s from 0 to 1 at the default rate).
+            bool snap = false;
+            if (debugCoverage.HasValue)
+            {
+                float[] values = painter.CoverageMap.Values;
+                for (int i = 0; i < values.Length; i++) values[i] = debugCoverage.Value;
+                snap = debugSnapPending;
+                debugSnapPending = false;
+            }
             painter.Upload(painter.CoverageMap, painter.LevelMap);
             double ms = 0;
             foreach (EveLayer h in layers)
@@ -325,7 +376,7 @@ namespace ReDefinition.Atmospheres
             {
                 byte[] lut;
                 if (luts.TryGetValue(set, out lut)) painter.SetLut(lut);
-                ms += painter.Paint(set, dt, rate, false);
+                ms += painter.Paint(set, dt, rate, snap);
             }
             if (ms > 0)
             {
@@ -373,7 +424,8 @@ namespace ReDefinition.Atmospheres
                         body.GetAltitude(position), ut, out sample)) sample = WeatherSample.Clear(body.flightGlobalsIndex);
                 float centre, width;
                 PrecipTypeModel.Parameters(climate.Precip, out centre, out width);
-                bool both = (climate.Clouds.Source ?? AtmospheresSettings.CloudSource) == CloudSourceKind.Both && AtmospheresSettings.UseEveWeather;
+                bool both = EveRenderCompat.EffectiveSource(climate.Clouds.Source ?? AtmospheresSettings.CloudSource) == CloudSourceKind.Both
+                    && AtmospheresSettings.UseEveWeather;
                 GroundEffectMath.Factors f = EveGroundEffects.FactorsFor(sample, EveRainLink.UnpaintedCoverage, EveRainLink.UnpaintedThunder, both, centre, width);
                 float level = Math.Max(sample.Level01, GroundEffectMath.EveLevel(EveRainLink.UnpaintedCoverage, EveRainLink.UnpaintedThunder, true) * (both ? 1f : 0f));
                 ground.Apply(body.name, f, level);
@@ -394,7 +446,7 @@ namespace ReDefinition.Atmospheres
         private bool ShellWanted(CelestialBody b)
         {
             if (climate == null || !ReferenceEquals(b, body)) return false;
-            CloudSourceKind source = climate.Clouds.Source ?? AtmospheresSettings.CloudSource;
+            CloudSourceKind source = EveRenderCompat.EffectiveSource(climate.Clouds.Source ?? AtmospheresSettings.CloudSource);
             // EVE carries the picture where one of its layers has a 2D layer it does not leave alone; the shell stands in where none has.
             bool eveCarries = false;
             foreach (EveLayer h in layers)
@@ -443,7 +495,7 @@ namespace ReDefinition.Atmospheres
                     foreach (EveLayer h in layers)
                     {
                         if (h.Layer2D == null || h.Tracker.State != BindState.Bound || !h.LayoutKnown) continue;
-                        if (!EveLayerAccess.Intact2D(h, painter.Orbit(MapPainter.OrbitEve))) EveLayerAccess.Bind2D(h, painter.Orbit(MapPainter.OrbitEve));
+                        EveLayerAccess.Bind2D(h, painter.Orbit(MapPainter.OrbitEve));
                     }
                 }
             }
@@ -532,6 +584,7 @@ namespace ReDefinition.Atmospheres
         {
             EveCloudStats.Losses = binding.TotalLosses;
             EveCloudStats.Rebinds = binding.TotalRebinds;
+            EveCloudStats.Reasserts = binding.TotalReasserts;
             EveCloudStats.MaxRebindLatencyS = binding.MaxLatencyS;
             int bound = 0;
             int finds = 0;
@@ -550,7 +603,7 @@ namespace ReDefinition.Atmospheres
                 if (layers.Count > 0)
                 {
                     AtmospheresLog.Say("cloud painter: " + bound + "/" + layers.Count + " layers bound, losses " + EveCloudStats.Losses + " (watchdog "
-                        + finds + "), rebinds " + EveCloudStats.Rebinds + ", worst latency " + EveCloudStats.MaxRebindLatencyS.ToString("0.00")
+                        + finds + "), rebinds " + EveCloudStats.Rebinds + ", reasserts " + EveCloudStats.Reasserts + ", worst latency " + EveCloudStats.MaxRebindLatencyS.ToString("0.00")
                         + " s, paints " + EveCloudStats.Paints + " (mean " + EveCloudStats.MeanPaintMs.ToString("0.00") + " ms, worst "
                         + EveCloudStats.WorstPaintMs.ToString("0.00") + " ms), mirror cycles " + mirror.Version + " (worst frame "
                         + mirror.WorstFrameMs.ToString("0.00") + " ms)");

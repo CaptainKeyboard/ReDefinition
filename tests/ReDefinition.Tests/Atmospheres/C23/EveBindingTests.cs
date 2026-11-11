@@ -10,46 +10,46 @@ namespace ReDefinition.Tests.Atmospheres.C23
     [TestClass]
     public class EveBindingTests
     {
-        // A material of EVE's as far as the binding goes: a texture and the flags the read-back looks at.
+        // A material of EVE's as far as the binding knows it: an identity (the object EVE made), the paint set we put on it, and the
+        // keywords the sentinel looks at. EVE's shader declares no properties (RECON P9), so no texture is ever read back.
         private sealed class FakeMaterial
         {
-            public object Texture;
-            public bool AlphaMask;
+            public object Set;
+            public bool AlphaMaskKeywords;
 
             public void Bind(object ours)
             {
-                Texture = ours;
-                AlphaMask = true;
+                Set = ours;
+                AlphaMaskKeywords = true;
             }
 
-            // What EVE's Apply, ApplyShaderParams or SetShaderParams does to it.
-            public void EveApplies()
+            // What EVE's SetShaderParams does to a material that carries a plain wrapper: the keywords go.
+            public void EveRewritesKeywords()
             {
-                Texture = "pack texture";
-                AlphaMask = false;
+                AlphaMaskKeywords = false;
             }
 
-            public bool Intact(object ours)
+            public bool KeywordsAsLeft()
             {
-                return ReferenceEquals(Texture, ours) && AlphaMask;
+                return AlphaMaskKeywords;
             }
         }
 
         [TestMethod]
-        public void ALostBindingIsFoundByTheWatchdogAndBoundAgain()
+        public void AKeywordLossOnTheSameMaterialIsFoundByTheSentinelAndBoundAgain()
         {
             var tracker = new BindingTracker(1.0);
             var material = new FakeMaterial();
             object ours = new object();
-            Assert.IsTrue(tracker.Observe(0.0, false, false, () => material.Intact(ours)), "unbound asks for a binding");
+            Assert.AreEqual(BindAction.Bind, tracker.Observe(0.0, false, false, material.KeywordsAsLeft), "unbound asks for a binding");
             material.Bind(ours);
             tracker.Bound(0.0);
             Assert.AreEqual(BindState.Bound, tracker.State);
-            Assert.IsFalse(tracker.Observe(0.5, false, false, () => material.Intact(ours)));
-            material.EveApplies();
-            // The check is every second: at 0.9 nothing is seen, at 1.0 the loss is.
-            Assert.IsFalse(tracker.Observe(0.9, false, false, () => material.Intact(ours)));
-            Assert.IsTrue(tracker.Observe(1.0, false, false, () => material.Intact(ours)));
+            Assert.AreEqual(BindAction.None, tracker.Observe(0.5, false, false, material.KeywordsAsLeft));
+            material.EveRewritesKeywords();
+            // The look is every second: at 0.9 nothing is seen, at 1.0 the loss is.
+            Assert.AreEqual(BindAction.None, tracker.Observe(0.9, false, false, material.KeywordsAsLeft));
+            Assert.AreEqual(BindAction.Bind, tracker.Observe(1.0, false, false, material.KeywordsAsLeft));
             Assert.AreEqual(BindState.Lost, tracker.State);
             Assert.AreEqual(1, tracker.Losses);
             Assert.AreEqual(1, tracker.WatchdogFinds);
@@ -61,22 +61,43 @@ namespace ReDefinition.Tests.Atmospheres.C23
         }
 
         [TestMethod]
-        public void AnApplyEventIsSeenAtOnce()
+        public void WithNothingSeenTheWatchdogSetsTheTexturesAgainEveryInterval()
+        {
+            // A lost binding on the same material with the same keywords leaves no trace (EVE's wrapper of an alpha map writes the same
+            // keywords): setting the same textures again every interval is what restores it. It is not a loss.
+            var tracker = new BindingTracker(1.0);
+            var material = new FakeMaterial();
+            object ours = new object();
+            material.Bind(ours);
+            tracker.Bound(0.0);
+            Assert.AreEqual(BindAction.None, tracker.Observe(0.9, false, false, material.KeywordsAsLeft));
+            Assert.AreEqual(BindAction.Reassert, tracker.Observe(1.0, false, false, material.KeywordsAsLeft));
+            tracker.Reasserted(1.0);
+            Assert.AreEqual(BindAction.None, tracker.Observe(1.5, false, false, material.KeywordsAsLeft));
+            Assert.AreEqual(BindAction.Reassert, tracker.Observe(2.0, false, false, material.KeywordsAsLeft));
+            tracker.Reasserted(2.0);
+            Assert.AreEqual(2, tracker.Reasserts);
+            Assert.AreEqual(0, tracker.Losses);
+            Assert.AreEqual(BindState.Bound, tracker.State);
+        }
+
+        [TestMethod]
+        public void AnApplyEventOrANewMaterialIsSeenAtOnce()
         {
             var tracker = new BindingTracker(1.0);
             var material = new FakeMaterial();
             object ours = new object();
             material.Bind(ours);
             tracker.Bound(0.0);
-            material.EveApplies();
-            Assert.IsTrue(tracker.Observe(0.016, true, false, () => material.Intact(ours)), "the event does not wait for the watchdog");
+            material.EveRewritesKeywords();
+            Assert.AreEqual(BindAction.Bind, tracker.Observe(0.016, true, false, material.KeywordsAsLeft), "the event does not wait for the watchdog");
             Assert.AreEqual(1, tracker.Losses);
             Assert.AreEqual(0, tracker.WatchdogFinds);
             material.Bind(ours);
             tracker.Bound(0.016);
             Assert.AreEqual(0.0, tracker.LastLatencyS, 1e-9);
-            // A new material object counts like an event.
-            Assert.IsTrue(tracker.Observe(0.1, false, true, null));
+            // A new material object (EVE's Apply makes them in the same frame, RECON P9) counts like an event.
+            Assert.AreEqual(BindAction.Bind, tracker.Observe(0.1, false, true, null));
             Assert.AreEqual(2, tracker.Losses);
         }
 
@@ -92,14 +113,16 @@ namespace ReDefinition.Tests.Atmospheres.C23
             for (int k = 0; k < 20; k++)
             {
                 now += 0.5;
-                material.EveApplies();
-                bool needed = tracker.Observe(now, true, false, () => material.Intact(ours));
-                Assert.IsTrue(needed, "apply " + k);
+                // The forced Apply fires no onApply (RECON P9): the new material object is the only sign.
+                material.EveRewritesKeywords();
+                BindAction action = tracker.Observe(now, false, true, material.KeywordsAsLeft);
+                Assert.AreEqual(BindAction.Bind, action, "apply " + k);
                 material.Bind(ours);
                 tracker.Bound(now + 0.02);
             }
             Assert.AreEqual(20, tracker.Losses);
             Assert.AreEqual(20, tracker.Rebinds);
+            Assert.AreEqual(0, tracker.WatchdogFinds, "found by identity, not by the sentinel");
             Assert.IsTrue(tracker.MaxLatencyS <= 0.02 + 1e-9);
             Assert.AreEqual(20, tracker.Latencies.Count);
             Assert.AreEqual(BindState.Bound, tracker.State);
@@ -110,8 +133,8 @@ namespace ReDefinition.Tests.Atmospheres.C23
         {
             var tracker = new BindingTracker(1.0);
             tracker.Leave();
-            Assert.IsFalse(tracker.Observe(0.0, true, true, () => false));
-            Assert.IsFalse(tracker.Observe(5.0, false, false, () => false));
+            Assert.AreEqual(BindAction.None, tracker.Observe(0.0, true, true, () => false));
+            Assert.AreEqual(BindAction.None, tracker.Observe(5.0, false, false, () => false));
             tracker.Bound(6.0);
             Assert.AreEqual(BindState.Left, tracker.State);
             Assert.AreEqual(0, tracker.Losses);
@@ -126,7 +149,17 @@ namespace ReDefinition.Tests.Atmospheres.C23
             tracker.Reset();
             Assert.AreEqual(BindState.Unbound, tracker.State);
             Assert.AreEqual(1, tracker.Losses);
-            Assert.IsTrue(tracker.Observe(1.0, false, false, null));
+            Assert.AreEqual(BindAction.Bind, tracker.Observe(1.0, false, false, null));
+        }
+
+        [TestMethod]
+        public void TheIntervalCanBeChangedAtRunTime()
+        {
+            var tracker = new BindingTracker(1.0);
+            tracker.Bound(0.0);
+            tracker.IntervalS = 0.25;
+            Assert.AreEqual(BindAction.None, tracker.Observe(0.2, false, false, () => true));
+            Assert.AreEqual(BindAction.Reassert, tracker.Observe(0.25, false, false, () => true));
         }
 
         // --- Cloud type encoding ------------------------------------------------------------------------------------

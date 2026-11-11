@@ -12,9 +12,16 @@ namespace ReDefinition.Atmospheres
     // SetShadowCasterTextureParams(rt, true).
     //
     // EVE discards all of it in every CloudsManager.Apply, ApplyShaderParams and SetShaderParams (new materials, or the wrapper's own
-    // texture again, timeFade* back to 1 and CLOUD_SHADOW_CASTER_OFF on). BindingTracker decides when to bind again: after
-    // CloudsManager.onApply, when the material is another object, and every second by reading the binding back. Layers with timeSettings
-    // are not fought.
+    // texture again, timeFade* back to 1 and CLOUD_SHADOW_CASTER_OFF on).
+    //
+    // The binding cannot be read back. EVE's raymarch shader declares no properties (RECON P9: m_PropInfo is empty), so
+    // Material.GetTexture and GetFloat of CloudCoverage, CloudType or useAlphaMask1 return null or 0 and log an error whatever was set.
+    // What the binding knows about itself instead: the identity of the three materials and of the paint set it was made with
+    // (EVE's Apply replaces the materials in the same frame, RECON P9), the keywords (IsKeywordEnabled is not refused for an undeclared
+    // name) and its own record of what it set. BindingTracker decides when to bind again: after CloudsManager.onApply, when a material or
+    // the set is another object, when the keywords EVE rewrites are not as left, and, with nothing seen, by setting the same textures
+    // again every watchdog interval (a lost binding on the same material, as ApplyShaderParams makes it, leaves no other trace).
+    // Layers with timeSettings are not fought.
     internal sealed class EveBinding
     {
         private readonly List<EveLayer> layers = new List<EveLayer>();
@@ -25,7 +32,7 @@ namespace ReDefinition.Atmospheres
             get { return layers; }
         }
 
-        // The watchdog interval used for new layers (set from B09's measurement of how long EVE takes to rebuild; default 1 s).
+        // The watchdog interval used for the layers (the tuning key eve.watchdogS; default 1 s).
         internal double WatchdogIntervalS = BindingTracker.WatchdogIntervalS;
 
         // Counters of the whole binding for the log and the series rows.
@@ -45,6 +52,16 @@ namespace ReDefinition.Atmospheres
             {
                 int n = 0;
                 foreach (EveLayer l in layers) n += l.Tracker.Rebinds;
+                return n;
+            }
+        }
+
+        internal int TotalReasserts
+        {
+            get
+            {
+                int n = 0;
+                foreach (EveLayer l in layers) n += l.Tracker.Reasserts;
                 return n;
             }
         }
@@ -80,10 +97,12 @@ namespace ReDefinition.Atmospheres
         {
             layer.Tracker.Reset();
             layer.BoundMain = layer.BoundProbe = layer.BoundShadow2D = null;
+            layer.BoundSet = null;
         }
 
-        // One pass over the layers: those whose binding is gone are bound again to the set the chooser names. Returns the number of
-        // layers bound in this pass. choose gives the paint set of a layer (null where the layer cannot be laid out).
+        // One pass over the layers: those whose binding is gone are bound again to the set the chooser names, and the others set it
+        // again when the watchdog's interval is over. Returns the number of layers bound or set again in this pass. choose gives the paint
+        // set of a layer (null where the layer cannot be laid out).
         internal int Tick(double now, Func<EveLayer, PaintSet> choose, Action<string> log)
         {
             int bound = 0;
@@ -97,28 +116,44 @@ namespace ReDefinition.Atmospheres
                     if (log != null) log("layer '" + layer.Name + "' is left to EVE (" + layer.LeftReason + ")");
                 }
                 if (layer.Tracker.State == BindState.Left) continue;
-                bool materialChanged = false;
+                layer.Tracker.IntervalS = WatchdogIntervalS;
+                PaintSet set = choose(layer);
+                bool identity = false;
                 if (apply || layer.Tracker.State == BindState.Bound)
                 {
                     EveLayerAccess.ReadMaterials(layer);
-                    materialChanged = layer.BoundMain != null && (!ReferenceEquals(layer.Main, layer.BoundMain)
-                        || !ReferenceEquals(layer.Probe, layer.BoundProbe) || !ReferenceEquals(layer.Shadow2D, layer.BoundShadow2D));
+                    identity = IdentityChanged(layer, set);
                 }
-                PaintSet set = choose(layer);
-                if (set == null) continue;
-                EveLayer captured = layer;
-                bool needed = layer.Tracker.Observe(now, apply, materialChanged, () => ReadBack(captured, set));
-                if (!needed) continue;
+                if (set == null)
+                {
+                    // Nothing to bind yet (the layout is not known, or the set is not painted): a loss is still counted when it happens.
+                    if (identity || apply) layer.Tracker.Observe(now, apply, identity, null);
+                    continue;
+                }
+                if (layer.SentinelCheck == null)
+                {
+                    EveLayer self = layer;
+                    layer.SentinelCheck = () => Sentinel(self);
+                }
+                BindAction action = layer.Tracker.Observe(now, apply, identity, layer.SentinelCheck);
+                if (action == BindAction.None) continue;
                 try
                 {
                     if (!Bind(layer, set)) continue;
-                    layer.Tracker.Bound(now);
-                    bound++;
-                    if (log != null)
+                    if (action == BindAction.Bind)
                     {
-                        log("bound '" + layer.Name + "' (losses " + layer.Tracker.Losses + ", rebinds " + layer.Tracker.Rebinds
-                            + (layer.Tracker.Rebinds > 0 ? ", last latency " + layer.Tracker.LastLatencyS.ToString("0.00") + " s" : "") + ")");
+                        layer.Tracker.Bound(now);
+                        if (log != null)
+                        {
+                            log("bound '" + layer.Name + "' (losses " + layer.Tracker.Losses + ", rebinds " + layer.Tracker.Rebinds
+                                + (layer.Tracker.Rebinds > 0 ? ", last latency " + layer.Tracker.LastLatencyS.ToString("0.00") + " s" : "") + ")");
+                        }
                     }
+                    else
+                    {
+                        layer.Tracker.Reasserted(now);
+                    }
+                    bound++;
                 }
                 catch (Exception e)
                 {
@@ -129,6 +164,15 @@ namespace ReDefinition.Atmospheres
             }
             if (bound > 0) BindShadowCasters(choose);
             return bound;
+        }
+
+        // Whether a material the layer holds is not the one the maps were bound on, or the set it should carry is another one.
+        internal static bool IdentityChanged(EveLayer layer, PaintSet set)
+        {
+            if (layer.BoundMain == null) return false;
+            if (!ReferenceEquals(layer.Main, layer.BoundMain) || !ReferenceEquals(layer.Probe, layer.BoundProbe)
+                || !ReferenceEquals(layer.Shadow2D, layer.BoundShadow2D)) return true;
+            return set != null && layer.BoundSet != null && !ReferenceEquals(layer.BoundSet, set);
         }
 
         // Makes the binding on all three materials. False where the layer has no main material yet.
@@ -142,6 +186,7 @@ namespace ReDefinition.Atmospheres
             layer.BoundMain = layer.Main;
             layer.BoundProbe = layer.Probe;
             layer.BoundShadow2D = layer.Shadow2D;
+            layer.BoundSet = set;
             return true;
         }
 
@@ -172,34 +217,42 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Reads the binding back: our targets are the textures of the properties, the alpha mask is as set, and a dependent layer's
-        // shadow caster is switched on. False where anything is not as the binding left it.
-        internal static bool ReadBack(EveLayer layer, PaintSet set)
+        // The watchdog's sentinel: what can be known of the binding without reading a texture. The keywords EVE's ApplyTexture
+        // (ALPHAMAP_1/2 off for a wrapper that is no alpha map) and SetShaderParams (CLOUD_SHADOW_CASTER_OFF on) rewrite are as the
+        // binding left them. False where one is not.
+        internal static bool Sentinel(EveLayer layer)
         {
-            if (!Intact(layer.Main, set, layer.ReceivesShadowsFrom.Length > 0)) return false;
-            if (layer.Probe != null && !Intact(layer.Probe, set, false)) return false;
-            if (layer.Shadow2D != null && !Intact(layer.Shadow2D, set, false)) return false;
+            if (!KeywordsAsLeft(layer.Main, layer.ReceivesShadowsFrom.Length > 0)) return false;
+            if (layer.Probe != null && !KeywordsAsLeft(layer.Probe, false)) return false;
+            if (layer.Shadow2D != null && !KeywordsAsLeft(layer.Shadow2D, false)) return false;
             return true;
         }
 
-        private static bool Intact(Material m, PaintSet set, bool dependent)
+        // The full check: identity of the materials and of the set, then the sentinel. For the probe and the tests; the frame path asks
+        // the tracker, which asks the same two things.
+        internal static bool Holds(EveLayer layer, PaintSet set)
+        {
+            if (layer.BoundMain == null || set == null) return false;
+            if (IdentityChanged(layer, set)) return false;
+            return Sentinel(layer);
+        }
+
+        // The keyword part of the check, on a material.
+        internal static bool KeywordsAsLeft(Material m, bool dependent)
         {
             if (m == null) return false;
-            if (!ReferenceEquals(m.GetTexture("CloudCoverage"), set.Coverage)) return false;
-            if (!ReferenceEquals(m.GetTexture("CloudType"), set.Type)) return false;
             if (!m.IsKeywordEnabled("ALPHAMAP_1") || !m.IsKeywordEnabled("ALPHAMAP_2")) return false;
-            if (m.GetFloat("useAlphaMask1") < 0.5f || m.GetFloat("useAlphaMask2") < 0.5f) return false;
             if (dependent && m.IsKeywordEnabled("CLOUD_SHADOW_CASTER_OFF")) return false;
             return true;
         }
 
-        // Forces a loss for a test: EVE's Apply would have done this.
+        // Forces a loss for a test: what EVE's SetShaderParams does to the keywords of a material that carries a plain wrapper.
         internal static void Wipe(EveLayer layer)
         {
             if (layer.Main != null)
             {
-                layer.Main.SetTexture("CloudCoverage", Texture2D.whiteTexture);
-                layer.Main.SetTexture("CloudType", Texture2D.blackTexture);
+                layer.Main.DisableKeyword("ALPHAMAP_1");
+                layer.Main.DisableKeyword("ALPHAMAP_2");
             }
         }
 
