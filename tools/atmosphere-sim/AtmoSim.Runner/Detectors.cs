@@ -51,7 +51,7 @@ namespace AtmoSim.Runner
         public double DistCells(int j1, int i1, int j2, int i2) { return Dist(A, LatRad[j1], LonRad[i1], LatRad[j2], LonRad[i2]); }
     }
 
-    public struct Minimum { public int J, I; public double Value, Lat, Lon; }
+    public struct Minimum { public int J, I; public double Value, Lat, Lon, CloudRatio; }
 
     public sealed class Band
     {
@@ -156,14 +156,34 @@ namespace AtmoSim.Runner
             return r;
         }
 
-        public static List<Band> Bands(MetricGrid g, double[] t, double[] cwp, double minExtentM)
+        // 0.6 of the 95th percentile of the raw cloud-water field: the threshold of the cloud arm.
+        public static double CloudThreshold(double[] cwp)
+        {
+            var sorted = (double[])cwp.Clone(); Array.Sort(sorted);
+            return 0.6 * sorted[(int)(0.95 * (sorted.Length - 1))];
+        }
+
+        // D2 input (header H4, amended): the wave-borne anomaly, field minus the no-wave field of the same UT (tRef, cwpRef). Without a
+        // reference field (planted tests, the sheets of a generator without a waves-off twin) the zonal mean is the reference.
+        public static List<Band> Bands(MetricGrid g, double[] t, double[] cwp, double minExtentM, double[] tRef = null, double[] cwpRef = null)
+        {
+            double[] ta, ca;
+            if (tRef != null) { ta = Diff(t, tRef); ca = Diff(cwp, cwpRef); }
+            else { ta = ZonalAnomaly(g, t); ca = ZonalAnomaly(g, cwp); }
+            return BandsFromAnomaly(g, ta, ca, CloudThreshold(cwp), minExtentM);
+        }
+
+        public static double[] Diff(double[] a, double[] b)
+        {
+            var r = new double[a.Length];
+            for (int i = 0; i < r.Length; i++) r[i] = a[i] - b[i];
+            return r;
+        }
+
+        // The band detector on anomaly fields: thermal arm 3 K per 100 km, cloud arm cwpThr per 100 km.
+        public static List<Band> BandsFromAnomaly(MetricGrid g, double[] t, double[] cwp, double cwpThr, double minExtentM)
         {
             int nl = g.NLon, nt = g.NLat;
-            var sorted = (double[])cwp.Clone(); Array.Sort(sorted);
-            double p95 = sorted[(int)(0.95 * (sorted.Length - 1))];
-            double cwpThr = 0.6 * p95;
-            // zonal anomalies: the equator-to-pole gradient of a small body is itself several K per 100 km and is not a front
-            t = ZonalAnomaly(g, t); cwp = ZonalAnomaly(g, cwp);
             var flagT = new bool[nl * nt]; var flagC = new bool[nl * nt];
             for (int j = 1; j < nt - 1; j++)
             {
@@ -327,12 +347,15 @@ namespace AtmoSim.Runner
         }
 
         // Tracker numbers: lifetime, east drift (m/s), straightness of the persistent tracks of one hemisphere (or both: -1).
-        public Dictionary<string, object> Numbers(int minFrameSpan, double frameSeconds, int hemi)
+        // Tracks that start before excludeBefore or end at or after excludeAfter (frame indices) are left out (header H4: edge tracks of a run);
+        // jetMs > 0 adds the per-track shares: east drift within 30 % of the jet speed, and eastward.
+        public Dictionary<string, object> Numbers(int minFrameSpan, double frameSeconds, int hemi, int excludeBefore = 0, int excludeAfter = int.MaxValue, double jetMs = 0.0)
         {
             var life = new List<double>(); var drift = new List<double>(); var straight = new List<double>();
             foreach (var t in Persistent(minFrameSpan))
             {
                 if (hemi >= 0 && t.Hemisphere != hemi) continue;
+                if (t.First < excludeBefore || t.Last >= excludeAfter) continue;
                 double dur = (t.Last - t.First) * frameSeconds;
                 double path = 0;
                 for (int k = 1; k < t.Lat.Count; k++) path += MetricGrid.Dist(a, t.Lat[k - 1], t.Lon[k - 1], t.Lat[k], t.Lon[k]);
@@ -354,6 +377,13 @@ namespace AtmoSim.Runner
             r["east_drift_ms_mean"] = Mean(drift); r["east_drift_ms_median"] = Median(drift);
             r["straightness_mean"] = Mean(straight); r["straightness_median"] = Median(straight);
             r["swaps"] = Swaps;
+            if (jetMs > 0.0)
+            {
+                int within = 0, east = 0;
+                foreach (double d in drift) { if (Math.Abs(d - jetMs) <= 0.3 * jetMs) within++; if (d > 0.0) east++; }
+                r["share_drift_within_30pct_of_jet"] = drift.Count > 0 ? (double)within / drift.Count : double.NaN;
+                r["share_eastward"] = drift.Count > 0 ? (double)east / drift.Count : double.NaN;
+            }
             return r;
         }
 
@@ -377,7 +407,10 @@ namespace AtmoSim.Runner
         private readonly Random rnd = new Random(12345);
         public readonly long[] ArmCount = new long[3];
 
-        private readonly double minExtentM;
+        private readonly double minExtentM, trackRadiusM;
+        private double cloudRatioSum; private long cloudRatioN;
+        // R_system of the body (set by the caller; the default is twice the ring radius): the front-to-system association distance is 1.5 of it.
+        public double SystemRadiusM;
 
         // trackSpeedMs: the largest drift speed the trackers follow (about 1.5 times the jet speed); minExtentCells: length of a front band.
         public FrontsAndLows(int nlon, int nlat, double radiusM, double ps, double frameSeconds, double rotationS, double ringKm, double trackSpeedMs, int minExtentCells)
@@ -386,6 +419,7 @@ namespace AtmoSim.Runner
             this.ringKm = ringKm;
             minExtentM = minExtentCells * g.CellM;
             double r1 = trackSpeedMs * frameSeconds;
+            trackRadiusM = r1; SystemRadiusM = 2.0 * ringKm * 1000.0;
             D1 = new Tracker(radiusM, r1, 1);
             D1NoSuppress = new Tracker(radiusM, r1, 1);
             D2 = new Tracker(radiusM, r1, 1);
@@ -410,13 +444,38 @@ namespace AtmoSim.Runner
         }
 
         // One frame. p: pressure anomaly (Pa), t: surface air temperature (K), cwp: cloud water proxy; all on the metric grid.
-        public void Frame(double[] p, double[] t, double[] cwp, bool collect)
+        // tRef, cwpRef: the no-wave fields of the same UT; D2 reads t - tRef and cwp - cwpRef (header H4, amended). Null: zonal-mean reference.
+        public void Frame(double[] p, double[] t, double[] cwp, bool collect, double[] tRef = null, double[] cwpRef = null)
         {
             int n2 = p.Length;
             int f = Frames++;
             var mins = Detect.Minima(g, p, ps, ringKm, true);
             var minsRaw = Detect.Minima(g, p, ps, ringKm, false);
-            var bands = Detect.Bands(g, t, cwp, minExtentM);
+            double cwThr = Detect.CloudThreshold(cwp);
+            // REPORT (G-14): the cloud water within R_system of each minimum against the zonal mean of its row, what a player would see of the system
+            for (int q = 0; q < mins.Count; q++)
+            {
+                var m = mins[q];
+                int nl = g.NLon; double rowMean = 0; for (int i = 0; i < nl; i++) rowMean += cwp[m.J * nl + i]; rowMean /= nl;
+                int rj = (int)Math.Ceiling(SystemRadiusM / g.Dy[m.J]), ri = (int)Math.Ceiling(SystemRadiusM / g.Dx[m.J]);
+                double s = 0; int cnt = 0;
+                for (int dj = -rj; dj <= rj; dj++)
+                {
+                    int jj = m.J + dj; if (jj < 0 || jj >= g.NLat) continue;
+                    for (int di = -ri; di <= ri; di++)
+                    {
+                        int ii = ((m.I + di) % nl + nl) % nl;
+                        if (MetricGrid.Dist(g.A, m.Lat, m.Lon, g.LatRad[jj], g.LonRad[ii]) > SystemRadiusM) continue;
+                        s += cwp[jj * nl + ii]; cnt++;
+                    }
+                }
+                m.CloudRatio = cnt > 0 && rowMean > 1e-9 ? s / cnt / rowMean : double.NaN;
+                mins[q] = m;
+                if (!double.IsNaN(m.CloudRatio)) { cloudRatioSum += m.CloudRatio; cloudRatioN++; }
+            }
+            double[] ta = tRef != null ? Detect.Diff(t, tRef) : Detect.ZonalAnomaly(g, t);
+            double[] ca = tRef != null ? Detect.Diff(cwp, cwpRef) : Detect.ZonalAnomaly(g, cwp);
+            var bands = Detect.BandsFromAnomaly(g, ta, ca, cwThr, minExtentM);
             if (collect) { MinimaByFrame.Add(mins); BandsByFrame.Add(bands); }
             D1.Add(f, Pts(mins), null); D1NoSuppress.Add(f, Pts(minsRaw), null);
             var arms = new List<string>();
@@ -425,13 +484,13 @@ namespace AtmoSim.Runner
             var perm = new int[n2]; for (int i = 0; i < n2; i++) perm[i] = i;
             for (int i = n2 - 1; i > 0; i--) { int k = rnd.Next(i + 1); int tmp = perm[i]; perm[i] = perm[k]; perm[k] = tmp; }
             var ps1 = new double[n2]; var t1 = new double[n2]; var c1 = new double[n2];
-            for (int i = 0; i < n2; i++) { ps1[i] = p[perm[i]]; t1[i] = t[perm[i]]; c1[i] = cwp[perm[i]]; }
+            for (int i = 0; i < n2; i++) { ps1[i] = p[perm[i]]; t1[i] = ta[perm[i]]; c1[i] = ca[perm[i]]; }
             var m1 = Detect.Minima(g, ps1, ps, ringKm, true);
-            var b1 = Detect.Bands(g, t1, c1, minExtentM);
+            var b1 = Detect.BandsFromAnomaly(g, t1, c1, cwThr, minExtentM);
             C1a.Add(f, Pts(m1), null); var ar1 = new List<string>(); C2a.Add(f, Pts(b1, ar1), ar1);
-            var ps2 = Noise(p); var t2 = Noise(t); var c2 = Noise(cwp);
+            var ps2 = Noise(p); var t2 = Noise(ta); var c2 = Noise(ca);
             var m2 = Detect.Minima(g, ps2, ps, ringKm, true);
-            var b2 = Detect.Bands(g, t2, c2, minExtentM);
+            var b2 = Detect.BandsFromAnomaly(g, t2, c2, cwThr, minExtentM);
             C1b.Add(f, Pts(m2), null); var ar2 = new List<string>(); C2b.Add(f, Pts(b2, ar2), ar2);
         }
 
@@ -449,15 +508,18 @@ namespace AtmoSim.Runner
         }
 
         // Summary over frames [f0, f1) as the header defines it. Day = one rotation period of the body.
-        public Dictionary<string, object> Summary(int f0, int f1)
+        // totalFrames > 0 and edgeFrames: tracks touching the first or last edgeFrames frames of the run are left out of the lifetime/drift statistics;
+        // jetN, jetS: the mean jet speed of the hemispheres over the run (m/s), for the per-track shares and the front association.
+        public Dictionary<string, object> Summary(int f0, int f1, int totalFrames = -1, int edgeFrames = 0, double jetN = 0.0, double jetS = 0.0)
         {
             int persist = (int)Math.Round(PersistS / frameSeconds);
+            int exB = totalFrames > 0 ? edgeFrames : 0, exA = totalFrames > 0 ? totalFrames - edgeFrames : int.MaxValue;
             var r = new Dictionary<string, object>();
             var act = D1.MeanActive(persist, f0, f1); var actRaw = D1NoSuppress.MeanActive(persist, f0, f1);
             r["d1_persistent_active_mean_per_hemisphere_north"] = act[0]; r["d1_persistent_active_mean_per_hemisphere_south"] = act[1];
             r["d1_persistent_active_mean_no_suppression_north"] = actRaw[0]; r["d1_persistent_active_mean_no_suppression_south"] = actRaw[1];
             r["d1_ring_radius_km"] = ringKm;
-            r["d1_tracker_north"] = D1.Numbers(persist, frameSeconds, 0); r["d1_tracker_south"] = D1.Numbers(persist, frameSeconds, 1);
+            r["d1_tracker_north"] = D1.Numbers(persist, frameSeconds, 0, exB, exA, jetN); r["d1_tracker_south"] = D1.Numbers(persist, frameSeconds, 1, exB, exA, jetS);
             double durDays = (f1 - f0) * frameSeconds / rotationS;
             var ev = EventCounts(D2, persist, f0, f1);
             r["d2_events_north"] = ev[0]; r["d2_events_south"] = ev[1];
@@ -469,7 +531,9 @@ namespace AtmoSim.Runner
             foreach (var t in D2.Persistent(persist)) { if (t.First < f0 || t.First >= f1) continue; if (t.Arm == "thermal") th++; else if (t.Arm == "cwp") cw++; else bo++; }
             arm["thermal"] = th; arm["cwp"] = cw; arm["both"] = bo;
             r["d2_event_arms"] = arm;
-            r["d2_tracker_north"] = D2.Numbers(persist, frameSeconds, 0); r["d2_tracker_south"] = D2.Numbers(persist, frameSeconds, 1);
+            r["d2_tracker_north"] = D2.Numbers(persist, frameSeconds, 0, exB, exA, jetN); r["d2_tracker_south"] = D2.Numbers(persist, frameSeconds, 1, exB, exA, jetS);
+            r["d2_free_tracks_with_system_north"] = WithSystem(persist, f0, f1, 0, jetN); r["d2_free_tracks_with_system_south"] = WithSystem(persist, f0, f1, 1, jetS);
+            if (MinimaByFrame.Count > 0) { r["d2_events_assigned_north"] = Events(f0, f1, 0, jetN); r["d2_events_assigned_south"] = Events(f0, f1, 1, jetS); }
             var ca = C1a.MeanActive(persist, f0, f1); var cb = C1b.MeanActive(persist, f0, f1);
             r["control_shuffle_d1_per_hemisphere"] = Math.Max(ca[0], ca[1]); r["control_noise_d1_per_hemisphere"] = Math.Max(cb[0], cb[1]);
             var ea = EventCounts(C2a, persist, f0, f1); var eb = EventCounts(C2b, persist, f0, f1);
@@ -482,13 +546,173 @@ namespace AtmoSim.Runner
             for (int i = order.Count - 1; i > 0; i--) { int k = rr.Next(i + 1); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
             if (MinimaByFrame.Count > 0)
             {
-                var tt = new Tracker(g.A, 25.0 * frameSeconds, 1);
+                // same tracker radius as the real D1 tracker
+                var tt = new Tracker(g.A, trackRadiusM, 1);
                 for (int k = 0; k < order.Count; k++) tt.Add(k, Pts(MinimaByFrame[order[k]]), null);
                 var sh = tt.MeanActive(persist, 0, order.Count);
                 r["time_shuffled_d1_per_hemisphere_north"] = sh[0]; r["time_shuffled_d1_per_hemisphere_south"] = sh[1];
             }
+            r["cloud_water_ratio_at_minima_mean"] = cloudRatioN > 0 ? cloudRatioSum / cloudRatioN : double.NaN;
             r["frames"] = f1 - f0; r["frame_seconds"] = frameSeconds;
             return r;
+        }
+
+        // Association of the persistent front tracks of one hemisphere with the persistent D1 tracks (header H5 criterion 2): a front frame is
+        // associated when its centroid lies within 1.5 R_system of a persistent D1 track position of the same frame; a front track moves with
+        // its system when at least half of its frames are associated and the median east-velocity difference to the associated D1 track
+        // (over consecutive frames associated to the same D1 track) is at most 0.3 of the jet speed.
+        private Dictionary<string, object> WithSystem(int persist, int f0, int f1, int hemi, double jetMs)
+        {
+            var d1 = new Dictionary<int, List<(int id, double lat, double lon)>>();
+            int idc = 0;
+            foreach (var t in D1.Persistent(persist))
+            {
+                if (t.Hemisphere != hemi) { idc++; continue; }
+                for (int k = 0; k < t.Frames.Count; k++)
+                {
+                    List<(int, double, double)> l;
+                    if (!d1.TryGetValue(t.Frames[k], out l)) { l = new List<(int, double, double)>(); d1[t.Frames[k]] = l; }
+                    l.Add((idc, t.Lat[k], t.Lon[k]));
+                }
+                idc++;
+            }
+            double reach = 1.5 * SystemRadiusM;
+            int tracks = 0, moving = 0, orphanFrames = 0, frontFrames = 0;
+            var rel = new List<double>();
+            foreach (var t in D2.Persistent(persist))
+            {
+                if (t.Hemisphere != hemi || t.First < f0 || t.First >= f1) continue;
+                tracks++;
+                int assoc = 0; var ids = new int[t.Frames.Count];
+                for (int k = 0; k < t.Frames.Count; k++)
+                {
+                    ids[k] = -1; double best = reach;
+                    List<(int id, double lat, double lon)> l;
+                    if (d1.TryGetValue(t.Frames[k], out l))
+                        foreach (var m in l) { double d = MetricGrid.Dist(g.A, t.Lat[k], t.Lon[k], m.lat, m.lon); if (d <= best) { best = d; ids[k] = m.id; } }
+                    frontFrames++;
+                    if (ids[k] >= 0) assoc++; else orphanFrames++;
+                }
+                var mine = new List<double>();
+                // positions of the associated D1 track by frame, for the velocity difference
+                for (int k = 1; k < t.Frames.Count; k++)
+                {
+                    if (ids[k] < 0 || ids[k] != ids[k - 1] || t.Frames[k] - t.Frames[k - 1] != 1) continue;
+                    var a0 = D1PosOf(ids[k], t.Frames[k - 1], persist); var a1 = D1PosOf(ids[k], t.Frames[k], persist);
+                    if (a0 == null || a1 == null) continue;
+                    double dtS = frameSeconds;
+                    double vf = EastStep(t.Lat[k - 1], t.Lon[k - 1], t.Lat[k], t.Lon[k]) / dtS;
+                    double vd = EastStep(a0[0], a0[1], a1[0], a1[1]) / dtS;
+                    mine.Add(Math.Abs(vf - vd));
+                }
+                double med = Tracker.Median(mine);
+                bool ok = assoc * 2 >= t.Frames.Count && !double.IsNaN(med) && med <= 0.3 * Math.Max(jetMs, 1.0);
+                if (ok) moving++;
+                if (!double.IsNaN(med)) rel.Add(med);
+            }
+            return new Dictionary<string, object>
+            {
+                { "front_tracks", tracks }, { "moving_with_system", moving },
+                { "share_moving_with_system", tracks > 0 ? (double)moving / tracks : double.NaN },
+                { "median_relative_east_speed_ms", Tracker.Median(rel) },
+                { "orphan_front_frame_share", frontFrames > 0 ? (double)orphanFrames / frontFrames : double.NaN }
+            };
+        }
+
+        // The front EVENTS of the gate (header H4 and H5 criterion 2, amended): every band of a frame is assigned to the nearest persistent D1 track
+        // position of its hemisphere within 1.5 R_system (a band with none is an orphan: reported, never counted). An event is a run (at most one
+        // frame missing) of frames in which a band is assigned to the same D1 track; it is persistent when it spans at least PersistS. It moves with
+        // its system when the standard deviation of the band-centroid offset from the D1 position over the event is at most 0.75 R_system. The event's
+        // east drift is the D1 track's unwrapped east displacement over the event plus the net change of the offset, divided by the duration.
+        public Dictionary<string, object> Events(int f0, int f1, int hemi, double jetMs)
+        {
+            int persist = (int)Math.Round(PersistS / frameSeconds);
+            var d1 = D1.Persistent(persist);
+            double reach = 1.5 * SystemRadiusM;
+            // per D1 track: frame -> (nearest assigned band offset east, north in metres, band-to-D1 distance)
+            var perTrack = new Dictionary<int, SortedDictionary<int, double[]>>();
+            int bandsTotal = 0, orphans = 0;
+            for (int f = f0; f < f1 && f < BandsByFrame.Count; f++)
+            {
+                foreach (var b in BandsByFrame[f])
+                {
+                    if (b.Hemisphere != hemi) continue;
+                    bandsTotal++;
+                    int bestId = -1; double bestD = reach; double bl = 0, bo = 0;
+                    for (int id = 0; id < d1.Count; id++)
+                    {
+                        var t = d1[id]; if (t.Hemisphere != hemi) continue;
+                        int k = t.Frames.IndexOf(f); if (k < 0) continue;
+                        double d = MetricGrid.Dist(g.A, b.Lat, b.Lon, t.Lat[k], t.Lon[k]);
+                        if (d <= bestD) { bestD = d; bestId = id; bl = t.Lat[k]; bo = t.Lon[k]; }
+                    }
+                    if (bestId < 0) { orphans++; continue; }
+                    SortedDictionary<int, double[]> m;
+                    if (!perTrack.TryGetValue(bestId, out m)) { m = new SortedDictionary<int, double[]>(); perTrack[bestId] = m; }
+                    double dl = b.Lon - bo; while (dl > Math.PI) dl -= 2 * Math.PI; while (dl < -Math.PI) dl += 2 * Math.PI;
+                    double oe = g.A * Math.Cos(0.5 * (b.Lat + bl)) * dl, on = g.A * (b.Lat - bl);
+                    double[] old;
+                    if (!m.TryGetValue(f, out old) || bestD < old[2]) m[f] = new[] { oe, on, bestD };
+                }
+            }
+            int events = 0, withSystem = 0;
+            var drifts = new List<double>(); var spreads = new List<double>(); var spans = new List<double>();
+            foreach (var kv in perTrack)
+            {
+                var t = d1[kv.Key];
+                var fr = new List<int>(kv.Value.Keys);
+                int s = 0;
+                while (s < fr.Count)
+                {
+                    int e = s;
+                    while (e + 1 < fr.Count && fr[e + 1] - fr[e] <= 2) e++;
+                    double spanS = (fr[e] - fr[s]) * frameSeconds;
+                    if (fr[s] >= f0 && fr[s] < f1 && spanS >= PersistS - 1e-6)
+                    {
+                        events++;
+                        double me = 0, mn = 0; int n = e - s + 1;
+                        for (int q = s; q <= e; q++) { me += kv.Value[fr[q]][0]; mn += kv.Value[fr[q]][1]; }
+                        me /= n; mn /= n;
+                        double v = 0;
+                        for (int q = s; q <= e; q++) { double x = kv.Value[fr[q]][0] - me, y = kv.Value[fr[q]][1] - mn; v += x * x + y * y; }
+                        double sd = Math.Sqrt(v / n);
+                        double east = 0;
+                        int k0 = t.Frames.IndexOf(fr[s]), k1 = t.Frames.IndexOf(fr[e]);
+                        for (int k = k0 + 1; k <= k1; k++) east += EastStep(t.Lat[k - 1], t.Lon[k - 1], t.Lat[k], t.Lon[k]);
+                        east += kv.Value[fr[e]][0] - kv.Value[fr[s]][0];
+                        drifts.Add(east / Math.Max(1.0, spanS)); spreads.Add(sd); spans.Add(spanS / 3600.0);
+                        if (sd <= 0.75 * SystemRadiusM) withSystem++;
+                    }
+                    s = e + 1;
+                }
+            }
+            return new Dictionary<string, object>
+            {
+                { "events", events }, { "with_system", withSystem },
+                { "share_with_system", events > 0 ? (double)withSystem / events : double.NaN },
+                { "east_drift_ms_median", Tracker.Median(drifts) }, { "offset_spread_km_median", Tracker.Median(spreads) / 1000.0 },
+                { "duration_h_median", Tracker.Median(spans) },
+                { "bands_total", bandsTotal }, { "orphan_band_share", bandsTotal > 0 ? (double)orphans / bandsTotal : double.NaN }
+            };
+        }
+
+        private double[] D1PosOf(int id, int frame, int persist)
+        {
+            int c = 0;
+            foreach (var t in D1.Persistent(persist))
+            {
+                if (c++ != id) continue;
+                int k = t.Frames.IndexOf(frame);
+                return k < 0 ? null : new[] { t.Lat[k], t.Lon[k] };
+            }
+            return null;
+        }
+
+        private double EastStep(double lat0, double lon0, double lat1, double lon1)
+        {
+            double dl = lon1 - lon0;
+            while (dl > Math.PI) dl -= 2 * Math.PI; while (dl < -Math.PI) dl += 2 * Math.PI;
+            return g.A * Math.Cos(0.5 * (lat0 + lat1)) * dl;
         }
 
         private static double[] EventCounts(Tracker t, int persist, int f0, int f1)

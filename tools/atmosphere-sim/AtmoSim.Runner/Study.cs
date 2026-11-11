@@ -80,7 +80,9 @@ namespace AtmoSim.Runner
             }
         }
 
-        // The tracker run. args: tracker <body> <days> <seed> <frameHours> <out.json> [wavesOff]
+        // The tracker run. args: tracker <body> <days> <seed> <frameHours> <out.json> [wavesOff] [utStartDays]
+        // Header H3: the run starts at UT 0 (northern midwinter) unless utStartDays is given; frames of days 3 to days-3 are summarised;
+        // D2 reads the field minus the no-wave field of the same UT (H4).
         public static int Tracker(string[] args)
         {
             var bp = ByName(args[1]);
@@ -88,27 +90,62 @@ namespace AtmoSim.Runner
             ulong seed = ulong.Parse(args[3]);
             double frameH = double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture);
             string outFile = args[5];
-            if (args.Length > 6 && args[6] == "wavesOff") bp.WavesEnabled = false;
-            var g = new WeatherGenerator(bp, seed);
-            double frameS = frameH * 3600.0;
-            int frames = (int)(days * 86400.0 / frameS);
-            int n = EvalLon * EvalLat;
-            var p = new double[n]; var t = new double[n]; var c = new double[n];
-            double ringKm = Math.Max(3.0 * 2.0 * Math.PI * bp.RadiusM / EvalLon / 1000.0, 0.5 * g.D.SystemRadiusM / 1000.0);
-            var fl = new FrontsAndLows(EvalLon, EvalLat, bp.RadiusM, bp.SurfacePressurePa, frameS, bp.RotationPeriodS, ringKm, Math.Max(1.5 * g.D.JetSpeed0, 3.0), 20);
-            double ut0 = 2.0e6;
-            for (int f = 0; f < frames; f++)
-            {
-                Fields(g, ut0 + f * frameS, EvalLon, EvalLat, p, t, c, null);
-                fl.Frame(p, t, c, true);
-            }
-            var r = fl.Summary(0, frames);
-            r["body"] = bp.Name; r["seed"] = seed; r["days"] = days; r["jet_speed_ms_annual"] = g.D.JetSpeed0; r["cells"] = g.D.Cells;
-            r["system_radius_km"] = g.D.SystemRadiusM / 1000.0; r["slots_per_hemisphere"] = g.D.SlotsPerHemisphere;
+            bool off = args.Length > 6 && args[6] == "wavesOff";
+            if (off) bp.WavesEnabled = false;
+            double utStart = args.Length > 7 ? double.Parse(args[7], System.Globalization.CultureInfo.InvariantCulture) * 86400.0 : 0.0;
+            var r = RunTracker(bp, seed, days, frameH, utStart);
+            r["waves_off"] = off;
             string json = Json.Write(r);
             Console.Write(json);
             File.WriteAllText(outFile, json);
             return 0;
+        }
+
+        public static Dictionary<string, object> RunTracker(BodyParams bp, ulong seed, double days, double frameH, double utStart)
+        {
+            var g = new WeatherGenerator(bp, seed);
+            var twinBody = bp.Clone(); twinBody.WavesEnabled = false;
+            var gOff = new WeatherGenerator(twinBody, seed);
+            double frameS = frameH * 3600.0;
+            int frames = (int)(days * 86400.0 / frameS);
+            int n = EvalLon * EvalLat;
+            var p = new double[n]; var t = new double[n]; var c = new double[n];
+            var tOff = new double[n]; var cOff = new double[n];
+            double ringKm = Math.Max(3.0 * 2.0 * Math.PI * bp.RadiusM / EvalLon / 1000.0, 0.5 * g.D.SystemRadiusM / 1000.0);
+            var fl = new FrontsAndLows(EvalLon, EvalLat, bp.RadiusM, bp.SurfacePressurePa, frameS, bp.RotationPeriodS, ringKm, Math.Max(1.5 * g.D.JetSpeed0, 3.0), 20);
+            fl.SystemRadiusM = g.D.SystemRadiusM;
+            double jetN = 0, jetS = 0; int nj = 0;
+            for (int f = 0; f < frames; f++)
+            {
+                double ut = utStart + f * frameS;
+                Fields(g, ut, EvalLon, EvalLat, p, t, c, null);
+                FieldsTC(gOff, ut, EvalLon, EvalLat, tOff, cOff);
+                fl.Frame(p, t, c, true, tOff, cOff);
+                if (f % 2 == 0) { jetN += g.JetSpeed(1, ut); jetS += g.JetSpeed(-1, ut); nj++; }
+            }
+            jetN /= Math.Max(1, nj); jetS /= Math.Max(1, nj);
+            int edge = (int)Math.Round(3.0 * 86400.0 / frameS);
+            var r = fl.Summary(edge, frames - edge, frames, edge, jetN, jetS);
+            r["body"] = bp.Name; r["seed"] = seed; r["days"] = days; r["ut_start_s"] = utStart; r["jet_speed_ms_annual"] = g.D.JetSpeed0;
+            r["jet_mean_north"] = jetN; r["jet_mean_south"] = jetS; r["cells"] = g.D.Cells;
+            r["system_radius_km"] = g.D.SystemRadiusM / 1000.0; r["slots_per_hemisphere"] = g.D.SlotsPerHemisphere;
+            r["mode"] = ReconDir != null ? "R" : "S";
+            return r;
+        }
+
+        // Temperature and cloud water only (the no-wave twin).
+        public static void FieldsTC(WeatherGenerator g, double ut, int nx, int ny, double[] t, double[] cwp)
+        {
+            Weather w;
+            for (int j = 0; j < ny; j++)
+            {
+                double lat = (90.0 - (j + 0.5) * 180.0 / ny) * Math.PI / 180.0;
+                for (int i = 0; i < nx; i++)
+                {
+                    g.Sample(lat, 2.0 * Math.PI * (i + 0.5) / nx, 0.0, ut, out w);
+                    int k = j * nx + i; t[k] = w.TempK; cwp[k] = w.CloudWater;
+                }
+            }
         }
 
         // Zonal means over 10-degree bands and 40 days: zonal <body> <cells 0|1> <waves 0|1>
@@ -165,6 +202,9 @@ namespace AtmoSim.Runner
             double ringKm = Math.Max(3.0 * 2.0 * Math.PI * bp.RadiusM / EvalLon / 1000.0, 0.5 * g.D.SystemRadiusM / 1000.0);
             var events = new List<object>(); var times = new List<double>();
             var p = new double[n]; var t = new double[n]; var c = new double[n];
+            var twinM = bp.Clone(); twinM.WavesEnabled = false;
+            var gOffM = new WeatherGenerator(twinM, seed);
+            var tOffM = new double[n]; var cOffM = new double[n];
             Weather w;
             for (int f = 0; f < frames; f++)
             {
@@ -181,7 +221,8 @@ namespace AtmoSim.Runner
                     }
                 var mins = new List<object>(); foreach (var m in Detect.Minima(mg, p, bp.SurfacePressurePa, ringKm, true)) mins.Add(new[] { m.Lat * 180.0 / Math.PI, m.Lon * 180.0 / Math.PI });
                 var bands = new List<object>();
-                foreach (var b in Detect.Bands(mg, t, c, 20 * mg.CellM))
+                FieldsTC(gOffM, ut, EvalLon, EvalLat, tOffM, cOffM);
+                foreach (var b in Detect.Bands(mg, t, c, 20 * mg.CellM, tOffM, cOffM))
                     bands.Add(new Dictionary<string, object> { { "lat", b.Lat * 180.0 / Math.PI }, { "lon", b.Lon * 180.0 / Math.PI }, { "extent_km", b.ExtentKm }, { "aspect", b.Aspect }, { "arm", b.Arm }, { "axis_deg", b.AxisDeg } });
                 events.Add(new Dictionary<string, object> { { "minima", mins }, { "bands", bands } });
             }

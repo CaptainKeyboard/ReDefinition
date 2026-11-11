@@ -77,6 +77,34 @@ namespace AtmoSim.Tests
         }
 
         [TestMethod]
+        public void TheMixerAvalanchesAndTheChainDependsOnEveryArgument()
+        {
+            // flipping any one input bit flips every output bit with a probability near one half (mean over 2000 inputs, all 64 bits)
+            var rng = new Random(99);
+            var flips = new double[64];
+            const int N = 2000;
+            for (int n = 0; n < N; n++)
+            {
+                ulong x = ((ulong)(uint)rng.Next() << 32) | (uint)rng.Next();
+                ulong hx = Hash.Mix(x);
+                for (int b = 0; b < 64; b++)
+                {
+                    ulong d = hx ^ Hash.Mix(x ^ (1UL << b));
+                    int pc = 0; while (d != 0) { pc += (int)(d & 1UL); d >>= 1; }
+                    flips[b] += pc / 64.0;
+                }
+            }
+            for (int b = 0; b < 64; b++) Assert.AreEqual(0.5, flips[b] / N, 0.02, "input bit " + b);
+            // the chained hash changes when any one of the four arguments changes by one
+            ulong h0 = Hash.Of(7, 1, 2, 3);
+            Assert.AreNotEqual(h0, Hash.Of(8, 1, 2, 3)); Assert.AreNotEqual(h0, Hash.Of(7, 2, 2, 3));
+            Assert.AreNotEqual(h0, Hash.Of(7, 1, 3, 3)); Assert.AreNotEqual(h0, Hash.Of(7, 1, 2, 4));
+            // draws of one hash are distinct streams with mean near one half
+            double s = 0; for (int k = 0; k < 4000; k++) s += Hash.Draw(h0, k);
+            Assert.AreEqual(0.5, s / 4000.0, 0.02);
+        }
+
+        [TestMethod]
         public void SameSeedGivesTheSameHashAndAnotherSeedDiffers()
         {
             var bp = BodyParams.KerbinLike();

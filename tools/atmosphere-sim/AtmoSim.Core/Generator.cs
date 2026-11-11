@@ -35,8 +35,8 @@ namespace AtmoSim.Core
 
     // The deterministic synoptic weather generator: a pure function of (body, seed, position, altitude, UT). No state, no
     // checkpoints. The only caches are per-thread and hold values that are themselves pure functions of the UT.
-    // Foreign work: none taken. Technique references in comments: Held-Hou and Rhines scalings for the circulation numbers,
-    // the Stefan law for ice (SurfaceLayer.cs), degree-day melt, the wet-bulb snow fraction of plan 09 section 3.5.
+    // Technique references: Held-Hou and Rhines scalings for the circulation numbers, the Stefan law for ice (SurfaceLayer.cs),
+    // degree-day melt, the wet-bulb snow fraction of plan 09 section 3.5.
     public sealed class WeatherGenerator
     {
         // Coefficients of the cloud and rain proxies (CW = bg + X + cell part; P = kP max(0, X - c1) + kC cell).
