@@ -110,7 +110,7 @@ namespace ReDefinition.Atmospheres
     }
 
     // P4: a constant wind on a parachute drop. The pod hangs under its canopy over the sea; for 15 s there is no wind (the control), then a
-    // wind of 20 m/s from the west blows for 30 s. The drift east in each period is compared with a drag model whose only input is the
+    // wind of 20 m/s blows for 30 s along the bearing from the pad to the pod. The drift along it in each period is compared with a drag model whose only input is the
     // measured descent speed (ReconMath.PredictChuteDrift).
     internal sealed partial class AtmoRecon
     {

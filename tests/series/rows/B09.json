@@ -33,6 +33,8 @@
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P7.share_control", "max": 0.05, "required": false, "note": "P7 control: fog off gives no change" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P8.luma_ratio", "min": 0.9, "max": 1.1, "note": "P8 blocking: a shader the game does not know is within 10 % of a stock material (full mod set)" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "P8.luma_ratio", "min": 0.9, "max": 1.1, "note": "P8 interaction row: the same without Scatterer" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P8.control_luma_ratio", "max": 0.5, "note": "P8 control: the same shader with a tenth of the albedo reads far from the stock material, so the test can tell" },
+    { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "P8.control_luma_ratio", "max": 0.5, "note": "P8 control (run2)" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P9.layer_list_complete", "equals": 1, "required": false, "note": "P9 informative: every EVE layer has a name and a body" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run1", "metric": "P9.rebind_latency_frames", "min": 0, "required": false, "note": "P9 informative: frames until a forced Apply drops our bound texture (-1 = never seen)" },
     { "series": "K-pre", "section": "B09", "package": "B09", "start": "run2", "metric": "P10.disc_fraction_50m", "min": 0.9, "note": "P10 blocking: the disc hides the stock water at 50 m camera height" },

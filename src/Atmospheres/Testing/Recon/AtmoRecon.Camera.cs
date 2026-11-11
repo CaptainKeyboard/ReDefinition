@@ -91,7 +91,7 @@ namespace ReDefinition.Atmospheres
             json.Save(DumpPath("depth-taps.json"));
 
             // The verdicts per camera.
-            bool readable = false, fallback = false;
+            bool readable = false, fallback = false, fallbackMain = false;
             var names = new HashSet<string>();
             foreach (DepthTap tap in taps) names.Add(tap.Camera);
             foreach (string camera in names)
@@ -118,10 +118,13 @@ namespace ReDefinition.Atmospheres
                 Emit("P6." + camera.Replace(' ', '_') + ".unchanged_after_alpha", afterSame);
                 if (alphaSame) readable = true;
                 if (referenceValid) fallback = true;
+                // The fallback counts for the verdict only on the camera that draws the pod and the ocean.
+                if (referenceValid && camera == main.name) fallbackMain = true;
             }
             Emit("P6.depth_readable_3000", readable);
             Emit("P6.depth_fallback_ok", fallback);
-            Emit("P6.depth_ok", readable || fallback);
+            Emit("P6.depth_fallback_main_camera", fallbackMain);
+            Emit("P6.depth_ok", readable || fallbackMain);
 
             foreach (DepthTap tap in taps)
             {

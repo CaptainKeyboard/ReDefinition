@@ -161,6 +161,7 @@ namespace ReDefinition.Atmospheres
                 host.PerFrame.Clear();
                 host.EndOfFrame.Clear();
                 ReconMesh.DestroyTracked();
+                UndressPod();
                 ReconWindHook.Wind = Vector3.zero;
                 if (renderSettingsKept)
                 {

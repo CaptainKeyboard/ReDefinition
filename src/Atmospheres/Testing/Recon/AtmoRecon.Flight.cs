@@ -140,6 +140,19 @@ namespace ReDefinition.Atmospheres
                     double lon = PadLongitude + distance * Math.Sin(bearing) / (radius * Math.Cos(lat * Math.PI / 180.0)) * 180.0 / Math.PI;
                     deepSteps = ground(lat, lon) < -12.0 ? deepSteps + 1 : 0;
                     if (deepSteps < 3) continue;
+                    // The wind of the drop carries the canopy away from the coast along this bearing: the sea must go on for 2 km.
+                    bool clear = true;
+                    for (double extra = 100.0; extra <= 2000.0 && clear; extra += 100.0)
+                    {
+                        double lat2 = PadLatitude + (distance + extra) * Math.Cos(bearing) / radius * 180.0 / Math.PI;
+                        double lon2 = PadLongitude + (distance + extra) * Math.Sin(bearing) / (radius * Math.Cos(lat2 * Math.PI / 180.0)) * 180.0 / Math.PI;
+                        clear = ground(lat2, lon2) < -12.0;
+                    }
+                    if (!clear)
+                    {
+                        deepSteps = 0;
+                        continue;
+                    }
                     best = distance;
                     podLatitude = lat;
                     podLongitude = lon;

@@ -266,14 +266,31 @@ namespace ReDefinition.Atmospheres
                 EmitText("P8.error", "the sun is " + Num(sunElevation) + " degrees over the pod: no daylight for the shader test");
                 yield break;
             }
-            foreach (ProbeWait w in ShaderCase(stock, foreign, "")) yield return w;
+            foreach (ProbeWait w in ShaderCase(stock, foreign, "", 0.3f)) yield return w;
             if (forwardOnly != null)
             {
-                foreach (ProbeWait w in ShaderCase(stock, forwardOnly, "forward_")) yield return w;
+                foreach (ProbeWait w in ShaderCase(stock, forwardOnly, "forward_", 0.3f)) yield return w;
             }
+            // The control: the same foreign shader with a tenth of the albedo must read far from 1, or the test cannot tell.
+            foreach (ProbeWait w in ShaderCase(stock, foreign, "control_", 0.03f)) yield return w;
         }
 
-        private IEnumerable<ProbeWait> ShaderCase(Shader stock, Shader foreign, string key)
+        // The pod's renderers and their own materials while the test materials are on them, so that a step that throws can put them back.
+        private Renderer[] dressedRenderers;
+        private Material[][] dressedOriginals;
+
+        private void UndressPod()
+        {
+            if (dressedRenderers == null) return;
+            for (int i = 0; i < dressedRenderers.Length; i++)
+            {
+                if (dressedRenderers[i] != null) dressedRenderers[i].sharedMaterials = dressedOriginals[i];
+            }
+            dressedRenderers = null;
+            dressedOriginals = null;
+        }
+
+        private IEnumerable<ProbeWait> ShaderCase(Shader stock, Shader foreign, string key, float foreignGrey)
         {
             Vessel vessel = FlightGlobals.ActiveVessel;
             CelestialBody body = vessel.mainBody;
@@ -290,7 +307,7 @@ namespace ReDefinition.Atmospheres
             Vector3d rightOffset = centre + (Vector3d)forward * 25.0 + (Vector3d)right * 4.0 + up * 3.0 - vessel.CoMD;
             var grey = new Color(0.3f, 0.3f, 0.3f, 1f);
             var stockMaterial = new Material(stock) { color = grey };
-            var foreignMaterial = new Material(foreign) { color = grey };
+            var foreignMaterial = new Material(foreign) { color = new Color(foreignGrey, foreignGrey, foreignGrey, 1f) };
             var a = new ReconBall(vessel, leftOffset, 2.5f, stockMaterial, 0);
             var b = new ReconBall(vessel, rightOffset, 2.5f, foreignMaterial, 0);
             Action follow = () => { a.Update(); b.Update(); };
@@ -349,11 +366,14 @@ namespace ReDefinition.Atmospheres
                         if (texture == null && m != null && m.HasProperty("_MainTex")) texture = m.mainTexture;
                     }
                 }
+                dressedRenderers = renderers;
+                dressedOriginals = originals;
                 double[] luma = new double[2];
                 Shader[] shaders = { stock, foreign };
                 for (int state = 0; state < 2; state++)
                 {
-                    var dressed = new Material(shaders[state]) { color = Color.white };
+                    float scale = state == 1 ? foreignGrey / 0.3f : 1f;
+                    var dressed = new Material(shaders[state]) { color = new Color(scale, scale, scale, 1f) };
                     if (texture != null) dressed.mainTexture = texture;
                     foreach (Renderer r in renderers)
                     {
@@ -370,7 +390,7 @@ namespace ReDefinition.Atmospheres
                     }
                     UnityEngine.Object.Destroy(dressed);
                 }
-                for (int i = 0; i < renderers.Length; i++) renderers[i].sharedMaterials = originals[i];
+                UndressPod();
                 partRatio = luma[0] > 1e-5 ? luma[1] / luma[0] : double.NaN;
                 Emit("P8." + key + "part_stock_luma", luma[0]);
                 Emit("P8." + key + "part_foreign_luma", luma[1]);
