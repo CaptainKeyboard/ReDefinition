@@ -207,6 +207,7 @@ namespace ReDefinition.Atmospheres
                     yield return ProbeWait.Seconds(3);
                     EmitText("D37.iva_draw_mode", CameraFrostRenderer.ActiveMode);
                     Emit("D37.iva_mask_valid", CameraFrostRenderer.IvaMaskValid);
+                    Emit("D37.iva_mask_coverage", module.ReadInteriorCoverage());
                     EmitText("D37.host_camera_iva", CameraFrostRenderer.LastHostCamera ?? "none");
 
                     // Map view: nothing is drawn while it is on.

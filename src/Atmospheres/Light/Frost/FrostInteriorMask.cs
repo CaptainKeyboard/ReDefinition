@@ -10,12 +10,14 @@ namespace ReDefinition.Atmospheres
     // target as covered / not covered after its geometry is drawn.
     //
     // [VERIFY in the game] that the internal camera clears depth before it draws (so its depth buffer holds the interior only) and that
-    // BuiltinRenderTextureType.Depth is valid at AfterForwardAlpha for it. The series row D37.iva_mask_valid records both; where the mask
-    // is not valid the renderer uses the quad fallback in the IVA instead of the host composite.
+    // BuiltinRenderTextureType.Depth is valid at BeforeForwardAlpha for it. The series rows D37.iva_mask_valid and
+    // D37.iva_mask_coverage record both (a coverage of 0 or 1 means the mask is empty or the whole picture); where the mask is not
+    // there the renderer uses the quad fallback in the IVA instead of the host composite.
     internal sealed class FrostInteriorMask : IDisposable
     {
         private const string CameraName = "InternalCamera";
-        private const CameraEvent Event = CameraEvent.AfterForwardAlpha;
+        // RECON P6: the depth is valid from BeforeForwardAlpha on and the global texture is overwritten after the transparent queue.
+        private const CameraEvent Event = CameraEvent.BeforeForwardAlpha;
 
         private Camera camera;
         private CommandBuffer buffer;
@@ -28,9 +30,21 @@ namespace ReDefinition.Atmospheres
             get { return mask; }
         }
 
-        internal bool CameraFound
+        // The share of the mask that is covered (1: geometry drawn), read back from the GPU; -1 where there is no mask. It waits for the
+        // GPU and allocates: the series probe's diagnostic only.
+        internal float ReadCoverage()
         {
-            get { return camera != null; }
+            if (mask == null) return -1f;
+            RenderTexture previous = RenderTexture.active;
+            RenderTexture.active = mask;
+            var copy = new Texture2D(mask.width, mask.height, TextureFormat.RGBA32, false, true);
+            copy.ReadPixels(new Rect(0, 0, mask.width, mask.height), 0, 0);
+            RenderTexture.active = previous;
+            Color32[] pixels = copy.GetPixels32();
+            UnityEngine.Object.Destroy(copy);
+            int covered = 0;
+            for (int i = 0; i < pixels.Length; i++) if (pixels[i].r > 127) covered++;
+            return pixels.Length == 0 ? -1f : covered / (float)pixels.Length;
         }
 
         // The frame the buffer was last rebuilt for (diagnostics).

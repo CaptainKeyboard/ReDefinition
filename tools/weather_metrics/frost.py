@@ -4,7 +4,7 @@
 
 Stage "scene" runs the player's scene frost-check, which draws the frost's own pass (FrostPass, FrostAtlas and the shader, the classes the
 mod uses) onto an image of the scene's size and judges itself: the atlas is 4 MB and builds in under 60 ms; the contribution-mask coverage
-at exposure 0 / 0.4 / 1 against the design table 0 / 10.0 / 32.5 % (16:9, +-10 %) and against the CPU arithmetic (2 %); not one mask pixel
+at exposure 0 / 0.4 / 1 against the design table 0 / 12.4 / 33.3 % (16:9, +-10 %) and against the CPU arithmetic (2 %); not one mask pixel
 in the clear centre; the picture outside the mask identical with the frost on and off; a flake's size and refraction; a drop's trail
 against the gravity direction (down, and rolled to the right) and its wiping of the frost; an empty command buffer when nothing is on the
 glass; the cost of an active draw at 2560 x 1440 (at most 0.25 ms, reported as the frame loop minus the empty-clear baseline).

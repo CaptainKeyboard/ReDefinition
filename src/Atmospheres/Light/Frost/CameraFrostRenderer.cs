@@ -33,12 +33,25 @@ namespace ReDefinition.Atmospheres
         private const int FailureLimit = 5;
         private const int HostAliveFrames = 3;
         private const float SampleEveryS = 0.25f;
+        private const float ShelterEveryS = 0.2f;
+        private const float IvaMaskHoldS = 3f;
+        private const int HostWaitFrames = 30;
+        private const string InternalCameraName = "InternalCamera";
 
         private FrostPass pass;
         private Shader shader;
         private Texture2D atlas;
         private byte[] builtAtlas;
+        private string atlasError;
         private double atlasBuildMs = -1;
+        private int hostPendingFrames;
+        private bool ivaHostDead, evaHostDead;
+        private float ivaMaskUntil = -1f;
+        private float shelterAge = 1e9f;
+        private bool sheltered;
+        private Camera lastHostCameraRef;
+        private bool lastHostCameraInternal;
+        private BodyFrame basis;
         private readonly CameraFrost state = new CameraFrost();
         private readonly FrostInteriorMask interior = new FrostInteriorMask();
         private FrostDraw draw;
@@ -79,6 +92,12 @@ namespace ReDefinition.Atmospheres
             get { return pass != null; }
         }
 
+        // The share of the interior mask that is covered, read back from the GPU (-1: no mask). The series probe's diagnostic.
+        internal float ReadInteriorCoverage()
+        {
+            return interior.ReadCoverage();
+        }
+
         // Empties the glass (the series probe starts each step from a clear pane).
         internal void ResetState()
         {
@@ -101,11 +120,18 @@ namespace ReDefinition.Atmospheres
             // The atlas is painted on a worker thread (pure maths), uploaded by Tick.
             ThreadPool.QueueUserWorkItem(delegate
             {
-                var watch = Stopwatch.StartNew();
-                byte[] pixels = FrostAtlas.Build();
-                double ms = watch.Elapsed.TotalMilliseconds;
-                atlasBuildMs = ms;
-                Volatile.Write(ref builtAtlas, pixels);
+                try
+                {
+                    var watch = Stopwatch.StartNew();
+                    byte[] pixels = FrostAtlas.Build();
+                    atlasBuildMs = watch.Elapsed.TotalMilliseconds;
+                    Volatile.Write(ref builtAtlas, pixels);
+                }
+                catch (Exception e)
+                {
+                    // Reported by Tick on the main thread.
+                    Volatile.Write(ref atlasError, e.GetType().Name + " " + e.Message);
+                }
             });
             initialised = true;
             ActiveMode = "none";
@@ -220,6 +246,13 @@ namespace ReDefinition.Atmospheres
         private void EnsurePass()
         {
             if (pass != null || shader == null) return;
+            string error = Volatile.Read(ref atlasError);
+            if (error != null)
+            {
+                AtmospheresLog.WarnOnce("camera frost: the atlas could not be built (" + error + "); the frost stays off");
+                shader = null;
+                return;
+            }
             byte[] pixels = Volatile.Read(ref builtAtlas);
             if (pixels == null) return;
             atlas = FrostAtlas.MakeTexture(pixels);
@@ -243,6 +276,7 @@ namespace ReDefinition.Atmospheres
                 interior.Update(false, pass);
                 EnsureHook(flightScene && settingsOn);
                 Idle();
+                ResetReadings();
                 return;
             }
 
@@ -256,6 +290,7 @@ namespace ReDefinition.Atmospheres
                 interior.Update(false, pass);
                 EnsureHook(false);
                 Idle();
+                ResetReadings();
                 return;
             }
             if (vessel.id != lastVessel || body.flightGlobalsIndex != lastBody)
@@ -297,6 +332,21 @@ namespace ReDefinition.Atmospheres
             Vector3 down = (body.position - (Vector3d)flight.transform.position).normalized;
             float gx = Vector3.Dot(down, flight.transform.right), gy = Vector3.Dot(down, flight.transform.up);
 
+            // The air over the glass: the vessel's velocity through the air, the wind taken from the body-fixed frame (east, north, up)
+            // into the world.
+            Vector3d camWorld = flight.transform.position;
+            BodyFrame.Compute(body, camWorld, ref basis);
+            Vector3d windWorld = live ? basis.East * view.WindWorld.x + basis.North * view.WindWorld.y + basis.Up * view.WindWorld.z : Vector3d.zero;
+            float airflow = (float)(vessel.srf_velocity - windWorld).magnitude;
+
+            // Under a roof the weather does not reach the glass (an EVA camera only; a cabin's pane faces the weather whatever is above).
+            shelterAge += Time.unscaledDeltaTime;
+            if (shelterAge >= ShelterEveryS)
+            {
+                shelterAge = 0f;
+                sheltered = where == FrostView.Eva && t.ShelterM > 0f && Roofed(flight.transform.position, (Vector3)basis.Up, t.ShelterM, vessel);
+            }
+
             var input = new FrostInput
             {
                 Dt = Time.timeScale > 0f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f,
@@ -306,12 +356,13 @@ namespace ReDefinition.Atmospheres
                 TemperatureK = temperatureK,
                 FrostLimitK = rules.MaxTemperatureK,
                 Strength = rules.Strength,
-                AirflowMs = (float)vessel.srfSpeed + (live ? new Vector2(view.WindWorld.x, view.WindWorld.y).magnitude : 0f),
+                AirflowMs = airflow,
                 GustPhase = live ? view.GustPhase : 0f,
-                Sheltered = !live || view.Level < CameraFrost.WeatherFrom,
+                Sheltered = !live || view.Level < CameraFrost.WeatherFrom || sheltered,
                 GravityX = gx,
                 GravityY = gy,
                 GravityInPlane = Mathf.Sqrt(gx * gx + gy * gy),
+                Aspect = flight.aspect,
                 Seed = live ? view.FlakeSeed : 0
             };
             state.Step(ref input, ref t);
@@ -323,9 +374,12 @@ namespace ReDefinition.Atmospheres
             ActiveView = where;
 
             bool wantDraw = where != FrostView.Off && state.NeedsDraw(ref t);
+            // The interior mask stays on for IvaMaskHoldS after the last frame the glass needed it, so that a pane that flickers around
+            // the skip threshold does not rebuild it.
             bool ivaWanted = where == FrostView.Iva && wantDraw && Tuning.Flag("frost.ivaMask", true) && Services.PostUpscale.HostAvailable;
-            interior.Update(ivaWanted, pass);
-            IvaMaskValid = ivaWanted && interior.Mask != null && interior.BuiltFrame >= 0 && Time.frameCount - interior.BuiltFrame > 2;
+            if (ivaWanted) ivaMaskUntil = Time.unscaledTime + IvaMaskHoldS;
+            interior.Update(where == FrostView.Iva && Time.unscaledTime < ivaMaskUntil, pass);
+            IvaMaskValid = interior.Mask != null && interior.BuiltFrame >= 0 && Time.frameCount - interior.BuiltFrame > 2;
             if (!wantDraw)
             {
                 EnsureHook(true);
@@ -363,14 +417,33 @@ namespace ReDefinition.Atmospheres
                 : vessel.upAxis;
             float elevation = Mathf.Asin(Mathf.Clamp((float)Vector3d.Dot(sun, vessel.upAxis), -1f, 1f));
             draw.Light = FrostLight.Factor(elevation, live ? view.SunTransmission : 1f, ref t);
-            float c = 0.15f + 0.7f * draw.Light;
+            float c = t.QuadBase + t.QuadLight * draw.Light;
             draw.QuadColour = new Color(t.TintR * c, t.TintG * c, t.TintB * c, 1f);
             draw.InteriorMask = null;
             draw.Aspect = flight.aspect;
             drawReady = true;
 
+            // Host composite when the hook answers and, for a cabin, the interior mask is there. A host that was selected for a view and
+            // did not draw in HostWaitFrames frames (the hook is called for another camera than the one assumed, or not at all) is
+            // dropped for that view and the quad draws instead.
             bool hostAlive = hostRegistered && !hostFailed && Time.frameCount - lastHostCallFrame <= HostAliveFrames;
-            bool hostUsable = hostAlive && (where == FrostView.Eva || IvaMaskValid);
+            bool dead = where == FrostView.Iva ? ivaHostDead : evaHostDead;
+            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || IvaMaskValid);
+            if (hostUsable)
+            {
+                hostPendingFrames++;
+                if (hostPendingFrames > HostWaitFrames)
+                {
+                    if (where == FrostView.Iva) ivaHostDead = true; else evaHostDead = true;
+                    AtmospheresLog.WarnOnce("camera frost: the host hook drew nothing in " + HostWaitFrames + " frames in the " + where
+                                            + " view (called for '" + (LastHostCamera ?? "no camera") + "'); the quad fallback draws it");
+                    hostUsable = false;
+                }
+            }
+            else
+            {
+                hostPendingFrames = 0;
+            }
             string mode = hostUsable ? "host" : "quad";
             if (mode != lastModeLogged)
             {
@@ -394,7 +467,25 @@ namespace ReDefinition.Atmospheres
             drawReady = false;
             HostComposed = false;
             ActiveMode = "none";
+            hostPendingFrames = 0;
+        }
+
+        // The readings of the series when there is no frost to read: the pane, the view and the counts.
+        private static void ResetReadings()
+        {
+            ActiveView = FrostView.Off;
+            LastExposure = 0f;
+            LastGrowth = 0f;
+            LastFlakes = 0;
+            LastDrops = 0;
             IvaMaskValid = false;
+        }
+
+        // Whether something solid lies above the point within reach, ignoring the vessel itself: the EVA camera is under a roof, a wing
+        // or a rock. Layers 0 (parts) and 15 (scenery and terrain).
+        private static bool Roofed(Vector3 camera, Vector3 up, float reach, Vessel vessel)
+        {
+            return FrostRoof.Roofed(camera, up, reach, (1 << 0) | (1 << 15), vessel);
         }
 
         // Keeps the host hook registered while the frost is in use (a flight, the setting on) and takes it away otherwise, so that a
@@ -419,12 +510,19 @@ namespace ReDefinition.Atmospheres
             try
             {
                 lastHostCallFrame = Time.frameCount;
-                if (camera != null) LastHostCamera = camera.name;
+                if (camera != lastHostCameraRef)
+                {
+                    // The name is read once per camera, not once per call (the property allocates a string).
+                    lastHostCameraRef = camera;
+                    lastHostCameraInternal = camera != null && camera.name == InternalCameraName;
+                    LastHostCamera = camera != null ? camera.name : null;
+                }
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
                 // The hook is called for the camera the rig upscales: the flight camera, and in the IVA possibly the internal camera
                 // [VERIFY: the series row D37.host_camera_iva names the one the game gives].
-                bool ours = camera == flight || (ActiveView == FrostView.Iva && camera != null && camera.name == "InternalCamera");
+                bool ours = camera == flight || (ActiveView == FrostView.Iva && lastHostCameraInternal);
                 if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null) return;
+                hostPendingFrames = 0;
                 FrostDraw d = draw;
                 d.Aspect = (float)upscaled.width / Mathf.Max(upscaled.height, 1);
                 d.InteriorMask = ActiveView == FrostView.Iva ? interior.Mask : null;

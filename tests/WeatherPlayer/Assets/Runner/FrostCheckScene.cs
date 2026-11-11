@@ -14,7 +14,8 @@ namespace ReDefinition.WeatherPlayer
     // Reference expectations (written before the scene was built):
     //   * the atlas is 4 MB and builds in under 60 ms in this runtime;
     //   * the frost's coverage (the contribution mask, atmoDebug = 1: the pixels whose opacity is at least 0.15) at exposure 0 / 0.4 / 1
-    //     at 16:9 is 0 / 10.0 / 32.5 % of the picture, each within 10 %, and equals the CPU arithmetic of FrostShape within 2 %;
+    //     at 16:9 is 0 / 12.4 / 33.3 % of the picture (design 4.3: reach 0.35 * exposure^0.7 of the half-diagonal), each within 10 %,
+    //     and equals the CPU arithmetic of FrostShape within 2 %;
     //   * at exposure 1 not one pixel of the contribution mask lies inside the clear centre (r < 0.40), and the pixels of the picture
     //     outside the mask are identical with the frost on and off (A/B);
     //   * a flake of 7 px radius covers 35-120 % of the area of its disc and refracts the picture behind it;
@@ -29,8 +30,8 @@ namespace ReDefinition.WeatherPlayer
     {
         private const int W = 1280, H = 720;
         private const float Aspect = W / (float)H;
-        // The design table at 16:9 (FrostShapeTests.CoverageFollowsTheDesignTable): share of the picture at exposure 0.4 and 1.
-        private const float DesignAt04 = 0.100f, DesignAt1 = 0.325f;
+        // The design table of design 4.3 at 16:9 (FrostShapeTests.DesignTable): the share of the picture outside the radius 1 - growth.
+        private const float DesignAt04 = 0.124f, DesignAt1 = 0.333f;
         private const float MaskRed = 0.15f * 0.15f;
 
         private FrostPass pass;

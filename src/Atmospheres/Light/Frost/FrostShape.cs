@@ -10,8 +10,9 @@ namespace ReDefinition.Atmospheres
     // out), and a hard clear disc around the centre keeps the middle of the view readable whatever the numbers say.
     //
     // The design table (the reference the player's coverage is judged against) is GeometricCoverage: the share of the picture outside
-    // the radius 1 - growth. At 16:9 and the default growth curve: exposure 0 gives 0 %, 0.4 about 7 %, 1.0 about 38 % (the exact figures
-    // are printed by the unit test FrostShapeTests.DesignTable).
+    // the radius 1 - growth, with the reach of design 4.3 (0 to 0.35 of the half-diagonal) on the curve growth = 0.35 * exposure^0.7. At
+    // 16:9 it is 0 % at exposure 0, 12.4 % at 0.4 and 33.3 % at 1.0 (FrostShapeTests.DesignTable prints them). The ragged edge and the
+    // edge bias of the tuning are set so that the frost the shader draws covers that much within 10 %.
     internal static class FrostShape
     {
         // The most the frost reaches in from the corners, as a share of the half-diagonal. No tuning value goes above it.
@@ -64,12 +65,12 @@ namespace ReDefinition.Atmospheres
         {
             if (growth <= 0.0005f) return 0f;
             float jag = t.Jag * (0.4f + growth);
-            float thr = (r - (1f - growth)) + jag * (mask - 0.5f) * 2f;
-            float geo = Smooth(0f, 0.05f, thr);
+            float thr = (r - (1f - growth)) + jag * (mask - 0.5f) * 2f + t.EdgeBias;
+            float geo = Smooth(0f, t.EdgeSoft, thr);
             geo *= Smooth(t.Centre, t.Centre + 0.12f, r);
             float bx = nx * 2f - 1f, by = ny * 2f - 1f;
             float relief = Clamp01((float)Math.Sqrt(bx * bx + by * by) * 1.6f);
-            float thick = 0.62f + 0.38f * Clamp01(exposure);
+            float thick = t.ThickMin + (1f - t.ThickMin) * Clamp01(exposure);
             return geo * t.Opacity * thick * (0.6f + 0.4f * relief);
         }
 

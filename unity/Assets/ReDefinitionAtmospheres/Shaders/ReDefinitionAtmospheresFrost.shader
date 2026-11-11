@@ -70,6 +70,12 @@ Shader "ReDefinition/AtmospheresFrost"
     float4 _FrostD;
     // x = 1 where the interior mask is bound, y = opacity of the fallback quad.
     float4 _FrostE;
+    // x = softness of the frost edge, y = opacity share of the thinnest frost, z = flake opacity, w = drop head opacity.
+    float4 _FrostF;
+    // x = wet trail opacity, y = flake lens, z = scatter mix, w = flake milkiness.
+    float4 _FrostG;
+    // x = luminance gain of the scattered frost, y = of a flake, z = floor light, w = shift of the ragged edge.
+    float4 _FrostH;
     // rgb = colour of the scattered light, relative to the image.
     float4 _FrostTint;
     // xy = the direction down the picture in the picture plane (x right, y up, unit).
@@ -130,10 +136,10 @@ Shader "ReDefinition/AtmospheresFrost"
         float4 at = tex2Dlod(_FrostAtlas, float4(p * _FrostB.w + 0.5, 0, 0));
         nrm = at.ba * 2.0 - 1.0;
         float jag = _FrostB.x * (0.4 + g);
-        float thr = (r - (1.0 - g)) + jag * (at.r - 0.5) * 2.0;
-        float geo = smoothstep(0.0, 0.05, thr) * smoothstep(_FrostB.y, _FrostB.y + 0.12, r);
+        float thr = (r - (1.0 - g)) + jag * (at.r - 0.5) * 2.0 + _FrostH.w;
+        float geo = smoothstep(0.0, _FrostF.x, thr) * smoothstep(_FrostB.y, _FrostB.y + 0.12, r);
         float relief = saturate(length(nrm) * 1.6);
-        float thick = 0.62 + 0.38 * saturate(_FrostA.y);
+        float thick = _FrostF.y + (1.0 - _FrostF.y) * saturate(_FrostA.y);
         return geo * _FrostB.z * thick * (0.6 + 0.4 * relief);
     }
 
@@ -159,7 +165,7 @@ Shader "ReDefinition/AtmospheresFrost"
             float2 cell = float2(fmod(variant, 4.0), floor(variant / 4.0));
             float prof = tex2Dlod(_FrostAtlas, float4((cell + d * 0.5 + 0.5) / 4.0, 0, 0)).g * (1.0 - age * age);
             a = max(a, prof);
-            lens += -d * prof * f.z * float2(0.8 / aspect, 0.8);
+            lens += -d * prof * f.z * float2(_FrostG.y / aspect, _FrostG.y);
         }
     }
 
@@ -193,7 +199,7 @@ Shader "ReDefinition/AtmospheresFrost"
                 tr = (1.0 - smoothstep(0.0, 1.0, abs(perp) / (dr.z * (0.55 - 0.3 * t)))) * (1.0 - t);
             head = max(head, h);
             wipe = max(wipe, max(h, tr));
-            trail = max(trail, tr * 0.35);
+            trail = max(trail, tr * _FrostG.x);
             lens += -q * h * 0.7 * _FrostD.z * float2(1.0 / aspect, 1.0);
         }
     }
@@ -247,7 +253,7 @@ Shader "ReDefinition/AtmospheresFrost"
                 Layers(puv, frost, flake, head, trail, offset);
                 float keep = 1.0;
                 if (_FrostE.x > 0.5) keep = 1.0 - tex2Dlod(_FrostMask, float4(i.uv, 0, 0)).r;
-                float total = max(frost, max(flake * 0.9, max(head * 0.85, trail))) * keep;
+                float total = max(frost, max(flake * _FrostF.z, max(head * _FrostF.w, trail))) * keep;
                 clip(total - 0.003);
 
                 if (flip) offset.y = -offset.y;
@@ -261,9 +267,9 @@ Shader "ReDefinition/AtmospheresFrost"
                 blur += min(tex2D(_FrostCopy, su - float2(0, texel.y)).rgb, 64.0);
                 blur *= 0.2;
                 float lum = Luma(blur);
-                float3 col = lerp(sharp, blur, saturate(frost * 1.4));
-                col = lerp(col, _FrostTint.rgb * (lum * 1.15 + 0.01 * _FrostC.w), _FrostC.z * frost);
-                col = lerp(col, _FrostTint.rgb * (lum * 1.3 + 0.01 * _FrostC.w), flake * 0.5);
+                float3 col = lerp(sharp, blur, saturate(frost * _FrostG.z));
+                col = lerp(col, _FrostTint.rgb * (lum * _FrostH.x + _FrostH.z * _FrostC.w), _FrostC.z * frost);
+                col = lerp(col, _FrostTint.rgb * (lum * _FrostH.y + _FrostH.z * _FrostC.w), flake * _FrostG.w);
                 return AtmoContribOutput(float4(col, total), total, ATMO_FEATURE_FROST);
             }
             ENDCG
@@ -304,7 +310,7 @@ Shader "ReDefinition/AtmospheresFrost"
                 float frost, flake, head, trail;
                 float2 offset;
                 Layers(i.uv, frost, flake, head, trail, offset);
-                float total = max(frost, max(flake * 0.9, max(head * 0.35, trail))) * _FrostE.y;
+                float total = max(frost, max(flake * _FrostF.z, max(head * _FrostG.x, trail))) * _FrostE.y;
                 clip(total - 0.003);
                 float3 col = _FrostQuad.rgb;
                 return AtmoContribOutput(float4(col, total), total, ATMO_FEATURE_FROST);

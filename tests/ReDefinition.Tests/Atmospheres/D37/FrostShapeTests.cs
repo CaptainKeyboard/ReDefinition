@@ -71,27 +71,28 @@ namespace ReDefinition.Tests.Atmospheres.D37
                 Console.WriteLine(line);
             }
             Assert.AreEqual(0f, FrostShape.GeometricCoverage(0f, Aspect), 1e-6);
+            // Frozen: the design table at 16:9 (design 4.3: reach 0 to 0.35 of the half-diagonal on the curve 0.35 * exposure^0.7).
+            Assert.AreEqual(0.124f, FrostShape.GeometricCoverage(FrostShape.Growth(0.4f, ref tuning), Aspect), 0.001f);
+            Assert.AreEqual(0.333f, FrostShape.GeometricCoverage(FrostShape.Growth(1f, ref tuning), Aspect), 0.001f);
             Assert.IsTrue(FrostShape.GeometricCoverage(FrostShape.Growth(0.4f, ref tuning), Aspect) < FrostShape.GeometricCoverage(FrostShape.Growth(1f, ref tuning), Aspect));
         }
 
         [TestMethod]
         public void CoverageFollowsTheDesignTable()
         {
-            // The design table at 16:9 and the default tuning, frozen: the share of the picture whose frost opacity is at least 0.15
-            // (what the player's contribution mask counts). The ragged edge takes away some of the geometric area where the strip is
-            // clipped by the picture's edges (at exposure 0.4 the frost is in the corners only), so the table is below the geometric
-            // figure there: 0 %, 10.0 %, 32.5 % against 0 %, 12.4 %, 33.3 %. The player's coverage is held to this table, +-10 %.
+            // The design table of design 4.3 (the share of the picture outside the radius 1 - growth: 0 %, 12.4 %, 33.3 % at 16:9 and
+            // exposure 0 / 0.4 / 1) against the arithmetic of the shader on the atlas, the share of the picture whose frost opacity is
+            // at least 0.15 (what the player's contribution mask counts), within 10 %. The edge bias of the tuning sets the ragged edge
+            // so that this holds at 16:9 and 21:9; at 4:3 and 16:10 the corners dominate and the allowance is 15 %.
             Assert.IsTrue(FrostShape.CoverageOf(atlas, 0f, 1f, Aspect, ref tuning, 0.15f, 320, 180) < 0.002f, "exposure 0");
-            Assert.AreEqual(0.100f, FrostShape.CoverageOf(atlas, 0.4f, 1f, Aspect, ref tuning, 0.15f, 320, 180), 0.005f);
-            Assert.AreEqual(0.325f, FrostShape.CoverageOf(atlas, 1f, 1f, Aspect, ref tuning, 0.15f, 320, 180), 0.015f);
-            // Other pictures stay within a quarter of the geometric figure.
-            foreach (float aspect in new[] { 21f / 9f, 4f / 3f, 16f / 10f })
+            foreach (float aspect in new[] { 16f / 9f, 21f / 9f, 4f / 3f, 16f / 10f })
             {
+                float allowance = aspect > 1.7f ? 0.10f : 0.15f;
                 foreach (float e in new[] { 0.4f, 1f })
                 {
                     float geometric = FrostShape.GeometricCoverage(FrostShape.Growth(e, ref tuning), aspect);
                     float mirror = FrostShape.CoverageOf(atlas, e, 1f, aspect, ref tuning, 0.15f, 320, 180);
-                    Assert.IsTrue(Math.Abs(mirror - geometric) <= 0.25f * geometric, "aspect " + aspect + " exposure " + e + ": geometric " + geometric + " mirror " + mirror);
+                    Assert.IsTrue(Math.Abs(mirror - geometric) <= allowance * geometric, "aspect " + aspect + " exposure " + e + ": geometric " + geometric + " mirror " + mirror);
                 }
             }
         }

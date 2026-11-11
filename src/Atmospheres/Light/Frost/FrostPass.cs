@@ -40,6 +40,9 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdC = Shader.PropertyToID("_FrostC");
         private static readonly int IdD = Shader.PropertyToID("_FrostD");
         private static readonly int IdE = Shader.PropertyToID("_FrostE");
+        private static readonly int IdF = Shader.PropertyToID("_FrostF");
+        private static readonly int IdG = Shader.PropertyToID("_FrostG");
+        private static readonly int IdH = Shader.PropertyToID("_FrostH");
         private static readonly int IdTint = Shader.PropertyToID("_FrostTint");
         private static readonly int IdGravity = Shader.PropertyToID("_FrostGravity");
         private static readonly int IdQuad = Shader.PropertyToID("_FrostQuad");
@@ -47,7 +50,8 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdDrops = Shader.PropertyToID("_FrostDrops");
         private static readonly int IdTiles = Shader.PropertyToID("_FrostTiles");
 
-        internal const int PassHost = 0, PassCopy = 1, PassQuad = 2, PassMask = 3;
+        // The passes of the shader that are drawn by index (the quad is the pass without a light mode, drawn by Graphics.DrawMesh).
+        internal const int PassHost = 0, PassCopy = 1, PassMask = 3;
         internal const int QuadQueue = 3500;
 
         private readonly Material host;
@@ -101,6 +105,16 @@ namespace ReDefinition.Atmospheres
             gravity = len > 1e-4f ? new Vector4(g.x / len, g.y / len, 0f, 0f) : new Vector4(0f, -1f, 0f, 0f);
         }
 
+        // The look constants of the tuning as the shader reads them: f = edge softness, thinnest frost, flake and drop-head opacity;
+        // g = wet trail opacity, flake lens, scatter mix, flake milkiness; h = luminance gains of frost and flake, floor light, edge bias.
+        private static void PackLook(ref FrostDraw d, out Vector4 f, out Vector4 g, out Vector4 h)
+        {
+            FrostTuning t = d.Tuning;
+            f = new Vector4(t.EdgeSoft, t.ThickMin, t.FlakeAlpha, t.DropAlpha);
+            g = new Vector4(t.TrailAlpha, t.FlakeLens, t.ScatterMix, t.Milk);
+            h = new Vector4(t.LumFrost, t.LumFlake, t.FloorLight, t.EdgeBias);
+        }
+
         // The tile lists of the draw's flakes and drops, or null where there are none.
         private Vector4[] TilesOf(ref FrostDraw d, Vector4 gravity)
         {
@@ -122,6 +136,11 @@ namespace ReDefinition.Atmospheres
             cmd.SetGlobalVector(IdC, c);
             cmd.SetGlobalVector(IdD, dd);
             cmd.SetGlobalVector(IdE, e);
+            Vector4 lf, lg, lh;
+            PackLook(ref d, out lf, out lg, out lh);
+            cmd.SetGlobalVector(IdF, lf);
+            cmd.SetGlobalVector(IdG, lg);
+            cmd.SetGlobalVector(IdH, lh);
             cmd.SetGlobalVector(IdTint, tint);
             cmd.SetGlobalVector(IdGravity, gravity);
             if (d.FlakeCount > 0 && d.Flakes != null) cmd.SetGlobalVectorArray(IdFlakes, d.Flakes);
@@ -170,6 +189,11 @@ namespace ReDefinition.Atmospheres
             quad.SetVector(IdC, c);
             quad.SetVector(IdD, dd);
             quad.SetVector(IdE, new Vector4(0f, d.Tuning.QuadAlpha, 0f, 0f));
+            Vector4 lf, lg, lh;
+            PackLook(ref d, out lf, out lg, out lh);
+            quad.SetVector(IdF, lf);
+            quad.SetVector(IdG, lg);
+            quad.SetVector(IdH, lh);
             quad.SetVector(IdTint, tint);
             quad.SetVector(IdGravity, gravity);
             quad.SetVector(IdQuad, new Vector4(d.QuadColour.r, d.QuadColour.g, d.QuadColour.b, 1f));

@@ -35,6 +35,8 @@ namespace ReDefinition.Atmospheres
         // The direction down the picture, a unit vector in the picture plane (x right, y up), and how much of gravity lies in that
         // plane, 0 (looking straight down or up) to 1 (looking at the horizon).
         public float GravityX, GravityY, GravityInPlane;
+        // The picture's width over its height (0 means 16:9).
+        public float Aspect;
         public int Seed;
     }
 
@@ -67,7 +69,7 @@ namespace ReDefinition.Atmospheres
         internal const int MaxFlakes = 40;
         internal const int MaxDrops = 24;
         // The level below which no weather reaches the glass at all.
-        internal const float WeatherFrom = 0.04f;
+        internal const float WeatherFrom = PrecipMath.OffBelow;
 
         private readonly FrostFlake[] flakes = new FrostFlake[MaxFlakes];
         private readonly FrostDrop[] drops = new FrostDrop[MaxDrops];
@@ -203,17 +205,17 @@ namespace ReDefinition.Atmospheres
                 }
             }
             float cold = Cold(glassK, input.FrostLimitK, t.ColdWidthK);
-            float warm = float.IsNaN(glassK) ? 0f : FrostShape.Smooth(0f, 6f, glassK - input.FrostLimitK);
+            float warm = float.IsNaN(glassK) ? 0f : FrostShape.Smooth(0f, t.WarmRangeK, glassK - input.FrostLimitK);
 
             float windF = FrostShape.Clamp01(input.AirflowMs / Math.Max(t.WindRefMs, 0.1f));
             float typeW = TypeWeight(input.Type);
             bool inWeather = level >= WeatherFrom && !input.Sheltered;
-            float intensity = inWeather ? FrostShape.Clamp01(level * typeW * cold * (0.55f + 0.45f * windF) * Math.Max(input.Strength, 0f)) : 0f;
+            float intensity = inWeather ? FrostShape.Clamp01(level * typeW * cold * (t.WindBase + (1f - t.WindBase) * windF) * Math.Max(input.Strength, 0f)) : 0f;
 
             // Time in the weather: grows while it freezes onto the glass, falls twice as fast when it stops.
             if (intensity > 0.02f) weatherS += dt; else weatherS = Math.Max(0f, weatherS - 2f * dt);
             float ramp = FrostShape.Clamp01(weatherS / Math.Max(t.BuildS, 1f));
-            float cap = FrostShape.Clamp01(intensity * t.Gain * (0.6f + 0.4f * ramp));
+            float cap = FrostShape.Clamp01(intensity * t.Gain * (t.RampBase + (1f - t.RampBase) * ramp));
 
             if (cap > exposure)
             {
@@ -225,7 +227,7 @@ namespace ReDefinition.Atmospheres
                 // Sheltered or free of weather: the full clear rate; warm glass melts it twice as fast; weather that has eased
                 // takes the exposure down to its cap at a third of the rate.
                 bool dry = input.Sheltered || level < WeatherFrom || intensity <= 0.02f;
-                float rate = (dry ? 1f : 1f / 3f) / Math.Max(t.ClearS, 1f) * (1f + warm);
+                float rate = (dry ? 1f : t.EasedClear) / Math.Max(t.ClearS, 1f) * (1f + warm);
                 exposure = Math.Max(cap, exposure - rate * dt);
             }
             if (exposure < 1e-4f) exposure = 0f;
@@ -238,6 +240,12 @@ namespace ReDefinition.Atmospheres
             StepFlakes(ref input, ref t, dt, level, typeW, warm);
             StepDrops(ref input, ref t, dt, wet);
             prevGust = input.GustPhase;
+        }
+
+        // The aspect of the picture the input says, 16:9 where it says none.
+        private static float AspectOf(ref FrostInput input)
+        {
+            return input.Aspect > 0.1f ? input.Aspect : 16f / 9f;
         }
 
         // A random number 0 to 1; xorshift32.
@@ -282,7 +290,7 @@ namespace ReDefinition.Atmospheres
                     {
                         x = Next();
                         y = Next();
-                        if (Next() < 0.15f + 0.85f * FrostShape.Smooth(0.2f, 0.8f, FrostShape.Radius(x, y, 16f / 9f))) break;
+                        if (Next() < 0.15f + 0.85f * FrostShape.Smooth(0.2f, 0.8f, FrostShape.Radius(x, y, AspectOf(ref input)))) break;
                     }
                     float sizePx = t.FlakePxMin + (t.FlakePxMax - t.FlakePxMin) * (float)Math.Pow(Next(), 2.0);
                     float life = t.FlakeLifeMin + (t.FlakeLifeMax - t.FlakeLifeMin) * Next();
@@ -347,7 +355,7 @@ namespace ReDefinition.Atmospheres
             gx /= len;
             gy /= len;
             float inPlane = FrostShape.Clamp01(input.GravityInPlane);
-            float aspect = 16f / 9f;
+            float aspect = AspectOf(ref input);
 
             for (int i = 0; i < drops.Length; i++)
             {
