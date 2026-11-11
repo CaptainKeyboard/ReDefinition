@@ -205,7 +205,7 @@ namespace ReDefinition.Tests
 
         // The aliases of Settings/AtmospheresSettings.Legacy.cs are removed by the packages named in CONTRACT.md; the package that removes
         // some lowers this number. It is 0 at F50.
-        private const int ObsoleteAliasesLeft = 26;
+        private const int ObsoleteAliasesLeft = 24;
 
         [TestMethod]
         public void TheObsoleteAliasesLeftAreCounted()

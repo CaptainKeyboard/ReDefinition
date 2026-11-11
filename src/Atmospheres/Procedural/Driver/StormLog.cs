@@ -17,7 +17,6 @@ namespace ReDefinition.Atmospheres
                    + (AtmospheresSettings.ForceStorm >= 0f ? ", FORCED STORM " + AtmospheresSettings.ForceStorm.ToString("0.00", Culture) : "")
                    + ", seed " + AtmospheresSettings.StormSeed + ", visibility at full " + AtmospheresSettings.StormVisibilityM.ToString("0", Culture)
                    + " m, veil " + AtmospheresSettings.StormVeil.ToString("0.00", Culture)
-                   + ", snowfall " + (AtmospheresSettings.StormSnowfall ? "on" : "off")
                    + ", sky darkening " + AtmospheresSettings.StormSkyDarkening.ToString("0.00", Culture)
                    + ", EVE snow " + (AtmospheresSettings.StormEveSnow ? "on" : "off") + " (" + EveSnowLink.Summary + ")"
                    + ", EVE rain to snow " + (AtmospheresSettings.StormEveRainToSnow ? "on (" + EveRainLink.Summary + ")" : "off")
@@ -87,7 +86,6 @@ namespace ReDefinition.Atmospheres
             internal string Source;
             internal double VisibilityM;
             internal double VeilAlpha, SkyVeilAlpha;
-            internal string Flakes;
             internal float Brightness, AmbientFactor;
             internal string AmbientScaling;
             internal int AmbientExternalWrites;
@@ -102,7 +100,6 @@ namespace ReDefinition.Atmospheres
                    + RenderSettings.fog + ", " + RenderSettings.fogMode + "), veil alpha "
                    + s.VeilAlpha.ToString("0.00", Culture)
                    + ", sky veil alpha " + s.SkyVeilAlpha.ToString("0.00", Culture)
-                   + ", flakes " + s.Flakes
                    + ", fog brightness " + s.Brightness.ToString("0.00", Culture)
                    + ", ambient factor " + s.AmbientFactor.ToString("0.00", Culture) + ": " + s.AmbientScaling
                    + " (baseline rewritten by others " + s.AmbientExternalWrites + " times)"
@@ -110,11 +107,10 @@ namespace ReDefinition.Atmospheres
         }
 
         // The first frame of a storm: the path used, the camera, the shaders and what was there before.
-        internal static string StormBegins(int number, Camera cam, string veilShader, string flakeShader, FogController fog, string eveSnowState)
+        internal static string StormBegins(int number, Camera cam, FogController fog, string eveSnowState)
         {
-            return "storm " + number + " begins: path RenderSettings fog (ExponentialSquared) + sky veil + flakes, ambient light and EVE snow coverage in Camera.onPreCull, no image effect and no command buffer; camera "
+            return "storm " + number + " begins: path RenderSettings fog (ExponentialSquared), ambient light and EVE snow coverage in Camera.onPreCull, no image effect and no command buffer; camera "
                    + cam.name + " renders " + cam.actualRenderingPath + ", HDR " + cam.allowHDR + ", MSAA " + cam.allowMSAA
-                   + "; veil shader " + veilShader + "; flake shader " + flakeShader
                    + "; fog before: " + (fog.SavedFog ? "on" : "off") + " " + fog.SavedMode + " " + fog.SavedDensity.ToString("0.#####", Culture)
                    + "; ambient before: " + RenderSettings.ambientMode + " " + StormAmbient.Describe()
                    + "; EVE snow field: " + eveSnowState;

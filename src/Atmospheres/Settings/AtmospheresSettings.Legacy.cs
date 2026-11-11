@@ -151,14 +151,9 @@ namespace ReDefinition.Atmospheres
         [Obsolete("Deleted: the cover package repaints within its own budget.")]
         internal static float RefreshSeconds;
 
-        // stormSnowfall (precipDensity 0 switches precipitation off), stormEveSnow (cloudSource and useEveWeather decide), stormOwnFlakes
-        // (weatherCompose and the field suppressor decide).
-        [Obsolete("Deleted: see precipDensity.")]
-        internal static bool StormSnowfall;
+        // stormEveSnow (cloudSource and useEveWeather decide).
         [Obsolete("Deleted: see cloudSource and useEveWeather.")]
         internal static bool StormEveSnow;
-        [Obsolete("Deleted: see weatherCompose.")]
-        internal static bool StormOwnFlakes;
 
         // stormCellRadiusKm and stormMaxCells: cells emerge from the simulation.
         [Obsolete("Deleted: weather systems emerge from the simulation.")]
@@ -185,9 +180,7 @@ namespace ReDefinition.Atmospheres
             WinterSnowLine = (float)SnowMask.DefaultWinterLineDegrees;
             GroundRefreshMode = GroundRefresh.Live;
             RefreshSeconds = RefreshSecondsDefault;
-            StormSnowfall = true;
             StormEveSnow = true;
-            StormOwnFlakes = false;
             StormCellRadiusKm = StormCellRadiusDefaultKm;
             StormMaxCells = StormMaxCellsDefault;
             StormClouds = StormCloudModes.Existing;
