@@ -1,21 +1,36 @@
 # K-pre reconnaissance: state of the premises (package B09)
 
-Status: the probe is built and reviewed, the first start (run2) did not reach the game's flight because the Atmospheres assembly does not
-load in the game (below). No premise has a measurement yet. Every row of the table is UNKNOWN until K-pre has run; the facts under
-"Read in the installed assemblies and configs" were read without a game start and are not measurements.
+Status (2026-11-11): the probe is built and has passed four plausibility reviews (the fourth ended with DO NOT SIGN on 8 defects, all settled;
+the re-reviews ended with SIGN). The load-order blocker of the first start is fixed on main (commit 55fc088c, `KSPAssembly` for Common
+and the dependency in the four mods). The measuring start (run1) has NOT run: `tools/atmo_series.py run K-pre --start run1` refused at the
+memory gate ("only 9.2 GB of memory are free (12 needed)"; the free memory stayed between 9.5 and 10.7 GB for 20 minutes with other agents'
+builds and simulations and the IDE running). No start was counted for it. Every row of the table below is therefore UNKNOWN (not run); the
+facts under "Read in the installed assemblies and configs" were read without a game start and are not measurements. One earlier start
+(run2, 2026-11-11 08:37) is counted and produced no data (the assembly did not load); run1 and run2 remain.
 
-## Blocker found by the first start
+## Decision rules fixed before the run
 
-`GameData/ReDefinition/Atmospheres/Plugins/ReDefinition.Atmospheres.dll` fails to load: KSP's `AssemblyLoader` loads the assemblies in the
-order of their paths (`Atmospheres`, `Common`, `Dashboard`, `Main`, `Planner`) and reads the types of `ReDefinition.Atmospheres` before
-`ReDefinition.Common` is known (`KSP.log`: "ADDON BINDER: Cannot resolve assembly: ReDefinition.Common", then
-"Exception loading 'ReDefinition.Atmospheres': ReflectionTypeLoadException ... Could not load file or assembly
-'ReDefinition.Common, Version=0.1.17.0'"). Before the rename (A00) the assembly was called Seasons, which sorts after `Common` [VERIFY: the old GameData folder name]. No module of the
-Atmospheres assembly runs in the game, so no probe can. Cause [VERIFY]: the load order; the assembly carries no `KSPAssemblyDependency`
-on Common and Common carries no `KSPAssembly`. A fix is a platform change (A00/A02 files): `[assembly: KSPAssembly("ReDefinition.Common", 0, 1)]`
-in the Common project and `[assembly: KSPAssemblyDependency("ReDefinition.Common", 0, 1)]` in the Atmospheres project (the pattern of
-`src/KspAssemblyInfo.cs` for Harmony), or a folder name for Atmospheres that sorts after `Common`. It was not applied here: the files are not
-B09's. Start log: `.local/work/atmo-series-starts.jsonl` has one counted start (K-pre run2, 2026-11-11 08:37).
+- P4: PASS needs the override registered, a rigidbody found for the canopy (`P4.chute_rb_found`; `P4.chute_rb_own` says whether it is the
+  canopy's own or its parent's), and the peak of the horizontal part of `dragVector` taken in the hook (`P4.dragvector_horizontal_ms`)
+  at 15 m/s or more with a 20 m/s wind and at 1 m/s or less in the control. The drift rows (`P4.wind_error_rel` over the last 15 s,
+  `P4.wind_error_full_rel` over 30 s) are a second row: the model assumes drag already aligned with the relative wind, so a miss of
+  more than 20 % with the mechanism row passed is the canopy's swing, not the injection.
+- P6: `P6.depth_ok` is `readable on the main camera` OR (`copy valid` AND `copy read intact at BeforeForwardAlpha`). The consumer is a
+  blit from the copy's render texture at BeforeForwardAlpha; it shows that the event runs on the main camera and the copy survives to
+  it, not that a material at queue 3000 can bind it. D32/D37/D38 read the separate rows `P6.depth_readable_main_camera` and
+  `P6.depth_fallback_main_camera`.
+- P8: the blocking case is an opaque lit shader of a loaded mod bundle (name in `P8.foreign_shader`, the candidates in
+  `P8.foreign_candidates`) on balls, on the pod and on a flat lit mesh over the sea (the terrain stand-in); the chosen candidate is the
+  responsive one furthest from 1. `P8.forward_luma_ratio` (a lit shader without a deferred pass) outside 0.9..1.1 is the trigger of D34
+  variant (f). Unity's Legacy Diffuse is the informative `P8.builtin_luma_ratio`.
+- P12 is UNKNOWN by design: the probe varies the raster `ambientIntensity` only and reads no ray-traced frame; the rows are not read as
+  a verdict on the RT sky.
+- P9: only the re-bind latency of the coverage map after a forced `Apply()` is measured; the light-volume latency is not.
+- P2: grids exist for Kerbin (run1 first), Duna, Laythe and Eve (last, inside the step budget); B10 and C25 assume no other body.
+- P3: the vertex spacing near the pod is measured over the sea; for land (KSC, 55 N) `P3.spacing_analytic_m` (top level
+  `pqs.maxLevel`, cube-face centre) and `P3.spacing_analytic_edge_m` (1.41 times) are computed from the grid size read.
+- P1 runs first in the full-mod-set block after P7 (its clock jumps return to the base time) and is exempt from the step budget.
+- Spawn: `Env.spawn_ok` (pod within 500 m of the planned place and the ground below -12 m) gates P4 and the ocean discs.
 
 ## Premise table
 
@@ -34,10 +49,8 @@ B09's. Start log: `.local/work/atmo-series-starts.jsonl` has one counted start (
 | P11 | the same over Scatterer's ocean (run1) | as P10 | UNKNOWN | none yet |
 | P12 | RT sky against ambient | frame luminance rises with the ambient factor by 0.002 per step (raster ambient only; the RT sky is not driven by the probe) | UNKNOWN | none yet |
 
-The three plausibility reviews (independent Sonnet agents) ended with "DO NOT SIGN" for the code as of the commits before the last; the last
-review's items (water for 2 km along the wind, the P8 control, restoring the pod's materials, the main-camera fallback for P6) were applied
-afterwards and not re-reviewed. Open from the reviews: P3 is measured at the pod off the coast, not at KSC or 55 N; the terrain case of P8 is
-not tried; P12 does not test the RT sky; `P6.depth_ok` is defined by the brief (readable at queue 3000 or the copy fallback works).
+Result column: "UNKNOWN" means not run (memory gate), not "measured and undecided". The thresholds above are the rows of
+`tests/series/rows/B09.json` as signed by the last re-review (HEAD of `atmo/B09`, 2026-11-11).
 
 ## Read in the installed assemblies and configs (KSP 1.12, no game start)
 
