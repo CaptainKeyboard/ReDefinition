@@ -258,7 +258,8 @@ namespace ReDefinition.Atmospheres
         // row; the case furthest from 1 counts. Shaders under test:
         //   foreign   the first two opaque lit shaders of the loaded mod bundles (the case D34's shells are in), each with a control at a tenth
         //             of the albedo; the blocking rows (P8.luma_ratio, P8.control_luma_ratio, P8.terrain_measured, P8.control_terrain_luma_ratio)
-        //             are those of the candidate that responds to its control (control ratio at most 0.5) and lies closest to 1;
+        //             are those of the candidate that responds to its control (control ratio at most 0.5) and lies furthest from 1;
+        //             the values of every candidate are in the c1_ and c2_ rows;
         //   builtin   Unity's Legacy Diffuse, a surface shader with a deferred pass (informative);
         //   forward   a lit shader without a deferred pass, which the game draws in its forward step after the lighting: the ratio is the
         //             trigger of D34's variant (f) in RECON.md.
@@ -285,28 +286,41 @@ namespace ReDefinition.Atmospheres
             {
                 // Per candidate: the case and its control; the chosen one is the responsive candidate closest to 1.
                 string chosenName = null;
-                double chosenRatio = double.NaN, chosenControl = double.NaN, chosenTerrainControl = double.NaN;
+                double chosenRatio = double.NaN, chosenControl = double.NaN, chosenTerrainControl = double.NaN, chosenTerrain = double.NaN;
+                double chosenPeak = double.NaN;
                 bool chosenMeasured = false, chosenResponsive = false;
                 for (int i = 0; i < foreigns.Count; i++)
                 {
+                    // The step has its share of the 17 minutes: a second candidate is tried only while the scenario is young.
+                    if (i > 0 && Elapsed > 600.0)
+                    {
+                        Say("P8: the second candidate is left out, " + Num(Elapsed) + " s of the scenario are gone");
+                        break;
+                    }
                     Shader foreign = foreigns[i];
                     string key = "c" + (i + 1) + "_";
                     EmitText("P8." + key + "shader", foreign.name);
                     Emit("P8." + key + "has_deferred_pass", HasLightMode(foreign, "Deferred"));
                     foreach (ProbeWait w in ShaderCase(stock, foreign, key, 0.3f)) yield return w;
                     double ratio = caseWorst;
+                    double terrain = caseTerrain;
+                    double peakOfCase = casePeak;
                     bool measured = !double.IsNaN(caseTerrain);
                     // The control: the same shader with a tenth of the albedo must read far from 1, or the test cannot tell.
                     foreach (ProbeWait w in ShaderCase(stock, foreign, key + "control_", 0.03f)) yield return w;
                     double control = caseWorst, terrainControl = caseTerrain;
                     bool responsive = !double.IsNaN(control) && control <= 0.5;
+                    // Conservative: of the responsive candidates the one furthest from 1 counts, so the premise passes only if every
+                    // responsive candidate does.
                     bool better = chosenName == null || (responsive && !chosenResponsive)
                                   || (responsive == chosenResponsive && !double.IsNaN(ratio)
-                                      && (double.IsNaN(chosenRatio) || Math.Abs(ratio - 1.0) < Math.Abs(chosenRatio - 1.0)));
+                                      && (double.IsNaN(chosenRatio) || Math.Abs(ratio - 1.0) > Math.Abs(chosenRatio - 1.0)));
                     if (better)
                     {
                         chosenName = foreign.name;
                         chosenRatio = ratio;
+                        chosenTerrain = terrain;
+                        chosenPeak = peakOfCase;
                         chosenControl = control;
                         chosenTerrainControl = terrainControl;
                         chosenMeasured = measured;
@@ -315,6 +329,8 @@ namespace ReDefinition.Atmospheres
                 }
                 EmitText("P8.foreign_shader", chosenName);
                 if (!double.IsNaN(chosenRatio)) Emit("P8.luma_ratio", chosenRatio);
+                if (!double.IsNaN(chosenTerrain)) Emit("P8.terrain_luma_ratio", chosenTerrain);
+                if (!double.IsNaN(chosenPeak)) Emit("P8.frame_peak", chosenPeak);
                 if (!double.IsNaN(chosenControl)) Emit("P8.control_luma_ratio", chosenControl);
                 if (!double.IsNaN(chosenTerrainControl)) Emit("P8.control_terrain_luma_ratio", chosenTerrainControl);
                 Emit("P8.terrain_measured", chosenMeasured);
@@ -335,7 +351,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // The case values the last ShaderCase left: the ratio furthest from 1 over its cases, and the terrain ratio (NaN: not measured).
-        private double caseWorst = double.NaN, caseTerrain = double.NaN;
+        private double caseWorst = double.NaN, caseTerrain = double.NaN, casePeak = double.NaN;
 
         // The opaque, lit shaders of the loaded shaders that do not come from Unity or the game: a mod's own (by name, since a shader does
         // not know its bundle). Lit means a pass whose LightMode is ForwardBase or Deferred; it needs _MainTex and _Color and an opaque
@@ -434,7 +450,7 @@ namespace ReDefinition.Atmospheres
 
         private IEnumerable<ProbeWait> ShaderCase(Shader stock, Shader foreign, string key, float foreignGrey)
         {
-            caseWorst = caseTerrain = double.NaN;
+            caseWorst = caseTerrain = casePeak = double.NaN;
             Vessel vessel = FlightGlobals.ActiveVessel;
             CelestialBody body = vessel.mainBody;
 
@@ -586,7 +602,7 @@ namespace ReDefinition.Atmospheres
                         Emit("P8." + key + "terrain_sea_luma", sea);
                         Emit("P8." + key + "terrain_visible_rel", visible);
                         Emit("P8." + key + "terrain_stock_drift", Math.Abs(medians[2] - medians[0]) / medians[0]);
-                        if (visible >= 0.1)
+                        if (visible >= 0.2)
                         {
                             terrainRatio = medians[1] / medians[0];
                             Emit("P8." + key + "terrain_luma_ratio", terrainRatio);
@@ -612,6 +628,7 @@ namespace ReDefinition.Atmospheres
             else EmitText("P8." + key + "error", "no case could be read");
             caseWorst = worst;
             caseTerrain = terrainRatio;
+            casePeak = peak;
         }
 
         // ---------------------------------------------------------------- P12: ambient factor

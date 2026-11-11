@@ -128,7 +128,8 @@ namespace ReDefinition.Atmospheres
         {
             // The start has 20 minutes and the game needs about two to come up: a step that would begin after 14 minutes of the scenario is
             // left out, so that the later steps and the verdict are not lost to the clock.
-            if (id != "flight" && Elapsed > StepBudgetSeconds)
+            // P1 is blocking and short; it keeps running until the scenario's own limit.
+            if (id != "flight" && id != "P1" && Elapsed > StepBudgetSeconds)
             {
                 Say(id + " left out: " + Num(Elapsed) + " s of the scenario are gone");
                 EmitText(id + ".error", "left out: the start ran out of time");
