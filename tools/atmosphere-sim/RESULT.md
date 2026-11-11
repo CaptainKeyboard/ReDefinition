@@ -337,6 +337,64 @@ What is not measured here: the Mono run of the determinism hash (C25 row), the D
 
 ---------------------------------------------------------------------------------------------------------------------------
 
+## TUNING ROUND 1 RESULTS (round 1 of at most 3)
+
+**Decision: REWORK (round 1).** Modes and seeds: R, seed A unless written otherwise; the final run is `final-t1\` under `MAINREPO\.local\work\atmosphere-sim\B10g\` (criteria.md, metrics.json, sheets in `sheets_in\sheets\`, snow and ice maps `surface_snow_ice.png`, `surface_poles.png`, `surface_zonal.png`). Cost and determinism rows ran under `gpu_lock.py --exclusive`.
+Generator hash: the signed generator is reproduced bit for bit by `BodyParams.Signed()` (20 000-query hash `237126757692E6D9`, surface hashes S `9A195EEE216E3DBE`, R `ACE619D844CF2B04`, unit test `TheSignedSwitchReproducesTheSignedResultHash`); the round-1 generator has the 20 000-query hash `3A3A34F462C55CAC` (identical across runs, four threads, shuffled order, second instance; the change comes from L1 to L10, listed below). 41 unit tests pass.
+
+Levers as applied (starting values from the pre-registration, adjusted only by the metric of the failing item named in the line):
+| lever | final value | what moved it |
+|---|---|---|
+| L0 cost (output-preserving) | tiering off, per-step Exp stored, second ice integration skipped at weight 1 | see the cost row |
+| L1 `SeasonalResponse` | 0.40 | not adjusted; midwinter at 55 deg N latitude 244.6 K instead of 214 K, summer 278.6 K |
+| L2 `SeaHeatFluxWm2`, `MixedLayerDepthM` | 30 W/m2, 30 m | ice edge (criterion 10 b): flux 0 / 10 / 20 / 30 at 12 m gave 47.5 / 47.5 / 47.5 / 50 deg latitude, 25 W/m2 at 12 m 47.5 / 50, 20 W/m2 at 30 m 50 / 52.5, 30 at 30 m 52.5 / 52.5, 30 at 60 m 52.5 / 55 (north / south); 30 W/m2 and 30 m chosen |
+| L3 `SnowWindowYearFraction` | 40/365.25 (47 steps on Kerbin) | not adjusted; the snow maximum moved from spring to winter |
+| L4 `LiftSaturationFloor`, `StratThreshold` | 0.20, 0.075 | first 0.35 and 0.04 (precipitating share 46 %), then the threshold alone 0.08 / 0.12 / 0.16 gave 31.6 / 23.9 / 19.3 %; with 0.35 and 0.10 the southern front events fell to 1.1 per 10 days (share with the system 0.33): floor 0.35 / 0.25 / 0.20 / 0.15 / 0.10 / 0 gave 1.1 / 1.5 / 2.2 / 1.9 / 3.1 / 3.9 south events per 10 days; floor 0.20 with threshold 0.075 gives a precipitating share of 20.9 % (R) and 37.7 % (S seed A) |
+| L4 `CellRainThreshold` | 0.02 | not adjusted |
+| L4 (c) `ItczLift`, `ItczWiggleRad` | 0.45, 0.06 | equatorial rain hours at 0.7 / 0.45 / 0.3: 76 / 64 / 52 %, the 20-35 over 0-10 degree ratio 0.43 / 0.51 / 0.64 (limit 0.6): 0.45 chosen |
+| L5/L7 `CellTrigger`, `CellFrontTerm`, trigger SmoothStep(0.6, 1.0, F/Fref) | 0.35 | share near fronts and cells per 100 km of front: trigger linear 1.5 F: 0.25 / 15.3; SmoothStep (0.2, 0.7): 0.29 / 14.9; (0.35, 0.8, front term 0.25): 0.32 / 11.8; (0.5, 0.9, 0.2) 0.40 / 9.9 (front term not gated); with the front term gated: (0.4, 0.8, 0.35) 0.396 / 12.6, (0.5, 0.9, 0.4) 0.403 / 12.2, (0.6, 1.0, 0.4) 0.407 / 10.4; final (0.6, 1.0, 0.35): 0.424 / 10.0 |
+| L6 `WindSatJetFactor`, `GustNoise` | 1.2, 0.25 | not adjusted; hourly wind change at 45 deg N latitude median 3.1 -> 1.9 m/s, 95th percentile 10.9 -> 8.0 m/s; P99 17.0 m/s (range 11 to 26); Duna P99 rose back into the range after the minimum constant 15 m/s was kept |
+| L8 (e) `SnowUsesFreshFreezingPoint` | true | snow and the rain/snow type freeze at 273.15 K (the signed code used the sea water point 271.26 K); this raises the summer snow on mountains (see open items) |
+| L8 (f) `SmoothSnowAlbedo` | true | the continuity check found 0.43 m of ice in 10 minutes at one site: the albedo step at 0.02 m of snow depth changed the melt of the whole integration history; smooth over 0.01 to 0.04 m (check: 0.025 m before, no step above 0.03 m now) |
+| L10 `PeriodicSystems` | true | the seam of the review: the envelope of a system on a small parallel (circumference 1640 km at 64 deg latitude, Gaussian length 575 km) is not periodic, a 250 Pa jump at the antipode of the centre; fixed by summing three images of the envelope and, poleward of the 3.6-wavelength parallel (about 53 deg), an integer wavenumber on the parallel (jump of 5 to 11 Pa remains at 53 to 60 deg; unit test `NoSystemHasASeamAroundTheParallel`) |
+Harness corrections (measurement, not thresholds): criterion 1 reports the persistent and the living systems (amended, see above); the wet-state check looks at the previous 5 days hourly (6-hourly instants missed showers) and uses 600 sites (16 dry pairs were left of the 150 sites); the cell section of the sheets picks the tallest tower.
+The seam (the review's block edge on day 4) was found by `diag-jump` as a straight edge of a system's pressure field at the antipode of its centre in the south, not in the cell lattice; the difference test `diag-seam` (cover maps 30 minutes apart) showed only the stripes of moving fronts.
+
+Old (phase 2, iteration 1, signed) against new (round 1), mode R seed A:
+| # | item | old | new |
+|---|---|---|---|
+| 1 | persistent D1 per hemisphere N / S | 2.31 / 2.14 (limit 3.0, FAIL) | 2.44 / 2.03 (amended limit 2.0, ok) |
+| 1 | living D1 tracks per hemisphere N / S (amended, new item) | 2.82 / 2.53 (same detector, not reported then) | 2.87 / 2.49 (limit 3.0: FAIL, not tuned upward) |
+| 1 | median lifetime, east drift, popping | 48 / 48 h, 14.5 / 15.2 m/s, 8.8e-6 | 48 / 48 h, 14.4 / 15.2 m/s, 8.8e-6 (ok) |
+| 2 | front events per 10 days N / S, share moving with the system | 5.6 / 3.1, 0.90 / 0.94 (PASS) | 5.2 / 1.30, 0.93 / 0.71 (south share below 0.8: 5 of 7 events, FAIL) |
+| 3 | precipitation maximum latitude, 20-35 over 0-10 ratio | 47.5 deg S latitude, 1.39 | 12.5 deg S latitude, 0.51 (both inside); no-ocean precipitation 0.36 -> 0.10 (limit 0.05); slow / locked correlation 0.09 -> 0.21 (limit 0.3) |
+| 4 | precipitating share, order, heavy, blizzard | 7.8 %, Light 1.5 < Moderate 2.5 < Heavy 3.2 (inverted), 3.2 %, 0.045 % | 20.9 %, Light 8.8 > Moderate 2.6 > Heavy 1.1 > Blizzard 0.004 %, 1.1 %, 0.004 % (PASS in R; S seed A 37.7 % ok, seed B 42.2 % and seed C 39.9 %: open risk for B) |
+| 5 | circulation and wind | all inside | all inside (P99 17.0 m/s, storm track 17.3 m/s) |
+| 6 | cost | Sample 3.2 us (tier 0), cover map 275 ms: FAIL | Sample 0.9 us, 0 allocations, new UT every call 1.8 us, 512x256 map 102 ms, window 0.77 ms, 24 forecast steps 0.035 ms, sea site 3.9 us (cached window 2.4 us), 256x128 cover map update 107 ms: PASS |
+| 7, 8 | determinism, rewind | PASS | PASS |
+| 9 | smoothness | inside | inside |
+| 10 | sea-ice edge N / S | 42.5 / 45 deg latitude | 52.5 / 52.5 (ok) |
+| 10 | ice at 35 psu minus 0 psu | +0.19 m (FAIL) | 0 (ok; with the colder-to-milder climate no site is thicker in salt water) |
+| 10 | snow, 55 deg N latitude | winter 0, spring 0.99, summer 0, autumn 0.09 | winter 1, spring 1, summer 0.52, autumn 0.95 (summer limit 0.05: FAIL) |
+| 10 | snow, 45 / 70 / 85 deg N latitude | winter 0 / 0.005 / 0 | winter 1 / 1 / 1 (45 deg summer 0.22 against 0.05: FAIL) |
+| 10 | wet state: rainy pairs wet / dry pairs dry | 0.66 / 0.93 (FAIL) | 0.96 / 0.996 (ok) |
+| 10 | continuity per 10 minutes | 3.3e-4 m | below 0.03 m (ok) |
+| 11 | cells per 100 km of front, share within 100 km of a front band | 23.0, 0.14 (enrichment 0.94) | 10.0 (limit 10: FAIL by 0.04), 0.42 (limit 0.6: FAIL; enrichment 1.88) |
+| 11 | size, life, density | 9.7 km, 1.67 h, 6.2 | 9.2 km, 1.5 h, 6.6 (ok) |
+| 12 | A/B correlation, white noise control | 0.42, 0.113 | 0.41, 0.125 (both FAIL, unchanged cause) |
+Mode S: criterion 4 S seed A 37.7 % (seed B 42.2 %, seed C 39.9 %), the snow-line summer rows at 45 and 55 deg N latitude pass on the synthetic continents (lower land), the S sea-ice edge at 70 deg latitude (the synthetic climate is warmer than the measured one; flux 30 W/m2 was tuned in R), cells share 0.31, A/B correlation -0.16.
+
+What the sheets show (read by the builder, not signed): the cloud maps of the winter hemisphere carry systems with trailing bands; the equatorial belt rains in graded levels (light more often than moderate) and has longitude structure but is still a continuous belt; the ground series show hours-long graded precipitation at 45 and 55 deg N latitude and the cell section shows towers up to 10 km next to the 2 to 6 km stratiform slab; the wind at 45 deg N latitude still oscillates with the 12-hour passage of a system (hourly changes of up to 8 m/s at the 95th percentile); the orbit view is a full untilted disc with separate polar views, the snow and ice maps are new. The review has to sign these.
+
+What remains open after round 1 (honest list):
+* Criterion 1 (b), living systems: 2.87 / 2.49 against 3.0; the generator was not tuned toward a higher count; the reviewer is asked whether (b) should read 2.5 or whether the strips (4 to 5 minima) settle it.
+* Criterion 2, southern share of events moving with a system 0.71 (5 of 7 events; 0.93 / 0.89 in the north): the moisture chain made the cloud arm of D2 less selective in the southern summer; the floor of L4 trades this against the precipitating share.
+* Criterion 10 snow, 45 and 55 deg N latitude in summer (0.22 and 0.52 against 0.05): the cover is on terrain above about 1000 m (at 55 deg N latitude summer snow cover is 2 % below 500 m, 27 % at 500 to 1000 m, 95 % at 1000 to 1500 m: `diag-snow`); Kerbin's measured profile is 10 K colder than the Earth at that latitude and its land is high. This is either a terrain effect to accept or needs an altitude-dependent summer melt; the freezing-point correction raised these rows.
+* Criterion 11: cells per 100 km of front 10.04 (limit 10) and the share near front bands 0.42: the remaining cells sit at fronts that the band detector does not accept (belt edge at 35 deg latitude, bands shorter than 294 km): `diag-cellfar`.
+* Criterion 12: the A/B correlation 0.41 (the continents are Kerbin's in mode R) and the white-noise control 0.125 are unchanged by this round; both are judged by the reviewer as visually irrelevant.
+* Reviewer items not done: a rain shadow behind terrain (not built by the owner ruling on detail); the ITCZ is wetter than the Earth's (64 % of the hours at the equator) and is still a continuous belt; the slow rotator rain correlation 0.21 (limit 0.3); no-ocean precipitation 0.10 of the Kerbin-like set (limit 0.05); time-shuffle ratio of the persistent count 0.65 / 0.58 (expectation 0.35).
+* Mode S: ice edge 70 deg latitude, cells share, precipitating share of seed B: open risks.
+
 ## HISTORY: the first prototype (two-layer spectral model), kept for the record
 
 Decision of that prototype: FALLBACK. A two-layer quasi-geostrophic core (spherical harmonics T21, a moisture scheme, a surface layer, epoch re-anchoring with crossfade) was built and run on seven sets and 10 simulated Kerbin years. It passed cost, determinism and rewind, smoothness and forecast, and failed stability (NaN at the first step

@@ -185,14 +185,15 @@ def surface_maps(root, out, name):
     land = ocean < 0.5
     lat = np.linspace(90 - 90.0 / nt, -90 + 90.0 / nt, nt)
     cm_snow = plt.get_cmap("Blues").copy(); cm_snow.set_bad("0.35")
-    cm_ice = plt.get_cmap("cool").copy(); cm_ice.set_bad("0.35")
+    # open water (ice thinner than 2 cm) in dark blue, ice from pale to magenta by thickness, land grey
+    cm_ice = plt.get_cmap("cool").copy(); cm_ice.set_bad("0.35"); cm_ice.set_under("midnightblue")
     fig, axs = plt.subplots(2, 4, figsize=(20, 7.5))
     for p in range(len(ph)):
         s = np.ma.masked_where(~land, swe[p])
         axs[0, p].imshow(np.log10(np.maximum(s, 0.5)), cmap=cm_snow, vmin=np.log10(0.5), vmax=np.log10(300.0), extent=[0, 360, -90, 90], aspect="auto")
         axs[0, p].set_title("snow water equivalent (log10 mm), %s" % label[p], fontsize=9)
         i = np.ma.masked_where(land, ice[p])
-        axs[1, p].imshow(i, cmap=cm_ice, vmin=0, vmax=2.0, extent=[0, 360, -90, 90], aspect="auto")
+        axs[1, p].imshow(i, cmap=cm_ice, vmin=0.02, vmax=2.0, extent=[0, 360, -90, 90], aspect="auto")
         axs[1, p].set_title("sea-ice thickness (m, 0 to 2), %s" % label[p], fontsize=9)
         for a in (axs[0, p], axs[1, p]):
             a.set_xticks([]); a.set_yticks([-60, -30, 0, 30, 60]); a.grid(alpha=0.2)
@@ -202,7 +203,7 @@ def surface_maps(root, out, name):
     fig, axs = plt.subplots(2, 4, figsize=(18, 9))
     views = [(0, 90.0, "north pole, northern midwinter"), (2, 90.0, "north pole, northern midsummer"), (2, -90.0, "south pole, southern midwinter"), (0, -90.0, "south pole, southern midsummer")]
     for c, (p, lat0, nm) in enumerate(views):
-        axs[0, c].imshow(np.ma.masked_invalid(ortho(np.where(land, np.nan, ice[p]), lat, 0, size=300, lat0_deg=lat0)), cmap=cm_ice, vmin=0, vmax=2.0, interpolation="nearest")
+        axs[0, c].imshow(np.ma.masked_invalid(ortho(np.where(land, np.nan, ice[p]), lat, 0, size=300, lat0_deg=lat0)), cmap=cm_ice, vmin=0.02, vmax=2.0, interpolation="nearest")
         axs[0, c].set_title("sea ice, " + nm, fontsize=9)
         axs[1, c].imshow(np.ma.masked_invalid(ortho(np.where(land, swe[p], np.nan), lat, 0, size=300, lat0_deg=lat0)), cmap=cm_snow, vmin=0, vmax=120, interpolation="nearest")
         axs[1, c].set_title("snow (0 to 120 mm), " + nm, fontsize=9)
