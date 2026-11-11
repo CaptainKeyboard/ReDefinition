@@ -1,0 +1,23 @@
+{
+  "$schema": "../schema.json",
+  "package": "D36",
+  "rows": [
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.scroll_pivot", "equals": 1, "note": "DialogGUI checklist 1: the scroll list's content hangs from the top (anchors and pivot 1 in y) so that folded groups leave no empty space above; read from the dialog in the Space Centre" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.scroll_pivot.shot", "min": 1, "note": "screenshot number of item 1 (Screenshots/atmo-D36-NN-scroll_pivot.png in the KSP folder)" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.scroll_background", "equals": 1, "note": "checklist 2: the scroll prefab's own lighter background is cleared (alpha below 0.01)" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.scroll_background.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.labels_single_line", "equals": 1, "note": "checklist 3 and 4: no visible label is wider than its box and wraps (a wrapped label with changing text gets no height)" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.labels_single_line.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.row_widths", "equals": 1, "note": "checklist 4: no row's preferred width exceeds the page (panel less the indent and the scroll bar)" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.row_widths.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.font_glyphs", "equals": 1, "note": "checklist 7: every character of every visible label is in the label's font (no boxes)" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.font_glyphs.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.toggles_idempotent", "equals": 1, "note": "checklist 5 and 6: after 45 frames with the window open no setting was changed by the controls' own sync" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.toggles_idempotent.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.theme_background", "equals": 1, "note": "checklist 8: the window keeps a sprite background of the skin, which ZTheme restyles by name; compared by eye with ZTheme present and absent in the screenshot pairs" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.theme_background.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_without_reason_text", "equals": 0, "note": "every greyed-out row has a reason text" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_in_general", "equals": 0, "note": "the General group is never greyed out" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_outside_general", "equals": 87, "required": false, "note": "only where the master switch is off at the start (D36.master_off_at_start = 1): every row outside General is greyed with the reason; 87 = 93 keys less the 6 of General" }
+  ]
+}
