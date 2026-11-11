@@ -124,3 +124,44 @@ def player_judged(label):
 
 
 register_series("world", [Stage("scene", ["-mode", "scene", "-scene", "world-check"])], player_judged("scene"), exclusive=False)
+
+
+register_series("contrib", [Stage("scene", ["-mode", "scene", "-scene", "contrib-check"])], player_judged("scene"), exclusive=False)
+
+
+MATRIX = os.path.join(os.path.dirname(HERE), "..", "tests", "series", "interaction-matrix.json")
+
+
+def interaction_player_rows(matrix_path=MATRIX):
+    """The player rows of tests/series/interaction-matrix.json."""
+    import json
+    with open(matrix_path, encoding="utf-8") as f:
+        return json.load(f)["player_rows"]
+
+
+def interaction_collect(ctx):
+    """Each player row's turn figures against the expectation written first in the matrix: a known value (relative tolerance, floor)
+    or the figure of another row (same_as)."""
+    rows = interaction_player_rows()
+    measured = {}
+    for row in rows:
+        measured[row["id"]] = turn_figures(ctx.folder(row["id"]))
+    out = []
+    for row in rows:
+        for name, expected in row["expect"].items():
+            value = measured[row["id"]].get(name, float("nan"))
+            if isinstance(expected, dict):
+                known = measured[expected["same_as"]].get(name, float("nan"))
+                out.append(Metric.reference("%s.%s" % (row["id"], name), value, known, expected["rel"], 0.0))
+            else:
+                known, rel, floor = expected
+                out.append(Metric.reference("%s.%s" % (row["id"], name), value, known, rel, floor))
+    return out
+
+
+def _interaction_stages():
+    return [Stage(row["id"], row["stage"], upscaler=bool(row.get("upscaler")), proxy=bool(row.get("proxy", True)))
+            for row in interaction_player_rows()]
+
+
+register_series("interaction-player", _interaction_stages(), interaction_collect, exclusive=False)

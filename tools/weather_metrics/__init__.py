@@ -105,12 +105,14 @@ class Stage(object):
     """One player run of a series: a label (the output folder), the player's arguments, the render size, the proxy ini and whether
     the run needs the Streamline folder (an upscaler stage)."""
 
-    def __init__(self, label, extra, size=(1280, 720), upscaler=False, timeout=1200):
+    def __init__(self, label, extra, size=(1280, 720), upscaler=False, timeout=1200, proxy=True):
         self.label = label
         self.extra = list(extra)
         self.size = size
         self.upscaler = upscaler
         self.timeout = timeout
+        # False: the run has no dxgi.dll beside the player (no timestamps, no upscaler through the proxy).
+        self.proxy = proxy
 
 
 class Context(object):

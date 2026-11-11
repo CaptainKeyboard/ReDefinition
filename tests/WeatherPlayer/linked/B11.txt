@@ -30,3 +30,5 @@ tests/RaytracingPlayer/Assets/Runner/UpscalerRigStub.cs
 unity/Assets/ReDefinition/**/ReDefinitionRtCapture.shader
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresStormVolume.shader
 unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresCloudSlab.shader
+# The contribution mask's include, which the test pass of scene contrib-check includes.
+unity/Assets/ReDefinitionAtmospheres/**/AtmoContribution.cginc

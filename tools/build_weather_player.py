@@ -245,15 +245,24 @@ def run_series_inner(name, ksp, who):
     for stage in spec['stages']:
         label = '%s-%s' % (name, stage.label)
         if stage.upscaler:
-            write_ini(ksp)
+            write_ini(ksp, os.path.join(REFERENCES, 'FidelityFX-SDK', 'Kits', 'FidelityFX', 'signedbin'), os.path.join(REFERENCES, 'xess', 'bin'))
         else:
             write_ini()
+        proxy_beside = os.path.join(OUTPUT, 'dxgi.dll')
+        if stage.proxy and not os.path.exists(proxy_beside):
+            shutil.copy2(PROXY, OUTPUT)
+        if not stage.proxy and os.path.exists(proxy_beside):
+            os.remove(proxy_beside)
+        bundle = os.path.join(ksp, 'GameData', 'ReDefinition', 'Main', 'Shaders', 'redefinition.shaders')
+        extra = [a.replace('{bundle}', bundle) for a in stage.extra]
         folder = fresh(label)
-        lines = run_lines(exe, label, ['-out', folder] + stage.extra, stage.size, stage.timeout)
+        lines = run_lines(exe, label, ['-out', folder] + extra, stage.size, stage.timeout)
         folders[stage.label] = folder
         player_lines[stage.label] = lines or []
         stage_ok[stage.label] = lines is not None and any(line == 'all checks passed' for line in lines)
         print('stage %s: %s' % (stage.label, 'ended' if stage_ok[stage.label] else 'FAILED'))
+    if not os.path.exists(os.path.join(OUTPUT, 'dxgi.dll')):
+        shutil.copy2(PROXY, OUTPUT)
     metrics = spec['collect'](weather_metrics.Context(name, folders, player_lines, stage_ok))
     for label, ok in stage_ok.items():
         metrics.append(weather_metrics.Metric.flag('stage.' + label, ok))

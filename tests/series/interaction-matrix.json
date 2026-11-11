@@ -1,0 +1,52 @@
+{
+  "comment": "The interaction matrix of the Atmospheres verification (master plan 9.1, stage 3). Template: a package adds its rows under \"rows\" and its player rows under \"player_rows\"; the EXPECTED effect of a row is written here BEFORE it is measured. Axes: the feature on or off, the other mods (EVE, Scatterer, Deferred, TUFX), the upscaler, frame generation and raytracing. \"baseline\" is the row every effect is measured against and runs first. Rows are restricted to a non-zero expected effect that needs a mod set change (the mod set is the eve, scatterer, deferred and tufx values); `python tools/atmo_ab.py interaction expand tests/series/interaction-matrix.json [--cover]` prints the order, `... judge <matrix> <measured.json>` compares a measured table (row id -> metric -> value) with the expectations and prints every deviation. Effects: increase | decrease | change | none; min and max bound the size of the effect (measured minus baseline, or the value itself with absolute true). \"player_rows\" are the rows the weather player runs itself (L2, python tools/build_weather_player.py --series interaction-player): the player arguments, whether the proxy is beside it, and the expected figure per metric as [known value, relative tolerance, absolute floor] or {\"same_as\": row id, \"rel\": tolerance}. The known values are the spike's (.local/plans/spike-result.md: the camera turn at 25 km, render scale 0.667 unless the id says 0.5). Frame generation and raytracing rows need the game and live in \"rows\".",
+  "axes": {
+    "feature": ["off", "on"],
+    "eve": ["on", "off"],
+    "scatterer": ["on", "off"],
+    "deferred": ["on", "off"],
+    "tufx": ["on", "off"],
+    "upscaler": ["native", "fsr3", "dlss", "xess"],
+    "fg": ["off", "fsr", "dlssg"],
+    "rt": ["off", "full"]
+  },
+  "forbidden": [
+    {"fg": "dlssg", "upscaler": "xess"},
+    {"upscaler": "native", "fg": "dlssg"}
+  ],
+  "baseline": {"feature": "off", "eve": "on", "scatterer": "on", "deferred": "on", "tufx": "on", "upscaler": "fsr3", "fg": "off", "rt": "off"},
+  "rows": [
+    {"id": "T01-volume", "template": true, "set": {"feature": "on"},
+     "expect": {"metric": "diff_area_fraction", "effect": "increase", "min": 0.01, "max": 0.6, "absolute": true},
+     "note": "the feature alone, EVE as renderer: the difference region is the volume's contribution"},
+    {"id": "T02-eve-off", "template": true, "set": {"feature": "on", "eve": "off"},
+     "expect": {"metric": "contrib_share", "effect": "increase", "min": 0.005, "absolute": true},
+     "note": "without EVE the own volume pass draws the clouds; its contribution share rises"},
+    {"id": "T03-scatterer-off", "template": true, "set": {"feature": "on", "scatterer": "off"},
+     "expect": {"metric": "luma_mean", "effect": "change", "min": 0.001},
+     "note": "no atmospheric scattering changes the sky the volume is composed over"},
+    {"id": "T04-dlss", "template": true, "set": {"feature": "on", "upscaler": "dlss"},
+     "expect": {"metric": "ghost_move", "effect": "increase", "min": 0.0, "max": 0.02},
+     "note": "temporal error rises by at most the spike's slab figure (0.004 at DLSS K)"},
+    {"id": "T05-fg-dlssg", "template": true, "set": {"feature": "on", "upscaler": "dlss", "fg": "dlssg"},
+     "expect": {"metric": "trail_px", "effect": "increase", "min": 0.0, "max": 0.2},
+     "note": "generated frames: trail pixels rise but stay below 0.2"},
+    {"id": "T06-rt-full", "template": true, "set": {"feature": "on", "rt": "full"},
+     "expect": {"metric": "gpu_ms_pass", "effect": "increase", "min": 0.0, "max": 1.5},
+     "note": "with the volume in the raytracing input the pass cost stays within gate G3"}
+  ],
+  "player_rows": [
+    {"id": "P-native", "stage": ["-mode", "turn", "-view", "far", "-upscale", "native"], "proxy": true,
+     "expect": {"ghost_move": [0.0091, 0.10, 0.00005], "ghost_still": [0.0085, 0.10, 0.00005], "trail_px": [0.059, 0.10, 0.0005]}},
+    {"id": "P-native-noproxy", "stage": ["-mode", "turn", "-view", "far", "-upscale", "native"], "proxy": false,
+     "expect": {"ghost_move": {"same_as": "P-native", "rel": 0.10}, "ghost_still": {"same_as": "P-native", "rel": 0.10}, "trail_px": {"same_as": "P-native", "rel": 0.10}}},
+    {"id": "P-fsr3", "stage": ["-mode", "turn", "-view", "far", "-upscale", "fsr3", "-scale", "0.6666667", "-bundle", "{bundle}"], "proxy": true, "upscaler": true,
+     "expect": {"ghost_move": [0.0157, 0.15, 0.0003], "ghost_still": [0.0149, 0.15, 0.0003], "trail_px": [0.114, 0.15, 0.003]}},
+    {"id": "P-dlss", "stage": ["-mode", "turn", "-view", "far", "-upscale", "dlss", "-scale", "0.6666667"], "proxy": true, "upscaler": true,
+     "expect": {"ghost_move": [0.0123, 0.15, 0.0003], "ghost_still": [0.0128, 0.15, 0.0003], "trail_px": [0.085, 0.15, 0.003]}},
+    {"id": "P-xess", "stage": ["-mode", "turn", "-view", "far", "-upscale", "xess", "-scale", "0.6666667"], "proxy": true, "upscaler": true,
+     "expect": {"ghost_move": [0.0145, 0.15, 0.0003], "ghost_still": [0.0145, 0.15, 0.0003], "trail_px": [0.106, 0.15, 0.003]}},
+    {"id": "P-dlss-0.5", "stage": ["-mode", "turn", "-view", "far", "-upscale", "dlss", "-scale", "0.5"], "proxy": true, "upscaler": true,
+     "expect": {"ghost_move": [0.0205, 0.15, 0.0003], "ghost_still": [0.0220, 0.15, 0.0003], "trail_px": [0.173, 0.15, 0.003]}}
+  ]
+}
