@@ -258,6 +258,10 @@ namespace ReDefinition.Proxy
             // How Unity fades the sun's shadow out in forward rendering (Raytracing.h,
             // RtFramePacket.shadowFade; RtCamera.ShadowFadeRead), and the meadow's shade (RtCamera.FillPacket).
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 12)] public float[] ShadowFade;
+            // The weather's fog for the rays (Raytracing.h, RtFramePacket.fog; RtCamera.ApplyWeather): the density in x, in
+            // 1 / metre as Unity's exp2 fog takes it (exp(-(d x density)^2)), and the colour in yzw, as the other colours
+            // are handed over (Unity's space; RtCommon.hlsli, InputColor). Density 0 for none.
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public float[] Fog;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Inputs;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)] public IntPtr[] Outputs;
 
@@ -301,6 +305,7 @@ namespace ReDefinition.Proxy
                 Array.Copy(Clouds, target.Clouds, Clouds.Length);
                 Array.Copy(PrevWorldToClipFar, target.PrevWorldToClipFar, PrevWorldToClipFar.Length);
                 Array.Copy(ShadowFade, target.ShadowFade, ShadowFade.Length);
+                Array.Copy(Fog, target.Fog, Fog.Length);
                 Array.Copy(Inputs, target.Inputs, Inputs.Length);
                 Array.Copy(Outputs, target.Outputs, Outputs.Length);
             }
@@ -417,6 +422,7 @@ namespace ReDefinition.Proxy
                 Clouds = new float[24],
                 PrevWorldToClipFar = new float[16],
                 ShadowFade = new float[12],
+                Fog = new float[4],
                 Inputs = new IntPtr[8],
                 Outputs = new IntPtr[8],
             };

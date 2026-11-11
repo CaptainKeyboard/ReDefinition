@@ -872,6 +872,9 @@ PsOut PsMain(VsOut input)
         double sea[12] = {};
         // The camera's previous position less this one (RtFramePacket.cameraDelta).
         Vec3 cameraDelta;
+        // The weather's fog (RtFramePacket.fog): the density in 1 / metre and the colour; density 0 for none.
+        float fogDensity = 0.0f;
+        float fogColour[3] = { 0.0f, 0.0f, 0.0f };
     };
 
     // A frame through the render event as the mod sends it. It fills the packet with the camera, the sun and the
@@ -929,6 +932,8 @@ PsOut PsMain(VsOut input)
         packet.cameraDelta[0] = float(lighting.cameraDelta.x);
         packet.cameraDelta[1] = float(lighting.cameraDelta.y);
         packet.cameraDelta[2] = float(lighting.cameraDelta.z);
+        packet.fog[0] = lighting.fogDensity;
+        memcpy(&packet.fog[1], lighting.fogColour, sizeof(lighting.fogColour));
         packet.inputs[kRtInputEnvironment] = lighting.environment;
         packet.inputs[kRtInputInstances] = lighting.gpuInstances;
         packet.inputs[kRtInputDepth] = g.depth.Get();
@@ -2178,6 +2183,8 @@ int main(int argc, char** argv)
         ReadTexture(device.Get(), context.Get(), g.gbuffer2.Get(), 4, normals);
         // 0 sky, 1 tower, 2 box or not the plane.
         std::vector<int> expected(depth.size(), 2);
+        // How far the reflected ray goes to the tower, for the fog check below.
+        std::vector<double> towerDistance(depth.size(), -1.0);
         for (UINT y = 0; y < kHeight; ++y)
             for (UINT x = 0; x < kWidth; ++x)
             {
@@ -2199,6 +2206,7 @@ int main(int argc, char** argv)
                 if (toBox >= 0.0 && (toTower < 0.0 || toBox < toTower))
                     continue;
                 expected[i] = toTower >= 0.0 ? 1 : 0;
+                towerDistance[i] = toTower;
             }
         // Two pixels off an edge: a smoothness of 1 is still Unity's smallest roughness,
         // whose lobe reaches that far past the tower's side.
@@ -2238,6 +2246,85 @@ int main(int argc, char** argv)
         Check(towerPixels > 2000 && towerRight * 100 >= towerPixels * 99 && skyRight * 100 >= skyPixels * 99, "mirror",
               detail);
         SaveColour(L"rt_mirror.bmp", mean, 0.25);
+
+        // ------------------------------------------------------------ fog
+        // The same view with the weather's fog on the rays (RtFramePacket.fog): a segment of length d keeps
+        // exp(-(d x density)^2) of what it meets and takes the rest from the fog's colour. The sky is a miss at
+        // the ray's whole length (100000 m), so a mirror shows the fog's colour there; the tower is met at the
+        // distance the CPU found, and shows its glow and the fog's colour in the shares of that distance.
+        // Density 0.02 leaves 0.53 of the glow at 40 m.
+        lighting.fogDensity = 0.02f;
+        lighting.fogColour[0] = 0.5f;
+        lighting.fogColour[1] = 0.6f;
+        lighting.fogColour[2] = 0.7f;
+        std::vector<double> fogged;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.specular.Get(), kRtSignalSpecular,
+                        lighting, sun, 16, 5100, fogged))
+            return Fatal("reading the fogged reflections back", E_FAIL);
+        size_t fogTower = 0, fogTowerRight = 0, fogSky = 0, fogSkyRight = 0, fogDistant = 0, fogNear = 0;
+        double nearestKeep = 1.0, farthestKeep = 0.0;
+        for (UINT y = 2; y + 2 < kHeight; ++y)
+            for (UINT x = 2; x + 2 < kWidth; ++x)
+            {
+                const size_t i = static_cast<size_t>(y) * kWidth + x;
+                if (expected[i] == 2)
+                    continue;
+                bool edge = false;
+                for (int dy = -2; dy <= 2 && !edge; ++dy)
+                    for (int dx = -2; dx <= 2 && !edge; ++dx)
+                        edge = expected[i + dy * static_cast<int>(kWidth) + dx] != expected[i];
+                if (edge)
+                    continue;
+                const double* got = &fogged[i * 3];
+                if (expected[i] == 1)
+                {
+                    const double keep = std::exp(-std::pow(towerDistance[i] * lighting.fogDensity, 2.0));
+                    nearestKeep = std::min(nearestKeep, keep);
+                    farthestKeep = std::max(farthestKeep, keep);
+                    fogDistant += keep < 0.4 ? 1 : 0;
+                    fogNear += keep > 0.6 ? 1 : 0;
+                    const double glowAt[3] = { 4.0, 2.0, 1.0 };
+                    bool right = true;
+                    for (int c = 0; c < 3; ++c)
+                    {
+                        const double want = keep * glowAt[c] + (1.0 - keep) * lighting.fogColour[c];
+                        // The glow's tail past the tower's side, as in the mirror check, and the pixel's own distance
+                        // within a few centimetres of the CPU's.
+                        right = right && std::fabs(got[c] - want) < 0.05 * want + 0.02;
+                    }
+                    ++fogTower;
+                    fogTowerRight += right ? 1 : 0;
+                }
+                else
+                {
+                    ++fogSky;
+                    fogSkyRight += std::fabs(got[0] - 0.5) < 0.01 && std::fabs(got[1] - 0.6) < 0.01 && std::fabs(got[2] - 0.7) < 0.01
+                                       ? 1
+                                       : 0;
+                }
+            }
+        char fogDetail[400];
+        sprintf_s(fogDetail, "%zu of %zu tower pixels at their distance's share of glow and fog (shares %.2f to %.2f, %zu near, %zu far), "
+                             "%zu of %zu sky pixels the fog's colour",
+                  fogTowerRight, fogTower, nearestKeep, farthestKeep, fogNear, fogDistant, fogSkyRight, fogSky);
+        Check(fogTower > 2000 && fogTowerRight * 100 >= fogTower * 98 && fogSky > 500 && fogSkyRight * 100 >= fogSky * 99
+                  && farthestKeep - nearestKeep > 0.05,
+              "fog on the rays", fogDetail);
+        SaveColour(L"rt_fog.bmp", fogged, 0.25);
+        // Density 0 is the packet before the fog existed: the same sky as the mirror check's.
+        lighting.fogDensity = 0.0f;
+        std::vector<double> unfogged;
+        if (!Accumulate(proxy, device.Get(), context.Get(), camera, g, outputs, outputs.specular.Get(), kRtSignalSpecular,
+                        lighting, sun, 16, 5000, unfogged))
+            return Fatal("reading the unfogged reflections back", E_FAIL);
+        size_t same = 0, compared = 0;
+        for (size_t i = 0; i < unfogged.size() && i < mean.size(); i += 3)
+        {
+            ++compared;
+            same += std::fabs(unfogged[i] - mean[i]) < 0.2 * mean[i] + 0.02 ? 1 : 0;
+        }
+        sprintf_s(fogDetail, "%zu of %zu pixels as the mirror check's, with a fog colour set and a density of 0", same, compared);
+        Check(compared > 100000 && same * 100 >= compared * 97, "fog density 0 changes nothing", fogDetail);
     }
 
     // ---------------------------------------------------------------- environment

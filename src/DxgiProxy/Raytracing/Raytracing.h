@@ -269,6 +269,8 @@ namespace redefinition
         float cacheOffset[4];
         float cacheParams[4];
         uint32_t cacheSizes[4];
+        // The weather's fog (RtFramePacket.fog): the density in x, the colour in yzw.
+        float fog[4];
     };
     // Each field in the register the contract gives it (RtContract.h), as cbuffer Frame
     // places it (packoffset, RtCommon.hlsli).
@@ -296,6 +298,7 @@ namespace redefinition
     static_assert(offsetof(RtFrameConstants, cacheOffset) == RT_CB_CACHE_OFFSET * 16, "cbuffer Frame: cacheOffset");
     static_assert(offsetof(RtFrameConstants, cacheParams) == RT_CB_CACHE_PARAMS * 16, "cbuffer Frame: cacheParams");
     static_assert(offsetof(RtFrameConstants, cacheSizes) == RT_CB_CACHE_SIZES * 16, "cbuffer Frame: cacheSizes");
+    static_assert(offsetof(RtFrameConstants, fog) == RT_CB_FOG * 16, "cbuffer Frame: fog");
     static_assert(offsetof(RtFrameConstants, frameIndex) == RT_CB_FRAME_SIZE * 16 + 8, "cbuffer Frame: frameIndex");
     static_assert(offsetof(RtFrameConstants, frameFlags) == RT_CB_FRAME_SIZE * 16 + 12, "cbuffer Frame: frameFlags");
     static_assert(sizeof(RtFrameConstants) == RT_CB_REGISTERS * 16, "cbuffer Frame: its size");
@@ -422,6 +425,12 @@ namespace redefinition
         // keeps from its ground, and the point it draws about the vessel, relative to the
         // camera, with how far (RtCommon.hlsli, MeadowShade).
         float shadowFade[12];
+        // The weather's fog for the rays: the density in x, in 1 / metre as Unity's exp2 fog
+        // takes it, and the colour in yzw, as the other colours are handed over (Unity's
+        // space, RtCommon.hlsli InputColor). A segment of a ray of length d keeps
+        // exp(-(d x density)^2) of what it meets and takes the rest from the fog's colour
+        // (RtCommon.hlsli, FogKeep). Density 0 for none.
+        float fog[4];
         // Unity's textures as ID3D11Resource: the inputs, read as t1-t8 (by kRtInput*), and the
         // outputs, written as u0-u7 (by RT_OUTPUT_*); null for none.
         void* inputs[kRtMaxTextures];
@@ -550,6 +559,7 @@ namespace redefinition
     static_assert(offsetof(RtFramePacket, prevWorldToClipFar) == RT_FRAME_PACKET_PREV_WORLD_TO_CLIP_FAR,
                   "RtFramePacket: prevWorldToClipFar");
     static_assert(offsetof(RtFramePacket, shadowFade) == RT_FRAME_PACKET_SHADOW_FADE, "RtFramePacket: shadowFade");
+    static_assert(offsetof(RtFramePacket, fog) == RT_FRAME_PACKET_FOG, "RtFramePacket: fog");
     static_assert(offsetof(RtFramePacket, inputs) == RT_FRAME_PACKET_INPUTS, "RtFramePacket: inputs");
     static_assert(offsetof(RtFramePacket, outputs) == RT_FRAME_PACKET_OUTPUTS, "RtFramePacket: outputs");
     static_assert(sizeof(RtFramePacket) == RT_FRAME_PACKET_SIZE, "RtFramePacket: its size");

@@ -54,9 +54,13 @@ namespace ReDefinition.Upscaler
 
         // In Present, once the upscaler has written image, before TUFX's effects after
         // it and before frame generation's HUD-less copy.
-        // depth is the rig's copy at render size, written into the capture at BeforeImageEffects, which is before this point in the
-        // same frame (the global depth texture is only valid from BeforeForwardAlpha on, RECON P6). The depth handlers get it
-        // from the same buffer, after the image-only handlers.
+        // depth is textures.DepthCopy, at render size: the capture buffer (UpscalerInputs.Record) blits DepthIdentifier(DepthSource) into
+        // it at BeforeImageEffects of the scene camera (ResolvedDepth by default, else _CameraDepthTexture) and the vessel's depth is drawn
+        // into it after that (VesselMotionVectors.RecordDepth); that is before this point in the same frame. RECON P6 measured the
+        // global _CameraDepthTexture and BuiltinRenderTextureType.Depth at BeforeImageEffects as overwritten, and ResolvedDepth was not
+        // tapped there: that the copy holds the scene is what the upscalers' working shows, and the wall test (C24.depth_hook_depth_ok,
+        // both DepthSources, with and without Scatterer) has not run [VERIFY]. The depth handlers get it from the same buffer, after the
+        // image-only handlers.
         internal void RunAfterUpscaling(RenderTexture image, RenderTexture depth, Camera cam)
         {
             bool plain = SharedFrame.AfterUpscalingHooks.Any;

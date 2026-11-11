@@ -126,9 +126,12 @@ inline half4 ReDefinitionMotionVector(float4 clipCurrent, float4 clipPrevious)
 // Hooks.RegisterAfterUpscalingWithDepth hands to the handler: the nearest surface of the 3 x 3 render-size
 // texels around the position, so an effect drawn on the upscaled image is hidden by a thin edge of
 // geometry the jittered render-size depth only just covers. The texture is point-filtered (RFloat) and
-// holds the raw hardware depth; on Direct3D 11 (UNITY_REVERSED_Z) 1 is the near plane and 0 the far
-// one, and the nearest surface is the largest value. Use LinearEyeDepth(d) for a distance (it is not
-// valid for a pixel at the far plane, where d is 0). displayUv is 0 to 1 over the image shown, y as the
+// holds the raw hardware depth. [VERIFY] The polarity of this texture is not measured yet (the wall test
+// of series K-W1, C24.depth_hook_depth_ok, reads a near and a far object): with UNITY_REVERSED_Z (Direct3D 11)
+// the nearest surface is taken as the largest value and 1 should be the near plane, 0 the far one;
+// without it the smallest. The function follows the define, so it finds the nearest surface in either
+// case; a distance from LinearEyeDepth(d) holds only once the polarity is measured (and not for a pixel
+// at the far plane). displayUv is 0 to 1 over the image shown, y as the
 // effect's own texture coordinates run (the depth texture is read with the same orientation).
 // Call it from a pixel shader; tex2Dlod with a fixed level keeps it legal in a loop.
 inline float ReDefinitionSampleSceneDepth(sampler2D depthTexture, float2 displayUv)

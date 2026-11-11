@@ -159,7 +159,7 @@
 #define RT_MATERIAL_DESC_SIZE 96
 #define RT_INSTANCE_SIZE 64
 #define RT_GPU_GROUP_SIZE 32
-#define RT_FRAME_PACKET_SIZE 1056
+#define RT_FRAME_PACKET_SIZE 1072
 #define RT_RECONSTRUCT_PACKET_SIZE 640
 
 // RtFramePacket's fields, by their offset in bytes.
@@ -194,8 +194,9 @@
 #define RT_FRAME_PACKET_CLOUDS 720
 #define RT_FRAME_PACKET_PREV_WORLD_TO_CLIP_FAR 816
 #define RT_FRAME_PACKET_SHADOW_FADE 880
-#define RT_FRAME_PACKET_INPUTS 928
-#define RT_FRAME_PACKET_OUTPUTS 992
+#define RT_FRAME_PACKET_FOG 928
+#define RT_FRAME_PACKET_INPUTS 944
+#define RT_FRAME_PACKET_OUTPUTS 1008
 
 // RtReconstructPacket's fields, by their offset in bytes.
 #define RT_RECONSTRUCT_PACKET_SIZE_FIELD 0
@@ -280,6 +281,8 @@
 #define RT_CB_CACHE_OFFSET 48
 #define RT_CB_CACHE_PARAMS 49
 #define RT_CB_CACHE_SIZES 50
-#define RT_CB_REGISTERS 51
+// The weather's fog (RtFramePacket.fog): the density in x, the colour in yzw.
+#define RT_CB_FOG 51
+#define RT_CB_REGISTERS 52
 
 #endif

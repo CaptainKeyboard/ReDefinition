@@ -79,6 +79,12 @@ namespace ReDefinition.Modules
         internal const float DefaultNightClouds = 45f;
         // The moons' discs made to stand out in the night sky (Raytracing/Ksp/MoonGlow).
         public bool MoonGlow = true;
+        // What the weather does to the rays (Raytracing/RtCamera.Weather): the weather's fog on the rays' segments; the
+        // rays' reach cut to three times the visibility, and one bounce fewer in heavy weather. The last two are quality
+        // costs and so off until the owner agrees to them (benchmark group rt-weather measures them).
+        public bool RtWeatherFog = true;
+        public bool RtWeatherReachCap;
+        public bool RtWeatherFewerBounces;
         // How strongly water mirrors the moons, in percent of their discs as the eye sees
         // them at night (NightAdaptation).
         public float RaytracingMoonReflection = 100f;
@@ -448,6 +454,9 @@ namespace ReDefinition.Modules
             Float("raytracingMoonlight", "0", x => x.RaytracingMoonlight, (x, v) => x.RaytracingMoonlight = v, true),
             Float("nightClouds", "0", x => x.NightClouds, (x, v) => x.NightClouds = v, true),
             Bool("moonGlow", x => x.MoonGlow, (x, v) => x.MoonGlow = v, true),
+            Bool("rtWeatherFog", x => x.RtWeatherFog, (x, v) => x.RtWeatherFog = v, true),
+            Bool("rtWeatherReachCap", x => x.RtWeatherReachCap, (x, v) => x.RtWeatherReachCap = v, true),
+            Bool("rtWeatherFewerBounces", x => x.RtWeatherFewerBounces, (x, v) => x.RtWeatherFewerBounces = v, true),
             Float("raytracingMoonReflection", "0", x => x.RaytracingMoonReflection, (x, v) => x.RaytracingMoonReflection = v, true),
             Float("sunReflection", "0", x => x.SunReflection, (x, v) => x.SunReflection = v, true),
             Float("raytracingNightAmbient", "0", x => x.RaytracingNightAmbient, (x, v) => x.RaytracingNightAmbient = v, true),

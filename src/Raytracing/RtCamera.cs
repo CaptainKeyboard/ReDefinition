@@ -883,6 +883,7 @@ namespace ReDefinition.Raytracing
             Vector4 towards = Sun();
             Color sunColour = WithCloudShare(drawnSunFrame == Time.frameCount ? drawnSunColour : SunColor());
             TracedSunColour = sunColour;
+            TracedCloudShare = CloudShareFactor();
             // How much of the sun Unity's shadows take: its light's shadow strength (KSP's sun
             // 0.75), for the forward light's estimate of what Unity shaded with.
             Light sunLight = SunLight != null ? SunLight() : null;
@@ -1166,6 +1167,9 @@ namespace ReDefinition.Raytracing
         internal static bool StockSeaTraced { get; private set; }
         // The sun's colour the last frame's trace took (SunColor as the frame drew it).
         internal Color TracedSunColour { get; private set; }
+        // The factor of the cloud share in TracedSunColour (RtWeatherMath.SunScale, 1 for none), which the probes' "traced sun"
+        // includes: the number printed beside it says how much of that colour is the weather's.
+        internal float TracedCloudShare { get; private set; } = 1f;
         // The ocean's raytraced reflections as the trace wrote them.
         internal RenderTexture OceanTracedTexture { get { return oceanTraced; } }
         // Scatterer's ocean's depth, copied from its G-buffer.

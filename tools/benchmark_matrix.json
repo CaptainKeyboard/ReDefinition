@@ -233,6 +233,25 @@
         {"id": "weather-forceType", "name": "Force Precipitation Type Snow", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.forceType": "Snow"}},
         {"id": "weather-atmoDebug", "name": "Debug Overlay Contrib", "technique": "fsr3", "raytracing": ["Off"], "latencies": ["none"], "keys": {"atmo.atmoDebug": "Contrib"}}
       ]
+    },
+    {
+      "id": "rt-weather",
+      "name": "Raytracing in a blizzard",
+      "description": "What the weather does to the rays (package C24b): FSR 3 at raytracing Full without frame generation, the weather forced to level 0.9 (a blizzard) in every phase. The plain rendering has the fog on the rays (mod.rtWeatherFog) and neither quality cost; then one rendering each without the fog, with the reach capped to three times the visibility (mod.rtWeatherReachCap), with one bounce fewer (mod.rtWeatherFewerBounces) and with both costs. The two costs are quality reductions and off by default until the owner agrees; this group measures what they save (the raytracing segment of the frame) so that the agreement can rest on numbers. The settings reach the game as mod.<key> and atmo.<key> live keys of the probe; the probe's routing of the atmo. prefix to AtmospheresSettings is not there yet.",
+      "scenes": ["pad"],
+      "techniques": ["fsr3"],
+      "raytracing": ["Full"],
+      "radiance_cache": null,
+      "opacity_micromaps": null,
+      "frame_generation": ["fsr"],
+      "latency": ["none"],
+      "tweak_defaults": {"atmo.enabled": "True", "atmo.weatherEffects": "True", "atmo.forceLevel": "0.9", "mod.rtWeatherFog": "True", "mod.rtWeatherReachCap": "False", "mod.rtWeatherFewerBounces": "False"},
+      "tweaks": [
+        {"id": "rt-weather-fog-off", "name": "Fog on the rays off", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"mod.rtWeatherFog": "False"}},
+        {"id": "rt-weather-reach-cap", "name": "Reach capped to 3x visibility", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"mod.rtWeatherReachCap": "True"}},
+        {"id": "rt-weather-fewer-bounces", "name": "One bounce fewer", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"mod.rtWeatherFewerBounces": "True"}},
+        {"id": "rt-weather-both-costs", "name": "Reach cap and one bounce fewer", "technique": "fsr3", "raytracing": ["Full"], "latencies": ["none"], "keys": {"mod.rtWeatherReachCap": "True", "mod.rtWeatherFewerBounces": "True"}}
+      ]
     }
   ]
 }

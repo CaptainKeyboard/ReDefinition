@@ -1,0 +1,9 @@
+# Linked into the weather player by tools/build_weather_player.py (see its header): one glob per line, matched against repo-relative
+# paths with ** for any folders. Package C24: the pure logic behind the wall test, the forced-cut test and the transmission fit, free of
+# Unity and KSP types. The scenes themselves (a wall with a band behind it and a near and a far ball; a forced weather cut) are not built
+# yet: they need the rig's after-upscaling depth hook, which the player does not run (series rows C24.depth_hook_depth_ok,
+# C24.wall_hidden_pixels_error and C24.history_reset_clear_frames in tests/series/rows/C24.json).
+src/Upscaler/Weather/CloudDensityEstimate.cs
+src/Upscaler/Weather/CloudDensityCalibration.cs
+src/Upscaler/Weather/WeatherCutDetector.cs
+src/Common/Weather/SunTransmission.cs

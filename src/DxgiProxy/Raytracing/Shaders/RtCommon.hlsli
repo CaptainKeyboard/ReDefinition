@@ -97,6 +97,9 @@ cbuffer Frame : register(b0)
     float4 cacheOffset : RT_AT(RT_CB_CACHE_OFFSET);
     float4 cacheParams : RT_AT(RT_CB_CACHE_PARAMS);
     uint4 cacheSizes : RT_AT(RT_CB_CACHE_SIZES);
+    // The weather's fog for the rays (Raytracing.h, RtFramePacket.fog): the density in x, in
+    // 1 / metre as Unity's exp2 fog takes it, and the colour in yzw (FogKeep). Density 0 for none.
+    float4 fog : RT_AT(RT_CB_FOG);
 };
 
 // Per instance of the scene, by its InstanceID (Raytracing.h, InstanceData; GpuInstances.hlsl
@@ -1135,6 +1138,41 @@ float3 ReflectedLightAt(float3 position, float3 normal, inout Random random, flo
 
 #include "RadianceCache.hlsli"
 
+// The share of the light a segment of a ray of this length lets through in the weather's fog:
+// Unity's exp2 fog, exp(-(d x density)^2), the density in fog.x (RtFramePacket.fog). 1 for no
+// fog or a density that is not a positive number. The length is limited, as a miss's is the
+// ray's own (1e5 to 1e7), which the density takes to 0 in any fog: a ray that escapes to the
+// sky shows the fog's colour. [VERIFY] That takes the reflected sky to the fog's colour from the
+// level where the mod hands the fog over (RtWeatherMath.LevelFloor), where the sky itself is
+// still seen; the A/B phases rt-weather-fog-off against the plain one of the benchmark group
+// show it. A fog layer of finite height would shorten the miss of a ray that climbs; that
+// height is not measured.
+float FogKeep(float distance)
+{
+    if (!(fog.x > 0.0f))
+        return 1.0f;
+    float x = min(distance, 1.0e7f) * fog.x;
+    return exp(-x * x);
+}
+
+// The fog's colour as light, linear.
+float3 FogColour()
+{
+    return InputColor(fog.yzw);
+}
+
+// How far a ray that met nothing of the scene goes before the main body's sphere, or the
+// ray's own length (`rayLength`) where it meets none, for the fog along it.
+float SegmentToBody(float3 origin, float3 direction, float rayLength)
+{
+    if (bodySphere.w <= 0.0f || !BodyBlocks(origin, direction))
+        return rayLength;
+    float3 toCentre = bodySphere.xyz - origin;
+    float along = dot(toCentre, direction);
+    float closest2 = dot(toCentre, toCentre) - along * along;
+    return max(along - sqrt(max(bodySphere.w * bodySphere.w - closest2, 0.0f)), 0.0f);
+}
+
 // The radiance arriving along a ray, from what it hits and, bounce by bounce, what
 // lights that. The sky where it escapes is light (SkyLight) or, for a mirror's ray
 // that sees it directly (`mirror`, its first segment), as it looks. With the radiance
@@ -1158,6 +1196,14 @@ float3 Radiance(float3 origin, float3 direction, float maxDistance, uint bounces
                                mirror ? 0.0f : FoliageThrough());
         if (bounce == 0u)
             firstDistance = hit.distance;
+        // The fog along this segment (FogKeep): what the segment meets, and every bounce past it,
+        // reaches its start dimmed, with the fog's colour in the share it takes.
+        if (fog.x > 0.0f)
+        {
+            float keepFog = FogKeep(hit.found ? hit.distance : SegmentToBody(origin, direction, hit.distance));
+            total += weight * (1.0f - keepFog) * FogColour();
+            weight *= keepFog;
+        }
         if (!hit.found)
         {
             float3 ground;

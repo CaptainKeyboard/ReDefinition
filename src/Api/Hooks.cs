@@ -61,14 +61,25 @@ namespace ReDefinition.Api
         /// <summary>
         /// An effect on the upscaled image that must be hidden behind geometry. Called in the same place as
         /// <see cref="RegisterAfterUpscaling"/>, from the same buffer, with the scene's depth as well. The
-        /// depth is the rig's own copy, written into the capture at <c>BeforeImageEffects</c> of the scene
-        /// camera, where Unity's global depth texture is valid (the global texture holds nothing before
-        /// <c>BeforeForwardAlpha</c>), with the active vessel's depth added.
+        /// depth is the rig's own copy, the texture the upscaler and frame generation read: the capture buffer
+        /// at <c>BeforeImageEffects</c> of the scene camera blits Unity's resolved depth buffer
+        /// (<c>BuiltinRenderTextureType.ResolvedDepth</c>, the rig's default <c>DepthSource</c>) into it, and the
+        /// active vessel's depth is then drawn into it where the vessel is nearer. It holds what the deferred
+        /// pass drew and the vessel's renderers, and nothing of what the forward pass draws after that (a forward-only
+        /// object leaves 0). [VERIFY] That the copy holds the scene at that event is the product's own working
+        /// (DLSS, FSR 3 and frame generation read it) and the wall test of series K-W1 (metric
+        /// <c>C24.depth_hook_depth_ok</c>, with and without Scatterer, with <c>DepthSource</c>
+        /// <c>ResolvedDepth</c> and <c>GlobalDepthTexture</c>) has not run. Unity's global
+        /// <c>_CameraDepthTexture</c> and <c>BuiltinRenderTextureType.Depth</c> do not hold the scene at
+        /// <c>BeforeImageEffects</c> (K-pre reconnaissance P6, <c>tests/data/recon/RECON.md</c>); an effect that needs
+        /// the depth of the transparent queue takes its own copy at <c>BeforeForwardAlpha</c>.
         /// </summary>
         /// <param name="handler">Given the buffer; the upscaled image at display size, HDR, to draw onto;
-        /// the scene's raw hardware depth at render size, <c>RFloat</c>, point-filtered (reversed Z on
-        /// Direct3D 11: 1 is the near plane, 0 the far one; read it with
-        /// <c>ReDefinitionSampleSceneDepth</c> in ReDefinition.cginc); and the scene camera.</param>
+        /// the scene's raw hardware depth at render size, <c>RFloat</c>, point-filtered (on Direct3D 11 a
+        /// reversed Z, <c>SystemInfo.usesReversedZBuffer</c>: 1 is the near plane, 0 the far one [VERIFY the
+        /// polarity in the wall test: a near and a far object in view]; read it with
+        /// <c>ReDefinitionSampleSceneDepth</c> in ReDefinition.cginc, which follows <c>UNITY_REVERSED_Z</c>);
+        /// and the scene camera.</param>
         public static void RegisterAfterUpscalingWithDepth(
             Action<CommandBuffer, RenderTexture, RenderTexture, Camera> handler)
         {

@@ -610,6 +610,7 @@ namespace redefinition
         memcpy(constants.prevWorldToClip, packet.prevWorldToClip, sizeof(constants.prevWorldToClip));
         memcpy(constants.prevWorldToClipFar, packet.prevWorldToClipFar, sizeof(constants.prevWorldToClipFar));
         memcpy(constants.shadowFade, packet.shadowFade, sizeof(constants.shadowFade));
+        memcpy(constants.fog, packet.fog, sizeof(constants.fog));
         memcpy(constants.sunDirection, packet.sunDirection, sizeof(constants.sunDirection));
         memcpy(constants.sunColor, packet.sunColor, sizeof(constants.sunColor));
         memcpy(constants.skyColor, packet.skyColor, sizeof(constants.skyColor));

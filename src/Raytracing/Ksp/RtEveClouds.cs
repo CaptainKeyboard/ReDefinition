@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Reflection;
+using System.Text;
 using ReDefinition.Core;
 using ReDefinition.Upscaler;
 using UnityEngine;
@@ -234,9 +235,11 @@ namespace ReDefinition.Raytracing
                 // (Clouds2D.Apply, Reassign, SetTimeFade, SetMapViewFade): where the shader did not declare
                 // them, the layer counted as never faded. Their names are checked in EVE's
                 // code (ForeignAssumptions.EveRtClouds).
-                float fade = (shadow != null ? shadow.GetFloat(TimeFadeDensityId) * shadow.GetFloat(MapViewFadeId) : 1f)
-                             * (readScaledFade != null ? readScaledFade(layer) : 1f);
+                float mapView = shadow != null ? shadow.GetFloat(MapViewFadeId) : 1f;
+                float scaledFade = readScaledFade != null ? readScaledFade(layer) : 1f;
+                float fade = (shadow != null ? shadow.GetFloat(TimeFadeDensityId) * mapView : 1f) * scaledFade;
                 clouds[18] = fade;
+                ViewFade = mapView * scaledFade;
                 clouds[19] = readFadeDensity != null ? readFadeDensity(layer) : 1f;
                 clouds[20] = colour.r;
                 clouds[21] = colour.g;
@@ -254,7 +257,8 @@ namespace ReDefinition.Raytracing
                     Debug.Log(Log.Tag + (pack ? " Raytracing: " : " Clouds: ") + body.name + (pack ? "'s clouds in the rays" : "'s layer for the moon's light") + ": shadow at " + radius.ToString("0")
                               + " m from the centre, the layer " + innerRadius.ToString("0") + " to " + outerRadius.ToString("0")
                               + " m, shadow strength " + clouds[16].ToString("0.00") + ", fades " + clouds[17].ToString("0.00") + " / "
-                              + clouds[18].ToString("0.00") + " / " + clouds[19].ToString("0.00") + ", colour " + colour + ".");
+                              + clouds[18].ToString("0.00") + " / " + clouds[19].ToString("0.00") + ", colour " + colour
+                              + ", cloud type densities (type value -> density, for the optical depth's calibration) " + TypeDensitiesReport() + ".");
                 }
                 return !pack || packedHandle != IntPtr.Zero;
             }
@@ -446,6 +450,11 @@ namespace ReDefinition.Raytracing
         // The layer's coverage fade, density fade and its other fades together, as the rays take them.
         internal Vector3 MapFades { get; private set; }
 
+        // The part of the fade of the whole that EVE's SampleCoverage does not hold: the map view's fade times the volume's scaled
+        // fade. The coverage and density time fades are in SampleCoverage's value (CloudsRaymarchedVolume), and the fade of the whole
+        // (MapFades.z) has the 2D layer's density fade in it as well. OpticalDepth takes this one.
+        internal float ViewFade { get; private set; } = 1f;
+
         // The frame Fill last filled a layer in.
         private int filledFrame = -10;
 
@@ -461,9 +470,24 @@ namespace ReDefinition.Raytracing
         // (CloudsRaymarchedVolume.SampleCoverage, CPU), 0 to 1; -1 where there is none.
         internal float DensityAt(Vector3 world)
         {
+            float cloudType;
+            return DensityAt(world, out cloudType);
+        }
+
+        // The same with the cloud-type value (0 to 1 over EVE's type list) EVE reads at the point, its out argument. The argument array
+        // is kept: the main thread reads it, and a call each costs an array.
+        private readonly object[] coverageArguments = new object[3];
+
+        private float DensityAt(Vector3 world, out float cloudType)
+        {
+            cloudType = 0f;
             if (!HasSampleCoverage()) return -1f;
-            object[] arguments = { world, 0f, false };
-            return (float)sampleCoverage.Invoke(lastLayer, arguments);
+            coverageArguments[0] = world;
+            coverageArguments[1] = 0f;
+            coverageArguments[2] = false;
+            float coverage = (float)sampleCoverage.Invoke(lastLayer, coverageArguments);
+            cloudType = (float)coverageArguments[1];
+            return coverage;
         }
 
         // Whether there is a layer to sample and EVE's SampleCoverage was found on it, looked up on first use.
@@ -475,19 +499,79 @@ namespace ReDefinition.Raytracing
             return sampleCoverage != null;
         }
 
+        // EVE's cloud types of the last layer and the density property of a type (ForeignAssumptions.EveOpticalDepth), looked up on
+        // first use; the type list as the layer holds it.
+        private PropertyInfo cloudTypesProperty, typeDensityProperty;
+        private bool typeDensityResolved;
+
+        // EVE's density of its cloud types at a type value from 0 to 1, interpolated between the two types the value lies between as
+        // EVE does (CloudsRaymarchedVolume.getCloudFrac, private: the value times the count less one, its integer part and the next
+        // type); -1 where it cannot be read.
+        private float TypeDensityAt(float cloudType)
+        {
+            if (lastLayer == null || !ForeignAssumptions.EveOpticalDepth.Holds) return -1f;
+            if (!typeDensityResolved)
+            {
+                typeDensityResolved = true;
+                cloudTypesProperty = lastLayer.GetType().GetProperty("CloudTypes");
+            }
+            IList cloudTypes = cloudTypesProperty != null ? cloudTypesProperty.GetValue(lastLayer, null) as IList : null;
+            if (cloudTypes == null || cloudTypes.Count == 0) return -1f;
+            if (typeDensityProperty == null)
+            {
+                typeDensityProperty = cloudTypes[0] != null ? cloudTypes[0].GetType().GetProperty("Density") : null;
+                if (typeDensityProperty == null) return -1f;
+            }
+            float scaled = Mathf.Clamp01(cloudType) * (cloudTypes.Count - 1);
+            int current = (int)scaled;
+            int next = Math.Min(current + 1, cloudTypes.Count - 1);
+            object a = cloudTypes[current], b = cloudTypes[next];
+            if (a == null || b == null) return -1f;
+            float da = (float)typeDensityProperty.GetValue(a, null), db = (float)typeDensityProperty.GetValue(b, null);
+            return Mathf.Lerp(da, db, scaled - current);
+        }
+
+        // What the last optical depth was asked for and answered, in the frame it was: the consumer asks a few times per frame
+        // for the same place, and each answer is a march of eight reflection calls.
+        private static int answeredFrame = -1;
+        private static CelestialBody answeredBody;
+        private static double answeredLatitude, answeredLongitude, answeredAltitude;
+        private static float answered;
+
+        // The answer of OpticalDepth for a layer that cannot be read: negative, so that a consumer tells it from a clear sky (0);
+        // the host's hook is read as "none" below 0 as well as at 0 by the frame driver, which then takes the field's value.
+        internal const float OpticalDepthUnreadable = -1f;
+
         // The vertical optical depth of the body's EVE deck over a place, from an altitude over the surface (CloudDensityEstimate); 0
-        // where there is none. The layer is found for the body without packing its map (Keep). The density of the cloud types is not
-        // read: [VERIFY] EVE's CloudType density per type value is not in the members the catalogue holds, so it counts as 1.
+        // where the sky is clear, OpticalDepthUnreadable where the layer is missing, stale or failed. The layer is found for the body
+        // without packing its map (Keep). The density of EVE's cloud type at each altitude is a factor
+        // (CloudDensityCalibration.TypeDensityFactor), 1 until the calibration sets the reference [VERIFY]. One answer per frame and
+        // place; the rate the contract promises is a few places per frame.
         internal static float OpticalDepth(CelestialBody body, double latitude, double longitude, double altitude)
         {
-            if (body == null) return 0f;
+            if (body == null) return OpticalDepthUnreadable;
+            if (answeredFrame == Time.frameCount && ReferenceEquals(answeredBody, body) && answeredLatitude == latitude
+                && answeredLongitude == longitude && answeredAltitude == altitude)
+                return answered;
+            float value = OpticalDepthUncached(body, latitude, longitude, altitude);
+            answeredFrame = Time.frameCount;
+            answeredBody = body;
+            answeredLatitude = latitude;
+            answeredLongitude = longitude;
+            answeredAltitude = altitude;
+            answered = value;
+            return value;
+        }
+
+        private static float OpticalDepthUncached(CelestialBody body, double latitude, double longitude, double altitude)
+        {
             Keep(body);
             // FillFrom sets Last also for the instance Keep fills.
             RtEveClouds layer = Last;
             if (layer == null || layer.failed || Time.frameCount - layer.filledFrame > 2 || layer.namedBody != body
-                || layer.lastLayer == null || !layer.HasSampleCoverage()) return 0f;
+                || layer.lastLayer == null || !layer.HasSampleCoverage()) return OpticalDepthUnreadable;
             float inner, outer;
-            if (!layer.Shell(out inner, out outer)) return 0f;
+            if (!layer.Shell(out inner, out outer)) return OpticalDepthUnreadable;
             try
             {
                 Vector3 centre = (Vector3)body.position;
@@ -497,18 +581,47 @@ namespace ReDefinition.Raytracing
                     BottomM = inner - body.Radius,
                     TopM = outer - body.Radius,
                     Density = 1f,
-                    // The density fade and the fade of the whole (MapFades: coverage, density, the others).
-                    TimeFade = layer.MapFades.y * layer.MapFades.z,
+                    // The map view's fade and the scaled fade (ViewFade). SampleCoverage already multiplies in the coverage and the
+                    // density time fades (CloudsRaymarchedVolume.SampleCoverage returns coverage x curve x both fades), so the earlier
+                    // product of MapFades.y and .z counted the density fade twice.
+                    TimeFade = layer.ViewFade,
                 };
-                return CloudDensityEstimate.VerticalOpticalDepth(deck, altitude,
-                    height => layer.DensityAt(centre + up * (float)(body.Radius + height)));
+                bool useTypes = CloudDensityCalibration.TypeDensityReference > 0f;
+                return CloudDensityEstimate.VerticalOpticalDepthBySlice(deck, altitude, height =>
+                {
+                    float cloudType;
+                    float coverage = layer.DensityAt(centre + up * (float)(body.Radius + height), out cloudType);
+                    float density = 1f;
+                    if (useTypes && coverage > 0f)
+                    {
+                        float typeDensity = layer.TypeDensityAt(cloudType);
+                        if (typeDensity >= 0f) density = CloudDensityCalibration.TypeDensityFactor(typeDensity);
+                    }
+                    return new CloudDensityEstimate.Slice { Coverage = coverage, Density = density };
+                });
             }
             catch (Exception e)
             {
                 layer.failed = true;
                 CompatibilityLog.Warn("rt-eve-clouds", "The clouds' optical depth could not be read (" + CompatibilityLog.Reason(e) + ").");
-                return 0f;
+                return OpticalDepthUnreadable;
             }
+        }
+
+        // For the calibration series: the densities of the cloud types of the last layer filled, as a line (EVE's type list in order).
+        internal static string TypeDensitiesReport()
+        {
+            RtEveClouds layer = Last;
+            if (layer == null || layer.lastLayer == null || !ForeignAssumptions.EveOpticalDepth.Holds) return "no layer";
+            var text = new StringBuilder();
+            const int Steps = 8;
+            for (int i = 0; i <= Steps; i++)
+            {
+                float density = layer.TypeDensityAt(i / (float)Steps);
+                text.Append(i == 0 ? "" : ", ").Append(i / (float)Steps).Append(" -> ")
+                    .Append(density.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture));
+            }
+            return text.ToString();
         }
 
         // The layer's shell, from the planet's centre, for the probe; false where none is filled.

@@ -537,6 +537,23 @@ namespace ReDefinition.Core
                 .Tested("f36a77d52162") // EVE 3.2.2.0, the volumetric build of 2026-10
                 .OnChange(WhenChanged.Fallback, "the rays leave EVE's clouds out");
 
+        // EVE's cloud deck as a vertical optical depth for the sun's share (RtEveClouds.OpticalDepth, CloudDensityEstimate): the
+        // volume's SampleCoverage, which returns the coverage times the cloud-type curve times the coverage and density time fades and
+        // gives the cloud-type value through its out argument; the volume's list of cloud types, each with a Density, which is
+        // interpolated between the two types the value lies between as EVE's own getCloudFrac does (private, repeated in
+        // RtEveClouds.TypeDensityAt); and the fades read for the rays (MapFades, ViewFade): the 2D layer's shadow material's
+        // cloudTimeFadeDensity and mapViewFade and the volume's scaled fade, which EVE sets on the material only.
+        public static readonly ForeignAssumption EveOpticalDepth =
+            new ForeignAssumption("eve-optical-depth", "EVE", "EVE's cloud deck as an optical depth for the sun's share")
+                .Type(EveVolume).Type("Atmosphere.CloudType").Type("Atmosphere.Clouds2D")
+                .Method(EveVolume, "SampleCoverage")
+                .Calls(EveVolume, "get_CloudTypes")
+                .Calls(EveVolume, "get_VolumetricLayerScaledFade")
+                .Calls("Atmosphere.CloudType", "get_Density")
+                .Literal("Atmosphere.Clouds2D", "cloudTimeFadeDensity")
+                .Tested("99c6a77afd56") // EVE 3.2.2.0, SampleCoverage read in its decompiled source
+                .OnChange(WhenChanged.Fallback, "the optical depth reads as unreadable and the field's own value stands in");
+
         // Scatterer's main settings in ReDefinition's window (ScattererBehaviour):
         // Scatterer.Instance, its mainSettings and isActive, the Scatterer_config node they
         // load from, and pluginData with its savePluginData for the window's keys
@@ -705,7 +722,7 @@ namespace ReDefinition.Core
             DeferredReflections, DeferredSsr, DeferredSsrHold, DeferredSmaa,
             TufxPostProcessing, TufxAntialiasing, TufxProfiles, ParallaxTessellation, ParallaxScatters,
             DistantObjectSky, DistantObjectSettings, FourkSp, FourkSpRnD, FourkSpWindows, BetterTimeWarp, ManeuverNodeEvolved,
-            KopernicusShaders, KopernicusStarLight, FireflyIdle, EveRtClouds, KerbalFrameGenerator,
+            KopernicusShaders, KopernicusStarLight, FireflyIdle, EveRtClouds, EveOpticalDepth, KerbalFrameGenerator,
             ToolbarLoadingScreen, MechJebLoadingScreen, ToolbarControlButtons, PersistentRotationButton,
         };
 
