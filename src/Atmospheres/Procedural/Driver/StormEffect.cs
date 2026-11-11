@@ -11,7 +11,9 @@ namespace ReDefinition.Atmospheres
     // afar as a snow curtain under a dark cloud base (StormVolume). It sets no image effect and no command buffer, so it does not
     // meet the upscalers or raytracing of ReDefinition. Every global it changes is put back when the storm ends and when the scene is
     // left; the fog is put back only while it is still the one the storm wrote. A failure in any step logs once, puts everything back
-    // and switches the effect off for the scene. The log lines are StormLog's.
+    // and switches the effect off for the scene. The log lines are StormLog's. The ambient and sun light are no longer written here:
+    // the frame driver's LightWriter does it from WeatherView (C20); this class is the legacy cell effect that package C25 removes
+    // when the simulation takes over, and package C21/C22 replace its veil, flakes and volume.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class StormEffect : MonoBehaviour
     {
@@ -50,7 +52,6 @@ namespace ReDefinition.Atmospheres
         private double yearSeconds;
         private StormVeil veil;
         private StormFlakes flakes;
-        private readonly StormAmbient ambient = new StormAmbient();
         private readonly StormCull cull = new StormCull();
         private float ambientFactor = 1f;
         private float eveRaise;
@@ -103,7 +104,6 @@ namespace ReDefinition.Atmospheres
             if (broken) return;
             try
             {
-                if (active) ambient.Apply(ambientFactor);
                 if (camera == cellCamera) cull.Apply(camera, active ? StormLook.VisibilityMetres(current, AtmospheresSettings.StormVisibilityM) : 0);
                 if (preCullFrame == Time.frameCount) return;
                 preCullFrame = Time.frameCount;
@@ -421,8 +421,8 @@ namespace ReDefinition.Atmospheres
                     Flakes = AtmospheresSettings.StormSnowfall ? flakes.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "off",
                     Brightness = brightness,
                     AmbientFactor = ambientFactor,
-                    AmbientScaling = ambient.DescribeScaling(),
-                    AmbientExternalWrites = ambient.ExternalWrites,
+                    AmbientScaling = WeatherFrameDriver.Light != null ? WeatherFrameDriver.Light.Ambient.DescribeScaling() : "not scaling (no frame driver)",
+                    AmbientExternalWrites = WeatherFrameDriver.Light != null ? WeatherFrameDriver.Light.ExternalWrites : 0,
                     EveFields = AtmospheresSettings.StormEveSnow ? EveSnowLink.Fields.ToString(System.Globalization.CultureInfo.InvariantCulture) : "off"
                 }));
             }
@@ -468,7 +468,6 @@ namespace ReDefinition.Atmospheres
             eveRaise = 0f;
             cull.Restore();
             StormVolume.CameraVisibilityM = 0;
-            ambient.Restore();
             if (!rainToSnow) EveSnowLink.Release();
             if (veil != null) veil.Hide();
             if (flakes != null) flakes.Hide();
