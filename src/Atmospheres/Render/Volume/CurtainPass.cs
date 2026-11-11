@@ -20,10 +20,25 @@ namespace ReDefinition.Atmospheres
         // The darkest the base is made by a full-strength curtain.
         internal const float BaseDark = 0.6f;
 
-        private static readonly int IdCell = Shader.PropertyToID("_Cell"), IdUp = Shader.PropertyToID("_Up"), IdRight = Shader.PropertyToID("_Right"),
-            IdHeights = Shader.PropertyToID("_Heights"), IdWind = Shader.PropertyToID("_Wind"), IdLook = Shader.PropertyToID("_Look"),
-            IdSun = Shader.PropertyToID("_Sun"), IdSunColour = Shader.PropertyToID("_SunColour"), IdAmbient = Shader.PropertyToID("_AmbientColour"),
-            IdNoise = Shader.PropertyToID("_Noise"), IdSnowBoost = Shader.PropertyToID("_SnowBoost"), IdVeilTint = Shader.PropertyToID("_VeilTint");
+        // The property ids are read when the pass is made, not in a static initialiser: Shader.PropertyToID needs the engine, and the
+        // module is also created where there is none (the assembly smoke test).
+        private static int IdCell, IdUp, IdRight, IdHeights, IdWind, IdLook, IdSun, IdSunColour, IdAmbient, IdNoise, IdSnowBoost, IdVeilTint;
+
+        private static void ReadIds()
+        {
+            IdCell = Shader.PropertyToID("_Cell");
+            IdUp = Shader.PropertyToID("_Up");
+            IdRight = Shader.PropertyToID("_Right");
+            IdHeights = Shader.PropertyToID("_Heights");
+            IdWind = Shader.PropertyToID("_Wind");
+            IdLook = Shader.PropertyToID("_Look");
+            IdSun = Shader.PropertyToID("_Sun");
+            IdSunColour = Shader.PropertyToID("_SunColour");
+            IdAmbient = Shader.PropertyToID("_AmbientColour");
+            IdNoise = Shader.PropertyToID("_Noise");
+            IdSnowBoost = Shader.PropertyToID("_SnowBoost");
+            IdVeilTint = Shader.PropertyToID("_VeilTint");
+        }
 
         private sealed class Piece
         {
@@ -57,6 +72,7 @@ namespace ReDefinition.Atmospheres
                 Problem = "the storm volume shader is missing";
                 return false;
             }
+            ReadIds();
             var test = new Material(shader);
             bool compiles = test.passCount > 0;
             UnityEngine.Object.Destroy(test);
