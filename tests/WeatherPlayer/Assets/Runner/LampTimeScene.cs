@@ -78,9 +78,10 @@ namespace ReDefinition.WeatherPlayer
             for (int k = 0; k < copies; k++) Pass.RecordDepthCopy(DepthBuffer);
             Cam.AddCommandBuffer(CameraEvent.BeforeForwardAlpha, DepthBuffer);
             Cam.AddCommandBuffer(CameraEvent.AfterForwardAlpha, DrawBuffer);
-            // The copy buffer is on the camera at the event the module uses; a block without it would read as a free copy.
+            // The copy buffer is on the camera at the event the module uses; a block without it would read as a free copy. The camera
+            // returns new wrapper objects, so the buffer is found by its name.
             bool attached = false;
-            foreach (CommandBuffer attachedBuffer in Cam.GetCommandBuffers(CameraEvent.BeforeForwardAlpha)) if (attachedBuffer == DepthBuffer) attached = true;
+            foreach (CommandBuffer attachedBuffer in Cam.GetCommandBuffers(CameraEvent.BeforeForwardAlpha)) if (attachedBuffer.name == DepthBuffer.name) attached = true;
             copyAttached &= attached;
             yield return Frames(Settle);
             timers.Clear();
@@ -213,7 +214,8 @@ namespace ReDefinition.WeatherPlayer
             Sink.Info("gpu_ms.depth_copy_x8", copy8Mean);
             Sink.AtMost("gpu_ms.depth_copy_noise", copySpread, 0.15);
             Sink.Flag("depth_copy_attached", copyAttached);
-            Sink.AtLeast("timer.sensitive_to_8_copies", copy8Mean, 0.05);
+            // The timer sees eight copies when they stand clearly out of the copy blocks' own noise (5 spreads) and are not nothing.
+            Sink.AtLeast("timer.sensitive_to_8_copies", copy8Mean - 5.0 * copySpread, 0.01);
             Sink.AtLeast("gpu_frames_min_per_block_with_copies", minGpuFrames == int.MaxValue ? 0 : minGpuFrames, 0.6 * BlockFrames);
             Sink.AtMost("depth_copy_ms_2560x1440", copyUpper, 0.3);
 

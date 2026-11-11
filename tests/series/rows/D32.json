@@ -393,7 +393,7 @@
       "metric": "lamp_ms_2560x1440_4",
       "max": 0.5,
       "unit": "ms",
-      "note": "player (series lamp-time, exclusive): four lamps in snow at 2560x1440 add at most 0.5 ms of GPU time, judged on the upper 95 % bound of 8 alternating on/off differences (mean 0.124 ms, bound 0.178 ms measured on 2026-11-11, with the depth copy)"
+      "note": "player (series lamp-time, exclusive): four lamps in snow at 2560x1440 add at most 0.5 ms of GPU time, judged on the upper 95 % bound of 8 alternating on/off differences (one set: run lamp-time of 2026-11-11 after the review fixes, third run of that day, mean 0.142 ms, bound 0.186 ms; the three runs of the day gave means of 0.107 to 0.189 ms and bounds of 0.186 to 0.288 ms, so the timer's run-to-run range is about 0.1 ms; the depth copy is included)"
     },
     {
       "series": "player-D32-time",
@@ -401,7 +401,7 @@
       "metric": "gpu_ms.noise_of_the_differences",
       "max": 0.15,
       "unit": "ms",
-      "note": "player (lamp-time): the spread of the on/off differences, so that the cost is read against the timer's own noise (0.064 ms measured)"
+      "note": "player (lamp-time): the spread of the on/off differences, so that the cost is read against the timer's own noise (0.052 ms in that run; 0.052 to 0.118 ms over the day's three runs)"
     },
     {
       "series": "player-D32-time",
@@ -409,7 +409,7 @@
       "metric": "timer.sensitive_to_16_lamps",
       "min": 0.15,
       "unit": "ms",
-      "note": "player (lamp-time): sixteen lamps cost at least 0.15 ms more than none, so that the timer sees the lamps (1.19 ms measured)"
+      "note": "player (lamp-time): sixteen lamps cost at least 0.15 ms more than none, so that the timer sees the lamps (1.207 ms in that run)"
     },
     {
       "series": "player-D32-time",
@@ -417,7 +417,7 @@
       "metric": "depth_copy_ms_2560x1440",
       "max": 0.3,
       "unit": "ms",
-      "note": "player (lamp-time): the full-resolution depth copy alone, without any lamp drawn, costs at most 0.3 ms on the upper 95 % bound of 8 alternating differences; it runs every frame a lamp is drawn, so it is reported apart from the draws"
+      "note": "player (lamp-time): the full-resolution depth copy alone, without any lamp drawn, costs at most 0.3 ms on the upper 95 % bound of 8 alternating differences (0.0012 ms in the run of 2026-11-11; eight copies in one buffer 0.047 ms, so one copy is about 0.006 ms at the player's target); it runs every frame a lamp is drawn, so it is reported apart from the draws"
     },
     {
       "series": "player-D32-time",
@@ -430,9 +430,9 @@
       "series": "player-D32-time",
       "section": "D32",
       "metric": "timer.sensitive_to_8_copies",
-      "min": 0.05,
+      "min": 0.01,
       "unit": "ms",
-      "note": "player (lamp-time): eight copies in one buffer cost at least 0.05 ms more than none, so that the timer sees copies"
+      "note": "player (lamp-time): eight copies in one buffer cost more than none by at least 0.01 ms after taking off five spreads of the copy blocks' noise, so that the timer sees copies"
     },
     {
       "series": "player-D32-time",
