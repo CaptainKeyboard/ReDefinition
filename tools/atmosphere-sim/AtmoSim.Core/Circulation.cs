@@ -74,7 +74,7 @@ namespace AtmoSim.Core
                 s += DMath.Sqrt(DMath.Sqrt(HeatTransport + (1.0 - HeatTransport) * Insolation(x, 0.0)));
             }
             TempNorm = b.SurfaceMeanK / (s / n);
-            EquatorPoleK = ClimateK(0.0, 0.0) - ClimateK(0.8660254037844386, 0.0);
+            EquatorPoleK = AnnualK(0.0, 0.0) - AnnualK(DMath.Pi / 3.0, 0.8660254037844386);
 
             // Thermal wind across the jet zone, saturated by the Rossby bound 0.1 Omega a.
             double dT = DMath.Max(EquatorPoleK, 0.0);
@@ -114,10 +114,29 @@ namespace AtmoSim.Core
             return i < 0.03 ? 0.03 : i;
         }
 
-        // The climatological surface temperature (K) at x = sin(latitude).
+        // The insolation model of the climatological surface temperature (K) at x = sin(latitude): the seasonal part and, without a
+        // measured profile, the annual mean as well.
         public double ClimateK(double x, double sinDecl)
         {
             return TempNorm * DMath.Sqrt(DMath.Sqrt(HeatTransport + (1.0 - HeatTransport) * Insolation(x, sinDecl)));
+        }
+
+        public bool HasProfile { get { return Body.ProfileK != null; } }
+
+        // The annual-mean surface temperature at a latitude: the measured sea-level zonal profile of KSP's temperature curves (B09 dump,
+        // Catmull-Rom through the samples every 15 degrees, symmetric about the equator) where a body has one, else the insolation model.
+        public double AnnualK(double latRad, double x)
+        {
+            double[] pk = Body.ProfileK;
+            if (pk == null) return ClimateK(x, 0.0);
+            double la = latRad < 0.0 ? -latRad : latRad;
+            double f = la * (6.0 / DMath.HalfPi);
+            int i = (int)f; if (i > 5) i = 5;
+            double t = f - i;
+            double p1 = pk[i], p2 = pk[i + 1];
+            double p0 = i > 0 ? pk[i - 1] : pk[1];
+            double p3 = i + 2 <= 6 ? pk[i + 2] : pk[12 - (i + 2)];
+            return 0.5 * ((2.0 * p1) + (-p0 + p2) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t * t * t);
         }
 
         private static double Hump(double lat, double lo, double hi)

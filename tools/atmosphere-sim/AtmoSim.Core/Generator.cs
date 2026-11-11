@@ -214,17 +214,19 @@ namespace AtmoSim.Core
         public double ClimateTemperature(double latRad, double lonRad, double ut)
         {
             Frame f = GetFrame(ut);
-            return ClimateInner(f, DMath.Sin(latRad), DMath.Cos(latRad), lonRad, Grid.MoistAt(latRad, lonRad));
+            return ClimateInner(f, latRad, DMath.Sin(latRad), DMath.Cos(latRad), lonRad, Grid.MoistAt(latRad, lonRad));
         }
 
-        private double ClimateInner(Frame f, double sinLat, double cosLat, double lon, double oc)
+        // Annual-mean profile (measured where the body has one) plus the seasonal anomaly of the insolation model, amplified over land.
+        private double ClimateInner(Frame f, double latRad, double sinLat, double cosLat, double lon, double oc)
         {
             double dT = f.DLand + oc * (f.DSea - f.DLand);
             double sinD = DMath.Sin(dT);
-            double ann = D.ClimateK(sinLat, 0.0);
+            double annModel = D.ClimateK(sinLat, 0.0);
             double t = D.ClimateK(sinLat, sinD);
+            double ann = D.HasProfile ? D.AnnualK(latRad, sinLat) : annModel;
             double landW = 1.0 - oc;
-            return ann + (t - ann) * (1.0 + 0.15 * landW);
+            return ann + (t - annModel) * (1.0 + 0.15 * landW);
         }
 
         // ---- the point evaluation ---------------------------------------------------------------------------------------
@@ -242,7 +244,7 @@ namespace AtmoSim.Core
             Grid.Lookup(latRad, lonRad, out oc, out moist);
             // The land/sea contrast of the temperature uses the smoothed ocean share (the regional scale of the contrast, 30 degrees of arc):
             // a coast line is not a front.
-            double tClim = ClimateInner(f, sinLat, cosLat, lonRad, moist);
+            double tClim = ClimateInner(f, latRad, sinLat, cosLat, lonRad, moist);
 
             // wave systems of this hemisphere
             double p = 0, tAnom = 0, fr = 0, dpdx = 0, dpdy = 0;
@@ -370,7 +372,7 @@ namespace AtmoSim.Core
             double hour = cosLat * cosDs * DMath.Cos(dLon - 0.5);
             double tSurfFinal = tSurf + diurnalAmp * hour;
             double drop = Body.LapseKPerM * (alt < htrop ? alt : htrop);
-            if (drop > 0.25 * tSurfFinal) drop = 0.25 * tSurfFinal;
+            if (drop > 0.4 * tSurfFinal) drop = 0.4 * tSurfFinal;
             double tAir = tSurfFinal - drop;
 
             // precipitation type by wet-bulb temperature
@@ -398,7 +400,7 @@ namespace AtmoSim.Core
             double th2 = 1200.0 + 3500.0 * DMath.Min(1.2, uplift);
             double top = 0.35 * htrop + 0.65 * htrop * tower;
 
-            w.TempK = tAir; w.TempMeanK = tSurf - DMath.Min(Body.LapseKPerM * (alt < htrop ? alt : htrop), 0.25 * tSurf); w.SurfaceTempK = tSurfFinal; w.PressureAnomPa = p; w.Humidity = humidity; w.Uplift = uplift;
+            w.TempK = tAir; w.TempMeanK = tSurf - DMath.Min(Body.LapseKPerM * (alt < htrop ? alt : htrop), 0.4 * tSurf); w.SurfaceTempK = tSurfFinal; w.PressureAnomPa = p; w.Humidity = humidity; w.Uplift = uplift;
             w.FrontKPer100Km = frontK100; w.Instability = inst; w.CloudWater = cw;
             w.Coverage = 1.0 - DMath.Exp(-3.0 * cw);
             w.PrecipMmH = precip; w.ConvectiveShare = precip > 0.0 ? pConv * Body.PrecipBodyFactor / precip : 0.0;

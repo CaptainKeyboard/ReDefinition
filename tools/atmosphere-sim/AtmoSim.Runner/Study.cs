@@ -12,7 +12,40 @@ namespace AtmoSim.Runner
     {
         public const int EvalLon = 256, EvalLat = 128;
 
+        // When set (option --recon), the four bodies the B09 probe dumped get their real height and ocean grid and the climatology fitted to KSP's temperature samples.
+        public static string ReconDir;
+
         public static BodyParams ByName(string n)
+        {
+            var p = BySet(n);
+            if (ReconDir == null) return p;
+            string rb = n == "duna" ? "Duna" : n == "eve" ? "Eve" : n == "laythe" ? "Laythe" : n == "earth" ? null : "Kerbin";
+            if (rb == null) return p;
+            ReconData.Apply(p, rb, ReconDir);
+            if (n == "cold") { p.SurfaceMeanK -= 30.0; for (int k = 0; k < p.ProfileK.Length; k++) p.ProfileK[k] -= 30.0; }
+            if (n == "slow") p.DiurnalLandAmpK = 20.0;
+            if (n == "noocean") { Array.Clear(p.Grid.Ocean, 0, p.Grid.Ocean.Length); p.Grid.BuildMoist(MapGen.MoistBlurDeg); }
+            return p;
+        }
+
+        // The fits of the four dumped bodies: data
+        public static int Data(string[] args)
+        {
+            string dir = ReconDir ?? ReconData.FindDumpDir();
+            if (dir == null) { Console.WriteLine("no dumps found"); return 1; }
+            foreach (string body in new[] { "Kerbin", "Duna", "Laythe", "Eve" })
+            {
+                var p = BySet(body.ToLowerInvariant());
+                var f = ReconData.Apply(p, body, dir);
+                double oc = 0, w = 0;
+                for (int j = 0; j < p.Grid.NLat; j++) { double c = Math.Cos(p.Grid.LatDeg(j) * Math.PI / 180.0); for (int i = 0; i < p.Grid.NLon; i++) { oc += p.Grid.Ocean[j * p.Grid.NLon + i] * c; w += c; } }
+                Console.WriteLine(body + ": mean " + f.MeanK.ToString("F1") + " K (equator " + f.EquatorK.ToString("F1") + ", pole " + f.PoleK.ToString("F1") + "), largest step between profile points " + f.MaxProfileStepK.ToString("F1")
+                    + " K, lapse " + (f.LapseKPerM * 1000).ToString("F2") + " K/km, diurnal amplitude " + f.DiurnalAmpK.ToString("F2") + " K, ocean fraction " + (oc / w).ToString("F3"));
+            }
+            return 0;
+        }
+
+        public static BodyParams BySet(string n)
         {
             switch (n)
             {

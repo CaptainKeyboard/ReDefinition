@@ -8,9 +8,10 @@ namespace AtmoSim.Core
     {
         public string Name = "Kerbin-like";
         public double RadiusM = 600000.0;
-        public double RotationPeriodS = 21600.0;
+        // Sidereal rotation period (B09 dump of KSP's Kerbin: 21549.425 s; the solar day is 21600 s).
+        public double RotationPeriodS = 21549.425;
         // The orbital year in seconds (SeasonClock.YearSeconds).
-        public double YearS = 9203545.0;
+        public double YearS = 9203544.6;
         // KSP has no axial tilt; the season phase is artificial. The generator needs a tilt as an input of the insolation.
         public double ObliquityRad = 0.4084;
         public double SolarFluxWm2 = 1361.0;
@@ -24,6 +25,8 @@ namespace AtmoSim.Core
         public double TropopauseM = 11000.0;
         // Day-night surface temperature swing of dry land under a clear sky at the equator.
         public double DiurnalLandAmpK = 6.0;
+        // Measured sea-level zonal-mean temperature at |latitude| 0, 15, ..., 90 degrees (the B09 dump of KSP's temperature curves); null uses the insolation model.
+        public double[] ProfileK;
         // Seasonal lag of the sea surface behind the sun, in days of the body's year fraction (0.07 = 7 % of the year).
         public double SeaSeasonLagYearFraction = 0.08;
         // Season phase of the moist belt and the jet behind the sub-solar latitude, as a fraction of the year.
@@ -71,7 +74,7 @@ namespace AtmoSim.Core
             return new BodyParams
             {
                 Name = "Duna-like",
-                RadiusM = 320000.0, RotationPeriodS = 65517.0, YearS = 17315400.0, ObliquityRad = 0.44,
+                RadiusM = 320000.0, RotationPeriodS = 65517.86, YearS = 17315400.14, ObliquityRad = 0.44,
                 SolarFluxWm2 = 590.0, SurfacePressurePa = 6000.0, GravityMs2 = 2.94, SurfaceMeanK = 215.0, LapseKPerM = 0.0045,
                 TropopauseM = 20000.0, OceanFractionTarget = 0.0, Dusty = true, DustWindThresholdMs = 10.0,
                 DiurnalLandAmpK = 25.0, PrecipBodyFactor = 0.15
@@ -84,7 +87,7 @@ namespace AtmoSim.Core
             return new BodyParams
             {
                 Name = "Eve-like",
-                RadiusM = 700000.0, RotationPeriodS = 80500.0, YearS = 5657995.0, ObliquityRad = 0.05,
+                RadiusM = 700000.0, RotationPeriodS = 80500.0, YearS = 5657995.15, ObliquityRad = 0.05,
                 SolarFluxWm2 = 2900.0, SurfacePressurePa = 506625.0, GravityMs2 = 16.7, SurfaceMeanK = 340.0, LapseKPerM = 0.006,
                 TropopauseM = 14000.0, OceanFractionTarget = 0.7, DiurnalLandAmpK = 2.0, PrecipBodyFactor = 2.0
             };
@@ -96,7 +99,7 @@ namespace AtmoSim.Core
             return new BodyParams
             {
                 Name = "Laythe-like",
-                RadiusM = 500000.0, RotationPeriodS = 52980.0, YearS = 9203545.0, ObliquityRad = 0.1,
+                RadiusM = 500000.0, RotationPeriodS = 52980.88, YearS = 104661432.1, ObliquityRad = 0.1,
                 SurfacePressurePa = 60795.0, GravityMs2 = 7.85, SurfaceMeanK = 290.0, LapseKPerM = 0.0055,
                 TropopauseM = 9000.0, OceanFractionTarget = 0.95, DiurnalLandAmpK = 4.0, PrecipBodyFactor = 0.8
             };

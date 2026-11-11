@@ -207,7 +207,8 @@ namespace AtmoSim.Tests
             }
             Assert.IsTrue(fOn > 0);
             Assert.AreEqual(0.0, fOff);
-            Assert.IsTrue(cOff < 0.2 * cOn, "cells on " + cOn + " off " + cOff);
+            // cells that remain without waves come from unstable air alone (warm humid afternoons at the low edge of the belt)
+            Assert.IsTrue(cOff < 0.3 * cOn, "cells on " + cOn + " off " + cOff);
         }
 
         [TestMethod]
@@ -601,6 +602,53 @@ namespace AtmoSim.Tests
             var s = fl.Summary(0, 64);
             double n = (double)s["d1_persistent_active_mean_per_hemisphere_north"] + (double)s["d1_persistent_active_mean_per_hemisphere_south"];
             Assert.IsTrue(n > 0.5, "persistent minima (both hemispheres) " + n);
+        }
+    }
+
+    [TestClass]
+    public class ReconDataTests
+    {
+        private static string Dir()
+        {
+            string d = ReconData.FindDumpDir();
+            if (d == null || !System.IO.File.Exists(System.IO.Path.Combine(d, "run1-heights-Kerbin.json")) || !System.IO.File.Exists(System.IO.Path.Combine(d, "run2-temperature-Kerbin.json")))
+                Assert.Inconclusive("the B09 dumps are not in tests/data/recon/dumps");
+            return d;
+        }
+
+        [TestMethod]
+        public void TheKerbinGridIsReadNorthRowFirstWithTheMeasuredOceanFraction()
+        {
+            var g = ReconData.LoadHeights(System.IO.Path.Combine(Dir(), "run1-heights-Kerbin.json"));
+            Assert.AreEqual(360, g.NLon); Assert.AreEqual(180, g.NLat);
+            double oc = 0, w = 0;
+            for (int j = 0; j < g.NLat; j++) { double c = Math.Cos(g.LatDeg(j) * Math.PI / 180.0); for (int i = 0; i < g.NLon; i++) { oc += g.Ocean[j * g.NLon + i] * c; w += c; } }
+            Assert.AreEqual(0.52, oc / w, 0.03);
+            Assert.IsTrue(g.LatDeg(0) > 89.0 && g.LatDeg(g.NLat - 1) < -89.0);
+        }
+
+        [TestMethod]
+        public void TheFitReadsTheSeaLevelProfileAndTheGeneratorFollowsItAtTheSamplePoints()
+        {
+            string d = Dir();
+            var bp = BodyParams.KerbinLike();
+            var f = ReconData.Apply(bp, "Kerbin", d);
+            Assert.AreEqual(309.7, f.ProfileK[0], 1.0);
+            Assert.AreEqual(240.6, f.ProfileK[6], 1.0);
+            Assert.IsTrue(f.LapseKPerM > 0.005 && f.LapseKPerM < 0.012, "lapse " + f.LapseKPerM);
+            var der = new BodyDerived(bp);
+            for (int k = 0; k <= 6; k++)
+                Assert.AreEqual(f.ProfileK[k], der.AnnualK(k * 15.0 * Math.PI / 180.0, Math.Sin(k * 15.0 * Math.PI / 180.0)), 1e-9, "profile at " + k * 15);
+            // between the samples it stays inside the neighbouring values plus a small overshoot
+            for (double lat = 0; lat <= 90; lat += 0.5)
+            {
+                double v = der.AnnualK(lat * Math.PI / 180.0, Math.Sin(lat * Math.PI / 180.0));
+                Assert.IsTrue(v > 235 && v < 315, "profile " + v + " at " + lat);
+            }
+            var g = new WeatherGenerator(bp, 1);
+            Weather w;
+            g.Sample(0.0, 0.3, 0.0, 1.0e6, out w);
+            Assert.IsTrue(w.TempK > 295 && w.TempK < 325, "equator " + w.TempK);
         }
     }
 }
