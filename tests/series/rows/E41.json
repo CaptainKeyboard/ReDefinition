@@ -1,0 +1,265 @@
+{
+  "$schema": "../schema.json",
+  "package": "E41",
+  "rows": [
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.eve_available",
+      "equals": 1,
+      "note": "EVE's members are all there (the layer list can be read)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.status_rows",
+      "min": 17,
+      "note": "the stock bodies of the checklist that the game has (Sun to Eeloo, 17)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.status_wrong",
+      "equals": 0,
+      "note": "the status of every body equals the one its facts give (star Off(Star), no atmosphere Off(NoAtmosphere), atmosphere without surface and ocean Off(NoSurface), else Full); the table by name is in the tests of E41"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.status_full",
+      "equals": 4,
+      "note": "the stock bodies that run (Eve, Kerbin, Duna, Laythe); Jool is Off(NoSurface)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.own_layer.Kerbin",
+      "equals": 1,
+      "note": "the layer ReDefinition-Atmospheres-Kerbin of Clouds-Kerbin.cfg is among the EVE layers of Kerbin (the TVC layer list of the body holds ours)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.layers_taken.Kerbin",
+      "min": 1,
+      "note": "the role discovery takes at least one layer of Kerbin with the body's own role lists"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.tvc_layers_total",
+      "min": 1,
+      "note": "EVE holds volumetric layers (the pack and ours)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.both_bound.Kerbin",
+      "equals": 1,
+      "note": "cloudSource Both: a layer of Kerbin carries the painted maps"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.own_layer_bound.Kerbin",
+      "equals": 1,
+      "note": "cloudSource Both: the layer ReDefinition-Atmospheres-Kerbin itself is bound (Kerbin's weatherLayers list holds it through the patch at the end of Clouds-Kerbin.cfg)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.layers_bound_both",
+      "min": 1,
+      "note": "the number of layers bound in Both"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.map_mb_per_layer",
+      "equals": 8,
+      "note": "map memory of one driven layer: two render targets and two readable copies of 2048 x 1024 bytes (TVC's own noise and light textures are not counted)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.paint_ms_worst",
+      "max": 2.0,
+      "required": false,
+      "note": "the longest paint of the painter with the layers of the discovery bound (ms per added TVC layer: the figure divided by E41.layers_bound_both); [VERIFY] the limit is a floor chosen before any measurement"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.own_layer.Duna",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED by the probe: the layer list of Duna needs a flight on Duna; the start of K-W4a is on Kerbin"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.layers_taken.Duna",
+      "min": 1,
+      "required": false,
+      "note": "NOT MEASURED: needs a flight on Duna"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.both_bound.Duna",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED: EVE Both mode binding on Duna needs a flight there"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.render_correlation.Duna",
+      "min": 0.95,
+      "required": false,
+      "note": "NOT MEASURED: shader orientation, alpha channel and MAP_TYPE dimension once on Duna, read from screenshots against the painted map (analysis not written yet)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.own_layer.Laythe",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED by the probe: the layer list of Laythe needs a flight on Laythe; the start of K-W4a is on Kerbin"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.layers_taken.Laythe",
+      "min": 1,
+      "required": false,
+      "note": "NOT MEASURED: needs a flight on Laythe"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.both_bound.Laythe",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED: EVE Both mode binding on Laythe needs a flight there"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.render_correlation.Laythe",
+      "min": 0.95,
+      "required": false,
+      "note": "NOT MEASURED: shader orientation, alpha channel and MAP_TYPE dimension once on Laythe, read from screenshots against the painted map (analysis not written yet)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.dust_visibility_100m_Duna",
+      "max": 0.6,
+      "required": false,
+      "note": "NOT MEASURED: a forced dust system on Duna needs a forceable field in the game and a flight on Duna; limit [VERIFY] before any measurement"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.dust_visibility_1km_Duna",
+      "max": 0.4,
+      "required": false,
+      "note": "NOT MEASURED: as above, visibility at 1 km from the ground"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.dust_luma_ratio_orbit_Duna",
+      "max": 0.9,
+      "required": false,
+      "note": "NOT MEASURED: luma of the dust against the clear control from orbit"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.duna_wind_max_ms",
+      "max": 30,
+      "required": false,
+      "note": "NOT MEASURED: Duna wind numbers from the wind probe (limit 30 m/s from the node)"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.forecast_dust_matches_sample_Duna",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED: the forecast on Duna returns steps of type Dust whose level equals the live Sample at the same UT"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.laythe_type_switch",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED: rain and snow switch with the temperature on Laythe"
+    },
+    {
+      "series": "K-W4a",
+      "section": "E41",
+      "package": "E41",
+      "start": "run1",
+      "metric": "E41.eve_no_precip",
+      "equals": 1,
+      "required": false,
+      "note": "NOT MEASURED: no precipitation on Eve"
+    }
+  ]
+}
