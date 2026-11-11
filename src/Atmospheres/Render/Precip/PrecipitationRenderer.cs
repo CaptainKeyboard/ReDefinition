@@ -17,7 +17,9 @@ namespace ReDefinition.Atmospheres
     // hook answers; the hook disappearing hands over to Scene within PrecipCompose.FadeSeconds.
     //
     // Motion vectors: none written for the flakes. Depth: the host's render-size copy (nearest of 3x3 taps), or the scene's. Masks: no
-    // scene object exists, so nothing is added to the upscaler's mask lists. Frame generation: the composite is part of the image
+    // scene object exists, so nothing is added to the upscaler's mask lists, and the mask (UpscalerMasks collects scene renderers
+    // with FindObjectsOfType) does not see the command-buffer draw of the Scene mode: the Scene flakes rely on the size floor and the
+    // low contrast alone. Whether they need a mask contribution is E40's decision [VERIFY]. Frame generation: the composite is part of the image
     // before the HUD-less copy, so the shadow layer of the vessel (applied to the copy) comes after it. Raytracing: not traced.
     // Exposure: the veil's colour is relative to the image's luminance in Host mode (the exposure was applied before the upscaler)
     // [VERIFY against TUFX in the game]. Order: after the upscaler, before the post-processing of TUFX.
@@ -101,7 +103,15 @@ namespace ReDefinition.Atmospheres
             initialised = false;
         }
 
-        // The tuning constants, read once a frame (a table lookup each).
+        // The tuning constants, read once a frame (a table lookup each). Keys, default, tuning range for E40:
+        //   precip.maxPerLayer 8000 (500-20000)   precip.maxTotal 20000 (2000-40000)   precip.fill 0.35 (0.1-0.8)
+        //   precip.floorPx 3 (1-6)   precip.sceneMinContrast 0.45 (0.2-0.8)   precip.hostMinContrast 0.85 (0.5-1)
+        //   precip.edgeShare 0.12 (0-0.4)   precip.gustScale 1 (0-2)   precip.hostFlakeGain 1 (0.5-2)
+        //   precip.splashMax 1500 (0-4000)   precip.splashRangeM 40 (10-100)   precip.splashMaxGroundM 200 (50-500)
+        //   precip.veilLumaFloor 0.02 (0-0.1)   precip.lumaTauS 0.5 (0.2-2)   precip.veilLumaGain 1 (0.5-1.5)
+        //   precip.grade 0.55 (0-1)   flags precip.depthFlipY false, precip.hostProven.<nvidia|amd|intel|other> false
+        //   fog.gustAmp 0.1 (0-0.12)   fog.gustPeriodS 6 (3-20)   fog.hertz 3 (0.5-3)
+        // The ranges are the tuning ranges proposed here, not enforced; fog.gustAmp and fog.hertz are capped by FogRamp (12 %, 3 Hz).
         internal static PrecipTuning ReadTuning()
         {
             PrecipTuning t = PrecipTuning.Defaults();
@@ -121,6 +131,14 @@ namespace ReDefinition.Atmospheres
             t.LumaTauS = Tuning.Get("precip.lumaTauS", t.LumaTauS);
             t.VeilLumaGain = Tuning.Get("precip.veilLumaGain", t.VeilLumaGain);
             return t;
+        }
+
+        // Whether EVE's particle fields are suppressed (CONTRACT section 5): where the precipitation is ours (Ours, None) always; with
+        // Eve or Both only while precipDensity is on.
+        internal static bool SuppressEveFields(CloudSourceKind source, float precipDensity)
+        {
+            if (source == CloudSourceKind.Ours || source == CloudSourceKind.None) return true;
+            return precipDensity > 0f;
         }
 
         private static bool TypeEnabled(PrecipType type)
@@ -181,8 +199,7 @@ namespace ReDefinition.Atmospheres
             WeatherView view = WeatherHooks.View;
             Vessel vessel = FlightGlobals.ActiveVessel;
             bool settingsOn = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
-            bool legacy = Tuning.Flag("precip.legacyYield", true) && (StormVeil.LegacyDrawing || StormFlakes.LegacyDrawing);
-            bool live = settingsOn && !legacy && vessel != null && vessel.mainBody != null && !view.IsStale(Time.frameCount);
+            bool live = settingsOn && vessel != null && vessel.mainBody != null && !view.IsStale(Time.frameCount);
 
             // The mode and its cross-fade.
             bool hostUsable = hostRegistered && !hostFailed && Services.PostUpscale.DepthAvailable
@@ -294,8 +311,11 @@ namespace ReDefinition.Atmospheres
             }
             if (!frame.Draw) loggedType = PrecipType.None;
 
-            // EVE's own particle fields are off while ours draw (or while the setting asks for ours).
-            SetSuppressed(frame.Draw && AtmospheresSettings.PrecipDensity > 0f, "own precipitation draws");
+            // EVE's own particle fields follow the cloudSource rule of CONTRACT section 5, not what is drawn this frame.
+            BodyClimate climate = Bodies.Get(body);
+            CloudSourceKind source = (climate != null ? climate.Clouds.Source : null) ?? AtmospheresSettings.CloudSource;
+            SetSuppressed(SuppressEveFields(source, AtmospheresSettings.PrecipDensity), "cloudSource " + source + ", precipDensity "
+                          + AtmospheresSettings.PrecipDensity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
 
             // The Scene composite: a command buffer on the flight camera, only while it has a share of the picture to draw.
             if (frame.Draw && compose.SceneWeight > 0f)

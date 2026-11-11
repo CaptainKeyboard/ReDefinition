@@ -204,7 +204,7 @@ namespace ReDefinition.Tests.Atmospheres.B13
         {
             "BodyClimate.cs", "ClimateRules.cs", "SeasonClockObsolete.cs", "EveCellLayer.cs", "EveCoverageMath.cs",
             "EveLayerStorm.cs", "EveRainLink.cs", "EveSnowLink.cs", "EveSwirlMath.cs", "GroundRebuilder.cs", "LegacyBridge.cs",
-            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs", "StormCells.cs", "StormEffect.cs", "StormFlakes.cs", "StormModel.cs"
+            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs", "StormCells.cs", "StormEffect.cs", "StormModel.cs"
         };
 
         private static string AtmospheresFolder()

@@ -314,10 +314,19 @@ namespace ReDefinition.Tests.Atmospheres.C22
         }
 
         [TestMethod]
-        public void TheLegacyHandshakeFlagsFollowTheLegacyPiecesAndTheFogTracker()
+        public void EveFieldsAreSuppressedByTheCloudSourceRule()
         {
-            Assert.IsFalse(StormVeil.LegacyDrawing);
-            Assert.IsFalse(StormFlakes.LegacyDrawing);
+            Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Ours, 0f), "Ours: always");
+            Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.None, 0f), "None: always");
+            Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Eve, 1f));
+            Assert.IsTrue(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Both, 0.5f));
+            Assert.IsFalse(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Eve, 0f), "Eve with precipDensity off keeps EVE's fields");
+            Assert.IsFalse(PrecipitationRenderer.SuppressEveFields(CloudSourceKind.Both, 0f));
+        }
+
+        [TestMethod]
+        public void TheLegacyHandshakeFlagFollowsTheLegacyFogTracker()
+        {
             var legacyFog = new FogController();
             var ours = new FogController(false);
             ours.Save(false, FogMode.Linear, 0.001f, Color.gray);

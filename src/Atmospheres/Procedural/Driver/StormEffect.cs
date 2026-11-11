@@ -4,16 +4,15 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The look of a snow storm in flight. It sets Unity's global fog (FogController keeps the bookkeeping) and puts a veil in front
-    // of the camera, light toward the ground and dark storm grey toward the zenith. It adds falling snow, a lower ambient light and
-    // EVE's snow particle field where EVE has one. It reads the storm intensity at the flight camera from the storm cells (StormCells: places on Kerbin with a
+    // The look of a snow storm in flight. It sets Unity's global fog (FogController keeps the bookkeeping), the ambient factor and
+    // EVE's snow particle field where EVE has one. The veil and the falling snow are the precipitation renderer's (Render/Precip). It reads the storm intensity at the flight camera from the storm cells (StormCells: places on Kerbin with a
     // radius, a life and a drift), moves a smoothed copy toward it and applies it. The cells near the camera are also drawn from
     // afar as a snow curtain under a dark cloud base (StormVolume). It sets no image effect and no command buffer, so it does not
     // meet the upscalers or raytracing of ReDefinition. Every global it changes is put back when the storm ends and when the scene is
     // left; the fog is put back only while it is still the one the storm wrote. A failure in any step logs once, puts everything back
     // and switches the effect off for the scene. The log lines are StormLog's. The ambient and sun light are no longer written here:
     // the frame driver's LightWriter does it from WeatherView (C20); this class is the legacy cell effect that package C25 removes
-    // when the simulation takes over, and package C21/C22 replace its veil, flakes and volume.
+    // when the simulation takes over.
     [KSPAddon(KSPAddon.Startup.Flight, false)]
     internal sealed class StormEffect : MonoBehaviour
     {
@@ -50,8 +49,6 @@ namespace ReDefinition.Atmospheres
         private float settledLogged = -1f;
         private int stormsSeen;
         private double yearSeconds;
-        private StormVeil veil;
-        private StormFlakes flakes;
         private readonly StormCull cull = new StormCull();
         private float ambientFactor = 1f;
         private float eveRaise;
@@ -86,8 +83,6 @@ namespace ReDefinition.Atmospheres
         {
             try
             {
-                veil = new StormVeil();
-                flakes = new StormFlakes();
                 volume = new StormVolume();
                 AtmospheresLog.Say(StormLog.Ready());
             }
@@ -249,13 +244,9 @@ namespace ReDefinition.Atmospheres
             }
             Quietly(cull.Restore);
             StormVolume.CameraVisibilityM = 0;
-            if (veil != null) Quietly(veil.Dispose);
-            if (flakes != null) Quietly(flakes.Dispose);
             if (volume != null) Quietly(volume.Dispose);
             Quietly(EveCellLayer.Release);
             Quietly(EveLayerStorm.Forget);
-            veil = null;
-            flakes = null;
             volume = null;
         }
 
@@ -373,7 +364,6 @@ namespace ReDefinition.Atmospheres
 
             double visibility = StormLook.VisibilityMetres(current, AtmospheresSettings.StormVisibilityM);
             StormVolume.CameraVisibilityM = visibility;
-            Vector3 up = vessel.upAxis;
             double sinSun = 0;
             if (FlightGlobals.Bodies != null && FlightGlobals.Bodies.Count > 0 && FlightGlobals.Bodies[0] != null)
             {
@@ -392,16 +382,10 @@ namespace ReDefinition.Atmospheres
             RenderSettings.fogColor = colour;
             fog.Wrote(density, colour);
 
-            // The veil: toward the ground the light fog colour, toward the zenith the storm grey, heavier (StormLook.SkyGreyShare).
+            // The veil and the flakes are the precipitation renderer's (Render/Precip); this class keeps the fog and the ambient factor.
             float darkening = AtmospheresSettings.StormSkyDarkening;
-            Color skyGrey = new Color(StormLook.SkyGreyDay[0] * brightness, StormLook.SkyGreyDay[1] * brightness, StormLook.SkyGreyDay[2] * brightness, 1f);
             float groundAlpha = (float)StormLook.VeilAlpha(current, AtmospheresSettings.StormVeil);
             float skyAlpha = Mathf.Max(groundAlpha, (float)StormLook.SkyVeilAlpha(current, AtmospheresSettings.StormVeil));
-            veil.Show(cam, up, groundAlpha, colour, skyAlpha, skyGrey, current, darkening);
-            // The own flakes are the fallback: where EVE's snow field is drawing they are off unless the setting asks for both.
-            bool eveSnowField = AtmospheresSettings.StormEveSnow && (EveCellLayer.OwnSnowField || EveSnowLink.Fields > 0);
-            if (AtmospheresSettings.StormSnowfall && (AtmospheresSettings.StormOwnFlakes || !eveSnowField)) flakes.Show(cam, up, current, Planetarium.GetUniversalTime(), AtmospheresSettings.StormSeed, brightness);
-            else flakes.Hide();
             ambientFactor = (float)StormLook.AmbientFactor(current, darkening);
             // In a cell the cell layer's own snow field falls by the coverage of the cell; the stock fields are raised only elsewhere
             // (a storm that is forced without a cell).
@@ -418,7 +402,6 @@ namespace ReDefinition.Atmospheres
                     VisibilityM = visibility,
                     VeilAlpha = StormLook.VeilAlpha(current, AtmospheresSettings.StormVeil),
                     SkyVeilAlpha = skyAlpha,
-                    Flakes = AtmospheresSettings.StormSnowfall ? flakes.Count.ToString(System.Globalization.CultureInfo.InvariantCulture) : "off",
                     Brightness = brightness,
                     AmbientFactor = ambientFactor,
                     AmbientScaling = WeatherFrameDriver.Light != null ? WeatherFrameDriver.Light.Ambient.DescribeScaling() : "not scaling (no frame driver)",
@@ -435,15 +418,13 @@ namespace ReDefinition.Atmospheres
             stormsSeen++;
             settledLogged = -1f;
             fog.Save(RenderSettings.fog, RenderSettings.fogMode, RenderSettings.fogDensity, RenderSettings.fogColor);
-            string flakeShader = AtmospheresSettings.StormSnowfall ? flakes.Prepare(cam) : "off";
-            string veilShader = veil.Prepare(cam);
             Vessel flying = FlightGlobals.ActiveVessel;
             int eveFields = AtmospheresSettings.StormEveSnow && flying != null && flying.mainBody != null ? EveSnowLink.Scan(flying.mainBody.name) : 0;
             string eveState = StormLog.EveSnowState(AtmospheresSettings.StormEveSnow, EveSnowLink.Controllable, eveFields, EveSnowLink.Names(), EveSnowLink.Summary);
-            AtmospheresLog.Say(StormLog.StormBegins(stormsSeen, cam, veilShader, flakeShader, fog, eveState));
+            AtmospheresLog.Say(StormLog.StormBegins(stormsSeen, cam, fog, eveState));
         }
 
-        // The storm is over: the fog is as it was (unless someone else owns it now), the veil and the flakes are hidden.
+        // The storm is over: the fog is as it was (unless someone else owns it now).
         private void End()
         {
             active = false;
@@ -469,8 +450,6 @@ namespace ReDefinition.Atmospheres
             cull.Restore();
             StormVolume.CameraVisibilityM = 0;
             if (!rainToSnow) EveSnowLink.Release();
-            if (veil != null) veil.Hide();
-            if (flakes != null) flakes.Hide();
             AtmospheresLog.Say(StormLog.StormEnds(restored));
         }
     }

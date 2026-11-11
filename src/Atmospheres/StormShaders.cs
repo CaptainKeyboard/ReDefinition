@@ -2,10 +2,10 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The shaders and the texture the legacy storm pieces draw with. The Atmospheres' own bundle is read by AtmosphereShaders.Get (A02);
-    // the members here that load from it are shims for the files of other packages that still call them (StormVolume, EveLayerStorm),
-    // which switch to AtmosphereShaders.Get and then delete these. The rest are Unity's and KSP's own shaders found by name; none is
-    // shipped.
+    // Shim for the files of other packages that still call it: StormVolume (LoadVolumeShader, LayerOf, bundle names), EveLayerStorm
+    // (LoadSwirlShader, Find), OrbitTextures (Find, Blended, Tint) and VolumePass (LayerOf). The Atmospheres' own bundle is read by
+    // AtmosphereShaders.Get (A02). Each of those packages (C21, C25, D34) switches to AtmosphereShaders.Get or its own helper and the
+    // last of them deletes this class. The flakes' and the veil's textures are gone with StormFlakes and StormVeil (C22).
     internal static class StormShaders
     {
         // Alpha-blended shaders, the first that exists is used: KSP's own particle shader, then Unity's legacy ones, then sprites.
@@ -71,36 +71,6 @@ namespace ReDefinition.Atmospheres
         {
             if (material.HasProperty("_TintColor")) material.SetColor("_TintColor", new Color(colour.r * 0.5f, colour.g * 0.5f, colour.b * 0.5f, alpha * 0.5f));
             if (material.HasProperty("_Color")) material.SetColor("_Color", new Color(colour.r, colour.g, colour.b, alpha));
-        }
-
-        // A soft round white texture: alpha falls off from the middle to the edge.
-        internal static Texture2D SoftDisc(int size)
-        {
-            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { name = "ReDefinition Atmospheres soft disc", wrapMode = TextureWrapMode.Clamp };
-            var pixels = new Color32[size * size];
-            float half = (size - 1) * 0.5f;
-            for (int y = 0; y < size; y++)
-            {
-                for (int x = 0; x < size; x++)
-                {
-                    float d = Mathf.Sqrt((x - half) * (x - half) + (y - half) * (y - half)) / half;
-                    float a = Mathf.Clamp01(1f - d);
-                    a = a * a * (3f - 2f * a);
-                    pixels[y * size + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
-                }
-            }
-            texture.SetPixels32(pixels);
-            texture.Apply(false, true);
-            return texture;
-        }
-
-        // A solid white texture, for the veil.
-        internal static Texture2D White()
-        {
-            var texture = new Texture2D(2, 2, TextureFormat.RGBA32, false) { name = "ReDefinition Atmospheres white" };
-            texture.SetPixels32(new[] { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) });
-            texture.Apply(false, true);
-            return texture;
         }
 
         // The lowest layer in a camera's culling mask, layer 0 first; 0 where the mask is empty.
