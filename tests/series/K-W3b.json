@@ -2,23 +2,25 @@
   "$schema": "schema.json",
   "name": "K-W3b",
   "owner": "D32",
-  "description": "Wave W3, light and surface: lamp scatter luminance against sigma, frost coverage, camera chain order, aurora edge statistics (start lights), then cover statistics, repaint time, track width, shell motion vectors, RT refit cost, ice fraction against the field, overlay time, depth-fight pixels (start cover).",
+  "description": "Wave W3, light: lamp scatter luminance against sigma (start lamp), camera frost coverage and chain order (start frost), the aurora shell's state (start model) and the aurora in the real sky (start aurora). Every start flies the launch-pad vessel of the probe save and runs exactly one probe, because the first probe that finishes ends the game. The shader bundle is built before the run.",
   "profile": "Medium",
   "maxMinutes": 20,
   "freeMemoryGb": 12,
-  "plannedStarts": 3,
+  "plannedStarts": 4,
+  "bundle": true,
   "starts": [
-    { "id": "lights", "description": "lamp scatter, camera frost, aurora" },
-    { "id": "cover", "description": "surface cover and ice" },
-    { "id": "aurora", "description": "aurora in the real sky with the full mod set (Scatterer, EVE, TUFX, Parallax): draw order, terrain occlusion, lid / drip / band; only the D38 probe runs in this start", "probeArgs": ["-atmoProbe", "D38Probe"] }
+    { "id": "lamp", "description": "lamp scatter (D32): forced snow field, beam geometry, lamp off control, DLSS turn", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "LampProbe"] },
+    { "id": "frost", "description": "camera frost (D37): shader and atlas, chain order, exposure growth, IVA A/B", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "CameraFrostProbe"] },
+    { "id": "model", "description": "aurora state (D38): shader, Auto rules, body rule, pole axis", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] },
+    { "id": "aurora", "description": "aurora in the real sky with the full mod set (Scatterer, EVE, TUFX, Parallax): draw order, terrain occlusion, lid / drip / band, with a picture sheet of the natural and the aid view", "probeArgs": ["-redefinitionProbe", "-redefinitionProbeStay", "-redefinitionProbeClouds", "-atmoProbe", "D38Probe"] }
   ],
   "sections": [
     { "id": "D32", "package": "D32", "title": "Light in medium" },
     { "id": "D37", "package": "D37", "title": "Camera frost" },
-    { "id": "D38", "package": "D38", "title": "Aurora" },
-    { "id": "D34", "package": "D34", "title": "Surface cover" },
-    { "id": "D35", "package": "D35", "title": "Ice" }
+    { "id": "D38", "package": "D38", "title": "Aurora" }
   ],
-  "collect": [],
+  "collect": [
+    { "from": "GameData/ReDefinition/Atmospheres/PluginData/series-pictures", "to": ".local/work/series-pictures/K-W3b", "optional": true }
+  ],
   "rows": []
 }

@@ -15,6 +15,7 @@
     "maxMinutes": { "type": "number", "minimum": 1, "maximum": 20, "description": "Per start; the runner ends the game after this long. Never above 20." },
     "freeMemoryGb": { "type": "number", "minimum": 12, "description": "The free memory the start needs." },
     "plannedStarts": { "type": "integer", "minimum": 1, "description": "The starts master plan 9.3 plans for this series (without repeats)." },
+    "bundle": { "type": "boolean", "description": "The series needs the shader bundle: the runner builds build/atmospheres.shaders with Unity in batch mode inside the unity lock after the DLL build, and refuses when it is missing afterwards." },
     "expectProbeLine": { "type": "boolean", "description": "Whether the log must carry 'Probe: PASSED' and no 'Probe: FAILED' (default true)." },
     "starts": { "type": "array", "minItems": 1, "items": { "$ref": "#/definitions/start" } },
     "sections": { "type": "array", "items": { "$ref": "#/definitions/section" }, "description": "The order of the table; a row names its section. Without sections, one section 'main'." },

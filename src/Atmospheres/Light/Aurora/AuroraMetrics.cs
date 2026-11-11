@@ -36,6 +36,15 @@ namespace ReDefinition.Atmospheres
             return m;
         }
 
+        // The pixel-wise larger of two shell-off images of the same pose. The mask against it keeps only what exceeds the variation the
+        // sky shows by itself between two frames without the shell.
+        internal static float[] Envelope(float[] a, float[] b)
+        {
+            var e = new float[a.Length];
+            for (int i = 0; i < e.Length; i++) e[i] = Math.Max(a[i], b[i]);
+            return e;
+        }
+
         internal static double[] RowMeans(float[] mask, int width, int height)
         {
             var rows = new double[height];

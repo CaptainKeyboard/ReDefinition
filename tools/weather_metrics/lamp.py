@@ -16,7 +16,7 @@ The scene lamp-time also reports the depth copy alone (gpu_ms.depth_copy_only, l
 
 Not measured by these series: the smear of the beam under DLSS at 20 degrees a second, the ghost metrics and the frame-generation
 duplicates (the scene mode of the player has no upscaler; the turn mode of the runner is not the lamp's). The probe of the game
-(src/Atmospheres/Light/Lamp/Probe/LampProbe.cs, series K-W3b, start lights) measures smear and ghost under the upscaler the game runs;
+(src/Atmospheres/Light/Lamp/Probe/LampProbe.cs, series K-W3b, start lamp) measures smear and ghost under the upscaler the game runs;
 the duplicates are decided by the replay of the proxy's dump (.local/plans/atmospheres/D32-kw3b-spec.md). tests/series/rows/D32.json
 holds the rows.
 """

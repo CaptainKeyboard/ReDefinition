@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // The probe of package D32 inside the integrated series K-W3b (start "lights"): the lamp scatter against the running game. The
+    // The probe of package D32 inside the integrated series K-W3b (start "lamp"): the lamp scatter against the running game. The
     // start needs the full mod set (EVE, Scatterer, Deferred, TUFX): RECON found the frame frozen with EVE present and Scatterer
     // absent, so no frame row means anything in that set (the row D32.scatterer_present is required).
     //
@@ -111,11 +111,33 @@ namespace ReDefinition.Atmospheres
         private Material wallMaterial;
         private Action wallFollow, turnFollow;
         private readonly List<Action> hooks = new List<Action>();
+        private IWeatherField fieldBefore;
+        private ForcedField snowField;
+
+        // The level and temperature of the snow the probe forces: heavy enough for the beam, cold enough to stay snow by temperature.
+        private const float SnowLevel = 0.8f, SnowTemperatureK = 255f;
+
+        // Installs a ForcedField over a constant snow field as WeatherHub.Field; true when the field now answers with snow.
+        private bool InstallSnow()
+        {
+            fieldBefore = WeatherHub.Field;
+            var constant = new ConstantWeatherField { Level01 = SnowLevel, Type = PrecipType.Snow, TemperatureK = SnowTemperatureK };
+            snowField = new ForcedField(constant) { Level01 = SnowLevel, Type = PrecipType.Snow };
+            WeatherHub.Field = snowField;
+            WeatherSample sample;
+            return WeatherHub.Sample(0, 0.0, 0.0, 0.0, 0.0, out sample) && sample.Level01 >= SnowLevel * 0.99f && sample.Type == PrecipType.Snow;
+        }
 
         private void Restore()
         {
             try
             {
+                if (snowField != null)
+                {
+                    WeatherHub.Field = fieldBefore;
+                    snowField.Detach();
+                    snowField = null;
+                }
                 if (host != null)
                 {
                     for (int i = 0; i < hooks.Count; i++) host.PerFrame.Remove(hooks[i]);
@@ -309,6 +331,21 @@ namespace ReDefinition.Atmospheres
         {
             foreach (ProbeWait w in Capture()) yield return w;
             lastSample = ReadPoints();
+            lastPixels = frame != null ? frame.Pixels : null;
+            lastPixelsW = frame != null ? frame.Width : 0;
+            lastPixelsH = frame != null ? frame.Height : 0;
+        }
+
+        // The last pair of the on / off frames, for the picture sheet of the beam: the natural view with the scatter on and the
+        // envelope of the two scatter-off frames (the heat map shows what the scatter adds beyond what moves by itself).
+        private Color[] lastPixels, picOn;
+        private int lastPixelsW, lastPixelsH, picW, picH;
+        private float[] picEnvelope;
+
+        // Saves the sheet of the last measured pair under the name (T1: the beam). A frame that could not be read gives no sheet.
+        private void SaveBeamSheet(string name)
+        {
+            if (picOn != null && picEnvelope != null) SeriesPictures.SaveSheet("D32-beam-" + name, picOn, picEnvelope, picW, picH);
         }
 
         // Scatter on, off, off again, repeated: the beam's mean added luma and the difference of the two off frames.
@@ -326,13 +363,25 @@ namespace ReDefinition.Atmospheres
                 yield return ProbeWait.Seconds(1.5);
                 foreach (ProbeWait w in Sample()) yield return w;
                 on.Add(lastSample);
+                Color[] onPixels = lastPixels;
+                int onW = lastPixelsW, onH = lastPixelsH;
                 SetSetting(AtmospheresSettings.Keys.LightInMedium, 0.0);
                 yield return ProbeWait.Seconds(1.0);
                 foreach (ProbeWait w in Sample()) yield return w;
                 off.Add(lastSample);
+                float[] offLuma = lastPixels != null ? SeriesPictures.Luma(lastPixels) : null;
                 yield return ProbeWait.Frames(20);
                 foreach (ProbeWait w in Sample()) yield return w;
                 off2.Add(lastSample);
+                if (onPixels != null && offLuma != null && lastPixels != null && lastPixels.Length == onPixels.Length && offLuma.Length == onPixels.Length)
+                {
+                    float[] off2Luma = SeriesPictures.Luma(lastPixels);
+                    picEnvelope = new float[offLuma.Length];
+                    for (int i = 0; i < picEnvelope.Length; i++) picEnvelope[i] = Math.Max(offLuma[i], off2Luma[i]);
+                    picOn = onPixels;
+                    picW = onW;
+                    picH = onH;
+                }
             }
             SetSetting(AtmospheresSettings.Keys.LightInMedium, 1.0);
             abOn = AverageSamples(on);
@@ -539,12 +588,17 @@ namespace ReDefinition.Atmospheres
 
             // 2. Snow round the vessel. The lights go off first: snow without a lit lamp draws nothing.
             vessel.ActionGroups.SetGroup(KSPActionGroup.Light, false);
-            double ut = Planetarium.GetUniversalTime();
-            bool forced = ForcePrecipitation(body.flightGlobalsIndex, vessel.latitude, vessel.longitude, 40.0, 25f, PrecipType.Snow, ut - 10.0, ut + 3600.0);
+            // The game's field takes no forcing (nothing in the game installs one), so the probe installs a ForcedField: constant snow
+            // at -18 C everywhere, level SnowLevel; Restore puts the game's own field back.
+            bool forced = InstallSnow();
             Emit("D32.snow_forced", forced);
             if (forced)
             {
                 yield return ProbeWait.Until(() => WeatherHooks.View.Active && WeatherHooks.View.Level > 0.25f, 90, "snow at the vessel");
+            }
+            else
+            {
+                Fail("D32: the snow field could not be installed");
             }
             Emit("D32.snow_level", WeatherHooks.View.Level);
             yield return ProbeWait.Seconds(4);
@@ -583,7 +637,9 @@ namespace ReDefinition.Atmospheres
                     yield return ProbeWait.Frames(30);
                     Emit("D32.snow_depth_copies", LampScatter.DepthCopies - before);
                     Emit("D32.mode_scene", LampScatter.ActiveMode == WeatherCompose.Scene);
-                    Emit("D32.depth_copy_varies", LampScatter.Instance.ProbeDepthSpread());
+                    // Only after a draw with a depth copy: before one the spread is -1 and says nothing about the depth source.
+                    if (LampScatter.DepthCopies - before > 0 && LampScatter.LastDrawCount > 0)
+                        Emit("D32.depth_copy_varies", LampScatter.Instance.ProbeDepthSpread());
                     Emit("D32.cpu_ms", LampScatter.CpuMs);
                     if (LampScatter.LastDrawCount > 0 && host != null)
                     {
@@ -601,6 +657,7 @@ namespace ReDefinition.Atmospheres
                 if (geometry && live && (name == "all" || name == "none" || name == "cloud"))
                 {
                     foreach (ProbeWait w in MeasureOnOff(3)) yield return w;
+                    SaveBeamSheet(name);
                     if (name == "all")
                     {
                         deltaSnow = abDelta;

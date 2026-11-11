@@ -67,6 +67,9 @@ namespace ReDefinition.Atmospheres
             capturedFrame = Time.frameCount;
         }
 
+        // The colours of the picture the last ReadLuma read (linear, row 0 at the bottom), for the picture sheet.
+        internal Color[] LastPixels { get; private set; }
+
         // The captured picture's luminance, row 0 at the bottom; null before a capture.
         internal float[] ReadLuma()
         {
@@ -78,6 +81,7 @@ namespace ReDefinition.Atmospheres
             RenderTexture.active = previous;
             Color[] pixels = copy.GetPixels();
             UnityEngine.Object.Destroy(copy);
+            LastPixels = pixels;
             var luma = new float[pixels.Length];
             for (int i = 0; i < pixels.Length; i++)
             {

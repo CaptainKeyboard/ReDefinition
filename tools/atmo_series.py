@@ -12,7 +12,9 @@ This is the only place that builds with deploy, deploys and starts the game; eve
 -p:DeployToGameData=false (tools/dotnet_test.py). A run, inside the GPU lock (tools/gpu_lock.py, exclusive for a timing series):
 
   1. refuses while KSP_x64 runs, and above the run cap of master plan 9.3 (20 starts) without --owner-consent;
-  2. builds src/ReDefinition.csproj of THIS worktree with the default deploy into the KSP folder, then compares the deployed DLLs
+  2. builds src/ReDefinition.csproj of THIS worktree with the default deploy into the KSP folder (and, for a series with
+     "bundle": true, the shader bundle through tools/build_atmospheres_bundle.ps1 inside the unity lock; a missing bundle refuses
+     the run), then compares the deployed DLLs
      (Main, Common, Planner, Dashboard, Atmospheres) and the shader bundle (build/atmospheres.shaders, installed into the game by this
      tool) with the worktree's by SHA-256, and refuses on any difference;
   3. snapshots the side files (every PluginData folder of ReDefinition, KSP's own PluginData and settings.cfg, the probe save, the files
@@ -635,6 +637,21 @@ def build_with_deploy(repo, ksp, dotnet):
     return subprocess.call(command, cwd=repo)
 
 
+def build_bundle_with_lock(repo, ksp, who):
+    """Builds build/atmospheres.shaders of the worktree with Unity in batch mode (tools/build_atmospheres_bundle.ps1) inside the
+    unity lock, which is a second lock next to the gpu lock the run already holds. Returns the exit code."""
+    out = os.path.join(repo, *BUNDLE[0].split("/"))
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    path = gpu_lock.lock_path("unity")
+    info = gpu_lock.wait_acquire(path, who, 25, False, "unity", os.getpid(), "build_atmospheres_bundle")
+    try:
+        command = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", os.path.join(repo, "tools", "build_atmospheres_bundle.ps1"),
+                   "-Ksp", ksp, "-Output", out]
+        return subprocess.call(command, cwd=repo)
+    finally:
+        gpu_lock.release(path, who, os.getpid(), info["since"])
+
+
 def launch_game(ksp, args, timeout, log_path, exe_prefix=None, grace=PROBE_GRACE_SECONDS, poll=2.0):
     """Starts the game from its folder and waits: until it quits, until the probe's verdict line has been in the log for the grace
     time, or until the timeout. Returns (how it ended, exit code or None)."""
@@ -700,6 +717,7 @@ class Runner:
         h = hooks or {}
         self.ksp_running = h.get("ksp_running", ksp_running_tasklist)
         self.build = h.get("build", lambda: build_with_deploy(repo, ksp, dotnet))
+        self.build_bundle = h.get("build_bundle", lambda: build_bundle_with_lock(repo, ksp, who))
         self.launch = h.get("launch", lambda args, timeout, log_path: launch_game(ksp, args, timeout, log_path))
         self.vm = h.get("vm") or VmControl(log=log)
         self.free_gb = h.get("free_gb", free_memory_gb)
@@ -728,7 +746,7 @@ class Runner:
             f.write(json.dumps({"time": time.strftime("%Y-%m-%d %H:%M:%S"), "series": series, "start": start, "who": self.who, "how": how,
                                 "counted": True}) + "\n")
 
-    def verify_hashes(self, install_bundle=True):
+    def verify_hashes(self, install_bundle=True, require_bundle=False):
         """Compares the deployed DLLs and the bundle with the worktree's; installs the bundle first. Returns the list of
         (file, worktree hash, deployed hash) and raises Refusal on any difference."""
         pairs = list(BUILD_ARTIFACTS)
@@ -739,6 +757,9 @@ class Runner:
                 os.makedirs(os.path.dirname(game_bundle), exist_ok=True)
                 shutil.copy2(wt_bundle, game_bundle)
             pairs.append(BUNDLE)
+        elif require_bundle or not os.path.isfile(game_bundle):
+            raise Refusal("no shader bundle: %s is not in the worktree and the game has none (set \"bundle\": true in the series "
+                          "definition or run tools/build_atmospheres_bundle.ps1 -Output %s under the unity lock)" % (BUNDLE[0], BUNDLE[0]))
         else:
             self.log("bundle: %s is not in the worktree; the game's own bundle is used" % BUNDLE[0])
         hashes, bad = [], []
@@ -795,13 +816,17 @@ class Runner:
         code = self.build()
         if code != 0:
             raise Refusal("the build with deploy failed (exit %s)" % code)
+        if defn.get("bundle"):
+            code = self.build_bundle()
+            if code != 0:
+                raise Refusal("the shader bundle build failed (exit %s); see build/atmospheres-bundle.log" % code)
         store = tempfile.mkdtemp(prefix="atmo-snap-")
         snap = self.snapshot_plan(store)
         snap.take()
         report = {"series": name, "time": stamp, "starts": [], "warnings": [], "hashes": [], "restore_mismatches": [], "notes": []}
         all_results, verdicts, failures = [], {}, []
         try:
-            report["hashes"] = self.verify_hashes()
+            report["hashes"] = self.verify_hashes(require_bundle=bool(defn.get("bundle")))
             apply_profile(self.profile_cache, self.ksp)
             self.vm.begin()
             try:
@@ -871,7 +896,9 @@ class Runner:
     def collect(self, defn, report):
         for item in defn.get("collect", []):
             src = os.path.join(self.ksp, *item["from"].split("/"))
-            dst = os.path.join(self.repo, *item["to"].split("/"))
+            # Paths under .local/ belong to the main repository (the worktrees have none); everything else is the worktree's.
+            base = self.mainrepo if item["to"].startswith(".local/") else self.repo
+            dst = os.path.join(base, *item["to"].split("/"))
             if not os.path.exists(src):
                 if not item.get("optional"):
                     report["warnings"].append("collect: %s is missing" % item["from"])
@@ -1063,11 +1090,14 @@ def _selftest():
                     return 1, "access denied"
                 return 0, "Running" if "State" in command else ""
 
-        def runner(build=None, launch=None, vm=None, running=lambda: False, free=lambda: 40.0):
+        def runner(build=None, launch=None, vm=None, running=lambda: False, free=lambda: 40.0, build_bundle=None):
             vmc = VmControl("gameserver", vm or FakeVm(), log=lambda s: None)
-            return Runner(repo, ksp, main, "selftest", hooks={
+            hooks = {
                 "ksp_running": running, "build": build or fake_build(), "launch": launch or launcher("pass"), "vm": vmc, "free_gb": free,
-                "starts_log": os.path.join(main, "starts.jsonl"), "profile_cache": cache}, log=lambda s: None)
+                "starts_log": os.path.join(main, "starts.jsonl"), "profile_cache": cache}
+            if build_bundle:
+                hooks["build_bundle"] = build_bundle
+            return Runner(repo, ksp, main, "selftest", hooks=hooks, log=lambda s: None)
 
         defn, errs = load_series(repo, "K-test")
         check("series definition and row file validate against the schema", not errs, "; ".join(errs[:3]))
@@ -1129,6 +1159,34 @@ def _selftest():
         rep = runner(build=fake_build(good=False), launch=lambda a, t, p: started.append(1) or ("quit", 0)).execute(defn)
         check("a hash mismatch refuses the run (no start)", not started and not rep["ok"] and any("not the worktree" in n for n in rep["notes"]))
         check("side files are restored after a refused run", sha256(os.path.join(ksp, "settings.cfg")) == before["settings.cfg"])
+
+        # 5b. A series with "bundle": true builds the bundle first and refuses the run when the build fails or leaves none.
+        fresh_ksp()
+        d5 = json.loads(json.dumps(defn))
+        d5["bundle"] = True
+        built = []
+        rep = runner(build_bundle=lambda: built.append(1) or 0).execute(d5)
+        check("a bundle series calls the bundle build once after the build", len(built) == 1 and rep["ok"])
+        fresh_ksp()
+        started = []
+        refused = ""
+        try:
+            runner(build_bundle=lambda: 1, launch=lambda a, t, p: started.append(1) or ("quit", 0)).execute(d5)
+        except Refusal as e:
+            refused = str(e)
+        check("a failed bundle build refuses the run (no start)", not started and "bundle build failed" in refused)
+        fresh_ksp()
+        os.remove(os.path.join(repo, *BUNDLE[0].split("/")))
+        os.remove(os.path.join(ksp, *BUNDLE[1].split("/")))
+        started = []
+
+        def build_without_bundle():
+            for wt, game in BUILD_ARTIFACTS:
+                write(os.path.join(repo, *wt.split("/")), ("dll " + wt).encode(), True)
+                write(os.path.join(ksp, *game.split("/")), ("dll " + wt).encode(), True)
+            return 0
+        rep = runner(build=build_without_bundle, build_bundle=lambda: 0, launch=lambda a, t, p: started.append(1) or ("quit", 0)).execute(d5)
+        check("no bundle anywhere refuses the run (no start)", not started and not rep["ok"] and any("no shader bundle" in n for n in rep["notes"]))
 
         # 6. A killed game (crash mid-run) and an exception: files and mod folders are restored.
         fresh_ksp()

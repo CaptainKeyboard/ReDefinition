@@ -6,7 +6,7 @@ namespace ReDefinition.Atmospheres
 {
     // The probe of package D38 inside the integrated series K-W3b.
     //
-    // Start "lights" (shared with the other probes of the series): the state of the aurora shell in the running game. It writes what the
+    // Start "model" (this probe alone, like every start of the series): the state of the aurora shell in the running game. It writes what the
     // game can say about itself: that the shader is in the bundle and the renderer started, that the Auto setting draws where no foreign
     // aurora layer exists, what the model says at the current time, whether the body transforms' up axis is the rotation axis the shell
     // takes as the pole, and whether the log stays free of TUFX lines (the shell never touches TUFX).

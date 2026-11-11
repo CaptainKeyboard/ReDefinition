@@ -31,7 +31,11 @@ namespace ReDefinition.Atmospheres
 
         private ReconHost host;
         private float[] lastLuma;
+        private Color[] lastPixels;
         private int lastWidth, lastHeight;
+        // The largest distance of the sun's elevation from the one a pose asked for, over every pose placed.
+        private double worstSunError;
+        private const double PoseSunToleranceDeg = 2.0;
         private bool waitedOk;
         private float shellGain = 0.9f;
 
@@ -46,7 +50,14 @@ namespace ReDefinition.Atmospheres
             internal string Name;
             internal AuroraSkyTest Test;
             internal AuroraEvent Event;
+            // Copy modes only: the sky value of the copy and its tolerance (0 keeps the far-value test).
+            internal float SkyRef, SkyTol;
         }
+
+        // RECON P6 (run4, full set, live frame): the global depth texture at BeforeForwardAlpha reads 0.314 in an empty view and 0.34 to
+        // 0.89 on geometry from 2.5 m on, so a test against that sky value tells sky from geometry where the far-value test finds none.
+        private const float ReconSkyDepth = 0.314f, ReconSkyTolerance = 0.03f;
+        private float variantSkyRef, variantSkyTol;
 
         private static readonly VariantDef[] OrderVariants =
         {
@@ -54,6 +65,7 @@ namespace ReDefinition.Atmospheres
             new VariantDef { Name = "copy_depth_before", Test = AuroraSkyTest.CopyDepth, Event = AuroraEvent.BeforeForwardAlpha },
             new VariantDef { Name = "copy_resolved_before", Test = AuroraSkyTest.CopyResolved, Event = AuroraEvent.BeforeForwardAlpha },
             new VariantDef { Name = "copy_global_before", Test = AuroraSkyTest.CopyGlobal, Event = AuroraEvent.BeforeForwardAlpha },
+            new VariantDef { Name = "copy_global_ref_before", Test = AuroraSkyTest.CopyGlobal, Event = AuroraEvent.BeforeForwardAlpha, SkyRef = ReconSkyDepth, SkyTol = ReconSkyTolerance },
             new VariantDef { Name = "none_before", Test = AuroraSkyTest.None, Event = AuroraEvent.BeforeForwardAlpha },
             new VariantDef { Name = "zbuffer_after", Test = AuroraSkyTest.ZBuffer, Event = AuroraEvent.AfterForwardAlpha },
             new VariantDef { Name = "none_after", Test = AuroraSkyTest.None, Event = AuroraEvent.AfterForwardAlpha }
@@ -116,6 +128,7 @@ namespace ReDefinition.Atmospheres
             if (f == null)
             {
                 lastLuma = null;
+                lastPixels = null;
                 yield break;
             }
             var luma = new float[f.Pixels.Length];
@@ -125,6 +138,7 @@ namespace ReDefinition.Atmospheres
                 luma[i] = ReconMath.Luma(c.r, c.g, c.b);
             }
             lastLuma = luma;
+            lastPixels = f.Pixels;
             lastWidth = f.Width;
             lastHeight = f.Height;
         }
@@ -136,6 +150,8 @@ namespace ReDefinition.Atmospheres
             ForceTuning("aurora.forceEvent", evt);
             ForceTuning("aurora.skyTest", (float)test);
             ForceTuning("aurora.event", (float)camEvent);
+            ForceTuning("aurora.skyDepthRef", variantSkyRef);
+            ForceTuning("aurora.skyDepthTol", variantSkyTol);
             ForceTuning("aurora.gain", on ? shellGain : 0f);
             int from = Time.frameCount;
             foreach (ProbeWait w in WaitFor(() => AuroraRenderer.LastDrawFrame > from && AuroraRenderer.LastSkyTest == test
@@ -225,6 +241,42 @@ namespace ReDefinition.Atmospheres
 
         private bool holding;
 
+        // The altitude of the last placement.
+        private double placedAltitude;
+
+        // Waits until the vessel is in the game for real: loaded, unpacked and out of the launch pad's hold. A vessel that is still
+        // packed takes SetPosition but is put back on the pad when it unpacks (K-W3b: the first pose stayed at the pad in daylight,
+        // sun +20 degrees against -12 asked for, while the later poses placed well).
+        private IEnumerable<ProbeWait> VesselReady()
+        {
+            yield return ProbeWait.Until(() =>
+            {
+                Vessel v = FlightGlobals.ActiveVessel;
+                return v != null && v.loaded && !v.packed && v.mainBody != null && FlightGlobals.ready;
+            }, 120, "the vessel to unpack");
+            yield return ProbeWait.Frames(120);
+        }
+
+        // Place, then check the sun's elevation at the camera against the wanted one and place again (up to three tries) when it is
+        // off by more than the tolerance. The worst error of all poses is the row D38.sky.pose_sun_error_deg.
+        private IEnumerable<ProbeWait> PlaceChecked(double latDeg, double sunDeg)
+        {
+            double error = double.MaxValue;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                double altitude;
+                IEnumerable<ProbeWait> steps = Place(latDeg, sunDeg, out altitude);
+                placedAltitude = altitude;
+                foreach (ProbeWait w in steps) yield return w;
+                yield return ProbeWait.Frames(12);
+                error = Math.Abs(PoseSunDeg() - sunDeg);
+                if (error <= PoseSunToleranceDeg) break;
+                Say("placement at " + Num(latDeg) + " degrees latitude: the sun stands " + Num(PoseSunDeg()) + " degrees, " + Num(sunDeg) + " asked for; placing again");
+            }
+            worstSunError = Math.Max(worstSunError, error);
+            if (error > PoseSunToleranceDeg) Fail("D38: the pose at " + Num(latDeg) + " degrees latitude could not be placed with the sun at " + Num(sunDeg) + " degrees (error " + Num(error) + ")");
+        }
+
         private static void HoldVessel()
         {
             Vessel v = FlightGlobals.ActiveVessel;
@@ -266,18 +318,28 @@ namespace ReDefinition.Atmospheres
         }
 
         // Frames of one pose: off, off again (the noise floor), then the caller's shots. Returns through the fields below.
-        private float[] poseOff, poseNoise;
+        // poseEnv is the pixel-wise larger of the two: a brightening only counts as the shell where it exceeds what the sky does by itself
+        // between two shell-off frames (clouds, water, exposure, the upscaler's jitter). The noise floor row keeps the raw pair.
+        private float[] poseOff, poseNoise, poseEnv;
 
         private IEnumerable<ProbeWait> OffFrames(float activity, float evt, AuroraSkyTest test, AuroraEvent camEvent)
         {
             poseOff = null;
             poseNoise = null;
+            poseEnv = null;
             foreach (ProbeWait w in Show(false, activity, evt, test, camEvent)) yield return w;
             foreach (ProbeWait w in Shot()) yield return w;
             poseOff = lastLuma;
             yield return ProbeWait.Frames(2);
             foreach (ProbeWait w in Shot()) yield return w;
             poseNoise = lastLuma;
+            if (poseOff != null && poseNoise != null && poseOff.Length == poseNoise.Length) poseEnv = AuroraMetrics.Envelope(poseOff, poseNoise);
+        }
+
+        // Saves the natural view and its difference heat map against the off envelope of the same state as one sheet.
+        private void SaveSheet(string name, float[] envelope)
+        {
+            if (lastPixels != null && envelope != null) SeriesPictures.SaveSheet("D38-" + name, lastPixels, envelope, lastWidth, lastHeight);
         }
 
         // A ball of flat black, opaque, in the world at a place (the floating origin does not move while the vessel is held).
@@ -311,6 +373,22 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.WeatherEffects, 1.0);
             ClearForced();
             yield return ProbeWait.Until(() => AuroraRenderer.Ready, 60, "the aurora renderer");
+            foreach (ProbeWait w in VesselReady()) yield return w;
+            worstSunError = 0;
+            // The body rule is the premise of every row below: with the rule off the shell is never drawn and the frames only differ by
+            // the sky's own movement. The series stops here rather than measure noise.
+            {
+                CelestialBody ruleBody = FlightGlobals.currentMainBody;
+                BodyClimate ruleClimate = ruleBody != null ? Bodies.Get(ruleBody) : null;
+                bool ruleOn = ruleClimate != null && ruleClimate.Aurora.Enabled;
+                Emit("D38.sky.body_rule_enabled", ruleOn);
+                if (!ruleOn)
+                {
+                    Fail("D38: the AURORA rule of " + (ruleBody != null ? ruleBody.bodyName : "(none)") + " is off, so the shell never draws; the real-sky rows are left out");
+                    Cleanup();
+                    yield break;
+                }
+            }
 
             CelestialBody body = FlightGlobals.currentMainBody;
             EmitText("D38.sky.body", body != null ? body.bodyName : "(none)");
@@ -331,23 +409,22 @@ namespace ReDefinition.Atmospheres
 
             // ---- The reference pose: lat 70, activity 1, elevation 25, sun -12.
             var reference = new SkyPose { Name = "ref", Lat = 70f, Activity = 1f, Event = 0f, Elevation = 25f };
-            double altitude;
-            foreach (ProbeWait w in Place(reference.Lat, WantedSunDeg(reference.Lat), out altitude)) yield return w;
+            foreach (ProbeWait w in PlaceChecked(reference.Lat, WantedSunDeg(reference.Lat))) yield return w;
+            double altitude = placedAltitude;
             AuroraFrame refFrame = AuroraModel.FromActivity(reference.Activity, reference.Event, WantedSunDeg(reference.Lat), 60f, 1f);
             foreach (ProbeWait w in Aim(AuroraModel.PoseYawDeg(refFrame.RingLatDeg, reference.Lat), reference.Elevation)) yield return w;
             double aimAz, aimEl;
             CameraAim(out aimAz, out aimEl);
-            Emit("D38.sky.pose_sun_error_deg", Math.Abs(PoseSunDeg() - WantedSunDeg(reference.Lat)));
             Emit("D38.sky.aim_error_deg", Math.Max(Math.Abs(WrapDeg(aimAz - AuroraModel.PoseYawDeg(refFrame.RingLatDeg, reference.Lat))), Math.Abs(aimEl - reference.Elevation)));
             Emit("D38.sky.altitude_m", altitude);
             float fov = FlightCamera.fetch.mainCamera.fieldOfView;
 
             // ---- Which frame source follows the scene: the camera's target, else the screen.
             foreach (ProbeWait w in OffFrames(reference.Activity, 0f, AuroraSkyTest.None, AuroraEvent.AfterForwardAlpha)) yield return w;
-            float[] off = poseOff, noise = poseNoise;
+            float[] off = poseOff, noise = poseNoise, env = poseEnv;
             foreach (ProbeWait w in Show(true, reference.Activity, 0f, AuroraSkyTest.None, AuroraEvent.AfterForwardAlpha)) yield return w;
             foreach (ProbeWait w in Shot()) yield return w;
-            bool live = off != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(lastLuma, off), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
+            bool live = env != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(lastLuma, env), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
             bool screen = false;
             if (!live)
             {
@@ -356,10 +433,12 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in OffFrames(reference.Activity, 0f, AuroraSkyTest.None, AuroraEvent.AfterForwardAlpha)) yield return w;
                 off = poseOff;
                 noise = poseNoise;
+                env = poseEnv;
                 foreach (ProbeWait w in Show(true, reference.Activity, 0f, AuroraSkyTest.None, AuroraEvent.AfterForwardAlpha)) yield return w;
                 foreach (ProbeWait w in Shot()) yield return w;
-                live = off != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(lastLuma, off), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
+                live = env != null && lastLuma != null && AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(lastLuma, env), lastWidth, lastHeight) >= AuroraMetrics.PeakMin;
             }
+            SaveSheet("ref-none_after-liveness", env);
             Emit("D38.sky.frame_from_screen", screen);
             Emit("D38.order.frame_live", live);
             if (!live)
@@ -378,13 +457,15 @@ namespace ReDefinition.Atmospheres
             foreach (VariantDef v in OrderVariants)
             {
                 BeginVariant(v.Name);
+                variantSkyRef = v.SkyRef;
+                variantSkyTol = v.SkyTol;
                 foreach (ProbeWait w in OffFrames(reference.Activity, 0f, v.Test, v.Event)) yield return w;
-                float[] vOff = poseOff;
+                float[] vOff = poseOff, vEnv = poseEnv;
                 foreach (ProbeWait w in Show(true, reference.Activity, 0f, v.Test, v.Event)) yield return w;
                 foreach (ProbeWait w in Shot()) yield return w;
-                if (lastLuma != null && vOff != null)
+                if (lastLuma != null && vOff != null && vEnv != null)
                 {
-                    float[] mask = AuroraMetrics.Mask(lastLuma, vOff);
+                    float[] mask = AuroraMetrics.Mask(lastLuma, vEnv);
                     double peak = AuroraMetrics.PeakRowMean(mask, lastWidth, lastHeight);
                     double share = AuroraMetrics.LitShare(mask, 1e-4f);
                     peaks[v.Name] = peak;
@@ -393,9 +474,12 @@ namespace ReDefinition.Atmospheres
                     noiseFloor = Math.Max(noiseFloor, AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(poseNoise, vOff), lastWidth, lastHeight));
                     Emit("D38.order.peak", peak);
                     Emit("D38.order.lit_share", share);
+                    SaveSheet("ref-" + v.Name, vEnv);
                 }
                 EndVariant();
             }
+            variantSkyRef = 0f;
+            variantSkyTol = 0f;
             Func<string, double> peakOf = n => { double p; return peaks.TryGetValue(n, out p) ? p : 0.0; };
             Func<string, double> litOf = n => { double p; return lit.TryGetValue(n, out p) ? p : 0.0; };
             Emit("D38.order.default_visible", peakOf("zbuffer_before") >= AuroraMetrics.PeakMin);
@@ -405,6 +489,7 @@ namespace ReDefinition.Atmospheres
             Emit("D38.order.copy_depth_visible", peakOf("copy_depth_before") >= AuroraMetrics.PeakMin);
             Emit("D38.order.copy_resolved_visible", peakOf("copy_resolved_before") >= AuroraMetrics.PeakMin);
             Emit("D38.order.copy_global_visible", peakOf("copy_global_before") >= AuroraMetrics.PeakMin);
+            Emit("D38.order.copy_global_ref_visible", peakOf("copy_global_ref_before") >= AuroraMetrics.PeakMin);
 
             // ---- An opaque ball in front of the brightest part of the shell: the hardware test hides the shell behind it, the
             // unrestricted dome (the control) paints over it.
@@ -430,26 +515,32 @@ namespace ReDefinition.Atmospheres
                 {
                     if (v.Event != AuroraEvent.BeforeForwardAlpha) continue;
                     BeginVariant(v.Name);
+                    variantSkyRef = v.SkyRef;
+                    variantSkyTol = v.SkyTol;
                     foreach (ProbeWait w in OffFrames(reference.Activity, 0f, v.Test, v.Event)) yield return w;
-                    float[] vOff = poseOff;
+                    float[] vEnv = poseEnv;
                     foreach (ProbeWait w in Show(true, reference.Activity, 0f, v.Test, v.Event)) yield return w;
                     foreach (ProbeWait w in Shot()) yield return w;
-                    if (lastLuma != null && vOff != null)
+                    if (lastLuma != null && vEnv != null)
                     {
-                        float[] mask = AuroraMetrics.Mask(lastLuma, vOff);
+                        float[] mask = AuroraMetrics.Mask(lastLuma, vEnv);
                         double mean = AuroraMetrics.MeanMask(mask, lastWidth, lastHeight, x0, y0, x1, y1, true);
                         inside[v.Name] = mean;
                         Emit("D38.terrain.inside", mean);
+                        SaveSheet("ball-" + v.Name, vEnv);
                     }
                     EndVariant();
                 }
                 UnityEngine.Object.Destroy(ball);
+                variantSkyRef = 0f;
+                variantSkyTol = 0f;
                 // The control without the ball: the same square is lit by the shell (so that a dark square under the ball is the ball).
                 foreach (ProbeWait w in OffFrames(reference.Activity, 0f, AuroraSkyTest.ZBuffer, AuroraEvent.BeforeForwardAlpha)) yield return w;
-                float[] cOff = poseOff;
+                float[] cEnv = poseEnv;
                 foreach (ProbeWait w in Show(true, reference.Activity, 0f, AuroraSkyTest.ZBuffer, AuroraEvent.BeforeForwardAlpha)) yield return w;
                 foreach (ProbeWait w in Shot()) yield return w;
-                double control = lastLuma != null && cOff != null ? AuroraMetrics.MeanMask(AuroraMetrics.Mask(lastLuma, cOff), lastWidth, lastHeight, x0, y0, x1, y1, true) : 0.0;
+                double control = lastLuma != null && cEnv != null ? AuroraMetrics.MeanMask(AuroraMetrics.Mask(lastLuma, cEnv), lastWidth, lastHeight, x0, y0, x1, y1, true) : 0.0;
+                SaveSheet("ball-control-no-ball", cEnv);
                 Emit("D38.terrain.control_inside", control);
                 Func<string, double> inOf = n => { double p; return inside.TryGetValue(n, out p) ? p : double.NaN; };
                 Emit("D38.terrain.control_lit", control >= 1e-3);
@@ -458,6 +549,7 @@ namespace ReDefinition.Atmospheres
                 Emit("D38.terrain.copy_depth_hides", inOf("copy_depth_before") <= 1e-4 && control >= 1e-3);
                 Emit("D38.terrain.copy_resolved_hides", inOf("copy_resolved_before") <= 1e-4 && control >= 1e-3);
                 Emit("D38.terrain.copy_global_hides", inOf("copy_global_before") <= 1e-4 && control >= 1e-3);
+                Emit("D38.terrain.copy_global_ref_hides", inOf("copy_global_ref_before") <= 1e-4 && control >= 1e-3);
             }
 
             // ---- Lid, drip and band at a night pose per latitude, the default draw (D38-02).
@@ -473,18 +565,17 @@ namespace ReDefinition.Atmospheres
             int judged = 0, dim = 0;
             foreach (SkyPose pose in poses)
             {
-                double alt;
-                foreach (ProbeWait w in Place(pose.Lat, WantedSunDeg(pose.Lat), out alt)) yield return w;
+                foreach (ProbeWait w in PlaceChecked(pose.Lat, WantedSunDeg(pose.Lat))) yield return w;
                 AuroraFrame frame = AuroraModel.FromActivity(pose.Activity, pose.Event, WantedSunDeg(pose.Lat), 60f, 1f);
                 double yaw = AuroraModel.PoseYawDeg(frame.RingLatDeg, pose.Lat);
                 foreach (ProbeWait w in Aim(yaw, pose.Elevation)) yield return w;
                 double az, el;
                 CameraAim(out az, out el);
                 foreach (ProbeWait w in OffFrames(pose.Activity, pose.Event, AuroraSkyTest.ZBuffer, AuroraEvent.BeforeForwardAlpha)) yield return w;
-                float[] pOff = poseOff, pNoise = poseNoise;
+                float[] pOff = poseOff, pNoise = poseNoise, pEnv = poseEnv;
                 foreach (ProbeWait w in Show(true, pose.Activity, pose.Event, AuroraSkyTest.ZBuffer, AuroraEvent.BeforeForwardAlpha)) yield return w;
                 foreach (ProbeWait w in Shot()) yield return w;
-                if (lastLuma == null || pOff == null || pNoise == null)
+                if (lastLuma == null || pOff == null || pNoise == null || pEnv == null)
                 {
                     Say("pose " + pose.Name + ": a frame could not be read");
                     dim++;
@@ -492,10 +583,11 @@ namespace ReDefinition.Atmospheres
                 }
                 double fovNow = FlightCamera.fetch.mainCamera.fieldOfView;
                 noiseFloor = Math.Max(noiseFloor, AuroraMetrics.PeakRowMean(AuroraMetrics.Mask(pNoise, pOff), lastWidth, lastHeight));
-                AuroraMetrics.Result r = AuroraMetrics.Measure(lastLuma, pOff, lastWidth, lastHeight, el, fovNow);
+                AuroraMetrics.Result r = AuroraMetrics.Measure(lastLuma, pEnv, lastWidth, lastHeight, el, fovNow);
                 Emit("D38.sky.peak." + pose.Name, r.Peak);
                 Emit("D38.sky.sun_deg." + pose.Name, PoseSunDeg());
                 Emit("D38.sky.aim_el_deg." + pose.Name, el);
+                SaveSheet("pose-" + pose.Name, pEnv);
                 if (!r.Judged)
                 {
                     dim++;
@@ -515,6 +607,7 @@ namespace ReDefinition.Atmospheres
             Emit("D38.sky.poses_judged", judged);
             Emit("D38.sky.poses_dim", dim);
             Emit("D38.sky.noise_floor", noiseFloor);
+            Emit("D38.sky.pose_sun_error_deg", worstSunError);
 
             // ---- Frame time at the dearest pose (lat 60 with the strong event, elevation 10: the longest paths): the mean time of a frame
             // with the shell against without, alternating. The whole frame (CPU and GPU of the game), so only informative; the exclusive

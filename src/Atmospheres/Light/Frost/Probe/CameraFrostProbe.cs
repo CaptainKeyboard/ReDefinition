@@ -53,7 +53,7 @@ namespace ReDefinition.Atmospheres
         public FieldReadiness Readiness { get { return FieldReadiness.Ready; } }
     }
 
-    // The probe of package D37 inside the integrated series K-W3b (start "lights"): the camera frost against the running game. It
+    // The probe of package D37 inside the integrated series K-W3b (start "frost"): the camera frost against the running game. It
     // measures, as rows D37.*:
     //   - the shader and the atlas (loaded, built in how many ms);
     //   - the order of the cameras in the flight view and in the IVA, against RECON.md (Camera 00, then the presenter at depth 0.1, then
@@ -304,6 +304,7 @@ namespace ReDefinition.Atmospheres
                         yield return ProbeWait.Frames(20);
                         EmitText("D37.iva_ab_" + phase + "_mode", CameraFrostRenderer.ActiveMode);
                         var shots = new float[3][];
+                        var shotPixels = new Color[3][];
                         float[] abOff = { 1f, 0f, 1f };
                         for (int s = 0; s < 3; s++)
                         {
@@ -312,8 +313,16 @@ namespace ReDefinition.Atmospheres
                             tap.Arm();
                             for (int k = 0; k < 90 && !tap.Captured; k++) yield return ProbeWait.Frames(1);
                             shots[s] = tap.ReadLuma();
+                            shotPixels[s] = tap.LastPixels;
                         }
                         ForceTuning("frost.abOff", 0f);
+                        if (shots[0] != null && shots[1] != null && shots[2] != null && shotPixels[1] != null && shots[0].Length == shots[2].Length)
+                        {
+                            // T4: the natural view with the frost and the heat map against the envelope of the two frost-off frames.
+                            var envelope = new float[shots[0].Length];
+                            for (int i = 0; i < envelope.Length; i++) envelope[i] = Math.Max(shots[0][i], shots[2][i]);
+                            SeriesPictures.SaveSheet("D37-iva-" + phase, shotPixels[1], envelope, FrostProbeTap.Width, FrostProbeTap.Height);
+                        }
                         if (shots[0] == null || shots[1] == null || shots[2] == null)
                         {
                             Fail("D37: the probe tap captured no picture in the " + phase + " A/B (the hook did not answer for the flight or internal camera)");
