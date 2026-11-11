@@ -12,24 +12,11 @@ namespace ReDefinition.Atmospheres
     //   - towers grow in the first quarter of the life of a cell and sink at its end: the top rises with the updraft, the window's updraft is that rise;
     //   - the top of a tower and its anvil are shifted downwind by the shear aloft (bounded: wind difference x 1800 s);
     //   - the consistency rule: beneath a tall cell the deck is thinned, the anvil lies above it; a column never carries an updraft through an unthinned deck.
-    // No feedback into the field. The cost of a refill is 1024 columns of at most three samples each; the resampler spreads it over the frames of its
-    // rebuild. Allocation free.
+    // No feedback into the field. The cost of a refill is 1024 columns of at most three samples each. Allocation free.
     internal static class WindowAdvection
     {
-        // The generator behind a window, or null where the window is not ours to refill (no generator state for the body, the state tripped, the round-3 profile,
-        // or no E43 switch on).
-        internal static WeatherGenerator GeneratorFor(WeatherWindow window)
-        {
-            if (window == null || !LayerWindOptions.AnyOn) return null;
-            GeneratorField gf = GeneratorModule.Current;
-            GeneratorState s = gf != null ? gf.StateOf(window.BodyIndex) : null;
-            if (s == null || s.Broken || !s.Parameters.HeightWind) return null;
-            if (window.Nx < 1 || window.Ny < 1 || window.Nz < 1 || window.CloudWater.Length < window.Count || window.Updraft.Length < window.Count) return null;
-            return s.Generator;
-        }
-
-        // Refills the rows firstRow .. firstRow + rowCount - 1 (north) of the window's cloud water and updraft with layered columns. The window's temperature is
-        // the field's.
+        // Refills the rows firstRow .. firstRow + rowCount - 1 (north) of the window's cloud water and updraft with layered columns (GeneratorField.FillWindow
+        // calls it for the whole window). The window's temperature is the field's.
         internal static void Refill(WeatherWindow w, int firstRow, int rowCount, WeatherGenerator g, LayerOptions o)
         {
             double a = g.Body.RadiusM;

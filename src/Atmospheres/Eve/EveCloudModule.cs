@@ -50,6 +50,9 @@ namespace ReDefinition.Atmospheres
         private List<EveLayer> layers = new List<EveLayer>();
         private readonly Dictionary<PaintSet, byte[]> luts = new Dictionary<PaintSet, byte[]>();
         private readonly Dictionary<EveLayer, LayerSteerState> steering = new Dictionary<EveLayer, LayerSteerState>();
+        // The layer maps of the paint sets of MapsOnly (CPU copies for the mirror) and the sets painted from one in the current paint.
+        private readonly Dictionary<PaintSet, WeatherMap> layerMaps = new Dictionary<PaintSet, WeatherMap>();
+        private readonly HashSet<PaintSet> layerSetsInUse = new HashSet<PaintSet>();
         private readonly List<EveCoverageMath.Blob> cells = new List<EveCoverageMath.Blob>();
         private readonly List<EveCoverageMath.Rect> painted = new List<EveCoverageMath.Rect>();
         private byte[] overlay;
@@ -88,6 +91,12 @@ namespace ReDefinition.Atmospheres
                 if (h.Tracker.State == BindState.Bound) return h;
             }
             return null;
+        }
+
+        // The number of paint sets painted from a layer map in the last paint (E43, layerWindSteering MapsOnly).
+        internal int LayerSetsInUse
+        {
+            get { return layerSetsInUse.Count; }
         }
 
         // The steering state of a layer (E43), or null.
@@ -327,7 +336,7 @@ namespace ReDefinition.Atmospheres
             }
             bool snap = mirrorNew;
             mirrorNew = false;
-            if (mirror.Tick(now, painter.CoverageMap, painter.LevelMap, Tuning.Get("eve.slewRate", MapSlew.DefaultRate), snap))
+            if (mirror.Tick(now, painter.CoverageMap, painter.LevelMap, Tuning.Get("eve.slewRate", MapSlew.DefaultRate), snap, LayerMapOf))
             {
                 string first = FirstBoundName();
                 if (first.Length > 0) CloudMapsState.Bump(first);
@@ -354,7 +363,10 @@ namespace ReDefinition.Atmospheres
         private PaintSet Choose(EveLayer h)
         {
             if (!h.LayoutKnown || painter == null) return null;
-            PaintSet set = painter.SetFor(h.ShiftDeg, h.Mirrored);
+            int key = LayerKeyOf(h);
+            PaintSet set = painter.SetFor(h.ShiftDeg, h.Mirrored, key);
+            // until the layer's own map is painted the layer shows the shared one (no gap, no jump back to EVE's own picture)
+            if (key != 0 && !set.Primed) set = painter.SetFor(h.ShiftDeg, h.Mirrored, 0);
             if (!luts.ContainsKey(set))
             {
                 byte[] lut = CloudTypeEncoding.BuildLut(h.Slots, false);
@@ -363,6 +375,49 @@ namespace ReDefinition.Atmospheres
                 mirrorNew = true;
             }
             return set.Primed ? set : null;
+        }
+
+        // Option B of the layer wind (layerWindSteering MapsOnly): the layers of one height share a paint set of their own that paints the field's layer map of that
+        // height (GeneratorField.GetLayerCoverage), so the painted pattern carries the wind of the height while EVE's drift stays stopped. 0 (the shared map) in every
+        // other mode, where the generator is not ours, and where the layer's height is not known.
+        private int LayerKeyOf(EveLayer h)
+        {
+            if (LayerWindOptions.Steering != LayerSteeringMode.MapsOnly || body == null || !h.DriftFrozen || GeneratorModule.Current == null) return 0;
+            double height = LayerWindSteering.LayerMidHeightM(h.InnerRadiusM, h.OuterRadiusM, body.Radius);
+            if (height < 100.0) return 0;
+            return 1 + (int)Math.Round(height / GeneratorMaps.LayerStepM);
+        }
+
+        private WeatherMap LayerMapOf(PaintSet set)
+        {
+            WeatherMap m;
+            return layerMaps.TryGetValue(set, out m) ? m : null;
+        }
+
+        // Fetches and uploads the layer map of every layer set in use; the sets whose map is not there yet are left unpainted (Choose returns null for them until
+        // they are primed). Returns the sets painted from a layer map in this paint.
+        private void UploadLayerMaps(CelestialBody b, double ut)
+        {
+            layerSetsInUse.Clear();
+            GeneratorField gf = GeneratorModule.Current;
+            if (gf == null) return;
+            foreach (EveLayer h in layers)
+            {
+                if (!h.LayoutKnown || h.LeftReason.Length > 0) continue;
+                int key = LayerKeyOf(h);
+                if (key == 0) continue;
+                PaintSet set = painter.SetFor(h.ShiftDeg, h.Mirrored, key);
+                if (layerSetsInUse.Contains(set)) continue;
+                WeatherMap map;
+                if (!layerMaps.TryGetValue(set, out map))
+                {
+                    map = new WeatherMap();
+                    layerMaps[set] = map;
+                }
+                if (!gf.GetLayerCoverage(b.flightGlobalsIndex, ut, (key - 1) * GeneratorMaps.LayerStepM, map)) continue;
+                painter.UploadLayer(set, map);
+                layerSetsInUse.Add(set);
+            }
         }
 
         private void Paint(float now, CelestialBody b, double ut)
@@ -387,14 +442,17 @@ namespace ReDefinition.Atmospheres
                 debugSnapPending = false;
             }
             painter.Upload(painter.CoverageMap, painter.LevelMap);
+            UploadLayerMaps(b, ut);
             double ms = 0;
             foreach (EveLayer h in layers)
             {
                 if (!h.LayoutKnown || h.LeftReason.Length > 0) continue;
-                painter.SetFor(h.ShiftDeg, h.Mirrored);
+                painter.SetFor(h.ShiftDeg, h.Mirrored, LayerKeyOf(h));
             }
             foreach (PaintSet set in painter.Sets)
             {
+                // a layer set paints only while its layer map is there and wanted (the mode MapsOnly)
+                if (set.LayerKey != 0 && !layerSetsInUse.Contains(set)) continue;
                 byte[] lut;
                 if (luts.TryGetValue(set, out lut)) painter.SetLut(lut);
                 ms += painter.Paint(set, dt, rate, snap);
@@ -579,6 +637,8 @@ namespace ReDefinition.Atmospheres
                 if (h.Tracker.State == BindState.Bound || h.MirrorInjected) EveLayerAccess.Restore(h);
             }
             steering.Clear();
+            layerMaps.Clear();
+            layerSetsInUse.Clear();
             AtmospheresLog.Say("cloud painter: EVE layers released (" + reason + "), losses " + binding.TotalLosses + ", rebinds " + binding.TotalRebinds);
             binding.Clear();
             EveRainLink.SetPainted(null);

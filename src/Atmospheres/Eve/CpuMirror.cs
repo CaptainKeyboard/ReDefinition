@@ -123,7 +123,7 @@ namespace ReDefinition.Atmospheres
 
         // Called every frame with the clock and the field's maps. A new cycle starts every IntervalS; the rows are worked through a band
         // a frame. snap fills the mirror at once (the first cycle of a body and a cut). Returns true in the frame a cycle ended.
-        internal bool Tick(float now, WeatherMap coverage, WeatherMap level, float rate, bool snap)
+        internal bool Tick(float now, WeatherMap coverage, WeatherMap level, float rate, bool snap, System.Func<PaintSet, WeatherMap> coverageOf = null)
         {
             if (entries.Count == 0 || coverage == null || level == null || coverage.Values.Length == 0 || level.Values.Length == 0) return false;
             watch.Reset();
@@ -144,7 +144,10 @@ namespace ReDefinition.Atmospheres
             {
                 if (e.Row >= Height) continue;
                 float cycleRate = e.CycleDt >= 1000f ? 1000f : rate;
-                e.Coverage.UpdateRows(coverage.Values, coverage.Width, coverage.Height, e.Set.ShiftDeg, e.Set.Mirrored, e.Row, rows, e.CycleDt, cycleRate);
+                // a set of a cloud layer at one height (MapsOnly) mirrors the coverage map of that height
+                WeatherMap own = e.Set.LayerKey != 0 && coverageOf != null ? coverageOf(e.Set) : null;
+                if (own != null && own.Values.Length > 0) e.Coverage.UpdateRows(own.Values, own.Width, own.Height, e.Set.ShiftDeg, e.Set.Mirrored, e.Row, rows, e.CycleDt, cycleRate);
+                else e.Coverage.UpdateRows(coverage.Values, coverage.Width, coverage.Height, e.Set.ShiftDeg, e.Set.Mirrored, e.Row, rows, e.CycleDt, cycleRate);
                 e.Type.UpdateRows(level.Values, level.Width, level.Height, e.Set.ShiftDeg, e.Set.Mirrored, e.Row, rows, e.CycleDt, cycleRate);
                 e.Row += rows;
                 if (e.Row >= Height)

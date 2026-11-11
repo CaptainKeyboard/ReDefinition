@@ -5,30 +5,34 @@ using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
-    // How the layers of volumetric clouds get their wind (package E43).
-    //   Off         the layers keep the frozen drift (C23): they move with the patterns of the weather field only.
-    //   MainPeriod  option A: EVE's own drift (CloudsPQS.mainPeriod / offset) is steered per layer so that pattern motion plus EVE's drift is the wind of the
-    //               layer's height; the phase is kept (no jump), the rate follows with a limit on its change, upwardsCloudSpeed follows the updraft.
-    //   MapsOnly    option B: EVE's drift stays stopped; the painted maps carry the layer's motion (the layer lookup of the field, LayerCoupling.Coverage).
-    //               The painter's hook for it is not in this package [VERIFY]: until it is there this mode behaves as Off.
-    // The rule that holds in both: the sum of EVE's drift and the motion of the painted pattern is the field wind of the layer; nothing moves twice
-    // or against another mover. The choice between A and B is made from the game rows of tests/series/rows/E43.json, not by assumption.
-    internal enum LayerSteeringMode
-    {
-        Off = 0,
-        MainPeriod = 1,
-        MapsOnly = 2
-    }
-
-    // The E43 switches until the settings carry them (integration request: windShear, layerWindSteering, verticalMotion, anvilTilt).
+    // The E43 switches: the settings windShear, layerWindSteering (LayerSteeringMode, in AtmospheresSettings.Enums.cs), verticalMotion and anvilTilt.
+    // A probe or a test pins a value through the Override field of the same name (null = the setting decides); Couple is the consistency rule
+    // between the layers of the window (thinned deck beneath a tall cell, anvil above the deck) and has no setting.
     internal static class LayerWindOptions
     {
-        internal static LayerSteeringMode Steering = LayerSteeringMode.MainPeriod;
-        internal static bool WindShear = true;
-        internal static bool VerticalMotion = true;
-        internal static bool AnvilTilt = true;
-        // The consistency rule between the layers of the window (thinned deck beneath a tall cell, anvil above the deck).
+        internal static LayerSteeringMode? SteeringOverride;
+        internal static bool? WindShearOverride, VerticalMotionOverride, AnvilTiltOverride;
         internal static bool Couple = true;
+
+        internal static LayerSteeringMode Steering
+        {
+            get { return SteeringOverride ?? AtmospheresSettings.LayerWindSteering; }
+        }
+
+        internal static bool WindShear
+        {
+            get { return WindShearOverride ?? AtmospheresSettings.WindShear; }
+        }
+
+        internal static bool VerticalMotion
+        {
+            get { return VerticalMotionOverride ?? AtmospheresSettings.VerticalMotion; }
+        }
+
+        internal static bool AnvilTilt
+        {
+            get { return AnvilTiltOverride ?? AtmospheresSettings.AnvilTilt; }
+        }
 
         // Whether any switch asks for the layered window.
         internal static bool AnyOn

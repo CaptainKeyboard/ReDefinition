@@ -47,6 +47,10 @@ namespace ReDefinition.Atmospheres
         internal static float WindStrength => F(Keys.WindStrength);
         internal static bool WindOnLanded => B(Keys.WindOnLanded);
         internal static float GustStrength => F(Keys.GustStrength);
+        internal static bool WindShear => B(Keys.WindShear);
+        internal static LayerSteeringMode LayerWindSteering => E<LayerSteeringMode>(Keys.LayerWindSteering);
+        internal static bool VerticalMotion => B(Keys.VerticalMotion);
+        internal static bool AnvilTilt => B(Keys.AnvilTilt);
         internal static bool SolarDimming => B(Keys.SolarDimming);
         internal static float SolarDimmingStrength => F(Keys.SolarDimmingStrength);
         internal static bool VisibilityExport => B(Keys.VisibilityExport);

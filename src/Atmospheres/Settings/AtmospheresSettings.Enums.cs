@@ -13,6 +13,21 @@ namespace ReDefinition.Atmospheres
         None
     }
 
+    // How the layers of volumetric clouds get their wind (key layerWindSteering, package E43).
+    //   Off         the layers keep the frozen drift (C23): they move with the patterns of the weather field only.
+    //   MainPeriod  option A: EVE's own drift (CloudsPQS.mainPeriod / offset) is steered per layer so that pattern motion plus EVE's drift is the wind of the
+    //               layer's height; the phase is kept (no jump), the rate follows with a limit on its change, upwardsCloudSpeed follows the updraft.
+    //   MapsOnly    option B: EVE's drift stays stopped; the painted maps of the layer carry its motion (the layer lookup of the field,
+    //               LayerCoupling.Coverage, through GeneratorField.GetLayerCoverage and the painter's per-layer paint sets).
+    // The rule that holds in all: the sum of EVE's drift and the motion of the painted pattern is the field wind of the layer; nothing moves twice
+    // or against another mover.
+    internal enum LayerSteeringMode
+    {
+        Off = 0,
+        MainPeriod = 1,
+        MapsOnly = 2
+    }
+
     // Who composes the veil and the flakes (key weatherCompose).
     internal enum WeatherCompose
     {

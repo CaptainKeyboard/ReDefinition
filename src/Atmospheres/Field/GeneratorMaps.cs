@@ -54,9 +54,26 @@ namespace ReDefinition.Atmospheres
             internal readonly float[] IceThickness = new float[CoverWidth * CoverHeight];
         }
 
+        // The coverage map of one cloud layer at a height (package E43, layerWindSteering MapsOnly): the layer lookup of the core (SubGrid.LayerMap), made on the
+        // worker like the weather maps, at most every LayerIntervalMs of real time (the layer map moves with the wind of its height, 20 m/s is 20 m a second against
+        // texels of 78 km). Layers are keyed by their height in LayerStepM steps; a layer not asked for for IdleMs is dropped.
+        internal const int LayerIntervalMs = 1000;
+        internal const double LayerStepM = 250.0;
+
+        private sealed class LayerSnap
+        {
+            internal float[] Current, Spare = new float[Width * Height];
+            internal double Ut, HeightM, WantedUt = double.NaN;
+            internal long Version, LastAskedMs, LastRenderMs = long.MinValue / 2;
+            internal LayerOptions Options;
+        }
+
         private sealed class Body
         {
             internal readonly object Lock = new object();
+            // Held for the whole render of a layer map of the body.
+            internal readonly object LayerRender = new object();
+            internal readonly Dictionary<int, LayerSnap> Layers = new Dictionary<int, LayerSnap>();
             // Held for the whole render of the weather maps / the surface maps of the body (see RenderNow).
             internal readonly object WeatherRender = new object(), CoverRender = new object();
             internal Weather2D Current, Spare = new Weather2D();
@@ -131,6 +148,90 @@ namespace ReDefinition.Atmospheres
                     default: return false;
                 }
                 Hand(target, kind, bodyIndex, w.Ut, w.Version, Width, Height, values);
+                return true;
+            }
+        }
+
+        // The coverage map of the cloud layer at a height (E43): the last finished render of the layer, asked for the time given. The switches of the layered
+        // clouds are read here, on the caller's thread, and travel with the request. False until the first render of the layer is there.
+        internal bool GetLayer(int bodyIndex, double ut, double heightM, WeatherMap target)
+        {
+            if (target == null || double.IsNaN(heightM) || double.IsInfinity(heightM) || double.IsNaN(ut) || double.IsInfinity(ut)) return false;
+            GeneratorState state = field.StateOf(bodyIndex);
+            if (state == null || state.Broken) return false;
+            int key = (int)Math.Round(Math.Max(0.0, heightM) / LayerStepM);
+            LayerOptions options = LayerWindOptions.Layers();
+            Body b = BodyOf(bodyIndex);
+            lock (b.Lock)
+            {
+                LayerSnap snap;
+                if (!b.Layers.TryGetValue(key, out snap))
+                {
+                    snap = new LayerSnap();
+                    b.Layers[key] = snap;
+                }
+                snap.WantedUt = ut;
+                snap.HeightM = key * LayerStepM;
+                snap.Options = options;
+                snap.LastAskedMs = clock.ElapsedMilliseconds;
+            }
+            wake.Set();
+            if (Synchronous)
+            {
+                bool missing;
+                lock (b.Lock)
+                {
+                    missing = b.Layers[key].Current == null;
+                }
+                if (missing) RenderLayerNow(bodyIndex, key);
+            }
+            lock (b.Lock)
+            {
+                LayerSnap snap = b.Layers[key];
+                if (snap.Current == null) return false;
+                Hand(target, WeatherMapKind.Coverage, bodyIndex, snap.Ut, snap.Version, Width, Height, snap.Current);
+                return true;
+            }
+        }
+
+        // Renders the layer map of a key for the time it was asked about and publishes it. True where a snapshot was made.
+        internal bool RenderLayerNow(int bodyIndex, int key)
+        {
+            GeneratorState s = field.StateOf(bodyIndex);
+            if (s == null || s.Broken) return false;
+            Body b = BodyOf(bodyIndex);
+            lock (b.LayerRender)
+            {
+                LayerSnap snap;
+                float[] target;
+                double ut, height;
+                LayerOptions options;
+                lock (b.Lock)
+                {
+                    if (!b.Layers.TryGetValue(key, out snap)) return false;
+                    target = snap.Spare;
+                    ut = snap.WantedUt;
+                    height = snap.HeightM;
+                    options = snap.Options;
+                }
+                if (double.IsNaN(ut) || options == null) return false;
+                SubGrid.LayerMap(s.Generator, ut, Width, Height, height, options, target);
+                for (int i = 0; i < target.Length; i++)
+                {
+                    if (float.IsNaN(target[i]) || float.IsInfinity(target[i]))
+                    {
+                        s.Trip();
+                        return false;
+                    }
+                }
+                lock (b.Lock)
+                {
+                    snap.Spare = snap.Current ?? new float[Width * Height];
+                    snap.Current = target;
+                    snap.Ut = ut;
+                    snap.Version = field.Version;
+                    snap.LastRenderMs = clock.ElapsedMilliseconds;
+                }
                 return true;
             }
         }
@@ -236,7 +337,40 @@ namespace ReDefinition.Atmospheres
                 if (weatherDue) RenderNow(index, ut);
                 bool coverDue = cover && (b.CoverCurrent == null || now - b.LastCoverMs >= CoverIntervalMs || Math.Abs(ut - b.CoverCurrent.Ut) > CoverJumpS);
                 if (coverDue) RenderCoverNow(index, ut);
+                RenderDueLayers(index, b);
             }
+        }
+
+        // The layer maps (E43) of a body that were asked about and are due; a layer nobody asks for any more is dropped.
+        private void RenderDueLayers(int bodyIndex, Body b)
+        {
+            List<int> due = null;
+            long now = clock.ElapsedMilliseconds;
+            lock (b.Lock)
+            {
+                List<int> idle = null;
+                foreach (KeyValuePair<int, LayerSnap> pair in b.Layers)
+                {
+                    LayerSnap snap = pair.Value;
+                    if (now - snap.LastAskedMs > IdleMs)
+                    {
+                        if (idle == null) idle = new List<int>();
+                        idle.Add(pair.Key);
+                        continue;
+                    }
+                    if (now - snap.LastRenderMs >= LayerIntervalMs && (snap.Current == null || snap.Ut != snap.WantedUt))
+                    {
+                        if (due == null) due = new List<int>();
+                        due.Add(pair.Key);
+                    }
+                }
+                if (idle != null)
+                {
+                    foreach (int key in idle) b.Layers.Remove(key);
+                }
+            }
+            if (due == null) return;
+            foreach (int key in due) RenderLayerNow(bodyIndex, key);
         }
 
         // ---- the render ---------------------------------------------------------------------------------------------------

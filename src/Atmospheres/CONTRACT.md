@@ -180,6 +180,10 @@ The table of `SettingsTable.All`, in the order of the window.
 | `windStrength` | 1 | 0 to 2 | Wind Strength | needs-wind-forces | wind |
 | `windOnLanded` | on | on / off | Wind On Landed Vehicles | needs-wind-forces | - |
 | `gustStrength` | 1 | 0 to 2 | Gust Strength | needs-weather-effects | - |
+| `windShear` | on | on / off | Wind Shear By Height | needs-simulation | - |
+| `layerWindSteering` | MainPeriod | Off / MainPeriod / MapsOnly | Layer Wind Steering | needs-eve | - |
+| `verticalMotion` | on | on / off | Vertical Cloud Motion | needs-simulation | - |
+| `anvilTilt` | on | on / off | Anvil Tilt | needs-simulation | - |
 | `solarDimming` | off | on / off | Solar Panel Dimming | needs-weather-effects | - |
 | `solarDimmingStrength` | 1 | 0 to 1 | Solar Dimming Strength | needs-solar-dimming | - |
 | `visibilityExport` | on | on / off | Export Visibility | needs-weather-effects | - |

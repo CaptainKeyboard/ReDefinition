@@ -241,7 +241,7 @@ namespace ReDefinition.Atmospheres
                 Frozen(s, lat, lon, ut, ref sample);
                 return true;
             }
-            Fill(s, ref w, ref sample);
+            Fill(s, ref w, alt, ref sample);
             Disc[] forced = Volatile.Read(ref discs);
             if (forced.Length > 0) ApplyDiscs(s, forced, lat, lon, ut, ref sample);
             return true;
@@ -250,6 +250,14 @@ namespace ReDefinition.Atmospheres
         public bool GetMap(int bodyIndex, WeatherMapKind kind, double ut, WeatherMap target)
         {
             return maps.Get(bodyIndex, kind, ut, target);
+        }
+
+        // The coverage map of the cloud layer at a height above the surface (E43): the layer carried by the wind of its height and thinned beneath towers
+        // (LayerCoupling.Coverage through SubGrid.LayerMap), 512 x 256 like the weather maps. Not part of IWeatherField; the painter of the layers asks for it
+        // where layerWindSteering is MapsOnly. False until the worker has made the layer's first map.
+        internal bool GetLayerCoverage(int bodyIndex, double ut, double heightM, WeatherMap target)
+        {
+            return maps.GetLayer(bodyIndex, ut, heightM, target);
         }
 
         public bool FillWindow(int bodyIndex, double centreLatDeg, double centreLonDeg, double radiusKm, double ut, WeatherWindow target)
@@ -279,6 +287,7 @@ namespace ReDefinition.Atmospheres
             double centreLon = centreLonDeg * (Math.PI / 180.0);
             double cosC = Math.Max(0.02, DMath.Cos(centreLat));
             double lapse = s.Parameters.LapseKPerM, tropopause = s.Parameters.TropopauseM;
+            bool layered = LayerWindOptions.AnyOn && s.Parameters.HeightWind;
             Weather w;
             for (int j = 0; j < WindowNy; j++)
             {
@@ -299,18 +308,59 @@ namespace ReDefinition.Atmospheres
                     {
                         double alt = target.OriginAltM + k * dz;
                         int index = (k * WindowNy + j) * WindowNx + i;
-                        double density = w.DensityAt(alt);
-                        target.CloudWater[index] = (float)(density * WindowGramsPerDensity);
-                        double tower = w.CellStrength * DMath.SmoothStep(300.0, 1500.0, alt) * (1.0 - DMath.SmoothStep(w.CellTopM - 1500.0, w.CellTopM, alt));
-                        target.Updraft[index] = (float)(tower * WindowCellUpdraftMs + 0.3 * w.Uplift * DMath.SmoothStep(0.0, 1500.0, alt));
+                        if (!layered)
+                        {
+                            target.CloudWater[index] = (float)(w.DensityAt(alt) * WindowGramsPerDensity);
+                            target.Updraft[index] = (float)VerticalWindMs(ref w, alt, false);
+                        }
                         double drop = lapse * (alt < tropopause ? alt : tropopause);
                         if (drop > 0.4 * surfaceK) drop = 0.4 * surfaceK;
                         target.Temperature[index] = (float)(surfaceK - drop);
                     }
                 }
             }
+            // E43: with a wind-by-height generator and any of the switches windShear, verticalMotion, anvilTilt on, cloud water and updraft are the layered columns
+            // (the deck carried by the wind of its height, towers growing and sinking, the tilt and the consistency rule), looked up in place of the plain ones.
+            if (layered)
+            {
+                WindowAdvection.Refill(target, 0, WindowNy, s.Generator, LayerWindOptions.Layers());
+                if (!AllFinite(target.CloudWater, target.Count) || !AllFinite(target.Updraft, target.Count))
+                {
+                    Trip(s, ut);
+                    return false;
+                }
+            }
             return true;
         }
+
+        private static bool AllFinite(float[] values, int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (float.IsNaN(values[i]) || float.IsInfinity(values[i])) return false;
+            }
+            return true;
+        }
+
+        // The density factor of a convective tower of the plain window at an altitude (0 to the cell strength).
+        private static double TowerShare(ref Weather w, double alt)
+        {
+            return w.CellStrength * DMath.SmoothStep(300.0, 1500.0, alt) * (1.0 - DMath.SmoothStep(w.CellTopM - 1500.0, w.CellTopM, alt));
+        }
+
+        // The vertical wind of a point in m/s (WeatherSample.WindWorld.z): with verticalMotion on and a wind-by-height generator the signed rise of the
+        // tower at its life phase (LayerCoupling) plus the broad lift of the column, as the layered window has it; else the plain window's updraft.
+        internal static double VerticalWindMs(ref Weather w, double altM, bool layered)
+        {
+            double lift = 0.3 * w.Uplift * DMath.SmoothStep(0.0, 1500.0, altM);
+            if (!layered) return TowerShare(ref w, altM) * WindowCellUpdraftMs + lift;
+            if (!(w.CellStrength > 0.0)) return lift;
+            double top = LayerCoupling.TopNow(ref w, VerticalOptions);
+            double rise = LayerCoupling.TopRiseMs(ref w, VerticalOptions);
+            return rise * DMath.SmoothStep(0.0, 0.04, w.CellStrength) * DMath.SmoothStep(300.0, 1500.0, altM) * (1.0 - DMath.SmoothStep(top - 300.0, top + 300.0, altM)) + lift;
+        }
+
+        private static readonly LayerOptions VerticalOptions = new LayerOptions();
 
         // The generator is pure: there is nothing to run. (The maps are made on a worker of their own.)
         public void Advance(double budgetMs)
@@ -374,13 +424,14 @@ namespace ReDefinition.Atmospheres
             sample.Approximate = true;
         }
 
-        private static void Fill(GeneratorState s, ref Weather w, ref WeatherSample sample)
+        private static void Fill(GeneratorState s, ref Weather w, double altM, ref WeatherSample sample)
         {
             float level = PrecipScale.LevelFromRate((float)w.PrecipMmH, s.Bands);
             sample.Level01 = level;
             if (level > 0f) SetType(s, ref w, ref sample);
             sample.VisibilityM = level > 0f ? Math.Min(WeatherSample.ClearVisibilityM, PrecipitationLook.Evaluate(level).VisibilityM) : WeatherSample.ClearVisibilityM;
-            sample.WindWorld = new Vector3((float)w.WindEast, (float)w.WindNorth, 0f);
+            // The vertical wind is the updraft of the point (E43), so that upwardsCloudSpeed of a TVC layer follows it.
+            sample.WindWorld = new Vector3((float)w.WindEast, (float)w.WindNorth, (float)VerticalWindMs(ref w, altM, s.Parameters.HeightWind && LayerWindOptions.VerticalMotion));
             double gust = (w.GustFactor - 1.0) / 0.8;
             sample.GustFactor = (float)(gust < 0.0 ? 0.0 : gust > 1.0 ? 1.0 : gust);
             sample.TemperatureK = (float)w.TempK;

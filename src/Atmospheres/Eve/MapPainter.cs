@@ -14,6 +14,10 @@ namespace ReDefinition.Atmospheres
         internal RenderTexture Coverage, Type, Scratch;
         internal double ShiftDeg;
         internal bool Mirrored;
+        // 0: the set paints from the field's shared coverage map. Above 0 (layerWindSteering MapsOnly, package E43): the set belongs to the cloud layers at one
+        // height (LayerKeyOf) and paints from FieldCoverage, the coverage map of that height uploaded for it alone.
+        internal int LayerKey;
+        internal Texture2D FieldCoverage;
         // The number of texels still away from the field's map is unknown on the GPU; Settled counts the updates since the last jump.
         internal bool Primed;
         // The same for the type target: its pass is skipped while the level-to-type table is not set, so it is primed on its own first run.
@@ -78,15 +82,16 @@ namespace ReDefinition.Atmospheres
         }
 
         // The set for a layout; created (and painted at once on the next Paint) where none is within a quarter degree.
-        internal PaintSet SetFor(double shiftDeg, bool mirrored)
+        internal PaintSet SetFor(double shiftDeg, bool mirrored, int layerKey = 0)
         {
             foreach (PaintSet s in sets)
             {
                 double d = Math.Abs(EveMapLayout.WrapDegrees(s.ShiftDeg - shiftDeg));
-                if (s.Mirrored == mirrored && d < 0.25) return s;
+                if (s.Mirrored == mirrored && s.LayerKey == layerKey && d < 0.25) return s;
             }
             var set = new PaintSet
             {
+                LayerKey = layerKey,
                 Coverage = NewTarget("ReDefinition Atmospheres cloud coverage"),
                 Type = NewTarget("ReDefinition Atmospheres cloud type"),
                 Scratch = NewTarget("ReDefinition Atmospheres paint scratch"),
@@ -118,6 +123,13 @@ namespace ReDefinition.Atmospheres
             level.PackBytes(0f, 1f);
             Upload(ref fieldCoverage, coverage, "ReDefinition Atmospheres field coverage");
             Upload(ref fieldLevel, level, "ReDefinition Atmospheres field level");
+        }
+
+        // Uploads the coverage map of the cloud layers of one height for their set (MapsOnly), 8 bit.
+        internal void UploadLayer(PaintSet set, WeatherMap coverage)
+        {
+            coverage.PackBytes(0f, 1f);
+            Upload(ref set.FieldCoverage, coverage, "ReDefinition Atmospheres layer coverage");
         }
 
         private static void Upload(ref Texture2D texture, WeatherMap map, string name)
@@ -161,7 +173,8 @@ namespace ReDefinition.Atmospheres
         // Returns the main-thread milliseconds.
         internal double Paint(PaintSet set, float dt, float rate, bool snap)
         {
-            if (fieldCoverage == null || fieldLevel == null) return 0;
+            Texture2D sourceCoverage = set.LayerKey != 0 ? set.FieldCoverage : fieldCoverage;
+            if (sourceCoverage == null || fieldLevel == null) return 0;
             watch.Reset();
             watch.Start();
             float maxDelta = MapSlew.MaxDelta(rate, dt);
@@ -172,7 +185,7 @@ namespace ReDefinition.Atmospheres
             material.SetFloat("_Snap", MapSlew.Jumps(snap, set.Primed) ? 1f : 0f);
             Copy(set.Coverage, set.Scratch);
             material.SetTexture("_Prev", set.Scratch);
-            Blit(fieldCoverage, set.Coverage, PassCoverage);
+            Blit(sourceCoverage, set.Coverage, PassCoverage);
             if (lutTexture != null)
             {
                 material.SetFloat("_Snap", MapSlew.Jumps(snap, set.TypePrimed) ? 1f : 0f);
@@ -271,6 +284,7 @@ namespace ReDefinition.Atmospheres
                 if (s.Coverage != null) s.Coverage.Release();
                 if (s.Type != null) s.Type.Release();
                 if (s.Scratch != null) s.Scratch.Release();
+                Destroy(ref s.FieldCoverage);
             }
             sets.Clear();
             for (int i = 0; i < orbits.Length; i++)

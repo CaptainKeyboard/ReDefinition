@@ -79,20 +79,18 @@ namespace ReDefinition.Tests.Atmospheres.E43
         [TestMethod]
         public void TheWindowIsNotOursWhereThereIsNoGeneratorOrEverySwitchIsOff()
         {
-            Assert.IsNull(WindowAdvection.GeneratorFor(null));
-            var w = new WeatherWindow();
-            w.Resize(4, 4, 4);
-            Assert.IsNull(WindowAdvection.GeneratorFor(w), "no generator field in the test host");
-            bool shear = LayerWindOptions.WindShear, vert = LayerWindOptions.VerticalMotion, tilt = LayerWindOptions.AnvilTilt, couple = LayerWindOptions.Couple;
+            bool couple = LayerWindOptions.Couple;
             try
             {
-                LayerWindOptions.WindShear = LayerWindOptions.VerticalMotion = LayerWindOptions.AnvilTilt = LayerWindOptions.Couple = false;
+                Assert.IsTrue(LayerWindOptions.AnyOn);
+                LayerWindOptions.WindShearOverride = LayerWindOptions.VerticalMotionOverride = LayerWindOptions.AnvilTiltOverride = false;
+                LayerWindOptions.Couple = false;
                 Assert.IsFalse(LayerWindOptions.AnyOn);
-                Assert.IsNull(WindowAdvection.GeneratorFor(w));
             }
             finally
             {
-                LayerWindOptions.WindShear = shear; LayerWindOptions.VerticalMotion = vert; LayerWindOptions.AnvilTilt = tilt; LayerWindOptions.Couple = couple;
+                LayerWindOptions.WindShearOverride = LayerWindOptions.VerticalMotionOverride = LayerWindOptions.AnvilTiltOverride = null;
+                LayerWindOptions.Couple = couple;
             }
         }
 

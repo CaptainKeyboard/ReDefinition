@@ -19,8 +19,6 @@ namespace ReDefinition.Atmospheres
     {
         internal const string Series = "K-W4a";
 
-        private LayerSteeringMode savedMode;
-        private bool savedShear;
 
         protected override string SeriesName
         {
@@ -39,18 +37,16 @@ namespace ReDefinition.Atmospheres
 
         protected override void ApplyVariant(string name)
         {
-            savedMode = LayerWindOptions.Steering;
-            savedShear = LayerWindOptions.WindShear;
-            if (name == "steer-main") LayerWindOptions.Steering = LayerSteeringMode.MainPeriod;
-            else if (name == "steer-maps") LayerWindOptions.Steering = LayerSteeringMode.MapsOnly;
-            else if (name == "steer-off") LayerWindOptions.Steering = LayerSteeringMode.Off;
-            else if (name == "noshear") { LayerWindOptions.Steering = LayerSteeringMode.MainPeriod; LayerWindOptions.WindShear = false; }
+            if (name == "steer-main") LayerWindOptions.SteeringOverride = LayerSteeringMode.MainPeriod;
+            else if (name == "steer-maps") LayerWindOptions.SteeringOverride = LayerSteeringMode.MapsOnly;
+            else if (name == "steer-off") LayerWindOptions.SteeringOverride = LayerSteeringMode.Off;
+            else if (name == "noshear") { LayerWindOptions.SteeringOverride = LayerSteeringMode.MainPeriod; LayerWindOptions.WindShearOverride = false; }
         }
 
         protected override void RevertVariant(string name)
         {
-            LayerWindOptions.Steering = savedMode;
-            LayerWindOptions.WindShear = savedShear;
+            LayerWindOptions.SteeringOverride = null;
+            LayerWindOptions.WindShearOverride = null;
         }
 
         protected override IEnumerator<ProbeWait> Scenario()
@@ -79,14 +75,13 @@ namespace ReDefinition.Atmospheres
             {
                 var window = new WeatherWindow();
                 Vessel v = FlightGlobals.ActiveVessel;
+                var sw = Stopwatch.StartNew();
                 bool filled = gf.FillWindow(body.flightGlobalsIndex, v.latitude, v.longitude, 40.0, Planetarium.GetUniversalTime(), window);
+                sw.Stop();
                 Emit("E43.window_filled", filled);
                 if (filled)
                 {
-                    LayerOptions o = LayerWindOptions.Layers();
-                    var sw = Stopwatch.StartNew();
-                    WindowAdvection.Refill(window, 0, window.Ny, state.Generator, o);
-                    sw.Stop();
+                    // FillWindow is the layered window where a switch is on; its time is the cost of the refill
                     Emit("E43.window_refill_ms", sw.Elapsed.TotalMilliseconds);
                     float max = 0f;
                     for (int i = 0; i < window.Count; i++) if (window.CloudWater[i] > max) max = window.CloudWater[i];
@@ -131,6 +126,18 @@ namespace ReDefinition.Atmospheres
                 steered.Sort((a, b) => module.SteeringOf(a).HeightM.CompareTo(module.SteeringOf(b).HeightM));
                 Emit("E43.layers_steered." + variant, steered.Count);
                 Emit("E43.rate_change_max_rad_s2." + variant, worstAccel);
+                // option B: the layers are painted from the layer maps of their heights while EVE's own drift stays stopped (no layer drifts by itself)
+                int drifting = 0, bound = 0;
+                foreach (EveLayer h in module.CurrentLayers)
+                {
+                    if (h.Tracker.State != BindState.Bound) continue;
+                    bound++;
+                    double rev0;
+                    if (EveLayerAccess.TryGetDriftRev(h, out rev0) && Math.Abs(rev0) > 1.0e-12) drifting++;
+                }
+                Emit("E43.layer_sets_in_use." + variant, module.LayerSetsInUse);
+                Emit("E43.layers_drifting_by_eve." + variant, drifting);
+                Emit("E43.layers_bound." + variant, bound);
                 if (steered.Count >= 2)
                 {
                     double radius = body != null ? body.Radius : 600000.0;

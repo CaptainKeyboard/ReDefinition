@@ -50,7 +50,11 @@ namespace ReDefinition.Atmospheres
                 { "windStrength", "How strong the wind is against a vehicle: 0 none, 1 as simulated, 2 twice as strong." },
                 { "windOnLanded", "Lets the wind move vehicles that stand on the ground: light ones move when the wind beats their friction. Off, only flying vehicles feel it." },
                 { "gustStrength", "How hard the sudden gusts hit. Gusts are short bursts of wind above the steady wind; 0 gives a smooth wind, 1 the simulated gusts, 2 gusts twice as strong." },
-                { "solarDimming", "Lets cloud and precipitation dim the solar panels." },
+                { "windShear", "Lets the wind change with height, so that low and high clouds move in different directions and a jet stream blows aloft. Off, every height has the wind of the ground." },
+                { "layerWindSteering", "How the cloud layers of EVE get the wind of their height. Main Period turns each layer's own drift to match it, Maps Only leaves the drift stopped and moves the painted maps, Off keeps the layers drifting with the weather patterns only." },
+                { "verticalMotion", "Lets updrafts build cloud towers that grow and sink with the life of a storm cell, and lets EVE's upward cloud speed follow the updraft." },
+                { "anvilTilt", "Lets the top of a tall cloud lean downwind with the wind shear and spread into an anvil." },
+                { "solarDimming","Lets cloud and precipitation dim the solar panels." },
                 { "solarDimmingStrength", "How much of the dimming the panels get: 0 none, 1 all of it." },
                 { "visibilityExport", "Tells other mods how far one can see in fog and precipitation." },
 

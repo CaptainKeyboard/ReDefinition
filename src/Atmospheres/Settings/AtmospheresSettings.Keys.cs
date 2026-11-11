@@ -33,6 +33,10 @@ namespace ReDefinition.Atmospheres
             internal const string WindStrength = "windStrength";
             internal const string WindOnLanded = "windOnLanded";
             internal const string GustStrength = "gustStrength";
+            internal const string WindShear = "windShear";
+            internal const string LayerWindSteering = "layerWindSteering";
+            internal const string VerticalMotion = "verticalMotion";
+            internal const string AnvilTilt = "anvilTilt";
             internal const string SolarDimming = "solarDimming";
             internal const string SolarDimmingStrength = "solarDimmingStrength";
             internal const string VisibilityExport = "visibilityExport";
@@ -260,6 +264,10 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Float("windStrength", 1.0, 0.0, 2.0, W, "Wind Strength", WF, RW),
                 SettingDef.Bool("windOnLanded", true, W, "Wind On Landed Vehicles", WF),
                 SettingDef.Float("gustStrength", 1.0, 0.0, 2.0, W, "Gust Strength", MASTER),
+                SettingDef.Bool("windShear", true, W, "Wind Shear By Height", SIM),
+                SettingDef.Choice("layerWindSteering", typeof(LayerSteeringMode), LayerSteeringMode.MainPeriod, W, "Layer Wind Steering", EVE),
+                SettingDef.Bool("verticalMotion", true, W, "Vertical Cloud Motion", SIM),
+                SettingDef.Bool("anvilTilt", true, W, "Anvil Tilt", SIM),
                 SettingDef.Bool("solarDimming", false, W, "Solar Panel Dimming", MASTER),
                 SettingDef.Float("solarDimmingStrength", 1.0, 0.0, 1.0, W, "Solar Dimming Strength", SOLAR),
                 SettingDef.Bool("visibilityExport", true, W, "Export Visibility", MASTER),
