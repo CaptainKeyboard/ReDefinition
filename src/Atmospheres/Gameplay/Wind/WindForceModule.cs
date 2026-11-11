@@ -81,6 +81,8 @@ namespace ReDefinition.Atmospheres
                 Part p = parts[i];
                 Rigidbody rb = p.Rigidbody;
                 if (rb == null || p.ShieldedFromAirstream || p.DragCubes == null || p.DragCubes.None || !(p.atmDensity > 0.0)) continue;
+                // The drag area over the mass for the clamp, from what the integrator computed for this part this tick.
+                WindService.StateOf(v).AddPart(p.dragScalar, p.dynamicPressurekPa);
                 Vector3 u0 = p.dragVector;
                 if (u0.sqrMagnitude < 1e-6f) u0 = (Vector3)v.srf_velocity;
                 Vector3 f0 = DragForce(p, u0, mach, multiplier);

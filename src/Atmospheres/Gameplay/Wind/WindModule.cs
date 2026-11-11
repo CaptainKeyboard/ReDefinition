@@ -19,7 +19,6 @@ namespace ReDefinition.Atmospheres
         private bool scanned;
         private readonly WindApiBridge windApi = new WindApiBridge();
         private bool windApiRegistered, sourceInHub, sourceInForecast;
-        private string planKey = "";
         private bool announced;
         private bool eventsHooked;
 
@@ -53,45 +52,85 @@ namespace ReDefinition.Atmospheres
             bool on = AtmospheresSettings.Enabled && AtmospheresSettings.WeatherEffects;
             if (!on || !AtmospheresSettings.WindForces)
             {
-                SetPlan(new WindPlan { Route = WindRoute.Off, Status = WindStatus.Text(WindSourceMode.Off, null) });
-                SyncSources(false);
-                announced = false;
+                // Off costs one reference comparison: the plan object is made once.
+                if (!ReferenceEquals(WindService.Plan, OffPlan))
+                {
+                    SetPlan(OffPlan);
+                    SyncSources(false);
+                    announced = false;
+                    keyValid = false;
+                }
                 return;
             }
             if (!scanned) Scan();
             WindSourceMode mode = AtmospheresSettings.WindSource;
             WindInjection injection = AtmospheresSettings.WindInjection;
-
-            // The route the settings ask for; the override is registered only where the plan wants it, so that a mod that holds the slot
-            // keeps it and the wind then goes in as a force.
-            bool mfi = WindHook.Registered;
             ForeignWinds known = ForeignOverride ?? foreign;
-            WindPlan wish = WindPlanner.Decide(mode, known, injection, WindHook.IntegratorPresent, true);
-            if (wish.Route == WindRoute.Aero && !WindHook.Registered)
+            bool integrator = WindHook.IntegratorPresent;
+
+            // The plan is worked out again only when one of its inputs changed: the settings, the mods found, the integrator and the slot.
+            if (!keyValid || mode != keyMode || injection != keyInjection || !ReferenceEquals(known, keyForeign) || integrator != keyIntegrator
+                || WindHook.Registered != keyRegistered)
             {
-                mfi = WindHook.Register();
-                if (!mfi) AtmospheresLog.WarnOnce("wind: the ModularFlightIntegrator override was not registered (" + WindHook.Status + "); the wind goes in as a force.");
-            }
-            WindPlan plan = WindPlanner.Decide(mode, known, injection, mfi, true);
-            if (windApi.Connected)
-            {
-                // The plan's route Far is served by our provider in WindAPI.
-                if (plan.Route == WindRoute.Far && !windApiRegistered)
+                // The route the settings ask for; the override is registered only where the plan wants it, so that a mod that holds the
+                // slot keeps it and the wind then goes in as a force.
+                bool mfi = WindHook.Registered;
+                WindPlan wish = WindPlanner.Decide(mode, known, injection, integrator, true);
+                if (wish.Route == WindRoute.Aero && !WindHook.Registered)
                 {
+                    mfi = WindHook.Register();
+                    if (!mfi) AtmospheresLog.WarnOnce("wind: the ModularFlightIntegrator override was not registered (" + WindHook.Status + "); the wind goes in as a force.");
+                }
+                WindPlan plan = WindPlanner.Decide(mode, known, injection, mfi, true);
+                if (windApi.Connected && plan.Route == WindRoute.Far && !windApiRegistered)
+                {
+                    // The plan's route Far is served by our provider in WindAPI.
                     WindApiCallbacks.OurWind = PartWind;
+                    WindService.OthersWindMs = OthersWind;
                     windApi.Register();
                     windApiRegistered = true;
                 }
-            }
-            string key = mode + "/" + injection + "/" + plan.Route + "/" + (mfi ? "m" : "-") + "/" + known.Names();
-            if (key != planKey)
-            {
-                planKey = key;
+                keyValid = true;
+                keyMode = mode;
+                keyInjection = injection;
+                keyForeign = known;
+                keyIntegrator = integrator;
+                keyRegistered = WindHook.Registered;
                 SetPlan(plan);
                 announced = false;
             }
             SyncSources(true);
             Announce();
+            LogReadout(dt);
+        }
+
+        // The state the plan was last worked out from.
+        private bool keyValid;
+        private WindSourceMode keyMode;
+        private WindInjection keyInjection;
+        private ForeignWinds keyForeign;
+        private bool keyIntegrator, keyRegistered;
+        private float readoutTimer;
+
+        private static readonly WindPlan OffPlan = new WindPlan { Route = WindRoute.Off, Status = WindStatus.Text(WindSourceMode.Off, null) };
+
+        private double OthersWind(CelestialBody body, Vector3 worldPosition)
+        {
+            return windApi.Connected ? windApi.OthersAt(body, worldPosition).magnitude : 0.0;
+        }
+
+        // The wind readout of the log: one line every 30 seconds of a flight while a wind acts on the active vessel.
+        private void LogReadout(float dt)
+        {
+            readoutTimer += dt;
+            if (readoutTimer < 30f) return;
+            readoutTimer = 0f;
+            Vessel v = GameGlobals.ActiveVessel;
+            if (v == null || !HighLogic.LoadedSceneIsFlight || !WindService.Plan.AppliesAnything) return;
+            Vec3 w = WindService.StateOf(v).Applied;
+            if (w.Length < 0.1) return;
+            AtmospheresLog.Say("wind at " + v.vesselName + ": " + w.Length.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " m/s ("
+                               + WindService.Plan.OwnerLine() + ")");
         }
 
         public void Shutdown()
@@ -182,6 +221,7 @@ namespace ReDefinition.Atmospheres
             Vessel v = part != null ? part.vessel : null;
             if (v == null || !WindService.Eligible(v) || WindService.Plan.Route != WindRoute.Far) return Vector3.zero;
             Vec3 w = WindService.WindFor(v);
+            WindService.StateOf(v).AddPart(part.dragScalar, part.dynamicPressurekPa);
             return new Vector3((float)w.X, (float)w.Y, (float)w.Z);
         }
 

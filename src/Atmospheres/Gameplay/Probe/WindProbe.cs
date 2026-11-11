@@ -160,7 +160,9 @@ namespace ReDefinition.Atmospheres
             forced.EastMs = 0f;
             forced.Level01 = 0f;
             forced.VisibilityM = 400f;
-            yield return ProbeWait.Seconds(3);
+            // The frame driver lets the visibility fall by a quarter of itself per second (WindNoise.LimitVisibility): from the clear
+            // 100 km down to 400 m takes about 25 s. The wait ends on the number.
+            yield return ProbeWait.Until(() => VisibilityExport.VisibilityM <= 450f, 60, "the visibility to fall to the forced 400 m");
             float vis = VisibilityExport.VisibilityM;
             Emit("D31.visibility_m", float.IsNaN(vis) ? -1.0 : vis);
             Emit("D31.visibility_line_ok", VisibilityExport.Line.StartsWith("visibility ", StringComparison.Ordinal));

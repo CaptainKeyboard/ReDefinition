@@ -31,8 +31,23 @@ namespace ReDefinition.Atmospheres
         // Whether ModularFlightIntegrator is loaded (the window's injection text asks this).
         internal static bool IntegratorPresent
         {
-            get { return FindIntegrator() != null; }
+            get
+            {
+                // The search walks every assembly; a found type is kept and a miss is repeated every few seconds only (a mod does not load
+                // in the middle of a flight, but the first ticks come before every assembly is there).
+                long now = System.Diagnostics.Stopwatch.GetTimestamp();
+                if (integratorType != null) return true;
+                if (searched && now - lastSearch < System.Diagnostics.Stopwatch.Frequency * 5) return false;
+                searched = true;
+                lastSearch = now;
+                integratorType = FindIntegrator();
+                return integratorType != null;
+            }
         }
+
+        private static Type integratorType;
+        private static bool searched;
+        private static long lastSearch;
 
         private static Type FindIntegrator()
         {
@@ -106,7 +121,9 @@ namespace ReDefinition.Atmospheres
                 {
                     state = WindService.StateOf(vessel);
                     Vec3 w = WindService.WindFor(vessel);
-                    if (w.Length > 1e-3)
+                    // A part in the water is left alone: the shifted velocity would also make a current of the same size in the water's
+                    // dynamic pressure, which the wind in the air must not.
+                    if (w.Length > 1e-3 && !(part.submergedPortion > 0.0))
                     {
                         body = part.Rigidbody;
                         if (body != null)

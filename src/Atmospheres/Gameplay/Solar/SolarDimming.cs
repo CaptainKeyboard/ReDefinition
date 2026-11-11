@@ -52,7 +52,8 @@ namespace ReDefinition.Atmospheres
             if (v == null || !v.loaded || v.packed) return;
             if (!Wanted(v))
             {
-                Restore(v);
+                // Nothing dimmed anywhere (the usual case with the setting off): no walk over the vessel.
+                if (Panels.Count > 0 || Vessels.Count > 0) Restore(v);
                 return;
             }
             VesselRecord r;
@@ -88,12 +89,13 @@ namespace ReDefinition.Atmospheres
             WeatherSample s;
             if (!WeatherHub.Sample(body.flightGlobalsIndex, v.latitude, v.longitude, v.altitude, ut, out s)) return 1.0;
             double tau = s.OpticalDepthVertical;
-            // Where the host reads EVE's decks the thicker of the two counts: the field's cloud is also painted into those decks.
+            // Where the host reads EVE's decks its value counts and not the field's: the same rule as the frame driver's, so that the panels
+            // and the picture agree (the field's cloud is painted into those decks, and the two must not add).
             Func<double, double, double, double, float> hook = WeatherHooks.CloudOpticalDepth;
             if (hook != null)
             {
                 float t = hook(v.latitude, v.longitude, v.altitude, ut);
-                if (!float.IsNaN(t) && t > tau) tau = t;
+                if (t > 0f) tau = t;
             }
             CelestialBody sun = GameGlobals.Sun;
             double elevation = Math.PI / 2.0;
@@ -199,7 +201,21 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Puts every panel back (a save, a scene change, the switch going off).
+        // Puts the panels back and keeps the smoothed factors, so that the dimming picks up where it was (a save).
+        internal static void RestorePanels()
+        {
+            var saved = new Dictionary<Vessel, VesselRecord>(Vessels);
+            RestoreAll();
+            foreach (KeyValuePair<Vessel, VesselRecord> pair in saved)
+            {
+                if (pair.Key == null) continue;
+                // The next tick works the factor out at once and applies it from the smoothed value.
+                pair.Value.Timer = SolarMath.UpdateIntervalSeconds;
+                Vessels[pair.Key] = pair.Value;
+            }
+        }
+
+        // Puts every panel back (a scene change, the switch going off).
         internal static void RestoreAll()
         {
             foreach (KeyValuePair<ModuleDeployableSolarPanel, Record> pair in new List<KeyValuePair<ModuleDeployableSolarPanel, Record>>(Panels))
@@ -337,8 +353,8 @@ namespace ReDefinition.Atmospheres
         private static void OnSave(ConfigNode node)
         {
             // The curve is not saved; the panels are put back anyway, so that nothing of the dimming is ever in the game's state, and the next
-            // tick of each vessel scales them again.
-            SolarDimming.RestoreAll();
+            // tick of each vessel scales them again from the smoothed factor it had.
+            SolarDimming.RestorePanels();
         }
 
         private static void OnScene(GameScenes scene)

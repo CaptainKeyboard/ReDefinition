@@ -20,6 +20,12 @@ namespace ReDefinition.Atmospheres
         // has to be strong on the ground). Null in the game.
         internal static double? GroundFactorOverride;
 
+        // The same for the acceleration clamp: the probe lowers it so that the clamp has a case to fire on. Null in the game.
+        internal static double? MaxAccelOverride;
+
+        // The wind in m/s that the other WindAPI providers add at a world position; set by the module while the bridge is connected.
+        internal static Func<CelestialBody, Vector3, double> OthersWindMs;
+
         // The last wind computed for any vessel, for the log and the probe.
         internal static Vec3 LastApplied;
         internal static Vessel LastVessel;
@@ -123,6 +129,15 @@ namespace ReDefinition.Atmospheres
             {
                 if (!WeatherHub.Field.Sample(body.flightGlobalsIndex, lat, lon, alt, ut, out own)) own = WeatherSample.Clear(body.flightGlobalsIndex);
             }
+            bool applyBase = plan.ApplyBase;
+            if (plan.Route == WindRoute.Far)
+            {
+                // Through FAR the other WindAPI providers add their wind to ours in WindAPI's sum, so the base here is the field's, never the
+                // merged one that holds their wind; where they add one in Auto, the base is theirs and only the storm delta is ours.
+                merged = own;
+                Func<CelestialBody, Vector3, double> others = OthersWindMs;
+                if (plan.Mode == WindSourceMode.Auto && others != null && others(body, (Vector3)v.GetWorldPos3D()) > 0.05) applyBase = false;
+            }
 
             bool landed = v.LandedOrSplashed;
             double height = landed ? 0.0 : v.heightFromTerrain;
@@ -136,11 +151,12 @@ namespace ReDefinition.Atmospheres
                 Level01 = Math.Max(merged.Level01, own.Level01),
                 GustFactor = own.GustFactor > 0f ? own.GustFactor : merged.GustFactor,
                 Ut = ut,
-                BodyFixedPos = BodyFixed(body, lat, lon, alt),
+                // The renderer's pattern is keyed to the camera's place in the body's transform; the vessel's is the same place.
+                BodyFixedPos = body.transform.InverseTransformPoint((Vector3)v.GetWorldPos3D()),
                 Seed = climate.Seed,
                 Strength = AtmospheresSettings.WindStrength,
                 GustStrength = AtmospheresSettings.GustStrength,
-                ApplyBase = plan.ApplyBase,
+                ApplyBase = applyBase,
                 ApplyStorm = plan.ApplyStorm,
                 MaxWindMs = rules.MaxWindMs,
                 ViolentWindMs = rules.ViolentWindMs,
@@ -158,7 +174,7 @@ namespace ReDefinition.Atmospheres
             var vel = new Vec3(sv.x, sv.y, sv.z);
             double spin = v.angularVelocity.magnitude;
             double maxSlew = rules.MaxSlewMsPerS;
-            double maxAccel = rules.MaxAccelMs2;
+            double maxAccel = MaxAccelOverride ?? rules.MaxAccelMs2;
             return state.Step(targetWorld, vel, v.atmDensity, spin, ut, maxSlew, maxAccel);
         }
 
@@ -180,13 +196,6 @@ namespace ReDefinition.Atmospheres
             east = new Vec3(eV.x, eV.y, eV.z);
             north = new Vec3(nV.x, nV.y, nV.z);
             up = new Vec3(u.x, u.y, u.z);
-        }
-
-        private static Vector3 BodyFixed(CelestialBody body, double latDeg, double lonDeg, double alt)
-        {
-            double r = body.Radius + alt;
-            double la = latDeg * Math.PI / 180.0, lo = lonDeg * Math.PI / 180.0;
-            return new Vector3((float)(r * Math.Cos(la) * Math.Cos(lo)), (float)(r * Math.Cos(la) * Math.Sin(lo)), (float)(r * Math.Sin(la)));
         }
     }
 }

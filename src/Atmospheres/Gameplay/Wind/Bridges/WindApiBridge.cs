@@ -16,6 +16,8 @@ namespace ReDefinition.Atmospheres
     //  - It registers a provider of our own whose GetWind returns the wind this mod applies to the part's vessel, so that FAR (which
     //    replaces the stock aerodynamics) gets our wind through the one way it has. WindAPI needs FAR: without FAR nothing applies the sum
     //    to a vehicle, and the plan then uses the stock route.
+    // DEFERRED, each with its trigger (a copy of the mod is installed, or a fixture can be written from its source): the bridges to FAR's own
+    // wind (FARAtmosphere), Kerbal Weather Project and CPWE. Until then those mods are only detected by assembly name (ForeignWindDetector).
     // Experimental: no copy of WindAPI is installed; the shape is the one in its README and source, and the tests drive it with a fixture of
     // the same shape. If a type or member is not found the bridge stays off and says so once.
     // What the emitted provider calls. Public because the provider lives in a dynamic assembly that may not reach internal types.

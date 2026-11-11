@@ -6,14 +6,14 @@ using UnityEngine;
 namespace ReDefinition.Atmospheres
 {
     // Flight 2 of the wind probe: a Mk1 pod under a parachute over the sea (the vessel of the reconnaissance premise P4, made as KSP makes
-    // a vessel), dropped from 3 km. The windows are fixed in game time: 15 s without wind (control), 30 s of 15 m/s through H1, 20 s
+    // a vessel), dropped from 4 km. The windows are fixed in game time: 15 s without wind (control), 30 s of 15 m/s through H1, 20 s
     // of calm, 30 s through H3, 20 s of a forced absurd wind (the clamp), then the rest of the descent at physics warp 3x with the wind on
     // (the soak). The pod and its canopy come from a synthetic proto vessel; the parts, the attach nodes and the offsets are those of the
     // reconnaissance probe (src/Atmospheres/Testing/Recon/AtmoRecon.Flight.cs, which is B09's and is not edited here).
     internal sealed partial class WindProbe
     {
         private const string PodName = "D31 Canopy";
-        private const double DropAltitude = 3000.0, WindMs = 15.0;
+        private const double DropAltitude = 4000.0, WindMs = 15.0;
 
         private double podLat, podLon, coastBearing;
 
@@ -137,6 +137,9 @@ namespace ReDefinition.Atmospheres
             SetSetting(AtmospheresSettings.Keys.WindInjection, (double)(int)WindInjection.Auto);
             forced.EastMs = forced.NorthMs = 0f;
             foreach (ProbeWait w in GameSeconds(15.0)) yield return w;
+            // The clamp is lowered to 0.3 m/s2 for this window (the seam), so that the steps of the wind-up of a canopy (about 0.6 m/s2 at the
+            // slew rate) are over it; at the node's 1.5 m/s2 they are not, and the clamp then has nothing to cut.
+            WindService.MaxAccelOverride = 0.3;
             SetWind(900.0);
             double minShare = 1.0, maxApplied = 0.0;
             end = Ut() + 20.0;
@@ -149,6 +152,7 @@ namespace ReDefinition.Atmospheres
             Emit("D31.absurd_clamp_min_share", minShare);
             Emit("D31.absurd_applied_max_ms", maxApplied);
             Emit("D31.absurd_finite", WindService.LastApplied.IsFinite);
+            WindService.MaxAccelOverride = null;
 
             // The soak: physics warp 3x for the rest of the descent, the wind on.
             SetWind(WindMs);

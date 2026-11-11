@@ -190,6 +190,10 @@ namespace ReDefinition.Atmospheres
                 {
                     plan.Warning = plan.ForeignOwner + " applies a wind of its own and cannot be replaced: both winds act. Turn its wind off or use the Auto mode.";
                 }
+                else if (plan.Route == WindRoute.Far)
+                {
+                    plan.Warning = "WindAPI adds the wind of every provider registered with it to ours: the other providers cannot be replaced from here.";
+                }
             }
             return plan;
         }
