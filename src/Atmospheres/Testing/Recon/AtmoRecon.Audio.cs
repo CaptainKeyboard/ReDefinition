@@ -126,15 +126,57 @@ namespace ReDefinition.Atmospheres
                 Emit("P5.path_a_added_left_" + (side == 0 ? "src_left" : "src_right"), ReconMath.AddedRms(outputL, baseL));
                 Emit("P5.path_a_added_right_" + (side == 0 ? "src_left" : "src_right"), ReconMath.AddedRms(outputR, baseR));
                 tone.On = false;
-
-                stream.On = true;
-                yield return ProbeWait.Frames(15);
-                foreach (ProbeWait w in ReadOutput(6)) yield return w;
-                panB[side] = ReconMath.PanIndex(ReconMath.AddedRms(outputL, baseL), ReconMath.AddedRms(outputR, baseR));
-                Emit("P5.path_b_added_left_" + (side == 0 ? "src_left" : "src_right"), ReconMath.AddedRms(outputL, baseL));
-                Emit("P5.path_b_added_right_" + (side == 0 ? "src_left" : "src_right"), ReconMath.AddedRms(outputR, baseR));
-                stream.On = false;
             }
+
+            // The common part of path A (run2: 0.353 on both channels whichever side the source was on, and again the whole output under
+            // AudioListener.pause): the tone with the source muted, and with the source stopped, tells whether it comes from the filter
+            // output past the panner or from the source.
+            goA.transform.position = at.position - at.right * 5f;
+            tone.On = true;
+            ReconDyn.Set(sourceA, "mute", true);
+            yield return ProbeWait.Frames(15);
+            foreach (ProbeWait w in ReadOutput(6)) yield return w;
+            Emit("P5.path_a_muted_added_left", ReconMath.AddedRms(outputL, baseL));
+            Emit("P5.path_a_muted_added_right", ReconMath.AddedRms(outputR, baseR));
+            ReconDyn.Set(sourceA, "mute", false);
+            ReconDyn.Call(sourceA, "Stop");
+            yield return ProbeWait.Frames(15);
+            foreach (ProbeWait w in ReadOutput(6)) yield return w;
+            Emit("P5.path_a_stopped_added_left", ReconMath.AddedRms(outputL, baseL));
+            Emit("P5.path_a_stopped_added_right", ReconMath.AddedRms(outputR, baseR));
+            ReconDyn.Call(sourceA, "Play");
+            tone.On = false;
+            yield return ProbeWait.Frames(10);
+
+            // Path B: the stream runs for 90 frames before the first reading (run2 read 5 of 26 callbacks with the tone on and nothing on the
+            // left side), then the source stands left, right and left again with the stream on throughout; the frames until the output
+            // rises are a row (the start-up gap of the stream).
+            goB.transform.position = at.position - at.right * 5f;
+            stream.On = true;
+            int lagFrames = -1;
+            var lagBlock = new float[1024];
+            for (int frame = 0; frame < 90; frame++)
+            {
+                yield return ProbeWait.Frames(1);
+                double lagLeft = Rms(lagBlock, 0), lagRight = Rms(lagBlock, 1);
+                if (lagFrames < 0 && ReconMath.AddedRms(lagLeft, baseL) + ReconMath.AddedRms(lagRight, baseR) > 0.02) lagFrames = frame;
+            }
+            Emit("P5.path_b_start_lag_frames", lagFrames);
+            var panBRepeat = new double[3];
+            for (int position = 0; position < 3; position++)
+            {
+                bool leftSide = position != 1;
+                goB.transform.position = at.position + at.right * (leftSide ? -5f : 5f);
+                yield return ProbeWait.Frames(20);
+                foreach (ProbeWait w in ReadOutput(6)) yield return w;
+                double addedLeft = ReconMath.AddedRms(outputL, baseL), addedRight = ReconMath.AddedRms(outputR, baseR);
+                panBRepeat[position] = ReconMath.PanIndex(addedLeft, addedRight);
+                string place = position == 1 ? "src_right" : position == 0 ? "src_left" : "src_left_again";
+                Emit("P5.path_b_added_left_" + place, addedLeft);
+                Emit("P5.path_b_added_right_" + place, addedRight);
+                if (position < 2) panB[position] = panBRepeat[position];
+            }
+            stream.On = false;
             // Run1: path B added nothing on any channel. Whether the stream was asked for samples and whether the source plays says if the
             // stream path is dead or the probe's setup was.
             Emit("P5.path_b_generate_calls", stream.Calls);

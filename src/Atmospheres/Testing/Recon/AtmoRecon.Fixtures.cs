@@ -133,11 +133,24 @@ namespace ReDefinition.Atmospheres
             {
                 if (quarters[q] != null) Emit(prefix + "quarter" + q + "_fraction_" + name, ShareBeyond(quarters[q], middle, brighter));
             }
-            Emit(prefix + "disc_fraction_" + name, share);
             Emit(prefix + "control_fraction_" + name, control);
             Emit(prefix + "luma_off_" + name, medianOff);
             Emit(prefix + "luma_on_" + name, medianOn);
-            Emit(prefix + "luma_ratio_" + name, medianOn / Math.Max(1e-4f, medianOff));
+            // The disc rows carry information only where the control is clean and the frame changed when the disc came on. A frozen frame
+            // reads a share of 1.0 and a luma ratio of 1.0 whatever the disc does (run2): those rows are left out, so that the table shows
+            // "no line" for the premise instead of a PASS.
+            bool changed = Math.Abs(medianOn - medianOff) > 0.05f * Math.Max(1e-4f, medianOff);
+            bool controlClean = control <= 0.1;
+            Emit(prefix + "frame_changed_" + name, changed);
+            if (controlClean && changed)
+            {
+                Emit(prefix + "disc_fraction_" + name, share);
+                Emit(prefix + "luma_ratio_" + name, medianOn / Math.Max(1e-4f, medianOff));
+            }
+            else
+            {
+                EmitText(prefix + "disc_note_" + name, "no disc rows: control share " + Num(control) + ", frame changed " + changed + ", share would be " + Num(share));
+            }
             Say(prefix + name + " lift " + Num(lift) + " off " + medianOff.ToString("0.###") + " on " + medianOn.ToString("0.###") + " share "
                 + share.ToString("0.##") + " control " + control.ToString("0.##"));
         }
@@ -389,6 +402,7 @@ namespace ReDefinition.Atmospheres
                                   "fog", "aurora", "water", "sprite", "decal", "projector", "debug", "instanc", "bubble",
                                   "invisible", "wireframe", "compute" };
             var found = new List<Shader>();
+            var assumed = new List<Shader>();
             foreach (Shader shader in Resources.FindObjectsOfTypeAll<Shader>())
             {
                 if (shader == null) continue;
@@ -418,7 +432,10 @@ namespace ReDefinition.Atmospheres
                 }
                 bool hasMain = false, hasColor = false;
                 int queue = -1;
-                if (reason == "candidate")
+                bool noLitPass = reason == "no lit pass";
+                // A shader whose pass tags could not be read still goes through the property test: if it passes, it is kept apart as a
+                // candidate "assumed lit", used only where no shader passed the tag test.
+                if (reason == "candidate" || noLitPass)
                 {
                     Material probe = null;
                     try
@@ -440,12 +457,22 @@ namespace ReDefinition.Atmospheres
                         reason = "queue " + queue + " _MainTex " + hasMain + " _Color " + hasColor;
                         rejectedProps++;
                     }
+                    else if (noLitPass)
+                    {
+                        reason = "assumed lit";
+                    }
                 }
                 survey.BeginObject().Text("name", name).Text("verdict", reason).Flag("forwardBase", forwardBase).Flag("deferred", deferred)
-                    .Number("passes", shader.passCount).EndObject();
+                    .Number("passes", shader.passCount).Number("tagId0", FirstPassTagId(shader)).EndObject();
                 if (reason == "candidate") found.Add(shader);
+                else if (reason == "assumed lit") assumed.Add(shader);
             }
             survey.EndArray().EndObject();
+            if (found.Count == 0 && assumed.Count > 0)
+            {
+                assumed.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
+                found.AddRange(assumed);
+            }
             string surveyCounts = "; surveyed " + surveyed + ", left out by name " + rejectedWord + ", no lit pass " + rejectedUnlit + ", properties "
                                   + rejectedProps + ", unsupported " + rejectedUnsupported;
             found.Sort((a, b) =>
@@ -467,6 +494,23 @@ namespace ReDefinition.Atmospheres
                 if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return true;
             }
             return false;
+        }
+
+        // The numeric id of the LightMode tag value of the shader's first pass (-1 where it cannot be read): the survey carries it, so that
+        // a tag that compares unequal to every mode can be told from one that was not read at all.
+        private static double FirstPassTagId(Shader shader)
+        {
+            try
+            {
+                ShaderTagId value = shader.FindPassTagValue(0, new ShaderTagId("LightMode"));
+                System.Reflection.FieldInfo field = typeof(ShaderTagId).GetField("m_Id", System.Reflection.BindingFlags.Instance
+                                                                                    | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                return field != null ? Convert.ToDouble(field.GetValue(value)) : -1;
+            }
+            catch (Exception)
+            {
+                return -1;
+            }
         }
 
         // Whether any pass of the shader carries that LightMode tag.

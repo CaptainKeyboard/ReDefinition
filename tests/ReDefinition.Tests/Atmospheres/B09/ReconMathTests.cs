@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using ReDefinition.Atmospheres;
 
@@ -204,6 +205,44 @@ namespace ReDefinition.Tests.Atmospheres.B09
             Assert.AreEqual(0.0, ReconMath.PanIndex(0.0, 0.0));
             Assert.AreEqual(0.0, ReconMath.AddedRms(0.1, 0.2));
             Assert.AreEqual(0.3, ReconMath.AddedRms(Math.Sqrt(0.3 * 0.3 + 0.04), 0.2), 1e-9);
+        }
+
+        [TestMethod]
+        public void DepthExpectedFollowsTheProjection()
+        {
+            // Reversed z: 1 at the near plane, falling with 1/d towards 0 at the far plane; the plain case is its complement.
+            double[] atNear = ReconMath.DepthExpected(0.21, 0.21, 750000, true);
+            Assert.AreEqual(1.0, atNear[0], 1e-9);
+            double[] atThree = ReconMath.DepthExpected(3.0, 0.21, 750000, true);
+            Assert.AreEqual(0.21 * (750000 - 3.0) / (3.0 * (750000 - 0.21)), atThree[0], 1e-12);
+            Assert.AreEqual(0.0699, atThree[0], 1e-4);
+            Assert.AreEqual(1.0 - atThree[0], ReconMath.DepthExpected(3.0, 0.21, 750000, false)[0], 1e-12);
+            Assert.AreEqual(3.0 / 750000, atThree[2], 1e-15);
+            Assert.AreEqual(1.0, ReconMath.DepthExpected(750000, 0.21, 750000, false)[0], 1e-9);
+        }
+
+        [TestMethod]
+        public void DepthAgreesAcceptsThePredictedValuesAndRejectsTheRun2Readings()
+        {
+            var depths = new List<double> { 2.5, 5, 10, 20, 40 };
+            var predicted = new List<double>();
+            foreach (double d in depths) predicted.Add(ReconMath.DepthExpected(d, 0.21, 750000, true)[0]);
+            int best;
+            double error;
+            Assert.IsTrue(ReconMath.DepthAgrees(predicted, depths, 0.21, 750000, true, 0.1, 5e-4, 5e-4, out best, out error));
+            Assert.AreEqual(0, best);
+            Assert.IsTrue(error < 1e-9);
+            // Within 10 %: still agrees; 30 % off: does not.
+            var near = predicted.Select(v => v * 1.08).ToList();
+            Assert.IsTrue(ReconMath.DepthAgrees(near, depths, 0.21, 750000, true, 0.1, 5e-4, 5e-4, out best, out error));
+            var far = predicted.Select(v => v * 1.3).ToList();
+            Assert.IsFalse(ReconMath.DepthAgrees(far, depths, 0.21, 750000, true, 0.1, 5e-4, 5e-4, out best, out error));
+            // Run2's ball readings (0.3692 at 3 m, 0.3650 at 9 m) are ordered by 0.004 but match no encoding of the projection.
+            Assert.IsFalse(ReconMath.DepthAgrees(new List<double> { 0.3692, 0.3650 }, new List<double> { 3, 9 }, 0.21, 750000, true, 0.1, 5e-4, 5e-4, out best, out error));
+            Assert.IsTrue(error > 0.5);
+            // Equal values are not an order; a missing value fails.
+            Assert.IsFalse(ReconMath.DepthAgrees(new List<double> { 0.4, 0.4, 0.4 }, new List<double> { 2, 4, 8 }, 0.21, 750000, true, 0.1, 5e-4, 5e-4, out best, out error));
+            Assert.IsFalse(ReconMath.DepthAgrees(new List<double> { 0.4, double.NaN }, new List<double> { 2, 4 }, 0.21, 750000, true, 0.1, 5e-4, 5e-4, out best, out error));
         }
 
         [TestMethod]

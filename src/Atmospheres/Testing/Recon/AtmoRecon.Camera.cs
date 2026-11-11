@@ -76,7 +76,9 @@ namespace ReDefinition.Atmospheres
                 foreach (ProbeWait w in Capture()) yield return w;
                 without[mode] = lastFrame != null ? Mean(lastFrame.Lumas(0.5, 0.5, 0.04, 0.04)) : double.NaN;
             }
-            var material = new Material(flat) { color = new Color(1f, 0.2f, 0.2f, 1f) };
+            // An opaque white wall at the geometry queue (the material of the disc fixtures): the raw material of this shader blends and
+            // sits in the transparent queue by default, and a red wall could have the luma of the scene it stands in.
+            Material material = ReconMesh.Flat(Color.white, 2000);
             Vector3d cameraAt = main.transform.position, forward = main.transform.forward;
             var wall = new ReconBall(pod, cameraAt + forward * 4.0 - pod.CoMD, 3f, material, 0);
             Action follow = wall.Update;
@@ -98,6 +100,8 @@ namespace ReDefinition.Atmospheres
             Emit("Env.frame_luma_screen_with", with[1]);
             Emit("Env.frame_live_target", liveTarget);
             Emit("Env.frame_live_screen", liveScreen);
+            frameLive = liveTarget || liveScreen;
+            Emit("Env.frame_live_any", frameLive);
             host.UseScreen = !liveTarget && liveScreen;
             if (host.UseScreen)
             {
@@ -111,7 +115,20 @@ namespace ReDefinition.Atmospheres
                     Say("the interface could not be hidden (" + e.GetType().Name + " " + e.Message + ")");
                 }
             }
-            EmitText("Env.frame_source", host.UseScreen ? "screen" : liveTarget ? "target" : "target (neither source saw the wall)");
+            EmitText("Env.frame_source", host.UseScreen ? "screen" : liveTarget ? "target" : "none (neither source saw the wall)");
+        }
+
+        // Whether a frame source saw the wall of FrameLiveness. The steps that read the frame (P6 balls through the screen are not among
+        // them: they read command-buffer targets) run only while this holds; a dead frame would make their rows say nothing.
+        private bool frameLive;
+
+        // Starts a step that reads the frame; false (with its error row) where no frame source followed the scene.
+        private bool FrameStepAllowed(string id)
+        {
+            if (frameLive) return true;
+            Say(id + " left out: no frame source followed the scene (Env.frame_live_any 0)");
+            EmitText(id + ".error", "left out: no frame source followed the scene (Env.frame_live_any 0)");
+            return false;
         }
 
         private static double Mean(List<float> values)
@@ -139,27 +156,37 @@ namespace ReDefinition.Atmospheres
             // distance (whatever the depth encoding is).
             Vessel pod = FlightGlobals.ActiveVessel;
             Shader ballShader = FirstShader("Legacy Shaders/Diffuse", "Diffuse", "Standard", "KSP/Diffuse");
-            ReconBall nearBall = null, farBall = null;
+            var balls = new List<ReconBall>();
             Material ballMaterial = null;
             Action followBalls = null;
-            Vector3[] views = null;
+            BallLayout layout = null;
             if (ballShader != null && pod != null)
             {
                 ballMaterial = new Material(ballShader) { color = new Color(0.5f, 0.5f, 0.5f, 1f) };
-                Vector3d cameraAt = main.transform.position;
-                Vector3d forward = main.transform.forward, right = main.transform.right;
-                // Close to the camera (near plane 0.21 m): a 1/z-type depth differs by 0.21 * (1/3 - 1/9) = 0.047 between the balls and by
-                // 0.023 between the far ball and the far view, well above the 0.004 the test asks for (the stored depth steps are 0.0005).
-                nearBall = new ReconBall(pod, cameraAt + forward * 3.0 - right * 0.6 - pod.CoMD, 0.7f, ballMaterial, 0);
-                farBall = new ReconBall(pod, cameraAt + forward * 9.0 + right * 2.0 - pod.CoMD, 2f, ballMaterial, 0);
+                // Five balls of the same apparent size at eye depths from 2.5 to 40 m along a row across the frame, so that the stored value
+                // can be set against the value the camera's projection predicts (a pair of balls only ever said "ordered").
+                layout = new BallLayout(main);
+                foreach (double depth in BallLayout.EyeDepths)
+                {
+                    int index = balls.Count;
+                    Vector3 at = layout.WorldPosition(index);
+                    balls.Add(new ReconBall(pod, (Vector3d)at - pod.CoMD, (float)(0.06 * depth), ballMaterial, 0));
+                }
                 followBalls = () =>
                 {
-                    nearBall.Update();
-                    farBall.Update();
+                    foreach (ReconBall ball in balls) ball.Update();
                 };
                 host.PerFrame.Add(followBalls);
-                views = new[] { ViewportOf(main, nearBall.Position), ViewportOf(main, farBall.Position), new Vector3(0.5f, 0.8f, 1f) };
-                Emit("P6.balls_in_view", views[0].z > 0 && views[1].z > 0 && views[0].x > 0.05f && views[0].x < 0.95f && views[1].x > 0.05f && views[1].x < 0.95f);
+                bool inView = true;
+                for (int i = 0; i < balls.Count; i++)
+                {
+                    Vector3 view = ViewportOf(main, balls[i].Position);
+                    if (!(view.z > 0 && view.x > 0.05f && view.x < 0.95f)) inView = false;
+                }
+                Emit("P6.balls_in_view", inView);
+                Emit("P6.uses_reversed_z", SystemInfo.usesReversedZBuffer);
+                Emit("P6.camera_near", main.nearClipPlane);
+                Emit("P6.camera_far", main.farClipPlane);
             }
             else
             {
@@ -250,7 +277,7 @@ namespace ReDefinition.Atmospheres
                 {
                     double[] candidate = Get(results, camera, evt, false);
                     DepthTap candidateTap = taps.Find(t => t.Camera == camera && t.Event == evt && !t.Global && t.Source == null);
-                    bool valid = isMain && candidate != null && candidate[0] > 0 && candidate[4] - candidate[3] > 0.05 && DepthHoldsBalls(candidateTap, views, "copy_" + evt);
+                    bool valid = isMain && candidate != null && candidate[0] > 0 && candidate[4] - candidate[3] > 0.05 && DepthHoldsBalls(candidateTap, layout, main, "copy_" + evt);
                     if (isMain) Emit("P6.copy_valid_" + evt, valid);
                     if (valid && !chosenValid)
                     {
@@ -263,7 +290,7 @@ namespace ReDefinition.Atmospheres
                 // Readable: the global texture at the start of the transparent queue varies over the frame, holds the balls in order and is
                 // the same at its end (nothing rebound or overwrote it during the queue).
                 DepthTap alphaTap = taps.Find(t => t.Camera == camera && t.Event == CameraEvent.BeforeForwardAlpha && t.Global && t.Source == null);
-                bool alphaSame = isMain && alpha != null && alpha[0] > 0 && alpha[4] - alpha[3] > 0.05 && DepthHoldsBalls(alphaTap, views, "global_alpha");
+                bool alphaSame = isMain && alpha != null && alpha[0] > 0 && alpha[4] - alpha[3] > 0.05 && DepthHoldsBalls(alphaTap, layout, main, "global_alpha");
                 bool afterSame = after != null && after[0] > 0 && alpha != null && Math.Abs(after[1] - alpha[1]) <= 0.01 * Math.Abs(alpha[1]) + 1e-6;
                 if (!afterSame) alphaSame = false;
                 Emit("P6." + camera.Replace(' ', '_') + ".reference_valid", referenceValid);
@@ -283,7 +310,7 @@ namespace ReDefinition.Atmospheres
                     DepthTap consumerTap = taps.Find(t => t.Source != null && t.Source.Event == referenceEvent && t.Camera == camera);
                     consumerOk = referenceValid && consumed != null && consumed[0] > 0 && reference != null
                                  && Math.Abs(consumed[1] - reference[1]) <= 0.01 * Math.Abs(reference[1]) + 1e-6
-                                 && DepthHoldsBalls(consumerTap, views, "consumer_of_" + referenceEvent);
+                                 && DepthHoldsBalls(consumerTap, layout, main, "consumer_of_" + referenceEvent);
                     EmitText("P6.fallback_event", referenceEvent.ToString());
                     Emit("P6.copy_consumed_at_alpha", consumerOk);
                 }
@@ -310,8 +337,7 @@ namespace ReDefinition.Atmospheres
             }
 
             if (followBalls != null) host.PerFrame.Remove(followBalls);
-            if (nearBall != null) nearBall.Destroy();
-            if (farBall != null) farBall.Destroy();
+            foreach (ReconBall ball in balls) ball.Destroy();
             if (ballMaterial != null) UnityEngine.Object.Destroy(ballMaterial);
 
             // The IVA: the cameras there, and the order the interior mods leave them in.
@@ -334,23 +360,68 @@ namespace ReDefinition.Atmospheres
             }
         }
 
-        // Whether a tap's pixels show the calibration balls: the value under the near ball, under the far ball and in the empty view
-        // (views[0..2]) are each at least 0.004 apart, and the near ball, the far ball and the empty view follow in that order (either way
-        // up, since the encoding of the depth is not assumed). A render texture can come back upside down, so the flipped reading counts
-        // too and says so in a row.
-        private bool DepthHoldsBalls(DepthTap tap, Vector3[] views, string label)
+        // The calibration balls of P6: equal in apparent size, at eye depths from 2.5 to 40 m, in a row across the middle of the frame,
+        // plus a point of empty view above them. The camera's projection predicts the stored depth of each (ReconMath.DepthExpected).
+        private sealed class BallLayout
         {
-            if (tap == null || tap.Pixels == null || views == null) return false;
+            internal static readonly double[] EyeDepths = { 2.5, 5.0, 10.0, 20.0, 40.0 };
+            internal static readonly Vector3 Empty = new Vector3(0.5f, 0.85f, 1f);
+            private readonly Camera camera;
+            private readonly Vector3[] viewports = new Vector3[EyeDepths.Length];
+
+            internal BallLayout(Camera camera)
+            {
+                this.camera = camera;
+                for (int i = 0; i < viewports.Length; i++) viewports[i] = new Vector3(0.12f + 0.19f * i, 0.5f, 1f);
+            }
+
+            internal Vector3 Viewport(int index)
+            {
+                return viewports[index];
+            }
+
+            // The world position at that eye depth (the distance along the camera's forward axis) on the ray through the ball's viewport point.
+            internal Vector3 WorldPosition(int index)
+            {
+                Ray ray = camera.ViewportPointToRay(viewports[index]);
+                double along = Vector3.Dot(ray.direction, camera.transform.forward);
+                return ray.origin + ray.direction * (float)(EyeDepths[index] / along);
+            }
+        }
+
+        // Whether a tap's pixels hold the calibration balls: the value under each ball is read (the render texture can come back upside
+        // down, so the flipped reading counts too and says so in a row), the values must be ordered with the eye depth, and they must
+        // agree within 10 % with the value the camera's projection predicts for one of the encodings a depth texture can hold. The measured
+        // and the predicted values go to rows, so that a verdict that fails says which encoding came closest.
+        private bool DepthHoldsBalls(DepthTap tap, BallLayout layout, Camera camera, string label)
+        {
+            if (tap == null || tap.Pixels == null || layout == null) return false;
+            double near = camera.nearClipPlane, far = camera.farClipPlane;
+            bool reversed = SystemInfo.usesReversedZBuffer;
             for (int flip = 0; flip < 2; flip++)
             {
-                double near = Texel(tap, views[0], flip == 1), far = Texel(tap, views[1], flip == 1), empty = Texel(tap, views[2], flip == 1);
-                bool ok = !double.IsNaN(near) && !double.IsNaN(far) && !double.IsNaN(empty)
-                          && Math.Abs(near - far) > 0.004 && Math.Abs(far - empty) > 0.004 && (far - near) * (empty - far) > 0;
-                if (flip == 0)
+                var measured = new double[BallLayout.EyeDepths.Length];
+                for (int i = 0; i < measured.Length; i++) measured[i] = Texel(tap, layout.Viewport(i), flip == 1);
+                double empty = Texel(tap, BallLayout.Empty, flip == 1);
+                int best;
+                double bestError;
+                bool ok = ReconMath.DepthAgrees(measured, BallLayout.EyeDepths, near, far, reversed, 0.10, 5e-4, 5e-4, out best, out bestError);
+                if (flip == 0 || ok)
                 {
-                    Emit("P6.balls_" + label + "_near", near);
-                    Emit("P6.balls_" + label + "_far", far);
-                    Emit("P6.balls_" + label + "_empty", empty);
+                    string flipText = flip == 1 ? "_flipped" : "";
+                    for (int i = 0; i < measured.Length; i++)
+                    {
+                        double[] expected = ReconMath.DepthExpected(BallLayout.EyeDepths[i], near, far, reversed);
+                        string depthKey = Num(BallLayout.EyeDepths[i]).Replace('.', '_');
+                        Emit("P6.balls_" + label + flipText + "_d" + depthKey + "_measured", measured[i]);
+                        if (flip == 0) Emit("P6.balls_" + label + "_d" + depthKey + "_expected_raw", expected[0]);
+                    }
+                    Emit("P6.balls_" + label + flipText + "_empty", empty);
+                    if (best >= 0)
+                    {
+                        EmitText("P6.balls_" + label + flipText + "_closest_encoding", ReconMath.DepthEncodings[best]);
+                        Emit("P6.balls_" + label + flipText + "_max_rel_error", bestError);
+                    }
                 }
                 if (ok)
                 {

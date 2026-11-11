@@ -9,7 +9,9 @@
   "plannedStarts": 2,
   "starts": [
     { "id": "run1", "description": "full mod set" },
-    { "id": "run2", "description": "Scatterer absent", "disableMods": ["Scatterer"] }
+    { "id": "run2", "description": "Scatterer absent", "disableMods": ["Scatterer"] },
+    { "id": "run3", "description": "repeat of the open premises, Scatterer absent: frame gate, P6 balls, P10, P8, P7, P5, P9", "disableMods": ["Scatterer"] },
+    { "id": "run4", "description": "repeat of the open premises, full mod set: frame gate, P6 balls, P11 at 5 km, P9" }
   ],
   "sections": [ { "id": "B09", "package": "B09", "title": "Reconnaissance probe" } ],
   "collect": [

@@ -67,9 +67,10 @@ namespace ReDefinition.Atmospheres
             Game current = HighLogic.CurrentGame;
             current.flightState.universalTime = Planetarium.GetUniversalTime();
             current.flightState.protoVessels.RemoveAll(v => v.vesselName == VesselName);
-            int index = AddVessel(current, home, full ? Vessel.Situations.FLYING : Vessel.Situations.SPLASHED, podLatitude, podLongitude,
-                                  full ? DropAltitude : 0.0);
-            Say("to the flight of " + VesselName + (full ? " in the air at " + Num(DropAltitude) + " m" : " afloat"));
+            bool dropped = full && !focused;
+            int index = AddVessel(current, home, dropped ? Vessel.Situations.FLYING : Vessel.Situations.SPLASHED, podLatitude, podLongitude,
+                                  dropped ? DropAltitude : 0.0);
+            Say("to the flight of " + VesselName + (dropped ? " in the air at " + Num(DropAltitude) + " m" : " afloat"));
             FlightDriver.StartAndFocusVessel(current, index);
             foreach (ProbeWait w in WaitFor(FlightReady, 240)) yield return w;
             if (!waited)

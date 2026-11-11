@@ -49,7 +49,7 @@ namespace ReDefinition.Tests.Atmospheres.B09
                 Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(metric, @"^(P\d+|Env)\."), metric);
                 if (metric.StartsWith("P")) premises.Add(metric.Substring(0, metric.IndexOf('.')));
                 Assert.AreEqual("K-pre", row["series"]);
-                if (row.ContainsKey("start")) Assert.IsTrue(row["start"].Equals("run1") || row["start"].Equals("run2"), metric);
+                if (row.ContainsKey("start")) Assert.IsTrue(new[] { "run1", "run2", "run3", "run4" }.Contains((string)row["start"]), metric);
                 if (row.ContainsKey("min") && row.ContainsKey("max")) Assert.IsTrue((double)row["min"] <= (double)row["max"], metric);
                 Assert.IsTrue(row.ContainsKey("min") || row.ContainsKey("max") || row.ContainsKey("equals"), metric + " has no threshold");
                 Assert.IsTrue(row.ContainsKey("note"), metric + " has no note");
@@ -92,6 +92,43 @@ namespace ReDefinition.Tests.Atmospheres.B09
             var kerbin = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(kerbinHeights));
             double ocean = (double)kerbin["ocean_fraction"];
             Assert.IsTrue(ocean >= 0.5 && ocean <= 0.8, "Kerbin ocean fraction " + ocean);
+        }
+
+        // R13: the dumps of run2 and later starts that are not grids are checked for their shape too: the body list, the environment (the
+        // mods found, by their assemblies) and the temperature range of each body against the plan's plausible interval.
+        [TestMethod]
+        public void TheDumpsOfLaterStartsValidate()
+        {
+            string root = RepoRoot.Root("tests", "series", "rows", "B09.json");
+            string folder = Path.Combine(root, "tests", "data", "recon", "dumps");
+            if (!Directory.Exists(folder)) Assert.Inconclusive("tests/data/recon/dumps does not exist: the K-pre series has not been run in this checkout");
+            string bodiesFile = Path.Combine(folder, "run2-bodies.json");
+            string envFile = Path.Combine(folder, "run2-env.json");
+            if (!File.Exists(bodiesFile) || !File.Exists(envFile)) Assert.Inconclusive("run2 dumps are not in this checkout");
+
+            var bodies = (List<object>)((Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(bodiesFile)))["bodies"];
+            foreach (Dictionary<string, object> body in bodies.Cast<Dictionary<string, object>>())
+            {
+                Assert.IsTrue((double)body["radius_m"] > 0, (string)body["name"] + " radius");
+            }
+            var env = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(envFile));
+            var mods = (Dictionary<string, object>)env["mods"];
+            Assert.IsTrue((bool)mods["EnvironmentalVisualEnhancements"] && (bool)mods["Deferred"], "run2 reports EVE or Deferred as absent: the assembly names are wrong");
+            Assert.IsFalse((bool)mods["Scatterer"], "run2 is the start without Scatterer");
+
+            // Plausible air temperatures at sea level and 10 km per body, from the values the measurement gave (Kerbin 205 .. 314 K, Duna
+            // 177 .. 272, Laythe 205 .. 289, Eve 300 .. 429), widened by 30 K: a dump outside is a defect of the probe, not a climate.
+            var limits = new Dictionary<string, double[]> { { "Kerbin", new[] { 175.0, 345.0 } }, { "Duna", new[] { 147.0, 302.0 } },
+                                                             { "Laythe", new[] { 175.0, 320.0 } }, { "Eve", new[] { 270.0, 460.0 } } };
+            foreach (KeyValuePair<string, double[]> limit in limits)
+            {
+                string file = Path.Combine(folder, "run2-temperature-" + limit.Key + ".json");
+                if (!File.Exists(file)) continue;
+                var t = (Dictionary<string, object>)MiniJson.Parse(File.ReadAllText(file));
+                var values = ((List<object>)t["temperature_k"]).Cast<double>().ToList();
+                Assert.IsTrue(values.Min() >= limit.Value[0] && values.Max() <= limit.Value[1],
+                              limit.Key + " temperatures " + values.Min() + " .. " + values.Max() + " K lie outside " + limit.Value[0] + " .. " + limit.Value[1]);
+            }
         }
 
         // The temperature dumps are judged for what they are: air temperatures in kelvin that fall with altitude. A dump counts only if it

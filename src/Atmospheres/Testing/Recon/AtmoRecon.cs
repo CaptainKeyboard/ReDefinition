@@ -40,6 +40,7 @@ namespace ReDefinition.Atmospheres
         private const double PadLatitude = -0.0972, PadLongitude = -74.5577;
 
         private bool full = true;
+        private bool focused, stackOnly;
         private bool scattererPresent;
         private ReconHost host;
         private ReconFrame lastFrame;
@@ -59,7 +60,12 @@ namespace ReDefinition.Atmospheres
         protected override IEnumerator<ProbeWait> Scenario()
         {
             dumpPrefix = StartId ?? "run1";
-            full = dumpPrefix != "run2";
+            // run1 and run2 measured every premise (run2 without Scatterer); run3 (Scatterer absent) and run4 (full set) are the repeat
+            // of the blocking premises with no data: run3 measures P6, P10, P8, P7, P5 and P9, run4 only P6, P11 and P9, the steps that
+            // depend on Scatterer being there.
+            focused = dumpPrefix == "run3" || dumpPrefix == "run4";
+            stackOnly = dumpPrefix == "run4";
+            full = dumpPrefix != "run2" && dumpPrefix != "run3";
             scattererPresent = AssemblyLoaded("Scatterer");
             host = ReconHost.Get();
             Say("start " + dumpPrefix + ", " + (full ? "full" : "reduced") + " mod set, Scatterer " + (scattererPresent ? "present" : "absent"));
@@ -73,7 +79,7 @@ namespace ReDefinition.Atmospheres
             }
 
             // The wind hook registers before the first flight starts: the integrator reads its overrides when a vessel is built.
-            if (full) ReconWindHook.Register(Say);
+            if (full && !focused) ReconWindHook.Register(Say);
 
             foreach (ProbeWait w in Guard("flight", ToFlight())) yield return w;
             if (FlightGlobals.ActiveVessel == null || HighLogic.LoadedScene != GameScenes.FLIGHT)
@@ -100,26 +106,32 @@ namespace ReDefinition.Atmospheres
                 EmitText("P4.error", "the pod is not over the sea at the planned place (Env.pod_offset_m, Env.pod_ground_m)");
                 EmitText((scattererPresent ? "P11" : "P10") + ".error", "the pod is not over the sea at the planned place");
             }
-            if (full && spawnOk) foreach (ProbeWait w in Guard("P4", WindDrop())) yield return w;
-            if (full) foreach (ProbeWait w in Guard("P2", HeightGrid())) yield return w;
+            if (full && !focused && spawnOk) foreach (ProbeWait w in Guard("P4", WindDrop())) yield return w;
+            if (full && !focused) foreach (ProbeWait w in Guard("P2", HeightGrid())) yield return w;
             foreach (ProbeWait w in Guard("Frame", FrameLiveness())) yield return w;
             foreach (ProbeWait w in Guard("P6", CameraChain())) yield return w;
-            if (spawnOk) foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
-            foreach (ProbeWait w in Guard("P8", ForeignShader())) yield return w;
-            foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
-            // P1 is a blocking premise: it comes before the informative steps, so that a start that runs out of time loses those.
-            // P1, P5 and P9 run in both starts: run1 measured them with defects of the probe, run2 measures them again.
-            foreach (ProbeWait w in Guard("P1", TemperatureSamples())) yield return w;
-            Vessel after = FlightGlobals.ActiveVessel;
-            Emit("P1.vessel_intact", after != null && after.state != Vessel.State.DEAD);
-            foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
-            if (full)
+            if (spawnOk && FrameStepAllowed(scattererPresent ? "P11" : "P10")) foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
+            if (!stackOnly)
             {
-                foreach (ProbeWait w in Guard("P12", AmbientFactors())) yield return w;
+                if (FrameStepAllowed("P8")) foreach (ProbeWait w in Guard("P8", ForeignShader())) yield return w;
+                if (FrameStepAllowed("P7")) foreach (ProbeWait w in Guard("P7", FogFixture())) yield return w;
+            }
+            // P1 is a blocking premise: it comes before the informative steps, so that a start that runs out of time loses those.
+            // P1, P5 and P9 run in both starts of the first pair: run1 measured them with defects of the probe, run2 measures them again.
+            if (!focused)
+            {
+                foreach (ProbeWait w in Guard("P1", TemperatureSamples())) yield return w;
+                Vessel after = FlightGlobals.ActiveVessel;
+                Emit("P1.vessel_intact", after != null && after.state != Vessel.State.DEAD);
+            }
+            if (!stackOnly) foreach (ProbeWait w in Guard("P5", AudioPaths())) yield return w;
+            if (full && !focused)
+            {
+                if (FrameStepAllowed("P12")) foreach (ProbeWait w in Guard("P12", AmbientFactors())) yield return w;
                 foreach (ProbeWait w in Guard("P3", VertexSpacing())) yield return w;
             }
             foreach (ProbeWait w in Guard("P9", EveLayers())) yield return w;
-            if (full) foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
+            if (full && !focused) foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
             if (uiHidden)
             {
                 try

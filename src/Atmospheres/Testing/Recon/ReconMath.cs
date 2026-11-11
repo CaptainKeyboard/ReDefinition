@@ -215,5 +215,60 @@ namespace ReDefinition.Atmospheres
         {
             return v < 0 ? 0 : v > 1 ? 1 : v;
         }
+
+        // The names of the depth encodings DepthExpected predicts, in the order of its result.
+        internal static readonly string[] DepthEncodings = { "raw", "one_minus_raw", "linear01", "one_minus_linear01" };
+
+        // The stored depth value of a point at an eye depth (metres in front of the camera) under a perspective projection with the given near
+        // and far plane, as the four encodings a depth texture can hold: the hardware value (raw; reversed means 1 at the near plane and 0 at
+        // the far plane), one minus it, Unity's Linear01Depth (eye depth over far) and one minus that. The hardware value is the clip-space
+        // z over w of a standard perspective matrix mapped to 0..1 (the Direct3D range), which is what GL.GetGPUProjectionMatrix yields.
+        internal static double[] DepthExpected(double eyeDepth, double near, double far, bool reversedZ)
+        {
+            double forward = far * (eyeDepth - near) / (eyeDepth * (far - near));
+            double raw = reversedZ ? 1.0 - forward : forward;
+            double linear = eyeDepth / far;
+            return new[] { raw, 1.0 - raw, linear, 1.0 - linear };
+        }
+
+        // Compares stored values at known eye depths with the predictions of every encoding. The ball values must be strictly ordered (either
+        // way up) by at least orderStep, and the best encoding must agree within relative tolerance (with an absolute floor of the depth's
+        // step). Returns the verdict; best is the index into DepthEncodings, bestError the largest relative error of that encoding.
+        internal static bool DepthAgrees(IList<double> measured, IList<double> eyeDepths, double near, double far, bool reversedZ, double relTolerance,
+                                         double absFloor, double orderStep, out int best, out double bestError)
+        {
+            best = -1;
+            bestError = double.NaN;
+            if (measured == null || eyeDepths == null || measured.Count != eyeDepths.Count || measured.Count < 2) return false;
+            for (int i = 0; i < measured.Count; i++)
+            {
+                if (double.IsNaN(measured[i])) return false;
+            }
+            bool up = true, down = true;
+            for (int i = 1; i < measured.Count; i++)
+            {
+                if (!(measured[i] - measured[i - 1] > orderStep)) up = false;
+                if (!(measured[i - 1] - measured[i] > orderStep)) down = false;
+            }
+            var errors = new double[DepthEncodings.Length];
+            for (int i = 0; i < measured.Count; i++)
+            {
+                double[] expected = DepthExpected(eyeDepths[i], near, far, reversedZ);
+                for (int e = 0; e < errors.Length; e++)
+                {
+                    double error = Math.Abs(measured[i] - expected[e]) / Math.Max(Math.Abs(expected[e]), absFloor / relTolerance);
+                    if (error > errors[e]) errors[e] = error;
+                }
+            }
+            for (int e = 0; e < errors.Length; e++)
+            {
+                if (double.IsNaN(bestError) || errors[e] < bestError)
+                {
+                    bestError = errors[e];
+                    best = e;
+                }
+            }
+            return (up || down) && bestError <= relTolerance;
+        }
     }
 }

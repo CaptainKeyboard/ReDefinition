@@ -1,14 +1,22 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
+using System.Text;
 using UnityEngine;
 
 namespace ReDefinition.Atmospheres
 {
     // P9: what EVE offers the weather field. The layer list per body (name, which parts exist, the sizes of the coverage and type maps),
     // the cloud manager's onApply event, and the experiment the cloud painter depends on: a render texture bound to a layer's coverage
-    // map, then a forced CloudsObject.Apply(); how many frames until the layer's material no longer carries our texture. The forced
+    // map, read back, then a forced CloudsObject.Apply(); how many frames until the layer no longer carries our texture. The forced
     // Apply makes a second set of layer objects in the scene, so this runs last.
+    //
+    // Run2 read nothing back, and the game log said why: Unity prints "Material doesn't have a texture property 'CloudCoverage'" while
+    // the material answers HasProperty with true. The shader EVE/RaymarchCloud declares no properties at all (its Properties block is
+    // empty in eveshaders.bundle, read with UnityPy), so EVE hands the textures over by name at run time (CloudsRaymarchedVolume.
+    // SetShaderTextureParams: TextureWrapper.ApplyTexture(mat, "CloudCoverage", 1), which for a 2D map is SetTexture and for a cube map
+    // sets "cubeCloudCoverage" or its six faces). What the probe measures now is which of the calls Unity refuses: HasProperty, Get,
+    // Set and Get again (by name and by id), counted from the log messages each call causes, and what the material lists as its texture
+    // properties. If Get cannot read the texture back, the latency is taken from the material instance EVE replaces on Apply.
     internal sealed partial class AtmoRecon
     {
         private int applyEvents;
@@ -16,6 +24,101 @@ namespace ReDefinition.Atmospheres
         private void OnApplyFired()
         {
             applyEvents++;
+        }
+
+        // Messages of the engine's log counted while a call runs.
+        private int logErrorCount;
+        private string lastLogError = "";
+
+        private void OnLogMessage(string condition, string stackTrace, LogType type)
+        {
+            if (type == LogType.Error || type == LogType.Exception || type == LogType.Assert)
+            {
+                logErrorCount++;
+                lastLogError = condition;
+            }
+        }
+
+        // What one attempt to bind a render texture to a named texture property of a material showed.
+        private sealed class BindReport
+        {
+            internal bool Has, HasCube;
+            internal int GetErrors, SetErrors, GetBackErrors, GetByIdErrors;
+            internal bool TookByName, TookById;
+            internal string ReadBack = "null", Before = "null", ShaderName = "", Properties = "";
+            internal int ShaderProperties = -1;
+        }
+
+        private BindReport TryBind(Material material, string property, Texture target)
+        {
+            var report = new BindReport { ShaderName = material.shader != null ? material.shader.name : "none" };
+            try
+            {
+                report.ShaderProperties = material.shader != null ? material.shader.GetPropertyCount() : -1;
+            }
+            catch (Exception)
+            {
+            }
+            try
+            {
+                string[] names = material.GetTexturePropertyNames();
+                report.Properties = names == null ? "" : names.Length + (names.Length > 0 ? ": " + string.Join(",", names) : "");
+            }
+            catch (Exception e)
+            {
+                report.Properties = "unreadable (" + e.GetType().Name + ")";
+            }
+            report.Has = material.HasProperty(property);
+            report.HasCube = material.HasProperty("cube" + property);
+
+            int mark = logErrorCount;
+            Texture before = material.GetTexture(property);
+            report.GetErrors = logErrorCount - mark;
+            report.Before = Describe(before);
+
+            mark = logErrorCount;
+            material.SetTexture(property, target);
+            report.SetErrors = logErrorCount - mark;
+
+            mark = logErrorCount;
+            Texture got = material.GetTexture(property);
+            report.GetBackErrors = logErrorCount - mark;
+            report.TookByName = got == target;
+            report.ReadBack = Describe(got);
+
+            mark = logErrorCount;
+            Texture gotById = material.GetTexture(Shader.PropertyToID(property));
+            report.GetByIdErrors = logErrorCount - mark;
+            report.TookById = gotById == target;
+            return report;
+        }
+
+        private static string Describe(Texture texture)
+        {
+            return texture == null ? "null" : texture.GetType().Name + " '" + texture.name + "' " + texture.width + "x" + texture.height;
+        }
+
+        // The texture EVE keeps for a coverage map (its wrapper's loaded texture), or null for a cube map or a layer without one.
+        private static Texture WrapperTexture(object volume)
+        {
+            object wrapper = ReconDyn.Get(volume, "CoverageMap");
+            return wrapper == null ? null : ReconDyn.Get(wrapper, "textureValue") as Texture;
+        }
+
+        private static string MapKeywords(Material material)
+        {
+            var text = new StringBuilder();
+            try
+            {
+                foreach (string keyword in material.shaderKeywords)
+                {
+                    if (keyword.StartsWith("MAP_TYPE_", StringComparison.Ordinal)) text.Append(keyword).Append(' ');
+                }
+            }
+            catch (Exception)
+            {
+            }
+            return text.ToString().Trim();
         }
 
         private IEnumerable<ProbeWait> EveLayers()
@@ -70,84 +173,130 @@ namespace ReDefinition.Atmospheres
                 EmitText("P9.error", "no volumetric layer on Kerbin to bind a texture to");
                 yield break;
             }
-            // Run1 tried the first layer only and its material did not take the texture. Every volumetric layer on Kerbin is tried now,
-            // with the shader name and whether the material has the property at all; the first that takes it is used for the latency.
+
+            Application.LogCallback callback = OnLogMessage;
+            Application.logMessageReceived += callback;
             var target = new RenderTexture(512, 256, 0, RenderTextureFormat.R8);
             target.Create();
             Material material = null;
-            Texture chosenPrevious = null;
-            foreach (object layer in layers)
+            try
             {
-                if (Convert.ToString(ReconDyn.Get(layer, "Body")) != "Kerbin") continue;
-                object volume = ReconDyn.Get(layer, "LayerRaymarchedVolume");
-                if (volume == null) continue;
-                string layerName = Convert.ToString(ReconDyn.Get(layer, "Name"));
-                Material candidate = ReconDyn.Get(volume, "RaymarchedCloudMaterial") as Material;
-                if (candidate == null)
+                // Every volumetric layer on Kerbin is tried on its main material and its reflection probe material: which calls Unity
+                // refuses on the property EVE hands the coverage map over under, and whether the render texture can be read back at all.
+                int tried = 0, hasProperty = 0, tookByName = 0, tookById = 0, getErrors = 0, setErrors = 0, getBackErrors = 0, cubeLayers = 0;
+                int shaderProperties = -1;
+                string texturePropertyList = "";
+                foreach (object layer in layers)
                 {
-                    EmitText("P9.material." + layerName, "none");
-                    continue;
+                    if (Convert.ToString(ReconDyn.Get(layer, "Body")) != "Kerbin") continue;
+                    object volume = ReconDyn.Get(layer, "LayerRaymarchedVolume");
+                    if (volume == null) continue;
+                    string layerName = Convert.ToString(ReconDyn.Get(layer, "Name"));
+                    string[] kinds = { "RaymarchedCloudMaterial", "ReflectionProbeRaymarchedCloudMaterial" };
+                    for (int k = 0; k < kinds.Length; k++)
+                    {
+                        Material candidate = ReconDyn.Get(volume, kinds[k]) as Material;
+                        if (candidate == null)
+                        {
+                            EmitText("P9.material." + layerName + "." + kinds[k], "none");
+                            continue;
+                        }
+                        BindReport report = TryBind(candidate, "CloudCoverage", target);
+                        // EVE's own texture goes back (the wrapper's, or white where the layer has none): the property is EVE's.
+                        Texture own = WrapperTexture(volume);
+                        candidate.SetTexture("CloudCoverage", own != null ? own : Texture2D.whiteTexture);
+                        tried++;
+                        if (report.Has) hasProperty++;
+                        if (report.TookByName) tookByName++;
+                        if (report.TookById) tookById++;
+                        getErrors += report.GetErrors;
+                        setErrors += report.SetErrors;
+                        getBackErrors += report.GetBackErrors;
+                        if (report.HasCube) cubeLayers++;
+                        shaderProperties = report.ShaderProperties;
+                        if (texturePropertyList.Length == 0) texturePropertyList = report.Properties;
+                        EmitText("P9.material." + layerName + "." + kinds[k], report.ShaderName + ", shader properties " + report.ShaderProperties
+                                 + ", HasProperty CloudCoverage " + report.Has + ", cubeCloudCoverage " + report.HasCube + ", log errors on Get/Set/Get/GetById "
+                                 + report.GetErrors + "/" + report.SetErrors + "/" + report.GetBackErrors + "/" + report.GetByIdErrors
+                                 + ", read back by name " + report.TookByName + " by id " + report.TookById + " (" + report.ReadBack + "), before " + report.Before
+                                 + ", map keywords [" + MapKeywords(candidate) + "], EVE's own coverage " + Describe(own));
+                        if (k == 0 && (report.TookByName || report.TookById) && material == null)
+                        {
+                            material = candidate;
+                            firstKerbinVolume = volume;
+                            firstKerbinObject = layer;
+                        }
+                    }
                 }
-                bool hasProperty = candidate.HasProperty("CloudCoverage");
-                Texture previous = hasProperty ? candidate.GetTexture("CloudCoverage") : null;
-                candidate.SetTexture("CloudCoverage", target);
-                Texture got = candidate.GetTexture("CloudCoverage");
-                bool took = got == target;
-                candidate.SetTexture("CloudCoverage", previous);
-                // Run2: the property is present on all eight materials and none held the render texture. What it held instead says whether
-                // the assignment is refused (null, the old texture) or replaced (another type).
-                EmitText("P9.material." + layerName, candidate.shader.name + ", CloudCoverage " + (hasProperty ? "present" : "absent") + ", takes a render texture " + took
-                         + ", read back " + (got == null ? "null" : got.GetType().Name + " '" + got.name + "' " + got.width + "x" + got.height)
-                         + ", before " + (previous == null ? "null" : previous.GetType().Name + " '" + previous.name + "'") + ", target created " + target.IsCreated());
-                if (took && material == null)
-                {
-                    chosenPrevious = previous;
-                    material = candidate;
-                    firstKerbinVolume = volume;
-                    firstKerbinObject = layer;
-                }
-            }
-            if (material == null)
-            {
-                EmitText("P9.error", "no volumetric layer on Kerbin has a material that takes a render texture as CloudCoverage");
-                Emit("P9.bind_works", false);
-                target.Release();
-                yield break;
-            }
-            material.SetTexture("CloudCoverage", target);
-            bool bound = material.GetTexture("CloudCoverage") == target;
-            Emit("P9.bind_works", bound);
-            if (!bound)
-            {
-                // Without a binding that took, "our texture is gone after Apply" would be true from the first frame and say nothing.
-                EmitText("P9.error", "the render texture did not bind to CloudCoverage: no latency measured");
-                target.Release();
-                yield break;
-            }
-            yield return ProbeWait.Frames(5);
-            bool stillBound = material.GetTexture("CloudCoverage") == target;
-            Emit("P9.bind_survives_frames", stillBound);
+                Emit("P9.materials_tried", tried);
+                Emit("P9.materials_with_property", hasProperty);
+                Emit("P9.materials_read_back_by_name", tookByName);
+                Emit("P9.materials_read_back_by_id", tookById);
+                Emit("P9.materials_with_cube_property", cubeLayers);
+                Emit("P9.get_log_errors", getErrors);
+                Emit("P9.set_log_errors", setErrors);
+                Emit("P9.get_back_log_errors", getBackErrors);
+                Emit("P9.shader_declared_properties", shaderProperties);
+                EmitText("P9.texture_property_names", texturePropertyList);
+                EmitText("P9.last_log_error", lastLogError);
 
-            applyEvents = 0;
-            ReconDyn.Call(firstKerbinObject, "Apply");
-            int latency = -1;
-            bool replaced = false;
-            for (int frame = 0; frame < 180; frame++)
-            {
-                Material now = ReconDyn.Get(firstKerbinVolume, "RaymarchedCloudMaterial") as Material;
-                if (now != material) replaced = true;
-                Texture held = now != null ? now.GetTexture("CloudCoverage") : null;
-                if (held != target && latency < 0) latency = frame;
-                if (latency >= 0 && frame >= latency + 5) break;
-                yield return ProbeWait.Frames(1);
+                bool readable = material != null;
+                Emit("P9.bind_works", readable);
+                Material tracked = ReconDyn.Get(firstKerbinVolume, "RaymarchedCloudMaterial") as Material;
+                if (readable) material.SetTexture("CloudCoverage", target);
+                bool survives = false;
+                if (readable)
+                {
+                    yield return ProbeWait.Frames(5);
+                    survives = material.GetTexture("CloudCoverage") == target;
+                }
+                Emit("P9.bind_survives_frames", survives);
+                if (!readable)
+                {
+                    EmitText("P9.note", "no read-back of the render texture: the latency is taken from the material instance EVE replaces on Apply");
+                }
+
+                // The forced Apply: the latency in frames until the layer no longer holds our texture (where it can be read back) or until the
+                // material instance is not the one before (the binding made on the old instance is lost either way).
+                applyEvents = 0;
+                int idBefore = tracked != null ? tracked.GetInstanceID() : 0;
+                ReconDyn.Call(firstKerbinObject, "Apply");
+                int latency = -1;
+                bool replaced = false;
+                for (int frame = 0; frame < 180; frame++)
+                {
+                    Material now = ReconDyn.Get(firstKerbinVolume, "RaymarchedCloudMaterial") as Material;
+                    bool instanceChanged = tracked != null && (now == null || now.GetInstanceID() != idBefore);
+                    if (instanceChanged) replaced = true;
+                    bool lost = readable && material != null && now != null && now.GetTexture("CloudCoverage") != target;
+                    if ((lost || instanceChanged) && latency < 0) latency = frame;
+                    if (latency >= 0 && frame >= latency + 5) break;
+                    yield return ProbeWait.Frames(1);
+                }
+                Emit("P9.rebind_latency_frames", latency);
+                EmitText("P9.latency_method", readable ? "texture read-back or material instance, whichever came first" : "material instance only");
+                Emit("P9.material_replaced_by_apply", replaced);
+                Emit("P9.onapply_fired_by_forced_apply", applyEvents > 0);
+
+                // The same attempt on the materials EVE bound after the Apply: the layer's own Material is the one that counts.
+                Material after = ReconDyn.Get(firstKerbinVolume, "RaymarchedCloudMaterial") as Material;
+                if (after != null)
+                {
+                    BindReport report = TryBind(after, "CloudCoverage", target);
+                    Texture own = WrapperTexture(firstKerbinVolume);
+                    after.SetTexture("CloudCoverage", own != null ? own : Texture2D.whiteTexture);
+                    Emit("P9.after_apply_read_back_by_name", report.TookByName);
+                    Emit("P9.after_apply_read_back_by_id", report.TookById);
+                    Emit("P9.after_apply_get_log_errors", report.GetErrors + report.GetBackErrors);
+                }
+                Say("P9: " + layers.Count + " layers, " + tried + " materials tried, read back " + tookByName + ", forced Apply: " + latency + " frames, material replaced "
+                    + replaced + ", log errors Get " + getErrors + " Set " + setErrors);
             }
-            Emit("P9.rebind_latency_frames", latency);
-            Emit("P9.material_replaced_by_apply", replaced);
-            Emit("P9.onapply_fired_by_forced_apply", applyEvents > 0);
-            Say("P9: " + layers.Count + " layers, forced Apply dropped our texture after " + latency + " frames, material replaced " + replaced);
-            // A material that still holds our texture gets its own back before the target is released.
-            if (material != null && material.GetTexture("CloudCoverage") == target) material.SetTexture("CloudCoverage", chosenPrevious);
-            target.Release();
+            finally
+            {
+                Application.logMessageReceived -= callback;
+                target.Release();
+            }
         }
 
         // The size of a coverage or type map of a volumetric layer, from the wrapper's texture; "none" where there is no texture.
