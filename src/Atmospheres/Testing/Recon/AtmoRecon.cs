@@ -102,6 +102,7 @@ namespace ReDefinition.Atmospheres
             }
             if (full && spawnOk) foreach (ProbeWait w in Guard("P4", WindDrop())) yield return w;
             if (full) foreach (ProbeWait w in Guard("P2", HeightGrid())) yield return w;
+            foreach (ProbeWait w in Guard("Frame", FrameLiveness())) yield return w;
             foreach (ProbeWait w in Guard("P6", CameraChain())) yield return w;
             if (spawnOk) foreach (ProbeWait w in Guard("P10", DiscOverOcean())) yield return w;
             foreach (ProbeWait w in Guard("P8", ForeignShader())) yield return w;
@@ -119,6 +120,17 @@ namespace ReDefinition.Atmospheres
             }
             foreach (ProbeWait w in Guard("P9", EveLayers())) yield return w;
             if (full) foreach (ProbeWait w in Guard("P2more", HeightGridsOthers())) yield return w;
+            if (uiHidden)
+            {
+                try
+                {
+                    GameEvents.onShowUI.Fire();
+                }
+                catch (Exception)
+                {
+                }
+                uiHidden = false;
+            }
             Say("the scenario ended");
             host.PerFrame.Clear();
             host.EndOfFrame.Clear();

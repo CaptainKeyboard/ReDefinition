@@ -86,6 +86,10 @@ namespace ReDefinition.Atmospheres
         internal ReconFrame Frame;
         internal bool Reading;
 
+        // Read the screen instead of the flight camera's target: run2 read the same frame (luma 0.4232, peak 1.49) in every state, with
+        // the disc on and off, so the target did not follow the scene; the liveness step in AtmoRecon decides.
+        internal bool UseScreen;
+
         // Called every frame before the cameras cull; fixtures rebuild their meshes here.
         internal readonly List<Action> PerFrame = new List<Action>();
 
@@ -123,7 +127,7 @@ namespace ReDefinition.Atmospheres
             try
             {
                 Camera camera = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-                RenderTexture target = camera != null ? camera.targetTexture : null;
+                RenderTexture target = camera != null && !UseScreen ? camera.targetTexture : null;
                 Color[] pixels;
                 int width, height;
                 if (target != null)

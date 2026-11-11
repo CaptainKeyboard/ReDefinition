@@ -474,10 +474,13 @@ namespace ReDefinition.Atmospheres
         {
             try
             {
+                // Compared by id: ShaderTagId.name read empty for every shader of run2's survey, including the plainly lit ones (Parallax,
+                // Deferred, the scenery diffuse), so no shader of a mod passed the lit test in either start.
                 var tag = new ShaderTagId("LightMode");
+                var wanted = new ShaderTagId(mode);
                 for (int pass = 0; pass < shader.passCount; pass++)
                 {
-                    if (shader.FindPassTagValue(pass, tag).name == mode) return true;
+                    if (shader.FindPassTagValue(pass, tag) == wanted) return true;
                 }
             }
             catch (Exception)

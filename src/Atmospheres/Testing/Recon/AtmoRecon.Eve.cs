@@ -91,9 +91,14 @@ namespace ReDefinition.Atmospheres
                 bool hasProperty = candidate.HasProperty("CloudCoverage");
                 Texture previous = hasProperty ? candidate.GetTexture("CloudCoverage") : null;
                 candidate.SetTexture("CloudCoverage", target);
-                bool took = candidate.GetTexture("CloudCoverage") == target;
+                Texture got = candidate.GetTexture("CloudCoverage");
+                bool took = got == target;
                 candidate.SetTexture("CloudCoverage", previous);
-                EmitText("P9.material." + layerName, candidate.shader.name + ", CloudCoverage " + (hasProperty ? "present" : "absent") + ", takes a render texture " + took);
+                // Run2: the property is present on all eight materials and none held the render texture. What it held instead says whether
+                // the assignment is refused (null, the old texture) or replaced (another type).
+                EmitText("P9.material." + layerName, candidate.shader.name + ", CloudCoverage " + (hasProperty ? "present" : "absent") + ", takes a render texture " + took
+                         + ", read back " + (got == null ? "null" : got.GetType().Name + " '" + got.name + "' " + got.width + "x" + got.height)
+                         + ", before " + (previous == null ? "null" : previous.GetType().Name + " '" + previous.name + "'") + ", target created " + target.IsCreated());
                 if (took && material == null)
                 {
                     chosenPrevious = previous;

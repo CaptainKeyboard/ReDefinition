@@ -50,6 +50,78 @@ namespace ReDefinition.Atmospheres
 
         private const int TapWidth = 256, TapHeight = 144;
 
+        private bool uiHidden;
+
+        // Whether the frame the probe reads follows the scene. Run2 read one frame (luma 0.4232, peak 1.49) in every state of P7, P8 and
+        // P10, with the disc on and off: the target of the flight camera did not change. A flat coloured wall is put in front of the camera
+        // and the centre of the frame is read with and without it from the camera's target and from the screen; the source that sees the
+        // wall is used from then on (the screen with the interface hidden).
+        private IEnumerable<ProbeWait> FrameLiveness()
+        {
+            Vessel pod = FlightGlobals.ActiveVessel;
+            Shader flat = Shader.Find("Hidden/Internal-Colored");
+            if (pod == null || flat == null)
+            {
+                EmitText("Env.frame_source", "unknown: no vessel or no flat shader");
+                yield break;
+            }
+            PlaceCamera(60f, 8f, 90f);
+            yield return ProbeWait.Seconds(3);
+            Camera main = FlightCamera.fetch.mainCamera;
+            var without = new double[2];
+            var with = new double[2];
+            for (int mode = 0; mode < 2; mode++)
+            {
+                host.UseScreen = mode == 1;
+                foreach (ProbeWait w in Capture()) yield return w;
+                without[mode] = lastFrame != null ? Mean(lastFrame.Lumas(0.5, 0.5, 0.04, 0.04)) : double.NaN;
+            }
+            var material = new Material(flat) { color = new Color(1f, 0.2f, 0.2f, 1f) };
+            Vector3d cameraAt = main.transform.position, forward = main.transform.forward;
+            var wall = new ReconBall(pod, cameraAt + forward * 4.0 - pod.CoMD, 3f, material, 0);
+            Action follow = wall.Update;
+            host.PerFrame.Add(follow);
+            yield return ProbeWait.Frames(SettleFrames);
+            for (int mode = 0; mode < 2; mode++)
+            {
+                host.UseScreen = mode == 1;
+                foreach (ProbeWait w in Capture()) yield return w;
+                with[mode] = lastFrame != null ? Mean(lastFrame.Lumas(0.5, 0.5, 0.04, 0.04)) : double.NaN;
+            }
+            host.PerFrame.Remove(follow);
+            wall.Destroy();
+            UnityEngine.Object.Destroy(material);
+            bool liveTarget = Math.Abs(with[0] - without[0]) > 0.03, liveScreen = Math.Abs(with[1] - without[1]) > 0.03;
+            Emit("Env.frame_luma_target_without", without[0]);
+            Emit("Env.frame_luma_target_with", with[0]);
+            Emit("Env.frame_luma_screen_without", without[1]);
+            Emit("Env.frame_luma_screen_with", with[1]);
+            Emit("Env.frame_live_target", liveTarget);
+            Emit("Env.frame_live_screen", liveScreen);
+            host.UseScreen = !liveTarget && liveScreen;
+            if (host.UseScreen)
+            {
+                try
+                {
+                    GameEvents.onHideUI.Fire();
+                    uiHidden = true;
+                }
+                catch (Exception e)
+                {
+                    Say("the interface could not be hidden (" + e.GetType().Name + " " + e.Message + ")");
+                }
+            }
+            EmitText("Env.frame_source", host.UseScreen ? "screen" : liveTarget ? "target" : "target (neither source saw the wall)");
+        }
+
+        private static double Mean(List<float> values)
+        {
+            if (values == null || values.Count == 0) return double.NaN;
+            double sum = 0;
+            foreach (float v in values) sum += v;
+            return sum / values.Count;
+        }
+
         private IEnumerable<ProbeWait> CameraChain()
         {
             PlaceCamera(60f, 8f, 90f);
