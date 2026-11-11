@@ -62,14 +62,14 @@ namespace ReDefinition.Atmospheres
             Transform at = listener.transform;
 
             // Path A.
-            var goA = new GameObject("ReDefinition recon audio A");
+            GameObject goA = ReconMesh.Track(new GameObject("ReDefinition recon audio A"));
             object clipA = ReconDyn.CallStatic(audioClipType, "Create", "recon A", 4800, 1, 48000, false);
             object sourceA = goA.AddComponent(audioSourceType);
             ReconTone tone = goA.AddComponent<ReconTone>();
             ConfigureSource(sourceA, clipA);
 
             // Path B.
-            var goB = new GameObject("ReDefinition recon audio B");
+            GameObject goB = ReconMesh.Track(new GameObject("ReDefinition recon audio B"));
             var stream = new StreamTone();
             Type callbackType = audioClipType.GetNestedType("PCMReaderCallback");
             object sourceB = goB.AddComponent(audioSourceType);
@@ -134,6 +134,7 @@ namespace ReDefinition.Atmospheres
             {
                 FlightDriver.SetPause(true, false);
                 paused = true;
+                pausedByProbe = true;
             }
             catch (Exception e)
             {
@@ -145,7 +146,11 @@ namespace ReDefinition.Atmospheres
             Emit("P5.time_scale_paused", Time.timeScale);
             foreach (ProbeWait w in ReadOutput(6)) yield return w;
             Emit("P5.pause_rms", Math.Max(outputL, outputR));
-            if (paused) FlightDriver.SetPause(false, false);
+            if (paused)
+            {
+                FlightDriver.SetPause(false, false);
+                pausedByProbe = false;
+            }
             tone.On = false;
             stream.On = false;
             yield return ProbeWait.Frames(10);

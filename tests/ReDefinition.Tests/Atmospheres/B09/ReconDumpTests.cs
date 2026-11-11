@@ -46,8 +46,8 @@ namespace ReDefinition.Tests.Atmospheres.B09
             foreach (Dictionary<string, object> row in rows)
             {
                 string metric = (string)row["metric"];
-                Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(metric, @"^P\d+\."), metric);
-                premises.Add(metric.Substring(0, metric.IndexOf('.')));
+                Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(metric, @"^(P\d+|Env)\."), metric);
+                if (metric.StartsWith("P")) premises.Add(metric.Substring(0, metric.IndexOf('.')));
                 Assert.AreEqual("K-pre", row["series"]);
                 if (row.ContainsKey("start")) Assert.IsTrue(row["start"].Equals("run1") || row["start"].Equals("run2"), metric);
                 if (row.ContainsKey("min") && row.ContainsKey("max")) Assert.IsTrue((double)row["min"] <= (double)row["max"], metric);

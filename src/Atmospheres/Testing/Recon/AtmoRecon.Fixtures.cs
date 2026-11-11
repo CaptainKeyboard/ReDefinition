@@ -249,14 +249,16 @@ namespace ReDefinition.Atmospheres
         // Two cases: two balls in the air (stock KSP/Diffuse and Unity's Legacy Diffuse, swapped between two shots), and the pod's own
         // renderers dressed in each shader with the pod's texture. The ratio of the foreign to the stock luminance is the row; the one
         // furthest from 1 counts. Terrain is not tried: the camera cannot be aimed at land reliably, and the shader path is the same.
+        // Two foreign shaders: a surface shader with a deferred pass (the row), and a lit shader without one, which the game draws in its
+        // forward step after the lighting (the ratio is informative: what a shell shader without a deferred pass would look like).
         private IEnumerable<ProbeWait> ForeignShader()
         {
-            Vessel vessel = FlightGlobals.ActiveVessel;
-            CelestialBody body = vessel.mainBody;
             Shader stock = FirstShader("KSP/Diffuse", "KSP/Bumped Specular", "KSP/Specular");
             Shader foreign = FirstShader("Legacy Shaders/Diffuse", "Diffuse", "Standard");
+            Shader forwardOnly = FirstShader("Legacy Shaders/VertexLit", "Mobile/VertexLit", "VertexLit");
             EmitText("P8.stock_shader", stock != null ? stock.name : "none");
             EmitText("P8.foreign_shader", foreign != null ? foreign.name : "none");
+            EmitText("P8.forward_only_shader", forwardOnly != null ? forwardOnly.name : "none");
             Emit("P8.shaders_found", stock != null && foreign != null);
             if (stock == null || foreign == null) yield break;
             if (!Daylight)
@@ -264,6 +266,17 @@ namespace ReDefinition.Atmospheres
                 EmitText("P8.error", "the sun is " + Num(sunElevation) + " degrees over the pod: no daylight for the shader test");
                 yield break;
             }
+            foreach (ProbeWait w in ShaderCase(stock, foreign, "")) yield return w;
+            if (forwardOnly != null)
+            {
+                foreach (ProbeWait w in ShaderCase(stock, forwardOnly, "forward_")) yield return w;
+            }
+        }
+
+        private IEnumerable<ProbeWait> ShaderCase(Shader stock, Shader foreign, string key)
+        {
+            Vessel vessel = FlightGlobals.ActiveVessel;
+            CelestialBody body = vessel.mainBody;
 
             // The balls.
             PlaceCamera(60f, 0f, 90f);
@@ -312,11 +325,11 @@ namespace ReDefinition.Atmospheres
             {
                 double stockLuma = stockSum / shots, foreignLuma = foreignSum / shots;
                 ballRatio = foreignLuma / Math.Max(1e-5, stockLuma);
-                Emit("P8.ball_stock_luma", stockLuma);
-                Emit("P8.ball_foreign_luma", foreignLuma);
-                Emit("P8.ball_luma_ratio", ballRatio);
-                Emit("P8.frame_peak", peak);
-                Say("P8: balls, stock " + stockLuma.ToString("0.###") + " foreign " + foreignLuma.ToString("0.###"));
+                Emit("P8." + key + "ball_stock_luma", stockLuma);
+                Emit("P8." + key + "ball_foreign_luma", foreignLuma);
+                Emit("P8." + key + "ball_luma_ratio", ballRatio);
+                Emit("P8." + key + "frame_peak", peak);
+                Say("P8 " + key + "balls: stock " + stockLuma.ToString("0.###") + " other " + foreignLuma.ToString("0.###") + ", peak " + peak.ToString("0.##"));
             }
 
             // The part.
@@ -359,10 +372,10 @@ namespace ReDefinition.Atmospheres
                 }
                 for (int i = 0; i < renderers.Length; i++) renderers[i].sharedMaterials = originals[i];
                 partRatio = luma[0] > 1e-5 ? luma[1] / luma[0] : double.NaN;
-                Emit("P8.part_stock_luma", luma[0]);
-                Emit("P8.part_foreign_luma", luma[1]);
-                Emit("P8.part_luma_ratio", partRatio);
-                Say("P8: pod, stock " + luma[0].ToString("0.###") + " foreign " + luma[1].ToString("0.###"));
+                Emit("P8." + key + "part_stock_luma", luma[0]);
+                Emit("P8." + key + "part_foreign_luma", luma[1]);
+                Emit("P8." + key + "part_luma_ratio", partRatio);
+                Say("P8 " + key + "pod: stock " + luma[0].ToString("0.###") + " other " + luma[1].ToString("0.###"));
             }
 
             // The row is the case furthest from 1; where one case could not be read, the other.
@@ -372,8 +385,8 @@ namespace ReDefinition.Atmospheres
                 if (double.IsNaN(ratio)) continue;
                 if (double.IsNaN(worst) || Math.Abs(ratio - 1.0) > Math.Abs(worst - 1.0)) worst = ratio;
             }
-            if (!double.IsNaN(worst)) Emit("P8.luma_ratio", worst);
-            else EmitText("P8.error", "no case could be read");
+            if (!double.IsNaN(worst)) Emit("P8." + key + "luma_ratio", worst);
+            else EmitText("P8." + key + "error", "no case could be read");
         }
 
         // ---------------------------------------------------------------- P12: ambient factor

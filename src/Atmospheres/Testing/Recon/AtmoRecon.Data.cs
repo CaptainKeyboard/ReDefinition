@@ -167,10 +167,46 @@ namespace ReDefinition.Atmospheres
             Say("P1: " + samples + " samples, " + finite + " finite, KSC " + Num(kmin) + " to " + Num(kmax) + " K");
         }
 
-        private static double Temperature(CelestialBody body, double latitude, double longitude, double altitude)
+        private double Temperature(CelestialBody body, double latitude, double longitude, double altitude)
         {
-            Vector3d position = body.position + body.GetRelSurfacePosition(latitude, longitude, altitude);
-            return body.GetFullTemperature(position);
+            return body.GetFullTemperature(SurfacePoint(body, latitude, longitude, altitude));
+        }
+
+        // Which way a surface point is made, per body: 1 = GetWorldSurfacePosition (carries the body's rotation, which the sun term of the
+        // temperature depends on: the local hour), 2 = body.position + GetRelSurfacePosition. Each is checked once by reading the altitude and
+        // latitude back from the point; the first that agrees is used. [VERIFY] the plan does not say which frame these methods use.
+        private readonly Dictionary<string, int> positionMethod = new Dictionary<string, int>();
+
+        private Vector3d SurfacePoint(CelestialBody body, double latitude, double longitude, double altitude)
+        {
+            int method;
+            if (!positionMethod.TryGetValue(body.bodyName, out method))
+            {
+                method = ChoosePositionMethod(body);
+                positionMethod[body.bodyName] = method;
+            }
+            return method == 2 ? body.position + body.GetRelSurfacePosition(latitude, longitude, altitude) : body.GetWorldSurfacePosition(latitude, longitude, altitude);
+        }
+
+        private int ChoosePositionMethod(CelestialBody body)
+        {
+            const double lat = 20.0, lon = 40.0, alt = 1000.0;
+            Vector3d world = body.GetWorldSurfacePosition(lat, lon, alt);
+            Vector3d relative = body.position + body.GetRelSurfacePosition(lat, lon, alt);
+            bool worldOk = Math.Abs(body.GetAltitude(world) - alt) < 200.0 && Math.Abs(body.GetLatitude(world, false) - lat) < 0.5;
+            bool relativeOk = Math.Abs(body.GetAltitude(relative) - alt) < 200.0 && Math.Abs(body.GetLatitude(relative, false) - lat) < 0.5;
+            int method = worldOk ? 1 : relativeOk ? 2 : 0;
+            Emit("P1.position_method_" + body.bodyName, method);
+            Vessel pod = FlightGlobals.ActiveVessel;
+            if (pod != null && pod.mainBody == body)
+            {
+                // Against the pod itself: both candidates for its own latitude, longitude and altitude, in metres.
+                Vector3d podWorld = body.GetWorldSurfacePosition(pod.latitude, pod.longitude, pod.altitude);
+                Vector3d podRelative = body.position + body.GetRelSurfacePosition(pod.latitude, pod.longitude, pod.altitude);
+                Emit("P1.frame_error_world_m", (podWorld - pod.CoMD).magnitude);
+                Emit("P1.frame_error_relative_m", (podRelative - pod.CoMD).magnitude);
+            }
+            return method == 0 ? 1 : method;
         }
 
         // The length of the body's year: the period of the ancestor that orbits the star (a moon follows its planet's seasons).
@@ -250,7 +286,7 @@ namespace ReDefinition.Atmospheres
             {
                 watch.Reset();
                 watch.Start();
-                while (done < heights.Length && watch.ElapsedMilliseconds < 8)
+                while (done < heights.Length && watch.ElapsedMilliseconds < 14)
                 {
                     int row = done / width, column = done % width;
                     double latitude = -90.0 + (row + 0.5) * 180.0 / height, longitude = -180.0 + (column + 0.5) * 360.0 / width;

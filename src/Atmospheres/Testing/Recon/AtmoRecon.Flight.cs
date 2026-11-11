@@ -161,7 +161,9 @@ namespace ReDefinition.Atmospheres
             double ut = Planetarium.GetUniversalTime();
             // The Mk1 pod has no parachute of its own: the Mk16 (parachuteSingle) sits on its top node. The saved form of a stack
             // attachment is the index of the other part: the pod (part 0) lists "attN = top, 1", the canopy "attN = bottom, 0", and the
-            // canopy's place is the pod's top node (0.6424 m) plus the canopy's bottom node (0.1206 m) below its own origin.
+            // canopy's place is the pod's top node (0.6423756 m, scale 1) plus the canopy's bottom node below its own origin: 0.120649 m
+            // times the canopy's scale of 0.1, as KSP multiplies the node positions of a part by its scale (the Mk16-XL sits 0.0021 m
+            // over its parent's node in the saved vessels).
             uint podId = ShipConstruction.GetUniqueFlightID(game.flightState);
             uint canopyId = ShipConstruction.GetUniqueFlightID(game.flightState);
             if (canopyId == podId) canopyId = podId + 1;
@@ -173,7 +175,7 @@ namespace ReDefinition.Atmospheres
             pod.AddValue("attN", "top, 1");
             pod.AddValue("attN", "bottom, -1");
             canopy.SetValue("parent", "0", true);
-            canopy.SetValue("position", "0,0.763025,0", true);
+            canopy.SetValue("position", "0,0.6544405,0", true);
             canopy.SetValue("rotation", "0,0,0,1", true);
             canopy.RemoveValues("attN");
             canopy.AddValue("attN", "bottom, 0");

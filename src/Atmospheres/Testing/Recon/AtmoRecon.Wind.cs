@@ -168,16 +168,24 @@ namespace ReDefinition.Atmospheres
             for (int i = descent.Count - tail; i < descent.Count; i++) vt += descent[i] / tail;
             double g = body.gravParameter / ((body.Radius + vessel.altitude) * (body.Radius + vessel.altitude));
             Emit("P4.chute_vt_ms", vt);
+            double alongA = AlongBearing(eastA, northA);
             Emit("P4.control_east_m", eastA);
             Emit("P4.control_north_m", northA);
+            Emit("P4.control_along_m", alongA);
             Emit("P4.control_drag_mag", controlDrag);
             double predictedA = ReconMath.PredictChuteDrift(WindSpeed, vt, g, ControlSeconds);
-            Emit("P4.control_ratio", predictedA > 0 ? Math.Abs(eastA) / predictedA : double.NaN);
+            Emit("P4.control_ratio", predictedA > 0 ? Math.Abs(alongA) / predictedA : double.NaN);
 
-            // Wind from the west, along the local east at the pod, fixed in world axes for the period.
-            Vector3d east = body.GetRelSurfaceNVector(vessel.latitude, vessel.longitude + 0.001) - body.GetRelSurfaceNVector(vessel.latitude, vessel.longitude);
-            east.Normalize();
-            ReconWindHook.Wind = (Vector3)east * (float)WindSpeed;
+            // The wind blows along the bearing from the pad to the pod (away from the coast, so that the canopy comes down at sea). The
+            // north and east at the pod come from the world positions of two nearby places, which carry the body's rotation and need no
+            // assumption about the handedness of the axes; the wind is fixed in world axes for the period.
+            Vector3d here = body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude, vessel.altitude);
+            Vector3d northDirection = (body.GetWorldSurfacePosition(vessel.latitude + 0.001, vessel.longitude, vessel.altitude) - here).normalized;
+            Vector3d eastDirection = (body.GetWorldSurfacePosition(vessel.latitude, vessel.longitude + 0.001, vessel.altitude) - here).normalized;
+            double bearing = coastBearing * Math.PI / 180.0;
+            Vector3d windDirection = (northDirection * Math.Cos(bearing) + eastDirection * Math.Sin(bearing)).normalized;
+            ReconWindHook.Wind = (Vector3)windDirection * (float)WindSpeed;
+            Emit("P4.wind_bearing_deg", coastBearing);
             ReconWindHook.Shifted = 0;
             ReconWindHook.Samples = 0;
             ReconWindHook.SumDragMagnitude = ReconWindHook.SumDragScalar = 0;
@@ -190,15 +198,17 @@ namespace ReDefinition.Atmospheres
             Displacement(body, lat0, lon0, vessel.latitude, vessel.longitude, vessel.altitude, out eastB, out northB);
             double windDrag = ReconWindHook.Samples > 0 ? ReconWindHook.SumDragMagnitude / ReconWindHook.Samples : double.NaN;
             double predicted = ReconMath.PredictChuteDrift(WindSpeed, vt, g, WindSeconds);
+            double alongB = AlongBearing(eastB, northB);
             Emit("P4.wind_east_m", eastB);
             Emit("P4.wind_north_m", northB);
+            Emit("P4.wind_along_m", alongB);
             Emit("P4.wind_predicted_m", predicted);
-            Emit("P4.wind_error_rel", predicted > 0 ? Math.Abs(eastB - predicted) / predicted : double.NaN);
+            Emit("P4.wind_error_rel", predicted > 0 ? Math.Abs(alongB - predicted) / predicted : double.NaN);
             Emit("P4.wind_drag_mag", windDrag);
             Emit("P4.hook_calls", ReconWindHook.Calls);
             Emit("P4.hook_shifted", ReconWindHook.Shifted);
             Emit("P4.srf_speed_after", vessel.horizontalSrfSpeed);
-            Say("P4: vt " + Num(vt) + " m/s, control drift " + Num(eastA) + " m (model " + Num(predictedA) + "), wind drift " + Num(eastB)
+            Say("P4: vt " + Num(vt) + " m/s, control drift " + Num(alongA) + " m (model " + Num(predictedA) + "), wind drift " + Num(alongB)
                 + " m (model " + Num(predicted) + "), drop " + Num(altitudeB - vessel.altitude) + " m");
 
             // On down to the sea, for the flight that follows.
@@ -208,15 +218,23 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Seconds(8);
         }
 
-        // Calls an action every frame for the game-time seconds given.
+        // Calls an action every frame for the game-time seconds given; real time caps it, so that a clock that stops cannot hold the probe.
         private IEnumerable<ProbeWait> SampleFor(double seconds, Action each)
         {
             double end = Planetarium.GetUniversalTime() + seconds;
-            while (Planetarium.GetUniversalTime() < end)
+            double realEnd = Time.realtimeSinceStartup + 3.0 * seconds + 20.0;
+            while (Planetarium.GetUniversalTime() < end && Time.realtimeSinceStartup < realEnd)
             {
                 if (each != null) each();
                 yield return ProbeWait.Frames(1);
             }
+        }
+
+        // The part of a displacement (east, north in metres) that lies along the compass bearing of the wind.
+        private double AlongBearing(double east, double north)
+        {
+            double b = coastBearing * Math.PI / 180.0;
+            return east * Math.Sin(b) + north * Math.Cos(b);
         }
 
         // The ground distance moved east and north between two places, in metres, on a body at an altitude.

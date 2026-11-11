@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace ReDefinition.Atmospheres
@@ -8,6 +9,24 @@ namespace ReDefinition.Atmospheres
     // place in the air. Both follow the floating origin: their positions are recomputed from the body every frame.
     internal static class ReconMesh
     {
+        private static readonly List<GameObject> tracked = new List<GameObject>();
+
+        // Registers an object of the probe so that the step that made it can be cleaned up after, whatever happened inside it.
+        internal static GameObject Track(GameObject go)
+        {
+            tracked.Add(go);
+            return go;
+        }
+
+        internal static void DestroyTracked()
+        {
+            foreach (GameObject go in tracked)
+            {
+                if (go != null) UnityEngine.Object.Destroy(go);
+            }
+            tracked.Clear();
+        }
+
         // A UV sphere of the given radius around the origin, with normals.
         internal static Mesh Sphere(float radius, int segments, int rings)
         {
@@ -105,7 +124,7 @@ namespace ReDefinition.Atmospheres
             this.offset = offset;
             this.radiusMetres = radiusMetres;
             this.liftMetres = liftMetres;
-            go = new GameObject("ReDefinition recon disc");
+            go = ReconMesh.Track(new GameObject("ReDefinition recon disc"));
             go.layer = layer;
             mesh = new Mesh { name = "recon disc" };
             mesh.vertices = vertices;
@@ -181,7 +200,7 @@ namespace ReDefinition.Atmospheres
         {
             this.vessel = vessel;
             this.offset = offset;
-            go = new GameObject("ReDefinition recon ball");
+            go = ReconMesh.Track(new GameObject("ReDefinition recon ball"));
             go.layer = layer;
             go.AddComponent<MeshFilter>().sharedMesh = ReconMesh.Sphere(radius, 32, 20);
             MeshRenderer renderer = go.AddComponent<MeshRenderer>();

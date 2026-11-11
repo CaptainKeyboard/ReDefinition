@@ -62,7 +62,14 @@ namespace ReDefinition.Atmospheres
             scattererPresent = AssemblyLoaded("Scatterer");
             host = ReconHost.Get();
             Say("start " + dumpPrefix + ", " + (full ? "full" : "reduced") + " mod set, Scatterer " + (scattererPresent ? "present" : "absent"));
-            ReportEnvironment();
+            try
+            {
+                ReportEnvironment();
+            }
+            catch (Exception e)
+            {
+                Say("the environment could not be reported (" + e.GetType().Name + " " + e.Message + ")");
+            }
 
             // The wind hook registers before the first flight starts: the integrator reads its overrides when a vessel is built.
             if (full) ReconWindHook.Register(Say);
@@ -74,6 +81,7 @@ namespace ReDefinition.Atmospheres
                 yield break;
             }
 
+            KeepRenderSettings();
             try
             {
                 DumpBodies();
@@ -111,6 +119,14 @@ namespace ReDefinition.Atmospheres
         // try block with a catch.
         private IEnumerable<ProbeWait> Guard(string id, IEnumerable<ProbeWait> body)
         {
+            // The start has 20 minutes and the game needs about two to come up: a step that would begin after 14 minutes of the scenario is
+            // left out, so that the later steps and the verdict are not lost to the clock.
+            if (id != "flight" && Elapsed > StepBudgetSeconds)
+            {
+                Say(id + " left out: " + Num(Elapsed) + " s of the scenario are gone");
+                EmitText(id + ".error", "left out: the start ran out of time");
+                yield break;
+            }
             IEnumerator<ProbeWait> e = body.GetEnumerator();
             Say(id + " begins");
             bool stopped = false;
@@ -131,7 +147,54 @@ namespace ReDefinition.Atmospheres
                 if (!more) break;
                 yield return e.Current;
             }
+            CleanUp();
             if (!stopped) Say(id + " ended");
+        }
+
+        private const double StepBudgetSeconds = 14 * 60;
+
+        // What the fixtures leave: per-frame hooks, discs, balls, audio objects, the render settings the tests change, a wind, a pause.
+        private void CleanUp()
+        {
+            try
+            {
+                host.PerFrame.Clear();
+                host.EndOfFrame.Clear();
+                ReconMesh.DestroyTracked();
+                ReconWindHook.Wind = Vector3.zero;
+                if (renderSettingsKept)
+                {
+                    RenderSettings.fog = keptFog;
+                    RenderSettings.fogMode = keptFogMode;
+                    RenderSettings.fogDensity = keptFogDensity;
+                    RenderSettings.fogColor = keptFogColour;
+                    RenderSettings.ambientIntensity = keptAmbientIntensity;
+                }
+                if (pausedByProbe)
+                {
+                    pausedByProbe = false;
+                    FlightDriver.SetPause(false, false);
+                }
+            }
+            catch (Exception e)
+            {
+                Say("the clean-up failed (" + e.GetType().Name + " " + e.Message + ")");
+            }
+        }
+
+        private bool renderSettingsKept, pausedByProbe, keptFog;
+        private UnityEngine.FogMode keptFogMode;
+        private float keptFogDensity, keptAmbientIntensity;
+        private Color keptFogColour;
+
+        private void KeepRenderSettings()
+        {
+            keptFog = RenderSettings.fog;
+            keptFogMode = RenderSettings.fogMode;
+            keptFogDensity = RenderSettings.fogDensity;
+            keptFogColour = RenderSettings.fogColor;
+            keptAmbientIntensity = RenderSettings.ambientIntensity;
+            renderSettingsKept = true;
         }
 
         private void Say(string message)
