@@ -1,0 +1,364 @@
+{
+  "$schema": "../schema.json",
+  "package": "D32",
+  "rows": [
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.lamps_known",
+      "min": 1,
+      "note": "the lamp discovery found spot or point lights on the vessels in reach (the series craft carries lights)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.clear_air_draws",
+      "equals": 0,
+      "note": "clear air: no lamp is drawn (sigma below 1e-4, zero cost)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.clear_air_buffers",
+      "equals": 0,
+      "note": "clear air: no command buffer is attached on the flight camera (0 = false)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.clear_air_sigma",
+      "max": 0.0001,
+      "required": false,
+      "note": "clear air: the medium at the first lamp is below the least sigma (informative: the fog of a clear day)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.snow_forced",
+      "equals": 1,
+      "note": "the test forcing of the field took the snow disc"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.snow_level",
+      "min": 0.25,
+      "note": "the weather view reached a level of at least 0.25 in the forced snow"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.snow_draws",
+      "min": 1,
+      "variant": "all",
+      "note": "snow, all sources: at least one lamp is drawn"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.snow_buffers",
+      "equals": 1,
+      "variant": "all",
+      "note": "snow: the depth-copy and draw buffers are attached (1 = true)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.snow_depth_copies",
+      "min": 1,
+      "variant": "all",
+      "note": "snow: the depth copy was recorded in the 30 frames after the variant settled"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.mode_scene",
+      "equals": 1,
+      "variant": "all",
+      "note": "weatherCompose Auto resolves to Scene while no player metrics are recorded for the vendor (1 = Scene)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.light_sigma_fog",
+      "min": 0,
+      "variant": "fog",
+      "unit": "1/m",
+      "note": "fog alone: sigma of the fog source at the first lamp, 1/m (ATMORESULT light_sigma_fog) (informative: it reads zero where the source is absent, so the row has no verdict beyond being present)",
+      "required": false
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.light_sigma_snow",
+      "min": 0.0001,
+      "variant": "snow",
+      "unit": "1/m",
+      "note": "snow alone: sigma of the precipitation source at the first lamp, present in snow (ATMORESULT light_sigma_snow)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.light_sigma_cloud",
+      "min": 0,
+      "variant": "cloud",
+      "unit": "1/m",
+      "note": "cloud alone: sigma of the cloud source at the first lamp, 1/m (ATMORESULT light_sigma_cloud); zero outside a cloud (informative: it reads zero where the source is absent, so the row has no verdict beyond being present)",
+      "required": false
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.light_sigma_dust",
+      "min": 0,
+      "variant": "dust",
+      "unit": "1/m",
+      "note": "dust alone: the body's constant haze at the first lamp, 1/m (informative: it reads zero where the source is absent, so the row has no verdict beyond being present)",
+      "required": false
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.light_sigma_total",
+      "min": 0,
+      "unit": "1/m",
+      "note": "the sum of the sources enabled by the variant, at the first lamp (informative: it reads zero where the source is absent, so the row has no verdict beyond being present)",
+      "required": false
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cloud_density_max",
+      "min": 0,
+      "required": false,
+      "note": "the cloud density the lamp reads (volume pass and EVE layers) at the best of 64 places round the vessel, 0.5 to 4 km up; flying into a cloud is not scripted, so zero only means the sampled places were clear"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cloud_sigma_max",
+      "min": 0,
+      "required": false,
+      "unit": "1/m",
+      "note": "the sigma that density gives"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.eve_layers",
+      "min": 0,
+      "required": false,
+      "note": "the number of non-emissive EVE layers the lamp medium reads (0 without EVE)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.cpu_ms",
+      "max": 0.05,
+      "required": false,
+      "unit": "ms",
+      "note": "the module's frame work, averaged (budget 0.05 ms; EVE's reflective sampling at 10 Hz is the part to watch)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "zero.empty_buffer_at_sigma_0",
+      "equals": 1,
+      "note": "player (series lamp): a lamp at sigma 0 records no draw (empty buffer)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "zero.delta_at_sigma_0",
+      "max": 1e-06,
+      "note": "player: the frame with the lamp at sigma 0 equals the frame without it"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "beam.rises_with_sigma",
+      "equals": 1,
+      "note": "player: beam luminance rises with sigma over 0.002 to 0.05, each step above the one before"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "beam.cpu_deviation_sigma_0.02",
+      "max": 0.1,
+      "note": "player: the mean over the beam's region against the CPU march of LampMath.BeamRadiance"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "beam.stays_warm",
+      "equals": 1,
+      "note": "player: the added light keeps the lamp's warm colour (red above blue)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "cloud.camera_sigma_dim_ratio",
+      "max": 0.8,
+      "note": "player: a sigma of 0.08 at the camera dims the beam to at most 80 %"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "glint.spread_ratio",
+      "min": 1.5,
+      "note": "player: the glints raise the fine spread of the luma at least 1.5 times"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "contrib.blue_in_beam",
+      "min": 0.01,
+      "note": "player: atmoDebug contrib paints the beam blue (feature id 3)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "wall.hidden_share",
+      "max": 0.05,
+      "note": "player: a wall between camera and beam leaves at most 5 % of the open beam behind it"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "host.parity_dev",
+      "max": 0.05,
+      "note": "player: the Host composite against the Scene composite, relative difference of the added luminance (measured 1e-5 on 2026-11-11)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "host.pixel_correlation",
+      "min": 0.98,
+      "note": "player: the Host picture correlates with the Scene picture over the beam's region with an off-centre occluder in front of it (measured 1.0)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "host.occluder_effect",
+      "max": 0.9,
+      "note": "player: the occluded beam is at most 90 % of the open beam, so that the depth clip is exercised (measured 0.867)"
+    },
+    {
+      "series": "player-D32",
+      "section": "D32",
+      "metric": "host.depth_present",
+      "equals": 1,
+      "note": "player: the scene's depth texture is bound at the end of the frame (the Host check is not run without it)"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
+      "metric": "lamp_ms_2560x1440_4",
+      "max": 0.5,
+      "unit": "ms",
+      "note": "player (series lamp-time, exclusive): four lamps in snow at 2560x1440 add at most 0.5 ms of GPU time, judged on the upper 95 % bound of 8 alternating on/off differences (mean 0.124 ms, bound 0.178 ms measured on 2026-11-11, with the depth copy)"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
+      "metric": "gpu_ms.noise_of_the_differences",
+      "max": 0.15,
+      "unit": "ms",
+      "note": "player (lamp-time): the spread of the on/off differences, so that the cost is read against the timer's own noise (0.064 ms measured)"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
+      "metric": "timer.sensitive_to_16_lamps",
+      "min": 0.15,
+      "unit": "ms",
+      "note": "player (lamp-time): sixteen lamps cost at least 0.15 ms more than none, so that the timer sees the lamps (1.19 ms measured)"
+    },
+    {
+      "series": "player-D32-time",
+      "section": "D32",
+      "metric": "lamps_draw_into_the_target",
+      "min": 0.002,
+      "note": "player (lamp-time): the lamps add light to the 2560x1440 target, so that a low cost is a cheap draw"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.smear_frames_dlss_20degps",
+      "max": 3,
+      "required": false,
+      "unit": "frames",
+      "note": "OPEN (owner E40, proxy run): frames of smear of the beam after a 20 degree per second turn under DLSS K/M/L; at most 3 keeps the Scene composite, else Host (lamp.hostProven.<vendor>)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.ghost_vs_baseline",
+      "max": 1.2,
+      "required": false,
+      "note": "OPEN (owner E40): ghost metrics with the lamp on against the baseline without it, at most 1.2 (baseline + 20 %)"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.fg_duplicates_vs_baseline",
+      "max": 1.2,
+      "required": false,
+      "note": "OPEN (owner E40): frame-generation duplicates with the lamp on against the baseline, at most 1.2"
+    },
+    {
+      "series": "K-W3b",
+      "section": "D32",
+      "package": "D32",
+      "start": "lights",
+      "metric": "D32.depth_copy_varies",
+      "min": 0.001,
+      "required": false,
+      "note": "the lamp's copy of the scene depth (made at BeforeForwardAlpha by a shader pass) holds different values at nine places of the picture; a copy of one value is not a copy of a scene [VERIFY: RECON P6 measured command-buffer taps, not a material that reads the global]; a flight with sky and ground in view is assumed"
+    }
+  ]
+}

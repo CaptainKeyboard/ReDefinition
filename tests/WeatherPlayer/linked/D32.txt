@@ -1,0 +1,7 @@
+# Linked into the weather player for the lamp scatter (D32): the pure maths (vectors, sigma sources, phase, beam geometry), the draw
+# pass (engine only) and its shader, and the Common types they use (PrecipType). The module, the medium (EVE, volume pass), the lamp
+# discovery and the probe need the game and are not linked. The contribution mask is carried inline in the shader.
+src/Atmospheres/Light/Lamp/LampMath.cs
+src/Atmospheres/Light/Lamp/LampPass.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresLamp.shader
+src/Common/Weather/PrecipScale.cs
