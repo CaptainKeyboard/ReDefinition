@@ -161,9 +161,14 @@ namespace ReDefinition.Atmospheres
         {
             Types = SchemaList.Of(types);
             bandRates = (float[])(bandRatesMmPerH ?? PlaceholderBandRates).Clone();
+            BandRatesStated = bandRatesMmPerH != null;
         }
 
         private readonly float[] bandRates;
+
+        // Whether the body's node gave the band rates. Where it did not, the weather generator's own bands (the signed ones times the body
+        // factor of its pressure) are the body's.
+        internal bool BandRatesStated { get; }
 
         // The types, in the order they are tried. Empty: the type follows the temperature only.
         internal IReadOnlyList<PrecipTypeRule> Types { get; }

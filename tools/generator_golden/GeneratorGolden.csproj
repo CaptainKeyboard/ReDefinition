@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Records the golden values of the weather generator core (tools/atmosphere-sim/AtmoSim.Core) for the tests of the game's assembly, which
+       compiles the same source. Run by tools/sync_generator_core.py; the output goes to tests/data/generator. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\atmosphere-sim\AtmoSim.Core\AtmoSim.Core.csproj" />
+  </ItemGroup>
+
+</Project>

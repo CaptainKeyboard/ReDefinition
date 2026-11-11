@@ -24,6 +24,14 @@
     <InternalsVisibleTo Include="ReDefinition.Tests" />
   </ItemGroup>
 
+  <!-- The weather generator's core is the source of the offline proof (tools/atmosphere-sim/AtmoSim.Core), compiled into this assembly as it
+       is: no copy. A new file in that folder is picked up by the pattern. tools/sync_generator_core.py re-records the golden values of
+       tests/data/generator after the core changed. -->
+  <ItemGroup>
+    <Compile Include="..\..\tools\atmosphere-sim\AtmoSim.Core\**\*.cs" Exclude="..\..\tools\atmosphere-sim\AtmoSim.Core\obj\**;..\..\tools\atmosphere-sim\AtmoSim.Core\bin\**"
+             Link="Generator\Core\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Common\ReDefinition.Common.csproj" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />

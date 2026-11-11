@@ -1,0 +1,20 @@
+{
+  "$schema": "../schema.json",
+  "package": "C25",
+  "rows": [
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.state_ready", "equals": 1, "note": "the height raster of the focused body is read from the PQS and the generator state is built (the module never starts a sphere)" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.field_in_hub", "equals": 1, "note": "WeatherHub.Field is the generator while weatherEffects and genEnabled are on" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.thermal_fit_ok", "equals": 1, "note": "GetFullTemperature(altitude, offset) with the offset of GetAtmoThermalStats gives a finite table the fit accepts (synthetic sun and up vectors, [VERIFY] against the dumps)" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.thermal_equator_minus_pole_k", "min": 20, "max": 120, "note": "the equator is warmer than the pole of the focused body" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.thermal_lapse_k_per_km", "min": 0.5, "max": 20, "note": "lapse rate from the 0 and 5000 m samples" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.profile_used", "equals": 1, "note": "the generator's annual-mean profile is the game's, not the insolation model" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.sample_nan_count", "equals": 0, "note": "2000 samples, none with a value that is not a number" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.worker_equals_main", "equals": 1, "note": "the same 2000 answers on a worker thread and on the main thread inside the game's runtime" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.sample_median_us", "max": 3, "note": "Sample median in the game's process (the proof's gate: 3 microseconds)" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.map_rendered", "equals": 1, "note": "the 512 x 256 weather maps render with finite values" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.map_render_ms", "max": 300, "note": "a 512 x 256 map update on a worker thread (the proof's gate: 300 ms)" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.map_read_ms", "max": 0.1, "note": "the main thread only copies a finished map" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.window_filled", "equals": 1, "note": "the 32 x 32 x 24 window is filled around the vessel" },
+    { "series": "K-W3a", "section": "C25", "package": "C25", "start": "run1", "metric": "C25.window_ms", "max": 5, "note": "the 3D window (the proof's gate: 5 ms)" }
+  ]
+}

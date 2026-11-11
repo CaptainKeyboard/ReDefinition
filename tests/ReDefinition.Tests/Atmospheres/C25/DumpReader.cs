@@ -30,6 +30,16 @@ namespace ReDefinition.Tests.Atmospheres.C25
             return result.ToArray();
         }
 
+        // An array of strings (the golden values are hex strings of the bits of doubles).
+        internal static string[] Strings(string json, string key)
+        {
+            Match m = Regex.Match(json, "\"" + Regex.Escape(key) + "\":\\s*\\[([^\\]]*)\\]");
+            if (!m.Success) return null;
+            var result = new List<string>();
+            foreach (Match s in Regex.Matches(m.Groups[1].Value, "\"([^\"]*)\"")) result.Add(s.Groups[1].Value);
+            return result.ToArray();
+        }
+
         internal static double Number(string json, string key)
         {
             Match m = Regex.Match(json, "\"" + Regex.Escape(key) + "\":(-?[0-9.eE+-]+)");
@@ -38,7 +48,7 @@ namespace ReDefinition.Tests.Atmospheres.C25
 
         internal static string Text(string json, string key)
         {
-            Match m = Regex.Match(json, "\"" + Regex.Escape(key) + "\":\"([^\"]*)\"");
+            Match m = Regex.Match(json, "\"" + Regex.Escape(key) + "\":\\s*\"([^\"]*)\"");
             return m.Success ? m.Groups[1].Value : null;
         }
 

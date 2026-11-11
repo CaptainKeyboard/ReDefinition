@@ -202,9 +202,9 @@ namespace ReDefinition.Tests.Atmospheres.B13
         // whose file is clean fails the test so that the list cannot go stale.
         private static readonly string[] AllowList =
         {
-            "BodyClimate.cs", "ClimateRules.cs", "SeasonClockObsolete.cs", "EveCellLayer.cs", "EveCoverageMath.cs",
-            "EveLayerStorm.cs", "EveRainLink.cs", "EveSnowLink.cs", "EveSwirlMath.cs", "GroundRebuilder.cs", "LegacyBridge.cs",
-            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs", "StormCells.cs", "StormEffect.cs", "StormModel.cs"
+            "BodyClimate.cs", "ClimateRules.cs", "SeasonClockObsolete.cs", "EveCoverageMath.cs",
+            "EveRainLink.cs", "EveSnowLink.cs", "EveSwirlMath.cs", "GroundRebuilder.cs",
+            "OrbitSnow.cs", "SnowNoise.cs", "SnowPqsMod.cs", "SnowQuads.cs", "SnowRefresher.cs", "StormEffect.cs"
         };
 
         private static string AtmospheresFolder()
