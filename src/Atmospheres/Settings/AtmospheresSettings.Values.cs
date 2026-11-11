@@ -26,6 +26,7 @@ namespace ReDefinition.Atmospheres
             set { SetNumber(Keys.YearLengthFactor, value); }
         }
 
+        internal static SeasonMode SeasonMode => E<SeasonMode>(Keys.SeasonMode);
 
         internal static QualityTier QualityTier => E<QualityTier>(Keys.QualityTier);
         internal static bool QualityGovernor => B(Keys.QualityGovernor);

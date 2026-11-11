@@ -165,6 +165,10 @@ namespace ReDefinition.Tests.Atmospheres.B13
             Assert.AreEqual(1, c.Covers.Count);
             Assert.AreEqual(CoverKind.Snow, c.Covers[0].Kind);
             Assert.IsTrue(c.Covers[0].NoWater);
+            Assert.IsTrue(c.Sim.GridLat >= BodyLimits.MinGridLat && c.Sim.GridLat <= BodyLimits.MaxGridLat, "sim grid latitude within the limits");
+            Assert.IsTrue(c.Sim.GridLon >= BodyLimits.MinGridLon && c.Sim.GridLon <= BodyLimits.MaxGridLon, "sim grid longitude within the limits");
+            Assert.IsTrue(c.Sim.Levels >= BodyLimits.MinLevels && c.Sim.Levels <= BodyLimits.MaxLevels, "sim levels within the limits");
+            Assert.IsTrue(c.Sim.StepSeconds >= BodyLimits.MinStepSeconds && c.Sim.StepSeconds <= BodyLimits.MaxStepSeconds, "sim step within the limits");
             Assert.AreEqual(12f, c.Wind.MaxWindMs);
             Assert.AreEqual(25f, c.Wind.ViolentWindMs);
             Assert.AreEqual(60f, c.Look.VisibilityMinM);

@@ -15,6 +15,7 @@ namespace ReDefinition.Atmospheres
             internal const string Enabled = "enabled";
             internal const string WeatherEffects = "weatherEffects";
             internal const string YearLengthFactor = "yearLengthFactor";
+            internal const string SeasonMode = "seasonMode";
             internal const string QualityTier = "qualityTier";
             internal const string QualityGovernor = "qualityGovernor";
             // Clouds and frequency
@@ -236,6 +237,7 @@ namespace ReDefinition.Atmospheres
                 SettingDef.Bool("enabled", true, G, "Atmospheres"),
                 SettingDef.Bool("weatherEffects", false, G, "Weather Effects"),
                 SettingDef.Float("yearLengthFactor", 1.0, 0.01, 10.0, G, "Season Year Length"),
+                SettingDef.Choice("seasonMode", typeof(SeasonMode), SeasonMode.RealSeasons, G, "Season Mode"),
                 SettingDef.Choice("qualityTier", typeof(ReDefinition.Core.QualityTier), ReDefinition.Core.QualityTier.Auto, G, "Quality Tier", "", RQ),
                 SettingDef.Bool("qualityGovernor", false, G, "Quality Governor", MASTER, RQ),
 

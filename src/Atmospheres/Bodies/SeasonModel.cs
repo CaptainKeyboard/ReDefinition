@@ -2,6 +2,19 @@ using System;
 
 namespace ReDefinition.Atmospheres
 {
+    // How the seasons run (key seasonMode; the phase each value gives is in SeasonClock.Phase with a mode).
+    internal enum SeasonMode
+    {
+        // Every body and both hemispheres stay at midsummer.
+        GlobalSummer,
+        // Every body and both hemispheres stay at midwinter.
+        GlobalWinter,
+        // One phase that follows the body's year; both hemispheres have the same season at the same time.
+        GlobalSeasons,
+        // The phase follows the body's orbit and the hemispheres are opposite where the body is tilted.
+        RealSeasons
+    }
+
     // The season phase of one body as data: what runs the clock, how long the year is, the axial tilt and the offset between the
     // hemispheres. Built by the body provider from the body's SEASONS node and the probes; immutable. The phase it gives is an input of
     // the insolation of the weather field (SubsolarLatitudeDegrees, Amplitude), not a climate of its own.
@@ -69,6 +82,15 @@ namespace ReDefinition.Atmospheres
         {
             if (!Tilted) return 0.0;
             return -TiltDegrees * Math.Cos(2.0 * Math.PI * SeasonClock.Wrap(phase));
+        }
+
+        // The seasonal term of the insolation at a local phase (see SeasonClock.Phase with a mode): Amplitude at the local midsummer
+        // (phase 0.5), minus Amplitude at the local midwinter (phase 0), 0 at the equinoxes. The fixed season modes give one local phase
+        // for all time, so the term is constant there and has no swing; the latitude of the overhead sun (SubsolarLatitudeDegrees)
+        // belongs to the real sun and is used only under RealSeasons.
+        internal double SeasonalTerm(double localPhase)
+        {
+            return -Amplitude * Math.Cos(2.0 * Math.PI * SeasonClock.Wrap(localPhase));
         }
 
         // The same model with the year multiplied by a factor (the player's global year length). A factor that is not a positive finite number counts as 1.

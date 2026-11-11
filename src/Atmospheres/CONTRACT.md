@@ -127,6 +127,7 @@ The table of `SettingsTable.All`, in the order of the window.
 | `enabled` | on | on / off | Atmospheres | - | - |
 | `weatherEffects` | off | on / off | Weather Effects | - | - |
 | `yearLengthFactor` | 1 | 0.01 to 10 | Season Year Length | - | - |
+| `seasonMode` | RealSeasons | GlobalSummer / GlobalWinter / GlobalSeasons / RealSeasons | Season Mode | - | - |
 | `qualityTier` | Auto | Auto / Low / Medium / High / Ultra / Max | Quality Tier | - | quality |
 | `qualityGovernor` | off | on / off | Quality Governor | needs-weather-effects | quality |
 

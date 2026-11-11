@@ -148,7 +148,7 @@ namespace ReDefinition.Tests
         {
             string[] named =
             {
-                "weatherEffects", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
+                "weatherEffects", "seasonMode", "cloudSource", "weatherCompose", "qualityTier", "lightWeatherFrequency", "heavyShare", "typeByTemperature", "useEveWeather",
                 "eveLayerCap", "windSource", "windInjection", "windForces", "windStrength", "windOnLanded", "gustStrength", "solarDimming", "solarDimmingStrength",
                 "visibilityExport", "simEnabled", "simGrid", "simLevels", "simSliceMs", "simSeed", "volumeResolution", "volumeSteps", "volumeCompose", "precipDensity",
                 "stormCullDistance", "fogBrightness", "lightInMedium", "lightCount", "lightInMediumStrength", "aurora", "auroraAmbientTint", "cameraFrost",
@@ -260,7 +260,7 @@ namespace ReDefinition.Tests
         {
             var pairs = new Dictionary<string, Type>
             {
-                { "cloudSource", typeof(CloudSourceKind) }, { "weatherCompose", typeof(WeatherCompose) }, { "windSource", typeof(WindSourceMode) },
+                { "seasonMode", typeof(SeasonMode) }, { "cloudSource", typeof(CloudSourceKind) }, { "weatherCompose", typeof(WeatherCompose) }, { "windSource", typeof(WindSourceMode) },
                 { "windInjection", typeof(WindInjection) }, { "volumeCompose", typeof(VolumeCompose) }, { "aurora", typeof(AuroraMode) },
                 { "audioMuffling", typeof(AudioMuffling) }, { "eveSound", typeof(EveSoundPolicy) }, { "audioBedSource", typeof(AudioBedSource) },
                 { "vehicleCover", typeof(VehicleCoverMode) }, { "seaIce", typeof(SeaIceMode) }, { "orbitBodies", typeof(OrbitBodiesMode) },

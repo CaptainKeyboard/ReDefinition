@@ -38,6 +38,35 @@ namespace ReDefinition.Atmospheres
             }
         }
 
+        // The season phase of one place under a season mode: the phase of the hemisphere that latitude lies in, where 0 is the local
+        // midwinter and 0.5 the local midsummer (latitude 0 and above counts as north; the equator has the northern phase).
+        //   GlobalSummer:  0.5 on every body that has seasons, in both hemispheres. It is a fixed seasonal state (local midsummer),
+        //                  not a fixed date: the south is in summer too, so the phase does not carry the hemisphere offset.
+        //   GlobalWinter:  0 on every body that has seasons, in both hemispheres (local midwinter).
+        //   GlobalSeasons: the body's year phase, the same value at +lat and -lat: both hemispheres have the same season at the same time.
+        //   RealSeasons:   the body's year phase; the southern hemisphere is the model's EffectiveHemisphereOffset later (half a year
+        //                  for a tilted body), so +lat and -lat are in opposite seasons.
+        // A body without seasons (no model, or a model whose clock is None) has phase 0 in every mode. A mode that is not defined counts
+        // as RealSeasons. Phase(ut, model) is RealSeasons at the northern latitudes.
+        internal static double Phase(double universalTime, SeasonModel model, SeasonMode mode, double latitudeDegrees)
+        {
+            if (model == null || model.Clock == SeasonClockKind.None) return 0;
+            switch (mode)
+            {
+                case SeasonMode.GlobalSummer:
+                    return MidSummerPhase;
+                case SeasonMode.GlobalWinter:
+                    return 0;
+                case SeasonMode.GlobalSeasons:
+                    return Phase(universalTime, model);
+                default:
+                    return HemispherePhase(Phase(universalTime, model), !(latitudeDegrees < 0), model);
+            }
+        }
+
+        // The local phase of midsummer.
+        internal const double MidSummerPhase = 0.5;
+
         // The phase of a hemisphere: the northern one is the clock's, the southern one the model's offset later.
         internal static double HemispherePhase(double phase, bool north, SeasonModel model)
         {

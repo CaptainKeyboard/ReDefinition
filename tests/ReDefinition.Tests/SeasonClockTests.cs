@@ -136,6 +136,103 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0.0, new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, false).SubsolarLatitudeDegrees(0.5));
         }
 
+        private static readonly double[] Latitudes = { 80, 45, 10, 0.5, 0, -0.5, -10, -45, -80 };
+
+        private static SeasonModel Tilted() { return new SeasonModel(SeasonClockKind.Orbit, 0, Year, 25, 0.5, false); }
+        private static SeasonModel Untilted() { return new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, false); }
+        private static SeasonModel Eccentric() { return new SeasonModel(SeasonClockKind.Orbit, 0, Year, 0, 0.5, true); }
+
+        [TestMethod]
+        public void TheFixedModesStayConstantOverAYearInBothHemispheresOnEveryBody()
+        {
+            SeasonModel[] bodies = { Tilted(), Untilted(), Eccentric(), Tilted().WithYearFactor(0.1), new SeasonModel(SeasonClockKind.Orbit, 0, Year * 3, 60, 0.2, false) };
+            foreach (SeasonModel model in bodies)
+            foreach (double lat in Latitudes)
+            for (int i = 0; i <= 400; i++)
+            {
+                double ut = i * model.YearSeconds / 100.0;
+                Assert.AreEqual(0.5, SeasonClock.Phase(ut, model, SeasonMode.GlobalSummer, lat), 1e-12, "midsummer at lat " + lat);
+                Assert.AreEqual(0.0, SeasonClock.Phase(ut, model, SeasonMode.GlobalWinter, lat), 1e-12, "midwinter at lat " + lat);
+            }
+        }
+
+        [TestMethod]
+        public void TheFixedModesGiveNoSwingAndMidsummerIsWarmerThanMidwinter()
+        {
+            SeasonModel model = Tilted();
+            double summer = model.SeasonalTerm(SeasonClock.Phase(1e7, model, SeasonMode.GlobalSummer, -30));
+            double winter = model.SeasonalTerm(SeasonClock.Phase(1e7, model, SeasonMode.GlobalWinter, -30));
+            Assert.AreEqual(model.Amplitude, summer, 1e-12);
+            Assert.AreEqual(-model.Amplitude, winter, 1e-12);
+            Assert.AreEqual(summer, model.SeasonalTerm(SeasonClock.Phase(5e7, model, SeasonMode.GlobalSummer, 30)), 1e-12, "same value at any time and latitude");
+        }
+
+        [TestMethod]
+        public void GlobalSeasonsFollowsTheYearAndIsEqualAtPlusAndMinusLatitude()
+        {
+            foreach (SeasonModel model in new[] { Tilted(), Untilted(), Eccentric() })
+            {
+                double min = 1, max = 0;
+                for (int i = 0; i < 400; i++)
+                {
+                    double ut = i * Year / 100.0 + 1234.5;
+                    foreach (double lat in new[] { 5.0, 30, 60, 89 })
+                    {
+                        double north = SeasonClock.Phase(ut, model, SeasonMode.GlobalSeasons, lat);
+                        double south = SeasonClock.Phase(ut, model, SeasonMode.GlobalSeasons, -lat);
+                        Assert.AreEqual(north, south, 1e-12, "equal at +-" + lat);
+                        Assert.AreEqual(SeasonClock.Phase(ut, model), north, 1e-12, "the body's year phase");
+                    }
+                    double p = SeasonClock.Phase(ut, model, SeasonMode.GlobalSeasons, 40);
+                    min = Math.Min(min, p);
+                    max = Math.Max(max, p);
+                }
+                Assert.IsTrue(min < 0.05 && max > 0.95, "the phase runs through the year: " + min + " to " + max);
+            }
+        }
+
+        [TestMethod]
+        public void RealSeasonsAreOppositeAtPlusAndMinusLatitudeOnATiltedBodyAndEqualOnAnEccentricUntiltedOne()
+        {
+            SeasonModel tilted = Tilted();
+            SeasonModel eccentric = Eccentric();
+            for (int i = 0; i < 200; i++)
+            {
+                double ut = i * Year / 50.0 + 77.0;
+                foreach (double lat in new[] { 5.0, 30, 60, 89 })
+                {
+                    double north = SeasonClock.Phase(ut, tilted, SeasonMode.RealSeasons, lat);
+                    double south = SeasonClock.Phase(ut, tilted, SeasonMode.RealSeasons, -lat);
+                    Assert.AreEqual(0.5, SeasonClock.PhaseDistance(north, south), 1e-9, "opposite at +-" + lat);
+                    Assert.AreEqual(SeasonClock.Phase(ut, tilted), north, 1e-12, "the north runs on the year phase");
+                    Assert.AreEqual(-tilted.SeasonalTerm(north), tilted.SeasonalTerm(south), 1e-9, "the seasonal terms are opposite");
+                    Assert.AreEqual(SeasonClock.Phase(ut, eccentric, SeasonMode.RealSeasons, lat), SeasonClock.Phase(ut, eccentric, SeasonMode.RealSeasons, -lat), 1e-12);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void TheDefaultModeIsRealSeasonsAndThePlainPhaseIsTheNorthOfIt()
+        {
+            Assert.AreEqual(SeasonMode.RealSeasons, (SeasonMode)(int)AtmospheresSettings.Definition("seasonMode").Default);
+            Assert.AreEqual("Season Mode", AtmospheresSettings.Definition("seasonMode").Tooltip);
+            CollectionAssert.AreEqual(Enum.GetNames(typeof(SeasonMode)), AtmospheresSettings.Definition("seasonMode").Choices);
+            Assert.AreEqual(SeasonMode.RealSeasons, AtmospheresSettings.SeasonMode);
+            SeasonModel tilted = Tilted();
+            Assert.AreEqual(SeasonClock.Phase(3e6, tilted), SeasonClock.Phase(3e6, tilted, SeasonMode.RealSeasons, 10), 1e-12);
+            Assert.AreEqual(SeasonClock.Phase(3e6, tilted), SeasonClock.Phase(3e6, tilted, (SeasonMode)99, 10), 1e-12, "an undefined mode counts as RealSeasons");
+        }
+
+        [TestMethod]
+        public void ABodyWithoutSeasonsHasPhaseZeroInEveryMode()
+        {
+            foreach (SeasonMode mode in Enum.GetValues(typeof(SeasonMode)))
+            {
+                Assert.AreEqual(0.0, SeasonClock.Phase(1e6, SeasonModel.None, mode, 40));
+                Assert.AreEqual(0.0, SeasonClock.Phase(1e6, null, mode, -40));
+            }
+        }
+
 #pragma warning disable CS0618
         [TestMethod]
         public void TheObsoleteSingleBodyShimsStillAnswer()
