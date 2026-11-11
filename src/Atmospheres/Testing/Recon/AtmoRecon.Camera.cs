@@ -76,8 +76,10 @@ namespace ReDefinition.Atmospheres
                 ballMaterial = new Material(ballShader) { color = new Color(0.5f, 0.5f, 0.5f, 1f) };
                 Vector3d cameraAt = main.transform.position;
                 Vector3d forward = main.transform.forward, right = main.transform.right;
-                nearBall = new ReconBall(pod, cameraAt + forward * 15.0 - right * 2.5 - pod.CoMD, 1.5f, ballMaterial, 0);
-                farBall = new ReconBall(pod, cameraAt + forward * 45.0 + right * 6.0 - pod.CoMD, 4f, ballMaterial, 0);
+                // Close to the camera (near plane 0.21 m): a 1/z-type depth differs by 0.21 * (1/3 - 1/9) = 0.047 between the balls and by
+                // 0.023 between the far ball and the far view, well above the 0.004 the test asks for (the stored depth steps are 0.0005).
+                nearBall = new ReconBall(pod, cameraAt + forward * 3.0 - right * 0.6 - pod.CoMD, 0.7f, ballMaterial, 0);
+                farBall = new ReconBall(pod, cameraAt + forward * 9.0 + right * 2.0 - pod.CoMD, 2f, ballMaterial, 0);
                 followBalls = () =>
                 {
                     nearBall.Update();
@@ -261,7 +263,7 @@ namespace ReDefinition.Atmospheres
         }
 
         // Whether a tap's pixels show the calibration balls: the value under the near ball, under the far ball and in the empty view
-        // (views[0..2]) are each at least 0.01 apart, and the near ball, the far ball and the empty view follow in that order (either way
+        // (views[0..2]) are each at least 0.004 apart, and the near ball, the far ball and the empty view follow in that order (either way
         // up, since the encoding of the depth is not assumed). A render texture can come back upside down, so the flipped reading counts
         // too and says so in a row.
         private bool DepthHoldsBalls(DepthTap tap, Vector3[] views, string label)
@@ -271,7 +273,7 @@ namespace ReDefinition.Atmospheres
             {
                 double near = Texel(tap, views[0], flip == 1), far = Texel(tap, views[1], flip == 1), empty = Texel(tap, views[2], flip == 1);
                 bool ok = !double.IsNaN(near) && !double.IsNaN(far) && !double.IsNaN(empty)
-                          && Math.Abs(near - far) > 0.01 && Math.Abs(far - empty) > 0.01 && (far - near) * (empty - far) > 0;
+                          && Math.Abs(near - far) > 0.004 && Math.Abs(far - empty) > 0.004 && (far - near) * (empty - far) > 0;
                 if (flip == 0)
                 {
                     Emit("P6.balls_" + label + "_near", near);

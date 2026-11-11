@@ -75,6 +75,7 @@ namespace ReDefinition.Atmospheres
             var target = new RenderTexture(512, 256, 0, RenderTextureFormat.R8);
             target.Create();
             Material material = null;
+            Texture chosenPrevious = null;
             foreach (object layer in layers)
             {
                 if (Convert.ToString(ReconDyn.Get(layer, "Body")) != "Kerbin") continue;
@@ -95,6 +96,7 @@ namespace ReDefinition.Atmospheres
                 EmitText("P9.material." + layerName, candidate.shader.name + ", CloudCoverage " + (hasProperty ? "present" : "absent") + ", takes a render texture " + took);
                 if (took && material == null)
                 {
+                    chosenPrevious = previous;
                     material = candidate;
                     firstKerbinVolume = volume;
                     firstKerbinObject = layer;
@@ -138,6 +140,8 @@ namespace ReDefinition.Atmospheres
             Emit("P9.material_replaced_by_apply", replaced);
             Emit("P9.onapply_fired_by_forced_apply", applyEvents > 0);
             Say("P9: " + layers.Count + " layers, forced Apply dropped our texture after " + latency + " frames, material replaced " + replaced);
+            // A material that still holds our texture gets its own back before the target is released.
+            if (material != null && material.GetTexture("CloudCoverage") == target) material.SetTexture("CloudCoverage", chosenPrevious);
             target.Release();
         }
 

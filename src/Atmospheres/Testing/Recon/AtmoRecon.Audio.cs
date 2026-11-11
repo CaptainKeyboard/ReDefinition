@@ -18,12 +18,13 @@ namespace ReDefinition.Atmospheres
         private sealed class StreamTone
         {
             internal volatile bool On;
-            internal volatile int Calls;
+            internal volatile int Calls, CallsWithTone;
             private double phase;
 
             public void Generate(float[] data)
             {
                 Calls++;
+                if (On) CallsWithTone++;
                 double step = 2.0 * Math.PI * 440.0 / 48000.0;
                 for (int i = 0; i < data.Length; i++)
                 {
@@ -98,6 +99,11 @@ namespace ReDefinition.Atmospheres
                 EmitText("P5.error", "AudioClip.PCMReaderCallback not found");
             }
 
+            // Run1's baseline carried the game's own sounds (left 0.11, right 0.60), louder than the test tones: every other source is
+            // muted for the step and unmuted at its end (and by the clean-up), so that the output is the tones.
+            Emit("P5.sources_muted", MuteOtherSources(goA, goB));
+            yield return ProbeWait.Frames(10);
+
             double baseL = 0, baseR = 0;
             foreach (ProbeWait w in ReadOutput(6)) yield return w;
             baseL = outputL;
@@ -132,6 +138,7 @@ namespace ReDefinition.Atmospheres
             // Run1: path B added nothing on any channel. Whether the stream was asked for samples and whether the source plays says if the
             // stream path is dead or the probe's setup was.
             Emit("P5.path_b_generate_calls", stream.Calls);
+            Emit("P5.path_b_calls_with_tone_on", stream.CallsWithTone);
             object playingB = ReconDyn.Get(sourceB, "isPlaying");
             Emit("P5.path_b_is_playing", playingB is bool && (bool)playingB);
             object playingA = ReconDyn.Get(sourceA, "isPlaying");
@@ -207,8 +214,39 @@ namespace ReDefinition.Atmospheres
             yield return ProbeWait.Frames(10);
             Emit("P5.time_scale_after", Time.timeScale);
 
+            RestoreMutedSources();
             UnityEngine.Object.Destroy(goA);
             UnityEngine.Object.Destroy(goB);
+        }
+
+        // The sources the probe muted, with their mute flag before.
+        private readonly List<UnityEngine.Object> mutedByProbe = new List<UnityEngine.Object>();
+
+        private int MuteOtherSources(GameObject keepA, GameObject keepB)
+        {
+            int n = 0;
+            foreach (UnityEngine.Object source in UnityEngine.Object.FindObjectsOfType(audioSourceType))
+            {
+                var component = source as Component;
+                if (component == null || component.gameObject == keepA || component.gameObject == keepB) continue;
+                object muted = ReconDyn.Get(source, "mute");
+                if (muted is bool && (bool)muted) continue;
+                if (ReconDyn.Set(source, "mute", true))
+                {
+                    mutedByProbe.Add(source);
+                    n++;
+                }
+            }
+            return n;
+        }
+
+        private void RestoreMutedSources()
+        {
+            foreach (UnityEngine.Object source in mutedByProbe)
+            {
+                if (source != null) ReconDyn.Set(source, "mute", false);
+            }
+            mutedByProbe.Clear();
         }
 
         private void ConfigureSource(object source, object clip)

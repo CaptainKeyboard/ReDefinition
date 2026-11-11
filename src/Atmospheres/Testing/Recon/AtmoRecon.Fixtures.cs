@@ -385,9 +385,9 @@ namespace ReDefinition.Atmospheres
             // Shaders of a mod that are not the lit surface of a mesh: instanced scatter, planets and their cube maps, effects, debug views.
             // Terrain, planet and scatter shaders are no longer excluded by name: Parallax's scatter and Kopernicus's surface shaders are
             // the kind of foreign opaque shader the shells meet.
-            string[] unwanted = { "cloud", "ocean", "sky", "atmos", "scaled", "particle", "flare", "shadow", "depth", "billboard", "line",
-                                  "fog", "aurora", "ring", "water", "sprite", "decal", "projector", "debug", "instanc", "bubble",
-                                  "invisible", "show", "wireframe", "compute" };
+            string[] unwanted = { "cloud", "ocean", "sky", "atmos", "scaled", "particle", "flare", "shadow", "depth", "billboard",
+                                  "fog", "aurora", "water", "sprite", "decal", "projector", "debug", "instanc", "bubble",
+                                  "invisible", "wireframe", "compute" };
             var found = new List<Shader>();
             foreach (Shader shader in Resources.FindObjectsOfTypeAll<Shader>())
             {

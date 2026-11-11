@@ -173,6 +173,7 @@ namespace ReDefinition.Atmospheres
                 ReconMesh.DestroyTracked();
                 UndressPod();
                 ReconWindHook.Wind = Vector3.zero;
+                RestoreMutedSources();
                 if (audioListenerType != null)
                 {
                     System.Reflection.PropertyInfo listenerPause = audioListenerType.GetProperty("pause", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);

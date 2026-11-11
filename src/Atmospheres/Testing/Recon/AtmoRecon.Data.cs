@@ -191,7 +191,8 @@ namespace ReDefinition.Atmospheres
         // sun-based OFFSET of the atmosphere (it ends in GetAtmoThermalStats' atmosphereTemperatureOffset) and passes that method an
         // unnormalised sun vector, whose dot products then reach the latitude-by-sun curve as numbers of the order of 1e7 (run1: KSC
         // -9.1e6 .. +9.1e6, poles -50). The temperature is GetFullTemperature(altitude, offset) with the offset taken from
-        // GetAtmoThermalStats with the unit sun vector, as the flight integrator calls it [VERIFY against FlightIntegrator: the unit vector].
+        // GetAtmoThermalStats with the unit sun vector (the method takes Acos of its dot products, decompiled CelestialBody.cs; that
+        // FlightIntegrator passes the same vector is [VERIFY]).
         private double Temperature(CelestialBody body, double latitude, double longitude, double altitude)
         {
             Vector3d position = SurfacePoint(body, latitude, longitude, altitude);
