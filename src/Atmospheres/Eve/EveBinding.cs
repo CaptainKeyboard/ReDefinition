@@ -98,10 +98,11 @@ namespace ReDefinition.Atmospheres
             layer.Tracker.Reset();
             layer.BoundMain = layer.BoundProbe = layer.BoundShadow2D = null;
             layer.BoundSet = null;
+            layer.ShadowCasterSet = false;
         }
 
         // One pass over the layers: those whose binding is gone are bound again to the set the chooser names, and the others set it
-        // again when the watchdog's interval is over. Returns the number of layers bound or set again in this pass. choose gives the paint
+        // again when the watchdog's interval is over. Returns the number of layers bound (made or made again after a loss) in this pass; a re-assertion is not counted. choose gives the paint
         // set of a layer (null where the layer cannot be laid out).
         internal int Tick(double now, Func<EveLayer, PaintSet> choose, Action<string> log)
         {
@@ -143,6 +144,7 @@ namespace ReDefinition.Atmospheres
                     if (action == BindAction.Bind)
                     {
                         layer.Tracker.Bound(now);
+                        bound++;
                         if (log != null)
                         {
                             log("bound '" + layer.Name + "' (losses " + layer.Tracker.Losses + ", rebinds " + layer.Tracker.Rebinds
@@ -153,7 +155,6 @@ namespace ReDefinition.Atmospheres
                     {
                         layer.Tracker.Reasserted(now);
                     }
-                    bound++;
                 }
                 catch (Exception e)
                 {
@@ -187,6 +188,7 @@ namespace ReDefinition.Atmospheres
             layer.BoundProbe = layer.Probe;
             layer.BoundShadow2D = layer.Shadow2D;
             layer.BoundSet = set;
+            layer.ShadowCasterSet = false;
             return true;
         }
 
@@ -212,7 +214,11 @@ namespace ReDefinition.Atmospheres
                 {
                     if (!string.Equals(caster.Name, dependent.ReceivesShadowsFrom, StringComparison.Ordinal)) continue;
                     PaintSet set = choose(caster);
-                    if (set != null && caster.Tracker.State == BindState.Bound) EveLayerAccess.SetShadowCaster(dependent, set.Coverage);
+                    if (set != null && caster.Tracker.State == BindState.Bound)
+                    {
+                        EveLayerAccess.SetShadowCaster(dependent, set.Coverage);
+                        dependent.ShadowCasterSet = true;
+                    }
                 }
             }
         }
@@ -222,7 +228,7 @@ namespace ReDefinition.Atmospheres
         // binding left them. False where one is not.
         internal static bool Sentinel(EveLayer layer)
         {
-            if (!KeywordsAsLeft(layer.Main, layer.ReceivesShadowsFrom.Length > 0)) return false;
+            if (!KeywordsAsLeft(layer.Main, layer.ShadowCasterSet)) return false;
             if (layer.Probe != null && !KeywordsAsLeft(layer.Probe, false)) return false;
             if (layer.Shadow2D != null && !KeywordsAsLeft(layer.Shadow2D, false)) return false;
             return true;

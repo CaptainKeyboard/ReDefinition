@@ -46,6 +46,10 @@ namespace ReDefinition.Atmospheres
         // The paint set whose targets the materials carry; null while nothing is bound.
         internal PaintSet BoundSet;
 
+        // Whether the caster layer's coverage target was handed to this (dependent) layer, which switches CLOUD_SHADOW_CASTER_OFF off on
+        // its main material. The sentinel looks at that keyword only then: with the caster not painted EVE's own state stands.
+        internal bool ShadowCasterSet;
+
         // The watchdog's sentinel as a delegate made once (the binding asks it at most once per interval).
         internal Func<bool> SentinelCheck;
 

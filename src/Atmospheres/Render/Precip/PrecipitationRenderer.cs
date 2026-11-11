@@ -313,7 +313,7 @@ namespace ReDefinition.Atmospheres
 
             // EVE's own particle fields follow the cloudSource rule of CONTRACT section 5, not what is drawn this frame.
             BodyClimate climate = Bodies.Get(body);
-            CloudSourceKind source = (climate != null ? climate.Clouds.Source : null) ?? AtmospheresSettings.CloudSource;
+            CloudSourceKind source = EveRenderCompat.EffectiveSource((climate != null ? climate.Clouds.Source : null) ?? AtmospheresSettings.CloudSource);
             SetSuppressed(SuppressEveFields(source, AtmospheresSettings.PrecipDensity), "cloudSource " + source + ", precipDensity "
                           + AtmospheresSettings.PrecipDensity.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
 
