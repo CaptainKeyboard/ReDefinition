@@ -91,6 +91,27 @@ namespace ReDefinition.Atmospheres
             return (float)(1.0 - inside / aspect);
         }
 
+        // The opacity of the rim frost on a gridW x gridH grid (row 0 at the bottom of the picture, as Unity reads a render texture back),
+        // for a state of the glass: the series compares it with the change the frost made in the game's picture.
+        internal static float[] AlphaMap(byte[] atlas, float growth, float exposure, float aspect, ref FrostTuning t, int gridW, int gridH)
+        {
+            var map = new float[gridW * gridH];
+            for (int j = 0; j < gridH; j++)
+            {
+                float v = (j + 0.5f) / gridH;
+                for (int i = 0; i < gridW; i++)
+                {
+                    float u = (i + 0.5f) / gridW;
+                    float au, av;
+                    AtlasUv(u, v, aspect, t.AtlasScale, out au, out av);
+                    float m, g, b, a;
+                    FrostAtlas.Sample(atlas, au, av, out m, out g, out b, out a);
+                    map[j * gridW + i] = Alpha(Radius(u, v, aspect), growth, exposure, ref t, m, b, a);
+                }
+            }
+            return map;
+        }
+
         // The coverage the shader's arithmetic gives over the atlas bytes: the share of a gridW x gridH grid of picture points whose
         // frost opacity is at least threshold. atlas is the RGBA32 of FrostAtlas.Build.
         internal static float CoverageOf(byte[] atlas, float exposure, float strength, float aspect, ref FrostTuning t, float threshold, int gridW, int gridH)

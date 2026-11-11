@@ -139,6 +139,55 @@ namespace ReDefinition.WeatherPlayer
             return n;
         }
 
+        // Writes view-table.png beside the metric log: the top row is the frost (rim, 8 flakes, 5 drops) drawn over the test picture at the
+        // given exposures, the bottom row its contribution mask, each at half size. The pictures are for the reviewer and the owner's
+        // item T4; no metric reads them.
+        private void WriteViewTable(float[] exposures)
+        {
+            const int cw = W / 2, ch = H / 2;
+            var sheet = new Texture2D(cw * exposures.Length, ch * 2, TextureFormat.RGBA32, false);
+            var pixels = new Color32[sheet.width * sheet.height];
+            for (int i = 0; i < exposures.Length; i++)
+            {
+                FrostDraw d = MakeDraw(exposures[i], 8, 5, new Vector2(0.1f, -1f));
+                for (int k = 0; k < 8; k++)
+                    d.Flakes[k] = new Vector4(Mathf.Repeat(0.17f * k + 0.08f, 1f), Mathf.Repeat(0.31f * k + 0.1f, 1f), 0.005f + 0.0005f * k, k * 2 + 0.2f);
+                for (int k = 0; k < 5; k++)
+                    d.Drops[k] = new Vector4(0.12f + 0.19f * k, 0.55f - 0.07f * k, 0.011f, 0.07f);
+                Color[] picture = Render(d, false, 0f);
+                Color[] mask = Render(d, true, 1f);
+                for (int y = 0; y < ch; y++)
+                    for (int x = 0; x < cw; x++)
+                    {
+                        int source = (y * 2) * W + x * 2;
+                        pixels[y * sheet.width + i * cw + x] = Encode(picture[source]);
+                        pixels[(y + ch) * sheet.width + i * cw + x] = Encode(mask[source]);
+                    }
+            }
+            // Row 0 of a Texture2D is the bottom: the mask row (second block) goes underneath the picture row.
+            var ordered = new Color32[pixels.Length];
+            for (int y = 0; y < ch; y++)
+                for (int x = 0; x < sheet.width; x++)
+                {
+                    ordered[y * sheet.width + x] = pixels[(y + ch) * sheet.width + x];
+                    ordered[(y + ch) * sheet.width + x] = pixels[y * sheet.width + x];
+                }
+            sheet.SetPixels32(ordered);
+            sheet.Apply(false);
+            System.IO.File.WriteAllBytes(System.IO.Path.Combine(Output, "view-table.png"), sheet.EncodeToPNG());
+            UnityEngine.Object.Destroy(sheet);
+        }
+
+        private static Color32 Encode(Color c)
+        {
+            return new Color32(Channel(c.r), Channel(c.g), Channel(c.b), 255);
+        }
+
+        private static byte Channel(float v)
+        {
+            return (byte)Mathf.Clamp(Mathf.RoundToInt(Mathf.Pow(Mathf.Clamp01(v), 1f / 2.2f) * 255f), 0, 255);
+        }
+
         private static float Radius(int x, int y)
         {
             return FrostShape.Radius((x + 0.5f) / W, (y + 0.5f) / H, Aspect);
@@ -164,6 +213,9 @@ namespace ReDefinition.WeatherPlayer
                 if (i > 0) Sink.AtMost(tag + ".gpu_vs_cpu", Math.Abs(gpu - cpu) / Math.Max(cpu, 1e-4f), 0.02);
                 if (i == 2) fullMask = mask;
             }
+
+            // --- The view table as a picture (review R6): the frost over the test picture at exposure 0 / 0.4 / 1, and its contribution mask.
+            WriteViewTable(exposures);
 
             // --- The centre of the view stays readable at full exposure.
             int centre = 0, mid = 0;

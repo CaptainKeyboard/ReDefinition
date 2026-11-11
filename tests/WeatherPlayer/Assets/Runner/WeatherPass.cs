@@ -57,6 +57,8 @@ namespace ReDefinition.WeatherPlayer
         internal Vector2 JitterPixels;
         internal Matrix4x4 UnjitteredProjection, RenderedProjection;
         internal bool ResetUpscaler;
+        // Draws onto the finished image of a frame (the upscaled one) and onto each reference copy; null: nothing is drawn (package D37).
+        internal Action<RenderTexture> PostComposite;
         internal string Capture;
         internal int FrameOverride = -1;
         internal readonly Dictionary<string, int> FrameOf = new Dictionary<string, int>();
@@ -180,6 +182,7 @@ namespace ReDefinition.WeatherPlayer
                 if (referenceCopy == null || referenceCopy.width != source.width)
                     referenceCopy = Make(source.width, source.height, RenderTextureFormat.ARGBHalf, false);
                 Graphics.Blit(source, referenceCopy);
+                if (PostComposite != null) PostComposite(referenceCopy);
                 string referenceName = Capture;
                 Capture = null;
                 Meta.Append(referenceName).Append(' ').Append(source.width).Append(' ').Append(source.height).Append(" 0");
@@ -219,6 +222,8 @@ namespace ReDefinition.WeatherPlayer
             if (Upscaling) Upscale(command, cam.fieldOfView * Mathf.Deg2Rad);
             Graphics.ExecuteCommandBuffer(command);
             RenderTexture shown = Upscaling ? upscaled : colour;
+            // A composite drawn onto the finished image, after the upscaler (the camera frost's host path), before it is shown and read back.
+            if (PostComposite != null) PostComposite(shown);
             Graphics.Blit(shown, destination);
 
             Matrix4x4 projectionNow = GL.GetGPUProjectionMatrix(cam.projectionMatrix, true);

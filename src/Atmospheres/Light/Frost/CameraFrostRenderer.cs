@@ -20,6 +20,10 @@ namespace ReDefinition.Atmospheres
     //   Quad  Graphics.DrawMesh at queue 3500 on the flight camera, a plain alpha overlay without refraction. Works alone; in the IVA
     //         it sits under the interior (the internal camera draws after the flight camera).
     // The host composite is used when the hook answers (it was called in the last three frames) and, in the IVA, the mask is valid.
+    // The quad is a scene-side overlay: an upscaler sees it as part of the moving scene. So with the main mod present and an upscaler
+    // running, a view the host composite cannot serve is left without frost (the log says why) unless the flag frost.quadWithUpscaler
+    // is on; the quad is drawn when there is no upscaler to smear it. [VERIFY by the player rows ghost.*.quad_*: they measure the quad
+    // under each upscaler, and the default follows them.]
     //
     // Motion vectors: none, the overlay is fixed to the screen. Depth: none. Masks: the draw is after the upscaler, so the upscaler's
     // masks do not apply; the Quad fallback is in the scene and relies on the frost being slow. Frame generation: the host composite is
@@ -37,6 +41,8 @@ namespace ReDefinition.Atmospheres
         private const float IvaMaskHoldS = 3f;
         private const int HostWaitFrames = 30;
         private const string InternalCameraName = "InternalCamera";
+        // A stale weather view this long freezes the glass instead of clearing it (a field rebuild is not dry weather).
+        private const float StaleGraceS = 3f;
 
         private FrostPass pass;
         private Shader shader;
@@ -66,6 +72,11 @@ namespace ReDefinition.Atmospheres
         private int lastBody = -1;
         private float sampleAge = 1e9f;
         private float temperatureK = float.NaN;
+        private float staleS;
+        private bool abOff;
+        private bool ivaMaskNeeded;
+        private Camera internalCamera;
+        private float internalLookAge = 1e9f;
         private FrostView lastView = FrostView.Off;
         private string lastModeLogged = "";
 
@@ -83,6 +94,28 @@ namespace ReDefinition.Atmospheres
         internal static double AtlasBuildMs { get; private set; }
         // The name of the camera the host hook was last called for.
         internal static string LastHostCamera { get; private set; }
+        // The IVA premises as the series reads them: how often the hook was called while the view was the IVA, for which camera (the
+        // flight camera, the internal camera), the size of the image it gave and of the camera's own target, and the interior mask.
+        // Whether the internal camera draws into the flight camera's render target (the picture the upscaler gets), and so needs the mask.
+        internal static bool InternalInRigImage { get; private set; }
+        internal static bool IvaMaskNeeded { get; private set; }
+        internal static int HostCallsIva { get; private set; }
+        internal static int HostCallsIvaFlightCamera { get; private set; }
+        internal static int HostCallsIvaInternalCamera { get; private set; }
+        internal static int HostCallsIvaDrawn { get; private set; }
+        internal static int HostImageW { get; private set; }
+        internal static int HostImageH { get; private set; }
+        internal static int HostCameraPixelW { get; private set; }
+        internal static int HostCameraPixelH { get; private set; }
+        internal static float IvaMaskCoverage { get; private set; }
+        internal static int IvaMaskWay { get; private set; }
+        internal static bool IvaMaskExhausted { get; private set; }
+        // Frames in which the view wanted frost and none was drawn because the host composite could not serve it and the quad would be
+        // upscaled (see the class comment), and frames the quad was queued.
+        internal static int SuppressedFrames { get; private set; }
+        internal static int QuadFrames { get; private set; }
+        // Why the last frame that wanted frost used the mode it used ("host", "quad", "suppressed: ...").
+        internal static string ModeReason { get; private set; }
         // The running module, or null; the series probe reads it.
         internal static CameraFrostRenderer Current { get; private set; }
 
@@ -96,6 +129,24 @@ namespace ReDefinition.Atmospheres
         internal float ReadInteriorCoverage()
         {
             return interior.ReadCoverage();
+        }
+
+        // The interior mask as 0 / 1 values (see FrostInteriorMask.ReadMask), or null. The series probe's diagnostic.
+        internal float[] ReadInteriorMask(out int width, out int height)
+        {
+            return interior.ReadMask(out width, out height);
+        }
+
+        // The camera the interior mask is attached to, or null.
+        internal Camera InteriorCamera
+        {
+            get { return interior.Camera; }
+        }
+
+        // The state of the glass the draw was prepared from (for the series probe's prediction of the picture).
+        internal float CurrentGrowth
+        {
+            get { return state.Growth; }
         }
 
         // Empties the glass (the series probe starts each step from a clear pane).
@@ -273,7 +324,7 @@ namespace ReDefinition.Atmospheres
             if (!flightScene || !settingsOn || pass == null)
             {
                 if (!flightScene) state.Reset();
-                interior.Update(false, pass);
+                interior.Update(false, pass, -1);
                 EnsureHook(flightScene && settingsOn);
                 Idle();
                 ResetReadings();
@@ -287,7 +338,7 @@ namespace ReDefinition.Atmospheres
             {
                 // The body's configuration switches the frost off.
                 state.Reset();
-                interior.Update(false, pass);
+                interior.Update(false, pass, -1);
                 EnsureHook(false);
                 Idle();
                 ResetReadings();
@@ -305,6 +356,9 @@ namespace ReDefinition.Atmospheres
             FrostTuning t = ReadTuning();
             WeatherView view = WeatherHooks.View;
             bool live = view.Active && !view.IsStale(Time.frameCount);
+            // A weather view that is stale for a moment (the field rebuilds) freezes the glass; only a long gap counts as dry weather.
+            staleS = live ? 0f : staleS + Time.unscaledDeltaTime;
+            bool holdGlass = !live && staleS < StaleGraceS;
             bool eva = vessel.isEVA;
             float toVessel = (float)(((Vector3d)flight.transform.position) - vessel.GetWorldPos3D()).magnitude;
             FrostView where = FrostCameraClass.Classify(CameraMode(), MapView.MapIsEnabled, eva, toVessel, FrostCameraClass.FirstPersonM);
@@ -326,6 +380,8 @@ namespace ReDefinition.Atmospheres
                     temperatureK = sample.TemperatureK;
                 else
                     temperatureK = float.NaN;
+                if (live && view.Level >= CameraFrost.WeatherFrom && float.IsNaN(temperatureK))
+                    AtmospheresLog.WarnOnce("camera frost: the weather field gives no temperature at the camera; the glass does not freeze without one");
             }
 
             // Down the picture: the direction of gravity in the plane of the camera, so that a rolled camera slides the drops down.
@@ -349,7 +405,7 @@ namespace ReDefinition.Atmospheres
 
             var input = new FrostInput
             {
-                Dt = Time.timeScale > 0f ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f,
+                Dt = Time.timeScale > 0f && !holdGlass ? Mathf.Min(Time.unscaledDeltaTime, 0.25f) : 0f,
                 View = where,
                 Level = live ? view.Level : 0f,
                 Type = live ? view.Type : PrecipType.None,
@@ -376,10 +432,17 @@ namespace ReDefinition.Atmospheres
             bool wantDraw = where != FrostView.Off && state.NeedsDraw(ref t);
             // The interior mask stays on for IvaMaskHoldS after the last frame the glass needed it, so that a pane that flickers around
             // the skip threshold does not rebuild it.
-            bool ivaWanted = where == FrostView.Iva && wantDraw && Tuning.Flag("frost.ivaMask", true) && Services.PostUpscale.HostAvailable;
+            // The mask is needed where the internal camera is part of the picture the upscaler gets (it draws into the same target as the
+            // flight camera); where it draws past the upscaler the interior covers the composite by itself.
+            ivaMaskNeeded = where == FrostView.Iva && InternalCameraInImage(flight);
+            bool ivaWanted = ivaMaskNeeded && wantDraw && Tuning.Flag("frost.ivaMask", true) && Services.PostUpscale.HostAvailable;
             if (ivaWanted) ivaMaskUntil = Time.unscaledTime + IvaMaskHoldS;
-            interior.Update(where == FrostView.Iva && Time.unscaledTime < ivaMaskUntil, pass);
-            IvaMaskValid = interior.Mask != null && interior.BuiltFrame >= 0 && Time.frameCount - interior.BuiltFrame > 2;
+            interior.Update(where == FrostView.Iva && Time.unscaledTime < ivaMaskUntil, pass, (int)Tuning.Get("frost.ivaMaskWay", -1f));
+            IvaMaskValid = interior.Valid;
+            IvaMaskCoverage = interior.Coverage;
+            IvaMaskWay = interior.Way;
+            IvaMaskExhausted = interior.Exhausted;
+            IvaMaskNeeded = ivaMaskNeeded;
             if (!wantDraw)
             {
                 EnsureHook(true);
@@ -428,7 +491,9 @@ namespace ReDefinition.Atmospheres
             // dropped for that view and the quad draws instead.
             bool hostAlive = hostRegistered && !hostFailed && Time.frameCount - lastHostCallFrame <= HostAliveFrames;
             bool dead = where == FrostView.Iva ? ivaHostDead : evaHostDead;
-            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || IvaMaskValid);
+            // frost.forceQuad and frost.ivaMaskRequired = 0 are for the series (it measures the quad and the unmasked composite).
+            bool hostUsable = hostAlive && !dead && (where == FrostView.Eva || !ivaMaskNeeded || IvaMaskValid || !Tuning.Flag("frost.ivaMaskRequired", true))
+                              && !Tuning.Flag("frost.forceQuad", false);
             if (hostUsable)
             {
                 hostPendingFrames++;
@@ -444,22 +509,56 @@ namespace ReDefinition.Atmospheres
             {
                 hostPendingFrames = 0;
             }
-            string mode = hostUsable ? "host" : "quad";
+            // The quad is a scene-side overlay with no motion vectors: an upscaler running on the picture smears it. With the host present
+            // and an upscaler on, a view the host composite cannot serve gets no frost (and a log line) rather than a smeared quad.
+            bool upscaled = Services.PostUpscale.HostAvailable && WeatherHooks.Caps.Upscaler != UpscalerKind.None;
+            bool quadAllowed = FrostDrawPolicy.QuadAllowed(upscaled, Tuning.Flag("frost.quadWithUpscaler", false));
+            abOff = Tuning.Flag("frost.abOff", false);
+            string reason = hostUsable ? "host" : Tuning.Flag("frost.forceQuad", false) ? "forced" : !hostAlive ? "the hook did not answer" : dead ? "the hook drew nothing in this view"
+                : !IvaMaskValid ? (IvaMaskExhausted ? "no way of taking the interior mask gave a plausible one" : "the interior mask is not valid yet") : "host not usable";
+            string mode = FrostDrawPolicy.Mode(hostUsable, quadAllowed);
             if (mode != lastModeLogged)
             {
                 AtmospheresLog.Say("camera frost: drawing in " + mode + " mode (" + where + ", exposure "
-                                   + state.Exposure.ToString("0.00", CultureInfo.InvariantCulture) + ")");
+                                   + state.Exposure.ToString("0.00", CultureInfo.InvariantCulture) + ")"
+                                   + (hostUsable ? "" : ": " + reason + (quadAllowed ? "" : "; the quad would be upscaled with the picture")));
                 lastModeLogged = mode;
             }
             ActiveMode = mode;
+            ModeReason = mode == "host" ? "host" : mode + ": " + reason;
             HostComposed = hostUsable;
-            if (!hostUsable)
+            if (mode == "quad" && !abOff)
             {
                 pass.DrawQuad(flight, ref draw);
                 DrawnFrames++;
+                QuadFrames++;
+            }
+            else if (mode == "suppressed")
+            {
+                SuppressedFrames++;
             }
 
             EnsureHook(true);
+        }
+
+        // Whether the internal camera draws into the same render target as the flight camera, i.e. into the picture the upscaler gets
+        // (the rig redirects the cameras of the stack into one render-size texture). Looked up about once a second.
+        private bool InternalCameraInImage(Camera flight)
+        {
+            internalLookAge += Time.unscaledDeltaTime;
+            if (internalCamera == null && internalLookAge >= 1f)
+            {
+                internalLookAge = 0f;
+                Camera[] all = Camera.allCameras;
+                for (int i = 0; i < all.Length; i++)
+                    if (all[i] != null && all[i].name == InternalCameraName) { internalCamera = all[i]; break; }
+            }
+            if (flight == null) return false;
+            // No internal camera found: the mask is assumed needed (and cannot be built, so the composite is not used).
+            if (internalCamera == null) return true;
+            RenderTexture target = flight.targetTexture;
+            InternalInRigImage = target != null && internalCamera.targetTexture == target;
+            return InternalInRigImage;
         }
 
         private void Idle()
@@ -479,6 +578,8 @@ namespace ReDefinition.Atmospheres
             LastFlakes = 0;
             LastDrops = 0;
             IvaMaskValid = false;
+            IvaMaskCoverage = -1f;
+            IvaMaskExhausted = false;
         }
 
         // Whether something solid lies above the point within reach, ignoring the vessel itself: the EVA camera is under a roof, a wing
@@ -518,14 +619,27 @@ namespace ReDefinition.Atmospheres
                     LastHostCamera = camera != null ? camera.name : null;
                 }
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-                // The hook is called for the camera the rig upscales: the flight camera, and in the IVA possibly the internal camera
-                // [VERIFY: the series row D37.host_camera_iva names the one the game gives].
+                // The hook is called with the camera the rig was built on (RigLifecycle.CameraPreference: Camera 00 in flight, in the
+                // IVA too, as the rig redirects InternalCamera into the same image but is built on Camera 00); the internal camera is
+                // accepted as well [VERIFY: the rows D37.iva_hook_calls_flight_camera / _internal_camera count which one the game gives].
                 bool ours = camera == flight || (ActiveView == FrostView.Iva && lastHostCameraInternal);
-                if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null) return;
+                if (ActiveView == FrostView.Iva && upscaled != null)
+                {
+                    HostCallsIva++;
+                    if (camera == flight) HostCallsIvaFlightCamera++;
+                    else if (lastHostCameraInternal) HostCallsIvaInternalCamera++;
+                    HostImageW = upscaled.width;
+                    HostImageH = upscaled.height;
+                    HostCameraPixelW = camera != null ? camera.pixelWidth : 0;
+                    HostCameraPixelH = camera != null ? camera.pixelHeight : 0;
+                }
+                // frost.abOff leaves the frost undrawn with every other state unchanged: the series' A/B pictures.
+                if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null || abOff) return;
                 hostPendingFrames = 0;
+                if (ActiveView == FrostView.Iva) HostCallsIvaDrawn++;
                 FrostDraw d = draw;
                 d.Aspect = (float)upscaled.width / Mathf.Max(upscaled.height, 1);
-                d.InteriorMask = ActiveView == FrostView.Iva ? interior.Mask : null;
+                d.InteriorMask = ActiveView == FrostView.Iva && ivaMaskNeeded ? interior.Mask : null;
                 cmd.BeginSample("ReDefinition frost host");
                 pass.RecordHost(cmd, upscaled, upscaled.width, upscaled.height, ref d);
                 cmd.EndSample("ReDefinition frost host");

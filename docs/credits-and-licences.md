@@ -53,6 +53,7 @@ Deferred, and both state GPL version 3 without "or later".
 | Capsaicin, the hash-grid radiance cache (`hash_grid_cache.hlsl`, `hash.hlsl`) | MIT | Code taken | `Raytracing/Shaders/RadianceCache.hlsli` adapts the cell size, the hashes (the body of xxHash32 among them), the insert and the lookup, with the adapted parts marked. Notice: `dxgi_LICENSE-Capsaicin.txt` |
 | `lowbias32` integer hash (Chris Wellons, hash-prospector) | The Unlicense | Code taken | The two multiplier constants of the 32-bit mixer in `Atmospheres/Render/Precip/PrecipMath.cs` and `ReDefinitionAtmospheresPrecip.shader`, which place each precipitation particle from its cell and seed |
 | `lowbias32` integer hash (Chris Wellons, hash-prospector), second use | The Unlicense | Code taken | The same 32-bit mixer in `Atmospheres/Light/Lamp/LampMath.cs`, which fills the noise table the flake glints of the lamp scatter are read from |
+| `lowbias32` integer hash (Chris Wellons, hash-prospector), third use | The Unlicense | Code taken | The same 32-bit mixer, called as `PrecipMath.Hash` from `Atmospheres/Light/Frost/FrostAtlas.cs`, which seeds the Voronoi cells and the noise of the camera frost's procedural atlas |
 | FidelityFX documentation (denoising, super resolution, frame interpolation) and the Anti-Lag 2 README | as AMD publishes it | Reference | The source for FSR's upscaler, frame generation and denoiser, and for the calls of Anti-Lag 2 |
 
 ### Intel

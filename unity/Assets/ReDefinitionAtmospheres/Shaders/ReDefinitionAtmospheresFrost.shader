@@ -123,6 +123,10 @@ Shader "ReDefinition/AtmospheresFrost"
 
     float Luma(float3 c) { return dot(c, float3(0.2126, 0.7152, 0.0722)); }
 
+    // A sample of the upscaled image kept finite and in range: max and min return the other operand when one is NaN (Direct3D 10+), so
+    // a NaN in the image ends up as 0 instead of spreading through the blur.
+    float3 Safe(float3 c) { return max(min(c, 64.0), 0.0); }
+
     // The rim frost at a point of the picture: the same arithmetic as FrostShape.Alpha. nrm is the relief normal there.
     float FrostAlpha(float2 uv, out float2 nrm)
     {
@@ -237,7 +241,8 @@ Shader "ReDefinition/AtmospheresFrost"
         {
             Name "FrostHost"
             Tags { "LightMode" = "FrostHost" }
-            Blend SrcAlpha OneMinusSrcAlpha
+            // The colour is blended by the frost's opacity; the image's alpha channel is left as it was.
+            Blend SrcAlpha OneMinusSrcAlpha, Zero One
 
             CGPROGRAM
             #pragma target 3.5
@@ -258,13 +263,13 @@ Shader "ReDefinition/AtmospheresFrost"
 
                 if (flip) offset.y = -offset.y;
                 float2 su = i.uv + offset;
-                float3 sharp = min(tex2D(_FrostCopy, su).rgb, 64.0);
+                float3 sharp = Safe(tex2D(_FrostCopy, su).rgb);
                 float2 texel = _FrostCopy_TexelSize.xy * _FrostC.y * (0.25 + frost + 0.5 * (flake + head));
                 float3 blur = sharp;
-                blur += min(tex2D(_FrostCopy, su + float2(texel.x, 0)).rgb, 64.0);
-                blur += min(tex2D(_FrostCopy, su - float2(texel.x, 0)).rgb, 64.0);
-                blur += min(tex2D(_FrostCopy, su + float2(0, texel.y)).rgb, 64.0);
-                blur += min(tex2D(_FrostCopy, su - float2(0, texel.y)).rgb, 64.0);
+                blur += Safe(tex2D(_FrostCopy, su + float2(texel.x, 0)).rgb);
+                blur += Safe(tex2D(_FrostCopy, su - float2(texel.x, 0)).rgb);
+                blur += Safe(tex2D(_FrostCopy, su + float2(0, texel.y)).rgb);
+                blur += Safe(tex2D(_FrostCopy, su - float2(0, texel.y)).rgb);
                 blur *= 0.2;
                 float lum = Luma(blur);
                 float3 col = lerp(sharp, blur, saturate(frost * _FrostG.z));
@@ -289,7 +294,7 @@ Shader "ReDefinition/AtmospheresFrost"
 
             float4 frag(v2f i) : SV_Target
             {
-                return float4(min(tex2D(_MainTex, i.uv).rgb, 64.0), 1.0);
+                return float4(Safe(tex2D(_MainTex, i.uv).rgb), 1.0);
             }
             ENDCG
         }
