@@ -144,6 +144,18 @@ namespace AtmoSim.Tests
         }
 
         [TestMethod]
+        public void CheckpointLateInALongRunEqualsTheStraightRun()
+        {
+            // The sub-step count of a step depends on the winds of the previous step, so the checkpoint carries them (found by the year-long proof run).
+            var straight = Small(5); Run(straight, 1500);
+            var s = Small(5); Run(s, 1300);
+            var ms = new MemoryStream(); s.SaveCheckpoint(ms);
+            var r = Small(5); ms.Position = 0; r.LoadCheckpoint(ms);
+            Run(r, 200);
+            Assert.AreEqual(straight.StateHash(), r.StateHash());
+        }
+
+        [TestMethod]
         public void ACloneRunsForwardExactlyLikeTheOriginal()
         {
             var a = Small(6); Run(a, 20);

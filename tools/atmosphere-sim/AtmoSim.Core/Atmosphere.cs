@@ -391,7 +391,7 @@ namespace AtmoSim.Core
         public int StateBytes()
         {
             int n = 0; foreach (var x in StateArrays()) n += x.Length * 8;
-            return n + 16;
+            return n + 40;
         }
 
         // Resident memory of this simulation in bytes: the prognostic state, the diagnosed 3D fields and the scratch arrays.
@@ -410,6 +410,8 @@ namespace AtmoSim.Core
             var w = new BinaryWriter(s);
             w.Write(Ut); w.Write(StepIndex);
             foreach (var x in StateArrays()) for (int i = 0; i < x.Length; i++) w.Write(x[i]);
+            // The Courant number of the last winds chooses the sub-steps of the next step; the water ledger is carried with the state.
+            w.Write(MaxWind); w.Write(OceanSourceKgM2); w.Write(StoresInitialKgM2);
             w.Flush();
         }
 
@@ -419,6 +421,7 @@ namespace AtmoSim.Core
             Ut = r.ReadDouble(); StepIndex = r.ReadInt64();
             foreach (var x in StateArrays()) for (int i = 0; i < x.Length; i++) x[i] = r.ReadDouble();
             Diagnose(false);
+            MaxWind = r.ReadDouble(); OceanSourceKgM2 = r.ReadDouble(); StoresInitialKgM2 = r.ReadDouble();
         }
 
         public Atmosphere Clone()

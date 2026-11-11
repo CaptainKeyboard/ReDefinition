@@ -200,6 +200,13 @@ cross-sections through a developing cell and a front, zonal-mean plots per set, 
 * A map-generator defect (the ocean quantile search divided by an extra factor of the longitude count, which gave all-ocean maps) was fixed before any criterion run; the synthetic land share is then about 28-32 % with the seeds used.
 * Mono: no Mono run in this package (C25's player test).
 
+### H10 The one structural retry (decided after the first complete set of runs, before the retry runs)
+
+First set (EddyScale = 1): no persistent pressure minimum in either hemisphere (criterion 2), surface wind P50 about 1.4 m/s. The thermal-wind shear of the model's winter equilibrium
+gradient (about 46 K over 60 degrees of latitude) is about 10 m/s, while the two-layer critical shear is about beta x Ld^2 = 6.2e-10 /(m s) x (282 km)^2 = about 48 m/s on this planet, so the physical
+baroclinic core is stable at the physical deformation radius. The retry is `EddyScale` = 0.5 (Ld^2 four times smaller, critical shear about 12 m/s), one value, all sets rerun with it, nothing else changed.
+Per H-2 a pass of criterion 2 reached this way is reported as "PASS with EddyScale = 0.5 (gameplay scale)". No second retry.
+
 ### Sign-off
 
 Reviewer: REV-B10h-1  date: 2026-11-11  verdict: SIGNED under conditions H-1 to H-4 (written above in H8)

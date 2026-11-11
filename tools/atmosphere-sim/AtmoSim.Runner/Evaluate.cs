@@ -63,6 +63,8 @@ namespace AtmoSim.Runner
             return ws > 0 ? s / ws : double.NaN;
         }
 
+        private static double Dn(JsonElement e) { return e.ValueKind == JsonValueKind.Null ? double.NaN : e.GetDouble(); }
+
         private static string F(double v) { return v.ToString("G5", CultureInfo.InvariantCulture); }
 
         public static int Run(string[] args)
@@ -91,7 +93,8 @@ namespace AtmoSim.Runner
                 for (int i = 0; i < ys.GetArrayLength(); i++)
                 {
                     int y = ys[i].GetProperty("year").GetInt32(); if (ys[i].GetProperty("steps").GetInt64() < 400) continue;
-                    double t = ys[i].GetProperty("mean_t2m_k").GetDouble(), w = ys[i].GetProperty("mean_atm_water_kgm2").GetDouble();
+                    double t = Dn(ys[i].GetProperty("mean_t2m_k")), w = Dn(ys[i].GetProperty("mean_atm_water_kgm2"));
+                    if (double.IsNaN(t) || double.IsNaN(w)) { worstT = double.PositiveInfinity; worstW = double.PositiveInfinity; continue; }
                     if (y >= 2) { worstT = Math.Max(worstT, Math.Abs(t - target)); if (!double.IsNaN(prevW) && prevW > 0) worstW = Math.Max(worstW, Math.Abs(w - prevW) / prevW); }
                     prevW = w;
                 }
@@ -257,7 +260,9 @@ namespace AtmoSim.Runner
                 var bs = ep.At("boundaries");
                 for (int i = 0; i < bs.GetArrayLength(); i++)
                 {
-                    double j = bs[i].GetProperty("cover_max_jump").GetDouble(); double ph = bs[i].GetProperty("actual_phase").GetDouble();
+                    var cs0 = bs[i].GetProperty("cover_bands_start_0_30_45_55_70_85_N"); var cs1 = bs[i].GetProperty("cover_bands_end_0_30_45_55_70_85_N");
+                    double j = 0; for (int q = 0; q < cs0.GetArrayLength(); q++) if (cs0[q].ValueKind != JsonValueKind.Null && cs1[q].ValueKind != JsonValueKind.Null) j = Math.Max(j, Math.Abs(cs1[q].GetDouble() - cs0[q].GetDouble()));
+                    double ph = bs[i].GetProperty("actual_phase").GetDouble();
                     c9.Add("snow cover jump across the epoch crossfade (boundary at year phase " + F(ph) + ")", j, "<= 0.10", j <= 0.10);
                 }
             }

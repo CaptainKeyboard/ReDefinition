@@ -151,7 +151,7 @@ namespace AtmoSim.Runner
             r["cover_bands_start_0_30_45_55_70_85_N"] = covStart; r["cover_bands_end_0_30_45_55_70_85_N"] = covEnd;
             if (covStart != null && covEnd != null)
             {
-                double mx = 0; for (int i = 0; i < covStart.Length; i++) mx = Math.Max(mx, Math.Abs(covEnd[i] - covStart[i]));
+                double mx = 0; for (int i = 0; i < covStart.Length; i++) { double dj = Math.Abs(covEnd[i] - covStart[i]); if (!double.IsNaN(dj)) mx = Math.Max(mx, dj); }
                 r["cover_max_jump"] = mx;
             }
             r["ice_edge_start_N_S_deg"] = iceStartEdge; r["ice_edge_end_N_S_deg"] = iceEndEdge;
