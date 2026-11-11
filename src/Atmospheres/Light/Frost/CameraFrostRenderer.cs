@@ -68,9 +68,27 @@ namespace ReDefinition.Atmospheres
         internal static bool HostComposed { get; private set; }
         internal static bool IvaMaskValid { get; private set; }
         internal static double AtlasBuildMs { get; private set; }
+        // The name of the camera the host hook was last called for.
+        internal static string LastHostCamera { get; private set; }
+        // The running module, or null; the series probe reads it.
+        internal static CameraFrostRenderer Current { get; private set; }
+
+        // Whether the shader is loaded and the atlas is uploaded: the pass exists.
+        internal bool PassReady
+        {
+            get { return pass != null; }
+        }
+
+        // Empties the glass (the series probe starts each step from a clear pane).
+        internal void ResetState()
+        {
+            state.Reset();
+            LastExposure = 0f;
+        }
 
         public void Init()
         {
+            Current = this;
             string reason;
             shader = AtmosphereShaders.Get(ShaderName, out reason);
             if (shader == null)
@@ -114,6 +132,7 @@ namespace ReDefinition.Atmospheres
             initialised = false;
             drawReady = false;
             ActiveMode = "none";
+            if (Current == this) Current = null;
         }
 
         // The tuning constants, read once a frame. Keys, defaults and ranges are in FrostTuning.
@@ -159,7 +178,7 @@ namespace ReDefinition.Atmospheres
             t.TintB = Tuning.Get("frost.tintB", t.TintB);
             t.DropGain = Tuning.Get("frost.dropGain", t.DropGain);
             t.QuadAlpha = Tuning.Get("frost.quadAlpha", t.QuadAlpha);
-            t.FlipY = Tuning.Flag("frost.flipY", false);
+            t.FlipY = FrostPass.ResolveFlipY(Tuning.Get("frost.flipY", -1f));
             return t.Clamped();
         }
 
@@ -222,6 +241,7 @@ namespace ReDefinition.Atmospheres
             {
                 if (!flightScene) state.Reset();
                 interior.Update(false, pass);
+                EnsureHook(flightScene && settingsOn);
                 Idle();
                 return;
             }
@@ -229,6 +249,15 @@ namespace ReDefinition.Atmospheres
             CelestialBody body = vessel.mainBody;
             BodyClimate climate = Bodies.Get(body);
             FrostRules rules = climate != null ? climate.Frost : FrostRules.Default;
+            if (!rules.Enabled)
+            {
+                // The body's configuration switches the frost off.
+                state.Reset();
+                interior.Update(false, pass);
+                EnsureHook(false);
+                Idle();
+                return;
+            }
             if (vessel.id != lastVessel || body.flightGlobalsIndex != lastBody)
             {
                 state.Reset();
@@ -276,7 +305,7 @@ namespace ReDefinition.Atmospheres
                 Type = live ? view.Type : PrecipType.None,
                 TemperatureK = temperatureK,
                 FrostLimitK = rules.MaxTemperatureK,
-                Strength = rules.Enabled ? rules.Strength : 0f,
+                Strength = rules.Strength,
                 AirflowMs = (float)vessel.srfSpeed + (live ? new Vector2(view.WindWorld.x, view.WindWorld.y).magnitude : 0f),
                 GustPhase = live ? view.GustPhase : 0f,
                 Sheltered = !live || view.Level < CameraFrost.WeatherFrom,
@@ -299,6 +328,7 @@ namespace ReDefinition.Atmospheres
             IvaMaskValid = ivaWanted && interior.Mask != null && interior.BuiltFrame >= 0 && Time.frameCount - interior.BuiltFrame > 2;
             if (!wantDraw)
             {
+                EnsureHook(true);
                 Idle();
                 return;
             }
@@ -323,7 +353,7 @@ namespace ReDefinition.Atmospheres
             }
             draw.FlakeCount = nf;
             draw.DropCount = nd;
-            draw.Growth = state.Growth * Mathf.Min(rules.Strength, 1f);
+            draw.Growth = state.Growth;
             draw.Exposure = state.Exposure;
             draw.Gravity = new Vector2(gx, gy);
             draw.Tuning = t;
@@ -356,11 +386,7 @@ namespace ReDefinition.Atmospheres
                 DrawnFrames++;
             }
 
-            if (!hostRegistered && !hostFailed && Services.PostUpscale.HostAvailable)
-            {
-                hostRegistered = Services.PostUpscale.Register("camera-frost", hostDraw, false);
-                if (!hostRegistered) hostFailed = true;
-            }
+            EnsureHook(true);
         }
 
         private void Idle()
@@ -369,10 +395,21 @@ namespace ReDefinition.Atmospheres
             HostComposed = false;
             ActiveMode = "none";
             IvaMaskValid = false;
-            if (!hostRegistered && !hostFailed && initialised && Services.PostUpscale.HostAvailable)
+        }
+
+        // Keeps the host hook registered while the frost is in use (a flight, the setting on) and takes it away otherwise, so that a
+        // switched-off frost leaves no handler for the host to call.
+        private void EnsureHook(bool wanted)
+        {
+            if (wanted && !hostRegistered && !hostFailed && initialised && Services.PostUpscale.HostAvailable)
             {
                 hostRegistered = Services.PostUpscale.Register("camera-frost", hostDraw, false);
                 if (!hostRegistered) hostFailed = true;
+            }
+            else if (!wanted && hostRegistered)
+            {
+                Services.PostUpscale.Unregister(hostDraw);
+                hostRegistered = false;
             }
         }
 
@@ -382,8 +419,12 @@ namespace ReDefinition.Atmospheres
             try
             {
                 lastHostCallFrame = Time.frameCount;
+                if (camera != null) LastHostCamera = camera.name;
                 Camera flight = FlightCamera.fetch != null ? FlightCamera.fetch.mainCamera : null;
-                if (pass == null || camera != flight || !drawReady || ActiveMode != "host" || upscaled == null) return;
+                // The hook is called for the camera the rig upscales: the flight camera, and in the IVA possibly the internal camera
+                // [VERIFY: the series row D37.host_camera_iva names the one the game gives].
+                bool ours = camera == flight || (ActiveView == FrostView.Iva && camera != null && camera.name == "InternalCamera");
+                if (pass == null || !ours || !drawReady || ActiveMode != "host" || upscaled == null) return;
                 FrostDraw d = draw;
                 d.Aspect = (float)upscaled.width / Mathf.Max(upscaled.height, 1);
                 d.InteriorMask = ActiveView == FrostView.Iva ? interior.Mask : null;

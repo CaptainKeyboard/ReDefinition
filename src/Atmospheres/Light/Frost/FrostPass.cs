@@ -45,6 +45,7 @@ namespace ReDefinition.Atmospheres
         private static readonly int IdQuad = Shader.PropertyToID("_FrostQuad");
         private static readonly int IdFlakes = Shader.PropertyToID("_FrostFlakes");
         private static readonly int IdDrops = Shader.PropertyToID("_FrostDrops");
+        private static readonly int IdTiles = Shader.PropertyToID("_FrostTiles");
 
         internal const int PassHost = 0, PassCopy = 1, PassQuad = 2, PassMask = 3;
         internal const int QuadQueue = 3500;
@@ -53,6 +54,7 @@ namespace ReDefinition.Atmospheres
         private readonly Material quad;
         private readonly Mesh quadMesh;
         private readonly Texture atlas;
+        private Vector4[] tiles;
 
         internal FrostPass(Shader shader, Texture atlas)
         {
@@ -62,6 +64,15 @@ namespace ReDefinition.Atmospheres
             host = new Material(shader) { name = "ReDefinition Atmospheres frost (host)", hideFlags = HideFlags.HideAndDontSave };
             quad = new Material(shader) { name = "ReDefinition Atmospheres frost (quad)", hideFlags = HideFlags.HideAndDontSave, renderQueue = QuadQueue };
             quadMesh = MakeQuad();
+        }
+
+        // Whether the host draw has to turn its picture coordinates over: the pass draws a clip-space triangle into a render texture, and
+        // where the platform's textures start at the top (Direct3D) Unity stores a render texture's picture upside down in memory, so
+        // the triangle's uv runs against the picture. setting is the tuning value frost.flipY: below 0 decides by the platform, 0 and
+        // above force it off and on.
+        internal static bool ResolveFlipY(float setting)
+        {
+            return setting < 0f ? SystemInfo.graphicsUVStartsAtTop : setting != 0f;
         }
 
         private static Mesh MakeQuad()
@@ -90,10 +101,21 @@ namespace ReDefinition.Atmospheres
             gravity = len > 1e-4f ? new Vector4(g.x / len, g.y / len, 0f, 0f) : new Vector4(0f, -1f, 0f, 0f);
         }
 
+        // The tile lists of the draw's flakes and drops, or null where there are none.
+        private Vector4[] TilesOf(ref FrostDraw d, Vector4 gravity)
+        {
+            if (d.FlakeCount == 0 && d.DropCount == 0) return null;
+            if (tiles == null) tiles = new Vector4[FrostTiles.Count];
+            FrostTiles.Build(tiles, d.Flakes, d.FlakeCount, d.Drops, d.DropCount, new Vector2(gravity.x, gravity.y), d.Aspect);
+            return tiles;
+        }
+
         private void SetOnBuffer(CommandBuffer cmd, ref FrostDraw d)
         {
             Vector4 a, b, c, dd, e, tint, gravity;
             Pack(ref d, out a, out b, out c, out dd, out e, out tint, out gravity);
+            Vector4[] tileList = TilesOf(ref d, gravity);
+            if (tileList != null) cmd.SetGlobalVectorArray(IdTiles, tileList);
             cmd.SetGlobalTexture(IdAtlas, atlas);
             cmd.SetGlobalVector(IdA, a);
             cmd.SetGlobalVector(IdB, b);
@@ -153,6 +175,8 @@ namespace ReDefinition.Atmospheres
             quad.SetVector(IdQuad, new Vector4(d.QuadColour.r, d.QuadColour.g, d.QuadColour.b, 1f));
             if (d.FlakeCount > 0 && d.Flakes != null) quad.SetVectorArray(IdFlakes, d.Flakes);
             if (d.DropCount > 0 && d.Drops != null) quad.SetVectorArray(IdDrops, d.Drops);
+            Vector4[] tileList = TilesOf(ref d, gravity);
+            if (tileList != null) quad.SetVectorArray(IdTiles, tileList);
             Graphics.DrawMesh(quadMesh, Matrix4x4.TRS(camera.transform.position + camera.transform.forward, Quaternion.identity, Vector3.one), quad, 0, camera);
         }
 

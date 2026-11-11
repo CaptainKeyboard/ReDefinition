@@ -12,7 +12,8 @@ namespace ReDefinition.Atmospheres
     // The image is painted at 128 x 128 and enlarged to 1024 by bilinear interpolation with wrapping: the detail the picture needs is
     // coarser than a texel of 128 (a tile is about 0.6 picture heights, so a texel is 5 pixels at 1080 lines), and the work stays under
     // 60 ms in the game's runtime. The build is pure (no engine call), so it can run on a worker thread; MakeTexture is the one engine call.
-    // The hash is PrecipMath.Hash (lowbias32, credited there).
+    // The hash is PrecipMath.Hash (lowbias32, credited there). Techniques: value-noise fbm, domain warping (I. Quilez,
+    // iquilezles.org/articles/warp) and the F2 - F1 ridges of cellular noise (S. Worley, "A cellular texture basis function", 1996).
     internal static class FrostAtlas
     {
         internal const int Size = 1024;

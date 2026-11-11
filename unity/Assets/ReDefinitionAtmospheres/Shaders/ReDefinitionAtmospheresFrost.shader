@@ -80,6 +80,9 @@ Shader "ReDefinition/AtmospheresFrost"
     float4 _FrostFlakes[40];
     // x, y = head, z = radius in picture heights, w = length of the wet trail in picture heights.
     float4 _FrostDrops[24];
+    // The picture cut into 32 x 18 tiles (row by row, row 0 at the bottom of the picture): x, y = the bits of the flakes that touch the
+    // tile (0..19, 20..39), z = the bits of the drops (FrostTiles).
+    float4 _FrostTiles[576];
 
     struct v2f
     {
@@ -134,17 +137,20 @@ Shader "ReDefinition/AtmospheresFrost"
         return geo * _FrostB.z * thick * (0.6 + 0.4 * relief);
     }
 
-    // The stuck flakes at a point: their opacity and the offset (in uv) their lens gives the picture behind.
-    void Flakes(float2 uv, out float a, out float2 lens)
+    // The stuck flakes at a point: their opacity and the offset (in uv) their lens gives the picture behind. tile is the point's entry of
+    // _FrostTiles: bit k of x (flakes 0..19) and y (flakes 20..39) says that flake k touches the tile; the other flakes are skipped.
+    void Flakes(float2 uv, float4 tile, out float a, out float2 lens)
     {
         a = 0;
         lens = float2(0, 0);
+        uint lo = (uint)tile.x, hi = (uint)tile.y;
+        if ((lo | hi) == 0u) return;
         float aspect = _FrostA.z;
-        int n = (int)_FrostD.x;
         [loop]
         for (int i = 0; i < 40; i++)
         {
-            if (i >= n) break;
+            uint m = i < 20 ? lo : hi;
+            if (((m >> (uint)(i % 20)) & 1u) == 0u) continue;
             float4 f = _FrostFlakes[i];
             float2 d = (uv - f.xy) * float2(aspect, 1.0) / f.z;
             if (dot(d, d) > 1.0) continue;
@@ -158,20 +164,21 @@ Shader "ReDefinition/AtmospheresFrost"
     }
 
     // The drops at a point: the head's opacity, the share of frost they wipe, the wet trail's opacity and the lens offset (in uv).
-    void Drops(float2 uv, out float head, out float wipe, out float trail, out float2 lens)
+    void Drops(float2 uv, float4 tile, out float head, out float wipe, out float trail, out float2 lens)
     {
         head = 0;
         wipe = 0;
         trail = 0;
         lens = float2(0, 0);
+        uint bits = (uint)tile.z;
+        if (bits == 0u) return;
         float aspect = _FrostA.z;
         float2 g = _FrostGravity.xy;
         float2 gp = float2(-g.y, g.x);
-        int n = (int)_FrostD.y;
         [loop]
         for (int i = 0; i < 24; i++)
         {
-            if (i >= n) break;
+            if (((bits >> (uint)i) & 1u) == 0u) continue;
             float4 dr = _FrostDrops[i];
             float2 q = (uv - dr.xy) * float2(aspect, 1.0);
             float reach = dr.w + dr.z * 2.0;
@@ -198,8 +205,15 @@ Shader "ReDefinition/AtmospheresFrost"
         frost = FrostAlpha(puv, nrm);
         float2 lensF, lensD;
         float wipe;
-        Flakes(puv, flake, lensF);
-        Drops(puv, dropHead, wipe, trail, lensD);
+        // The tile lists are written only while there is a flake or a drop on the glass.
+        float4 tile = float4(0, 0, 0, 0);
+        if (_FrostD.x + _FrostD.y > 0.5)
+        {
+            int2 cell = (int2)clamp(floor(puv * float2(32.0, 18.0)), float2(0.0, 0.0), float2(31.0, 17.0));
+            tile = _FrostTiles[cell.y * 32 + cell.x];
+        }
+        Flakes(puv, tile, flake, lensF);
+        Drops(puv, tile, dropHead, wipe, trail, lensD);
         frost *= 1.0 - saturate(wipe);
         offset = nrm * _FrostC.x * frost + lensF + lensD;
     }

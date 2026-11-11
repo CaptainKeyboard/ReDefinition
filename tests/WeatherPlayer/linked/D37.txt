@@ -1,0 +1,13 @@
+# Linked into the weather player for the camera frost (D37): the shape maths, the atlas painter, the tuning struct, the state machine, the
+# draw pass (engine only) and the shader. The renderer module, the interior mask and the camera classifier name game types and are not
+# linked. The atlas painter takes its integer hash from PrecipMath, which package C22 links as well (a file named in two manifests is one
+# file); PrecipScale.cs holds the precipitation types the state machine names.
+src/Atmospheres/Light/Frost/FrostShape.cs
+src/Atmospheres/Light/Frost/FrostAtlas.cs
+src/Atmospheres/Light/Frost/FrostTuning.cs
+src/Atmospheres/Light/Frost/CameraFrost.cs
+src/Atmospheres/Light/Frost/FrostTiles.cs
+src/Atmospheres/Light/Frost/FrostPass.cs
+src/Atmospheres/Render/Precip/PrecipMath.cs
+src/Common/Weather/PrecipScale.cs
+unity/Assets/ReDefinitionAtmospheres/**/ReDefinitionAtmospheresFrost.shader

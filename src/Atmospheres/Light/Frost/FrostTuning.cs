@@ -38,7 +38,7 @@ namespace ReDefinition.Atmospheres
     //   frost.sunShare 0.7 (0-1)  frost.ambient 0.25 (0-1)   light shares of the frost colour
     //   frost.tintR 0.86  frost.tintG 0.93  frost.tintB 1.0   colour of the scattered light
     //   frost.dropGain 1 (0-2)          strength of the drop lens
-    //   frost.flipY 0                   1 where the draw target is upside down against the picture [VERIFY in the game]
+    //   frost.flipY -1                  -1 decides by the platform (FrostPass.ResolveFlipY), 0 and 1 force it [VERIFY in the game]
     //   frost.quadAlpha 0.8 (0.3-1)     opacity of the quad fallback
     internal struct FrostTuning
     {
