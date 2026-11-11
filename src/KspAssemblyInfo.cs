@@ -15,3 +15,6 @@
 // [KSPAssemblyDependency("ReDefinition", 0, 1)]: KSP loads them after it, and not
 // without it (ReDefinition.Api).
 [assembly: KSPAssembly("ReDefinition", 0, 1)]
+
+// Loaded after ReDefinition.Common in any folder order, and not without it (see src/Common/KspAssemblyInfo.cs).
+[assembly: KSPAssemblyDependency("ReDefinition.Common", 0, 1)]
