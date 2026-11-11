@@ -141,7 +141,7 @@ namespace ReDefinition.Atmospheres
             cmd.SetRenderTarget(BuiltinRenderTextureType.CameraTarget);
 
             float halfWidthRad = draw.Frame.WidthDeg * 0.5f * Mathf.Deg2Rad;
-            float drift = (float)((draw.Seconds * look.DriftPerS) % 64.0);
+            float drift = (float)((draw.Seconds * look.DriftPerS) % 640.0);
             float pixelAngle = 2f * Mathf.Tan(draw.FovYRad * 0.5f) / Mathf.Max(draw.HeightPx, 1);
             block.Clear();
             block.SetTexture("_AuroraNoise", noise);

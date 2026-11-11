@@ -11,8 +11,7 @@ namespace ReDefinition.Atmospheres
     // degrees). A rare strong event (a deterministic function of the UT, owned here: no solar flare exists elsewhere in the plans)
     // raises A to its top and pushes the oval a further 6 degrees towards the equator for about a day.
     //
-    // Technique references (no code taken): SPVE and EVEVolumetricsAurorae put the aurora in a ring around the pole with a coverage map;
-    // the activity noise and the event rule are our own.
+    // Technique references: SPVE and EVEVolumetricsAurorae put the aurora in a ring around the pole with a coverage map.
     internal struct AuroraFrame
     {
         // Whether anything is drawn this frame.

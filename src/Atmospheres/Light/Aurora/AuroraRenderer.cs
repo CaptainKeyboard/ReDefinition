@@ -9,7 +9,7 @@ namespace ReDefinition.Atmospheres
     // camera from a command buffer at BeforeForwardAlpha. A module (started by the registry), no game object.
     //
     // Draw order: after the opaque scene and the sky, before the transparent queue (where EVE's cloud composite draws), so clouds cover
-    // the aurora. Depth: a copy of the depth taken in the same buffer (RECON P6: the copy at BeforeForwardAlpha is valid with and
+    // the aurora. Depth: a copy of the depth taken in the same buffer (RECON P6 read the copy at BeforeForwardAlpha intact with and
     // without Scatterer, the global texture is not relied on); the dome draws only where the copy holds the far value, so terrain,
     // vessels and anything in the opaque scene occlude it. Motion vectors: none; the aurora is slow emissive light and only the camera
     // moves it on the screen. Masks: none added; the upscaler's reactive mask is not used (DLSS has none). HUD-less frame generation:
@@ -116,7 +116,11 @@ namespace ReDefinition.Atmospheres
         private void OnPreCull(Camera cam)
         {
             if (!initialised || pass == null) return;
-            if (!HighLogic.LoadedSceneIsFlight || FlightCamera.fetch == null) return;
+            if (!HighLogic.LoadedSceneIsFlight || FlightCamera.fetch == null)
+            {
+                if (Drawing || buffer != null) Hide();
+                return;
+            }
             Camera flight = FlightCamera.fetch.mainCamera;
             if (flight == null || cam != flight) return;
             if (lastFrame == Time.frameCount) return;

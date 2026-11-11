@@ -16,7 +16,7 @@
 // No motion vectors are written: the aurora is slow emissive light, only the camera moves it on the screen, and the upscaler's
 // camera-motion reprojection of the sky is right for it. The shell adds light before the upscaler, so the HUD-less copy contains it.
 //
-// Technique references (no code taken): SPVE and EVEVolumetricsAurorae (a ring around the pole, emission by a negative sky tint);
+// Technique references: SPVE and EVEVolumetricsAurorae (a ring around the pole, emission by a negative sky tint);
 // nimitz, Shadertoy "Auroras" (raymarched curtains from triangle-noise fbm; licence on the Shadertoy page).
 Shader "ReDefinition/AtmospheresAurora"
 {
@@ -83,7 +83,9 @@ Shader "ReDefinition/AtmospheresAurora"
             bool Sphere(float3 c, float r, float3 d, out float tn, out float tf)
             {
                 float b = dot(d, c);
-                float disc = b * b - (dot(c, c) - r * r);
+                // The distance of the centre from the ray, in the centred form (the plain b*b - c*c + r*r loses digits at planet scale).
+                float3 perp = c - d * b;
+                float disc = r * r - dot(perp, perp);
                 tn = 0.0;
                 tf = 0.0;
                 if (disc < 0.0) return false;
@@ -202,10 +204,11 @@ Shader "ReDefinition/AtmospheresAurora"
                     float lumpy = 0.35 + 0.65 * smoothstep(0.25, 0.75, ribbon);
 
                     // The vertical rays: stripes that depend on the horizontal place only, so they stand upright at any view.
-                    // Narrow along the oval (about 1 to 2 km) and long across it (about a third of the span), so that they read as rays.
+                    // Narrow along the oval and long across it (about a third of the span), so that they read as rays. The texture repeats a
+                    // whole number of times around the oval, so the pattern has no seam at the meridian where the longitude wraps.
                     float latRad = asin(clamp(abs(dot(n, _AuroraPole.xyz)), 0.0, 1.0));
-                    float along = (lon01 - 0.5) * 6.2831853 * R * cos(latRad);
-                    float2 q = float2(along / span, latRad * R / (span * 0.35));
+                    float repeats = max(1.0, floor(6.2831853 * R * cos(_AuroraRing.x) / span));
+                    float2 q = float2(lon01 * repeats, latRad * R / (span * 0.35));
                     float stripe = Noise(q + float2(drift * 0.5, 0.0), lod).b;
                     float ray = lerp(0.6, smoothstep(0.30, 0.85, stripe) * 1.3, rayGate * _AuroraLook.w);
 
