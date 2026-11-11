@@ -87,6 +87,14 @@ namespace AtmoSim.Core
             // Round 2 (BodyParams.Round2Systems): curl of the poleward head (eastward displacement in half-lengths), the equatorward envelope (own half-length) and the flag of the individual generation.
             public bool R2;
             public double Cv, LyE, InvLyE2, InvLyTE2;
+            // Round 3 (BodyParams.Round3Systems): the front has its own tilt TiltT (SepT), independent of the tilt of the pressure wave.
+            public bool SepT;
+            public double TiltT;
+            // Round 3 (BodyParams.MatureStructure): the mature-stage structure of the system as a function of its life phase. Rsp: radius of the spiral (m); SpW: winding angle at Rsp (rad);
+            // SpPhi0: phase of the spiral arm; SpGain, DsGain: strength of the spiral and the dry slot (0 in the first part of the life); DsAx, DsAy: axis of the dry slot in the frame
+            // (east, poleward) of the system.
+            public bool Mature;
+            public double Rsp, SpW, SpPhi0, SpGain, DsGain, DsAx, DsAy;
         }
 
         private sealed class Frame
@@ -172,7 +180,9 @@ namespace AtmoSim.Core
                 double gen = DMath.Floor(tt / life);
                 double u = tt / life - gen;
                 double sw = DMath.Sin(DMath.Pi * u);
-                double w = sw * sw;
+                // the amplitude window of a generation: sin^2 (signed), or (round 3, WindowRise > 0) a flat-topped window that rises over the first WindowRise of the life and falls over the last:
+                // both have zero slope at the hand-over, the change in one hour stays below 0.5 % of the amplitude for WindowRise 0.35 and a life of 3 days
+                double w = Body.WindowRise > 0.0 ? DMath.SmoothStep(0.0, Body.WindowRise, u) * DMath.SmoothStep(1.0, 1.0 - Body.WindowRise, u) : sw * sw;
                 if (w < 1e-3) continue;
                 ulong hg = Hash.Of(Seed, h * 64 + j, (long)gen, 12);
                 double tm = off + (gen + 0.5) * life;
@@ -186,7 +196,7 @@ namespace AtmoSim.Core
                 // Round 2: the poleward half-length is shorter than the equatorward one (the comma has a short head and a long tail), the latitude scatter is wider
                 double lyP = r2on ? ly * (0.70 + 0.30 * Hash.Draw(hg, 12)) : ly;
                 double lyE = r2on ? ly * (1.00 + 0.25 * Hash.Draw(hg, 11)) : ly;
-                double latAbs = DMath.Clamp(jetLat + (Hash.Draw(hg, 1) * 2.0 - 1.0) * (r2on ? 0.6 : 0.5) * ly / a, 0.35, 1.35);
+                double latAbs = DMath.Clamp(jetLat + (Hash.Draw(hg, 1) * 2.0 - 1.0) * (r2on ? Body.SystemLatScatter : 0.5) * ly / a, 0.35, 1.35);
                 double cosC = DMath.Cos(latAbs);
                 double lon0 = (Hash.Draw(hg, 0) * 2.0 - 1.0) * DMath.Pi;
                 // Comb placement (RESULT.md H6, iteration 2, switch BodyParams.CombPlacement): the longitude of slot j of n at mid-life lies in the sector j of the parallel,
@@ -212,7 +222,7 @@ namespace AtmoSim.Core
                 var sl = new Slot();
                 sl.Valid = true;
                 sl.LatC = hs * latAbs; sl.CosLatC = cosC;
-                double ujEff = r2on ? uj * (1.0 + Body.SystemSpeedSpread * (2.0 * Hash.Draw(hg, 13) - 1.0)) : uj;
+                double ujEff = r2on ? uj * Body.SystemSpeedFactor * (1.0 + Body.SystemSpeedSpread * (2.0 * Hash.Draw(hg, 13) - 1.0)) : uj;
                 sl.LonC = Body.CombPlacement
                     ? DMath.WrapPi(comb + omegaRef * ut + (uj / (a * cosC) - omegaRef) * (ut - tm))
                     : DMath.WrapPi(lon0 + ujEff * (ut - tm) / (a * cosC));
@@ -229,6 +239,15 @@ namespace AtmoSim.Core
                     // equatorward envelope, and the zonal modulation of the amplitude (storm-track zones; the phases belong to the hemisphere and the seed, not to the generation)
                     sl.R2 = true;
                     sl.Tilt = -(Body.SystemTiltMin + (Body.SystemTiltMax - Body.SystemTiltMin) * Hash.Draw(hg, 6)) * hs;
+                    sl.TiltT = sl.Tilt;
+                    if (Body.Round3Systems)
+                    {
+                        // Round 3: the front (the temperature and cloud band) has its own angle from the meridian, drawn over a wide range (the tilt is its tangent), so neighbouring systems
+                        // rarely share one diagonal; the pressure wave keeps the tilt range of round 2 (a wide tilt of the pressure wave makes several minima inside one system)
+                        double ang = (Body.SystemAngleMinDeg + (Body.SystemAngleMaxDeg - Body.SystemAngleMinDeg) * Hash.Draw(hg, 17)) * (DMath.Pi / 180.0);
+                        sl.TiltT = -(DMath.Sin(ang) / DMath.Cos(ang)) * hs;
+                        sl.SepT = true;
+                    }
                     sl.Cv = Body.SystemCurlMax * Hash.Draw(hg, 7);
                     // the pressure low stays compact on the equatorward side (one clear minimum), the front (temperature) tail is long
                     double lyTe = 1.7 * lyP * (1.0 + 0.3 * Hash.Draw(hg, 11));
@@ -237,11 +256,60 @@ namespace AtmoSim.Core
                     double lc = sl.LonC;
                     zon = DMath.Clamp(1.0 + Body.SystemZonalAmp * (0.7 * DMath.Sin(2.0 * lc + DMath.TwoPi * Hash.Draw(hz, 0)) + 0.5 * DMath.Sin(3.0 * lc + DMath.TwoPi * Hash.Draw(hz, 1))), 0.55, 1.6);
                 }
+                if (r2on && Body.MatureStructure)
+                {
+                    // Round 3: spiral and dry slot as a function of the life phase u of the generation (0 at birth, 1 at death). The spiral winds up with the age; both are
+                    // absent in the first part of the life (the system is a wave) and fade with the amplitude window at the end.
+                    double mat = DMath.SmoothStep(Body.MaturityLo, Body.MaturityHi, u);
+                    if (mat > 0.0)
+                    {
+                        double tiltEff = -sl.TiltT * hs; // the front lies at x = tiltEff * (poleward distance)
+                        double phiCf = DMath.Atan2(-1.0, -tiltEff);
+                        double phiS = phiCf - (Body.DrySlotAngleDeg * (0.8 + 0.4 * Hash.Draw(hg, 16))) * (DMath.Pi / 180.0);
+                        double turns = Body.SpiralTurnsMin + (Body.SpiralTurnsMax - Body.SpiralTurnsMin) * DMath.SmoothStep(0.15, 0.85, u) * (0.75 + 0.5 * Hash.Draw(hg, 14));
+                        sl.Mature = true;
+                        sl.Rsp = Body.SpiralRadiusFactor * ly;
+                        sl.SpW = DMath.TwoPi * turns;
+                        // the arm passes 40 degrees clockwise of the dry-slot axis at 0.7 of the spiral radius (the arm bounds the slot on the side away from the cold front)
+                        sl.SpPhi0 = phiS - 40.0 * (DMath.Pi / 180.0) + 0.7 * sl.SpW + (Hash.Draw(hg, 15) - 0.5) * 0.6;
+                        double gm = mat * sw * D.WaveGate;
+                        sl.SpGain = Body.SpiralAmp * gm; sl.DsGain = Body.DrySlotDepth * gm;
+                        sl.DsAx = DMath.Cos(phiS); sl.DsAy = DMath.Sin(phiS);
+                    }
+                }
                 sl.Amp = D.PressureAmpPa * (r2on ? 0.85 + 0.55 * Hash.Draw(hg, 2) : 0.6 + 0.6 * Hash.Draw(hg, 2)) * gate * zon;
                 sl.Bk = D.FrontAmpK * (r2on ? 0.8 + 0.5 * Hash.Draw(hg, 5) : 0.7 + 0.5 * Hash.Draw(hg, 5)) * gate * zon;
                 f.Slots[idx] = sl;
             }
             if (h == 0) f.Ready0 = true; else f.Ready1 = true;
+        }
+
+        // Round 3: the cloud spiral and the dry slot of a mature system at a point (x east, yh poleward of the system centre, metres). sp accumulates the spiral (an arm winding
+        // cyclonically inward, in the frame where the hemisphere mirror is the same formula); ds takes the strongest dry-slot value.
+        private static void MatureTerm(ref Slot s, double x, double yh, ref double sp, ref double ds)
+        {
+            double rs = s.Rsp, r2 = x * x + yh * yh;
+            if (r2 >= 3.6 * rs * rs) return;
+            double rn = DMath.Sqrt(r2) / rs;
+            double psi = DMath.Atan2(yh, x) + s.SpW * rn - s.SpPhi0;
+            double arm = 0.5 + 0.5 * DMath.Cos(psi);
+            arm *= arm;
+            double renv = (0.35 + 0.65 * DMath.SmoothStep(0.0, 0.3, rn)) * (1.0 - DMath.SmoothStep(0.8, 1.9, rn));
+            sp += s.SpGain * renv * arm;
+            // the lanes between the arms are drier than the arms (a spiral needs clear lanes to be seen): the dry factor of the lane grows with the radius inside the spiral disc
+            double lane = s.DsGain * 0.45 * renv * (1.0 - arm) * DMath.SmoothStep(0.15, 0.6, rn);
+            if (lane > ds) ds = lane;
+            double along = (x * s.DsAx + yh * s.DsAy) / rs;
+            if (along > 0.02)
+            {
+                // the dry slot: a wedge that opens away from the centre, soft edges and a rounded tip
+                double perp = DMath.Abs(-x * s.DsAy + yh * s.DsAx) / rs;
+                double hw = 0.14 + 0.30 * along;
+                double wedge = 1.0 - DMath.SmoothStep(0.2, 1.15, perp / hw);
+                double radial = DMath.SmoothStep(0.0, 0.45, along) * (1.0 - DMath.SmoothStep(0.8, 1.5, along));
+                double d = s.DsGain * wedge * radial;
+                if (d > ds) ds = d;
+            }
         }
 
         // Positions of the active wave systems of one hemisphere at a time (for the tracker tests and the sheets).
@@ -258,6 +326,19 @@ namespace AtmoSim.Core
                 c++;
             }
             return c;
+        }
+
+        // Diagnostic: centre, amplitude, maturity (0 when the structure is off), spiral radius and the angle of the front from the meridian (degrees, positive = trailing equatorward and
+        // westward) of one slot at a time; false when the slot has no active generation.
+        public bool SystemInfo(int hemi, int slot, double ut, out double latRad, out double lonRad, out double ampPa, out double maturity, out double rspKm, out double frontAngleDeg)
+        {
+            Frame f = GetFrame(ut);
+            if (hemi == 0 ? !f.Ready0 : !f.Ready1) SetupHemisphere(f, hemi);
+            Slot s = f.Slots[hemi * MaxSlots + slot];
+            latRad = s.LatC; lonRad = s.LonC; ampPa = s.Amp; maturity = s.Mature ? 1.0 : 0.0; rspKm = s.Rsp / 1000.0;
+            double hs = hemi == 0 ? 1.0 : -1.0;
+            frontAngleDeg = s.Valid ? DMath.Atan(-s.TiltT * hs) * 180.0 / DMath.Pi : 0.0;
+            return s.Valid;
         }
 
         // Diagnostic: the pressure anomaly (Pa, before the equator fade) of one slot at a point, and whether the point lies inside the cut-off box of the slot (3 x the envelope lengths).
@@ -332,7 +413,7 @@ namespace AtmoSim.Core
             double tClim = ClimateInner(f, latRad, sinLat, cosLat, lonRad, moist);
 
             // wave systems of this hemisphere
-            double p = 0, tAnom = 0, fr = 0, dpdx = 0, dpdy = 0;
+            double p = 0, tAnom = 0, fr = 0, dpdx = 0, dpdy = 0, spiral = 0, drySlot = 0;
             int baseIdx = h * MaxSlots;
             for (int j = 0; j < MaxSlots; j++)
             {
@@ -346,6 +427,7 @@ namespace AtmoSim.Core
                     double yh = hs * y;
                     if (yh > 3.0 * s.Ly || yh < -3.0 * s.LyE) continue;
                     double xr = a * s.CosLatC * DMath.WrapPi(lonRad - s.LonC);
+                    if (s.Mature) MatureTerm(ref s, xr, yh, ref spiral, ref drySlot);
                     double invLy = yh > 0.0 ? s.InvLy2 : s.InvLyE2, invLyT = yh > 0.0 ? s.InvLyT2 : s.InvLyTE2;
                     double eyr = y * y * invLy, eyTr = y * y * invLyT;
                     double sumEr = 0.0, sumExr = 0.0, sumTr = 0.0;
@@ -368,9 +450,23 @@ namespace AtmoSim.Core
                     double sqr = DMath.Sin(qr), cqr = DMath.Cos(qr);
                     double aeR = s.Amp * sumEr;
                     p -= aeR * cqr;
-                    double thr = DMath.TanhFast(FrontSharp * sqr);
-                    tAnom += s.Bk * sumTr * thr;
-                    fr += s.Bk * sumTr * FrontSharp * (1.0 - thr * thr) * DMath.Abs(cqr) * gn;
+                    if (s.SepT)
+                    {
+                        // Round 3: the front has its own phase with the tilt TiltT (same curl); the pressure wave above keeps its own
+                        double qT = s.K * (xr + s.TiltT * y - s.Cv * s.Ly * uc2 / dn);
+                        double qyT = s.K * (s.TiltT - hs * s.Cv * 2.0 * uc / (dn * dn));
+                        double gnT = DMath.Sqrt(s.K * s.K + qyT * qyT);
+                        double sqT = DMath.Sin(qT), cqT = DMath.Cos(qT);
+                        double thT = DMath.TanhFast(FrontSharp * sqT);
+                        tAnom += s.Bk * sumTr * thT;
+                        fr += s.Bk * sumTr * FrontSharp * (1.0 - thT * thT) * DMath.Abs(cqT) * gnT;
+                    }
+                    else
+                    {
+                        double thr = DMath.TanhFast(FrontSharp * sqr);
+                        tAnom += s.Bk * sumTr * thr;
+                        fr += s.Bk * sumTr * FrontSharp * (1.0 - thr * thr) * DMath.Abs(cqr) * gn;
+                    }
                     dpdx += s.Amp * (2.0 * s.InvLx2 * sumExr * cqr + sumEr * s.K * sqr);
                     dpdy += aeR * (2.0 * y * invLy * cqr + qy * sqr);
                     continue;
@@ -417,8 +513,9 @@ namespace AtmoSim.Core
             // the systems of a hemisphere fade to zero at the equator (they are evaluated only for their own hemisphere, so no jump at latitude 0)
             double eqw = DMath.SmoothStep(0.0, 0.2, la);
             // Round 2: the systems fade out toward the pole (above 70 degrees the wave pattern of a small parallel is a fan of radial lines, which no real system shows)
-            if (Body.Round2Systems) eqw *= 1.0 - DMath.SmoothStep(1.2, 1.45, la);
-            p *= eqw; tAnom *= eqw; fr *= eqw; dpdx *= eqw; dpdy *= eqw;
+            // Round 3: the fade starts earlier (SystemPoleFadeLo to SystemPoleFadeHi): the radial streaks of the south pole came from systems on parallels too small for their size
+            if (Body.Round2Systems) eqw *= Body.Round3Systems ? 1.0 - DMath.SmoothStep(Body.SystemPoleFadeLo, Body.SystemPoleFadeHi, la) : 1.0 - DMath.SmoothStep(1.2, 1.45, la);
+            p *= eqw; tAnom *= eqw; fr *= eqw; dpdx *= eqw; dpdy *= eqw; spiral *= eqw; drySlot *= eqw;
             double frontK100 = fr * 1e5;
             double frontN = DMath.Min(1.0, frontK100 / D.FrontRefKPer100Km);
 
@@ -485,7 +582,16 @@ namespace AtmoSim.Core
                     // clusters: five travelling waves, slanted against the belt axis, make the convergence zone a chain of patches with breaks between them
                     double sCl = 0.50 * DMath.Sin(3.0 * lonRad + 2.5 * beltLat / 0.2 + f.Wp[2]) + 0.35 * DMath.Sin(5.0 * lonRad - 2.0 * beltLat / 0.2 + f.Wp[4])
                         + 0.25 * DMath.Sin(8.0 * lonRad + 3.0 * beltLat / 0.2 + f.Wp[6]) + 0.15 * DMath.Sin(11.0 * lonRad + f.Wp[7]) + 0.20 * DMath.Sin(7.0 * lonRad - 3.5 * beltLat / 0.2 + f.Wp[13]);
-                    itczM = DMath.SmoothStep(Body.ItczBreakLo, Body.ItczBreakHi, sCl);
+                    if (Body.Round3Itcz)
+                    {
+                        // Round 3: the patches sit inside clusters with a common envelope (a broad pattern of wavenumbers 2 and 3, 60 to 90 degrees of longitude), the transition of a patch is wide
+                        // (a soft core, no pearl) and between the clusters only a weak remainder of the patches stays
+                        double sEnv = 0.6 * DMath.Sin(2.0 * lonRad + f.Wp[1]) + 0.4 * DMath.Sin(3.0 * lonRad + f.Wp[11]);
+                        double env = DMath.SmoothStep(Body.ItczEnvelopeLo, Body.ItczEnvelopeHi, sEnv);
+                        double patch = DMath.SmoothStep(Body.ItczClusterLo, Body.ItczClusterHi, sCl);
+                        itczM = env * (0.35 + 0.65 * patch) + (1.0 - env) * Body.ItczOffClusterFloor * patch;
+                    }
+                    else itczM = DMath.SmoothStep(Body.ItczBreakLo, Body.ItczBreakHi, sCl);
                 }
                 else itczM = DMath.Clamp(0.45 + 0.55 * (0.6 * DMath.Sin(3.0 * lonRad + f.Ph3) + 0.4 * DMath.Sin(5.0 * lonRad + f.Ph5)), 0.0, 1.0);
             }
@@ -505,6 +611,14 @@ namespace AtmoSim.Core
             double uplift = DMath.Min(1.4, 0.85 * lowP + 0.5 * frontN + itczU);
             double bg = DMath.Clamp(hLift * CloudBgGain - CloudBgOffset, 0.0, 1.0);
             double xdyn = hLift * (UpliftGain * uplift + FrontGain * frontN);
+            if (spiral > 0.0 || drySlot > 0.0)
+            {
+                // mature systems (round 3): the cloud spiral adds to the lift, the dry slot removes cloud and rain (the sky stays clear where the dry air descends)
+                if (spiral > 1.0) spiral = 1.0;
+                xdyn += hLift * UpliftGain * spiral;
+                double dry = 1.0 - (drySlot > 0.95 ? 0.95 : drySlot);
+                xdyn *= dry; bg *= dry;
+            }
 
             // convective cells
             double warm = tAnom > 0.0 ? DMath.Min(1.0, tAnom / D.FrontAmpK) : 0.0;

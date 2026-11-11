@@ -78,6 +78,8 @@ namespace AtmoSim.Core
         // The snow window in 6-hour steps: a fixed fraction of the body's year (L3), 160 steps (40 days) where the lever is off.
         private readonly int snowSteps;
         private readonly bool smoothAlb, r2snow;
+        // The memory of the snow on the ice in seconds (BodyParams.IceSnowMemoryDays), 0 = none.
+        private readonly double memorySteps;
         private readonly float[] tSer, pSer, wSer, hSer;
         // Per-step values that need an Exp, computed once with the sample: snow added by the step (water equivalent, mm) and the decay factor of the wet recurrence.
         private readonly double[] snowAdd, wetDecay, meltDrop;
@@ -99,6 +101,7 @@ namespace AtmoSim.Core
             fluxK = b.SeaHeatFluxWm2 / IceModel.SeaExchangeWm2K;
             tSnow = b.SnowFreezeK;
             smoothAlb = b.SmoothSnowAlbedo;
+            memorySteps = b.IceSnowMemoryDays * 86400.0;
             // the degree-day melt with a spread acts on land; the snow on sea ice keeps the round-1 rule (a fast change of the snow depth over ice would move the albedo, and with it the
             // whole integrated ice history, in a few hours: the continuity check of the ice at the anchor boundaries)
             r2snow = b.Round2Snow && !sea;
@@ -184,12 +187,16 @@ namespace AtmoSim.Core
             {
                 // melt of the step (mm of water equivalent) by the degree-day rule of Round2Snow: only where the air is within reach of the freezing point (a spread of 6 K: 5 sigma = 30 K below it
                 // the expectation is below 1e-6 K), the insolation factor only then
-                double sg = b.SnowTempSpreadK, xx = (t - tSnow) / sg;
+                // Round 3 (SnowRadiativeHeatK): the sun heats the snow surface above the air temperature (the radiation term of an enhanced degree-day model), so snow melts
+                // on high ground in summer where the air stays below freezing, and not in winter (small insolation); 0 = round 2
+                double sg = b.SnowTempSpreadK;
+                double su = b.SnowRadiativeHeatK > 0.0 || b.SnowMeltRadPerUnit > 0.0 ? SolarUnit(step * StepS) : 0.0;
+                double xx = (t + b.SnowRadiativeHeatK * su - tSnow) / sg;
                 if (xx < -5.0) meltDrop[i] = 0.0;
                 else
                 {
                     double pdd = sg * (0.3989422804 * DMath.Exp(-0.5 * xx * xx) + xx / (1.0 + DMath.Exp(-1.702 * xx)));
-                    meltDrop[i] = (3.0 + b.SnowMeltRadPerUnit * SolarUnit(step * StepS)) * pdd * 0.25;
+                    meltDrop[i] = (3.0 + b.SnowMeltRadPerUnit * su) * pdd * 0.25;
                 }
             }
             stamp[i] = step; SamplesTaken++;
@@ -292,7 +299,10 @@ namespace AtmoSim.Core
                 double tm = 0.5 * (t + t + dt);
                 double iEnd = Interp(t + dt);
                 double meanT = 0.5 * (0.5 * (iStart + iEnd) + Interp(0.5 * (t + (t + dt))));
-                IceModel.Step(ref tml, ref h, meanT, ClimSolar(tm), snowM, tFreeze, cap, dt / 86400.0, fluxK, smoothAlb);
+                // Round 3 (IceSnowMemoryDays): the snow of the evaluation time counts for the steps long before it with a decaying weight, so a quick change of the snow does not move
+                // the whole integrated history (the continuity check of the ice, synthetic seed A); 0 = the same snow depth for every step
+                double snowStep = memorySteps > 0.0 ? snowM * DMath.Exp(-(ut - tm) / memorySteps) : snowM;
+                IceModel.Step(ref tml, ref h, meanT, ClimSolar(tm), snowStep, tFreeze, cap, dt / 86400.0, fluxK, smoothAlb);
                 t += dt;
                 iStart = iEnd;
             }

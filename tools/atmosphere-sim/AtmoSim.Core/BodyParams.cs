@@ -56,7 +56,7 @@ namespace AtmoSim.Core
         // Iteration 2 of the B10 proof (RESULT.md H6): slots in sectors of the parallel (a comb) instead of independent uniform longitudes. Off in the signed generator.
         public bool CombPlacement = false;
         // System generations: lifetime range in days of 86400 s (a generation of a slot lasts one period drawn once per slot).
-        public double SystemLifeMinDays = 3.0;
+        public double SystemLifeMinDays = 4.0; // 3.0 in the signed generator and in rounds 1 and 2 (Round2() restores it)
         public double SystemLifeMaxDays = 6.0;
 
         // Ocean fraction and terrain height on a regular grid; null means the synthetic maps of the seed.
@@ -106,7 +106,7 @@ namespace AtmoSim.Core
         // Wavelength factor range (times 3 r) of the wave number distribution; the along-track envelope in wavelengths; the share of the generations that are isolated single lows.
         public double SystemLambdaMin = 0.7, SystemLambdaMax = 1.5;
         // Zonal modulation of the system amplitude (storm-track zones, share of the amplitude) and the per-generation speed factor spread.
-        public double SystemZonalAmp = 0.25, SystemSpeedSpread = 0.18;
+        public double SystemZonalAmp = 0.25, SystemSpeedSpread = 0.22; // 0.18 in round 2 (Round2() restores it)
         // R2b: the moist belt meanders and breaks (longitude-dependent position, width and strength, land/sea shift), the subtropical dry zone meanders, trade-wind cumulus fills the dry zone; false = round 1.
         public bool Round2Itcz = true;
         public double ItczMeanderScale = 0.9, ItczBreakLo = 0.05, ItczBreakHi = 0.85;
@@ -119,10 +119,48 @@ namespace AtmoSim.Core
         public bool Round2Snow = true;
         public double SnowTempSpreadK = 6.0, SnowMeltRadPerUnit = 8.0;
 
+        // ---- levers of tuning round 3 (RESULT.md, TUNING ROUND 3). The values below are the round-3 values; Round2() restores the round-2 generator. ----
+        // R3a: the orientation of the front of a generation is drawn as an ANGLE from the meridian (degrees, positive = the front trails equatorward and westward) over a wide range instead of
+        // a tilt range of one sign, so neighbouring systems do not share a diagonal; the systems fade toward the pole from SystemPoleFadeLo to SystemPoleFadeHi (rad of latitude).
+        public bool Round3Systems = true;
+        public double SystemAngleMinDeg = -55.0, SystemAngleMaxDeg = 70.0;
+        // The pressure amplitude of a system as a share of the surface pressure (0.025 in the signed generator and in rounds 1 and 2), and the lifetime of a generation (3 to 6 days before).
+        public double SystemAmpFraction = 0.025;
+        // The steering speed of a system as a multiple of the jet speed of its latitude (1 in rounds 1 and 2).
+        public double SystemSpeedFactor = 1.0;
+        // Half-range of the latitude scatter of a generation around the jet latitude, in units of its half-length (0.6 in round 2).
+        public double SystemLatScatter = 0.4;
+        // The amplitude window of a generation: 0 = sin^2 of the life phase (signed, rounds 1 and 2); above 0 a flat-topped smoothstep window rising over this share of the life.
+        public double WindowRise = 0.0;
+        public double SystemPoleFadeLo = 1.0, SystemPoleFadeHi = 1.35;
+        // R3b: mature-stage structure of a system as a function of its life phase: a cloud spiral around the low (windings grow with the age) and a dry slot (a clear wedge between
+        // the cold-front band and the cloud head). Amplitudes are shares of the available moisture; the spiral radius is SpiralRadiusFactor times the half-length of the system.
+        public bool MatureStructure = true;
+        public double SpiralAmp = 0.55, SpiralRadiusFactor = 1.25, SpiralTurnsMin = 0.35, SpiralTurnsMax = 1.25;
+        public double DrySlotDepth = 0.90, DrySlotAngleDeg = 38.0;
+        public double MaturityLo = 0.30, MaturityHi = 0.70;
+        // R3c: clusters of the moist belt with a common envelope (a broad longitude pattern of wavenumbers 2 and 3) and softer cores; false = the round-2 patches.
+        public bool Round3Itcz = true;
+        public double ItczClusterLo = -0.45, ItczClusterHi = 1.05, ItczEnvelopeLo = -0.55, ItczEnvelopeHi = 0.45, ItczOffClusterFloor = 0.12;
+        // R3d: the radiation heating of the snow surface above the air temperature (K per unit of mean insolation, an enhanced degree-day model); 0 = round 2.
+        public double SnowRadiativeHeatK = 6.0;
+        // R3e: the snow on sea ice enters the ice integration with a memory (days): the snow of the evaluation time counts less for the steps long before it, so a quick change of the snow
+        // does not move the whole integrated history; 0 = round 2 (the same snow depth for every step).
+        public double IceSnowMemoryDays = 8.0;
+
+        // The round-2 generator: every lever of round 3 switched off (20 000-query hash D01F43163C7A1646).
+        public BodyParams Round2()
+        {
+            var p = Clone();
+            p.Round3Systems = false; p.MatureStructure = false; p.Round3Itcz = false; p.SnowRadiativeHeatK = 0.0; p.IceSnowMemoryDays = 0.0;
+            p.SystemSpeedSpread = 0.18; p.SystemLifeMinDays = 3.0; p.SystemLatScatter = 0.6; p.SystemAmpFraction = 0.025; p.SystemSpeedFactor = 1.0; p.WindowRise = 0.0;
+            return p;
+        }
+
         // The round-1 generator: every lever of round 2 switched off (20 000-query hash 3A3A34F462C55CAC).
         public BodyParams Round1()
         {
-            var p = Clone();
+            var p = Round2();
             p.Round2Systems = false; p.Round2Itcz = false; p.Round2Rain = false; p.Round2Snow = false; p.ItczLift = 0.45; p.StratThreshold = 0.075;
             return p;
         }
@@ -130,7 +168,7 @@ namespace AtmoSim.Core
         // The generator exactly as signed (iteration 1): every lever of round 1 at its signed value.
         public BodyParams Signed()
         {
-            var p = Clone();
+            var p = Round2();
             p.Round2Systems = false; p.Round2Itcz = false; p.Round2Rain = false; p.Round2Snow = false;
             p.SeasonalResponse = 1.0; p.SeaHeatFluxWm2 = 0.0; p.MixedLayerDepthM = 12.0; p.SnowWindowYearFraction = 0.0; p.LiftSaturationFloor = 0.0;
             p.StratThreshold = 0.12; p.CellRainThreshold = 0.15; p.ItczLift = 0.0; p.ItczWiggleRad = 0.0; p.CellTrigger = false; p.CellFrontTerm = 0.8;

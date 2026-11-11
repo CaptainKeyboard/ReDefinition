@@ -30,6 +30,11 @@ namespace AtmoSim.Runner
             if (Environment.GetEnvironmentVariable("ATMO_SIGNED") == "1") p = p.Signed();
             // tuning round 2: ATMO_ROUND1=1 restores the round-1 generator (every round-2 lever off), for the before/after sheets
             if (Environment.GetEnvironmentVariable("ATMO_ROUND1") == "1") p = p.Round1();
+            // tuning round 3: ATMO_ROUND2=1 restores the round-2 generator; ATMO_DETECTOR=area uses the band definition of the sign-off (every cell at or above the threshold)
+            if (Environment.GetEnvironmentVariable("ATMO_ROUND2") == "1") p = p.Round2();
+            string detector = Environment.GetEnvironmentVariable("ATMO_DETECTOR");
+            if (detector == "area") { Detect.RidgeDefinition = false; Detect.SeparateArms = false; }
+            if (detector == "ridge") Detect.SeparateArms = false;
             string set = Environment.GetEnvironmentVariable("ATMO_SET");
             if (!string.IsNullOrEmpty(set))
                 foreach (string kv in set.Split(','))

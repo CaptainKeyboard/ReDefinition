@@ -66,6 +66,9 @@ namespace AtmoSim.Runner
     {
         public const double BeltLo = 35.0, BeltHi = 70.0;
         public const double MaxBandWidthM = 200000.0;
+        // Diagnostic sink (tuning round 3): when set, every connected component of flagged cells is reported with the reason it was kept or rejected.
+        // reason: 0 accepted, 1 fewer than 6 cells, 2 too short, 3 too wide, 4 aspect below 3. Never changes a result.
+        public static Action<int, int, List<int>> ComponentSink;
 
         // D1. p is the surface pressure anomaly (Pa) on the grid; ps the surface pressure; ringKm the ring radius R.
         public static List<Minimum> Minima(MetricGrid g, double[] p, double ps, double ringKm, bool suppress)
@@ -180,11 +183,100 @@ namespace AtmoSim.Runner
             return r;
         }
 
+        // Amendment D2r (tuning round 3): true = the flagged cells are the ridge line of the gradient magnitude (see BandsFromAnomaly); false = every cell at or above the
+        // threshold (the definition of the sign-off, kept to measure the round-2 generator with both: environment ATMO_DETECTOR=area).
+        public static bool RidgeDefinition = true;
+        // Amendment D2s: components per arm (see BandsFromAnomaly). Environment ATMO_DETECTOR=area turns it off with the ridge definition.
+        public static bool SeparateArms = true;
+
+        // The direction of the gradient (east, north components per cell) quantised to the eight neighbours (row index grows southward).
+        private static void QuantiseDirection(double gEast, double gNorth, out int di, out int dj)
+        {
+            di = 0; dj = 0;
+            double m = Math.Sqrt(gEast * gEast + gNorth * gNorth);
+            if (m < 1e-300) return;
+            double ang = Math.Atan2(gNorth, gEast) / (Math.PI / 4.0);
+            int q = (int)Math.Round(ang);
+            // q in -4..4, 0 = east, 2 = north; row step = -north
+            switch (((q % 8) + 8) % 8)
+            {
+                case 0: di = 1; dj = 0; break;
+                case 1: di = 1; dj = -1; break;
+                case 2: di = 0; dj = -1; break;
+                case 3: di = -1; dj = -1; break;
+                case 4: di = -1; dj = 0; break;
+                case 5: di = -1; dj = 1; break;
+                case 6: di = 0; dj = 1; break;
+                default: di = 1; dj = 1; break;
+            }
+        }
+
+        private static bool IsRidge(double[] gm, int[] gd, int nl, int j, int i)
+        {
+            int k = j * nl + i;
+            int di = gd[2 * k], dj = gd[2 * k + 1];
+            double v = gm[k];
+            if (gm[(j + dj) * nl + (i + di + nl) % nl] > v) return false;
+            if (gm[(j - dj) * nl + (i - di + nl) % nl] > v) return false;
+            return true;
+        }
+
         // The band detector on anomaly fields: thermal arm 3 K per 100 km, cloud arm cwpThr per 100 km.
         public static List<Band> BandsFromAnomaly(MetricGrid g, double[] t, double[] cwp, double cwpThr, double minExtentM, List<int> acceptedCells = null)
         {
             int nl = g.NLon, nt = g.NLat;
             var flagT = new bool[nl * nt]; var flagC = new bool[nl * nt];
+            if (RidgeDefinition)
+            {
+                // Tuning round 3 (RESULT.md, amendment D2r): a front is the RIDGE LINE of the gradient magnitude, not the area where the gradient is large
+                // (Hewson's thermal front parameter picks the line where the gradient magnitude is at a maximum across the front). The thresholds are those of the
+                // signed text (3 K per 100 km, cwpThr per 100 km); a cell is flagged when it is at or above the threshold AND lies within one cell of a ridge cell, a cell
+                // at or above the threshold whose gradient magnitude is not exceeded by either neighbour along the gradient direction (non-maximum suppression).
+                var gmT = new double[nl * nt]; var gmC = new double[nl * nt];
+                var gdT = new int[nl * nt * 2]; var gdC = new int[nl * nt * 2];
+                for (int j = 1; j < nt - 1; j++)
+                    for (int i = 0; i < nl; i++)
+                    {
+                        int ie = (i + 1) % nl, iw = (i - 1 + nl) % nl;
+                        double dx = 2.0 * g.Dx[j], dy = g.A * (g.LatRad[j - 1] - g.LatRad[j + 1]);
+                        double tx = (t[j * nl + ie] - t[j * nl + iw]) / dx, ty = (t[(j - 1) * nl + i] - t[(j + 1) * nl + i]) / dy;
+                        gmT[j * nl + i] = Math.Sqrt(tx * tx + ty * ty) * 1e5;
+                        QuantiseDirection(tx * dx, ty * dy, out gdT[2 * (j * nl + i)], out gdT[2 * (j * nl + i) + 1]);
+                        double cx = (cwp[j * nl + ie] - cwp[j * nl + iw]) / dx, cy = (cwp[(j - 1) * nl + i] - cwp[(j + 1) * nl + i]) / dy;
+                        gmC[j * nl + i] = Math.Sqrt(cx * cx + cy * cy) * 1e5;
+                        QuantiseDirection(cx * dx, cy * dy, out gdC[2 * (j * nl + i)], out gdC[2 * (j * nl + i) + 1]);
+                    }
+                var ridgeT = new bool[nl * nt]; var ridgeC = new bool[nl * nt];
+                for (int j = 2; j < nt - 2; j++)
+                {
+                    if (Math.Abs(g.LatDeg[j]) < BeltLo - 1.5 || Math.Abs(g.LatDeg[j]) > BeltHi + 1.5) continue;
+                    for (int i = 0; i < nl; i++)
+                    {
+                        int k = j * nl + i;
+                        ridgeT[k] = gmT[k] >= 3.0 && IsRidge(gmT, gdT, nl, j, i);
+                        ridgeC[k] = gmC[k] >= cwpThr && IsRidge(gmC, gdC, nl, j, i);
+                    }
+                }
+                for (int j = 1; j < nt - 1; j++)
+                {
+                    if (Math.Abs(g.LatDeg[j]) < BeltLo || Math.Abs(g.LatDeg[j]) > BeltHi) continue;
+                    for (int i = 0; i < nl; i++)
+                    {
+                        int k = j * nl + i;
+                        bool nearT = false, nearC = false;
+                        for (int dj = -1; dj <= 1 && !(nearT && nearC); dj++)
+                            for (int di = -1; di <= 1; di++)
+                            {
+                                int kk = (j + dj) * nl + (i + di + nl) % nl;
+                                if (ridgeT[kk]) nearT = true;
+                                if (ridgeC[kk]) nearC = true;
+                            }
+                        flagT[k] = gmT[k] >= 3.0 && nearT;
+                        flagC[k] = gmC[k] >= cwpThr && nearC;
+                    }
+                }
+            }
+            else
             for (int j = 1; j < nt - 1; j++)
             {
                 if (Math.Abs(g.LatDeg[j]) < BeltLo || Math.Abs(g.LatDeg[j]) > BeltHi) continue;
@@ -200,12 +292,18 @@ namespace AtmoSim.Runner
                     flagC[j * nl + i] = gc >= cwpThr;
                 }
             }
-            var seen = new bool[nl * nt];
             var bands = new List<Band>();
             var stack = new Stack<int>();
+            // Amendment D2s (tuning round 3): with SeparateArms the connected components are formed per arm (a thermal band and a cloud band that touch are two bands, not one blob),
+            // the union of the bands of both arms is the result; without it one component search runs on the union of the flags (the sign-off definition).
+            var noFlag = new bool[nl * nt];
+            for (int pass = 0; pass < (SeparateArms ? 2 : 1); pass++)
+            {
+            bool[] fa = SeparateArms ? (pass == 0 ? flagT : noFlag) : flagT, fb = SeparateArms ? (pass == 0 ? noFlag : flagC) : flagC;
+            var seen = new bool[nl * nt];
             for (int c0 = 0; c0 < nl * nt; c0++)
             {
-                if (seen[c0] || !(flagT[c0] || flagC[c0])) continue;
+                if (seen[c0] || !(fa[c0] || fb[c0])) continue;
                 var cells = new List<int>();
                 seen[c0] = true; stack.Push(c0);
                 while (stack.Count > 0)
@@ -217,21 +315,22 @@ namespace AtmoSim.Runner
                         {
                             int jj = j + dj; if (jj < 0 || jj >= nt) continue;
                             int cc = jj * nl + (i + di + nl) % nl;
-                            if (seen[cc] || !(flagT[cc] || flagC[cc])) continue;
+                            if (seen[cc] || !(fa[cc] || fb[cc])) continue;
                             seen[cc] = true; stack.Push(cc);
                         }
                 }
-                if (cells.Count < 6) continue;
+                int sinkHemi = g.LatDeg[cells[0] / nl] >= 0 ? 0 : 1;
+                if (cells.Count < 6) { if (ComponentSink != null) ComponentSink(sinkHemi, 1, cells); continue; }
                 // extent: largest great-circle distance over a deterministic subsample
                 int stride = Math.Max(1, cells.Count / 120);
                 double ext = 0;
                 for (int a = 0; a < cells.Count; a += stride)
                     for (int b = a + stride; b < cells.Count; b += stride)
                         ext = Math.Max(ext, g.DistCells(cells[a] / nl, cells[a] % nl, cells[b] / nl, cells[b] % nl));
-                if (ext < minExtentM) continue;
+                if (ext < minExtentM) { if (ComponentSink != null) ComponentSink(sinkHemi, 2, cells); continue; }
                 // a band is thin: the mean width (area over extent) stays below MaxBandWidthM, which rejects blobs of flagged cells
                 double area = 0; foreach (int c in cells) area += g.Dx[c / nl] * g.Dy[c / nl];
-                if (area / ext > MaxBandWidthM) continue;
+                if (area / ext > MaxBandWidthM) { if (ComponentSink != null) ComponentSink(sinkHemi, 3, cells); continue; }
                 // second moments in local km around the first cell's longitude
                 int j0 = cells[0] / nl, i0 = cells[0] % nl;
                 double mx = 0, my = 0; var xs = new double[cells.Count]; var ys = new double[cells.Count];
@@ -250,7 +349,8 @@ namespace AtmoSim.Runner
                 double disc = Math.Sqrt(Math.Max(0, tr * tr / 4 - det));
                 double l1 = tr / 2 + disc, l2 = Math.Max(1e-9, tr / 2 - disc);
                 double aspect = Math.Sqrt(l1 / l2);
-                if (aspect < 3.0) continue;
+                if (aspect < 3.0) { if (ComponentSink != null) ComponentSink(sinkHemi, 4, cells); continue; }
+                if (ComponentSink != null) ComponentSink(sinkHemi, 0, cells);
                 if (acceptedCells != null) acceptedCells.AddRange(cells);
                 int nT = 0, nC = 0; foreach (int c in cells) { if (flagT[c]) nT++; if (flagC[c]) nC++; }
                 double fT = (double)nT / cells.Count, fC = (double)nC / cells.Count;
@@ -260,8 +360,9 @@ namespace AtmoSim.Runner
                 {
                     Lat = cyLat, Lon = cxLon, ExtentKm = ext / 1000.0, Aspect = aspect, Cells = cells.Count,
                     AxisDeg = 0.5 * Math.Atan2(2 * sxy, sxx - syy) * 180.0 / Math.PI,
-                    Arm = (fT >= 0.5 && fC >= 0.5) ? "both" : (fT >= fC ? "thermal" : "cwp"), Hemisphere = cyLat >= 0 ? 0 : 1
+                    Arm = SeparateArms ? (pass == 0 ? "thermal" : "cwp") : ((fT >= 0.5 && fC >= 0.5) ? "both" : (fT >= fC ? "thermal" : "cwp")), Hemisphere = cyLat >= 0 ? 0 : 1
                 });
+            }
             }
             return bands;
         }

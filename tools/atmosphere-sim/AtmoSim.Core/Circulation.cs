@@ -85,7 +85,7 @@ namespace AtmoSim.Core
             SurfaceWind = DMath.Max(0.35 * JetSpeed0, b.TidallyLocked || SubSolarWeight > 0.5 ? 0.0 : 0.5);
 
             SlotsPerHemisphere = (int)DMath.Clamp(DMath.Floor(DMath.TwoPi * A * DMath.Cos(JetLat0) / (1.7 * SystemRadiusM) + 0.5), 3, 8);
-            PressureAmpPa = 0.025 * b.SurfacePressurePa;
+            PressureAmpPa = b.SystemAmpFraction * b.SurfacePressurePa;
             FrontAmpK = 4.5 * (b.SurfaceMeanK / 288.0);
             FrontSharpness = 1.6;
             FrontRefKPer100Km = 5.0 * (b.SurfaceMeanK / 288.0);

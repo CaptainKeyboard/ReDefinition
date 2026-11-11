@@ -701,20 +701,89 @@ namespace AtmoSim.Tests
             Assert.AreEqual(0x3A3A34F462C55CACUL, h);
         }
 
+        // Tuning round 3: Round2() restores the round-2 generator bit for bit (hash D01F43163C7A1646), and Round1() and Signed() still start from it.
         [TestMethod]
-        public void TheRoundTwoGeneratorHasItsGoldenHashAndIsOrderIndependent()
+        public void TheRoundTwoSwitchReproducesTheRoundTwoResultHash()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike().Round2(), 1);
+            Assert.AreEqual(GoldenRound2Hash, Timing.HashQueries(g, Timing.Queries(20000, 77, 3.0e7), null, 0));
+        }
+
+        [TestMethod]
+        public void TheRoundThreeGeneratorHasItsGoldenHashAndIsOrderIndependent()
         {
             var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
             var q = Timing.Queries(20000, 77, 3.0e7);
             ulong h = Timing.HashQueries(g, q, null, 0);
-            Assert.AreEqual(GoldenRound2Hash, h);
+            Assert.AreEqual(GoldenRound3Hash, h);
             var order = new int[q.Length]; for (int i = 0; i < order.Length; i++) order[i] = i;
             var rr = new Rng(5);
             for (int i = order.Length - 1; i > 0; i--) { int k = (int)(rr.Uniform() * (i + 1)); int tmp = order[i]; order[i] = order[k]; order[k] = tmp; }
             Assert.AreEqual(h, Timing.HashQueries(new WeatherGenerator(BodyParams.KerbinLike(), 1), q, order, 0));
         }
 
-        public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, default levers of tuning round 2
+        public const ulong GoldenRound2Hash = 0xD01F43163C7A1646UL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, levers of tuning round 2 (Round2())
+        public const ulong GoldenRound3Hash = 0x8AC7A2B16F5B0E3FUL; // 20 000 queries (77, 3.0e7), Kerbin-like set, seed 1, the default levers of tuning round 3
+
+        // Tuning round 3 (R3a): the fronts of the generations have angles over a wide range and no more than half of the frames show three strong systems of one hemisphere
+        // within ten degrees of each other (round 2: about 0.5).
+        [TestMethod]
+        public void TheFrontsOfNeighbouringSystemsDoNotShareOneDiagonal()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            double lo = 1e9, hi = -1e9; int frames = 0, comb = 0;
+            for (int f = 0; f < 120; f++)
+                for (int h = 0; h < 2; h++)
+                {
+                    var angles = new List<double>();
+                    for (int s = 0; s < WeatherGenerator.MaxSlots; s++)
+                    {
+                        double lat, lon, amp, mat, rsp, ang;
+                        if (!g.SystemInfo(h, s, 3.0 * 86400.0 + f * 6.0 * 3600.0, out lat, out lon, out amp, out mat, out rsp, out ang) || amp < 1000.0) continue;
+                        angles.Add(ang); lo = Math.Min(lo, ang); hi = Math.Max(hi, ang);
+                    }
+                    frames++;
+                    int best = 0;
+                    foreach (double a in angles) { int c = 0; foreach (double b in angles) if (Math.Abs(a - b) <= 10.0) c++; best = Math.Max(best, c); }
+                    if (best >= 3) comb++;
+                }
+            Assert.IsTrue(hi - lo > 80.0, "front angles from " + lo + " to " + hi);
+            Assert.IsTrue(comb < 0.35 * frames, "frames with three systems within 10 degrees: " + comb + " of " + frames);
+        }
+
+        // Tuning round 3 (R3b): a mature system has a spiral and a dry slot: on a ring around the centre the cloud cover varies much more with the structure than without it.
+        [TestMethod]
+        public void AMatureSystemHasSpiralArmsAndADrySlot()
+        {
+            var on = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            var offBody = BodyParams.KerbinLike(); offBody.MatureStructure = false;
+            var off = new WeatherGenerator(offBody, 1);
+            int tested = 0, withSlot = 0, withArm = 0;
+            for (int day = 3; day < 30 && tested < 8; day++)
+                for (int h = 0; h < 2 && tested < 8; h++)
+                    for (int s = 0; s < WeatherGenerator.MaxSlots && tested < 8; s++)
+                    {
+                        double lat, lon, amp, mat, rsp, ang; double ut = day * 86400.0;
+                        if (!on.SystemInfo(h, s, ut, out lat, out lon, out amp, out mat, out rsp, out ang) || mat < 0.5 || amp < 2500.0) continue;
+                        if (on.Grid.MoistAt(lat, lon) < 0.6) continue;
+                        // the cloud cover with the structure minus the cover without it, over the disc of 1.2 spiral radii
+                        double dmin = 9.0, dmax = -9.0;
+                        for (int ir = 1; ir <= 6; ir++)
+                            for (int k = 0; k < 48; k++)
+                            {
+                                double rr = ir * 0.2 * rsp * 1000.0 / on.Body.RadiusM, az = k * Math.PI / 24.0;
+                                double la = lat + rr * Math.Sin(az), lo = lon + rr * Math.Cos(az) / Math.Cos(lat);
+                                Weather a, b; on.Sample(la, lo, 0.0, ut, out a); off.Sample(la, lo, 0.0, ut, out b);
+                                dmin = Math.Min(dmin, a.Coverage - b.Coverage); dmax = Math.Max(dmax, a.Coverage - b.Coverage);
+                            }
+                        tested++;
+                        if (dmin < -0.15) withSlot++;
+                        if (dmax > 0.03) withArm++;
+                    }
+            Assert.IsTrue(tested >= 3, "mature systems over moist surface found: " + tested);
+            Assert.IsTrue(withSlot >= 0.6 * tested, "dry slots (cover reduced by 0.15 or more): " + withSlot + " of " + tested);
+            Assert.IsTrue(withArm >= tested / 2, "spiral arms (cover raised): " + withArm + " of " + tested);
+        }
 
         // Tuning round 2: the lattice noise is periodic in longitude (no seam at the date line) and smooth.
         [TestMethod]
