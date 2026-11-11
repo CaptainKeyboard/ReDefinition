@@ -63,9 +63,11 @@ namespace ReDefinition.Atmospheres
             // run1 and run2 measured every premise (run2 without Scatterer); run3 (Scatterer absent) and run4 (full set) are the repeat
             // of the blocking premises with no data: run3 measures P6, P10, P8, P7, P5 and P9, run4 only P6, P11 and P9, the steps that
             // depend on Scatterer being there.
-            focused = dumpPrefix == "run3" || dumpPrefix == "run4";
+            // run5: run3's steps with EVE absent too. run3 and run2 read a frame that did not follow the scene, with EVE logging an invalid
+            // pass of EVE/RaymarchCloud every frame; run4 (Scatterer present) did not. run5 says whether EVE is what freezes the frame.
+            focused = dumpPrefix == "run3" || dumpPrefix == "run4" || dumpPrefix == "run5";
             stackOnly = dumpPrefix == "run4";
-            full = dumpPrefix != "run2" && dumpPrefix != "run3";
+            full = dumpPrefix != "run2" && dumpPrefix != "run3" && dumpPrefix != "run5";
             scattererPresent = AssemblyLoaded("Scatterer");
             host = ReconHost.Get();
             Say("start " + dumpPrefix + ", " + (full ? "full" : "reduced") + " mod set, Scatterer " + (scattererPresent ? "present" : "absent"));

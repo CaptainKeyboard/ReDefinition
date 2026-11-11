@@ -49,7 +49,7 @@ namespace ReDefinition.Tests.Atmospheres.B09
                 Assert.IsTrue(System.Text.RegularExpressions.Regex.IsMatch(metric, @"^(P\d+|Env)\."), metric);
                 if (metric.StartsWith("P")) premises.Add(metric.Substring(0, metric.IndexOf('.')));
                 Assert.AreEqual("K-pre", row["series"]);
-                if (row.ContainsKey("start")) Assert.IsTrue(new[] { "run1", "run2", "run3", "run4" }.Contains((string)row["start"]), metric);
+                if (row.ContainsKey("start")) Assert.IsTrue(new[] { "run1", "run2", "run3", "run4", "run5" }.Contains((string)row["start"]), metric);
                 if (row.ContainsKey("min") && row.ContainsKey("max")) Assert.IsTrue((double)row["min"] <= (double)row["max"], metric);
                 Assert.IsTrue(row.ContainsKey("min") || row.ContainsKey("max") || row.ContainsKey("equals"), metric + " has no threshold");
                 Assert.IsTrue(row.ContainsKey("note"), metric + " has no note");
