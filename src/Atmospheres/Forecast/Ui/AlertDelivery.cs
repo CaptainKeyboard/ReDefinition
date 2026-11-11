@@ -76,15 +76,6 @@ namespace ReDefinition.Atmospheres.Forecast
             queue.Add(alert);
         }
 
-        // Forgets everything (a new game).
-        internal void Reset()
-        {
-            queue.Clear();
-            delivered.Clear();
-            Log.Clear();
-            lastNowUt = double.NaN;
-        }
-
         internal static ulong KeyOf(ForecastAlert a)
         {
             ulong h = AlertEvaluator.SiteKey(a.Site);

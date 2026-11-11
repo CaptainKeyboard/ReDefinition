@@ -129,6 +129,19 @@ namespace ReDefinition.Atmospheres.Forecast
         internal OverlayScene Scene { get { return scene; } }
         internal bool Drawing { get; private set; }
 
+        // Whether the lines' space is the screen's: origin at the lower left, as large as the screen (the probe checks it, since a vertex
+        // is drawn where the pivot of its rectangle puts it).
+        internal bool CanvasAligned
+        {
+            get
+            {
+                if (graphic == null || canvas == null) return false;
+                RectTransform r = graphic.rectTransform;
+                float scale = Mathf.Max(canvas.scaleFactor, 0.01f);
+                return r.pivot == Vector2.zero && Mathf.Abs(r.rect.width * scale - Screen.width) < 2f && Mathf.Abs(r.rect.height * scale - Screen.height) < 2f;
+            }
+        }
+
         private static MapOverlay instance;
 
         internal static MapOverlay Instance
@@ -162,6 +175,8 @@ namespace ReDefinition.Atmospheres.Forecast
             var holder = new GameObject("Lines", typeof(RectTransform));
             holder.transform.SetParent(view.transform, false);
             RectTransform rect = holder.GetComponent<RectTransform>();
+            // The mesh's vertices are in pixels from the lower left of the screen; the pivot is the origin of a graphic's local space.
+            rect.pivot = Vector2.zero;
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = Vector2.one;
             rect.offsetMin = Vector2.zero;
@@ -220,6 +235,14 @@ namespace ReDefinition.Atmospheres.Forecast
             if (body == null || !body.atmosphere) return false;
             double now = Planetarium.GetUniversalTime();
             int index = body.flightGlobalsIndex;
+            if (index != tracksBody)
+            {
+                // Another body in view: the map, the legend and the dots of the one before are not its.
+                nextMap = 0f;
+                legendText = "";
+                map.Resize(1, 1);
+                map.Values[0] = 0f;
+            }
             if (index != tracksBody || Time.unscaledTime >= nextTracks)
             {
                 Func<int, ForecastTrack[]> source = WeatherHooks.BodyTracks;

@@ -13,9 +13,27 @@ namespace ReDefinition.Tests.Atmospheres.D30
         private const double H = D30Fixtures.H;
 
         private static bool Sync(KacBridge bridge, FakeKac kac, long generation, double now, double eta, double lead = 3.0, KacAction action = KacAction.MessageOnly,
-            bool enabled = true)
+            bool enabled = true, ForecastSite? at = null)
         {
-            return bridge.Sync(enabled, generation, now, lead, action, new List<ForecastSite> { D30Fixtures.Site() }, new List<double> { eta });
+            ForecastSite site = at ?? D30Fixtures.Site();
+            return bridge.Sync(enabled, generation, now, lead, action, new List<ForecastSite> { site }, new List<ulong> { KacBridge.PlaceKey(3, site.BodyIndex) },
+                new List<double> { eta });
+        }
+
+        [TestMethod]
+        public void AVesselThatMovesKeepsItsOneAlarm()
+        {
+            var kac = new FakeKac();
+            var bridge = new KacBridge(kac);
+            ForecastSite site = D30Fixtures.Site("Vessel");
+            Sync(bridge, kac, 1, 0.0, 10 * H, 3.0, KacAction.MessageOnly, true, site);
+            for (int i = 1; i <= 5; i++)
+            {
+                site.LatDeg += 0.3;
+                Assert.IsFalse(Sync(bridge, kac, 1, i * 60.0, 10 * H, 3.0, KacAction.MessageOnly, true, site), "A tenth of a degree on is the same alarm.");
+            }
+            Assert.AreEqual(1, kac.Alarms.Count);
+            Assert.AreEqual(0, kac.Deleted.Count);
         }
 
         [TestMethod]

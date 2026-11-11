@@ -81,6 +81,7 @@ namespace ReDefinition.Atmospheres.Forecast
             ForecastService service = ForecastModule.Service;
             bool on = ForecastUiSettings.Kac && service != null && service.Available;
             var sites = new List<ForecastSite>();
+            var keys = new List<ulong>();
             var etas = new List<double>();
             if (on)
             {
@@ -95,10 +96,11 @@ namespace ReDefinition.Atmospheres.Forecast
                     ForecastResult detail = service.DetailOf(site);
                     double eta = detail != null && !detail.ActiveAtStart ? detail.ThresholdEtaUt : double.NaN;
                     sites.Add(site);
+                    keys.Add(KacBridge.PlaceKey((int)choices[i], site.BodyIndex));
                     etas.Add(eta);
                 }
             }
-            kac.Sync(on, WeatherHooks.ForecastGeneration, now, AtmospheresSettings.AlertLeadHours, ForecastUiSettings.KacActionSetting, sites, etas);
+            kac.Sync(on, WeatherHooks.ForecastGeneration, now, AtmospheresSettings.AlertLeadHours, ForecastUiSettings.KacActionSetting, sites, keys, etas);
         }
 
         public void Shutdown()

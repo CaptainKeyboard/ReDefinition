@@ -223,6 +223,10 @@ namespace ReDefinition.Dashboard
     // listened to. The widget on the web page needs the owner's plan-first approval and is not built.
     internal sealed class WeatherTelemetry
     {
+        // The one the telemetry table reads (w.forecast and w.alerts are registered there with `WeatherTelemetry.Shared.Forecast` and
+        // `.Alerts`); it listens from the start of the game, so that a dashboard that connects late reads the last alerts.
+        internal static readonly WeatherTelemetry Shared = new WeatherTelemetry();
+
         internal readonly WeatherAlertFeed Feed = new WeatherAlertFeed();
         private readonly Action<ForecastAlert> listener;
         private bool attached;
@@ -268,6 +272,7 @@ namespace ReDefinition.Dashboard
             return new Json.Raw(Feed.Encode());
         }
 
+        // The forecast of the active vessel's place in flight, else of the Space Centre; false where the game has neither.
         private static bool SiteNow(out ForecastSite site, out string body)
         {
             site = new ForecastSite();

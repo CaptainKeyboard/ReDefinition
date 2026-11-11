@@ -308,7 +308,7 @@ namespace ReDefinition.Atmospheres.Forecast
             Refresh();
         }
 
-        // The hourly strip: one label of 22 pixels a cell, the level as its letter and number on the band's colour.
+        // The hourly strip: one label of CellWidth pixels a cell, the level as its letter and number on the band's colour.
         private DialogGUIBase[] StripRow(string[] texts, bool lead)
         {
             var list = new List<DialogGUIBase>();
@@ -353,7 +353,8 @@ namespace ReDefinition.Atmospheres.Forecast
                 if (c == ForecastView.Columns.Length - 1) head.tooltipText = ForecastStrings.TooltipFieldTemperature;
                 cells.Add(head);
             }
-            return Line(TableRow, cells.ToArray());
+            // No spacing, as in the rows below, so that the columns stand over each other.
+            return Packed(TableRow, cells.ToArray());
         }
 
         private DialogGUIBase TableLine(int row)

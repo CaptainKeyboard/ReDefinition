@@ -1,13 +1,12 @@
 namespace ReDefinition.Atmospheres.Forecast
 {
-    // The settings the forecast interface reads. The existing keys are read from the table; three switches of this package
-    // (alertScreenMessage, alertDashboard, forecastOverlay) are keys the integration adds (request in the package report), and read
-    // their defaults until the table has them.
+    // The settings the forecast interface reads. The existing keys are read from the table; two switches of this package
+    // (alertScreenMessage, forecastOverlay) are keys the integration adds (request in the package report), and read their defaults until
+    // the table has them. The dashboard's push is the dashboard's own listener and has its own switch there.
     internal static class ForecastUiSettings
     {
         internal const string KeyScreenMessage = "alertScreenMessage";
         internal const string KeyOverlay = "forecastOverlay";
-        internal const string KeyDashboard = "alertDashboard";
 
         private static bool Flag(string key, bool fallback)
         {

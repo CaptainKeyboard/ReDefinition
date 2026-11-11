@@ -38,11 +38,16 @@ namespace ReDefinition.Atmospheres.Forecast
         private const int ActionMessageOnly = 2;
         private const int ActionKillWarp = 4;
 
-        private bool tried;
-        private bool ready;
+        // The types are looked up until they are found (a mod that loads later is found later); the instance is read again at every ask,
+        // since KAC makes its add-on object again in each scene. Nothing is logged while the mod is absent or its instance not made yet.
+        private bool bound;
+        private bool announced;
+        private bool tooOld;
+        private bool membersFound;
         private Type kacType;
         private Type alarmType;
         private object instance;
+        private FieldInfo instanceField;
         private FieldInfo apiReady;
         private MethodInfo create;
         private MethodInfo delete;
@@ -62,8 +67,23 @@ namespace ReDefinition.Atmospheres.Forecast
         {
             get
             {
-                if (!tried) Bind();
-                return ready && ApiReady();
+                if (!bound) Bind();
+                if (!bound || tooOld || !membersFound) return false;
+                try
+                {
+                    instance = instanceField != null ? instanceField.GetValue(null) : null;
+                }
+                catch (Exception)
+                {
+                    instance = null;
+                }
+                if (instance == null) return false;
+                if (!announced)
+                {
+                    announced = true;
+                    say("Kerbal Alarm Clock " + kacType.Assembly.GetName().Version + " found, storm alarms are available");
+                }
+                return ApiReady();
             }
         }
 
@@ -79,22 +99,22 @@ namespace ReDefinition.Atmospheres.Forecast
             }
         }
 
-        // Finds the mod once. Absence is silent.
+        // Finds the mod's types and members. Absence is silent and tried again at the next ask; the version and the members are judged once.
         private void Bind()
         {
-            tried = true;
             try
             {
                 kacType = TypeLookup.Find(TypeName);
                 if (kacType == null) return;
+                bound = true;
                 if (kacType.Assembly.GetName().Version.CompareTo(MinimumVersion) < 0)
                 {
+                    tooOld = true;
                     say("Kerbal Alarm Clock " + kacType.Assembly.GetName().Version + " is older than 3.0.0.5, no alarms are made");
                     return;
                 }
                 alarmType = TypeLookup.Find("KerbalAlarmClock.KACAlarm");
-                FieldInfo instanceField = kacType.GetField("APIInstance", BindingFlags.Public | BindingFlags.Static);
-                instance = instanceField != null ? instanceField.GetValue(null) : null;
+                instanceField = kacType.GetField("APIInstance", BindingFlags.Public | BindingFlags.Static);
                 apiReady = kacType.GetField("APIReady", BindingFlags.Public | BindingFlags.Static);
                 create = kacType.GetMethod("CreateAlarm", BindingFlags.Public | BindingFlags.Instance);
                 delete = kacType.GetMethod("DeleteAlarm", BindingFlags.Public | BindingFlags.Instance);
@@ -106,13 +126,13 @@ namespace ReDefinition.Atmospheres.Forecast
                     timeProperty = alarmType.GetProperty("AlarmTimeUT");
                     actionProperty = alarmType.GetProperty("AlarmActionConvert");
                 }
-                ready = instance != null && apiReady != null && create != null && delete != null;
-                if (ready) say("Kerbal Alarm Clock " + kacType.Assembly.GetName().Version + " found, storm alarms are available");
-                else say("Kerbal Alarm Clock was found but its API did not match, no alarms are made");
+                membersFound = instanceField != null && apiReady != null && create != null && delete != null;
+                if (!membersFound) say("Kerbal Alarm Clock was found but its API did not match, no alarms are made");
             }
             catch (Exception e)
             {
-                ready = false;
+                membersFound = false;
+                bound = true;
                 say("Kerbal Alarm Clock could not be bound (" + CompatibilityLog.Reason(e) + ")");
             }
         }
@@ -234,10 +254,17 @@ namespace ReDefinition.Atmospheres.Forecast
             return made.TryGetValue(siteKey, out m) ? m.AlarmUt : double.NaN;
         }
 
-        // Brings the alarms in line with what the sites foresee. eta is the first time the user's level is reached at the site (NaN for
-        // none), as the engine's last run gives it. Returns true when an alarm was made or deleted.
+        // The key that stands for a watched place in this bridge: the same while the place moves (a vessel in flight crosses a tenth of a
+        // degree every few kilometres, and its alarm is still one alarm). choice is 1 for the Space Centre, 3 for the vessel.
+        internal static ulong PlaceKey(int choice, int bodyIndex)
+        {
+            return ForecastMath.Mix(ForecastMath.Mix(0x4B4143UL, (long)choice), (long)bodyIndex);
+        }
+
+        // Brings the alarms in line with what the sites foresee. keys name the places, eta is the first time the user's level is reached
+        // at the site (NaN for none), as the engine's last run gives it. Returns true when an alarm was made or deleted.
         internal bool Sync(bool enabled, long forecastGeneration, double nowUt, double leadHours, KacAction action, IList<ForecastSite> sites,
-            IList<double> etaUts)
+            IList<ulong> keys, IList<double> etaUts)
         {
             bool changed = false;
             if (!enabled || !api.Ready)
@@ -256,7 +283,7 @@ namespace ReDefinition.Atmospheres.Forecast
             for (int i = 0; i < sites.Count; i++)
             {
                 double eta = etaUts[i];
-                ulong key = AlertEvaluator.SiteKey(sites[i]);
+                ulong key = keys[i];
                 double alarmUt = eta - leadHours * 3600.0;
                 bool want = !double.IsNaN(eta) && alarmUt > nowUt;
                 Made existing;
