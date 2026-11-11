@@ -26,7 +26,7 @@ namespace ReDefinition.Atmospheres
         private const float WidthSlack = 2f;
 
         // Every item. `window` is the dialog's object; `shot` takes a screenshot and returns its number.
-        internal static List<WindowCheck> Run(GameObject window, WindowModel model, Func<string, int> shot)
+        internal static List<WindowCheck> Run(GameObject window, WindowModel model, Func<string, int> shot, bool settingsUnchanged)
         {
             var list = new List<WindowCheck>();
             ScrollRect scroll = window.GetComponentInChildren<ScrollRect>(true);
@@ -53,8 +53,13 @@ namespace ReDefinition.Atmospheres
             list.Add(Item("labels_single_line", wrapping == 0 && labels > 0, wrapping + " of " + labels + " labels wrap"));
             list.Add(Item("row_widths", tooWide == 0, tooWide + " rows wider than the page"));
             list.Add(Item("font_glyphs", missing == 0 && labels > 0, missing + " labels with a character the font lacks"));
-            list.Add(Item("toggles_idempotent", !model.Dirty, model.Dirty ? "the window changed a setting by itself" : "no change from the sync"));
-            list.Add(Item("theme_background", HasBackground(window), "the window's own background image"));
+            list.Add(Item("toggles_idempotent", !model.Dirty && settingsUnchanged,
+                model.Dirty || !settingsUnchanged ? "the window changed a setting by itself" : "no setting changed while the window was open"));
+            list.Add(Item("theme_background", HasBackground(window), "the largest image of the dialog is a sprite of the skin"));
+            // Not applicable to this window, listed so that the table holds every item of the checklist: it is a popup dialog, not a panel
+            // that slides in with the game's panels, and it highlights no part.
+            list.Add(Item("panels", true, "not applicable: a popup dialog, no panel of the game's transition manager"));
+            list.Add(Item("highlight", true, "not applicable: the window highlights no part"));
             foreach (WindowCheck check in list) check.Shot = shot(check.Name);
             return list;
         }
@@ -106,13 +111,19 @@ namespace ReDefinition.Atmospheres
             return false;
         }
 
+        // The dialog's background is its largest image: a sprite of the skin with an opaque colour, which ZTheme replaces by name.
         private static bool HasBackground(GameObject window)
         {
+            Image largest = null;
+            float area = 0f;
             foreach (Image image in window.GetComponentsInChildren<Image>(true))
             {
-                if (image.sprite != null && image.color.a > 0.5f) return true;
+                Rect rect = image.rectTransform.rect;
+                if (rect.width * rect.height <= area) continue;
+                area = rect.width * rect.height;
+                largest = image;
             }
-            return false;
+            return largest != null && largest.sprite != null && largest.color.a > 0.5f;
         }
     }
 }

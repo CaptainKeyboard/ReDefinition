@@ -97,7 +97,7 @@ namespace ReDefinition.Atmospheres
             QualityTier requested = AtmospheresSettings.QualityTier;
             QualityTier effective = QualityProfile.Effective();
             if (requested != QualityTier.Auto) return "In force: " + effective + ".";
-            long vram = QualityProfile.VramSource();
+            long vram = QualityProfile.Vram();
             if (vram > 0 && vram < QualityProfile.LowVramBelowMb) return "In force: " + effective + " (Auto: under 10 GB of video memory).";
             return QualityProfile.HostTier() != QualityTier.Auto
                 ? "In force: " + effective + " (Auto: from the main mod's profile)."
@@ -121,6 +121,7 @@ namespace ReDefinition.Atmospheres
         internal bool SetText(SettingDef def, string value)
         {
             if (def.Kind != SettingKind.Text || !State(def).Enabled) return false;
+            if (value == AtmospheresSettings.Text(def.Key)) return true;
             if (!AtmospheresSettings.SetText(def.Key, value)) return false;
             dirty = true;
             SettingChanges.Raise(def.Key);
@@ -205,6 +206,15 @@ namespace ReDefinition.Atmospheres
             if (bodiesOptions == null) bodiesOptions = readBodies();
             bodiesOptions = BodyRows.With(bodiesOptions, name, yearFactor, frequency);
             bodiesDirty = true;
+        }
+
+        // As above, and the row the window holds shows the numbers now in force (brought into their ranges).
+        internal void SetBody(BodyRow row, double yearFactor, double frequency)
+        {
+            SetBody(row.Name, yearFactor, frequency);
+            var own = new BodyPlayerOptions(yearFactor, frequency);
+            row.YearFactor = own.YearFactor;
+            row.Frequency = own.Frequency;
         }
 
         private void ResetBodies()

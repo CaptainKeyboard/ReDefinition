@@ -35,16 +35,21 @@ namespace ReDefinition.Atmospheres
         // The tier in force now, from the setting, the host and the card.
         internal static QualityTier Effective()
         {
-            long vram = 0;
+            return Resolve(AtmospheresSettings.QualityTier, HostTier(), Vram());
+        }
+
+        // The video memory in MB; zero (the guard off) where it cannot be read.
+        internal static long Vram()
+        {
             try
             {
-                vram = VramSource();
+                return VramSource();
             }
             catch (Exception e)
             {
                 ForeignChanges.Report("the video memory could not be read, the memory guard is off (" + CompatibilityLog.Reason(e) + ")");
+                return 0;
             }
-            return Resolve(AtmospheresSettings.QualityTier, HostTier(), vram);
         }
 
         // Writes the budget keys of a tier's row.

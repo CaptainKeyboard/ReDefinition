@@ -34,11 +34,13 @@ namespace ReDefinition.Atmospheres
     internal sealed class SettingsWindow
     {
         private const float Width = 600f;
-        // A row is the name, the control and the value: 200 + 230 + 80 = 510, within the page (Width less the list's margins, the indent
-        // of 8 and the scroll bar's 18).
-        private const float NameWidth = 200f;
-        private const float ControlWidth = 230f;
-        private const float ValueWidth = 80f;
+        // A row is the name, the control and the value: 250 + 190 + 70 = 510, within the page (Width less the list's margins, the indent
+        // of 8 and the scroll bar's 18). The longest name of the key table is 33 characters, about 231 pixels in KSP's font; a test holds
+        // the names to NameChars.
+        internal const int NameChars = 36;
+        private const float NameWidth = 250f;
+        private const float ControlWidth = 190f;
+        private const float ValueWidth = 70f;
         private const float PageWidth = 510f;
         private const float RowHeight = 24f;
         private const float TipSeconds = 0.5f;
@@ -51,6 +53,7 @@ namespace ReDefinition.Atmospheres
         private PopupDialog shown;
         private PopupDialog menu;
         private float resetUntil;
+        private bool closing;
         private float scroll = 1f;
         private float nextTip;
         private readonly List<KeyValuePair<DialogGUIBase, SettingDef>> tipped = new List<KeyValuePair<DialogGUIBase, SettingDef>>();
@@ -96,6 +99,8 @@ namespace ReDefinition.Atmospheres
             if (shown != null)
             {
                 SaveScroll();
+                // The destroyed dialog tells Gone; this close is announced here, once.
+                closing = true;
                 shown.Dismiss();
             }
             shown = null;
@@ -279,13 +284,13 @@ namespace ReDefinition.Atmospheres
             DialogGUISlider year = new DialogGUISlider(() => (float)Math.Log10(body.YearFactor), -2f, 1f, false, 130f, -1f, f =>
             {
                 if (Mathf.Approximately(f, (float)Math.Log10(body.YearFactor))) return;
-                model.SetBody(body.Name, Math.Pow(10.0, f), body.Frequency);
+                model.SetBody(body, Math.Pow(10.0, f), body.Frequency);
             });
             year.tooltipText = "Year Factor For This Body\nMultiplies the length of the body's seasons.";
             DialogGUISlider frequency = new DialogGUISlider(() => (float)body.Frequency, 0f, 4f, false, 130f, -1f, f =>
             {
                 if (Mathf.Approximately(f, (float)body.Frequency)) return;
-                model.SetBody(body.Name, body.YearFactor, f);
+                model.SetBody(body, body.YearFactor, f);
             });
             frequency.tooltipText = "Weather Frequency For This Body\nMultiplies how often weather forms on the body: 0 none, 1 its own rate.";
             // 40 + 130 + 50 + 10 + 70 + 130 + 50 = 480, within the page less the indent.
@@ -321,8 +326,16 @@ namespace ReDefinition.Atmospheres
             control.tooltipText = label.tooltipText;
             tipped.Add(new KeyValuePair<DialogGUIBase, SettingDef>(control, def));
 
-            DialogGUILabel value = new DialogGUILabel(() => def.Kind == SettingKind.Bool || def.Kind == SettingKind.Choice ? " " : model.Value(def), ValueWidth);
+            // A switch and a choice show their value in the control; a typed number or text is its own value.
+            bool shownInControl = def.Kind == SettingKind.Bool || def.Kind == SettingKind.Choice || def.Kind == SettingKind.Text || TypedNumber(def);
+            DialogGUILabel value = new DialogGUILabel(() => shownInControl ? " " : model.Value(def), ValueWidth);
             return Line(RowHeight + 2f, label, control, value);
+        }
+
+        // A whole number with a range too wide for a slider (the seed) is typed.
+        internal static bool TypedNumber(SettingDef def)
+        {
+            return def.Kind == SettingKind.Int && def.Max - def.Min > 5000.0;
         }
 
         private DialogGUIBase Control(SettingDef def, Func<RowState> state)
@@ -346,7 +359,7 @@ namespace ReDefinition.Atmospheres
                     }, ControlWidth, RowHeight);
                 default:
                     // A number with a wide range is typed (the seed), any other is a slider.
-                    if (def.Max - def.Min > 5000.0 && def.Kind == SettingKind.Int)
+                    if (TypedNumber(def))
                         return new DialogGUITextInput(((long)AtmospheresSettings.Number(def.Key)).ToString(System.Globalization.CultureInfo.InvariantCulture), false, 11, text =>
                         {
                             long parsed;
@@ -442,6 +455,11 @@ namespace ReDefinition.Atmospheres
         private void Gone()
         {
             if (shown != null) return;
+            if (closing)
+            {
+                closing = false;
+                return;
+            }
             tipped.Clear();
             try
             {

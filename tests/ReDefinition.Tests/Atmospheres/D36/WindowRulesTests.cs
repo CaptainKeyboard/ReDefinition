@@ -420,6 +420,41 @@ namespace ReDefinition.Tests.Atmospheres.D36
             Assert.IsTrue(model.TierLine().Length <= Most, model.TierLine());
         }
 
+        [TestMethod]
+        public void EveryRowNameFitsTheNameColumn()
+        {
+            int longest = 0;
+            string which = "";
+            foreach (SettingDef def in AtmospheresSettings.Definitions)
+            {
+                if (def.Tooltip.Length > longest)
+                {
+                    longest = def.Tooltip.Length;
+                    which = def.Key;
+                }
+            }
+            Assert.IsTrue(longest <= SettingsWindow.NameChars, which + ": " + longest + " characters against " + SettingsWindow.NameChars);
+            // A whole number with a range too wide for a slider is typed; the seed is the only one.
+            var typed = AtmospheresSettings.Definitions.Where(SettingsWindow.TypedNumber).Select(d => d.Key).ToArray();
+            CollectionAssert.AreEqual(new[] { "simSeed" }, typed);
+        }
+
+        [TestMethod]
+        public void TheRowOfABodyShowsTheNumbersSetInTheWindow()
+        {
+            var written = new List<string>();
+            var row = new BodyRow { Name = "Duna", Status = BodyStatusKind.Full };
+            var model = new WindowModel(WindowEnvironment.Full(), () => { }, t => { }, () => new List<BodyRow> { row });
+            model.UseBodiesFile(() => new Dictionary<string, BodyPlayerOptions>(), options => written.Add("bodies"));
+            model.SetBody(row, 50.0, 9.0);
+            Assert.AreEqual(BodyPlayerOptions.MaxYearFactor, row.YearFactor, "brought into its range, as the file will have it");
+            Assert.AreEqual(BodyPlayerOptions.MaxFrequency, row.Frequency);
+            model.SetBody(row, 0.5, 0.0);
+            Assert.AreEqual(0.5, row.YearFactor);
+            Assert.AreEqual(0.0, row.Frequency);
+            Assert.AreEqual(0, written.Count);
+        }
+
         // --- The words of a value ---
 
         [TestMethod]

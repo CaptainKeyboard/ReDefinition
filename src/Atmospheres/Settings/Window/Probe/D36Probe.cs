@@ -28,11 +28,12 @@ namespace ReDefinition.Atmospheres
             var window = new SettingsWindow(WindowModel.ForGame());
             foreach (string category in window.Model.Categories()) SettingsWindow.SetOpen(category, true);
             SettingsWindow.SetOpen("Bodies", true);
+            string before = SettingsDump();
             window.Show();
             yield return ProbeWait.Until(() => window.IsOpen && window.Root != null, 10, "the settings window");
             yield return ProbeWait.Frames(45);
 
-            List<WindowCheck> checks = SettingsWindowChecks.Run(window.Root, window.Model, Shoot);
+            List<WindowCheck> checks = SettingsWindowChecks.Run(window.Root, window.Model, Shoot, SettingsDump() == before);
             yield return ProbeWait.Frames(5);
             foreach (WindowCheck check in checks)
             {
@@ -57,6 +58,13 @@ namespace ReDefinition.Atmospheres
                 }
             }
             bool masterOff = !AtmospheresSettings.WeatherEffects;
+            int outside = 0;
+            foreach (SettingDef def in AtmospheresSettings.Definitions)
+            {
+                if (def.Category != AtmospheresSettings.Categories.General) outside++;
+            }
+            // With the master switch off every row outside General is greyed: the number missing (zero when the switch is on).
+            Emit("D36.grey_rows_missing_outside_general", masterOff ? outside - greyed : 0);
             Emit("D36.grey_rows_outside_general", greyed);
             Emit("D36.grey_rows_without_reason_text", withoutReason);
             Emit("D36.grey_rows_in_general", generalGreyed);
@@ -73,6 +81,12 @@ namespace ReDefinition.Atmospheres
             window.Close();
             yield return ProbeWait.Frames(5);
             Check("D36.window_closed", !window.IsOpen);
+        }
+
+        // All settings as text, to see that the window changed none by itself.
+        private static string SettingsDump()
+        {
+            return AtmospheresSettings.Snapshot().ToString();
         }
 
         // A screenshot of the screen, numbered in order.

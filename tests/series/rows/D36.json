@@ -18,6 +18,10 @@
     { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.theme_background.shot", "min": 1 },
     { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_without_reason_text", "equals": 0, "note": "every greyed-out row has a reason text" },
     { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_in_general", "equals": 0, "note": "the General group is never greyed out" },
-    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_outside_general", "equals": 87, "required": false, "note": "only where the master switch is off at the start (D36.master_off_at_start = 1): every row outside General is greyed with the reason; 87 = 93 keys less the 6 of General" }
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.panels", "equals": 1, "note": "checklist 9: not applicable, a popup dialog and no panel of the game's transition manager (listed so that the table holds every item)" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.panels.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.highlight", "equals": 1, "note": "checklist 11: not applicable, the window highlights no part" },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.dialog.highlight.shot", "min": 1 },
+    { "series": "K-W3a", "section": "D36", "package": "D36", "start": "run1", "metric": "D36.grey_rows_missing_outside_general", "equals": 0, "note": "with the master switch off at the start every row outside General is greyed out; the probe counts them from the key table, and the figure is 0 when the switch is on" }
   ]
 }

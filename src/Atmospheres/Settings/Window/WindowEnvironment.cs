@@ -20,7 +20,9 @@ namespace ReDefinition.Atmospheres
         // Whether the main mod is installed, and whether its after-upscaling hook answers.
         internal bool MainModPresent;
         internal bool HostApi;
-        // Whether the shell shaders of the vehicle cover are available (the bundle holds them and they compile here).
+        // Whether the shell shaders of the vehicle cover are available (the bundle holds them and they compile here). Detect() takes it as
+        // true: the shells belong to the cover package (D34), which has not landed, so there is no shader name to ask the bundle for
+        // [VERIFY when D34 lands: ask AtmosphereShaders.Get for its shell shader].
         internal bool ShellShaders = true;
         // ZTheme restyles the dialogs where it is installed.
         internal bool ZTheme;
