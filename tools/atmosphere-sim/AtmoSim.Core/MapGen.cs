@@ -23,7 +23,7 @@ namespace AtmoSim.Core
             {
                 double mid = 0.5 * (lo + hi), share = 0;
                 for (int j = 0; j < g.NLat; j++) for (int i = 0; i < g.NLon; i++) if (f[j * g.NLon + i] < mid) share += g.Weight[j];
-                share /= (wsum * g.NLon);
+                share /= wsum;
                 if (share < oceanTarget) lo = mid; else hi = mid;
             }
             double thr = 0.5 * (lo + hi), soft = 0.12 * sd;
