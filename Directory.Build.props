@@ -7,16 +7,16 @@
     <KspManaged>$(KspRoot)\KSP_x64_Data\Managed</KspManaged>
     <KspGameData>$(KspRoot)\GameData</KspGameData>
     <ModName>ReDefinition</ModName>
-    <!-- The planner, the dashboard and the seasons are released on their own: each has its folder and its version, which the AIO carries along. Common is the DLL both packages ship; its
+    <!-- The planner, the dashboard and the atmospheres are released on their own: each has its folder and its version, which the AIO carries along. Common is the DLL both packages ship; its
          assembly version is what the game compares, so it changes only when Common does. -->
     <PlannerName>ReDefinitionPlanner</PlannerName>
     <DashboardName>ReDefinitionDashboard</DashboardName>
-    <SeasonsName>ReDefinitionSeasons</SeasonsName>
+    <AtmospheresName>ReDefinitionAtmospheres</AtmospheresName>
     <CommonName>ReDefinitionCommon</CommonName>
     <PlannerVersion>0.1.3</PlannerVersion>
     <DashboardVersion>0.1.0</DashboardVersion>
-    <SeasonsVersion>0.1.0</SeasonsVersion>
-    <CommonVersion>0.1.15</CommonVersion>
+    <AtmospheresVersion>0.1.0</AtmospheresVersion>
+    <CommonVersion>0.1.16</CommonVersion>
   </PropertyGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 using UnityEngine;
 
 namespace ReDefinition.Tests
@@ -183,39 +183,39 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheGroundSettingsComeBackAsSavedAndBadValuesAreBroughtIn()
         {
-            string folder = Path.Combine(Path.GetTempPath(), "seasons-ground-" + Guid.NewGuid().ToString("N"));
+            string folder = Path.Combine(Path.GetTempPath(), "atmospheres-ground-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
-            ConfigNode saved = SeasonsSettings.Snapshot();
+            ConfigNode saved = AtmospheresSettings.Snapshot();
             try
             {
                 string file = Path.Combine(folder, "settings.cfg");
-                SeasonsSettings.GroundRefreshMode = SeasonsSettings.GroundRefresh.Rebuild;
-                SeasonsSettings.RefreshSeconds = 12.5f;
-                SeasonsSettings.ForcePhase = 0.75f;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.GroundRefreshMode = SeasonsSettings.GroundRefresh.Live;
-                SeasonsSettings.RefreshSeconds = 5f;
-                SeasonsSettings.ForcePhase = -1f;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.GroundRefresh.Rebuild, SeasonsSettings.GroundRefreshMode);
-                Assert.AreEqual(12.5f, SeasonsSettings.RefreshSeconds);
-                Assert.AreEqual(0.75f, SeasonsSettings.ForcePhase);
+                AtmospheresSettings.GroundRefreshMode = AtmospheresSettings.GroundRefresh.Rebuild;
+                AtmospheresSettings.RefreshSeconds = 12.5f;
+                AtmospheresSettings.ForcePhase = 0.75f;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.GroundRefreshMode = AtmospheresSettings.GroundRefresh.Live;
+                AtmospheresSettings.RefreshSeconds = 5f;
+                AtmospheresSettings.ForcePhase = -1f;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Rebuild, AtmospheresSettings.GroundRefreshMode);
+                Assert.AreEqual(12.5f, AtmospheresSettings.RefreshSeconds);
+                Assert.AreEqual(0.75f, AtmospheresSettings.ForcePhase);
 
                 File.WriteAllText(file, "groundRefreshMode = nonsense\nrefreshSeconds = 9999\nforcePhase = -4\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.GroundRefresh.Rebuild, SeasonsSettings.GroundRefreshMode, "a name that is none is ignored");
-                Assert.AreEqual(SeasonsSettings.RefreshSecondsMax, SeasonsSettings.RefreshSeconds);
-                Assert.AreEqual(-1f, SeasonsSettings.ForcePhase, "a negative number means the clock");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Rebuild, AtmospheresSettings.GroundRefreshMode, "a name that is none is ignored");
+                Assert.AreEqual(AtmospheresSettings.RefreshSecondsMax, AtmospheresSettings.RefreshSeconds);
+                Assert.AreEqual(-1f, AtmospheresSettings.ForcePhase, "a negative number means the clock");
 
                 File.WriteAllText(file, "groundRefreshMode = Off\nrefreshSeconds = 0\nforcePhase = 1.5\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.GroundRefresh.Off, SeasonsSettings.GroundRefreshMode);
-                Assert.AreEqual(SeasonsSettings.RefreshSecondsMin, SeasonsSettings.RefreshSeconds);
-                Assert.AreEqual(0.5f, SeasonsSettings.ForcePhase, "a phase of a year or more wraps");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.GroundRefresh.Off, AtmospheresSettings.GroundRefreshMode);
+                Assert.AreEqual(AtmospheresSettings.RefreshSecondsMin, AtmospheresSettings.RefreshSeconds);
+                Assert.AreEqual(0.5f, AtmospheresSettings.ForcePhase, "a phase of a year or more wraps");
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 Directory.Delete(folder, true);
             }
         }

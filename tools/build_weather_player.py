@@ -55,17 +55,17 @@ SOURCES = [
     'src/Fsr3/Fsr3UpscalerResources.cs',
     'src/Fsr3/ResourceView.cs',
     'src/Common/CommandLine.cs',
-    'src/Seasons/StormNoise.cs',
-    'src/Seasons/Mathx.cs',
-    'src/Seasons/StormVolumeMath.cs',
+    'src/Atmospheres/StormNoise.cs',
+    'src/Atmospheres/Mathx.cs',
+    'src/Atmospheres/StormVolumeMath.cs',
     # What the linked code names of the raytracing player's runner: the profiler's markers, the proxy's refusal, the rig's sharpness.
     'tests/RaytracingPlayer/Assets/Runner/GameStubs.cs',
     'tests/RaytracingPlayer/Assets/Runner/UpscalerRigStub.cs',
 ]
 SHADERS = [
     'unity/Assets/ReDefinition/Shaders/ReDefinitionRtCapture.shader',
-    'unity/Assets/ReDefinitionSeasons/Shaders/ReDefinitionSeasonsStormVolume.shader',
-    'unity/Assets/ReDefinitionSeasons/Shaders/ReDefinitionSeasonsCloudSlab.shader',
+    'unity/Assets/ReDefinitionAtmospheres/Shaders/ReDefinitionAtmospheresStormVolume.shader',
+    'unity/Assets/ReDefinitionAtmospheres/Shaders/ReDefinitionAtmospheresCloudSlab.shader',
 ]
 
 

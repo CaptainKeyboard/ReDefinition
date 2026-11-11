@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -83,8 +83,8 @@ namespace ReDefinition.WeatherPlayer
         internal void Init(Camera camera)
         {
             cam = camera;
-            Shader slabShader = Shader.Find("ReDefinition/SeasonsCloudSlab");
-            Shader curtainShader = Shader.Find("ReDefinition/SeasonsStormVolume");
+            Shader slabShader = Shader.Find("ReDefinition/AtmospheresCloudSlab");
+            Shader curtainShader = Shader.Find("ReDefinition/AtmospheresStormVolume");
             if (slabShader == null || curtainShader == null)
             {
                 Problem = "shader missing: slab " + (slabShader != null) + ", curtain " + (curtainShader != null);

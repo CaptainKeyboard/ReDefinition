@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
@@ -236,25 +236,25 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "eve-clouds-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            var saved = SeasonsSettings.Snapshot();
+            var saved = AtmospheresSettings.Snapshot();
             try
             {
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Existing, SeasonsSettings.StormClouds, "existing layers by default");
-                SeasonsSettings.StormClouds = SeasonsSettings.StormCloudModes.Own;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.StormClouds = SeasonsSettings.StormCloudModes.Existing;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Own, SeasonsSettings.StormClouds);
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Existing, AtmospheresSettings.StormClouds, "existing layers by default");
+                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Own;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Existing;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds);
                 File.WriteAllText(file, "stormClouds = maybe\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Own, SeasonsSettings.StormClouds, "a name that is none is ignored");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds, "a name that is none is ignored");
                 File.WriteAllText(file, "stormClouds = Existing\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Existing, SeasonsSettings.StormClouds);
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Existing, AtmospheresSettings.StormClouds);
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }
@@ -263,8 +263,8 @@ namespace ReDefinition.Tests
         public void TheConfigOfTheLayerNamesTheLayerAndTheCoverageFileExists()
         {
             string root = Repo();
-            string folder = Path.Combine(root, "GameData", "ReDefinition", "Seasons", "Clouds");
-            string cfg = File.ReadAllText(Path.Combine(folder, "SeasonsStormLayer.cfg"));
+            string folder = Path.Combine(root, "GameData", "ReDefinition", "Atmospheres", "Clouds");
+            string cfg = File.ReadAllText(Path.Combine(folder, "AtmospheresStormLayer.cfg"));
             StringAssert.Contains(cfg, "name = " + EveCellLayer.LayerName);
             StringAssert.Contains(cfg, "body = Kerbin");
             StringAssert.Contains(cfg, "minAltitude = " + EveCellLayer.BaseAslM.ToString(System.Globalization.CultureInfo.InvariantCulture));
@@ -272,7 +272,7 @@ namespace ReDefinition.Tests
             Assert.IsFalse(cfg.Contains("lightningConfig") || cfg.Contains("dropletsConfig"), "no lightning or droplets");
             Assert.IsFalse(cfg.ToLowerInvariant().Contains("thunder") || cfg.ToLowerInvariant().Contains("cumulonimbus"), "a snow cloud, not a thunderstorm");
             Assert.IsTrue(File.Exists(Path.Combine(folder, "StormCoverage.png")), "the placeholder coverage map");
-            StringAssert.Contains(cfg, "ReDefinition/Seasons/Clouds/StormCoverage");
+            StringAssert.Contains(cfg, "ReDefinition/Atmospheres/Clouds/StormCoverage");
         }
 
         // The config's two OBJECTs and what each carries: the cloud (volume and 2D layer, no particles) and the snow (particles from the
@@ -280,8 +280,8 @@ namespace ReDefinition.Tests
         [TestMethod]
         public void TheConfigHasTheCloudWithA2DLayerAndTheSnowFieldOnALayerThatReachesTheGround()
         {
-            string folder = Path.Combine(Repo(), "GameData", "ReDefinition", "Seasons", "Clouds");
-            string cfg = File.ReadAllText(Path.Combine(folder, "SeasonsStormLayer.cfg"));
+            string folder = Path.Combine(Repo(), "GameData", "ReDefinition", "Atmospheres", "Clouds");
+            string cfg = File.ReadAllText(Path.Combine(folder, "AtmospheresStormLayer.cfg"));
             int snow = cfg.IndexOf("name = " + EveCellLayer.SnowLayerName, StringComparison.Ordinal);
             int cloud = cfg.IndexOf("name = " + EveCellLayer.LayerName, StringComparison.Ordinal);
             Assert.IsTrue(cloud >= 0 && snow > cloud, "both layers, the cloud first");
@@ -291,21 +291,21 @@ namespace ReDefinition.Tests
             // The 2D layer sits in the volume's OBJECT: a 2D-only OBJECT of the body is dropped once a raymarched layer of it exists.
             StringAssert.Contains(cloudText, "layer2D");
             StringAssert.Contains(cloudText, "macroCloudMaterial");
-            StringAssert.Contains(cloudText, "ReDefinition/Seasons/Clouds/StormSwirl");
+            StringAssert.Contains(cloudText, "ReDefinition/Atmospheres/Clouds/StormSwirl");
             Assert.IsTrue(File.Exists(Path.Combine(folder, "StormSwirl.png")), "the placeholder of the 2D picture");
             StringAssert.Contains(cloudText, "particleFieldDensity = 0");
             Assert.IsFalse(cloudText.Contains("particleFieldConfig") || cloudText.Contains("soundName"), "the cloud layer carries no particles or sound");
 
             // The snow layer: no cloud, the field and the sound, from below sea level (a volume gives no coverage under its lowest altitude).
             StringAssert.Contains(snowText, "fxOnlyLayer = True");
-            StringAssert.Contains(snowText, "particleFieldConfig = ReDefinition-Seasons-snow");
+            StringAssert.Contains(snowText, "particleFieldConfig = ReDefinition-Atmospheres-snow");
             StringAssert.Contains(snowText, "soundName = StockVolumetricClouds/Clouds/Sounds/SnowStormLoopedFreeAudio");
             StringAssert.Contains(snowText, "minAltitude = -1");
             StringAssert.Contains(snowText, "particleFieldDensity = 1");
             Assert.IsFalse(snowText.Contains("layer2D"), "the snow layer has no 2D layer");
             // The particle field is defined here, with a name that has "snow" in it (EveSnowLink looks for that).
             StringAssert.Contains(cfg, "EVE_PARTICLE_FIELD_CONFIG");
-            StringAssert.Contains(cfg, "name = ReDefinition-Seasons-snow");
+            StringAssert.Contains(cfg, "name = ReDefinition-Atmospheres-snow");
             StringAssert.Contains(EveCellLayer.SnowLayerName.ToLowerInvariant(), "snow");
         }
 

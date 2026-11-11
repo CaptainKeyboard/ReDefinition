@@ -48,7 +48,7 @@ namespace ReDefinition.Tests
             ["Proxy"] = "Core",
             ["Raytracing"] = "Api Core Modules Probe Proxy Scenery Upscaler",
             ["Scaling"] = "Core",
-            ["Seasons"] = "Core",
+            ["Atmospheres"] = "Core",
             ["Scenery"] = "Core Raytracing Upscaler",
             ["Settings"] = "Core Migration Proxy Raytracing Vendor",
             ["Ui"] = "Core Scaling Upscaler Window",
@@ -83,14 +83,14 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, gone.Count, "Remove from the table of ArchitectureTests:\n" + string.Join("\n", gone));
         }
 
-        // The planner, the dashboard, the seasons and the DLL they share with ReDefinition build without ReDefinition, Harmony and ZTheme: the project
+        // The planner, the dashboard, the atmospheres and the DLL they share with ReDefinition build without ReDefinition, Harmony and ZTheme: the project
         // files name none of them.
         [TestMethod]
-        public void ThePlannerTheDashboardTheSeasonsAndCommonProjectsNameNeitherTheMainModNorHarmonyNorZTheme()
+        public void ThePlannerTheDashboardTheAtmospheresAndCommonProjectsNameNeitherTheMainModNorHarmonyNorZTheme()
         {
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             var found = new List<string>();
-            foreach (string project in new[] { "Planner/ReDefinition.Planner.csproj", "Dashboard/ReDefinition.Dashboard.csproj", "Seasons/ReDefinition.Seasons.csproj", "Common/ReDefinition.Common.csproj" })
+            foreach (string project in new[] { "Planner/ReDefinition.Planner.csproj", "Dashboard/ReDefinition.Dashboard.csproj", "Atmospheres/ReDefinition.Atmospheres.csproj", "Common/ReDefinition.Common.csproj" })
             {
                 string text = File.ReadAllText(Path.Combine(root, "src", project));
                 bool common = project.StartsWith("Common");
@@ -101,13 +101,13 @@ namespace ReDefinition.Tests
             Assert.AreEqual(0, found.Count, string.Join("\n", found));
         }
 
-        // The only project the planner, the dashboard and the seasons reference is Common. Common itself references no project.
+        // The only project the planner, the dashboard and the atmospheres reference is Common. Common itself references no project.
         [TestMethod]
         public void TheSideProjectsReferenceNoProjectButCommon()
         {
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             var found = new List<string>();
-            foreach (string name in new[] { "Planner", "Dashboard", "Seasons", "Common" })
+            foreach (string name in new[] { "Planner", "Dashboard", "Atmospheres", "Common" })
             {
                 string text = File.ReadAllText(Path.Combine(root, "src", name, "ReDefinition." + name + ".csproj"));
                 var references = Regex.Matches(text, @"<ProjectReference\s[^>]*Include=""([^""]*)""").Cast<Match>().Select(m => m.Groups[1].Value).ToList();
@@ -124,7 +124,7 @@ namespace ReDefinition.Tests
         {
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             var found = new List<string>();
-            foreach (string area in new[] { "Planner", "Dashboard", "Seasons", "Common" })
+            foreach (string area in new[] { "Planner", "Dashboard", "Atmospheres", "Common" })
                 foreach (string file in Directory.GetFiles(Path.Combine(root, "src", area), "*.cs", SearchOption.AllDirectories))
                 {
                     if (Path.GetFileName(file) == "HarmonyHooks.cs" || file.Contains(Path.DirectorySeparatorChar + "obj" + Path.DirectorySeparatorChar)) continue;
@@ -181,38 +181,38 @@ namespace ReDefinition.Tests
             return found;
         }
 
-        // The player build of ReDefinition.dll names nothing of the seasons, a mod of its own.
+        // The player build of ReDefinition.dll names nothing of the atmospheres, a mod of its own.
         [TestMethod]
-        public void NothingOfTheMainModNamesTheSeasonsAssembly()
+        public void NothingOfTheMainModNamesTheAtmospheresAssembly()
         {
-            var found = NothingOfTheMainModNames("Seasons", "Seasons", "Dashboard", "Planner");
+            var found = NothingOfTheMainModNames("Atmospheres", "Atmospheres", "Dashboard", "Planner");
             Assert.AreEqual(0, found.Count, string.Join("\n", found));
         }
 
-        // The seasons are a soft neighbour: ReDefinition does not declare them as a KSP assembly dependency, and the main project builds
+        // The atmospheres are a soft neighbour: ReDefinition does not declare them as a KSP assembly dependency, and the main project builds
         // them first without referencing their assembly.
         [TestMethod]
-        public void TheMainModDoesNotDeclareOrReferenceTheSeasons()
+        public void TheMainModDoesNotDeclareOrReferenceTheAtmospheres()
         {
             string root = RepoRoot.Root("src", "ReDefinition.csproj");
             string info = File.ReadAllText(Path.Combine(root, "src", "KspAssemblyInfo.cs"));
-            Assert.IsFalse(Regex.IsMatch(info, @"KSPAssemblyDependency\(\s*""ReDefinition\.Seasons"""), "src/KspAssemblyInfo.cs depends on the seasons.");
+            Assert.IsFalse(Regex.IsMatch(info, @"KSPAssemblyDependency\(\s*""ReDefinition\.Atmospheres"""), "src/KspAssemblyInfo.cs depends on the atmospheres.");
             string project = File.ReadAllText(Path.Combine(root, "src", "ReDefinition.csproj"));
-            MatchCollection references = Regex.Matches(project, @"<ProjectReference\b[^>]*ReDefinition\.Seasons\.csproj[^>]*>");
-            Assert.IsTrue(references.Count > 0, "The main project no longer builds the seasons before it.");
+            MatchCollection references = Regex.Matches(project, @"<ProjectReference\b[^>]*ReDefinition\.Atmospheres\.csproj[^>]*>");
+            Assert.IsTrue(references.Count > 0, "The main project no longer builds the atmospheres before it.");
             foreach (Match reference in references)
-                Assert.IsTrue(reference.Value.Contains("ReferenceOutputAssembly=\"false\""), "A seasons reference that is not ReferenceOutputAssembly=false: " + reference.Value);
-            Assert.IsTrue(Regex.IsMatch(project, @"<Compile Remove=""[^""]*Seasons\\\*\*"), "The main project still compiles the seasons' files.");
+                Assert.IsTrue(reference.Value.Contains("ReferenceOutputAssembly=\"false\""), "An atmospheres reference that is not ReferenceOutputAssembly=false: " + reference.Value);
+            Assert.IsTrue(Regex.IsMatch(project, @"<Compile Remove=""[^""]*Atmospheres\\\*\*"), "The main project still compiles the atmospheres' files.");
         }
 
-        // The seasons' side (their folder and Common) uses nothing of ReDefinition beyond Core, whatever the table allows.
+        // The atmospheres' side (their folder and Common) uses nothing of ReDefinition beyond Core, whatever the table allows.
         [TestMethod]
-        public void TheSeasonsSideUsesNothingOfReDefinitionBeyondCore()
+        public void TheAtmospheresSideUsesNothingOfReDefinitionBeyondCore()
         {
-            var side = new HashSet<string> { "Seasons", "Common", "Core" };
-            var found = Edges.Value.Where(e => e.Key.Item1 == "Seasons" && !side.Contains(e.Key.Item2))
+            var side = new HashSet<string> { "Atmospheres", "Common", "Core" };
+            var found = Edges.Value.Where(e => e.Key.Item1 == "Atmospheres" && !side.Contains(e.Key.Item2))
                 .Select(e => e.Key.Item1 + " uses " + e.Key.Item2 + " (" + e.Value + ")").ToList();
-            Assert.AreEqual(0, found.Count, "The seasons may not use these:\n" + string.Join("\n", found));
+            Assert.AreEqual(0, found.Count, "The atmospheres may not use these:\n" + string.Join("\n", found));
         }
 
         // The dashboard is a soft neighbour too: ReDefinition does not declare it as a KSP assembly dependency, and the main project

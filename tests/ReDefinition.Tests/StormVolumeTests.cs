@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
@@ -145,29 +145,29 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "volume-settings-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            ConfigNode saved = SeasonsSettings.Snapshot();
+            ConfigNode saved = AtmospheresSettings.Snapshot();
             try
             {
-                Assert.AreEqual(28, SeasonsSettings.StormVolumeStepsDefault);
-                SeasonsSettings.StormVolumeSteps = 40;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.StormVolumeSteps = 28;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(40, SeasonsSettings.StormVolumeSteps);
+                Assert.AreEqual(28, AtmospheresSettings.StormVolumeStepsDefault);
+                AtmospheresSettings.StormVolumeSteps = 40;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.StormVolumeSteps = 28;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(40, AtmospheresSettings.StormVolumeSteps);
 
                 File.WriteAllText(file, "stormVolumeSteps = 3\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(16, SeasonsSettings.StormVolumeSteps);
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(16, AtmospheresSettings.StormVolumeSteps);
                 File.WriteAllText(file, "stormVolumeSteps = 500\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(48, SeasonsSettings.StormVolumeSteps);
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(48, AtmospheresSettings.StormVolumeSteps);
                 File.WriteAllText(file, "stormVolumeSteps = x\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(48, SeasonsSettings.StormVolumeSteps, "a value that is not a number is ignored");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(48, AtmospheresSettings.StormVolumeSteps, "a value that is not a number is ignored");
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }
@@ -194,7 +194,7 @@ namespace ReDefinition.Tests
         public void TheClearedDiscTakesTheCoverageAwayInsideAndKeepsItOutside()
         {
             const int width = 64, height = 32;
-            var rect = new ReDefinition.Seasons.EveCoverageMath.Rect { Col0 = 0, Cols = width, Row0 = 0, Rows = height };
+            var rect = new ReDefinition.Atmospheres.EveCoverageMath.Rect { Col0 = 0, Cols = width, Row0 = 0, Rows = height };
             var coverage = new byte[width * height];
             for (int i = 0; i < coverage.Length; i++) coverage[i] = 200;
             // The centre looks along +z at the equator: column width / 2 is longitude 0, row height / 2 is latitude 0.
@@ -212,11 +212,11 @@ namespace ReDefinition.Tests
             string repo = AppContext.BaseDirectory;
             while (repo != null && !File.Exists(Path.Combine(repo, "ReDefinition.sln"))) repo = Path.GetDirectoryName(repo);
             Assert.IsNotNull(repo, "the repository root");
-            string shader = Path.Combine(repo, "unity", "Assets", "ReDefinitionSeasons", "Shaders", "ReDefinitionSeasonsStormVolume.shader");
+            string shader = Path.Combine(repo, "unity", "Assets", "ReDefinitionAtmospheres", "Shaders", "ReDefinitionAtmospheresStormVolume.shader");
             Assert.IsTrue(File.Exists(shader), shader);
             Assert.IsTrue(File.ReadAllText(shader).Contains("Shader \"" + StormShaders.VolumeShaderName + "\""), "the shader's name is the one the loader asks for");
-            Assert.AreEqual("seasons.shaders", StormShaders.BundleName);
-            Assert.IsTrue(File.ReadAllText(Path.Combine(repo, "unity", "Assets", "ReDefinitionSeasons", "Editor", "SeasonsBundleBuilder.cs"))
+            Assert.AreEqual("atmospheres.shaders", StormShaders.BundleName);
+            Assert.IsTrue(File.ReadAllText(Path.Combine(repo, "unity", "Assets", "ReDefinitionAtmospheres", "Editor", "AtmospheresBundleBuilder.cs"))
                 .Contains("\"" + StormShaders.BundleName + "\""), "the builder writes the file the loader reads");
         }
     }

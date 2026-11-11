@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
@@ -578,23 +578,23 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "storm-clouds-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            var saved = SeasonsSettings.Snapshot();
+            var saved = AtmospheresSettings.Snapshot();
             try
             {
-                SeasonsSettings.ResetToDefaults();
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Existing, SeasonsSettings.StormClouds);
-                SeasonsSettings.StormClouds = SeasonsSettings.StormCloudModes.Own;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.StormClouds = SeasonsSettings.StormCloudModes.Existing;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Own, SeasonsSettings.StormClouds);
+                AtmospheresSettings.ResetToDefaults();
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Existing, AtmospheresSettings.StormClouds);
+                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Own;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.StormClouds = AtmospheresSettings.StormCloudModes.Existing;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds);
                 File.WriteAllText(file, "stormClouds = nonsense\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(SeasonsSettings.StormCloudModes.Own, SeasonsSettings.StormClouds, "a name that is none is ignored");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(AtmospheresSettings.StormCloudModes.Own, AtmospheresSettings.StormClouds, "a name that is none is ignored");
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }

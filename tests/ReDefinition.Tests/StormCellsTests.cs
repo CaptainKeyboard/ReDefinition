@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
@@ -333,52 +333,52 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "cell-settings-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            ConfigNode saved = SeasonsSettings.Snapshot();
+            ConfigNode saved = AtmospheresSettings.Snapshot();
             try
             {
-                Assert.AreEqual(12f, SeasonsSettings.StormCellRadiusDefaultKm);
-                Assert.AreEqual(6, SeasonsSettings.StormMaxCellsDefault);
-                SeasonsSettings.StormCellRadiusKm = 7.5f;
-                SeasonsSettings.StormVolume = false;
-                SeasonsSettings.StormMaxCells = 3;
-                SeasonsSettings.ForceCellOn = true;
-                SeasonsSettings.ForceCellLatitude = 62.25;
-                SeasonsSettings.ForceCellLongitude = -30.5;
-                SeasonsSettings.ForceCellRadiusKm = 18f;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.StormCellRadiusKm = 12f;
-                SeasonsSettings.StormVolume = true;
-                SeasonsSettings.StormMaxCells = 6;
-                SeasonsSettings.ForceCellOn = false;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(7.5f, SeasonsSettings.StormCellRadiusKm);
-                Assert.IsFalse(SeasonsSettings.StormVolume);
-                Assert.AreEqual(3, SeasonsSettings.StormMaxCells);
-                Assert.IsTrue(SeasonsSettings.ForceCellOn);
-                Assert.AreEqual(62.25, SeasonsSettings.ForceCellLatitude);
-                Assert.AreEqual(-30.5, SeasonsSettings.ForceCellLongitude);
-                Assert.AreEqual(18f, SeasonsSettings.ForceCellRadiusKm);
+                Assert.AreEqual(12f, AtmospheresSettings.StormCellRadiusDefaultKm);
+                Assert.AreEqual(6, AtmospheresSettings.StormMaxCellsDefault);
+                AtmospheresSettings.StormCellRadiusKm = 7.5f;
+                AtmospheresSettings.StormVolume = false;
+                AtmospheresSettings.StormMaxCells = 3;
+                AtmospheresSettings.ForceCellOn = true;
+                AtmospheresSettings.ForceCellLatitude = 62.25;
+                AtmospheresSettings.ForceCellLongitude = -30.5;
+                AtmospheresSettings.ForceCellRadiusKm = 18f;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.StormCellRadiusKm = 12f;
+                AtmospheresSettings.StormVolume = true;
+                AtmospheresSettings.StormMaxCells = 6;
+                AtmospheresSettings.ForceCellOn = false;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(7.5f, AtmospheresSettings.StormCellRadiusKm);
+                Assert.IsFalse(AtmospheresSettings.StormVolume);
+                Assert.AreEqual(3, AtmospheresSettings.StormMaxCells);
+                Assert.IsTrue(AtmospheresSettings.ForceCellOn);
+                Assert.AreEqual(62.25, AtmospheresSettings.ForceCellLatitude);
+                Assert.AreEqual(-30.5, AtmospheresSettings.ForceCellLongitude);
+                Assert.AreEqual(18f, AtmospheresSettings.ForceCellRadiusKm);
 
                 File.WriteAllText(file, "stormCellRadiusKm = 2\nstormMaxCells = 0\nforceStormCell = off\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(5f, SeasonsSettings.StormCellRadiusKm);
-                Assert.AreEqual(1, SeasonsSettings.StormMaxCells);
-                Assert.IsFalse(SeasonsSettings.ForceCellOn);
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(5f, AtmospheresSettings.StormCellRadiusKm);
+                Assert.AreEqual(1, AtmospheresSettings.StormMaxCells);
+                Assert.IsFalse(AtmospheresSettings.ForceCellOn);
                 File.WriteAllText(file, "stormCellRadiusKm = 90\nstormMaxCells = 99\nforceStormCell = 10,20,30\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(25f, SeasonsSettings.StormCellRadiusKm);
-                Assert.AreEqual(12, SeasonsSettings.StormMaxCells);
-                Assert.IsTrue(SeasonsSettings.ForceCellOn);
-                Assert.AreEqual(25f, SeasonsSettings.ForceCellRadiusKm);
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(25f, AtmospheresSettings.StormCellRadiusKm);
+                Assert.AreEqual(12, AtmospheresSettings.StormMaxCells);
+                Assert.IsTrue(AtmospheresSettings.ForceCellOn);
+                Assert.AreEqual(25f, AtmospheresSettings.ForceCellRadiusKm);
                 File.WriteAllText(file, "stormCellRadiusKm = x\nstormMaxCells = y\nstormVolume = z\nforceStormCell = nonsense\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(25f, SeasonsSettings.StormCellRadiusKm, "a value that is not a number is ignored");
-                Assert.AreEqual(12, SeasonsSettings.StormMaxCells);
-                Assert.IsFalse(SeasonsSettings.ForceCellOn, "text that is not a cell switches the forced cell off");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(25f, AtmospheresSettings.StormCellRadiusKm, "a value that is not a number is ignored");
+                Assert.AreEqual(12, AtmospheresSettings.StormMaxCells);
+                Assert.IsFalse(AtmospheresSettings.ForceCellOn, "text that is not a cell switches the forced cell off");
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }

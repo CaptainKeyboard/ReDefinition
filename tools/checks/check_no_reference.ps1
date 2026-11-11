@@ -1,5 +1,5 @@
 # The player build of ReDefinition.dll must not reference a mod of its own (ReDefinition.Planner, ReDefinition.Dashboard,
-# ReDefinition.Seasons): ReDefinition works without them installed, and they work without it.
+# ReDefinition.Atmospheres): ReDefinition works without them installed, and they work without it.
 #
 # Each of them is built before ReDefinition so that its DLL lands in the output beside it, and is referenced by nothing
 # (src/ReDefinition.csproj, ReferenceOutputAssembly=false). The planner's types are named only by the developer probes (src/Probe),
@@ -8,10 +8,10 @@
 # For every name this reads the references of ReDefinition.dll and fails if the mod is among them. It also reads the mod's own DLL,
 # beside ReDefinition.dll, which must name neither ReDefinition (the main mod), Harmony nor ZTheme. The release package runs it after
 # the build; it can be run by hand on any build:
-#   powershell -File tools/checks/check_no_reference.ps1 [-Name Planner,Dashboard,Seasons] [-Dll path\to\ReDefinition.dll]
+#   powershell -File tools/checks/check_no_reference.ps1 [-Name Planner,Dashboard,Atmospheres] [-Dll path\to\ReDefinition.dll]
 
 param(
-    [string[]]$Name = @('Planner', 'Dashboard', 'Seasons'),
+    [string[]]$Name = @('Planner', 'Dashboard', 'Atmospheres'),
     [string]$Dll
 )
 

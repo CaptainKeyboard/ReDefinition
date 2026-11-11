@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
@@ -220,40 +220,40 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "storm-settings-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            ConfigNode saved = SeasonsSettings.Snapshot();
+            ConfigNode saved = AtmospheresSettings.Snapshot();
             try
             {
-                SeasonsSettings.StormSeed = 77;
-                SeasonsSettings.StormVisibilityM = 90f;
-                SeasonsSettings.StormVeil = 0.4f;
-                SeasonsSettings.StormSnowfall = false;
-                SeasonsSettings.ForceStorm = 0.35f;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.StormSeed = 1;
-                SeasonsSettings.StormVisibilityM = 60f;
-                SeasonsSettings.StormVeil = 0.6f;
-                SeasonsSettings.StormSnowfall = true;
-                SeasonsSettings.ForceStorm = -1f;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(77, SeasonsSettings.StormSeed);
-                Assert.AreEqual(90f, SeasonsSettings.StormVisibilityM);
-                Assert.AreEqual(0.4f, SeasonsSettings.StormVeil);
-                Assert.IsFalse(SeasonsSettings.StormSnowfall);
-                Assert.AreEqual(0.35f, SeasonsSettings.ForceStorm);
+                AtmospheresSettings.StormSeed = 77;
+                AtmospheresSettings.StormVisibilityM = 90f;
+                AtmospheresSettings.StormVeil = 0.4f;
+                AtmospheresSettings.StormSnowfall = false;
+                AtmospheresSettings.ForceStorm = 0.35f;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.StormSeed = 1;
+                AtmospheresSettings.StormVisibilityM = 60f;
+                AtmospheresSettings.StormVeil = 0.6f;
+                AtmospheresSettings.StormSnowfall = true;
+                AtmospheresSettings.ForceStorm = -1f;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(77, AtmospheresSettings.StormSeed);
+                Assert.AreEqual(90f, AtmospheresSettings.StormVisibilityM);
+                Assert.AreEqual(0.4f, AtmospheresSettings.StormVeil);
+                Assert.IsFalse(AtmospheresSettings.StormSnowfall);
+                Assert.AreEqual(0.35f, AtmospheresSettings.ForceStorm);
 
                 File.WriteAllText(file, "stormVisibility = 5\nstormVeil = 7\nforceStorm = 4\nstormSeed = x\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(StormLook.MinVisibilityLow, SeasonsSettings.StormVisibilityM);
-                Assert.AreEqual(StormLook.VeilMax, SeasonsSettings.StormVeil);
-                Assert.AreEqual(1f, SeasonsSettings.ForceStorm);
-                Assert.AreEqual(77, SeasonsSettings.StormSeed, "a seed that is not a number is ignored");
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(StormLook.MinVisibilityLow, AtmospheresSettings.StormVisibilityM);
+                Assert.AreEqual(StormLook.VeilMax, AtmospheresSettings.StormVeil);
+                Assert.AreEqual(1f, AtmospheresSettings.ForceStorm);
+                Assert.AreEqual(77, AtmospheresSettings.StormSeed, "a seed that is not a number is ignored");
                 File.WriteAllText(file, "forceStorm = -3\n");
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(-1f, SeasonsSettings.ForceStorm);
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(-1f, AtmospheresSettings.ForceStorm);
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }

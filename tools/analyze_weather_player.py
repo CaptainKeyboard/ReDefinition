@@ -5,7 +5,7 @@ Sub-commands:
 
   stills <folder> [--reference <shots folder>]
       The four views of the player's stills run (<view>_clear/_curtain/_slab/_both) and, per view, the same figures of the stored
-      frames of the game's EVE cell (cell-clear/far/mid/inside.png of a run in .local/work/seasons-test/run-cell*/shots). Metrics
+      frames of the game's EVE cell (cell-clear/far/mid/inside.png of a run in .local/work/atmospheres-test/run-cell*/shots). Metrics
       per view, in the sky above the horizon (at 25 km only the rows the cell reaches and the columns of its box):
         luma_mean      mean luma (the coded values, as in the stored screenshots)
         luma_ratio     mean luma of the frame with the cell over that of the clear frame of the same pose
@@ -275,7 +275,7 @@ def gpu(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='command', required=True)
-    default_reference = os.path.join(ROOT, '.local', 'work', 'seasons-test', 'run-cell13', 'shots')
+    default_reference = os.path.join(ROOT, '.local', 'work', 'atmospheres-test', 'run-cell13', 'shots')
     p = sub.add_parser('stills')
     p.add_argument('folder')
     p.add_argument('--reference', default=default_reference)

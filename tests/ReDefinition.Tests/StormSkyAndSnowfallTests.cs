@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 using UnityEngine;
 
 namespace ReDefinition.Tests
@@ -221,46 +221,46 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "storm-sky-settings-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(folder);
-            ConfigNode saved = SeasonsSettings.Snapshot();
+            ConfigNode saved = AtmospheresSettings.Snapshot();
             try
             {
                 string file = Path.Combine(folder, "settings.cfg");
-                SeasonsSettings.StormSkyDarkening = 0.25f;
-                SeasonsSettings.StormEveSnow = false;
-                SeasonsSettings.StormEveRainToSnow = false;
-                SeasonsSettings.OrbitSnow = false;
-                SeasonsSettings.OrbitSnowWidth = 2048;
-                SeasonsSettings.Write(file);
-                SeasonsSettings.StormSkyDarkening = 0.6f;
-                SeasonsSettings.StormEveSnow = true;
-                SeasonsSettings.StormEveRainToSnow = true;
-                SeasonsSettings.OrbitSnow = true;
-                SeasonsSettings.OrbitSnowWidth = 4096;
-                SeasonsSettings.Read(file);
-                Assert.AreEqual(0.25f, SeasonsSettings.StormSkyDarkening);
-                Assert.IsFalse(SeasonsSettings.StormEveSnow);
-                Assert.IsFalse(SeasonsSettings.StormEveRainToSnow);
-                Assert.IsFalse(SeasonsSettings.OrbitSnow);
-                Assert.AreEqual(2048, SeasonsSettings.OrbitSnowWidth);
+                AtmospheresSettings.StormSkyDarkening = 0.25f;
+                AtmospheresSettings.StormEveSnow = false;
+                AtmospheresSettings.StormEveRainToSnow = false;
+                AtmospheresSettings.OrbitSnow = false;
+                AtmospheresSettings.OrbitSnowWidth = 2048;
+                AtmospheresSettings.Write(file);
+                AtmospheresSettings.StormSkyDarkening = 0.6f;
+                AtmospheresSettings.StormEveSnow = true;
+                AtmospheresSettings.StormEveRainToSnow = true;
+                AtmospheresSettings.OrbitSnow = true;
+                AtmospheresSettings.OrbitSnowWidth = 4096;
+                AtmospheresSettings.Read(file);
+                Assert.AreEqual(0.25f, AtmospheresSettings.StormSkyDarkening);
+                Assert.IsFalse(AtmospheresSettings.StormEveSnow);
+                Assert.IsFalse(AtmospheresSettings.StormEveRainToSnow);
+                Assert.IsFalse(AtmospheresSettings.OrbitSnow);
+                Assert.AreEqual(2048, AtmospheresSettings.OrbitSnowWidth);
 
                 string range = Path.Combine(folder, "range.cfg");
                 File.WriteAllText(range, "stormSkyDarkening = 7\norbitSnowWidth = 100\n");
-                SeasonsSettings.Read(range);
-                Assert.AreEqual(1f, SeasonsSettings.StormSkyDarkening);
-                Assert.AreEqual(SeasonsSettings.OrbitSnowWidthMin, SeasonsSettings.OrbitSnowWidth);
+                AtmospheresSettings.Read(range);
+                Assert.AreEqual(1f, AtmospheresSettings.StormSkyDarkening);
+                Assert.AreEqual(AtmospheresSettings.OrbitSnowWidthMin, AtmospheresSettings.OrbitSnowWidth);
                 File.WriteAllText(range, "stormSkyDarkening = -2\norbitSnowWidth = 90000\n");
-                SeasonsSettings.Read(range);
-                Assert.AreEqual(0f, SeasonsSettings.StormSkyDarkening);
-                Assert.AreEqual(SeasonsSettings.OrbitSnowWidthMax, SeasonsSettings.OrbitSnowWidth);
+                AtmospheresSettings.Read(range);
+                Assert.AreEqual(0f, AtmospheresSettings.StormSkyDarkening);
+                Assert.AreEqual(AtmospheresSettings.OrbitSnowWidthMax, AtmospheresSettings.OrbitSnowWidth);
                 File.WriteAllText(range, "stormSkyDarkening = NaN\norbitSnow = maybe\nstormEveRainToSnow = perhaps\n");
-                SeasonsSettings.Read(range);
-                Assert.IsFalse(SeasonsSettings.StormEveRainToSnow, "not a flag is ignored for the rain replacement too");
-                Assert.AreEqual(0f, SeasonsSettings.StormSkyDarkening, "not a number is ignored");
-                Assert.IsFalse(SeasonsSettings.OrbitSnow, "not a flag is ignored");
+                AtmospheresSettings.Read(range);
+                Assert.IsFalse(AtmospheresSettings.StormEveRainToSnow, "not a flag is ignored for the rain replacement too");
+                Assert.AreEqual(0f, AtmospheresSettings.StormSkyDarkening, "not a number is ignored");
+                Assert.IsFalse(AtmospheresSettings.OrbitSnow, "not a flag is ignored");
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 Directory.Delete(folder, true);
             }
         }

@@ -50,13 +50,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Remove="Common\**;Planner\**;Dashboard\**;Seasons\**" />
+    <Compile Remove="Common\**;Planner\**;Dashboard\**;Atmospheres\**" />
     <ProjectReference Include="Common\ReDefinition.Common.csproj" />
     <!-- The dashboard is built before this project, so that its DLL lands in the output beside this one (it ships in the package
          and goes to the game), but nothing of it is referenced (tools/checks/check_no_reference.ps1). -->
     <ProjectReference Include="Dashboard\ReDefinition.Dashboard.csproj" ReferenceOutputAssembly="false" />
-    <!-- The seasons, the same way (tools/checks/check_no_reference.ps1). -->
-    <ProjectReference Include="Seasons\ReDefinition.Seasons.csproj" ReferenceOutputAssembly="false" />
+    <!-- The atmospheres, the same way (tools/checks/check_no_reference.ps1). -->
+    <ProjectReference Include="Atmospheres\ReDefinition.Atmospheres.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' == 'true'" />
     <ProjectReference Include="Planner\ReDefinition.Planner.csproj" Condition="'$(PlannerProbes)' != 'true'"
                       ReferenceOutputAssembly="false" />
@@ -258,22 +258,22 @@
     <WriteLinesToFile File="$(OutputPath)GameData\$(ModName)\Dashboard\$(DashboardName).version" Lines="@(_DashboardAvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
     <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(DashboardName).version" Lines="@(_DashboardAvcLine)" Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
-    <!-- ReDefinition Seasons' own, with its own version. -->
+    <!-- ReDefinition Atmospheres' own, with its own version. -->
     <ItemGroup>
-      <_SeasonsAvcLine Include="{" />
-      <_SeasonsAvcLine Include="&quot;NAME&quot;: &quot;$(SeasonsName)&quot;," />
-      <_SeasonsAvcLine Include="&quot;URL&quot;: &quot;$(_AvcRaw)/$(SeasonsName).version&quot;," />
-      <_SeasonsAvcLine Include="&quot;DOWNLOAD&quot;: &quot;$(_AvcHome)/releases/latest&quot;," />
-      <_SeasonsAvcLine Include="&quot;CHANGE_LOG_URL&quot;: &quot;$(_AvcRaw)/CHANGELOG.md&quot;," />
-      <_SeasonsAvcLine Include="&quot;VERSION&quot;: &quot;$(SeasonsVersion)&quot;," />
-      <_SeasonsAvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
-      <_SeasonsAvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.0&quot;," />
-      <_SeasonsAvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;" />
-      <_SeasonsAvcLine Include="}" />
+      <_AtmospheresAvcLine Include="{" />
+      <_AtmospheresAvcLine Include="&quot;NAME&quot;: &quot;$(AtmospheresName)&quot;," />
+      <_AtmospheresAvcLine Include="&quot;URL&quot;: &quot;$(_AvcRaw)/$(AtmospheresName).version&quot;," />
+      <_AtmospheresAvcLine Include="&quot;DOWNLOAD&quot;: &quot;$(_AvcHome)/releases/latest&quot;," />
+      <_AtmospheresAvcLine Include="&quot;CHANGE_LOG_URL&quot;: &quot;$(_AvcRaw)/CHANGELOG.md&quot;," />
+      <_AtmospheresAvcLine Include="&quot;VERSION&quot;: &quot;$(AtmospheresVersion)&quot;," />
+      <_AtmospheresAvcLine Include="&quot;KSP_VERSION&quot;: &quot;1.12.5&quot;," />
+      <_AtmospheresAvcLine Include="&quot;KSP_VERSION_MIN&quot;: &quot;1.12.0&quot;," />
+      <_AtmospheresAvcLine Include="&quot;KSP_VERSION_MAX&quot;: &quot;1.12.99&quot;" />
+      <_AtmospheresAvcLine Include="}" />
     </ItemGroup>
-    <MakeDir Directories="$(OutputPath)GameData\$(ModName)\Seasons" />
-    <WriteLinesToFile File="$(OutputPath)GameData\$(ModName)\Seasons\$(SeasonsName).version" Lines="@(_SeasonsAvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
-    <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(SeasonsName).version" Lines="@(_SeasonsAvcLine)" Overwrite="true"
+    <MakeDir Directories="$(OutputPath)GameData\$(ModName)\Atmospheres" />
+    <WriteLinesToFile File="$(OutputPath)GameData\$(ModName)\Atmospheres\$(AtmospheresName).version" Lines="@(_AtmospheresAvcLine)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <WriteLinesToFile File="$(MSBuildThisFileDirectory)..\$(AtmospheresName).version" Lines="@(_AtmospheresAvcLine)" Overwrite="true"
                       WriteOnlyWhenDifferent="true" />
     <!-- The common DLL's own, with the version of the code in src/Common: all packages carry the one copy in Common/. -->
     <ItemGroup>
@@ -342,11 +342,11 @@
     <PropertyGroup>
       <_Game>$(KspGameData)\$(ModName)</_Game>
     </PropertyGroup>
-    <!-- The game's folder holds one shared folder, GameData/ReDefinition, with Main, Common, Planner, Dashboard and Seasons in it.
+    <!-- The game's folder holds one shared folder, GameData/ReDefinition, with Main, Common, Planner, Dashboard and Atmospheres in it.
          What an earlier layout left is moved or removed first: the shader bundle (costly to rebuild) and the
          settings (PluginData) of the old places move into the new ones, unless those exist; the old planner
          folder, and the files of the old top level that KSP would read a second time (textures, configs, DLLs),
-         are deleted, and so is the dashboard's web folder under Main, now a folder of its own. Main, Common, Planner, Dashboard and Seasons
+         are deleted, and so is the dashboard's web folder under Main, now a folder of its own. Main, Common, Planner, Dashboard and Atmospheres
          themselves are never deleted. -->
     <ItemGroup>
       <_OldShaders Include="$(_Game)\Shaders\**\*" />
@@ -365,23 +365,25 @@
     </ItemGroup>
     <Delete Files="@(_OldTopFiles)" />
     <!-- Shaders and PluginData are removed only where the new place exists: what is left of an old one is then stale. -->
-    <RemoveDir Directories="$(_Game)\Plugins;$(_Game)\Profiles;$(_Game)\Mods;$(_Game)\Patches;$(_Game)\Icons;$(_Game)\Main\Dashboard;$(KspGameData)\$(PlannerName)" />
+    <RemoveDir Directories="$(_Game)\Plugins;$(_Game)\Profiles;$(_Game)\Mods;$(_Game)\Patches;$(_Game)\Icons;$(_Game)\Main\Dashboard;$(KspGameData)\$(PlannerName);$(_Game)\Seasons" />
+    <!-- $(_Game)\Seasons is the folder of the product before it was renamed to Atmospheres: its plugins, the Common copy, the cloud config, the shader bundle and the old PluginData. -->
+    <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Seasons.dll" />
     <RemoveDir Condition="Exists('$(_Game)\Main\Shaders')" Directories="$(_Game)\Shaders" />
     <RemoveDir Condition="Exists('$(_Game)\Main\PluginData')" Directories="$(_Game)\PluginData" />
-    <MakeDir Directories="$(_Game)\Main\Plugins;$(_Game)\Common\Plugins;$(_Game)\Planner\Plugins;$(_Game)\Dashboard\Plugins;$(_Game)\Seasons\Plugins" />
+    <MakeDir Directories="$(_Game)\Main\Plugins;$(_Game)\Common\Plugins;$(_Game)\Planner\Plugins;$(_Game)\Dashboard\Plugins;$(_Game)\Atmospheres\Plugins" />
     <!-- One copy of the common DLL, in its own folder: a second copy of the same assembly version would be kept as often as the new one. -->
     <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Common.dll;$(_Game)\Main\Plugins\ReDefinition.Planner.dll;$(_Game)\Planner\Plugins\ReDefinition.Common.dll" />
     <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Dashboard.dll;$(_Game)\Dashboard\Plugins\ReDefinition.Common.dll" />
-    <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Seasons.dll;$(_Game)\Seasons\Plugins\ReDefinition.Common.dll" />
+    <Delete Files="$(_Game)\Main\Plugins\ReDefinition.Atmospheres.dll;$(_Game)\Atmospheres\Plugins\ReDefinition.Common.dll" />
     <Copy SourceFiles="$(OutputPath)$(ModName).dll;$(OutputPath)$(ModName).xml" DestinationFolder="$(_Game)\Main\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Common.dll" DestinationFolder="$(_Game)\Common\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Planner.dll" DestinationFolder="$(_Game)\Planner\Plugins" />
     <Copy SourceFiles="$(OutputPath)ReDefinition.Dashboard.dll" DestinationFolder="$(_Game)\Dashboard\Plugins" />
-    <Copy SourceFiles="$(OutputPath)ReDefinition.Seasons.dll" DestinationFolder="$(_Game)\Seasons\Plugins" />
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Atmospheres.dll" DestinationFolder="$(_Game)\Atmospheres\Plugins" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version" DestinationFolder="$(_Game)\Main" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Planner\$(PlannerName).version" DestinationFolder="$(_Game)\Planner" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Dashboard\$(DashboardName).version;$(OutputPath)ksp-dashboard.icuewidget" DestinationFolder="$(_Game)\Dashboard" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Seasons\$(SeasonsName).version" DestinationFolder="$(_Game)\Seasons" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Atmospheres\$(AtmospheresName).version" DestinationFolder="$(_Game)\Atmospheres" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Common\$(CommonName).version" DestinationFolder="$(_Game)\Common" />
 <!-- The static GameData files of the repository (profiles and mod
          registrations), copied the way KSPCommunityFixes copies its own. What
@@ -399,7 +401,7 @@
     </ItemGroup>
     <Delete Files="@(_ShippedInGame)" />
     <Copy SourceFiles="@(_StaticGameData)" DestinationFolder="$(KspGameData)\%(RecursiveDir)" />
-    <Message Importance="high" Text="$(ModName).dll, $(ModName).version, and the static GameData files copied to $(KspGameData)\$(ModName)\Main, the planner to ...\Planner, the dashboard with the iCUE widget to ...\Dashboard, the seasons to ...\Seasons, the common DLL to ...\Common." />
+    <Message Importance="high" Text="$(ModName).dll, $(ModName).version, and the static GameData files copied to $(KspGameData)\$(ModName)\Main, the planner to ...\Planner, the dashboard with the iCUE widget to ...\Dashboard, the atmospheres to ...\Atmospheres, the common DLL to ...\Common." />
   </Target>
 
   <!-- The player package, built only on request:
@@ -433,20 +435,20 @@
       <_StageMod>$(_Stage)\GameData\$(ModName)\Main</_StageMod>
       <_StagePlanner>$(_Stage)\GameData\$(ModName)\Planner</_StagePlanner>
       <_StageDashboard>$(_Stage)\GameData\$(ModName)\Dashboard</_StageDashboard>
-      <_StageSeasons>$(_Stage)\GameData\$(ModName)\Seasons</_StageSeasons>
+      <_StageAtmospheres>$(_Stage)\GameData\$(ModName)\Atmospheres</_StageAtmospheres>
       <_StageCommon>$(_Stage)\GameData\$(ModName)\Common</_StageCommon>
       <_PlannerOnly>$(_ReleaseDir)\planner-stage</_PlannerOnly>
       <_PlannerZip>$(_ReleaseDir)\$(PlannerName)_$(PlannerVersion).zip</_PlannerZip>
       <_DashboardOnly>$(_ReleaseDir)\dashboard-stage</_DashboardOnly>
       <_DashboardZip>$(_ReleaseDir)\$(DashboardName)_$(DashboardVersion).zip</_DashboardZip>
-      <_SeasonsOnly>$(_ReleaseDir)\seasons-stage</_SeasonsOnly>
-      <_SeasonsZip>$(_ReleaseDir)\$(SeasonsName)_$(SeasonsVersion).zip</_SeasonsZip>
+      <_AtmospheresOnly>$(_ReleaseDir)\atmospheres-stage</_AtmospheresOnly>
+      <_AtmospheresZip>$(_ReleaseDir)\$(AtmospheresName)_$(AtmospheresVersion).zip</_AtmospheresZip>
       <_CommonOnly>$(_ReleaseDir)\common-stage</_CommonOnly>
       <_CommonZip>$(_ReleaseDir)\$(CommonName)_$(CommonVersion).zip</_CommonZip>
       <_ReleaseZip>$(_ReleaseDir)\$(ModName)_$(Version).zip</_ReleaseZip>
       <_SourceZip>$(_ReleaseDir)\$(ModName)_$(Version)_source.zip</_SourceZip>
       <_ShaderBundle>$(KspGameData)\$(ModName)\Main\Shaders\redefinition.shaders</_ShaderBundle>
-      <_SeasonsBundle>$(KspGameData)\$(ModName)\Seasons\Shaders\seasons.shaders</_SeasonsBundle>
+      <_AtmospheresBundle>$(KspGameData)\$(ModName)\Atmospheres\Shaders\atmospheres.shaders</_AtmospheresBundle>
       <_RepoRoot>$(MSBuildThisFileDirectory)..\</_RepoRoot>
       <_Native>$(_RepoRoot)src\DxgiProxy</_Native>
       <_ProxyDll>$(_RepoRoot)build\DxgiProxy\Release\dxgi.dll</_ProxyDll>
@@ -457,7 +459,7 @@
     </PropertyGroup>
     <ItemGroup>
       <_ShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.compute;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.h;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.hlsl;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinition\Include\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinition\Editor\**\*.cs" />
-      <_SeasonsShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinitionSeasons\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinitionSeasons\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinitionSeasons\Editor\**\*.cs" />
+      <_AtmospheresShaderSource Include="$(_RepoRoot)unity\Assets\ReDefinitionAtmospheres\Shaders\**\*.shader;$(_RepoRoot)unity\Assets\ReDefinitionAtmospheres\Shaders\**\*.cginc;$(_RepoRoot)unity\Assets\ReDefinitionAtmospheres\Editor\**\*.cs" />
       <_StaticGameDataZip Include="$(_RepoRoot)GameData\**\*.*" />
       <_NativeSource Include="$(_Native)\**\*.cpp;$(_Native)\**\*.h;$(_Native)\**\*.hlsl;$(_Native)\**\*.hlsli;$(_Native)\*.def;$(_Native)\*.rc.in;$(_Native)\*.ini;$(_Native)\CMakeLists.txt" />
     </ItemGroup>
@@ -493,10 +495,10 @@
            Text="No release zip: the shader bundle '$(_ShaderBundle)' is missing. Build it with the Unity project first (docs/development/building-and-testing.md)." />
     <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_ShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_ShaderBundle)').Ticks)"
            Text="No release zip: '%(_ShaderSource.Identity)' is newer than the shader bundle. Rebuild the bundle with the Unity project first." />
-    <Error Condition="!Exists('$(_SeasonsBundle)')"
-           Text="No release zip: the seasons' shader bundle '$(_SeasonsBundle)' is missing. Build it with tools\build_seasons_bundle.ps1 first." />
-    <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_SeasonsShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_SeasonsBundle)').Ticks)"
-           Text="No release zip: '%(_SeasonsShaderSource.Identity)' is newer than the seasons' shader bundle. Rebuild it with tools\build_seasons_bundle.ps1 first." />
+    <Error Condition="!Exists('$(_AtmospheresBundle)')"
+           Text="No release zip: the atmospheres' shader bundle '$(_AtmospheresBundle)' is missing. Build it with tools\build_atmospheres_bundle.ps1 first." />
+    <Error Condition="$([System.IO.File]::GetLastWriteTime('%(_AtmospheresShaderSource.FullPath)').Ticks) &gt; $([System.IO.File]::GetLastWriteTime('$(_AtmospheresBundle)').Ticks)"
+           Text="No release zip: '%(_AtmospheresShaderSource.Identity)' is newer than the atmospheres' shader bundle. Rebuild it with tools\build_atmospheres_bundle.ps1 first." />
     <Exec Command="git --version" WorkingDirectory="$(_RepoRoot)" IgnoreExitCode="true" StandardOutputImportance="low">
       <Output TaskParameter="ExitCode" PropertyName="_GitMissing" />
     </Exec>
@@ -510,9 +512,9 @@
     </PropertyGroup>
     <!-- The version against what changed since the last release (tools/checks/check_release_version.ps1). -->
     <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_release_version.ps1&quot;" />
-    <!-- The player's ReDefinition.dll names nothing of the planner, the dashboard and the seasons, and their own DLLs name neither
+    <!-- The player's ReDefinition.dll names nothing of the planner, the dashboard and the atmospheres, and their own DLLs name neither
          ReDefinition, Harmony nor ZTheme (tools/checks/check_no_reference.ps1). -->
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_reference.ps1&quot; -Name Planner,Dashboard,Seasons -Dll &quot;$(OutputPath)$(ModName).dll&quot;" />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(_RepoRoot)tools\checks\check_no_reference.ps1&quot; -Name Planner,Dashboard,Atmospheres -Dll &quot;$(OutputPath)$(ModName).dll&quot;" />
     <Exec Command="git status --porcelain 2&gt;$(_NullDevice)" WorkingDirectory="$(_RepoRoot)" ConsoleToMSBuild="true" StandardOutputImportance="low">
       <Output TaskParameter="ConsoleOutput" PropertyName="_TreeStatus" />
     </Exec>
@@ -534,16 +536,16 @@
     <Copy SourceFiles="$(_RepoRoot)src\Dashboard\README.md" DestinationFolder="$(_StageDashboard)" Condition="Exists('$(_RepoRoot)src\Dashboard\README.md')" />
     <Copy SourceFiles="$(_RepoRoot)licenses\Telemachus-MIT.txt" DestinationFiles="$(_StageDashboard)\LICENSE-Telemachus.txt" />
     <Copy SourceFiles="$(_RepoRoot)licenses\QR-Code-generator-MIT.txt" DestinationFiles="$(_StageDashboard)\LICENSE-QR-Code-generator.txt" />
-    <!-- And the seasons, in their own folder. -->
-    <Copy SourceFiles="$(OutputPath)ReDefinition.Seasons.dll" DestinationFolder="$(_StageSeasons)\Plugins" />
-    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Seasons\$(SeasonsName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StageSeasons)" />
-    <Copy SourceFiles="$(_RepoRoot)src\Seasons\README.md" DestinationFolder="$(_StageSeasons)" Condition="Exists('$(_RepoRoot)src\Seasons\README.md')" />
-    <!-- The static files of the seasons (the EVE cloud layer's config and its placeholder map) go into the standalone package too. -->
+    <!-- And the atmospheres, in their own folder. -->
+    <Copy SourceFiles="$(OutputPath)ReDefinition.Atmospheres.dll" DestinationFolder="$(_StageAtmospheres)\Plugins" />
+    <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Atmospheres\$(AtmospheresName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)CHANGELOG.md" DestinationFolder="$(_StageAtmospheres)" />
+    <Copy SourceFiles="$(_RepoRoot)src\Atmospheres\README.md" DestinationFolder="$(_StageAtmospheres)" Condition="Exists('$(_RepoRoot)src\Atmospheres\README.md')" />
+    <!-- The static files of the atmospheres (the EVE cloud layer's config and its placeholder map) go into the standalone package too. -->
     <ItemGroup>
-      <_SeasonsStatic Include="$(_RepoRoot)GameData\$(ModName)\Seasons\**\*.*" />
+      <_AtmospheresStatic Include="$(_RepoRoot)GameData\$(ModName)\Atmospheres\**\*.*" />
     </ItemGroup>
-    <Copy SourceFiles="@(_SeasonsStatic)" DestinationFolder="$(_StageSeasons)\%(RecursiveDir)" />
-    <Copy SourceFiles="$(_SeasonsBundle)" DestinationFolder="$(_StageSeasons)\Shaders" />
+    <Copy SourceFiles="@(_AtmospheresStatic)" DestinationFolder="$(_StageAtmospheres)\%(RecursiveDir)" />
+    <Copy SourceFiles="$(_AtmospheresBundle)" DestinationFolder="$(_StageAtmospheres)\Shaders" />
     <Copy SourceFiles="$(_ShaderBundle)" DestinationFolder="$(_StageMod)\Shaders" />
     <Copy SourceFiles="$(OutputPath)GameData\$(ModName)\Main\$(ModName).version;$(_RepoRoot)LICENSE;$(_RepoRoot)EXCEPTIONS.md;$(_RepoRoot)README.md;$(_RepoRoot)CHANGELOG.md;$(_RepoRoot)licenses\SOURCE.md"
           DestinationFolder="$(_StageMod)" />
@@ -571,11 +573,11 @@
     <ItemGroup>
       <_PlannerPackageFile Include="$(_StagePlanner)\**\*" />
       <_DashboardPackageFile Include="$(_StageDashboard)\**\*" />
-      <_SeasonsPackageFile Include="$(_StageSeasons)\**\*" />
+      <_AtmospheresPackageFile Include="$(_StageAtmospheres)\**\*" />
       <_CommonPackageFile Include="$(_StageCommon)\**\*" />
     </ItemGroup>
-    <Delete Files="$(_PlannerZip);$(_DashboardZip);$(_SeasonsZip);$(_CommonZip)" />
-    <RemoveDir Condition="Exists('$(_SeasonsOnly)')" Directories="$(_SeasonsOnly)" />
+    <Delete Files="$(_PlannerZip);$(_DashboardZip);$(_AtmospheresZip);$(_CommonZip)" />
+    <RemoveDir Condition="Exists('$(_AtmospheresOnly)')" Directories="$(_AtmospheresOnly)" />
     <RemoveDir Condition="Exists('$(_PlannerOnly)')" Directories="$(_PlannerOnly)" />
     <RemoveDir Condition="Exists('$(_DashboardOnly)')" Directories="$(_DashboardOnly)" />
     <RemoveDir Condition="Exists('$(_CommonOnly)')" Directories="$(_CommonOnly)" />
@@ -586,16 +588,16 @@
     <Copy SourceFiles="@(_DashboardPackageFile)" DestinationFolder="$(_DashboardOnly)\GameData\$(ModName)\Dashboard\%(RecursiveDir)" />
     <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_DashboardOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
     <ZipDirectory SourceDirectory="$(_DashboardOnly)" DestinationFile="$(_DashboardZip)" Overwrite="true" />
-    <!-- ReDefinition Seasons alone, the same way. -->
-    <Copy SourceFiles="@(_SeasonsPackageFile)" DestinationFolder="$(_SeasonsOnly)\GameData\$(ModName)\Seasons\%(RecursiveDir)" />
-    <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_SeasonsOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
-    <ZipDirectory SourceDirectory="$(_SeasonsOnly)" DestinationFile="$(_SeasonsZip)" Overwrite="true" />
+    <!-- ReDefinition Atmospheres alone, the same way. -->
+    <Copy SourceFiles="@(_AtmospheresPackageFile)" DestinationFolder="$(_AtmospheresOnly)\GameData\$(ModName)\Atmospheres\%(RecursiveDir)" />
+    <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_AtmospheresOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
+    <ZipDirectory SourceDirectory="$(_AtmospheresOnly)" DestinationFile="$(_AtmospheresZip)" Overwrite="true" />
     <!-- The common DLL alone, for a mod that needs only it. -->
     <Copy SourceFiles="@(_CommonPackageFile)" DestinationFolder="$(_CommonOnly)\GameData\$(ModName)\Common\%(RecursiveDir)" />
     <ZipDirectory SourceDirectory="$(_CommonOnly)" DestinationFile="$(_CommonZip)" Overwrite="true" />
     <Message Importance="high" Text="Planner zip: $(_PlannerZip)." />
     <Message Importance="high" Text="Dashboard zip: $(_DashboardZip)." />
-    <Message Importance="high" Text="Seasons zip: $(_SeasonsZip)." />
+    <Message Importance="high" Text="Atmospheres zip: $(_AtmospheresZip)." />
     <Message Importance="high" Text="Common zip:$(_CommonZip)." />
     <Message Importance="high" Text="Release zip: $(_ReleaseZip). Its source: $(_SourceZip)." />
   </Target>

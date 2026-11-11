@@ -14,7 +14,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinitionExample", "docs
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinition.Dashboard", "src\Dashboard\ReDefinition.Dashboard.csproj", "{6169B1D9-95B1-4182-9D5F-91B3506C3655}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinition.Seasons", "src\Seasons\ReDefinition.Seasons.csproj", "{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReDefinition.Atmospheres", "src\Atmospheres\ReDefinition.Atmospheres.csproj", "{3B8E5A27-4C1D-4F6A-9E02-7D5C81A4B6F3}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

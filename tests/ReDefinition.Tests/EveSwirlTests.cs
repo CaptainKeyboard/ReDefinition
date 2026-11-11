@@ -1,7 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-using ReDefinition.Seasons;
+using ReDefinition.Atmospheres;
 
 namespace ReDefinition.Tests
 {
@@ -214,21 +214,21 @@ namespace ReDefinition.Tests
         {
             string folder = Path.Combine(Path.GetTempPath(), "own-flakes-" + Guid.NewGuid().ToString("N"));
             string file = Path.Combine(folder, "settings.cfg");
-            var saved = SeasonsSettings.Snapshot();
+            var saved = AtmospheresSettings.Snapshot();
             try
             {
-                SeasonsSettings.ResetToDefaults();
-                Assert.IsFalse(SeasonsSettings.StormOwnFlakes, "off by default: EVE's snow field is the snow");
-                SeasonsSettings.StormOwnFlakes = true;
-                SeasonsSettings.Write(file);
+                AtmospheresSettings.ResetToDefaults();
+                Assert.IsFalse(AtmospheresSettings.StormOwnFlakes, "off by default: EVE's snow field is the snow");
+                AtmospheresSettings.StormOwnFlakes = true;
+                AtmospheresSettings.Write(file);
                 StringAssert.Contains(File.ReadAllText(file), "stormOwnFlakes = True");
-                SeasonsSettings.StormOwnFlakes = false;
-                SeasonsSettings.Read(file);
-                Assert.IsTrue(SeasonsSettings.StormOwnFlakes);
+                AtmospheresSettings.StormOwnFlakes = false;
+                AtmospheresSettings.Read(file);
+                Assert.IsTrue(AtmospheresSettings.StormOwnFlakes);
             }
             finally
             {
-                SeasonsSettings.Restore(saved);
+                AtmospheresSettings.Restore(saved);
                 if (Directory.Exists(folder)) Directory.Delete(folder, true);
             }
         }

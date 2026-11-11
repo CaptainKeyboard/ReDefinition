@@ -48,19 +48,19 @@ namespace ReDefinition.Upscaler
         //
         // And shaders that a copy of texture and tint cannot follow. Waterfall's effects
         // move their vertices. EVE's particle fields place each flake in the vertex shader.
-        // The Seasons storm volume is a raymarched cylinder, whose box would become a patch.
+        // The Atmospheres storm volume is a raymarched cylinder, whose box would become a patch.
         private static readonly string[] NotReactive =
         {
             "Invisible", "invisible", "CompositeRaymarchedClouds", "SkySphere", "AtmosphereFromGround", "Decal",
             "Waterfall/", "EVE/ParticleField", "ReDefinition",
         };
 
-        // Renderers left out by the name of their GameObject, where the shader is a stock one that is reactive elsewhere. The Seasons'
+        // Renderers left out by the name of their GameObject, where the shader is a stock one that is reactive elsewhere. The Atmospheres'
         // whiteout veil is a screen-sized grid in front of the camera: marked, it would put the whole picture into the mask and
         // weaken the history of everything behind it.
         private static readonly string[] NotReactiveObjects =
         {
-            "ReDefinition Seasons storm veil",
+            "ReDefinition Atmospheres storm veil",
         };
 
         // The shader property ids the masks read from source materials and set on the mask shader.
