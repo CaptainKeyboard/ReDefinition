@@ -26,14 +26,14 @@
      "expect": {"metric": "luma_mean", "effect": "change", "min": 0.001},
      "note": "no atmospheric scattering changes the sky the volume is composed over"},
     {"id": "T04-dlss", "template": true, "set": {"feature": "on", "upscaler": "dlss"},
-     "expect": {"metric": "ghost_move", "effect": "increase", "min": 0.0, "max": 0.02},
-     "note": "temporal error rises by at most the spike's slab figure (0.004 at DLSS K)"},
+     "expect": {"metric": "ghost_move", "effect": "increase", "min": 0.002, "max": 0.02},
+     "note": "temporal error rises by the slab's share: the spike's DLSS K run with the slab is 0.0123 against 0.0026 for FSR 3 without it (baseline), so about 0.01; the minimum is a fifth of that, well above the 0.0003 floor of the figure"},
     {"id": "T05-fg-dlssg", "template": true, "set": {"feature": "on", "upscaler": "dlss", "fg": "dlssg"},
-     "expect": {"metric": "trail_px", "effect": "increase", "min": 0.0, "max": 0.2},
-     "note": "generated frames: trail pixels rise but stay below 0.2"},
+     "expect": {"metric": "trail_px", "effect": "increase", "min": 0.01, "max": 0.2},
+     "note": "generated frames: trail pixels rise with the slab (spike: 0.085 with DLSS K against 0.008 for FSR 3 without it) but stay below 0.2; the minimum is far above the 0.003 floor of the figure"},
     {"id": "T06-rt-full", "template": true, "set": {"feature": "on", "rt": "full"},
-     "expect": {"metric": "gpu_ms_pass", "effect": "increase", "min": 0.0, "max": 1.5},
-     "note": "with the volume in the raytracing input the pass cost stays within gate G3"}
+     "expect": {"metric": "gpu_ms_pass", "effect": "increase", "min": 0.05, "max": 1.5},
+     "note": "with the volume in the raytracing input the pass cost rises (the minimum 0.05 ms is above the timestamp noise [VERIFY on the first run]) and stays within gate G3"}
   ],
   "player_rows": [
     {"id": "P-native", "stage": ["-mode", "turn", "-view", "far", "-upscale", "native"], "proxy": true,

@@ -35,6 +35,14 @@ class Metric(object):
         self.mode = mode
         self.rel = rel
         self.floor = floor
+        # Where the limit comes from: "spike" (a value the spike measured), "gate" (a gate of the plan), "new" (a limit of this
+        # framework, not a spike value), "noise" (a ceiling above the measurement noise), "info" (no limit). Shown in the table.
+        self.basis = {"ref": "spike", "info": "info", "given": "player"}.get(mode, "new")
+
+    def based(self, basis):
+        """Names where the limit comes from (see basis); returns the metric."""
+        self.basis = basis
+        return self
 
     @staticmethod
     def at_most(name, value, limit):
@@ -98,7 +106,7 @@ class Metric(object):
         return "%.4g +- %.2g" % (self.limit, tol)
 
     def as_dict(self):
-        return {"metric": self.name, "value": self.value, "limit": self.limit_text(), "mode": self.mode, "pass": self.passed()}
+        return {"metric": self.name, "value": self.value, "limit": self.limit_text(), "mode": self.mode, "basis": self.basis, "pass": self.passed()}
 
 
 class Stage(object):
@@ -162,11 +170,11 @@ def discover():
 
 
 def table(metrics):
-    """The one table of a series: metric, value, limit, PASS/FAIL."""
+    """The one table of a series: metric, value, limit, where the limit comes from, PASS/FAIL."""
     width = max([len(m.name) for m in metrics] + [6])
-    lines = ["%-*s %12s  %-16s %s" % (width, "metric", "value", "limit", "verdict")]
+    lines = ["%-*s %12s  %-16s %-6s %s" % (width, "metric", "value", "limit", "basis", "verdict")]
     for m in metrics:
         value = "-" if m.value is None else ("%.5g" % m.value)
         info = m.mode == "info" or (m.mode == "given" and m.verdict == "info")
-        lines.append("%-*s %12s  %-16s %s" % (width, m.name, value, m.limit_text(), "info" if info else ("PASS" if m.passed() else "FAIL")))
+        lines.append("%-*s %12s  %-16s %-6s %s" % (width, m.name, value, m.limit_text(), m.basis, "info" if info else ("PASS" if m.passed() else "FAIL")))
     return "\n".join(lines)

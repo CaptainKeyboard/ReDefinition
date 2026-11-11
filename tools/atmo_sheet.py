@@ -2,14 +2,17 @@
 """A contact sheet from a view table: one row per view, three pictures (A, B, difference) with the metrics under each. Needs numpy
 and Pillow; the difference and the metrics are those of tools/atmo_ab.py (which also refuses a pair from different scenes).
 
-  python tools/atmo_sheet.py build <view table.json> <out.png> [--cell 480x270] [--threshold 0.02]
+  python tools/atmo_sheet.py build <view table.json> <out.png> [--cell 480x270] [--threshold 0.02] [--require-expect]
   python tools/atmo_sheet.py selftest
 
-The view table is {"title": "...", "views": [{"name": "fog near", "a": "<image A>", "b": "<image B>", "region": "x0,y0,x1,y1"}, ...]};
-the paths are relative to the table. Layout: a title band, then per view a name band, the three pictures side by side and a caption
-band under them. The metrics under A and B are the mean luma; under the difference the area fraction, the mean and peak luma
-delta and the sign of the change.
+The view table is {"title": "...", "views": [{"name": "fog near", "a": "<image A>", "b": "<image B>", "region": "x0,y0,x1,y1",
+"why": "<why this view shows the phenomenon>", "expect": "<the expectation written before the run>"}, ...]}; the paths are relative to
+the table. Layout: a title band, then per view a name band, the three pictures side by side, a caption band under them and, where
+the view has "why" or "expect", a text band with both (the reviewer receives expectation, pictures and metrics from one sheet). The
+metrics under A and B are the mean luma; under the difference the area fraction, the mean and peak luma delta and the sign of the
+change. With --require-expect the build refuses a table in which any view lacks "why" or "expect" (exit code 2).
 """
+import textwrap
 import argparse
 import json
 import os
@@ -29,11 +32,26 @@ BACKGROUND = (24, 24, 24)
 TEXT = (230, 230, 230)
 
 
-def layout(count, cell):
-    """The sheet size and the top-left corner of each picture: [(row, column) -> (x, y)]."""
+TEXT_LINE = 12
+CHAR_WIDTH = 6  # of the default font
+
+
+def view_text(view, cell):
+    """The lines of the text band of a view: its reason, then its expectation, wrapped to the width of the row."""
+    chars = max(20, (3 * (cell[0] + MARGIN) - MARGIN) // CHAR_WIDTH)
+    lines = []
+    for key, label in (("why", "why: "), ("expect", "expect: ")):
+        if view.get(key):
+            lines += textwrap.wrap(label + str(view[key]), chars)
+    return lines
+
+
+def layout(count, cell, text_lines=0):
+    """The sheet size and the top-left corner of each picture: [(row, column) -> (x, y)]. text_lines is the height of the text band
+    in lines (the same for every row)."""
     w, h = cell
     width = MARGIN + 3 * (w + MARGIN)
-    row_height = NAME_BAND + h + CAPTION_BAND + MARGIN
+    row_height = NAME_BAND + h + CAPTION_BAND + text_lines * TEXT_LINE + MARGIN
     height = TITLE_BAND + MARGIN + count * row_height
     corners = {}
     for r in range(count):
@@ -47,13 +65,20 @@ def _picture(a, cell):
     return img.resize(cell, Image.LANCZOS)
 
 
-def build(table_path, out, cell=(480, 270), threshold=0.02):
-    """Writes the sheet; returns its size and the metrics of each view. Raises atmo_ab.Refusal for a pair of different scenes."""
+def build(table_path, out, cell=(480, 270), threshold=0.02, require_expect=False):
+    """Writes the sheet; returns its size and the metrics of each view. Raises atmo_ab.Refusal for a pair of different scenes, and
+    with require_expect for a view without a reason ("why") or an expectation ("expect")."""
     with open(table_path, encoding="utf-8") as f:
         table = json.load(f)
     base = os.path.dirname(os.path.abspath(table_path))
     views = table["views"]
-    size, corners = layout(len(views), cell)
+    if require_expect:
+        missing = [v.get("name", "?") for v in views if not (v.get("why") and v.get("expect"))]
+        if missing:
+            raise atmo_ab.Refusal("views without a reason and a written expectation: " + ", ".join(missing))
+    texts = [view_text(v, cell) for v in views]
+    text_lines = max([len(t) for t in texts] + [0])
+    size, corners = layout(len(views), cell, text_lines)
     sheet = Image.new("RGB", size, BACKGROUND)
     draw = ImageDraw.Draw(sheet)
     draw.text((MARGIN, 4), table.get("title", ""), fill=TEXT)
@@ -74,7 +99,10 @@ def build(table_path, out, cell=(480, 270), threshold=0.02):
             x, y = corners[(r, c)]
             sheet.paste(_picture(picture, cell), (x, y))
             draw.text((x, y + cell[1] + 3), captions[c], fill=TEXT)
-        figures.append(dict(metrics, name=view["name"]))
+        x, y = corners[(r, 0)]
+        for i, line in enumerate(texts[r]):
+            draw.text((x, y + cell[1] + CAPTION_BAND + i * TEXT_LINE), line, fill=TEXT)
+        figures.append(dict(metrics, name=view["name"], why=view.get("why"), expect=view.get("expect")))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     sheet.save(out)
     return size, corners, figures
@@ -115,6 +143,25 @@ def selftest():
         x, y = corners[(2, 2)]
         empty = np.asarray(sheet.crop((x, y, x + 160, y + 90))).max()
         assert empty == 0, empty
+        # A table with reasons and expectations: the text band grows the sheet by its lines and shows both; --require-expect refuses
+        # a table in which a view lacks them.
+        for v in views:
+            v["why"] = "the planted patch is visible against the flat sky"
+            v["expect"] = "area equals the planted share; nothing planted gives an empty difference"
+        with open(table, "w") as f:
+            json.dump({"title": "selftest", "views": views}, f)
+        lines = max(len(view_text(v, (160, 90))) for v in views)
+        size2, corners2, figures2 = build(table, os.path.join(root, "sheet2.png"), cell=(160, 90), require_expect=True)
+        assert lines >= 2 and size2[1] == size[1] + 3 * lines * TEXT_LINE, (size2, size, lines)
+        assert figures2[0]["expect"].startswith("area equals")
+        views[1].pop("expect")
+        with open(table, "w") as f:
+            json.dump({"title": "selftest", "views": views}, f)
+        try:
+            build(table, os.path.join(root, "sheet3.png"), cell=(160, 90), require_expect=True)
+            raise AssertionError("a view without an expectation was accepted")
+        except atmo_ab.Refusal as e:
+            assert "medium" in str(e), e
         print("sheet %dx%d, 3 views x 3 pictures, areas small %.5f medium %.5f none %.1f" % (size[0], size[1], by_name["small"]["area_fraction"],
                                                                                          by_name["medium"]["area_fraction"], by_name["none"]["area_fraction"]))
         print("selftest passed")
@@ -130,13 +177,14 @@ def main(argv=None):
     b.add_argument("out")
     b.add_argument("--cell", default="480x270")
     b.add_argument("--threshold", type=float, default=0.02)
+    b.add_argument("--require-expect", action="store_true")
     sub.add_parser("selftest")
     args = p.parse_args(argv)
     if args.cmd == "selftest":
         selftest()
         return 0
     try:
-        size, _, _ = build(args.table, args.out, tuple(int(v) for v in args.cell.split("x")), args.threshold)
+        size, _, _ = build(args.table, args.out, tuple(int(v) for v in args.cell.split("x")), args.threshold, args.require_expect)
     except atmo_ab.Refusal as e:
         print("REFUSED: %s" % e)
         return 2

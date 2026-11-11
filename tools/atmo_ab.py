@@ -271,7 +271,8 @@ def expand(matrix, cover=False):
 
 def judge_row(row, measured, base_measured):
     """The deviation of one row (a string) or None. expect: metric, effect (increase | decrease | change | none), min / max of the
-    effect (measured minus baseline unless absolute is true), or equal (within tolerance of the baseline)."""
+    effect (measured minus baseline unless absolute is true). min and max bound the size of the effect without its sign: the sign is
+    judged by increase and decrease, and change accepts either sign. Rows with effect none are not run (see expand)."""
     e = row["expect"]
     metric = e["metric"]
     if metric not in measured or metric not in base_measured:

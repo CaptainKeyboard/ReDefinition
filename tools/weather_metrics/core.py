@@ -25,8 +25,10 @@ SPIKE = {
     "ghost_move": (0.0091, 0.00005),
     "ghost_still": (0.0085, 0.00005),
     "trail_px": (0.059, 0.0005),
-    "shimmer": (0.0001, 0.00005),
 }
+# The spike printed shimmer as 0.0001 (four decimals), so its full-precision value is not known. The metric is judged against a noise
+# ceiling: anything the spike could have rounded to 0.0001 (below 0.00015) passes, a shimmer of DLSS size (0.0008) fails.
+SHIMMER_CEILING = 0.00015
 # Gate G3 of the plan: the slab's passes cost at most 1.5 ms. The frame limit is a sanity ceiling for the whole synthetic frame.
 SLAB_MS_LIMIT = 1.5
 FRAME_MS_LIMIT = 8.0
@@ -96,16 +98,17 @@ def smoke(ctx):
     for name in ("luma_ratio", "diff_vs_clear", "edge_contrast", "local_contrast"):
         known, floor = SPIKE[name]
         out.append(Metric.reference(name, figures.get(name, float("nan")), known, REL, floor))
-    for name in ("ghost_move", "ghost_still", "trail_px", "shimmer"):
+    for name in ("ghost_move", "ghost_still", "trail_px"):
         known, floor = SPIKE[name]
         out.append(Metric.reference(name, turned.get(name, float("nan")), known, REL, floor))
+    out.append(Metric.at_most("shimmer", turned.get("shimmer", float("nan")), SHIMMER_CEILING).based("noise"))
     # mv_match: where the analytic motion replaced pixels, how well it agrees with Unity's own motion at those pixels (1 is exact; the
     # slab is far, so a camera turn moves it as it moves the sky). NaN, and so a failure, where nothing was replaced.
-    out.append(Metric.at_least("mv_match", motion_match(ctx.folder("turn")), MV_MATCH_LIMIT))
-    slab = timing.get("gpu_ms.slab_total.far.slab.s32.r0.5.1707x960")
+    out.append(Metric.at_least("mv_match", motion_match(ctx.folder("turn")), MV_MATCH_LIMIT).based("new"))
+    slab =timing.get("gpu_ms.slab_total.far.slab.s32.r0.5.1707x960")
     frame = timing.get("gpu_ms.frame.far.both.s32.r0.5.1707x960")
-    out.append(Metric.at_most("gpu_ms_pass", slab[0] if slab else float("nan"), SLAB_MS_LIMIT))
-    out.append(Metric.at_most("frame_ms", frame[0] if frame else float("nan"), FRAME_MS_LIMIT))
+    out.append(Metric.at_most("gpu_ms_pass", slab[0] if slab else float("nan"), SLAB_MS_LIMIT).based("gate"))
+    out.append(Metric.at_most("frame_ms", frame[0] if frame else float("nan"), FRAME_MS_LIMIT).based("new"))
     return out
 
 

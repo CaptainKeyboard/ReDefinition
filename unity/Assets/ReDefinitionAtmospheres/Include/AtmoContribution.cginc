@@ -17,7 +17,8 @@
 #ifndef REDEFINITION_ATMO_CONTRIBUTION_INCLUDED
 #define REDEFINITION_ATMO_CONTRIBUTION_INCLUDED
 
-// 0 off, 1 contribution mask, 2 level, 3 maps.
+// 0 off, 1 contribution mask, 2 level, 3 maps. Only 1 is handled here: 2 and 3 are reserved for the first consumer that draws a
+// level or a map overlay; until then a pass returns its normal colour for them (AtmoContribOn is false).
 float _AtmoDebug;
 
 // The ids of the passes. A pass of a package that is not listed takes the next free id in its own include and adds it here.
