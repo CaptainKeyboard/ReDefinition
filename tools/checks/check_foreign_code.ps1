@@ -1,5 +1,7 @@
 # Checks what ReDefinition takes for granted about other mods' code
-# (src/Core/ForeignAssumptions.cs) against the mods installed, outside the game.
+# (src/Core/ForeignAssumptions.cs, src/Planner/PlannerAssumptions.cs and
+# src/Atmospheres/Infrastructure/Bridge/AtmospheresAssumptions.cs with the classes marked
+# [AtmospheresAssumptions]) against the mods installed, outside the game.
 # It loads their assemblies and the built DLL, and evaluates every assumption.
 # That is whether the types, methods, fields and string literals it names are there.
 # It is also whether the methods it rests on are the code it was checked against
@@ -41,6 +43,20 @@ $plannerDll = [IO.Path]::Combine($repo, 'build\ReDefinition.Planner.dll')
 if ([IO.File]::Exists($plannerDll)) {
     $planner = [Reflection.Assembly]::LoadFrom($plannerDll)
     $all += @($planner.GetType('ReDefinition.Planner.PlannerAssumptions', $true).GetField('All', $member).GetValue($null))
+}
+# The atmospheres' entries (src/Atmospheres/Infrastructure/Bridge/AtmospheresAssumptions.cs): every class marked
+# [AtmospheresAssumptions] in ReDefinition.Atmospheres.dll, collected by AtmospheresAssumptions.All, ordered by id. The type
+# of the entries is Common's ForeignAssumption, the same as the main catalogue's.
+$atmospheresDll = [IO.Path]::Combine($repo, 'build\ReDefinition.Atmospheres.dll')
+if ([IO.File]::Exists($atmospheresDll)) {
+    $atmospheres = [Reflection.Assembly]::LoadFrom($atmospheresDll)
+    $atmospheresCatalogue = $atmospheres.GetType('ReDefinition.Atmospheres.AtmospheresAssumptions', $false)
+    if ($null -ne $atmospheresCatalogue) {
+        $all += @($atmospheresCatalogue.GetProperty('All', $member).GetValue($null, $null))
+    } else {
+        Write-Output 'FAIL  ReDefinition.Atmospheres.AtmospheresAssumptions is not in ReDefinition.Atmospheres.dll'
+        $failures++
+    }
 }
 $flags = [Reflection.BindingFlags]'Instance, Public, NonPublic'
 # The value of a property, or else of a field, of that name on the object, public or not.

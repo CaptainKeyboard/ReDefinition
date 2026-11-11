@@ -107,7 +107,8 @@ def _requested_warnings(phase, start, ksp, s, fg_kind, config, end):
     if rt_now is not None and rt_now.lower() != s["raytracing"].lower():
         warnings.append("raytracing {} asked for, {} set".format(s["raytracing"], rt_now))
     for key, want in phase["keys"].items():
-        if key.startswith("mod."):
+        if key.startswith(("mod.", "atmo.")):
+            # The mod's own settings (mod.) and ReDefinition Atmospheres' settings (atmo.) are not proxy keys.
             continue
         got = config["values"].get(key) if config else None
         if key in ("latencyBrake", "latencyBrakeTargetMs") and config:
