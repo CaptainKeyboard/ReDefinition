@@ -39,7 +39,7 @@ namespace AtmoSim.Core
         public double FreezeShiftKPerPsu = -0.054;
         public double SalinityPsu = 35.0;
         // Mixed-layer depth of the sea (heat store of the ice model), metres.
-        public double MixedLayerDepthM = 12.0;
+        public double MixedLayerDepthM = 30.0;
         public double SeaHeatCapacityPerM3 = 4.186e6;
         // Dust and sand: lifted over dry land above the wind threshold on dusty bodies.
         public bool Dusty = false;
@@ -65,6 +65,47 @@ namespace AtmoSim.Core
         public double Omega { get { return DMath.TwoPi / RotationPeriodS; } }
         public double DayS { get { return RotationPeriodS; } }
         public double FreezePointK { get { return FreezeK0 + FreezeShiftKPerPsu * SalinityPsu; } }
+
+        // ---- levers of tuning round 1 (RESULT.md, TUNING ROUND 1). The values below are the round-1 values; Signed() restores the signed generator. ----
+        // L1: factor on the seasonal anomaly of the insolation model (thermal inertia of the seasons). 1 = signed.
+        public double SeasonalResponse = 0.40;
+        // L2: ocean heat convergence (W/m2) that lifts the equilibrium of the ice-free mixed layer by flux / SeaExchangeWm2K. 0 = signed.
+        public double SeaHeatFluxWm2 = 30.0;
+        // L3: the snow window as a fraction of the body's year (0 = the signed 160 steps of 6 h).
+        public double SnowWindowYearFraction = 40.0 / 365.25;
+        // L4: share of the cloud and stratiform driver that does not depend on the temperature (0 = the signed H = h_T Hrel).
+        public double LiftSaturationFloor = 0.20;
+        public double StratThreshold = 0.075;
+        public double CellRainThreshold = 0.02;
+        // L4 (c): convergence lift of the moist belt (0 = signed) and the shift of the belt centre by a longitude wave (rad).
+        public double ItczLift = 0.45;
+        public double ItczWiggleRad = 0.06;
+        // L5/L7: cells in the extratropics need a trigger (a front); the front term of the presence probability (0.8 = signed).
+        public bool CellTrigger = true;
+        public double CellFrontTerm = 0.35;
+        // The trigger factor of the extratropics: SmoothStep(lo, hi, front strength).
+        public double CellTriggerLo = 0.6, CellTriggerHi = 1.0;
+        // L6: soft-saturation constant of the geostrophic wind as a multiple of the jet speed (the signed generator used max(15, 2 U_jet)); gust noise amplitude.
+        public double WindSatJetFactor = 1.2;
+        public double WindSatMinMs = 15.0;
+        public double GustNoise = 0.25;
+        // L10: systems are periodic around their parallel (images of the envelope, integer wavenumber); false = the signed generator, whose systems of small circumference have a seam at the antipode of the centre.
+        public bool PeriodicSystems = true;
+        // L8 (e): snow and the rain/snow type freeze at the fresh-water point (snow is fresh water); the signed generator used the freezing point of the sea (271.26 K at 35 psu).
+        public bool SnowUsesFreshFreezingPoint = true;
+        // L8 (f): the albedo of the melting ice follows the snow depth continuously (the signed step at 0.02 m made the ice jump when the snow crossed it).
+        public bool SmoothSnowAlbedo = true;
+        public double SnowFreezeK { get { return SnowUsesFreshFreezingPoint ? FreezeK0 : FreezePointK; } }
+
+        // The generator exactly as signed (iteration 1): every lever of round 1 at its signed value.
+        public BodyParams Signed()
+        {
+            var p = Clone();
+            p.SeasonalResponse = 1.0; p.SeaHeatFluxWm2 = 0.0; p.MixedLayerDepthM = 12.0; p.SnowWindowYearFraction = 0.0; p.LiftSaturationFloor = 0.0;
+            p.StratThreshold = 0.12; p.CellRainThreshold = 0.15; p.ItczLift = 0.0; p.ItczWiggleRad = 0.0; p.CellTrigger = false; p.CellFrontTerm = 0.8;
+            p.WindSatJetFactor = 2.0; p.WindSatMinMs = 15.0; p.GustNoise = 0.0; p.SnowUsesFreshFreezingPoint = false; p.PeriodicSystems = false; p.SmoothSnowAlbedo = false;
+            return p;
+        }
 
         public BodyParams Clone() { return (BodyParams)MemberwiseClone(); }
 

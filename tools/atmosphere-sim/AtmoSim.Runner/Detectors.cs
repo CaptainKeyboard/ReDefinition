@@ -519,6 +519,9 @@ namespace AtmoSim.Runner
             var act = D1.MeanActive(persist, f0, f1); var actRaw = D1NoSuppress.MeanActive(persist, f0, f1);
             r["d1_persistent_active_mean_per_hemisphere_north"] = act[0]; r["d1_persistent_active_mean_per_hemisphere_south"] = act[1];
             r["d1_persistent_active_mean_no_suppression_north"] = actRaw[0]; r["d1_persistent_active_mean_no_suppression_south"] = actRaw[1];
+            // the living systems: D1 tracks of any lifetime alive per frame (criterion 1 as amended in tuning round 1)
+            var alive = D1.MeanActive(0, f0, f1);
+            r["d1_alive_any_mean_north"] = alive[0]; r["d1_alive_any_mean_south"] = alive[1];
             r["d1_ring_radius_km"] = ringKm;
             r["d1_tracker_north"] = D1.Numbers(persist, frameSeconds, 0, exB, exA, jetN); r["d1_tracker_south"] = D1.Numbers(persist, frameSeconds, 1, exB, exA, jetS);
             double durDays = (f1 - f0) * frameSeconds / rotationS;

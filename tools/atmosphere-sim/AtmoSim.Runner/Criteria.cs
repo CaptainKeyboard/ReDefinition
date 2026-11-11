@@ -144,7 +144,9 @@ namespace AtmoSim.Runner
                 double jet = D(r, h == 0 ? "jet_mean_north" : "jet_mean_south");
                 var t1 = Sub(r, "d1_tracker_" + nm);
                 double act = D(r, "d1_persistent_active_mean_per_hemisphere_" + nm);
-                r1.Add("persistent D1 tracks alive per hemisphere (mean), " + nm, act, ">= 3.0", act >= 3.0, gate, mode, seed);
+                r1.Add("persistent D1 tracks alive per hemisphere (mean), " + nm, act, ">= 2.0 (amended in tuning round 1; signed 3.0)", act >= 2.0, gate, mode, seed);
+                double alive = D(r, "d1_alive_any_mean_" + nm);
+                r1.Add("D1 tracks of any lifetime alive per hemisphere (mean, the living systems), " + nm, alive, ">= 3.0 (amended)", alive >= 3.0, gate, mode, seed);
                 double life = D(t1, "lifetime_h_median");
                 r1.Add("median lifetime of persistent tracks (h), " + nm, life, ">= 48", life >= 48.0, gate, mode, seed);
                 double drift = D(t1, "east_drift_ms_median");

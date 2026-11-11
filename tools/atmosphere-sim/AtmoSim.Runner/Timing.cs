@@ -37,7 +37,7 @@ namespace AtmoSim.Runner
             var r = new Dictionary<string, object>();
             object tiered = AppContext.GetData("System.Runtime.TieredCompilation");
             r["jit_tiered_compilation_setting"] = tiered == null ? "default (on)" : tiered.ToString();
-            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            var g = new WeatherGenerator(Study.ApplyEnvironment(BodyParams.KerbinLike()), 1);
             Weather w;
             // warm-up (JIT tier-up, thread-local frame, grid): 1.5 s of the benchmark pattern, so a run with tiered compilation measures steady-state code too
             {
@@ -189,7 +189,7 @@ namespace AtmoSim.Runner
 
         // ---- criteria 7 and 8 ---------------------------------------------------------------------------------------------
 
-        private static ulong HashQueries(WeatherGenerator g, Q[] q, int[] order, double utShift)
+        public static ulong HashQueries(WeatherGenerator g, Q[] q, int[] order, double utShift)
         {
             var hs = new ulong[q.Length];
             Weather w;
@@ -222,7 +222,7 @@ namespace AtmoSim.Runner
         {
             string outFile = args.Length > 1 ? args[1] : null;
             var r = new Dictionary<string, object>();
-            var bp = BodyParams.KerbinLike();
+            var bp = Study.ApplyEnvironment(BodyParams.KerbinLike());
             var g1 = new WeatherGenerator(bp, 1);
             var q = Queries(20000, 77, 3.0e7);
             ulong h1 = HashQueries(g1, q, null, 0), h2 = HashQueries(g1, q, null, 0);

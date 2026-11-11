@@ -676,6 +676,98 @@ namespace AtmoSim.Tests
             Assert.IsTrue(g.LatDeg(0) > 89.0 && g.LatDeg(g.NLat - 1) < -89.0);
         }
 
+        // Tuning round 1: Signed() restores every lever, so the 20 000-query result hash of the signed generator is reproduced bit for bit.
+        [TestMethod]
+        public void TheSignedSwitchReproducesTheSignedResultHash()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike().Signed(), 1);
+            ulong h = Timing.HashQueries(g, Timing.Queries(20000, 77, 3.0e7), null, 0);
+            Assert.AreEqual(0x237126757692E6D9UL, h);
+        }
+
+        // Tuning round 1: the moist belt rains (L4 c), the rain has structure along the belt, and snow/rain type uses the fresh-water freezing point.
+        [TestMethod]
+        public void TheItczRainsAndHasStructureAlongTheBelt()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            Weather w;
+            double ut = 2.0e6; int rainy = 0, n = 360; double lo = 1e9, hi = -1e9;
+            for (int i = 0; i < n; i++)
+            {
+                g.Sample(g.DeclinationLag(ut) * 0.55, 2.0 * Math.PI * i / n, 0.0, ut, out w);
+                if (w.PrecipMmH > 0.05) rainy++;
+                lo = Math.Min(lo, w.Uplift); hi = Math.Max(hi, w.Uplift);
+            }
+            Assert.IsTrue(rainy > n / 10, "the belt rains at " + rainy + " of " + n + " longitudes");
+            Assert.IsTrue(hi - lo > 0.2, "the lift varies along the belt: " + lo + " to " + hi);
+        }
+
+        // Tuning round 1 (L10): a system on a small parallel has no seam at the antipode of its centre; the signed generator has a jump of hundreds of pascal there.
+        [TestMethod]
+        public void NoSystemHasASeamAroundTheParallel()
+        {
+            double worstNew = 0.0, worstSigned = 0.0;
+            foreach (bool signed in new[] { false, true })
+            {
+                var bp = signed ? BodyParams.KerbinLike().Signed() : BodyParams.KerbinLike();
+                var g = new WeatherGenerator(bp, 1);
+                Weather w;
+                foreach (double latD in new[] { -64.0, -70.0, 64.0 })
+                    foreach (double day in new[] { 4.0, 9.0, 17.0 })
+                    {
+                        double prev = double.NaN, worst = 0.0;
+                        for (int i = 0; i <= 8000; i++)
+                        {
+                            g.Sample(latD * Math.PI / 180.0, 2.0 * Math.PI * i / 8000, 0.0, day * 86400.0, out w);
+                            if (!double.IsNaN(prev)) worst = Math.Max(worst, Math.Abs(w.PressureAnomPa - prev));
+                            prev = w.PressureAnomPa;
+                        }
+                        if (signed) worstSigned = Math.Max(worstSigned, worst); else worstNew = Math.Max(worstNew, worst);
+                    }
+            }
+            // the signed generator jumps by 150 to 270 Pa at the antipode; what remains is the residual envelope at parallels just above the 3.6-wavelength limit (about 30 Pa of 2500)
+            Assert.IsTrue(worstNew < 60.0, "largest pressure step between neighbours (0.045 degree): " + worstNew + " Pa");
+            Assert.IsTrue(worstSigned > 2.0 * worstNew, "the signed generator should show the seam: " + worstSigned + " Pa against " + worstNew + " Pa");
+        }
+
+        // Tuning round 1 (L8 f): the melt of an ice cover does not jump when the snow depth crosses 0.02 m.
+        [TestMethod]
+        public void TheMeltAlbedoFollowsTheSnowDepthContinuously()
+        {
+            double tf = 271.26, cap = 4.186e6 * 30.0;
+            double a1 = 1.0, t1 = tf, a2 = 1.0, t2 = tf, s1 = 1.0, s2 = 1.0, t3 = tf, t4 = tf;
+            IceModel.Step(ref t1, ref a1, tf + 2.0, 250.0, 0.019, tf, cap, 1.0, 0.0, true);
+            IceModel.Step(ref t2, ref a2, tf + 2.0, 250.0, 0.021, tf, cap, 1.0, 0.0, true);
+            Assert.IsTrue(Math.Abs(a1 - a2) < 0.003, "smooth: " + a1 + " against " + a2);
+            IceModel.Step(ref t3, ref s1, tf + 2.0, 250.0, 0.019, tf, cap, 1.0, 0.0, false);
+            IceModel.Step(ref t4, ref s2, tf + 2.0, 250.0, 0.021, tf, cap, 1.0, 0.0, false);
+            Assert.IsTrue(Math.Abs(s1 - s2) > 0.004, "the signed step jumps: " + s1 + " against " + s2);
+        }
+
+        [TestMethod]
+        public void TheGustFactorIsContinuousInTimeAndDeterministic()
+        {
+            var g = new WeatherGenerator(BodyParams.KerbinLike(), 1);
+            Weather a, b;
+            double prev = double.NaN, maxJump = 0.0;
+            for (double ut = 3.0e6; ut < 3.0e6 + 6 * 3600.0; ut += 60.0)
+            {
+                g.Sample(0.8, 0.7, 0.0, ut, out a); g.Sample(0.8, 0.7, 0.0, ut, out b);
+                Assert.AreEqual(a.GustFactor, b.GustFactor);
+                if (!double.IsNaN(prev)) maxJump = Math.Max(maxJump, Math.Abs(a.GustFactor - prev));
+                prev = a.GustFactor;
+            }
+            Assert.IsTrue(maxJump < 0.2, "largest gust change per minute " + maxJump);
+        }
+
+        [TestMethod]
+        public void TheFreshFreezingPointDecidesSnowOnTheSignedAndTheRoundOneGenerator()
+        {
+            var p1 = BodyParams.KerbinLike();
+            Assert.AreEqual(273.15, p1.SnowFreezeK, 1e-9);
+            Assert.AreEqual(p1.FreezePointK, p1.Signed().SnowFreezeK, 1e-12);
+        }
+
         [TestMethod]
         public void TheFitReadsTheSeaLevelProfileAndTheGeneratorFollowsItAtTheSamplePoints()
         {

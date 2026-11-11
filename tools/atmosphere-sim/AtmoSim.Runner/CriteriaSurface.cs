@@ -343,7 +343,8 @@ namespace AtmoSim.Runner
             var bp = Study.ByName("kerbin"); var g = new WeatherGenerator(bp, 1);
             var rnd = new Random(21); Weather w;
             int rainy = 0, rainyWet = 0, dry = 0, dryDry = 0;
-            for (int n = 0; n < 150; n++)
+            // 600 sites (150 before tuning round 1: with rain on a third of the globe's hours only 16 pairs without rain in five days were left, below the 30 the check needs)
+            for (int n = 0; n < 600; n++)
             {
                 double la = Math.Asin(2 * rnd.NextDouble() - 1), lo = (rnd.NextDouble() * 2 - 1) * Math.PI;
                 var s = new SurfaceSite(g, la, lo);
@@ -354,7 +355,8 @@ namespace AtmoSim.Runner
                     double rain = 0;
                     for (int q = 0; q <= 2; q++) { g.Sample(la, lo, terr, ut - q * 10800.0, out w); rain += w.PrecipMmH / 3.0; }
                     bool anyRain = false;
-                    for (int q = 0; q <= 20 && !anyRain; q++) { g.Sample(la, lo, terr, ut - q * 21600.0, out w); if (w.PrecipMmH > 0.0) anyRain = true; }
+                    // hourly instants (harness correction of tuning round 1: showers of 1 to 3 hours were missed by a 6-hourly look, so "no rain in 5 days" was not true)
+                    for (int q = 0; q <= 120 && !anyRain; q++) { g.Sample(la, lo, terr, ut - q * 3600.0, out w); if (w.PrecipMmH > 0.0) anyRain = true; }
                     double wet = s.Evaluate(ut).Wet01;
                     if (rain >= 0.5) { rainy++; if (wet >= 0.5) rainyWet++; }
                     if (!anyRain) { dry++; if (wet <= 0.05) dryDry++; }

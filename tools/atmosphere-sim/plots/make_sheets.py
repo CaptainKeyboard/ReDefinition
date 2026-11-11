@@ -80,16 +80,29 @@ def contact_sheets(out, title, meta, fields, ocean, events):
     fig.suptitle("%s: log10 precipitation rate (mm/h water equivalent), daily frames" % title)
     fig.tight_layout(); fig.savefig(os.path.join(out, "contact_precip_equirect.png"), dpi=70); plt.close(fig)
 
+    # Orbit view: the full disc, untilted (the equator is the horizontal diameter), on a black sky, square panels, no clipping; the poles are seen on their own panels
+    # (north pole up and south pole up views) so that a pinching of the latitude-longitude grid would show.
     sel = [0, 5, 10, 15, 20, 25]
-    fig, axs = plt.subplots(3, 6, figsize=(18, 9))
+    cmap = plt.get_cmap("gray_r").copy(); cmap.set_bad("black")
+    fig, axs = plt.subplots(3, 6, figsize=(18, 9.6))
     for r, lon0 in enumerate([0, 120, 240]):
         for c, dd in enumerate(sel):
             d = min(nf - 1, dd * pd)
-            axs[r, c].imshow(ortho(cov[d], lat, lon0), cmap="gray_r", vmin=0, vmax=1)
-            axs[r, c].set_xticks([]); axs[r, c].set_yticks([])
+            axs[r, c].imshow(np.ma.masked_invalid(ortho(cov[d], lat, lon0, size=300, lat0_deg=0.0)), cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
+            axs[r, c].set_xticks([]); axs[r, c].set_yticks([]); axs[r, c].set_aspect("equal")
             axs[r, c].set_title("lon %d deg, day %d" % (lon0, dd), fontsize=8)
-    fig.suptitle("%s: cloud cover, orthographic orbit view at three longitudes" % title)
+    fig.suptitle("%s: cloud cover, orthographic orbit view (full disc, equator horizontal) at three longitudes" % title)
     fig.tight_layout(); fig.savefig(os.path.join(out, "contact_cloud_globe.png"), dpi=70); plt.close(fig)
+
+    fig, axs = plt.subplots(2, 6, figsize=(18, 6.4))
+    for r, lat0 in enumerate([90.0, -90.0]):
+        for c, dd in enumerate(sel):
+            d = min(nf - 1, dd * pd)
+            axs[r, c].imshow(np.ma.masked_invalid(ortho(cov[d], lat, 0, size=300, lat0_deg=lat0)), cmap=cmap, vmin=0, vmax=1, interpolation="nearest")
+            axs[r, c].set_xticks([]); axs[r, c].set_yticks([]); axs[r, c].set_aspect("equal")
+            axs[r, c].set_title("%s pole, day %d" % ("north" if lat0 > 0 else "south", dd), fontsize=8)
+    fig.suptitle("%s: cloud cover seen from above the poles (pinching of the latitude-longitude grid would show as a star)" % title)
+    fig.tight_layout(); fig.savefig(os.path.join(out, "contact_cloud_poles.png"), dpi=70); plt.close(fig)
 
 
 def strips(out, title, meta, fields, ocean, events):
@@ -159,6 +172,58 @@ def timelapse(out, meta, fields):
     frames[0].save(os.path.join(out, "timelapse_cloud.gif"), save_all=True, append_images=frames[1:], duration=100, loop=0)
 
 
+def surface_maps(root, out, name):
+    """Snow water equivalent (land) and sea-ice thickness (sea) at the four season phases, equirectangular, and the ice seen from above each pole."""
+    d = os.path.join(root, name)
+    meta = json.load(open(os.path.join(d, "surf_meta.json")))
+    nl, nt = meta["nlon"], meta["nlat"]
+    ph = meta["phases"]
+    label = ["northern midwinter", "northern spring", "northern midsummer", "northern autumn"]
+    ld = lambda k: np.fromfile(os.path.join(d, "surf_%s.f32" % k), dtype=np.float32).reshape(len(ph), nt, nl)
+    swe, ice, wet = ld("swe"), ld("ice_h"), ld("wet")
+    ocean = np.fromfile(os.path.join(d, "surf_ocean.f32"), dtype=np.float32).reshape(nt, nl)
+    land = ocean < 0.5
+    lat = np.linspace(90 - 90.0 / nt, -90 + 90.0 / nt, nt)
+    cm_snow = plt.get_cmap("Blues").copy(); cm_snow.set_bad("0.35")
+    cm_ice = plt.get_cmap("cool").copy(); cm_ice.set_bad("0.35")
+    fig, axs = plt.subplots(2, 4, figsize=(20, 7.5))
+    for p in range(len(ph)):
+        s = np.ma.masked_where(~land, swe[p])
+        axs[0, p].imshow(np.log10(np.maximum(s, 0.5)), cmap=cm_snow, vmin=np.log10(0.5), vmax=np.log10(300.0), extent=[0, 360, -90, 90], aspect="auto")
+        axs[0, p].set_title("snow water equivalent (log10 mm), %s" % label[p], fontsize=9)
+        i = np.ma.masked_where(land, ice[p])
+        axs[1, p].imshow(i, cmap=cm_ice, vmin=0, vmax=2.0, extent=[0, 360, -90, 90], aspect="auto")
+        axs[1, p].set_title("sea-ice thickness (m, 0 to 2), %s" % label[p], fontsize=9)
+        for a in (axs[0, p], axs[1, p]):
+            a.set_xticks([]); a.set_yticks([-60, -30, 0, 30, 60]); a.grid(alpha=0.2)
+    fig.suptitle("%s: surface layer, year %d (grey = sea in the snow row / land in the ice row)" % (meta["body"], meta["year_index"]))
+    fig.tight_layout(); fig.savefig(os.path.join(out, "surface_snow_ice.png"), dpi=70); plt.close(fig)
+
+    fig, axs = plt.subplots(2, 4, figsize=(18, 9))
+    views = [(0, 90.0, "north pole, northern midwinter"), (2, 90.0, "north pole, northern midsummer"), (2, -90.0, "south pole, southern midwinter"), (0, -90.0, "south pole, southern midsummer")]
+    for c, (p, lat0, nm) in enumerate(views):
+        axs[0, c].imshow(np.ma.masked_invalid(ortho(np.where(land, np.nan, ice[p]), lat, 0, size=300, lat0_deg=lat0)), cmap=cm_ice, vmin=0, vmax=2.0, interpolation="nearest")
+        axs[0, c].set_title("sea ice, " + nm, fontsize=9)
+        axs[1, c].imshow(np.ma.masked_invalid(ortho(np.where(land, swe[p], np.nan), lat, 0, size=300, lat0_deg=lat0)), cmap=cm_snow, vmin=0, vmax=120, interpolation="nearest")
+        axs[1, c].set_title("snow (0 to 120 mm), " + nm, fontsize=9)
+        for a in (axs[0, c], axs[1, c]):
+            a.set_xticks([]); a.set_yticks([]); a.set_aspect("equal")
+    fig.suptitle("%s: ice edge and snow cover from above the poles" % meta["body"])
+    fig.tight_layout(); fig.savefig(os.path.join(out, "surface_poles.png"), dpi=70); plt.close(fig)
+
+    fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+    for p in range(len(ph)):
+        cover = [float(np.mean(swe[p][j][land[j]] >= 2.5)) if land[j].any() else np.nan for j in range(nt)]
+        icef = [float(np.mean(ice[p][j][~land[j]] >= 0.1)) if (~land[j]).any() else np.nan for j in range(nt)]
+        wetm = [float(np.mean(wet[p][j])) for j in range(nt)]
+        axs[0].plot(cover, lat, label=label[p]); axs[1].plot(icef, lat, label=label[p]); axs[2].plot(wetm, lat, label=label[p])
+    axs[0].set_xlabel("snow-covered share of land"); axs[1].set_xlabel("ice-covered share of sea (>= 0.1 m)"); axs[2].set_xlabel("mean wet state")
+    for a in axs:
+        a.set_ylabel("latitude"); a.grid(alpha=0.3)
+    axs[0].legend(fontsize=7)
+    fig.tight_layout(); fig.savefig(os.path.join(out, "surface_zonal.png"), dpi=70); plt.close(fig)
+
+
 def tracker_table(root, out, names):
     """Tracker table of the `crit-tracker` outputs: every tracker_<mode>_<run>.json found in <root>/<folder>."""
     lines = ["| run | hemisphere | D1 persistent minima (mean active) | D1 tracks | lifetime h (mean/median/max) | east drift m/s (mean/median) | straightness (mean/median) | swaps | front events (assigned) | share with system | free band tracks |",
@@ -194,6 +259,11 @@ def main():
         strips(sub, title, meta, fields, ocean, events)
         timelapse(sub, meta, fields)
         zonal_plot(sub, n, meta, fields)
+    for n in names:
+        if os.path.exists(os.path.join(root, n, "surf_meta.json")):
+            sub = out if len(names) == 1 else os.path.join(out, n)
+            os.makedirs(sub, exist_ok=True)
+            surface_maps(root, sub, n)
     for p in sorted(glob.glob(os.path.join(root, "series_*.json"))):
         series_plots(out, p)
     tracker_table(os.environ.get("TRACKER_DIR", root), out, names)

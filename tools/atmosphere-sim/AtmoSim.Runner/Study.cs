@@ -17,9 +17,28 @@ namespace AtmoSim.Runner
 
         public static BodyParams ByName(string n)
         {
-            var p = ByNameInner(n);
+            return ApplyEnvironment(ByNameInner(n));
+        }
+
+        // The switches of the environment (the iteration-2 comb, the signed levers, trial values of tuning round 1) applied to a body.
+        public static BodyParams ApplyEnvironment(BodyParams p)
+        {
             // iteration 2 of the proof (RESULT.md H6): ATMO_COMB=1 switches the comb placement of the slots on for every set
             if (Environment.GetEnvironmentVariable("ATMO_COMB") == "1") p.CombPlacement = true;
+            // tuning round 1: ATMO_SIGNED=1 restores every lever to the signed generator; ATMO_SET="Name=value,Name=value" sets BodyParams fields for a trial
+            // (every trial is listed in RESULT.md). The grid and profile arrays are shared with the original, so the Clone is cheap.
+            if (Environment.GetEnvironmentVariable("ATMO_SIGNED") == "1") p = p.Signed();
+            string set = Environment.GetEnvironmentVariable("ATMO_SET");
+            if (!string.IsNullOrEmpty(set))
+                foreach (string kv in set.Split(','))
+                {
+                    string[] parts = kv.Split('=');
+                    var fi = typeof(BodyParams).GetField(parts[0].Trim());
+                    if (fi == null) throw new ArgumentException("ATMO_SET: no field " + parts[0]);
+                    object v = fi.FieldType == typeof(bool) ? (object)(parts[1].Trim() == "1" || parts[1].Trim() == "true")
+                        : Convert.ChangeType(parts[1], fi.FieldType, System.Globalization.CultureInfo.InvariantCulture);
+                    fi.SetValue(p, v);
+                }
             return p;
         }
 
@@ -286,7 +305,8 @@ namespace AtmoSim.Runner
                 for (double lonD = bfLon * 180 / Math.PI - 10.0; lonD <= bfLon * 180 / Math.PI + 10.0; lonD += 0.06)
                 {
                     g.Sample(latD * Math.PI / 180.0, lonD * Math.PI / 180.0, 0.0, utm, out w);
-                    if (w.CellStrength > bc) { bc = w.CellStrength; bcLat = latD * Math.PI / 180.0; bcLon = lonD * Math.PI / 180.0; }
+                    // the cell with the tallest tower among the strong ones (strength times top), so the section shows what a tower looks like
+                    if (w.CellStrength * w.CellTopM > bc) { bc = w.CellStrength * w.CellTopM; bcLat = latD * Math.PI / 180.0; bcLon = lonD * Math.PI / 180.0; }
                 }
             var sections = new List<object>();
             foreach (var spec in new[] { Tuple.Create("front", bfLat, bfLon, 1200.0), Tuple.Create("cell", bcLat, bcLon, 60.0) })

@@ -52,7 +52,7 @@ namespace AtmoSim.Runner
                                 hts.Add((float)ht); hrel.Add((float)Math.Min(1.0, w.Humidity / ht)); tt.Add((float)w.TempMeanK);
                             }
                             if (x > 0) xPos++;
-                            if (x > WeatherGenerator.StratThreshold) xAbove++;
+                            if (x > bp.StratThreshold) xAbove++;
                             if (w.PrecipMmH < 0.05) continue;
                             prec++;
                             double conv = w.ConvectiveShare * w.PrecipMmH, strat = w.PrecipMmH - conv;

@@ -36,6 +36,17 @@ namespace AtmoSim.Runner
             if (cmd == "diag-micro") return Diagnostics.Micro(args);
             if (cmd == "diag-climate") return Diagnostics.Climate(args);
             if (cmd == "diag-surfacehash") return Diagnostics.SurfaceHash(args);
+            if (cmd == "diag-ground") return Diagnostics2.Ground(args);
+            if (cmd == "diag-salinity") return Diagnostics2.Salinity(args);
+            if (cmd == "diag-seam") return Diagnostics2.Seam(args);
+            if (cmd == "diag-snow") return Diagnostics2.Snow(args);
+            if (cmd == "diag-wet") return Diagnostics2.Wet(args);
+            if (cmd == "surfmap") return SurfaceMaps.Run(args);
+            if (cmd == "diag-cellsites") return Diagnostics2.CellSites(args);
+            if (cmd == "diag-cellfar") return Diagnostics2.CellFar(args);
+            if (cmd == "diag-jump") return Diagnostics2.Jump(args);
+            if (cmd == "diag-slots") return Diagnostics2.Slots(args);
+            if (cmd == "diag-contin") return Diagnostics2.Contin(args);
             Console.Error.WriteLine("unknown command " + cmd);
             return 2;
         }

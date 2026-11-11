@@ -41,10 +41,11 @@ namespace AtmoSim.Core
     {
         // Coefficients of the cloud and rain proxies (CW = bg + X + cell part; P = kP max(0, X - c1) + kC cell).
         public const double CloudBgGain = 0.55, CloudBgOffset = 0.14, UpliftGain = 1.1, FrontGain = 0.7;
-        public const double StratThreshold = 0.12, StratRateMmH = 4.0, ConvRateMmH = 12.0;
+        // The stratiform threshold and the cell rain threshold are BodyParams (levers L4; the signed values are 0.12 and 0.15).
+        public const double StratRateMmH = 4.0, ConvRateMmH = 12.0;
         public const double CellHourBucketS = 10800.0;
-        // A cell rains only where its strength exceeds this (the tails of the Gaussian profile are cloud, not rain).
-        public const double CellRainThreshold = 0.15;
+        // Phase speed (m/s) of the equatorial waves that modulate the ITCZ lift: westward.
+        public const double ItczWaveSpeedMs = 6.0;
         public const int MaxSlots = 8;
         public const double FrontSharp = 1.6;
         private static readonly double[] LevelAnchors = { 0.04, 0.2, 0.4, 0.6, 0.8 };
@@ -76,13 +77,15 @@ namespace AtmoSim.Core
         {
             public bool Valid;
             public double LatC, LonC, CosLatC, K, InvLx2, InvLy2, InvLxT2, InvLyT2, Lx, Ly, Tilt, Amp, Bk;
+            // Circumference of the slot's parallel (m) where the system is periodic around the body (L10, PeriodicSystems), else 0.
+            public double Circ;
         }
 
         private sealed class Frame
         {
             public WeatherGenerator Owner;
             public double Ut = double.NaN;
-            public double DLand, DSea, DLag, SinDLand, CosDLand, SunLon, ItczLat;
+            public double DLand, DSea, DLag, SinDLand, CosDLand, SunLon, ItczLat, PhW, Ph3, Ph5;
             public bool Ready0, Ready1;
             public readonly Slot[] Slots = new Slot[2 * MaxSlots];
         }
@@ -104,6 +107,12 @@ namespace AtmoSim.Core
             double rate = Body.Omega - DMath.TwoPi / y;
             f.SunLon = DMath.WrapPi(-rate * ut);
             f.ItczLat = 0.55 * f.DLag;
+            // the waves of the ITCZ: wavenumbers 2 (belt centre), 3 and 5 (lift), travelling west at ItczWaveSpeedMs, phases from the seed
+            ulong hw = Hash.Of(Seed, 0, 0, 21);
+            double drift = ItczWaveSpeedMs * ut / a;
+            f.PhW = DMath.TwoPi * Hash.Draw(hw, 0) + 2.0 * drift;
+            f.Ph3 = DMath.TwoPi * Hash.Draw(hw, 1) + 3.0 * drift;
+            f.Ph5 = DMath.TwoPi * Hash.Draw(hw, 2) + 5.0 * drift;
             return f;
         }
 
@@ -160,6 +169,16 @@ namespace AtmoSim.Core
                 double omegaRef = D.JetSpeed0 / (a * DMath.Cos(D.JetLat0));
                 double r1 = 0.85 + 0.4 * Hash.Draw(hg, 3);
                 double lambda = 3.0 * r * r1;
+                // L10 (PeriodicSystems): a system on a small parallel wraps around the body; its envelope is summed over the images and the wavelength is an integer
+                // fraction of the circumference, so the field has no seam at the antipode of the centre (the signed generator showed a straight edge there at high latitude).
+                double circ = DMath.TwoPi * a * cosC;
+                if (Body.PeriodicSystems && circ < 3.6 * lambda)
+                {
+                    // only the systems whose envelope reaches the antipode with a noticeable amplitude (parallels shorter than 3.6 wavelengths, poleward of about 53 degrees) change their wavelength
+                    double nw = DMath.Floor(circ / lambda + 0.5);
+                    if (nw < 1.0) nw = 1.0;
+                    lambda = circ / nw;
+                }
                 double lx = 0.9 * lambda;
                 double gate = w * D.WaveGate;
                 var sl = new Slot();
@@ -168,7 +187,7 @@ namespace AtmoSim.Core
                 sl.LonC = Body.CombPlacement
                     ? DMath.WrapPi(comb + omegaRef * ut + (uj / (a * cosC) - omegaRef) * (ut - tm))
                     : DMath.WrapPi(lon0 + uj * (ut - tm) / (a * cosC));
-                sl.K = DMath.TwoPi / lambda; sl.Lx = lx; sl.Ly = ly;
+                sl.K = DMath.TwoPi / lambda; sl.Lx = lx; sl.Ly = ly; sl.Circ = Body.PeriodicSystems ? circ : 0.0;
                 sl.InvLx2 = 1.0 / (lx * lx); sl.InvLy2 = 1.0 / (ly * ly);
                 // the temperature anomaly (fronts) has a narrower envelope along the track and a longer one across: one dominant front per system
                 double lxT = FrontEnvelopeAlong * lambda, lyT = FrontEnvelopeAcross * ly;
@@ -195,6 +214,22 @@ namespace AtmoSim.Core
                 c++;
             }
             return c;
+        }
+
+        // Diagnostic: the pressure anomaly (Pa, before the equator fade) of one slot at a point, and whether the point lies inside the cut-off box of the slot (3 x the envelope lengths).
+        public double DebugSlotPressure(int hemi, int slot, double latRad, double lonRad, double ut, out bool inside, out double xKm, out double yKm, out double lxKm, out double lyKm)
+        {
+            Frame f = GetFrame(ut);
+            if (hemi == 0 ? !f.Ready0 : !f.Ready1) SetupHemisphere(f, hemi);
+            Slot s = f.Slots[hemi * MaxSlots + slot];
+            inside = false; xKm = yKm = lxKm = lyKm = 0.0;
+            if (!s.Valid) return 0.0;
+            double y = a * (latRad - s.LatC), x = a * s.CosLatC * DMath.WrapPi(lonRad - s.LonC);
+            xKm = x / 1000.0; yKm = y / 1000.0; lxKm = s.Lx / 1000.0; lyKm = s.Ly / 1000.0;
+            inside = !(y > 3.0 * s.Ly || y < -3.0 * s.Ly || x > 3.0 * s.Lx || x < -3.0 * s.Lx);
+            if (!inside) return 0.0;
+            double ex = DMath.Exp(-(x * x * s.InvLx2 + y * y * s.InvLy2));
+            return -s.Amp * ex * DMath.Cos(s.K * (x + s.Tilt * y));
         }
 
         // The pressure amplitude (Pa) of one slot at a time, 0 where the slot has no active generation. For the hand-over (popping) measurement.
@@ -232,7 +267,7 @@ namespace AtmoSim.Core
             double t = D.ClimateK(sinLat, sinD);
             double ann = D.HasProfile ? D.AnnualK(latRad, sinLat) : annModel;
             double landW = 1.0 - oc;
-            return ann + (t - annModel) * (1.0 + 0.15 * landW);
+            return ann + (t - annModel) * ((1.0 + 0.15 * landW) * Body.SeasonalResponse);
         }
 
         // ---- the point evaluation ---------------------------------------------------------------------------------------
@@ -262,6 +297,30 @@ namespace AtmoSim.Core
                 double y = a * (latRad - s.LatC);
                 if (y > 3.0 * s.Ly || y < -3.0 * s.Ly) continue;
                 double x = a * s.CosLatC * DMath.WrapPi(lonRad - s.LonC);
+                if (s.Circ > 0.0)
+                {
+                    // periodic system (L10): the envelopes are summed over the images x, x - C, x + C; the wave is periodic because K C is a multiple of 2 pi
+                    double ey = y * y * s.InvLy2, eyT = y * y * s.InvLyT2, sumE = 0.0, sumEx = 0.0, sumT = 0.0;
+                    for (int im = -1; im <= 1; im++)
+                    {
+                        double xi = x + im * s.Circ, xx = xi * xi;
+                        double r2 = xx * s.InvLx2;
+                        if (r2 < 9.0) { double e1 = DMath.Exp(-(r2 + ey)); sumE += e1; sumEx += e1 * xi; }
+                        double r2T = xx * s.InvLxT2;
+                        if (r2T < 9.0) sumT += DMath.Exp(-(r2T + eyT));
+                    }
+                    if (sumE == 0.0 && sumT == 0.0) continue;
+                    double qp = s.K * (x + s.Tilt * y);
+                    double sqp = DMath.Sin(qp), cqp = DMath.Cos(qp);
+                    double aeP = s.Amp * sumE;
+                    p -= aeP * cqp;
+                    double thp = DMath.TanhFast(FrontSharp * sqp);
+                    tAnom += s.Bk * sumT * thp;
+                    fr += s.Bk * sumT * FrontSharp * s.K * (1.0 - thp * thp) * DMath.Abs(cqp) * TiltNorm;
+                    dpdx += s.Amp * (2.0 * s.InvLx2 * sumEx * cqp + sumE * s.K * sqp);
+                    dpdy += aeP * (2.0 * y * s.InvLy2 * cqp + s.K * s.Tilt * sqp);
+                    continue;
+                }
                 if (x > 3.0 * s.Lx || x < -3.0 * s.Lx) continue;
                 double ex = DMath.Exp(-(x * x * s.InvLx2 + y * y * s.InvLy2));
                 double q = s.K * (x + s.Tilt * y);
@@ -292,7 +351,9 @@ namespace AtmoSim.Core
             // humidity proxy
             double e = DMath.Exp(0.07 * (tSurf - Body.SurfaceMeanK));
             double hT = e / (1.0 + e);
-            double belt = DMath.Exp(-((latRad - f.ItczLat) * (latRad - f.ItczLat)) / 0.04);
+            double beltLat = latRad - f.ItczLat;
+            if (Body.ItczWiggleRad != 0.0) beltLat -= Body.ItczWiggleRad * DMath.Sin(2.0 * lonRad + f.PhW);
+            double belt = DMath.Exp(-(beltLat * beltLat) / 0.04);
             double sub;
             {
                 double e1 = D.Cells >= 2 ? D.Edge1 : 0.55;
@@ -306,28 +367,49 @@ namespace AtmoSim.Core
                 belt = belt * (1.0 - ssw) + beltSs * ssw;
                 sub *= (1.0 - ssw);
             }
-            double humidity = hT * (0.04 + 0.96 * moist) * (1.0 + 1.2 * belt) * (1.0 - 0.55 * sub);
-            humidity = DMath.Clamp(humidity, 0.0, 1.0);
+            // Hrel: the relative-humidity proxy from the moisture source (lift brings air to saturation at any temperature);
+            // the amount of water follows the temperature through h_T. humidity = h_T Hrel feeds the instability, dust and the profile;
+            // the cloud and the stratiform rain are driven by hLift = Hrel (floor + (1 - floor) h_T) (floor 0 = the signed H).
+            // the waves of the ITCZ modulate its lift and (partly) its moisture, so the belt has structure along its length
+            double itczM = 1.0;
+            if (Body.ItczLift > 0.0 && belt > 0.02)
+                itczM = DMath.Clamp(0.45 + 0.55 * (0.6 * DMath.Sin(3.0 * lonRad + f.Ph3) + 0.4 * DMath.Sin(5.0 * lonRad + f.Ph5)), 0.0, 1.0);
+            double ha = 0.04 + 0.96 * moist, hb = Body.ItczLift > 0.0 ? 1.0 + 1.2 * belt * (0.5 + 0.5 * itczM) : 1.0 + 1.2 * belt, hc = 1.0 - 0.55 * sub;
+            double humidity = DMath.Clamp(hT * ha * hb * hc, 0.0, 1.0);
+            double hLift = Body.LiftSaturationFloor == 0.0 ? humidity
+                : DMath.Clamp(ha * hb * hc * (Body.LiftSaturationFloor + (1.0 - Body.LiftSaturationFloor) * hT), 0.0, 1.0);
 
             // uplift, cloud water, rain
             double aref = 0.8 * D.PressureAmpPa;
             double lowP = p < 0.0 ? DMath.Min(1.0, -p / aref) : 0.0;
-            double uplift = DMath.Min(1.4, 0.85 * lowP + 0.5 * frontN);
-            double bg = DMath.Clamp(humidity * CloudBgGain - CloudBgOffset, 0.0, 1.0);
-            double xdyn = humidity * (UpliftGain * uplift + FrontGain * frontN);
+            double itczU = Body.ItczLift > 0.0 && belt > 0.02 ? Body.ItczLift * belt * itczM : 0.0;
+            double uplift = DMath.Min(1.4, 0.85 * lowP + 0.5 * frontN + itczU);
+            double bg = DMath.Clamp(hLift * CloudBgGain - CloudBgOffset, 0.0, 1.0);
+            double xdyn = hLift * (UpliftGain * uplift + FrontGain * frontN);
 
             // convective cells
             double warm = tAnom > 0.0 ? DMath.Min(1.0, tAnom / D.FrontAmpK) : 0.0;
             double solar = sunSin > 0.0 ? sunSin * (1.0 - 0.6 * moist) : 0.0;
             double inst = DMath.Clamp(1.3 * humidity + 0.3 * warm + 0.25 * solar - 0.3, 0.0, 1.0);
-            double pcell = Body.CellsEnabled ? DMath.Clamp(0.8 * frontN + 0.9 * DMath.Max(0.0, inst - 0.35) + 0.3 * uplift, 0.0, 0.95) : 0.0;
+            // convective initiation in the storm-track latitudes needs a trigger (lift along a front); free convection in the Hadley cell,
+            // on bodies without a storm track and in the sub-solar regime (L5)
+            double trig = 1.0, frontCell = frontN;
+            if (Body.CellTrigger)
+            {
+                double free = 1.0 - DMath.SmoothStep(D.Edge1 - 0.1, D.Edge1 + 0.15, la);
+                if (ssw > free) free = ssw;
+                double ft = DMath.SmoothStep(Body.CellTriggerLo, Body.CellTriggerHi, frontN);
+                trig = free + (1.0 - free) * ft;
+                frontCell = frontN * ft;
+            }
+            double pcell = Body.CellsEnabled ? DMath.Clamp(Body.CellFrontTerm * frontCell + trig * 0.9 * DMath.Max(0.0, inst - 0.35) + trig * 0.3 * uplift, 0.0, 0.95) : 0.0;
             double cs = 0.0, tower = 0.0;
             if (pcell > 0.02) cs = CellStrength(latRad, lonRad, ut, pcell, out tower);
 
             double cw = bg + xdyn + 0.7 * cs;
             if (cw > 1.5) cw = 1.5;
-            double pStrat = xdyn > StratThreshold ? StratRateMmH * (xdyn - StratThreshold) : 0.0;
-            double pConv = cs > CellRainThreshold ? ConvRateMmH * (cs - CellRainThreshold) / (1.0 - CellRainThreshold) : 0.0;
+            double pStrat = xdyn > Body.StratThreshold ? StratRateMmH * (xdyn - Body.StratThreshold) : 0.0;
+            double pConv = cs > Body.CellRainThreshold ? ConvRateMmH * (cs - Body.CellRainThreshold) / (1.0 - Body.CellRainThreshold) : 0.0;
             double precip = (pStrat + pConv) * Body.PrecipBodyFactor;
 
             // wind
@@ -340,7 +422,7 @@ namespace AtmoSim.Core
                 double vgm = DMath.Sqrt(ug * ug + vg * vg);
                 if (vgm > 1e-9)
                 {
-                    double vsat = DMath.Max(15.0, 2.0 * D.JetSpeed0);
+                    double vsat = DMath.Max(Body.WindSatMinMs, Body.WindSatJetFactor * D.JetSpeed0);
                     double sc = vsat * DMath.Tanh(vgm / vsat) / vgm;
                     ug *= sc; vg *= sc;
                 }
@@ -372,6 +454,17 @@ namespace AtmoSim.Core
             }
             double wind = DMath.Sqrt(windE * windE + windN * windN);
             double gust = 1.0 + 0.5 * cs + 0.3 * frontN;
+            if (Body.GustNoise > 0.0)
+            {
+                // time-correlated gusts (L6): value noise in time with a correlation of 30 minutes, hashed per coarse cell of about 25 km (the gust factor only;
+                // the mean wind is not touched), growing with the wind so a calm point has no gusts
+                double gt = ut / 1800.0;
+                double gi = DMath.Floor(gt), gu = gt - gi;
+                long gl = (long)DMath.Floor(latRad / 0.04), gn = (long)DMath.Floor(lonRad * cosLat / 0.04);
+                double g0 = Hash.Unit(Hash.Of(Seed ^ 0x6057600DUL, gl, gn, (long)gi)), g1 = Hash.Unit(Hash.Of(Seed ^ 0x6057600DUL, gl, gn, (long)gi + 1));
+                double gs = gu * gu * (3.0 - 2.0 * gu);
+                gust += Body.GustNoise * (g0 + (g1 - g0) * gs) * DMath.Min(1.0, wind / 8.0);
+            }
 
             // temperature: diurnal term, then altitude
             double diurnalAmp = Body.DiurnalLandAmpK * (1.0 - 0.7 * moist) * (1.0 - 0.5 * DMath.Min(1.0, 1.0 - DMath.Exp(-3.0 * cw)));
@@ -386,7 +479,7 @@ namespace AtmoSim.Core
             PrecipKind kind = PrecipKind.None;
             if (precip > 0.0)
             {
-                double twC = tAir - Body.FreezePointK - 1.2;
+                double twC = tAir - Body.SnowFreezeK - 1.2;
                 fs = 1.0 / (1.0 + DMath.Exp((twC - 1.0) / 0.9));
                 fRain = 1.0 - fs;
                 fl = 4.0 * fs * fRain;

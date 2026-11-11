@@ -29,13 +29,14 @@ namespace AtmoSim.Core
 
         // One step of dtDays. tml: mixed-layer temperature (K); h: ice thickness (m); tAir in K; solarWm2: daily mean absorbed-before-albedo flux;
         // snowM: snow depth on the ice; capJPerM2K: heat capacity of the mixed layer per area.
-        public static void Step(ref double tml, ref double h, double tAir, double solarWm2, double snowM, double tFreeze, double capJPerM2K, double dtDays)
+        // fluxK: the warming of the ice-free mixed layer's equilibrium by the ocean heat convergence (flux / SeaExchangeWm2K, L2); 0 = signed.
+        public static void Step(ref double tml, ref double h, double tAir, double solarWm2, double snowM, double tFreeze, double capJPerM2K, double dtDays, double fluxK = 0.0, bool smoothAlbedo = false)
         {
             double dtS = dtDays * 86400.0;
             if (h <= 0.0)
             {
                 double tau = capJPerM2K / SeaExchangeWm2K;
-                tml += (tAir - tml) * (1.0 - DMath.Exp(-dtS / tau));
+                tml += (tAir + fluxK - tml) * (1.0 - DMath.Exp(-dtS / tau));
                 if (tml <= tFreeze) { tml = tFreeze; h = NewIceM; }
                 return;
             }
@@ -47,7 +48,9 @@ namespace AtmoSim.Core
             }
             else
             {
-                double alb = snowM > 0.02 ? AlbedoSnowCovered : AlbedoIce;
+                // smoothAlbedo: the albedo follows the snow depth continuously (the signed step at 0.02 m changed the melt of the whole integration history when the snow at the
+                // evaluation time crossed it, a jump of 0.4 m of ice at one site in the continuity check); false = the signed step
+                double alb = smoothAlbedo ? AlbedoIce + (AlbedoSnowCovered - AlbedoIce) * DMath.SmoothStep(0.01, 0.04, snowM) : (snowM > 0.02 ? AlbedoSnowCovered : AlbedoIce);
                 double melt = MeltFactorMPerKDay * (tAir - tFreeze) * dtDays
                     + (1.0 - alb) * solarWm2 * dtS / (RhoIce * LatentFusion) * DMath.SmoothStep(-3.0, 0.0, tAir - tFreeze);
                 h -= melt;
@@ -62,16 +65,19 @@ namespace AtmoSim.Core
     public sealed class SurfaceSite
     {
         public const double StepS = 21600.0;
-        public const int SnowWindowSteps = 160;       // 40 days of 6 h
+        public const int SignedSnowWindowSteps = 160; // 40 days of 6 h (the signed window)
         public const int WetWindowSteps = 16;
         public const int DustWindowSteps = 40;
 
         private readonly WeatherGenerator g;
         private readonly BodyParams b;
-        private readonly double lat, lon, terrain, oc, quarterS, tFreeze, cap;
+        private readonly double lat, lon, terrain, oc, quarterS, tFreeze, cap, fluxK, tSnow;
         private readonly bool sea, dusty;
         private readonly double[] anchorTml = new double[4], anchorH = new double[4];
         private readonly int cap6;
+        // The snow window in 6-hour steps: a fixed fraction of the body's year (L3), 160 steps (40 days) where the lever is off.
+        private readonly int snowSteps;
+        private readonly bool smoothAlb;
         private readonly float[] tSer, pSer, wSer, hSer;
         // Per-step values that need an Exp, computed once with the sample: snow added by the step (water equivalent, mm) and the decay factor of the wet recurrence.
         private readonly double[] snowAdd, wetDecay;
@@ -90,8 +96,14 @@ namespace AtmoSim.Core
             quarterS = b.YearS / 4.0;
             tFreeze = b.FreezePointK;
             cap = b.SeaHeatCapacityPerM3 * b.MixedLayerDepthM;
+            fluxK = b.SeaHeatFluxWm2 / IceModel.SeaExchangeWm2K;
+            tSnow = b.SnowFreezeK;
+            smoothAlb = b.SmoothSnowAlbedo;
             int need = (int)Math.Ceiling(2.2 * quarterS / StepS) + 8;
-            cap6 = Math.Max(need, SnowWindowSteps + 8);
+            snowSteps = b.SnowWindowYearFraction > 0.0
+                ? (int)Math.Max(24, Math.Min(SignedSnowWindowSteps, Math.Round(b.SnowWindowYearFraction * b.YearS / StepS)))
+                : SignedSnowWindowSteps;
+            cap6 = Math.Max(need, snowSteps + 8);
             if (cap6 > 1400) cap6 = 1400;
             tSer = new float[cap6]; pSer = new float[cap6]; wSer = new float[cap6]; hSer = new float[cap6];
             snowAdd = new double[cap6]; wetDecay = new double[cap6];
@@ -121,7 +133,7 @@ namespace AtmoSim.Core
             while (t < 4.0 * year)
             {
                 double dt = Math.Min(dayS, 4.0 * year - t);
-                IceModel.Step(ref tml, ref h, ClimT(t + 0.5 * dt), ClimSolar(t + 0.5 * dt), 0.0, tFreeze, cap, dt / dayS);
+                IceModel.Step(ref tml, ref h, ClimT(t + 0.5 * dt), ClimSolar(t + 0.5 * dt), 0.0, tFreeze, cap, dt / dayS, fluxK);
                 t += dt;
             }
             // the fifth year: steps end exactly on the quarter-year boundaries, whose states are recorded
@@ -132,7 +144,7 @@ namespace AtmoSim.Core
                 while (t < qEnd - 1e-6)
                 {
                     double dt = Math.Min(dayS, qEnd - t);
-                    IceModel.Step(ref tml, ref h, ClimT(t + 0.5 * dt), ClimSolar(t + 0.5 * dt), 0.0, tFreeze, cap, dt / dayS);
+                    IceModel.Step(ref tml, ref h, ClimT(t + 0.5 * dt), ClimSolar(t + 0.5 * dt), 0.0, tFreeze, cap, dt / dayS, fluxK);
                     t += dt;
                 }
             }
@@ -155,7 +167,7 @@ namespace AtmoSim.Core
             g.Sample(lat, lon, terrain, step * StepS, out w);
             tSer[i] = (float)w.TempMeanK; pSer[i] = (float)w.PrecipMmH; wSer[i] = (float)w.WindSpeed; hSer[i] = (float)w.Humidity;
             double t = tSer[i], p = pSer[i];
-            snowAdd[i] = p > 0.0 ? p * 6.0 * (1.0 / (1.0 + DMath.Exp((t - tFreeze - 1.2 - 1.0) / 0.9))) : 0.0;
+            snowAdd[i] = p > 0.0 ? p * 6.0 * (1.0 / (1.0 + DMath.Exp((t - tSnow - 1.2 - 1.0) / 0.9))) : 0.0;
             double tau = 18.0 * DMath.Exp(-(t - 288.0) / 25.0);
             wetDecay[i] = DMath.Exp(-6.0 / DMath.Max(2.0, tau));
             stamp[i] = step; SamplesTaken++;
@@ -166,13 +178,13 @@ namespace AtmoSim.Core
         private double SnowBaseMm(double ut)
         {
             double t = ClimT(ut);
-            return 120.0 * DMath.SmoothStep(tFreeze - 1.0, tFreeze - 12.0, t);
+            return 120.0 * DMath.SmoothStep(tSnow - 1.0, tSnow - 12.0, t);
         }
 
-        // Snow water equivalent (mm) of the window of SnowWindowSteps ending at step m.
+        // Snow water equivalent (mm) of the window of snowSteps ending at step m.
         private double SweAt(long m)
         {
-            long m0 = m - SnowWindowSteps;
+            long m0 = m - snowSteps;
             double swe = SnowBaseMm(m0 * StepS);
             int i = Slot(m0 + 1);
             for (long s = m0 + 1; s <= m; s++, i = i + 1 == cap6 ? 0 : i + 1)
@@ -180,7 +192,7 @@ namespace AtmoSim.Core
                 if (stamp[i] != s) Fill(s, i);
                 double t = tSer[i], wnd = wSer[i];
                 swe += snowAdd[i];
-                if (t > tFreeze) swe -= 3.0 * (t - tFreeze) * 0.25;
+                if (t > tSnow) swe -= 3.0 * (t - tSnow) * 0.25;
                 swe -= 0.15 * 0.25 * (1.0 + wnd / 8.0);
                 if (wnd > 12.0) swe -= swe * DMath.Min(0.5, 0.02 * (wnd - 12.0) * 0.25);
                 if (swe < 0.0) swe = 0.0;
@@ -254,10 +266,21 @@ namespace AtmoSim.Core
                 double tm = 0.5 * (t + t + dt);
                 double iEnd = Interp(t + dt);
                 double meanT = 0.5 * (0.5 * (iStart + iEnd) + Interp(0.5 * (t + (t + dt))));
-                IceModel.Step(ref tml, ref h, meanT, ClimSolar(tm), snowM, tFreeze, cap, dt / 86400.0);
+                IceModel.Step(ref tml, ref h, meanT, ClimSolar(tm), snowM, tFreeze, cap, dt / 86400.0, fluxK, smoothAlb);
                 t += dt;
                 iStart = iEnd;
             }
+        }
+
+        // Diagnostic: the two integrations of the ice (from the anchor of the last quarter boundary and from the one before) and the cross-fade weight of the first.
+        public void DebugIce(double ut, out double hA, out double hB, out double wA)
+        {
+            long aIdx = (long)DMath.Floor(ut / quarterS);
+            double aUt = aIdx * quarterS, tml;
+            double snow = SweCached((long)DMath.Floor(ut / StepS)) * 0.008;
+            wA = DMath.SmoothStep(0.0, 0.5 * quarterS, ut - aUt);
+            IceFrom(aUt, aIdx, ut, snow, out tml, out hA);
+            IceFrom(aUt - quarterS, aIdx - 1, ut, snow, out tml, out hB);
         }
 
         public SurfaceState Evaluate(double ut)
